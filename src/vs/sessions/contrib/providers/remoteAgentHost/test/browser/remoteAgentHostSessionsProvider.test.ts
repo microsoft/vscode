@@ -979,7 +979,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		]);
 	});
 
-	test('stops a Dev Container after all active sessions become idle', async () => {
+	test('stops a Dev Container after all sessions have been idle for five minutes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const lifecycleCalls: string[] = [];
 		const provider = createProvider(disposables, connection, {
 			devContainerLifecycle: {
@@ -1001,24 +1001,30 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		connection.addSession({ ...createSession('idle-container'), status: ProtocolSessionStatus.Idle });
 		fireSessionSummaryChanged(connection, 'idle-container', ProtocolSessionStatus.Idle);
-		await timeout(0);
+		await timeout(5 * 60 * 1000);
 		assert.deepStrictEqual(lifecycleCalls, []);
 		connection.addSession({ ...createSession('still-active-container'), status: ProtocolSessionStatus.Idle });
 		fireSessionSummaryChanged(connection, 'still-active-container', ProtocolSessionStatus.Idle);
-		await timeout(0);
+		await timeout(2 * 60 * 1000);
+		fireSessionSummaryChanged(connection, 'still-active-container', ProtocolSessionStatus.Idle);
+		await timeout(3 * 60 * 1000 - 1);
+		const callsBeforeDeadline = [...lifecycleCalls];
+		await timeout(1);
 
 		assert.deepStrictEqual({
+			callsBeforeDeadline,
 			lifecycleCalls,
 			status: session.status.get(),
 			statuses: provider.getSessions().map(candidate => candidate.status.get()),
 		}, {
+			callsBeforeDeadline: [],
 			lifecycleCalls: ['stop'],
 			status: SessionStatus.Completed,
 			statuses: [SessionStatus.Completed, SessionStatus.Completed],
 		});
-	});
+	}));
 
-	test('keeps a Dev Container running while an unsent draft exists', async () => {
+	test('restarts the Dev Container idle countdown after an unsent draft is removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const lifecycleCalls: string[] = [];
 		const provider = createProvider(disposables, connection, {
 			devContainerLifecycle: {
@@ -1030,18 +1036,124 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await timeout(0);
 		connection.addSession({ ...createSession('idle-with-draft'), status: ProtocolSessionStatus.InProgress });
 		fireSessionAdded(connection, 'idle-with-draft', { status: ProtocolSessionStatus.InProgress });
+		connection.addSession({ ...createSession('idle-with-draft'), status: ProtocolSessionStatus.Idle });
+		fireSessionSummaryChanged(connection, 'idle-with-draft', ProtocolSessionStatus.Idle);
+		await timeout(4 * 60 * 1000);
 		const draft = provider.createNewSession(
 			URI.parse('vscode-agent-host://localhost__4321/home/user/project'),
 			provider.sessionTypes[0].id,
 		);
-
-		connection.addSession({ ...createSession('idle-with-draft'), status: ProtocolSessionStatus.Idle });
-		fireSessionSummaryChanged(connection, 'idle-with-draft', ProtocolSessionStatus.Idle);
-		await timeout(0);
+		await timeout(5 * 60 * 1000);
 
 		assert.deepStrictEqual(lifecycleCalls, []);
 		provider.deleteNewSession(draft.sessionId);
-	});
+		await timeout(5 * 60 * 1000 - 1);
+		const callsBeforeDeadline = [...lifecycleCalls];
+		await timeout(1);
+
+		assert.deepStrictEqual({ callsBeforeDeadline, lifecycleCalls }, {
+			callsBeforeDeadline: [],
+			lifecycleCalls: ['stop'],
+		});
+	}));
+
+	for (const activeStatus of [ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded]) {
+		test(`restarts the Dev Container idle countdown after activity (${activeStatus})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const lifecycleCalls: string[] = [];
+			createProvider(disposables, connection, {
+				devContainerLifecycle: {
+					connect: async () => { lifecycleCalls.push('connect'); },
+					stop: async () => { lifecycleCalls.push('stop'); return true; },
+					remove: async () => { lifecycleCalls.push('remove'); return true; },
+				},
+			});
+			await timeout(0);
+			connection.addSession(createSession('resumed-container', { status: ProtocolSessionStatus.Idle }));
+			fireSessionAdded(connection, 'resumed-container', { status: ProtocolSessionStatus.Idle });
+			await timeout(4 * 60 * 1000);
+			fireSessionSummaryChanged(connection, 'resumed-container', activeStatus);
+			await timeout(30 * 1000);
+			const callsWhileActive = [...lifecycleCalls];
+			fireSessionSummaryChanged(connection, 'resumed-container', ProtocolSessionStatus.Idle);
+			await timeout(5 * 60 * 1000 - 1);
+			const callsBeforeDeadline = [...lifecycleCalls];
+			await timeout(1);
+
+			assert.deepStrictEqual({ callsWhileActive, callsBeforeDeadline, lifecycleCalls }, {
+				callsWhileActive: [],
+				callsBeforeDeadline: [],
+				lifecycleCalls: ['stop'],
+			});
+		}));
+	}
+
+	for (const action of ['disconnect', 'dispose', 'archive', 'delete'] as const) {
+		test(`cancels the Dev Container idle countdown on ${action}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			connection.echoDispatchedActions = true;
+			connection.addSession(createSession('cleanup-container', { status: ProtocolSessionStatus.Idle }));
+			const lifecycleCalls: string[] = [];
+			const provider = createProvider(disposables, connection, {
+				devContainerLifecycle: {
+					connect: async () => { lifecycleCalls.push('connect'); },
+					stop: async () => { lifecycleCalls.push('stop'); return true; },
+					remove: async () => { lifecycleCalls.push('remove'); return true; },
+				},
+			});
+			await timeout(4 * 60 * 1000);
+			const session = provider.getSessions()[0];
+			switch (action) {
+				case 'disconnect':
+					provider.clearConnection();
+					break;
+				case 'dispose':
+					provider.dispose();
+					break;
+				case 'archive':
+					await provider.archiveSession(session.sessionId);
+					break;
+				case 'delete':
+					await provider.deleteSession(session.sessionId);
+					break;
+			}
+			const callsAfterAction = [...lifecycleCalls];
+			await timeout(5 * 60 * 1000);
+
+			const expectedCalls = action === 'archive' || action === 'delete' ? ['remove'] : [];
+			assert.deepStrictEqual({ callsAfterAction, lifecycleCalls }, {
+				callsAfterAction: expectedCalls,
+				lifecycleCalls: expectedCalls,
+			});
+		}));
+	}
+
+	test('starts a fresh Dev Container idle countdown after unarchiving', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.echoDispatchedActions = true;
+		connection.addSession(createSession('unarchived-container', { status: ProtocolSessionStatus.Idle }));
+		const lifecycleCalls: string[] = [];
+		const provider = createProvider(disposables, connection, {
+			devContainerLifecycle: {
+				connect: async () => {
+					lifecycleCalls.push('connect');
+					provider.setConnection(connection);
+				},
+				stop: async () => { lifecycleCalls.push('stop'); return true; },
+				remove: async () => { lifecycleCalls.push('remove'); return true; },
+			},
+		});
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		await provider.archiveSession(session.sessionId);
+		provider.clearConnection();
+		await provider.unarchiveSession(session.sessionId);
+		await timeout(5 * 60 * 1000 - 1);
+		const callsBeforeDeadline = [...lifecycleCalls];
+		await timeout(1);
+
+		assert.deepStrictEqual({ callsBeforeDeadline, lifecycleCalls }, {
+			callsBeforeDeadline: ['remove', 'connect'],
+			lifecycleCalls: ['remove', 'connect', 'stop'],
+		});
+	}));
 
 	test('does not remove a Dev Container or worktree when the host rejects archive', async () => {
 		const handle = '00000000-0000-4000-8000-000000000001';
@@ -1110,7 +1222,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('does not remove a shared Dev Container when another session remains unarchived', async () => {
+	test('does not remove a shared Dev Container when another session remains unarchived', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.echoDispatchedActions = true;
 		connection.addSession(createSession('shared-archive', { summary: 'Shared Archive' }));
 		connection.addSession(createSession('shared-remaining', { summary: 'Shared Remaining' }));
@@ -1128,15 +1240,20 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.ok(session);
 
 		await provider.archiveSession(session.sessionId);
+		await timeout(5 * 60 * 1000 - 1);
+		const operationsBeforeDeadline = [...operations];
+		await timeout(1);
 
 		assert.deepStrictEqual({
+			operationsBeforeDeadline,
 			operations,
 			archived: session.isArchived.get(),
 		}, {
+			operationsBeforeDeadline: [],
 			operations: ['stop'],
 			archived: true,
 		});
-	});
+	}));
 
 	test('deletes a detached Dev Container worktree when its draft is abandoned', async () => {
 		const handle = '00000000-0000-4000-8000-000000000001';

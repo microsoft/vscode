@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../../base/common/async.js';
+import { raceTimeout, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -53,6 +53,7 @@ import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/a
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v2.';
 const DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS = 5000;
+const DEV_CONTAINER_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 // TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
 const CACHED_SESSIONS_STORAGE_PREFIX_LEGACY = 'remoteAgentHost.cachedSessions.';
 
@@ -197,7 +198,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
 	private readonly _devContainerWorktreeScope: string | undefined;
 	private readonly _devContainerLifecycle: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle'];
-	private readonly _lastSessionStatuses = new Map<string, SessionStatus>();
+	private readonly _devContainerIdleScheduler = this._register(new RunOnceScheduler(() => {
+		void this._stopDevContainerIfIdle().catch(error =>
+			this._logService.error(`[${this.id}] Failed to stop idle Dev Container.`, error));
+	}, DEV_CONTAINER_IDLE_TIMEOUT_MS));
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
 	private readonly _storageKey: string;
 	/**
@@ -262,7 +266,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			: constObservable(false);
 		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
 		if (this._devContainerLifecycle) {
-			this._register(this._onDidChangeSessionsImmediately(e => this._onDevContainerSessionsChanged(e)));
+			this._register(Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event)(() => this._scheduleDevContainerStopIfIdle()));
 		}
 		this.updateResourceLabelHomes();
 		const displayName = config.name || config.address;
@@ -313,9 +317,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			await this._ensureDevContainerConnection();
 			await this._setDevContainerSessionArchived(sessionId, true);
 			if (this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get())) {
-				await this._stopDevContainerIfIdle();
+				this._scheduleDevContainerStopIfIdle();
 				return;
 			}
+			this._devContainerIdleScheduler.cancel();
 			if (await this._devContainerLifecycle.remove()) {
 				await this._setDetachedWorktreeArchived(sessionId, true);
 			}
@@ -342,6 +347,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			} catch (error) {
 				const hasOtherUnarchivedSession = this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get());
 				if (!hasOtherUnarchivedSession) {
+					this._devContainerIdleScheduler.cancel();
 					if (await this._devContainerLifecycle.remove()) {
 						await this._setDetachedWorktreeArchived(sessionId, true);
 					}
@@ -349,7 +355,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				throw error;
 			}
 			if (this.getSessions().find(session => session.sessionId === sessionId)?.status.get() === SessionStatus.Completed) {
-				await this._stopDevContainerIfIdle();
+				this._scheduleDevContainerStopIfIdle();
 			}
 			return;
 		}
@@ -373,6 +379,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	}
 
 	private async _ensureDevContainerConnection(): Promise<void> {
+		this._devContainerIdleScheduler.cancel();
 		if (this.connection || !this._devContainerLifecycle) {
 			return;
 		}
@@ -425,28 +432,24 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}
 	}
 
-	private _onDevContainerSessionsChanged(event: { readonly added: readonly ISession[]; readonly removed: readonly ISession[]; readonly changed: readonly ISession[] }): void {
-		for (const session of event.removed) {
-			this._lastSessionStatuses.delete(session.sessionId);
-		}
-		let becameIdle = false;
-		for (const session of [...event.added, ...event.changed]) {
-			const previous = this._lastSessionStatuses.get(session.sessionId);
-			const current = session.status.get();
-			this._lastSessionStatuses.set(session.sessionId, current);
-			becameIdle ||= previous !== undefined && isActiveSessionStatus(previous) && current === SessionStatus.Completed;
-		}
-		if (becameIdle && !this.getSessions().some(session => isActiveSessionStatus(session.status.get()))) {
-			void this._stopDevContainerIfIdle().catch(error =>
-				this._logService.error(`[${this.id}] Failed to stop idle Dev Container.`, error));
+	private _scheduleDevContainerStopIfIdle(): void {
+		if (!this._devContainerLifecycle || !this._isDevContainerIdle()) {
+			this._devContainerIdleScheduler.cancel();
+		} else if (!this._devContainerIdleScheduler.isScheduled()) {
+			this._devContainerIdleScheduler.schedule();
 		}
 	}
 
-	private async _stopDevContainerIfIdle(): Promise<void> {
-		if (this._devContainerLifecycle && !this.getKnownSessions().some(session => {
+	private _isDevContainerIdle(): boolean {
+		const sessions = this.getKnownSessions();
+		return !!this.connection && sessions.length > 0 && !sessions.some(session => {
 			const status = session.status.get();
 			return status === SessionStatus.Untitled || isActiveSessionStatus(status);
-		})) {
+		});
+	}
+
+	private async _stopDevContainerIfIdle(): Promise<void> {
+		if (this._devContainerLifecycle && this._isDevContainerIdle()) {
 			await this._devContainerLifecycle.stop();
 		}
 	}
@@ -470,6 +473,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		let canDeleteDetachedWorktrees = true;
 		if (!deleteError && this._devContainerLifecycle && hadSessions && this.getKnownSessions().length === 0) {
 			try {
+				this._devContainerIdleScheduler.cancel();
 				canDeleteDetachedWorktrees = await this._devContainerLifecycle.remove();
 			} catch (error) {
 				worktreeError = error;
@@ -780,6 +784,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		// `_refreshSessions` owns `_cacheInitialized` (set on a successful
 		// list) and arms a backoff retry if the first attempt fails.
 		this._refreshSessions(wasUnpublished);
+		this._scheduleDevContainerStopIfIdle();
 	}
 
 	/**
@@ -790,6 +795,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	 * host is unreachable should follow up with {@link unpublishCachedSessions}.
 	 */
 	clearConnection(): void {
+		this._devContainerIdleScheduler.cancel();
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
