@@ -7,6 +7,41 @@ import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.
 import type { IAgentHostNativeOTelConfig } from '../../common/otel/agentHostOTelService.js';
 import type { ThreadResumeParams } from './protocol/generated/v2/ThreadResumeParams.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
+import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
+
+const CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE = 'vscode-workspace';
+const CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE = 'vscode-workspace-network';
+const CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE = 'vscode-workspace-read-only';
+
+export function codexPermissionProfileOverrides(platform: NodeJS.Platform = process.platform): string[] {
+	const fileSystemOverride = platform === 'win32'
+		? ''
+		: `, filesystem = { ${[
+			`":root" = "deny"`,
+			`":minimal" = "read"`,
+			`":tmpdir" = "write"`,
+			`":slash_tmp" = "deny"`,
+		].join(', ')} }`;
+	const readOnlyProfile = platform === 'win32'
+		? `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = ":read-only" }`
+		: `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`;
+	return [
+		`default_permissions="${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}"`,
+		`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}={ extends = ":workspace"${fileSystemOverride}, network = { enabled = false } }`,
+		`permissions.${CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", network = { enabled = true } }`,
+		readOnlyProfile,
+	];
+}
+
+export function codexPermissionProfile(mode: SandboxMode, networkAccess: boolean): string {
+	if (mode === 'danger-full-access') {
+		return ':danger-full-access';
+	}
+	if (mode === 'read-only') {
+		return CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE;
+	}
+	return networkAccess ? CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE : CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE;
+}
 
 export interface ICodexLaunchProxy {
 	readonly baseUrl: string;
@@ -28,6 +63,7 @@ export function buildCodexResumeParams(
 	configOverrides: Readonly<Record<string, JsonValue>> = {},
 	developerInstructions?: string,
 	imageGenerationEnabled = false,
+	permissionOverrides: Pick<ThreadResumeParams, 'approvalPolicy' | 'approvalsReviewer' | 'permissions'> = {},
 ): ThreadResumeParams {
 	const config = {
 		...configOverrides,
@@ -43,6 +79,7 @@ export function buildCodexResumeParams(
 			cwd: workingDirectories[0],
 			runtimeWorkspaceRoots: [...workingDirectories],
 		} : {}),
+		...permissionOverrides,
 		...(Object.keys(config).length > 0 ? { config } : {}),
 		...(developerInstructions ? { developerInstructions } : {}),
 	};
@@ -76,10 +113,11 @@ export function buildCodexLaunchConfig(
 		// ChatGPT subscription threads opt in with a per-thread override.
 		`features.image_generation=false`,
 	];
+	const permissionOverrides = codexPermissionProfileOverrides();
 	const telemetryOverrides = codexTelemetryOverrides(telemetry);
 	return {
 		env,
-		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, ...telemetryOverrides.flatMap(value => ['-c', value])],
+		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, ...permissionOverrides.flatMap(value => ['-c', value]), ...telemetryOverrides.flatMap(value => ['-c', value])],
 	};
 }
 

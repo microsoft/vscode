@@ -88,7 +88,7 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
@@ -100,7 +100,6 @@ import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js'
 import type { Personality } from './protocol/generated/Personality.js';
 import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
-import type { SandboxPolicy } from './protocol/generated/v2/SandboxPolicy.js';
 import type { SelectedCapabilityRoot } from './protocol/generated/v2/SelectedCapabilityRoot.js';
 import type { CommandExecutionApprovalDecision } from './protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { CommandExecutionRequestApprovalParams } from './protocol/generated/v2/CommandExecutionRequestApprovalParams.js';
@@ -309,8 +308,8 @@ const codexSessionConfigSchema = createSchema({
 			localize('codex.sessionConfig.permissionsPreset.fullAccess', "Full Access"),
 		],
 		enumDescriptions: [
-			localize('codex.sessionConfig.permissionsPreset.defaultDescription', "Codex can read and edit files in the workspace and run routine local commands. It asks before using the internet or going beyond the workspace."),
-			localize('codex.sessionConfig.permissionsPreset.autoReviewDescription', "Same workspace access as Default, but approval requests are routed through the auto-reviewer instead of prompting you."),
+			localize('codex.sessionConfig.permissionsPreset.defaultDescription', "Codex can read and edit workspace files and run routine local commands under the platform sandbox. It asks before using the internet or requesting broader access."),
+			localize('codex.sessionConfig.permissionsPreset.autoReviewDescription', "Same sandboxed access as Default, but approval requests are routed through the auto-reviewer instead of prompting you."),
 			localize('codex.sessionConfig.permissionsPreset.fullAccessDescription', "Codex can edit files outside the workspace and use the internet without asking. Use only when you want full machine access."),
 		],
 		default: CODEX_DEFAULT_PERMISSIONS_PRESET,
@@ -1774,46 +1773,31 @@ export class CodexAgent extends Disposable implements IAgent {
 		return resolveCodexPermissions(migrateCodexPermissionValues(rawValues, defaults), defaults);
 	}
 
-	private _sandboxPolicy(session: ICodexSession, config: ReturnType<typeof codexSessionConfigSchema.validateOrDefault>, mode: SandboxMode): SandboxPolicy {
-		if (mode === 'danger-full-access') {
-			return { type: 'dangerFullAccess' };
-		}
-		const networkAccess = narrowBoolean(config[CodexSessionConfigKey.NetworkAccessEnabled]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.NetworkAccessEnabled];
-		if (mode === 'read-only') {
-			return { type: 'readOnly', networkAccess: false };
-		}
-		const additionalDirectories = narrowAdditionalDirectories(config[CodexSessionConfigKey.AdditionalDirectories]) ?? [];
-		const writableRoots = this._isMultiRootActive(session)
-			? distinctAbsolutePaths([
-				...this._runtimeWorkspaceRoots(session),
-				...additionalDirectories,
-			])
-			: [
-				...(session.workingDirectory ? [session.workingDirectory.fsPath] : []),
-				...additionalDirectories,
-			];
-		return {
-			type: 'workspaceWrite',
-			writableRoots,
-			networkAccess,
-			excludeTmpdirEnvVar: false,
-			excludeSlashTmp: false,
-		};
+	private _permissionProfile(config: ReturnType<typeof codexSessionConfigSchema.validateOrDefault>, mode: SandboxMode, networkAccessOverride?: boolean): string {
+		const networkAccess = networkAccessOverride
+			?? narrowBoolean(config[CodexSessionConfigKey.NetworkAccessEnabled])
+			?? codexSessionConfigDefaults[CodexSessionConfigKey.NetworkAccessEnabled];
+		return codexPermissionProfile(mode, networkAccess);
 	}
 
-	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions?: string, configResource: URI = session.sessionUri): Pick<TurnStartParams, 'approvalPolicy' | 'sandboxPolicy' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
+	private _permissionRuntimeWorkspaceRoots(workingDirectories: readonly string[], config: ReturnType<typeof codexSessionConfigSchema.validateOrDefault>, mode: SandboxMode): string[] | undefined {
+		const roots = distinctAbsolutePaths(mode === 'workspace-write'
+			? [
+				...workingDirectories,
+				...(narrowAdditionalDirectories(config[CodexSessionConfigKey.AdditionalDirectories]) ?? []),
+			]
+			: mode === 'read-only' || workingDirectories.length > 1 ? workingDirectories : []);
+		return roots.length ? roots : undefined;
+	}
+
+	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions?: string, configResource: URI = session.sessionUri): Pick<TurnStartParams, 'approvalPolicy' | 'permissions' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
 		const config = this._readSessionConfig(configResource);
 		const resolvedPermissions = this._resolveSessionPermissions(configResource);
 		const approvalPolicy = session.agentMergeTurn ? 'on-request' : resolvedPermissions.approvalPolicy;
 		const sandboxMode = session.agentMergeTurn && resolvedPermissions.sandboxMode === 'danger-full-access' ? 'workspace-write' : resolvedPermissions.sandboxMode;
 		const approvalsReviewer = resolvedPermissions.approvalsReviewer;
-		const resolvedSandboxPolicy = this._sandboxPolicy(session, config, sandboxMode);
-		const sandboxPolicy = session.agentMergeTurn && resolvedSandboxPolicy.type === 'workspaceWrite'
-			? { ...resolvedSandboxPolicy, networkAccess: false }
-			: resolvedSandboxPolicy;
-		const runtimeWorkspaceRoots = this._isMultiRootActive(session)
-			? this._runtimeWorkspaceRoots(session)
-			: (sandboxPolicy.type === 'workspaceWrite' ? sandboxPolicy.writableRoots : undefined);
+		const permissions = this._permissionProfile(config, sandboxMode, session.agentMergeTurn ? false : undefined);
+		const runtimeWorkspaceRoots = this._permissionRuntimeWorkspaceRoots(this._runtimeWorkspaceRoots(session), config, sandboxMode);
 		const effort = this._getReasoningEffort(session, configResource);
 		const personality = narrowPersonality(config[CodexSessionConfigKey.Personality]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.Personality];
 		const summary = narrowReasoningSummary(config[CodexSessionConfigKey.ReasoningSummary]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ReasoningSummary];
@@ -1829,7 +1813,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 		return {
 			approvalPolicy,
-			sandboxPolicy,
+			permissions,
 			approvalsReviewer,
 			effort,
 			personality,
@@ -2400,6 +2384,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		let child: ChildProcessWithoutNullStreams | undefined;
 		let client: CodexAppServerClient | undefined;
+		let sandboxTempDirectory: string | undefined;
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -2408,6 +2393,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
 			const launchConfig = buildCodexLaunchConfig(process.env, proxyHandle, extraArgs, telemetry);
 			const env = launchConfig.env;
+			sandboxTempDirectory = await fs.promises.mkdtemp(join(os.tmpdir(), 'vscode-agent-codex-sandbox-'));
+			env.TMPDIR = sandboxTempDirectory;
+			env.TMP = sandboxTempDirectory;
+			env.TEMP = sandboxTempDirectory;
 			const userCodexHome = process.env[AgentHostCodexAgentCodexHomeEnvVar];
 			if (userCodexHome) {
 				env.CODEX_HOME = userCodexHome;
@@ -2418,6 +2407,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			// exporter headers. Keep them out of the persistent agent-host log.
 			this._logService.info(`[Codex] spawning app-server from ${binaryPath}`);
 			child = spawn(binaryPath, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
+			const ownedSandboxTempDirectory = sandboxTempDirectory;
+			sandboxTempDirectory = undefined;
+			child.once('close', () => {
+				void fs.promises.rm(ownedSandboxTempDirectory, { recursive: true, force: true }).catch(error => {
+					this._logService.warn(`[Codex] failed to remove sandbox temp directory ${ownedSandboxTempDirectory}: ${error instanceof Error ? error.message : String(error)}`);
+				});
+			});
 
 			// Surface stderr to the log channel — codex writes useful startup
 			// diagnostics there. Mirror Claude's pattern.
@@ -2448,6 +2444,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			client?.dispose();
 			proxyHandle.dispose();
 			try { child?.kill('SIGKILL'); } catch { /* already dead */ }
+			if (sandboxTempDirectory) {
+				try { await fs.promises.rm(sandboxTempDirectory, { recursive: true, force: true }); } catch { /* best effort */ }
+			}
 			throw err;
 		}
 	}
@@ -4727,6 +4726,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// Permissions and settings come from the orchestrator-supplied
 			// config, never read back from the owning session's own state.
 			const resolvedConfig = options?.config ?? {};
+			const validatedConfig = codexSessionConfigSchema.validateOrDefault(resolvedConfig, codexSessionConfigDefaults);
 			const permissionDefaults = {
 				approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
 				sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
@@ -4735,6 +4735,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				migrateCodexPermissionValues(resolvedConfig, permissionDefaults),
 				permissionDefaults,
 			);
+			const permissions = this._permissionProfile(validatedConfig, sandboxMode);
+			const runtimeWorkspaceRoots = this._permissionRuntimeWorkspaceRoots([workingDirectory.fsPath], validatedConfig, sandboxMode);
 
 			// A scratch entry (never registered) lets the MCP/dynamic-tool helpers
 			// compute the thread/start params while the new chat's own client state
@@ -4742,7 +4744,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			const scratch = this._createResumedSessionEntry(owningSessionId, '', workingDirectory, model, target);
 			const mcpServers = this._buildSessionMcpServers(scratch);
 			const dynamicTools = this._buildDynamicTools(scratch);
-			const validatedConfig = codexSessionConfigSchema.validateOrDefault(resolvedConfig, codexSessionConfigDefaults);
 			const threadConfig: Record<string, JsonValue> = {
 				web_search: narrowWebSearchMode(validatedConfig[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
 				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
@@ -4755,10 +4756,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			const resolvedModel = parseCodexModelSelection(model);
 			const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
 				cwd: workingDirectory.fsPath,
+				...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
 				model: resolvedModel.modelId,
 				modelProvider: resolvedModel.modelProvider,
 				approvalPolicy,
-				sandbox: sandboxMode,
+				permissions,
 				approvalsReviewer,
 				config: threadConfig,
 				dynamicTools,
@@ -5086,10 +5088,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
 			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
 		};
+		const forkConfigValues = { ...sourceConfigValues, ...options?.config };
 		const { approvalPolicy, sandboxMode, approvalsReviewer } = resolveCodexPermissions(
-			migrateCodexPermissionValues({ ...sourceConfigValues, ...options?.config }, forkDefaults),
+			migrateCodexPermissionValues(forkConfigValues, forkDefaults),
 			forkDefaults,
 		);
+		const permissions = this._permissionProfile(codexSessionConfigSchema.validateOrDefault(forkConfigValues, codexSessionConfigDefaults), sandboxMode);
 		const forkManagedWorkingDirectory = sourceManagedWorkingDirectory
 			? await this._createManagedWorkingDirectory(`fork-${generateUuid()}`)
 			: undefined;
@@ -5124,7 +5128,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 				},
 				approvalPolicy,
-				sandbox: sandboxMode,
+				permissions,
 				approvalsReviewer,
 			});
 		} catch (err) {
@@ -5166,11 +5170,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				? URI.file(forkResult.cwd)
 				: (sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : options?.workingDirectories?.[0]));
 		const forkWorkingDirectories = multiRootEnabled
-			? distinctWorkingDirectories(
-				forkResult.runtimeWorkspaceRoots?.length
-					? forkResult.runtimeWorkspaceRoots.map(path => URI.file(path))
-					: inheritedWorkingDirectories,
-			)
+			? distinctWorkingDirectories(forkManagedWorkingDirectory ? [forkManagedWorkingDirectory] : inheritedWorkingDirectories)
 			: undefined;
 
 		const session = this._createResumedSessionEntry(
@@ -5332,9 +5332,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		const resolvedPermissions = this._resolveSessionPermissions(configResource);
-		const approvalPolicy = resolvedPermissions.approvalPolicy;
-		const sandboxMode = resolvedPermissions.sandboxMode;
-		const approvalsReviewer = resolvedPermissions.approvalsReviewer;
+		const { approvalPolicy, sandboxMode, approvalsReviewer } = resolvedPermissions;
+		const permissions = this._permissionProfile(config, sandboxMode);
 		// Attach the session's MCP servers per-thread (verified: codex starts
 		// them for this thread only): the workbench's root `mcpServers` config
 		// merged with this session's enabled client-plugin servers. Passing them
@@ -5358,7 +5357,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._logService.info(`[Codex] thread/start for session=${session.sessionUri.toString()} with ${mcpServerNames.length} MCP server(s): ${mcpServerNames.join(', ')}`);
 		}
 		const multiRootActive = this._isMultiRootActive(session);
-		const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
+		const runtimeWorkspaceRoots = this._permissionRuntimeWorkspaceRoots(this._runtimeWorkspaceRoots(session), config, sandboxMode);
 		const selectedCapabilityRoots = [
 			...(multiRootActive ? await this._selectedCapabilityRoots(session) : []),
 			...customizationLaunch.selectedCapabilityRoots,
@@ -5376,7 +5375,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			model: resolvedModel.modelId,
 			modelProvider: resolvedModel.modelProvider,
 			approvalPolicy,
-			sandbox: sandboxMode,
+			permissions,
 			approvalsReviewer,
 			config: threadConfig,
 			developerInstructions: customizationLaunch.developerInstructions,
@@ -6403,8 +6402,12 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 				const mcpServers = this._buildSessionMcpServers(session);
 				const customizationLaunch = await this._buildCustomizationLaunch(session);
-				const multiRootActive = this._isMultiRootActive(session);
-				const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
+				const config = this._readSessionConfig(session.configurationResource);
+				const resolvedPermissions = this._resolveSessionPermissions(session.configurationResource);
+				const approvalPolicy = session.agentMergeTurn ? 'on-request' : resolvedPermissions.approvalPolicy;
+				const sandboxMode = session.agentMergeTurn && resolvedPermissions.sandboxMode === 'danger-full-access' ? 'workspace-write' : resolvedPermissions.sandboxMode;
+				const permissions = this._permissionProfile(config, sandboxMode, session.agentMergeTurn ? false : undefined);
+				const runtimeWorkspaceRoots = this._permissionRuntimeWorkspaceRoots(this._runtimeWorkspaceRoots(session), config, sandboxMode);
 				const resolvedModel = parseCodexModelSelection(await this._resolveModel(session));
 				if (session.disposed) {
 					throw new CancellationError();
@@ -6421,6 +6424,7 @@ export class CodexAgent extends Disposable implements IAgent {
 							customizationLaunch.config,
 							customizationLaunch.developerInstructions,
 							this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
+							{ approvalPolicy, approvalsReviewer: resolvedPermissions.approvalsReviewer, permissions },
 						),
 						cwd: session.workingDirectory?.fsPath,
 					},
@@ -6435,7 +6439,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					}
 					throw new CancellationError();
 				}
-				if (multiRootActive && !session.workingDirectories && resumeResult.runtimeWorkspaceRoots?.length) {
+				if (this._isMultiRootActive(session) && !session.workingDirectories && resumeResult.runtimeWorkspaceRoots?.length) {
 					session.workingDirectories = resumeResult.runtimeWorkspaceRoots.map(path => URI.file(path));
 					session.workingDirectory = session.workingDirectories[0];
 				}
