@@ -36,6 +36,7 @@ import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js'
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import { GitRefType } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
@@ -7601,6 +7602,44 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- restoreSession -------------------------------------------------
 
 	suite('restoreSession', () => {
+
+		for (const cold of [true, false]) {
+			test(`folder selection replaces cached branch counts for a ${cold ? 'cold' : 'warm'} session`, async () => {
+				const db = new TestSessionDatabase();
+				const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/folder-summary' });
+				const cached = { additions: 100, deletions: 20, files: 8 };
+				const agent = disposables.add(new MockAgent('copilot'));
+				agent.resolvedWorkingDirectory = workingDirectory;
+				agent.sessionMetadataOverrides = { workingDirectories: [workingDirectory], changes: cached };
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({
+					provider: agent.id, workingDirectories: [workingDirectory], config: { [SessionConfigKey.Isolation]: 'folder' },
+				});
+				await db.setMetadata(META_CHANGES_SUMMARY, JSON.stringify(cached));
+				const stateManager = getStateManager(svc);
+				stateManager.setSessionSummaryChanges(session.toString(), cached);
+				if (cold) {
+					stateManager.deleteSession(session.toString());
+				}
+
+				await svc.subscribe(session, 'summary-client');
+				for (let i = 0; i < 100 && stateManager.getSessionSummary(session.toString())?.changes?.files !== 0; i++) {
+					await timeout(5);
+				}
+
+				assert.deepStrictEqual({
+					live: stateManager.getSessionSummary(session.toString())?.changes,
+					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					listed: (await svc.listSessions()).find(entry => entry.session.toString() === session.toString())?.changes,
+				}, {
+					live: { additions: 0, deletions: 0, files: 0 },
+					persisted: { additions: 0, deletions: 0, files: 0 },
+					listed: { additions: 0, deletions: 0, files: 0 },
+				});
+				svc.unsubscribe(session, 'summary-client');
+			});
+		}
 
 		async function waitForDraft(db: TestSessionDatabase, chat: URI, expected: unknown): Promise<void> {
 			for (let i = 0; i < 20; i++) {

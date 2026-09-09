@@ -20,9 +20,7 @@ export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
  */
 export const META_LEGACY_DIFFS = 'diffs';
 
-/**
- * Metadata key under which the session's changes is persisted.
- */
+/** Cached aggregate from Session Changes for folder sessions, otherwise Branch Changes. */
 export const META_CHANGES_SUMMARY = 'agentHost.changes';
 
 /**
@@ -180,10 +178,8 @@ export interface IAgentHostChangesetService {
 	 * aggregate should be advertised (loaded session whose `summary.changes`
 	 * the caller already projected, or no live/persisted source).
 	 *
-	 * Precedence: live session (caller owns projection) > persisted
-	 * `META_CHANGES_SUMMARY` blob > ready live `changeKind: 'session'`
-	 * changeset state > parsed persisted session-wide diff blob. The latter
-	 * two paths also migrate the result forward to {@link META_CHANGES_SUMMARY}.
+	 * Prefers live or persisted summary counts, falling back to legacy branch diffs.
+	 * Existing folder-session caches are refreshed from Session Changes when opened.
 	 */
 	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>): ChangesSummary | undefined;
 

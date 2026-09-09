@@ -17,6 +17,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
+import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
@@ -70,7 +71,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const logService = new NullLogService();
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
-		const changesets = new TestChangesetService(subscriptions);
+		const changesets = new TestChangesetService(subscriptions, stateManager);
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = gitServiceOverride ?? createGitService(root);
 		const gitStateService = disposables.add(new TestGitStateService());
@@ -97,6 +98,94 @@ suite('ChangesetSessionCoordinator', () => {
 		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
 		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator, updateOperationsCalls };
 	}
+
+	for (const isolation of ['folder', 'worktree', undefined]) {
+		test(`session subscription refreshes the summary source for ${isolation ?? 'unresolved'} isolation`, () => {
+			const { coordinator, stateManager, changesets, subscriptions } = createEnvironment();
+			const session = AgentSession.uri('mock', 'summary-source').toString();
+			createSession(stateManager, session);
+			stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: isolation } });
+
+			coordinator.onFirstSubscriber(URI.parse(session));
+			const subscribed = [...subscriptions.getSessionSubscriptions(session)];
+			coordinator.onLastSubscriber(URI.parse(session));
+			coordinator.onFirstSubscriber(URI.parse(session));
+			coordinator.onLastSubscriber(URI.parse(session));
+
+			assert.deepStrictEqual({
+				subscribed,
+				released: [...subscriptions.getSessionSubscriptions(session)],
+				branch: changesets.branchRefreshes,
+				session: changesets.sessionRefreshes,
+			}, {
+				subscribed: [session],
+				released: [],
+				branch: isolation === 'folder' ? [] : [session, session],
+				session: isolation === 'folder' ? [session, session] : [],
+			});
+		});
+	}
+
+	test('restored folder configuration refreshes existing implicit interest', () => {
+		const { coordinator, stateManager, changesets, subscriptions } = createEnvironment();
+		const session = AgentSession.uri('mock', 'restored-folder').toString();
+		createSession(stateManager, session);
+		coordinator.onFirstSubscriber(URI.parse(session));
+		changesets.clearRefreshes();
+
+		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'folder' } });
+		coordinator.onSessionConfigRestored(session);
+
+		assert.deepStrictEqual({
+			subscriptions: [...subscriptions.getSessionSubscriptions(session)],
+			branch: changesets.branchRefreshes,
+			session: changesets.sessionRefreshes,
+		}, {
+			subscriptions: [session],
+			branch: [],
+			session: [session],
+		});
+	});
+
+	for (const implicitFirst of [true, false]) {
+		test(`implicit and explicit summary subscriptions survive ${implicitFirst ? 'implicit' : 'explicit'} removal`, () => {
+			const { coordinator, stateManager, subscriptions } = createEnvironment();
+			const session = AgentSession.uri('mock', 'shared-interest').toString();
+			const changeset = buildSessionChangesetUri(session);
+			createSession(stateManager, session);
+			stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'folder' } });
+			coordinator.onFirstSubscriber(URI.parse(session));
+			coordinator.onFirstSubscriber(URI.parse(changeset));
+
+			coordinator.onLastSubscriber(URI.parse(implicitFirst ? session : changeset));
+			const remaining = [...subscriptions.getSessionSubscriptions(session)];
+			coordinator.onLastSubscriber(URI.parse(implicitFirst ? changeset : session));
+
+			assert.deepStrictEqual({ remaining, released: [...subscriptions.getSessionSubscriptions(session)] }, {
+				remaining: [implicitFirst ? changeset : session],
+				released: [],
+			});
+		});
+	}
+
+	test('isolation changes refresh the summary for the session and inheriting subagents', () => {
+		const { coordinator, stateManager, changesets } = createEnvironment();
+		const session = AgentSession.uri('mock', 'parent-summary').toString();
+		const child = buildSubagentSessionUri(session, 'tool-1');
+		createSession(stateManager, session);
+		createSession(stateManager, child);
+		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		coordinator.onFirstSubscriber(URI.parse(session));
+		coordinator.onFirstSubscriber(URI.parse(child));
+		changesets.clearRefreshes();
+
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.Isolation]: 'folder' } });
+
+		assert.deepStrictEqual({ branch: changesets.branchRefreshes, session: changesets.sessionRefreshes }, {
+			branch: [],
+			session: [session, child],
+		});
+	});
 
 	test('refreshes changeset operations when a session gains or loses a working directory', () => {
 		const session = AgentSession.uri('mock', 'session-wd').toString();
@@ -972,7 +1061,10 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly workingDirectoryAvailable: string[] = [];
 	readonly recomputed: string[] = [];
 
-	constructor(private readonly _subscriptions: IAgentHostChangesetSubscriptionService) { }
+	constructor(
+		private readonly _subscriptions: IAgentHostChangesetSubscriptionService,
+		private readonly _stateManager: AgentHostStateManager,
+	) { }
 
 	registerStaticChangesets(_session: string): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
@@ -995,7 +1087,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	}
 	recomputeSubscribedChangesets(session: string): void {
 		this.recomputed.push(session);
-		for (const changeset of this._subscriptions.getSessionSubscriptions(session)) {
+		for (const changeset of resolveChangesetSubscriptions(this._stateManager, session, this._subscriptions.getSessionSubscriptions(session))) {
 			const parsed = parseChangesetUri(changeset);
 			switch (parsed?.kind) {
 				case ChangesetKind.Branch:
@@ -1006,12 +1098,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 					break;
 				case ChangesetKind.Uncommitted:
 					void this.computeUncommittedChangeset(session);
-					break;
-				default:
-					if (changeset === session) {
-						this.refreshBranchChangeset(session);
-						this.refreshSessionChangeset(session);
-					}
 					break;
 			}
 		}

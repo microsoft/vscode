@@ -21,6 +21,7 @@ import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
@@ -1450,6 +1451,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 		log?: RecordingLogService;
 		telemetry?: ITelemetryService;
 		subscriptions?: string[];
+		isolation?: 'folder' | 'worktree';
 		peer?: { resource: string; db: TestSessionDatabase; turnId: string; onDispose?: () => void };
 	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const log = options.log ?? new RecordingLogService();
@@ -1502,6 +1504,12 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: options.workingDirectories,
 		});
+		if (options.isolation) {
+			stateManager.setSessionConfig(sessionStr, {
+				schema: { type: 'object', properties: {} },
+				values: { [SessionConfigKey.Isolation]: options.isolation },
+			});
+		}
 		if (options.peer) {
 			stateManager.addChat(sessionStr, options.peer.resource);
 			stateManager.dispatchServerAction(options.peer.resource, {
@@ -2331,6 +2339,216 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				branchFiles: [URI.file('/repoA/a.ts').toString()],
 				loggedRepoB: true,
 			}, 'a secondary failure must not publish a partial summary or fail the independent primary branch changeset');
+		});
+	});
+
+	suite('summary source selection', () => {
+		const sessionChangeset = buildSessionChangesetUri(sessionStr);
+		const branchChangeset = buildBranchChangesetUri(sessionStr);
+		const oldSummary = { additions: 100, deletions: 20, files: 8 };
+		const sessionSummary = { additions: 3, deletions: 1, files: 1 };
+
+		function completeTurn(stateManager: AgentHostStateManager): void {
+			const chat = buildDefaultChatUri(sessionStr);
+			stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'turn-summary', startedAt: new Date(0).toISOString(),
+				message: { text: 'edit', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-summary', duration: 1 });
+		}
+
+		function summaryCheckpoint(): IAgentHostCheckpointService {
+			return {
+				...NULL_CHECKPOINT_SERVICE,
+				getBaselineCheckpoint: async () => 'baseline',
+				getTurnCheckpointPair: async () => ({ parent: 'start', current: 'end' }),
+			};
+		}
+
+		for (const isolation of ['folder', 'worktree'] as const) {
+			test(`${isolation} session persists only its selected summary source`, async () => {
+				const git = createNoopGitService();
+				const calls: { fromRef: string; toRef: string }[] = [];
+				git.computeSessionFileDiffs = async () => [gitDiff('/wd/branch.ts', 100, 20)];
+				git.computeFileDiffsBetweenRefs = async (_wd, options) => {
+					calls.push({ fromRef: options.fromRef, toRef: options.toRef });
+					return [gitDiff('/wd/session.ts', 3, 1)];
+				};
+				const db = new TestSessionDatabase();
+				const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], isolation, git, checkpoint: summaryCheckpoint(), db });
+				completeTurn(stateManager);
+
+				svc.refreshSessionChangeset(sessionStr);
+				await waitForChangesetReady(stateManager, sessionChangeset);
+				svc.refreshBranchChangeset(sessionStr);
+				await waitForChangesetReady(stateManager, branchChangeset);
+				svc.refreshSessionChangeset(sessionStr);
+				await waitForChangesetReady(stateManager, sessionChangeset);
+
+				const expected = isolation === 'folder' ? sessionSummary : { additions: 100, deletions: 20, files: 1 };
+				assert.deepStrictEqual({
+					live: stateManager.getSessionSummary(sessionStr)?.changes,
+					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					calls,
+				}, {
+					live: expected,
+					persisted: expected,
+					calls: [{ fromRef: 'baseline', toRef: 'end' }, { fromRef: 'baseline', toRef: 'end' }],
+				});
+			});
+		}
+
+		test('refresh replaces legacy folder counts under the existing key and preserves them on list reads', async () => {
+			const db = new TestSessionDatabase();
+			await db.setMetadata(META_CHANGES_SUMMARY, JSON.stringify(oldSummary));
+			const git = createNoopGitService();
+			git.computeFileDiffsBetweenRefs = async () => [gitDiff('/wd/session.ts', 3, 1)];
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], isolation: 'folder', git, checkpoint: summaryCheckpoint(), db });
+			completeTurn(stateManager);
+			stateManager.setSessionSummaryChanges(sessionStr, oldSummary);
+			svc.restoreStaticChangeset(sessionStr, 'session', [gitDiff('/wd/legacy.ts', 100, 20)]);
+
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, sessionChangeset);
+			const live = stateManager.getSessionSummary(sessionStr)?.changes;
+			const persisted = await db.getMetadata(META_CHANGES_SUMMARY);
+			stateManager.deleteSession(sessionStr);
+
+			assert.deepStrictEqual({
+				live,
+				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted }),
+			}, { live: sessionSummary, listed: sessionSummary });
+		});
+
+		test('unopened sessions keep cached branch counts without recomputing', async () => {
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
+			stateManager.deleteSession(sessionStr);
+			assert.deepStrictEqual(svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: JSON.stringify(oldSummary) }), oldSummary);
+		});
+
+		test('an empty folder session result overwrites cached counts with zero', async () => {
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], isolation: 'folder', git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
+			stateManager.setSessionSummaryChanges(sessionStr, oldSummary);
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, sessionChangeset);
+			assert.deepStrictEqual({
+				live: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+			}, { live: { additions: 0, deletions: 0, files: 0 }, persisted: { additions: 0, deletions: 0, files: 0 } });
+		});
+
+		test('non-git folder summaries include tracked edits from peer chats', async () => {
+			const db = new TestSessionDatabase();
+			const peerDb = new TestSessionDatabase();
+			peerDb.addEdit({
+				turnId: 'peer-turn', toolCallId: 'peer-tool', filePath: '/wd/peer.txt', kind: FileEditKind.Edit,
+				addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
+			});
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///wd'], isolation: 'folder', git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db,
+				peer: { resource: buildChatUri(sessionStr, 'peer'), db: peerDb, turnId: 'peer-turn' },
+			});
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, sessionChangeset);
+			assert.deepStrictEqual(stateManager.getSessionSummary(sessionStr)?.changes, { additions: 1, deletions: 0, files: 1 });
+		});
+
+		for (const primaryAvailable of [true, false]) {
+			test(`multi-folder summary matches Session Changes without branch fan-out (primary available: ${primaryAvailable})`, async () => {
+				const calls: string[] = [];
+				const git = createNoopGitService();
+				git.computeSessionFileDiffs = async wd => {
+					calls.push(wd.toString());
+					return primaryAvailable ? [gitDiff('/repoA/branch.ts', 100, 20)] : undefined;
+				};
+				git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repoA/session.ts', 3, 1)];
+				const { svc, stateManager } = build({
+					workingDirectories: ['file:///repoA', 'file:///repoB'], isolation: 'folder', git, checkpoint: summaryCheckpoint(),
+				});
+				completeTurn(stateManager);
+				svc.refreshSessionChangeset(sessionStr);
+				await waitForChangesetReady(stateManager, sessionChangeset);
+				svc.restoreStaticChangeset(sessionStr, 'branch', []);
+				svc.refreshBranchChangeset(sessionStr);
+				await waitForChangesetReady(stateManager, branchChangeset);
+
+				assert.deepStrictEqual({ changes: stateManager.getSessionSummary(sessionStr)?.changes, calls }, {
+					changes: sessionSummary,
+					calls: ['file:///repoA'],
+				});
+			});
+		}
+
+		test('implicit and explicit session changeset subscriptions trigger only one compute', async () => {
+			let calls = 0;
+			const git = createNoopGitService();
+			git.computeFileDiffsBetweenRefs = async () => { calls++; return [gitDiff('/wd/session.ts', 3, 1)]; };
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///wd'], isolation: 'folder', git, checkpoint: summaryCheckpoint(),
+				subscriptions: [sessionStr, sessionChangeset],
+			});
+			completeTurn(stateManager);
+			svc.recomputeSubscribedChangesets(sessionStr);
+			await waitForChangesetReady(stateManager, sessionChangeset);
+			assert.strictEqual(calls, 1);
+		});
+
+		for (const cached of [undefined, oldSummary]) {
+			test(`failed folder refresh preserves ${cached ? 'legacy counts' : 'unavailable counts'}`, async () => {
+				class FailingDatabase extends TestSessionDatabase {
+					override async getAllFileEdits(): Promise<never> { throw new Error('cannot read edits'); }
+				}
+				const db = new FailingDatabase();
+				if (cached) {
+					await db.setMetadata(META_CHANGES_SUMMARY, JSON.stringify(cached));
+				}
+				const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], isolation: 'folder', git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
+				stateManager.setSessionSummaryChanges(sessionStr, cached);
+				svc.refreshSessionChangeset(sessionStr);
+				for (let i = 0; i < 500 && stateManager.getChangesetState(sessionChangeset)?.status !== ChangesetStatus.Error; i++) {
+					await timeout(1);
+				}
+				assert.deepStrictEqual({
+					status: stateManager.getChangesetState(sessionChangeset)?.status,
+					changes: stateManager.getSessionSummary(sessionStr)?.changes,
+					persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+				}, { status: ChangesetStatus.Error, changes: cached, persisted: cached ? JSON.stringify(cached) : undefined });
+			});
+		}
+
+		test('a branch fan-out started before folder conversion cannot overwrite the session summary', async () => {
+			const started = new DeferredPromise<void>();
+			const secondary = new DeferredPromise<readonly ISessionFileDiff[]>();
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => wd;
+			git.computeSessionFileDiffs = async wd => {
+				if (wd.toString() === 'file:///repoB') {
+					void started.complete();
+					return secondary.p;
+				}
+				return [gitDiff('/repoA/branch.ts', 100, 20)];
+			};
+			git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repoA/session.ts', 3, 1)];
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repoA', 'file:///repoB'], isolation: 'worktree', git, checkpoint: summaryCheckpoint(), db,
+			});
+			completeTurn(stateManager);
+			svc.refreshBranchChangeset(sessionStr);
+			await started.p;
+			stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.Isolation]: 'folder' } });
+			svc.refreshSessionChangeset(sessionStr);
+			await waitForChangesetReady(stateManager, sessionChangeset);
+			await secondary.complete([gitDiff('/repoB/branch.ts', 100, 20)]);
+			for (let i = 0; i < 500 && svc.isStaticChangesetComputeActive(branchChangeset); i++) {
+				await timeout(1);
+			}
+			assert.deepStrictEqual({
+				computing: svc.isStaticChangesetComputeActive(branchChangeset),
+				changes: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+			}, { computing: false, changes: sessionSummary, persisted: sessionSummary });
 		});
 	});
 

@@ -11,7 +11,8 @@ import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
-import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
@@ -302,6 +303,39 @@ suite('AgentHostChangesetOperationService', () => {
 		// multi-folder-empties tests above, this covers the enter/leave transition.
 		assert.deepStrictEqual(dispatched, [sampleOperations]);
 	});
+
+	for (const isolation of ['folder', 'worktree'] as const) {
+		test(`implicit ${isolation} summary interest refreshes operations on the selected changeset once`, () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const sessionKey = 'agent:/session';
+			stateManager.createSession({
+				resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			});
+			stateManager.setSessionConfig(sessionKey, {
+				schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: isolation },
+			});
+			const changesetUri = isolation === 'folder' ? buildSessionChangesetUri(sessionKey) : buildBranchChangesetUri(sessionKey);
+			stateManager.registerChangeset(changesetUri);
+			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
+			subscriptions.addSubscription(sessionKey, sessionKey);
+			subscriptions.addSubscription(sessionKey, changesetUri);
+			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a'])));
+			disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+			const channels: string[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChangesetOperationsChanged) {
+					channels.push(envelope.channel);
+				}
+			}));
+
+			service.updateOperations(sessionKey, undefined, sampleGitState);
+
+			assert.deepStrictEqual({ channels, operations: stateManager.getChangesetState(changesetUri)?.operations }, {
+				channels: [changesetUri], operations: sampleOperations,
+			});
+		});
+	}
 
 	test('multi-folder session clears turn operations even when git state is absent', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));

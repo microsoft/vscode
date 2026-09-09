@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agent.js';
-import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
@@ -16,6 +16,8 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { readAgentMergeSessionState } from '../common/agentMerge.js';
 import { isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getSessionChangesSummaryKind } from './agentHostChangesetSummary.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -96,6 +98,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	/** Refreshes config-dependent catalogue entries after restored session config is seeded. */
 	onSessionConfigRestored(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
+		if (getSessionChangesSummaryKind(this._stateManager, sessionStr) === 'session') {
+			this._changesets.recomputeSubscribedChangesets(sessionStr);
+		}
 	}
 
 	/**
@@ -130,6 +135,14 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (wasEnabled !== isEnabled) {
 			this._changesets.refreshChangesetCatalog(session);
 		}
+		if (previous?.values[SessionConfigKey.Isolation] !== current?.values[SessionConfigKey.Isolation]) {
+			this._changesets.recomputeSubscribedChangesets(session);
+			for (const candidate of this._stateManager.getSessionUris()) {
+				if (parseSubagentSessionUri(candidate)?.parentSession.toString() === session) {
+					this._changesets.recomputeSubscribedChangesets(candidate);
+				}
+			}
+		}
 	}
 
 	// ---- Subscription hooks -------------------------------------------------
@@ -149,12 +162,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const parsed = parseChangesetUri(resourceStr);
 
 		if (!parsed && !isAhpChatChannel(resourceStr) && this._stateManager.getSessionState(resourceStr)) {
-			// For the session URI, we add a subscription for the branch
-			// changeset since this is the changeset that is being used to
-			// track the changes that are being used to calculate the diff
-			// statistics for the session changes.
-			this._addSubscription(resourceStr, buildBranchChangesetUri(resourceStr));
-			this._changesets.refreshBranchChangeset(resourceStr);
+			// Keep implicit summary interest separate from explicit changeset subscriptions.
+			this._addSubscription(resourceStr, resourceStr);
+			if (getSessionChangesSummaryKind(this._stateManager, resourceStr) === 'session') {
+				this._changesets.refreshSessionChangeset(resourceStr);
+			} else {
+				this._changesets.refreshBranchChangeset(resourceStr);
+			}
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 
 			return;
