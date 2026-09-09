@@ -40,6 +40,8 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';
+import '../../../../chat/browser/media/chatWidget.css';
+import '../../../../chat/browser/media/chatInput.css';
 
 suite('AgentHostModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -162,6 +164,44 @@ suite('AgentHostModePicker', () => {
 	test('uses one shared tooltip for the combined label', () => {
 		const { trigger, hoverTargets } = setup();
 		assert.deepStrictEqual(hoverTargets.map(target => target === trigger), [true]);
+	});
+
+	test('new-chat controls keep the same padding and compact dimensions as in-session controls', () => {
+		const states = [];
+		for (const newChat of [false, true]) {
+			const { picker } = setup();
+			const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+			store.add({ dispose: () => workbench.remove() });
+			workbench.style.setProperty('--vscode-spacing-size60', '6px');
+			workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+			const host = dom.append(workbench, dom.$(newChat ? '.new-chat-widget-container.revealed' : '.interactive-session'));
+			const toolbar = dom.append(host, dom.$(newChat ? '.new-chat-bottom-container' : '.chat-secondary-toolbar'));
+			const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+			const actions = dom.append(actionBar, dom.$('ul.actions-container'));
+			const item = dom.append(actions, dom.$('li.action-item'));
+			const trigger = picker.render(item);
+			const mode = trigger.querySelector<HTMLElement>('.agent-host-mode-button')!;
+			const permissions = trigger.querySelector<HTMLElement>('.agent-host-permissions-button')!;
+			const expanded = {
+				padding: dom.getWindow(trigger).getComputedStyle(trigger).padding,
+				height: trigger.getBoundingClientRect().height,
+				gap: permissions.firstElementChild!.getBoundingClientRect().left - mode.lastElementChild!.getBoundingClientRect().right,
+				leftInset: mode.firstElementChild!.getBoundingClientRect().left - trigger.getBoundingClientRect().left,
+				rightInset: trigger.getBoundingClientRect().right - permissions.lastElementChild!.getBoundingClientRect().right,
+			};
+			item.classList.add('compact-picker');
+			const compact = {
+				width: trigger.getBoundingClientRect().width,
+				height: trigger.getBoundingClientRect().height,
+				permissions: dom.getWindow(permissions).getComputedStyle(permissions).display,
+			};
+			states.push({ newChat, expanded, compact });
+		}
+		assert.deepStrictEqual(states, [false, true].map(newChat => ({
+			newChat,
+			expanded: { padding: '0px', height: 22, gap: 6, leftInset: 6, rightInset: 6 },
+			compact: { width: 22, height: 22, permissions: 'none' },
+		})));
 	});
 
 	test('combines labels with one icon and places expandable permissions below the modes', () => {

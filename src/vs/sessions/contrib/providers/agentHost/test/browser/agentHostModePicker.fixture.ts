@@ -39,10 +39,11 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import '../../../../chat/browser/media/chatWidget.css';
+import '../../../../chat/browser/media/chatInput.css';
 import '../../../../../browser/media/style.css';
 
-async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean } = {}): Promise<void> {
-	const { editor = false, openMode = false } = options;
+async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly compact?: boolean } = {}): Promise<void> {
+	const { editor = false, openMode = false, newChat = false, compact = false } = options;
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench', 'interactive-session', 'modern-ui', 'monaco-enable-motion');
 	if (!editor) {
@@ -126,15 +127,22 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 	}());
 	instantiationService.set(IContextViewService, disposableStore.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.set(IActionWidgetService, disposableStore.add(instantiationService.createInstance(ActionWidgetService)));
-	const toolbar = dom.append(container, dom.$('.interactive-input-part'));
+	const toolbar = dom.append(container, dom.$(newChat ? '.new-chat-widget-container.revealed' : '.interactive-input-part'));
 	toolbar.style.position = 'absolute';
 	toolbar.style.left = '350px';
 	toolbar.style.bottom = '8px';
-	const secondaryToolbar = dom.append(toolbar, dom.$('.chat-secondary-toolbar'));
-	const inputToolbar = dom.append(secondaryToolbar, dom.$('.chat-secondary-input-toolbar'));
+	if (newChat) {
+		toolbar.style.width = 'max-content';
+		toolbar.style.height = 'auto';
+		toolbar.style.padding = '0';
+		toolbar.style.setProperty('--session-view-background', 'var(--vscode-editor-background)');
+	}
+	const secondaryToolbar = dom.append(toolbar, dom.$(newChat ? '.new-chat-bottom-container' : '.chat-secondary-toolbar'));
+	const inputToolbar = dom.append(secondaryToolbar, dom.$(newChat ? '.new-chat-session-controls' : '.chat-secondary-input-toolbar'));
 	const actionBar = dom.append(inputToolbar, dom.$('.monaco-action-bar'));
 	const actions = dom.append(actionBar, dom.$('ul.actions-container'));
 	const actionItem = dom.append(actions, dom.$('li.action-item'));
+	actionItem.classList.toggle('compact-picker', compact);
 	if (editor) {
 		const state = new class extends mock<SessionState>() {
 			override readonly config = config;
@@ -191,4 +199,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentHostModePicker' }
 	EditorMode: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, false, { editor: true }) }),
 	EditorPermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Assisted, false, true, { editor: true }) }),
 	EditorAllowAllPermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.AutoApprove, true, true, { editor: true }) }),
+	NewChat: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, false, { newChat: true }) }),
+	NewChatPermissions: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, true, { newChat: true }) }),
+	NewChatCompact: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, false, { newChat: true, compact: true }) }),
 });

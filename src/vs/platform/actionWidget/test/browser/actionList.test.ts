@@ -10,6 +10,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Event as CommonEvent } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -177,6 +178,37 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('recycled action icons do not retain a previous fallback or theme color', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('fallback')],
+			listOptions: { showFilter: false },
+		});
+		widget.domNode.style.setProperty('--vscode-editorLightBulb-foreground', '#ffcc00');
+		widget.domNode.style.setProperty('--vscode-problemsWarningIcon-foreground', '#ffaa00');
+		widget.domNode.style.color = '#123456';
+		const originalIcon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row > .codicon')!;
+		const iconState = () => {
+			const icon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row > .codicon')!;
+			return { reused: icon === originalIcon, inlineColor: icon.style.color, color: mainWindow.getComputedStyle(icon).color };
+		};
+		const states = [iconState()];
+		const icons = [
+			Codicon.shield,
+			{ ...Codicon.warning, color: { id: 'problemsWarningIcon.foreground' } },
+			Codicon.shield,
+		];
+		for (const icon of icons) {
+			widget.updateItems([{ ...action(icon.id), group: { title: '', icon } }]);
+			states.push(iconState());
+		}
+		assert.deepStrictEqual(states, [
+			{ reused: true, inlineColor: 'var(--vscode-editorLightBulb-foreground)', color: 'rgb(255, 204, 0)' },
+			{ reused: true, inlineColor: '', color: 'rgb(18, 52, 86)' },
+			{ reused: true, inlineColor: 'var(--vscode-problemsWarningIcon-foreground)', color: 'rgb(255, 170, 0)' },
+			{ reused: true, inlineColor: '', color: 'rgb(18, 52, 86)' },
+		]);
+	});
 
 	test('opening under a stationary pointer preserves keyboard focus and selection', () => {
 		const selected: string[] = [];
@@ -1208,6 +1240,77 @@ suite('ActionListWidget', () => {
 			{ focusStayedOutside: document.activeElement === outside, rows: getVisibleRowText(widget) },
 			{ focusStayedOutside: true, rows: ['one', 'two', 'three'] },
 		);
+	});
+
+	test('refreshing the initial selection stays quiet until hover or keyboard navigation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const items = [
+			{ ...action('selected'), item: { id: 'selected', checked: true }, hover: { content: 'Selected details' } },
+			{ ...action('other'), hover: { content: 'Other details' } },
+		];
+		const widget = createActionListWidget(disposables, {
+			items,
+			listOptions: { showFilter: false },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const state = () => ({
+			focused: widget.getFocusedElement()?.item?.id,
+			display: panel.style.display,
+			text: panel.textContent,
+			listFocused: widget.domNode.querySelector('.monaco-list') === document.activeElement,
+		});
+		widget.focus();
+		const initial = state();
+		widget.updateItems(items.map(item => ({ ...item })));
+		await timeout(1000);
+		const refreshed = state();
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		await timeout(1000);
+		const hovered = state();
+		widget.focusNext();
+		const navigated = state();
+
+		assert.deepStrictEqual({ initial, refreshed, hovered, navigated }, {
+			initial: { focused: 'selected', display: 'none', text: '', listFocused: true },
+			refreshed: { focused: 'selected', display: 'none', text: '', listFocused: true },
+			hovered: { focused: 'selected', display: '', text: 'Selected details', listFocused: true },
+			navigated: { focused: 'other', display: '', text: 'Other details', listFocused: true },
+		});
+	}));
+
+	for (const persistentHover of [false, true]) {
+		test(`refreshing an open hover preserves its latest content: persistent=${persistentHover}`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('selected'), item: { id: 'selected', checked: true }, hover: { content: 'Original details' } }],
+				listOptions: { showFilter: false, persistentHover },
+			});
+			widget.focus();
+			widget.showHoverForCheckedItem();
+			widget.updateItems([{ ...action('selected'), item: { id: 'selected', checked: true }, hover: { content: 'Updated details' } }]);
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+			assert.deepStrictEqual({ focused: widget.getFocusedElement()?.item?.id, display: panel.style.display, text: panel.textContent }, {
+				focused: 'selected', display: '', text: 'Updated details',
+			});
+		});
+	}
+
+	test('an explicit focus target after refreshing can still open a hover', () => {
+		const items = [
+			{ ...action('selected'), item: { id: 'selected', checked: true }, hover: { content: 'Selected details' } },
+			{ ...action('other'), hover: { content: 'Other details' } },
+		];
+		const widget = createActionListWidget(disposables, {
+			items,
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.updateItems(items, 'other');
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+		assert.deepStrictEqual({ focused: widget.getFocusedElement()?.item?.id, display: panel.style.display, text: panel.textContent }, {
+			focused: 'other', display: '', text: 'Other details',
+		});
 	});
 
 	test('shows a row hover panel once the hover delay elapses', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

@@ -215,6 +215,54 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('new-chat primary pickers match the input control height without clipping split model sections', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-spacing-size60', '6px');
+		workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		const states = [];
+		for (const newChatInSession of [false, true]) {
+			const host = dom.append(workbench, dom.$(newChatInSession ? '.new-chat-in-session' : 'div'));
+			const widget = dom.append(host, dom.$('.new-chat-widget-container.revealed'));
+			const toolbar = dom.append(widget, dom.$('.sessions-chat-toolbar'));
+			const config = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
+			const actionBar = dom.append(config, dom.$('.monaco-action-bar'));
+			const actions = dom.append(actionBar, dom.$('ul.actions-container'));
+			const agentItem = dom.append(actions, dom.$('li.action-item.chat-input-picker-item'));
+			const agent = dom.append(agentItem, dom.$('a.action-label'));
+			const agentIcon = dom.append(agent, dom.$('span.codicon.codicon-agent-compact'));
+			dom.append(agent, dom.$('span.chat-input-picker-label', undefined, 'Agent'));
+			const modelItem = dom.append(actions, dom.$('li.action-item.chat-input-picker-item.model-picker-item'));
+			const model = dom.append(modelItem, dom.$('div.action-label.model-picker-split'));
+			const modelName = dom.append(model, dom.$('a.model-picker-section.model-picker-name'));
+			const modelIcon = dom.append(modelName, dom.$('span.codicon.codicon-rocket-compact'));
+			dom.append(modelName, dom.$('span.chat-input-picker-label', undefined, 'GPT-5.6 Sol Fast'));
+			const modelConfig = dom.append(model, dom.$('a.model-picker-section.model-picker-config', undefined, 'Max'));
+			const bounds = actions.getBoundingClientRect();
+			states.push({
+				newChatInSession,
+				controlHeights: [agent, model, modelName, modelConfig].map(node => node.getBoundingClientRect().height),
+				iconSizes: [agentIcon, modelIcon].map(icon => {
+					const rect = icon.getBoundingClientRect();
+					return { width: rect.width, height: rect.height, fontSize: dom.getWindow(icon).getComputedStyle(icon).fontSize };
+				}),
+				modelPadding: dom.getWindow(model).getComputedStyle(model).padding,
+				sectionsFit: [modelName, modelConfig].every(section => {
+					const rect = section.getBoundingClientRect();
+					const parent = model.getBoundingClientRect();
+					return rect.top >= bounds.top && rect.bottom <= bounds.bottom && rect.top >= parent.top && rect.bottom <= parent.bottom;
+				}),
+			});
+		}
+		assert.deepStrictEqual(states, [false, true].map(newChatInSession => ({
+			newChatInSession,
+			controlHeights: [22, 22, 22, 22],
+			iconSizes: [{ width: 12, height: 12, fontSize: '12px' }, { width: 12, height: 12, fontSize: '12px' }],
+			modelPadding: '0px',
+			sectionsFit: true,
+		})));
+	});
+
 	test('uses the compact control box for bottom-row status icons', () => {
 		const workbench = dom.append(document.body, dom.$('.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));

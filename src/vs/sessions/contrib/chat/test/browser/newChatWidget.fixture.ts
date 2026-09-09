@@ -85,6 +85,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly withAttachedContext?: boolean;
 	readonly withControlPickers?: boolean;
 	readonly withAutoModel?: boolean;
+	readonly withConfiguredModel?: boolean;
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
 	readonly migrationCount?: number;
@@ -171,6 +172,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withAttachedContext = false,
 		withControlPickers = false,
 		withAutoModel = false,
+		withConfiguredModel = false,
 		primaryToolbarWidth,
 		phoneLayout = false,
 		migrationCount = 0,
@@ -187,7 +189,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}));
 	const workspace = createFixtureWorkspace(withRemoteWorkspace);
 	const sessionTypes = createFixtureSessionTypes();
-	const provider = createFixtureProvider(workspace, sessionTypes, withAutoModel ? [createFixtureAutoModel()] : []);
+	const provider = createFixtureProvider(workspace, sessionTypes, withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : []);
 	const activeSession = promptOptions || withWorkspace || withRemoteWorkspace || withAttachedContext ? createFixtureActiveSession(workspace, sessionTypes[0]) : undefined;
 	const activeSessionObservable = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	const composerService = disposableStore.add(new NewSessionComposerService());
@@ -199,7 +201,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
-			if (withAutoModel) {
+			if (withAutoModel || withConfiguredModel) {
 				reg.define(IMenuService, AutoModelFixtureMenuService);
 			}
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
@@ -462,6 +464,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		expectedVisualDescriptions: ['The new-session input toolbar shows the Auto model picker in compact mode as a centered Copilot icon inside a 22-pixel square control aligned with the expanded toolbar height.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, primaryToolbarWidth: 25 }),
 	}),
+	NewSessionConfiguredModel: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withConfiguredModel: true }),
+	}),
+	NewSessionCompactConfiguredModel: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withConfiguredModel: true, primaryToolbarWidth: 140 }),
+	}),
 	NewSessionWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left, with Customize aligned to the right edge of the input. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker. Pill and dropdown labels use the same body text size, and their leading icons use the same base icon size.'],
@@ -651,7 +661,7 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 				showFeatured: false,
 				showUnavailableFeatured: false,
 				showManageModelsAction: false,
-				showAutoModel: true,
+				showAutoModel: !models.length || models.some(model => model.metadata.id === 'auto'),
 			};
 		}
 
@@ -672,6 +682,41 @@ function createFixtureAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 			maxInputTokens: 128000,
 			maxOutputTokens: 4096,
 			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+		},
+	};
+}
+
+function createFixtureConfiguredModel(): ILanguageModelChatMetadataAndIdentifier {
+	return {
+		identifier: 'copilot/gpt-5.6-sol-fast',
+		metadata: {
+			extension: new ExtensionIdentifier('github.copilot-chat'),
+			id: 'gpt-5.6-sol-fast',
+			name: 'GPT-5.6 Sol Fast (Internal only)',
+			vendor: 'copilot',
+			version: '1',
+			family: 'gpt',
+			maxInputTokens: 1000000,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+			configurationSchema: {
+				properties: {
+					effort: {
+						type: 'string',
+						group: 'navigation',
+						enum: ['low', 'medium', 'high'],
+						enumItemLabels: ['Low', 'Medium', 'Max'],
+						default: 'high',
+					},
+					context: {
+						type: 'string',
+						group: 'tokens',
+						enum: ['default', 'long'],
+						enumItemLabels: ['Default', '1M'],
+						default: 'long',
+					},
+				},
+			},
 		},
 	};
 }

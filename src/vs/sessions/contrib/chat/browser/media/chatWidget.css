@@ -230,6 +230,14 @@
 	background-color: var(--session-view-background);
 }
 
+.new-chat-bottom-container .sessions-chat-picker-slot > .action-label.agent-host-mode-permissions-trigger {
+	padding: 0;
+}
+
+.new-chat-bottom-container .agent-host-mode-picker-button:active {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 /* Over a chat background these chips sit straight on the wallpaper with nothing
  * to separate their opaque surface from it, so give them a frame — the same move
  * the in-session secondary toolbar makes in chatView.css. High-contrast themes

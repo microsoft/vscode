@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -53,6 +54,7 @@ suite('Combined mode and permissions picker', () => {
 				kind: ActionListItemKind.Action,
 				label,
 				detail: `${label} description`,
+				hover: { content: `${label} details` },
 				item: toAction({
 					id: label, label,
 					checked: label === 'Manual permissions',
@@ -66,6 +68,7 @@ suite('Combined mode and permissions picker', () => {
 			{
 				kind: ActionListItemKind.Action,
 				label: 'Sandboxing for terminal',
+				group: { title: '', icon: Codicon.shield },
 				item: toAction({ id: 'sandbox', label: 'Sandboxing for terminal', run: () => { } }),
 				standaloneToggle: {
 					label: 'Sandboxing for terminal',
@@ -107,7 +110,7 @@ suite('Combined mode and permissions picker', () => {
 		const permissionHeader = () => container.querySelector<HTMLElement>('.agent-host-mode-permissions')!;
 		const popup = container.querySelector<HTMLElement>('.agent-host-mode-permissions-popup')!;
 		const labels = () => Array.from(popup.querySelectorAll('.monaco-list-row.action > .title'), label => label.textContent);
-		return { container, service, popup, permissionHeader, labels, selections, show, getCloses: () => closes, isSandboxed: () => sandboxed };
+		return { container, service, popup, permissionHeader, labels, selections, show, items, getCloses: () => closes, isSandboxed: () => sandboxed };
 	}
 
 	function highlightedLabels(popup: HTMLElement): (string | null)[] {
@@ -204,6 +207,54 @@ suite('Combined mode and permissions picker', () => {
 			popups: 1,
 			lists: 1,
 		});
+	});
+
+	test('opening permissions stays quiet when the sandbox state immediately refreshes', () => {
+		const { service, popup, items, selections } = setup(true);
+		service.updateItems(items.map(item => item.standaloneToggle
+			? { ...item, standaloneToggle: { ...item.standaloneToggle, disabled: true } }
+			: item));
+		const panel = popup.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const refreshed = {
+			hoverDisplay: panel.style.display,
+			hoverText: panel.textContent,
+			focused: getRow(popup, 'Manual permissions').classList.contains('focused'),
+			highlights: highlightedLabels(popup),
+			selections: selectedLabels(popup),
+		};
+		service.focusNext();
+
+		assert.deepStrictEqual({ refreshed, hoverAfterNavigation: panel.textContent, activated: selections }, {
+			refreshed: {
+				hoverDisplay: 'none',
+				hoverText: '',
+				focused: true,
+				highlights: ['Interactive', 'Manual permissions'],
+				selections: ['Interactive', 'Manual permissions'],
+			},
+			hoverAfterNavigation: 'Assisted permissions details',
+			activated: [],
+		});
+	});
+
+	test('sandbox shields remain neutral after opening or expanding permissions', () => {
+		const states = [false, true].map(openPermissions => {
+			const { container, service, popup } = setup(openPermissions);
+			container.style.setProperty('--vscode-editorLightBulb-foreground', '#ffcc00');
+			container.style.setProperty('--vscode-menu-foreground', '#123456');
+			if (!openPermissions) {
+				service.focusItemById('agentHostModePicker.permissions');
+				service.expandSection();
+			}
+			const row = getRow(popup, 'Sandboxing for terminal');
+			const icon = row.querySelector<HTMLElement>('.codicon-shield')!;
+			return {
+				openPermissions,
+				inlineColor: icon.style.color,
+				inheritsRowColor: dom.getWindow(icon).getComputedStyle(icon).color === dom.getWindow(row).getComputedStyle(row).color,
+			};
+		});
+		assert.deepStrictEqual(states, [false, true].map(openPermissions => ({ openPermissions, inlineColor: '', inheritsRowColor: true })));
 	});
 
 	test('the permissions disclosure remains keyboard-accessible after opening on the current permission', () => {

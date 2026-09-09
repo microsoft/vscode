@@ -345,9 +345,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.icon.style.color = '';
 		} else if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
-			if (element.group.icon.color) {
-				data.icon.style.color = asCssVariable(element.group.icon.color.id);
-			}
+			data.icon.style.color = element.group.icon.color ? asCssVariable(element.group.icon.color.id) : '';
 		} else {
 			data.icon.className = ThemeIcon.asClassName(Codicon.lightBulb);
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
@@ -1579,8 +1577,9 @@ export class ActionListWidget<T> extends Disposable {
 		// otherwise keeps it from re-anchoring against a trigger that the same action
 		// just re-rendered.
 		const suppressHover = this._suppressHover;
-		this._suppressHover ||= preserveHover;
+		this._suppressHover ||= preserveHover || (!this._currentSubmenuElement && !this._options?.persistentHover);
 		try {
+			// Restoring focus after a passive refresh must not open an unrequested hover.
 			this._applyFilter(false, false, preserveHover ? focusItemId ?? expandedItemId : undefined);
 		} finally {
 			this._suppressHover = suppressHover;
@@ -1651,6 +1650,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _focusCheckedOrFirst(): void {
+		const suppressHover = this._suppressHover;
 		this._suppressHover = true;
 		try {
 			const initialFocusItemId = this._initialFocusItemId;
@@ -1710,7 +1710,7 @@ export class ActionListWidget<T> extends Disposable {
 				this._list.reveal(focused[0]);
 			}
 		} finally {
-			this._suppressHover = false;
+			this._suppressHover = suppressHover;
 			if (this._options?.filterAsCombobox) {
 				// The focused row may be unchanged when the filter regains DOM focus.
 				this._updateFilterActiveDescendant();
