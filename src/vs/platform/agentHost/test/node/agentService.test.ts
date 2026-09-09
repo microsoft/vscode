@@ -1482,17 +1482,26 @@ suite('AgentService (node dispatcher)', () => {
 		disposables.add(getStateManager(service).onDidEmitNotification(notification => notifications.push(notification)));
 
 		const session = await service.createSession({ provider: agent.id, workingDirectories: [repository] });
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(getStateManager(service).onDidEmitEnvelope(envelope => envelopes.push(envelope)));
 		agent.materialize(session, worktree);
 
 		const added = notifications.find(notification => notification.type === NotificationType.SessionAdded);
+		const replacement = envelopes.find(envelope => envelope.action.type === ActionType.SessionWorkingDirectoryReplaced);
 		assert.deepStrictEqual({
 			stateBranch: readSessionGitState(getStateManager(service).getSessionState(session.toString())?._meta)?.branchName,
 			summaryBranch: added?.type === NotificationType.SessionAdded ? readSessionGitState(added.summary._meta)?.branchName : undefined,
 			workingDirectory: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories?.[0] : undefined,
+			replacement: replacement?.action,
 		}, {
 			stateBranch: branchName,
 			summaryBranch: branchName,
 			workingDirectory: worktree.toString(),
+			replacement: {
+				type: ActionType.SessionWorkingDirectoryReplaced,
+				directory: repository.toString(),
+				replacement: worktree.toString(),
+			},
 		});
 	});
 
