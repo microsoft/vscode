@@ -17,7 +17,7 @@ import type { DebianArchString } from './types.ts';
 const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
 const REPO_ROOT = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
-const VSCODE_SYSROOT_VERSION = '20260908-471715';
+const VSCODE_SYSROOT_VERSION = '20260909-472333';
 
 const ghApiHeaders: Record<string, string> = {
 	Accept: 'application/vnd.github.v3+json',
