@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { getWindow } from '../../../../base/browser/dom.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../services/layout/browser/layoutService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -136,6 +138,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 	) {
 		super();
 
@@ -151,7 +154,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 				const layoutAffectingState = this.getLayoutAffectingState();
 				if (layoutAffectingState !== this.layoutAffectingState) {
 					this.layoutAffectingState = layoutAffectingState;
-					this.layoutService.layout();
+					this.layout();
 				}
 			}
 		}));
@@ -164,6 +167,15 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		}));
 
 		this.update();
+	}
+
+	private layout(): void {
+		this.layoutService.layout();
+		for (const container of this.layoutService.containers) {
+			if (container !== this.layoutService.mainContainer) {
+				this.auxiliaryWindowService.getWindow(getWindow(container).vscodeWindowId)?.layout();
+			}
+		}
 	}
 
 	private isEnabled(): boolean {
