@@ -49,7 +49,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -63,6 +63,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION } from '../../node/copilot/prompts/toolInstructions.js';
@@ -200,11 +201,13 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 		sessionUri?: URI;
 		resourceUri?: URI;
 		chatChannelUri?: URI;
+		usesStaticGitHubToken?: boolean;
 		bindChatChannel?: (uri: URI) => void;
 		destroySession?: () => Promise<void>;
 	};
 	typed.sessionId ??= sessionId;
 	typed.sessionUri ??= sessionUri;
+	typed.usesStaticGitHubToken ??= true;
 	// A session-backed (default) chat's host-chosen persistence scope is the
 	// session itself; that is how the agent identifies it without rebuilding a
 	// default-chat URI (see `CopilotAgent._findSessionChat`).
@@ -767,6 +770,7 @@ interface IFakeAgentSession {
 
 interface ICredentialUpdateSession {
 	readonly hasActiveTurn: boolean;
+	readonly usesStaticGitHubToken?: boolean;
 	updateGitHubCredentials(host: string, token: string): Promise<{ readonly success: boolean; readonly copilotUserResolved?: boolean }>;
 	dispose(): void;
 }
@@ -777,6 +781,7 @@ class MockCopilotSession {
 	readonly workingDirectoryCalls: string[] = [];
 	readonly workingDirectoryErrors: Array<Error | undefined> = [];
 	readonly workingDirectoryResults: string[] = [];
+	readonly gitHubCredentialUpdates: Array<{ credentials: { type: 'token'; host: string; token: string } }> = [];
 	readonly rpc = {
 		eventLog: {
 			registerInterest: async () => ({ handle: 'sampling-interest' }),
@@ -786,7 +791,10 @@ class MockCopilotSession {
 			update: async () => ({ success: true }),
 		},
 		gitHubAuth: {
-			setCredentials: async () => ({ success: true, copilotUserResolved: true }),
+			setCredentials: async (params: { credentials: { type: 'token'; host: string; token: string } }) => {
+				this.gitHubCredentialUpdates.push(params);
+				return { success: true, copilotUserResolved: true };
+			},
 		},
 		permissions: {
 			setMode: async ({ mode }: { mode: PermissionMode }) => ({ success: true, mode }),
@@ -1196,7 +1204,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 		resolvedAgentName: undefined,
 		snapshot: options?.snapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager,
-		githubToken: 'token',
+		githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 		model: undefined,
 	};
 	return { session: agentInternals._createAgentSession(launchPlan, options?.workingDirectory, activeClient), activeClient, createOptions: () => createOptions };
@@ -2618,7 +2626,7 @@ suite('CopilotAgent', () => {
 			await waitForState(agent.models, models => models.length === 0);
 
 			assert.deepStrictEqual({
-				githubToken: agent['_githubToken'],
+				githubToken: agent['_githubCredentials'].token,
 				models: agent.models.get(),
 			}, {
 				githubToken: undefined,
@@ -2658,7 +2666,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('updates every live session after a changed auth token without restarting an unchanged proxy', async () => {
+	test('updates live sessions and restarts only when the credential mode changes', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
 			name: 'GPT-4o',
@@ -2666,6 +2674,7 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		const first = {
 			hasActiveTurn: false,
+			usesStaticGitHubToken: true,
 			updates: [] as Array<{ host: string; token: string }>,
 			async updateGitHubCredentials(host: string, token: string) {
 				this.updates.push({ host, token });
@@ -2675,6 +2684,7 @@ suite('CopilotAgent', () => {
 		} satisfies ICredentialUpdateSession & { updates: Array<{ host: string; token: string }> };
 		const second = {
 			hasActiveTurn: false,
+			usesStaticGitHubToken: true,
 			updates: [] as Array<{ host: string; token: string }>,
 			async updateGitHubCredentials(host: string, token: string) {
 				this.updates.push({ host, token });
@@ -2688,15 +2698,20 @@ suite('CopilotAgent', () => {
 			setDefaultSessionStub(agent, 'second', second);
 			await agent.authenticate('https://api.github.com', 'model-token-a');
 			await agent.authenticate('https://api.github.com', 'model-token-a');
+			await agent.authenticate('https://api.github.com', 'model-token-a', 7200);
 
 			assert.deepStrictEqual({
 				firstUpdates: first.updates,
 				secondUpdates: second.updates,
 				stops: client.stopCallCount,
 			}, {
-				firstUpdates: [{ host: 'https://github.com', token: 'model-token-a' }],
-				secondUpdates: [{ host: 'https://github.com', token: 'model-token-a' }],
-				stops: 0,
+				firstUpdates: [
+					{ host: 'https://github.com', token: 'model-token-a' },
+				],
+				secondUpdates: [
+					{ host: 'https://github.com', token: 'model-token-a' },
+				],
+				stops: 1,
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -10194,8 +10209,57 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					configToken: capturedConfig?.gitHubToken,
+					hasTokenProvider: capturedConfig?.gitHubTokenProvider !== undefined,
 				}, {
 					configToken: 'gh-token-abc',
+					hasTokenProvider: false,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materialization uses refreshable GitHub credentials when the lifetime is known', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const mockSession = new MockCopilotSession();
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			client.createSession = async config => {
+				capturedConfig = config;
+				return mockSession as unknown as CopilotSession;
+			};
+
+			try {
+				await agent.authenticate('https://api.github.com', 'initial-token', 3600);
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'refreshable-token-session'),
+					workingDirectories: [URI.file('/workspace')],
+				});
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
+
+				const provider = capturedConfig?.gitHubTokenProvider;
+				assert.ok(provider);
+				const refresh = provider({ host: 'github.com', sessionId: 'refreshable-token-session', reason: 'refresh' });
+				const authenticationRequired = agent.authenticationRequired.get();
+				await agent.authenticate('https://api.github.com', 'refreshed-token', 7200);
+				await refresh;
+
+				assert.deepStrictEqual({
+					gitHubToken: capturedConfig?.gitHubToken,
+					hasTokenProvider: capturedConfig?.gitHubTokenProvider !== undefined,
+					authenticationRequired,
+					credentialUpdates: mockSession.gitHubCredentialUpdates,
+					clientStops: client.stopCallCount,
+				}, {
+					gitHubToken: undefined,
+					hasTokenProvider: true,
+					authenticationRequired: {
+						resource: GITHUB_COPILOT_PROTECTED_RESOURCE,
+						reason: AuthRequiredReason.Expired,
+					},
+					credentialUpdates: [],
+					clientStops: 0,
 				});
 			} finally {
 				await disposeAgent(agent);
