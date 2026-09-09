@@ -6,17 +6,20 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { EventEmitter } from 'events';
+import { promises } from 'fs';
 import { AddressInfo, connect, createServer, Server, Socket } from 'net';
 import { tmpdir } from 'os';
 import { Barrier, timeout } from '../../../../common/async.js';
 import { VSBuffer } from '../../../../common/buffer.js';
 import { Emitter, Event } from '../../../../common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
+import { join } from '../../../../common/path.js';
 import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType, SocketTimeoutReason } from '../../common/ipc.net.js';
-import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from '../../node/ipc.net.js';
+import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, serve, WebSocketNodeSocket } from '../../node/ipc.net.js';
 import { flakySuite } from '../../../../test/common/testUtils.js';
 import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
+import { generateUuid } from '../../../../common/uuid.js';
 
 class MessageStream extends Disposable {
 
@@ -641,6 +644,45 @@ flakySuite('IPC, create handle', () => {
 
 	test('createStaticIPCHandle', async () => {
 		return testIPCHandle(createStaticIPCHandle(tmpdir(), 'test', '1.64.0'));
+	});
+
+	test('createStaticIPCHandle without version', async () => {
+		return testIPCHandle(createStaticIPCHandle(tmpdir(), 'test'));
+	});
+
+	test('createStaticIPCHandle is deterministic and independent of an omitted version', () => {
+		const handleA = createStaticIPCHandle('/a', 'lock');
+		const handleB = createStaticIPCHandle('/a', 'lock');
+		const handleC = createStaticIPCHandle('/b', 'lock');
+		const handleD = createStaticIPCHandle('/a', 'lock', '1.64.0');
+
+		assert.strictEqual(handleA, handleB);
+		assert.notStrictEqual(handleA, handleC);
+		assert.notStrictEqual(handleA, handleD);
+	});
+
+	test('serving the same static IPC handle twice fails', async () => {
+		const uniqueDir = join(tmpdir(), `vscode-ipc-test-${generateUuid()}`);
+		await promises.mkdir(uniqueDir, { recursive: true });
+
+		const handle = createStaticIPCHandle(uniqueDir, 'lock');
+		const disposables = new DisposableStore();
+
+		try {
+			disposables.add(await serve(handle));
+
+			// A second server cannot bind the same handle, which is what
+			// makes static handles usable as process locks
+			await assert.rejects(async () => {
+				disposables.add(await serve(handle));
+			}, (error: NodeJS.ErrnoException) => error.code === 'EADDRINUSE' || error.code === 'EACCES');
+		} finally {
+			disposables.dispose();
+
+			// The socket file may live outside of `uniqueDir` (XDG_RUNTIME_DIR)
+			await promises.unlink(handle).catch(() => { /* ignored */ });
+			await promises.rm(uniqueDir, { recursive: true, force: true }).catch(() => { /* ignored */ });
+		}
 	});
 
 	function testIPCHandle(handle: string): Promise<void> {
