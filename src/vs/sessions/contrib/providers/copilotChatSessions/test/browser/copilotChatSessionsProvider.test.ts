@@ -80,7 +80,6 @@ interface IGitHubRepositoryBrowseHarness {
 	resolveWorkspace(uri: URI): ISessionWorkspace | undefined;
 	_labelFromUri(uri: URI): string;
 	_iconFromUri(uri: URI): ThemeIcon;
-	_cloneRepository?(url?: string): Promise<ISessionWorkspace | undefined>;
 }
 
 const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubContext') as (
@@ -88,10 +87,6 @@ const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype
 	commandId: string,
 	icon: ThemeIcon,
 	currentWorkspace: ISessionWorkspace | undefined,
-) => Promise<ISessionWorkspace | undefined>;
-
-const browseForGitHubRepo = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubRepo') as (
-	this: IGitHubRepositoryBrowseHarness,
 ) => Promise<ISessionWorkspace | undefined>;
 
 const cloneRepository = Reflect.get(CopilotChatSessionsProvider.prototype, '_cloneRepository') as (
@@ -524,7 +519,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes.length, 1);
 	});
 
-	test('offers local repository acquisition separately from Cloud', () => {
+	test('offers local and Cloud repository acquisition separately', () => {
 		const localProvider = createProvider(disposables, model, { consolidatedRemoteWorkspaces: true });
 		const remoteProvider = createProvider(disposables, model, {
 			consolidatedRemoteWorkspaces: true,
@@ -537,13 +532,14 @@ suite('CopilotChatSessionsProvider', () => {
 		}, {
 			local: [
 				...isWeb ? [] : [
-					{ label: 'Add GitHub Repository...', icon: 'github' },
-					{ label: 'Clone Repository...', icon: 'link' },
+					{ label: 'Clone Repository...', icon: 'repo-clone' },
 				],
+				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
 				{ label: 'Issue...', icon: 'issues' },
 				{ label: 'Pull Request...', icon: 'github' },
 			],
 			remote: [
+				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
 				{ label: 'Issue...', icon: 'issues' },
 				{ label: 'Pull Request...', icon: 'github' },
 			],
@@ -567,12 +563,14 @@ suite('CopilotChatSessionsProvider', () => {
 			cloud,
 		}, {
 			local: [
-				...isWeb ? [] : ['Add GitHub Repository...', 'Clone Repository...'],
+				...isWeb ? [] : ['Clone Repository...'],
+				'Use Repository in Cloud...',
 				'Issue...',
 				'Pull Request...',
 			],
 			cloud: [
-				...isWeb ? [] : ['Add GitHub Repository...', 'Clone Repository...'],
+				...isWeb ? [] : ['Clone Repository...'],
+				'Use Repository in Cloud...',
 				'Issue...',
 				'Pull Request...',
 			],
@@ -607,69 +605,16 @@ suite('CopilotChatSessionsProvider', () => {
 			],
 			unifiedActions: [
 				...isWeb ? [] : [
-					{ label: 'Add GitHub Repository...', icon: 'github' },
-					{ label: 'Clone Repository...', icon: 'link' },
+					{ label: 'Clone Repository...', icon: 'repo-clone' },
 				],
+				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
 				{ label: 'Issue...', icon: 'issues' },
 				{ label: 'Pull Request...', icon: 'github' },
 			],
 		});
 	});
 
-	test('adds a selected GitHub repository by cloning it locally', async () => {
-		const calls: { commandId: string; args: unknown[] }[] = [];
-		const harness: IGitHubRepositoryBrowseHarness = {
-			commandService: new class extends mock<ICommandService>() {
-				override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
-					calls.push({ commandId, args });
-					return (commandId === 'git.clone' ? '/repos/vscode' : 'microsoft/vscode') as T;
-				}
-			}(),
-			notificationService: upcastPartial<INotificationService>({ error: () => undefined }),
-			resolveWorkspace: uri => ({
-				uri,
-				label: 'vscode',
-				icon: Codicon.folder,
-				group: SESSION_WORKSPACE_GROUP_LOCAL,
-				folders: [{ root: uri, workingDirectory: uri, name: 'vscode', description: undefined, gitRepository: undefined }],
-				requiresWorkspaceTrust: true,
-				isVirtualWorkspace: false,
-			}),
-			_labelFromUri: () => 'vscode',
-			_iconFromUri: () => Codicon.repo,
-			_cloneRepository: url => cloneRepository.call(harness, url),
-		};
-
-		const workspace = await browseForGitHubRepo.call(harness);
-
-		assert.deepStrictEqual({
-			calls,
-			workspace: workspace && {
-				uri: workspace.uri.toString(),
-				group: workspace.group,
-				isVirtualWorkspace: workspace.isVirtualWorkspace,
-			},
-		}, {
-			calls: [
-				{ commandId: 'github.copilot.chat.cloudSessions.openRepository', args: [] },
-				{
-					commandId: 'git.clone',
-					args: [
-						'https://github.com/microsoft/vscode.git',
-						undefined,
-						{ postCloneAction: 'none', returnRepositoryPath: true },
-					],
-				},
-			],
-			workspace: {
-				uri: URI.file('/repos/vscode').toString(),
-				group: SESSION_WORKSPACE_GROUP_LOCAL,
-				isVirtualWorkspace: false,
-			},
-		});
-	});
-
-	test('clones a repository URL without opening the GitHub picker', async () => {
+	test('adds a local repository through the Git remote-source picker', async () => {
 		const calls: { commandId: string; args: unknown[] }[] = [];
 		const harness: IGitHubRepositoryBrowseHarness = {
 			commandService: new class extends mock<ICommandService>() {

@@ -1587,22 +1587,23 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			? [
 				...(!isWeb && this._supportsLocalRepositoryActions() ? [
 					{
-						label: localize('addGitHubRepository', "Add GitHub Repository..."),
-						group: SESSION_WORKSPACE_GROUP_GITHUB,
-						icon: Codicon.github,
-						providerId: this.id,
-						attachesContext: false,
-						run: () => this._browseForGitHubRepo(),
-					},
-					{
 						label: localize('cloneRepository', "Clone Repository..."),
 						group: SESSION_WORKSPACE_GROUP_GITHUB,
-						icon: Codicon.link,
+						icon: Codicon.repoClone,
 						providerId: this.id,
 						attachesContext: false,
 						run: () => this._cloneRepository(),
 					},
 				] satisfies ISessionWorkspaceBrowseAction[] : []),
+				{
+					label: localize('useRepositoryInCloud', "Use Repository in Cloud..."),
+					group: SESSION_WORKSPACE_GROUP_GITHUB,
+					icon: Codicon.cloud,
+					providerId: this.id,
+					attachesContext: false,
+					supportsContextAttachment: true,
+					run: () => this._browseForCloudRepo(),
+				},
 			]
 			: [{
 				label: localize('repository', "Repository..."),
@@ -2962,14 +2963,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	// -- Private --
-
-	private async _browseForGitHubRepo(): Promise<ISessionWorkspace | undefined> {
-		const repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
-		if (!repoId) {
-			return undefined;
-		}
-		return this._cloneRepository(`https://github.com/${repoId}.git`);
-	}
 
 	private async _cloneRepository(url?: string): Promise<ISessionWorkspace | undefined> {
 		try {
