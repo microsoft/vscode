@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -40,7 +41,7 @@ suite('Sessions Catch Up', () => {
 
 		assert.deepStrictEqual({
 			title: action && (typeof action.command.title === 'string' ? action.command.title : action.command.title.value),
-			icon: action?.command.icon?.id,
+			icon: ThemeIcon.isThemeIcon(action?.command.icon) ? action.command.icon.id : undefined,
 			group: action?.group,
 			when: action?.when?.serialize(),
 			precondition: command?.precondition?.serialize(),

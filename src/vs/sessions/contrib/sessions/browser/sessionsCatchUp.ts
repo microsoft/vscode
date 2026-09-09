@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -137,8 +138,9 @@ registerAction2(class ShowAgentInboxAction extends Action2 {
 			if (items.length === 0) {
 				items.push({
 					kind: 'empty',
-					label: `$(check) ${localize('agentInboxAllCaughtUp', "You're all caught up")}`,
-					disabled: true,
+					label: localize('agentInboxAllCaughtUp', "You're all caught up"),
+					iconClass: ThemeIcon.asClassName(Codicon.check),
+					pickable: false,
 					alwaysShow: true,
 				});
 			}
