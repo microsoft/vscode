@@ -1310,6 +1310,21 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
 
+	test('reconciles GitHub references after every started turn outcome', () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+
+		contributions.service.turnEnd(turnEnd('success'));
+		contributions.service.turnEnd(turnEnd('cancelled', { kind: 'cancelled' }));
+		contributions.service.turnEnd(turnEnd('error', {
+			kind: 'error',
+			error: { errorType: 'requestFailed', message: 'failed' },
+			resumable: false,
+		}));
+
+		assert.strictEqual(observed.filter(entry => entry === 'githubReferences').length, 3);
+	});
+
 	test('resumable errors defer checkpoint capture until the logical turn ends', () => {
 		const observed: string[] = [];
 		const contributions = createBuiltInContributions(disposables, observed);
@@ -1432,6 +1447,43 @@ suite('AgentHostChatContributions', () => {
 			return undefined;
 		}), ['markdownPlanRichLinks', 'artifactTools', 'chatSurface', 'sessionTitle']);
 		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
+	});
+
+	test('adds artifact guidance only to the first turn of a chat', async () => {
+		const contributions = createBuiltInContributions(disposables, undefined, true);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const peerChat = buildChatUri(contributions.session, 'peer-artifacts');
+		const restoredChat = buildChatUri(contributions.session, 'restored-artifacts');
+		for (const [chat, title] of [[peerChat, 'Peer'], [restoredChat, 'Restored']] as const) {
+			contributions.stateManager.addChat(contributions.session, chat, {
+				title,
+				origin: { kind: ChatOriginKind.User },
+			});
+		}
+		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat }, [hydrationTurn('restored-turn')]);
+		const hasArtifactInstruction = async (chat: string, turnId: string) => {
+			const result = await contributions.service.outgoingTurn({
+				session: contributions.session,
+				chat,
+				message: { text: turnId, origin: { kind: MessageKind.User } },
+				turnId,
+			});
+			return result.instructions?.includes(ARTIFACT_TOOLS_INSTRUCTION) ?? false;
+		};
+
+		assert.deepStrictEqual({
+			firstDefault: await hasArtifactInstruction(defaultChat, 'default-1'),
+			secondDefault: await hasArtifactInstruction(defaultChat, 'default-2'),
+			firstPeer: await hasArtifactInstruction(peerChat, 'peer-1'),
+			secondPeer: await hasArtifactInstruction(peerChat, 'peer-2'),
+			restored: await hasArtifactInstruction(restoredChat, 'restored-2'),
+		}, {
+			firstDefault: true,
+			secondDefault: false,
+			firstPeer: true,
+			secondPeer: false,
+			restored: false,
+		});
 	});
 
 	test('updates and persists an independent chat title', async () => {

@@ -225,6 +225,10 @@ export class ToolBar extends Disposable {
 		this.actionBar.focus(index);
 	}
 
+	setFocusable(focusable: boolean): void {
+		this.actionBar.setFocusable(focusable);
+	}
+
 	getItemsWidth(): number {
 		let itemsWidth = 0;
 		for (let i = 0; i < this.actionBar.length(); i++) {

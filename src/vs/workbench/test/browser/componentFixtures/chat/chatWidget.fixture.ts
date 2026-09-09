@@ -82,6 +82,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	/** Total horizontal padding reserved when laying out response content and embedded editors. */
+	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
 	/** Whether to populate the response footer with an action. */
@@ -448,6 +450,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			location: ChatAgentLocation.Chat,
 			paddingBottom: options.persistentContentHeight,
 			rendererOptions: {
+				contentHorizontalPadding: options.contentHorizontalPadding,
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 			},
 		},
