@@ -252,19 +252,19 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 		});
 
 		await context.restartServer();
-		await context.client.call('initialize', {
+		const initialized = await context.client.call<InitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: `annotations-restart-${generateUuid()}`,
+			initialSubscriptions: [annotationsUri],
 		});
 		await context.client.call('authenticate', {
 			channel: ROOT_STATE_URI,
 			resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
 			token: config.githubToken ?? resolveGitHubToken(),
 		});
-		const restored = await context.client.call<SubscribeResult>('subscribe', { channel: annotationsUri });
 		assert.deepStrictEqual({
-			annotations: restored.snapshot?.state,
+			annotations: initialized.snapshots.find(snapshot => snapshot.resource === annotationsUri)?.state,
 			conversation: await residentConversationResources(),
 		}, {
 			annotations: { annotations: updated },
@@ -276,6 +276,19 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 		const trackedIndex = createdSessions.indexOf(sessionUri);
 		if (trackedIndex >= 0) {
 			createdSessions.splice(trackedIndex, 1);
+		}
+		await assert.rejects(context.client.call('subscribe', { channel: annotationsUri }));
+		const staleClient = await context.connectClient();
+		try {
+			const stale = await staleClient.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `annotations-deleted-${generateUuid()}`,
+				initialSubscriptions: [ROOT_STATE_URI, annotationsUri],
+			});
+			assert.deepStrictEqual(stale.snapshots.map(snapshot => snapshot.resource), [ROOT_STATE_URI]);
+		} finally {
+			staleClient.close();
 		}
 	});
 }

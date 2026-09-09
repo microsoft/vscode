@@ -12,7 +12,7 @@ import type { Database } from '@vscode/sqlite3';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -1742,6 +1742,40 @@ suite('AgentService (node dispatcher)', () => {
 				sessionRestored: true,
 				showBlobCalls: [{ workingDirectory: repoA.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }],
 				data: 'blob:src/app.ts',
+			});
+		});
+
+		test('git-blob releases a transiently restored conversation with only annotation subscribers', async () => {
+			const repo = URI.file('/workspace/repo');
+			const calls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, nullSessionDataService,
+				{ _serviceBrand: undefined } as IProductService,
+				createBlobGitService(new Map([[repo.toString(), repo]]), calls),
+				undefined, undefined, undefined, undefined, globalThis.fetch, [], undefined, undefined, undefined, 0,
+			));
+			const agent = new MockAgent('copilot');
+			agent.sessionMetadataOverrides = { workingDirectories: [repo] };
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			await localService.subscribe(URI.parse(buildAnnotationsUri(session.toString())), 'annotations-client');
+			getStateManager(localService).removeSession(session.toString());
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+			];
+
+			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/workspace/repo/src/app.ts')));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				data: result.data,
+				resident: !!getStateManager(localService).getSessionState(session.toString()),
+				released: agent.releaseSessionCalls.map(call => call.toString()),
+			}, {
+				data: 'blob:src/app.ts',
+				resident: false,
+				released: [session.toString()],
 			});
 		});
 
@@ -6932,6 +6966,48 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		for (const deleted of [false, true]) {
+			for (const subagent of [false, true]) {
+				test(`annotations reject a ${deleted ? 'deleted' : 'missing'} ${subagent ? 'subagent parent' : 'session'} without creating persisted data`, async () => {
+					const sessionData = createPerSessionDataService();
+					const opened: string[] = [];
+					const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, {
+						...sessionData.service,
+						openDatabase: session => {
+							opened.push(session.toString());
+							return sessionData.service.openDatabase(session);
+						},
+					}, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					const agent = new MockAgent('copilot');
+					disposables.add(toDisposable(() => agent.dispose()));
+					registerTestAgentProvider(localService, agent);
+					const session = deleted ? await localService.createSession({ provider: 'copilot' }) : AgentSession.uri('copilot', 'missing');
+					const owner = subagent ? buildSubagentSessionUri(session, 'tool-call') : session.toString();
+					const annotationsUri = buildAnnotationsUri(owner);
+					if (deleted) {
+						await localService.subscribe(URI.parse(annotationsUri), 'client');
+						await localService.disposeSession(session);
+					}
+					opened.length = 0;
+					await assert.rejects(localService.subscribe(URI.parse(annotationsUri), 'client'), error => error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND);
+					const rejected = Event.toPromise(Event.filter(localService.onDidAction, envelope => envelope.channel === annotationsUri));
+					localService.dispatchAction(annotationsUri, {
+						type: ActionType.AnnotationsSet,
+						annotation: {
+							id: 'comment', origin: { session: owner }, resource: 'file:///workspace/file.ts',
+							resolved: false, entries: [{ id: 'entry', text: 'Stale comment' }],
+						},
+					}, 'client', 1);
+					const envelope = await rejected;
+					assert.deepStrictEqual({
+						rejected: !!envelope.rejectionReason,
+						opened,
+						state: getStateManager(localService).getAnnotationsState(annotationsUri),
+					}, { rejected: true, opened: [], state: undefined });
+				});
+			}
+		}
+
 		test('annotations survive session state restoration', async () => {
 			const sessionData = createPerSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -7046,6 +7122,7 @@ suite('AgentService (node dispatcher)', () => {
 			const annotationsUri = buildAnnotationsUri(subagent);
 
 			await localService.subscribe(URI.parse(annotationsUri), 'client');
+			const applied = Event.toPromise(Event.filter(localService.onDidAction, envelope => envelope.channel === annotationsUri));
 			localService.dispatchAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: {
@@ -7056,6 +7133,7 @@ suite('AgentService (node dispatcher)', () => {
 					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
 				},
 			}, 'client', 1);
+			await applied;
 
 			assert.deepStrictEqual({
 				parentKeys: sessionData.database(parent).setMetadataCalls.map(call => call.key).filter(key => key.startsWith('annotations')),
@@ -13442,16 +13520,12 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.subscribe(URI.parse(annotationsUri), 'client-before-eviction');
 			await createUsedSession(localService, agent);
 
-			let readBeforeRelease = false;
 			try {
 				await waitForResidency(() => agent.events.includes('release:start'), 'provider release did not start');
-				const read = localService.subscribe(URI.parse(annotationsUri), 'client-during-release').then(snapshot => {
-					readBeforeRelease = !agent.events.includes('release:end');
-					return snapshot;
-				});
-				await timeout(0);
+				const snapshot = await raceTimeout(localService.subscribe(URI.parse(annotationsUri), 'client-during-release'), 2_000);
+				assert.ok(snapshot, 'annotations subscription must not wait for provider release');
+				const readBeforeRelease = !agent.events.includes('release:end');
 				await agent.release.complete();
-				const snapshot = await read;
 				await waitForResidency(() => !getStateManager(localService).getSessionState(session.toString()), 'session was not evicted');
 
 				assert.deepStrictEqual({

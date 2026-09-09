@@ -19,6 +19,7 @@ import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { type IAgentService } from '../common/agentService.js';
 import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
@@ -442,7 +443,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					try {
 						const result = this._handleInitialize(msg.params, transport, disposables);
 						client = result.client;
-						transport.send(jsonRpcSuccess(msg.id, result.response));
+						if (result.response instanceof Promise) {
+							this._trackRequest(result.response).then(
+								response => transport.send(jsonRpcSuccess(msg.id, response)),
+								err => transport.send(jsonRpcErrorFrom(msg.id, err)),
+							);
+						} else {
+							transport.send(jsonRpcSuccess(msg.id, result.response));
+						}
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 					}
@@ -574,7 +582,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		params: InitializeParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult } {
+	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult | Promise<IAgentHostExtensionInitializeResult> } {
 		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
 		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
@@ -620,10 +628,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
+			const pendingSnapshots: Promise<void>[] = [];
 			if (params.initialSubscriptions) {
 				for (const uri of params.initialSubscriptions) {
 					const snapshot = this._addInitialSubscription(client, uri.toString());
-					if (snapshot) {
+					if (snapshot instanceof Promise) {
+						pendingSnapshots.push(snapshot.then(value => {
+							if (value) {
+								snapshots.push(value);
+							}
+						}));
+					} else if (snapshot) {
 						snapshots.push(snapshot);
 					}
 				}
@@ -646,19 +661,27 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 
+			const response: IAgentHostExtensionInitializeResult = {
+				protocolVersion: negotiated,
+				serverSeq: this._stateManager.serverSeq,
+				_meta: getAgentHostExtensionInitializeResultMeta(),
+				snapshots,
+				defaultDirectory: this._config.defaultDirectory,
+				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
+				terminalCommandPrefix: this._config.terminalCommandPrefix,
+				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
+				automations: this._agentService.automationCapabilities,
+			};
 			return {
 				client,
-				response: {
-					protocolVersion: negotiated,
+				response: pendingSnapshots.length === 0 ? response : Promise.all(pendingSnapshots).then(() => ({
+					...response,
 					serverSeq: this._stateManager.serverSeq,
-					_meta: getAgentHostExtensionInitializeResultMeta(),
-					snapshots,
-					defaultDirectory: this._config.defaultDirectory,
-					completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
-					terminalCommandPrefix: this._config.terminalCommandPrefix,
-					telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
-					automations: this._agentService.automationCapabilities,
-				},
+					snapshots: snapshots.map(snapshot => this._stateManager.getSnapshot(snapshot.resource) ?? snapshot),
+				})).catch(error => {
+					this._rollbackFailedInitialization(client, previousRecord);
+					throw error;
+				}),
 			};
 		} catch (error) {
 			this._rollbackFailedInitialization(client, previousRecord);
@@ -682,7 +705,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * with no recognised level) are silently dropped. Valid state channels
 	 * remain subscribed even when their snapshot has not materialized yet.
 	 */
-	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined {
+	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined | Promise<IStateSnapshot | undefined> {
 		const sub = classifyChannel(channel);
 		if (!sub) {
 			return undefined;
@@ -694,6 +717,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			client.subscriptions.set(sub.uri, sub);
 			return undefined;
+		}
+		// An annotation snapshot is synthetic until its persisted data has been loaded and ownership validated.
+		if (isAnnotationsUri(channel)) {
+			return this._requestHandlers.subscribe(client, { channel }).then(result => result.snapshot).catch(error => {
+				this._logService.info(`[ProtocolServer] Initialize: failed to restore subscription ${channel}: ${error instanceof Error ? error.message : String(error)}`);
+				return undefined;
+			});
 		}
 		const snapshot = this._stateManager.getSnapshot(channel);
 		client.subscriptions.set(sub.uri, sub);
