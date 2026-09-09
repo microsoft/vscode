@@ -9,10 +9,10 @@ import { getSizeRegistry, registerSize, size, sizeForAllThemes, sizeValueToCss, 
 // Import baseSizes to ensure base size tokens are registered
 import { bodyFontSize, bodyFontSizeSmall, codiconFontSize, cornerRadiusMedium, cornerRadiusSmall, cornerRadiusLarge, strokeThickness } from '../../common/sizes/baseSizes.js';
 
-function getSizeTokenValues(prefix: string) {
-	return getSizeRegistry().getSizes()
+function getSizeTokenDefaults(prefix: string) {
+	return Object.fromEntries(getSizeRegistry().getSizes()
 		.filter(size => size.id.startsWith(prefix))
-		.map(size => ({ id: size.id, value: size.defaults }));
+		.map(size => [size.id, size.defaults]));
 }
 
 suite('Size Registry', () => {
@@ -75,34 +75,34 @@ suite('Size Registry', () => {
 	});
 
 	test('spacing size tokens should use the expected scale', () => {
-		assert.deepStrictEqual(getSizeTokenValues('spacing.'), [
-			{ id: 'spacing.sizeNone', value: sizeForAllThemes(0, 'px') },
-			{ id: 'spacing.size10', value: sizeForAllThemes(1, 'px') },
-			{ id: 'spacing.size20', value: sizeForAllThemes(2, 'px') },
-			{ id: 'spacing.size30', value: sizeForAllThemes(3, 'px') },
-			{ id: 'spacing.size40', value: sizeForAllThemes(4, 'px') },
-			{ id: 'spacing.size60', value: sizeForAllThemes(6, 'px') },
-			{ id: 'spacing.size80', value: sizeForAllThemes(8, 'px') },
-			{ id: 'spacing.size100', value: sizeForAllThemes(10, 'px') },
-			{ id: 'spacing.size120', value: sizeForAllThemes(12, 'px') },
-			{ id: 'spacing.size160', value: sizeForAllThemes(16, 'px') },
-			{ id: 'spacing.size200', value: sizeForAllThemes(20, 'px') },
-			{ id: 'spacing.size240', value: sizeForAllThemes(24, 'px') },
-			{ id: 'spacing.size280', value: sizeForAllThemes(28, 'px') },
-			{ id: 'spacing.size320', value: sizeForAllThemes(32, 'px') },
-			{ id: 'spacing.size360', value: sizeForAllThemes(36, 'px') },
-			{ id: 'spacing.size400', value: sizeForAllThemes(40, 'px') },
-		]);
+		assert.deepStrictEqual(getSizeTokenDefaults('spacing.'), {
+			'spacing.sizeNone': sizeForAllThemes(0, 'px'),
+			'spacing.size10': sizeForAllThemes(1, 'px'),
+			'spacing.size20': sizeForAllThemes(2, 'px'),
+			'spacing.size30': sizeForAllThemes(3, 'px'),
+			'spacing.size40': sizeForAllThemes(4, 'px'),
+			'spacing.size60': sizeForAllThemes(6, 'px'),
+			'spacing.size80': sizeForAllThemes(8, 'px'),
+			'spacing.size100': sizeForAllThemes(10, 'px'),
+			'spacing.size120': sizeForAllThemes(12, 'px'),
+			'spacing.size160': sizeForAllThemes(16, 'px'),
+			'spacing.size200': sizeForAllThemes(20, 'px'),
+			'spacing.size240': sizeForAllThemes(24, 'px'),
+			'spacing.size280': sizeForAllThemes(28, 'px'),
+			'spacing.size320': sizeForAllThemes(32, 'px'),
+			'spacing.size360': sizeForAllThemes(36, 'px'),
+			'spacing.size400': sizeForAllThemes(40, 'px'),
+		});
 	});
 
 	test('icon size tokens should use the expected scale', () => {
-		assert.deepStrictEqual(getSizeTokenValues('iconSize.'), [
-			{ id: 'iconSize.xSmall', value: sizeForAllThemes(12, 'px') },
-			{ id: 'iconSize.small', value: sizeForAllThemes(16, 'px') },
-			{ id: 'iconSize.medium', value: sizeForAllThemes(20, 'px') },
-			{ id: 'iconSize.large', value: sizeForAllThemes(24, 'px') },
-			{ id: 'iconSize.xLarge', value: sizeForAllThemes(32, 'px') },
-		]);
+		assert.deepStrictEqual(getSizeTokenDefaults('iconSize.'), {
+			'iconSize.xSmall': sizeForAllThemes(12, 'px'),
+			'iconSize.small': sizeForAllThemes(16, 'px'),
+			'iconSize.medium': sizeForAllThemes(20, 'px'),
+			'iconSize.large': sizeForAllThemes(24, 'px'),
+			'iconSize.xLarge': sizeForAllThemes(32, 'px'),
+		});
 	});
 
 	test('sizeForAllThemes should create same value for all themes', () => {
