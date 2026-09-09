@@ -396,7 +396,9 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 					this.element.domNode.classList.remove('docs-side');
 				}
 
-			}).catch();
+			}).catch(() => {
+				// Ignore errors - the suggestion details are not critical
+			});
 		}
 
 		this._ctxFirstSuggestionFocused.set(index === 0);
