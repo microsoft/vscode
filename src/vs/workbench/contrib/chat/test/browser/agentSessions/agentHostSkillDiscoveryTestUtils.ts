@@ -21,11 +21,19 @@ import { IPromptsService } from '../../../common/promptSyntax/service/promptsSer
 
 export function createCodexSkillCustomizations(): DirectoryCustomization[] {
 	return [
-		{ directory: '.agents', name: 'agents-dreaming', valid: true },
-		{ directory: '.codex', name: 'codex-described', valid: true },
-		{ directory: '.codex', name: 'dreaming', valid: false },
-	].map(({ directory, name, valid }) => {
-		const uri = URI.file(`/workspace/${directory}/skills/${name}/SKILL.md`).toString();
+		{
+			name: 'repo', valid: true, skills: [
+				{ directory: '.agents', name: 'agents-dreaming' },
+				{ directory: '.codex', name: 'codex-described' },
+			],
+		},
+		{
+			name: 'errors', valid: false, skills: [
+				{ directory: '.agents', name: 'agents-invalid' },
+				{ directory: '.codex', name: 'dreaming' },
+			],
+		},
+	].map(({ name, valid, skills }) => {
 		return {
 			type: CustomizationType.Directory,
 			id: `codex-skills:${name}`,
@@ -35,7 +43,10 @@ export function createCodexSkillCustomizations(): DirectoryCustomization[] {
 			contents: CustomizationType.Skill,
 			writable: false,
 			load: valid ? { kind: CustomizationLoadStatus.Loaded } : { kind: CustomizationLoadStatus.Error, message: 'missing field `description`' },
-			children: [{ type: CustomizationType.Skill, id: uri, uri, name, enabled: valid }],
+			children: skills.map(skill => {
+				const uri = URI.file(`/workspace/${skill.directory}/skills/${skill.name}/SKILL.md`).toString();
+				return { type: CustomizationType.Skill, id: uri, uri, name: skill.name, enabled: valid };
+			}),
 		};
 	});
 }
@@ -67,6 +78,7 @@ export async function assertCodexSkillItems(service: IAgentHostCustomizationServ
 	})), [
 		{ name: 'agents-dreaming', uri: 'file:///workspace/.agents/skills/agents-dreaming/SKILL.md', type: PromptsType.skill, source: AICustomizationSources.local, enabled: true, status: 'loaded', statusMessage: undefined },
 		{ name: 'codex-described', uri: 'file:///workspace/.codex/skills/codex-described/SKILL.md', type: PromptsType.skill, source: AICustomizationSources.local, enabled: true, status: 'loaded', statusMessage: undefined },
+		{ name: 'agents-invalid', uri: 'file:///workspace/.agents/skills/agents-invalid/SKILL.md', type: PromptsType.skill, source: AICustomizationSources.local, enabled: false, status: 'error', statusMessage: 'missing field `description`' },
 		{ name: 'dreaming', uri: 'file:///workspace/.codex/skills/dreaming/SKILL.md', type: PromptsType.skill, source: AICustomizationSources.local, enabled: false, status: 'error', statusMessage: 'missing field `description`' },
 	]);
 }

@@ -9,6 +9,7 @@ import { isAbsolute, normalize } from '../../../../base/common/path.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type RuleCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import { readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type IParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
@@ -305,7 +306,7 @@ function skillToCustomization(skill: SkillMetadata): SkillCustomization {
  * carrying its skills as {@link SkillCustomization} children. Skills are
  * de-duplicated by their `SKILL.md` path (codex can report the same skill
  * for several requested cwds). Loaded containers are ordered by
- * {@link SKILL_SCOPE_ORDER}, followed by disabled containers for invalid skills.
+ * {@link SKILL_SCOPE_ORDER}, followed by disabled containers grouped by diagnostic.
  */
 export function codexSkillsToContainers(response: SkillsListResponse | undefined): DirectoryCustomization[] {
 	const byScope = new Map<SkillScope, Map<string, SkillMetadata>>();
@@ -351,6 +352,7 @@ export function codexSkillsToContainers(response: SkillsListResponse | undefined
 			children,
 		});
 	}
+	const errorsByMessage = new Map<string, SkillCustomization[]>();
 	for (const [path, message] of [...errors].sort(([left], [right]) => compare(left, right))) {
 		if (loadedPaths.has(path)) {
 			continue;
@@ -358,17 +360,26 @@ export function codexSkillsToContainers(response: SkillsListResponse | undefined
 		const skillUri = URI.file(path);
 		const uri = skillUri.toString();
 		const name = basename(dirname(skillUri));
-		const containerUri = URI.from({ scheme: CODEX_SKILLS_SCHEME, path: `/errors${skillUri.path}` }).toString();
+		let children = errorsByMessage.get(message);
+		if (!children) {
+			children = [];
+			errorsByMessage.set(message, children);
+		}
+		children.push({ type: CustomizationType.Skill, id: customizationId(uri), uri, name, enabled: false });
+	}
+	for (const [message, children] of [...errorsByMessage].sort(([left], [right]) => compare(left, right))) {
+		const digest = createHash('sha256').update(message).digest('hex');
+		const containerUri = URI.from({ scheme: CODEX_SKILLS_SCHEME, path: `/errors/${digest}` }).toString();
 		containers.push({
 			type: CustomizationType.Directory,
 			id: customizationId(containerUri),
 			uri: containerUri,
-			name,
+			name: localize('codex.invalidSkills', "Invalid Skills"),
 			enabled: false,
 			contents: CustomizationType.Skill,
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Error, message },
-			children: [{ type: CustomizationType.Skill, id: customizationId(uri), uri, name, enabled: false }],
+			children,
 		});
 	}
 	return containers;

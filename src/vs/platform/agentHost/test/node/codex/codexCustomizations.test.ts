@@ -335,6 +335,76 @@ suite('codexCustomizations', () => {
 		});
 	}
 
+	test('groups repeated skill validation diagnostics into one container', () => {
+		const message = 'missing field `description`';
+		const names = Array.from({ length: 100 }, (_value, index) => `skill-${index.toString().padStart(3, '0')}`);
+		const errors = names.map(name => ({ path: `/repo/.codex/skills/${name}/SKILL.md`, message }));
+		const containers = codexSkillsToContainers({
+			data: [
+				{ cwd: '/repo', skills: [], errors: [...errors].reverse() },
+				{ cwd: '/repo/nested', skills: [], errors },
+			]
+		});
+
+		assert.deepStrictEqual({
+			containerCount: containers.length,
+			name: containers[0].name,
+			load: containers[0].load,
+			disabledAndReadOnly: containers.every(container => !container.enabled && !container.writable),
+			children: containers.flatMap(container => container.children ?? []),
+		}, {
+			containerCount: 1,
+			name: 'Invalid Skills',
+			load: { kind: CustomizationLoadStatus.Error, message },
+			disabledAndReadOnly: true,
+			children: errors.map((error, index) => {
+				const uri = URI.file(error.path).toString();
+				return { type: CustomizationType.Skill, id: uri, uri, name: names[index], enabled: false };
+			}),
+		});
+	});
+
+	test('separates distinct skill diagnostics into deterministic containers', () => {
+		const errors = [
+			{ path: '/repo/.codex/skills/zulu/SKILL.md', message: 'missing field `description`' },
+			{ path: '/repo/.agents/skills/bravo/SKILL.md', message: 'missing field `name`' },
+			{ path: '/repo/.agents/skills/alpha/SKILL.md', message: 'missing field `description`' },
+		];
+		const containers = codexSkillsToContainers({ data: [{ cwd: '/repo', skills: [], errors }] });
+
+		assert.deepStrictEqual({
+			distinctContainerIds: new Set(containers.map(container => container.id)).size,
+			groups: containers.map(container => ({ load: container.load, names: container.children?.map(child => child.name) })),
+		}, {
+			distinctContainerIds: 2,
+			groups: [
+				{ load: { kind: CustomizationLoadStatus.Error, message: 'missing field `description`' }, names: ['alpha', 'zulu'] },
+				{ load: { kind: CustomizationLoadStatus.Error, message: 'missing field `name`' }, names: ['bravo'] },
+			],
+		});
+		assert.deepStrictEqual(codexSkillsToContainers({ data: [{ cwd: '/repo', skills: [], errors: [...errors].reverse() }] }), containers);
+	});
+
+	test('preserves a diagnostic container when one of its skills is repaired', () => {
+		const repairedSkill = skill('alpha', 'repo', '/repo/.agents/skills/alpha/SKILL.md');
+		const remainingSkill = skill('bravo', 'repo', '/repo/.codex/skills/bravo/SKILL.md');
+		const errors = [repairedSkill, remainingSkill].map(entry => ({ path: entry.path, message: 'missing field `description`' }));
+		const [failed] = codexSkillsToContainers({ data: [{ cwd: '/repo', skills: [], errors }] });
+		const [loaded, remaining] = codexSkillsToContainers({ data: [{ cwd: '/repo', skills: [repairedSkill], errors }] });
+
+		assert.deepStrictEqual({
+			retainsContainerIdentity: remaining.id === failed.id,
+			retainsRepairedSkillIdentity: loaded.children?.[0].id === failed.children?.[0].id,
+			remainingSkillUris: remaining.children?.map(child => child.uri),
+			load: remaining.load,
+		}, {
+			retainsContainerIdentity: true,
+			retainsRepairedSkillIdentity: true,
+			remainingSkillUris: [URI.file(remainingSkill.path).toString()],
+			load: { kind: CustomizationLoadStatus.Error, message: 'missing field `description`' },
+		});
+	});
+
 	test('prefers a successfully loaded skill over an error from another cwd', () => {
 		const loadedSkill = skill('dreaming', 'repo', '/repo/.codex/skills/dreaming/SKILL.md');
 		const containers = codexSkillsToContainers({
