@@ -107,3 +107,81 @@ describe('OpenRouterLMProvider context window (issue #324671)', () => {
 		expect(caps?.maxInputTokens).toBe(4000);
 	});
 });
+
+describe('OpenRouterLMProvider reasoning effort (issue #332152)', () => {
+	it('uses the model-declared supported_efforts instead of the hard-coded list', () => {
+		const provider = createProvider();
+
+		const caps = provider.resolveCapabilities({
+			id: 'openai/gpt-5.6-luna',
+			name: 'GPT-5.6 Luna',
+			supported_parameters: ['reasoning_effort', 'tools'],
+			architecture: { input_modalities: ['text'] },
+			context_length: 200000,
+			top_provider: { context_length: 200000 },
+			reasoning: {
+				supported_efforts: ['low', 'medium', 'high', 'xhigh'],
+				default_effort: 'high',
+			},
+		});
+
+		expect(caps?.supportsReasoningEffort).toEqual(['low', 'medium', 'high', 'xhigh']);
+	});
+
+	it('falls back to the default effort list when reasoning.supported_efforts is omitted', () => {
+		const provider = createProvider();
+
+		const caps = provider.resolveCapabilities({
+			id: 'openai/gpt-5',
+			name: 'GPT-5',
+			supported_parameters: ['reasoning'],
+			architecture: { input_modalities: ['text'] },
+			context_length: 200000,
+			top_provider: { context_length: 200000 },
+			reasoning: {
+				default_effort: 'low',
+			},
+		});
+
+		expect(caps?.defaultReasoningEffort).toBe('low');
+		expect(caps?.supportsReasoningEffort).toEqual(['low', 'medium', 'high']);
+	});
+
+	it('propagates the model-declared default_effort', () => {
+		const provider = createProvider();
+
+		const caps = provider.resolveCapabilities({
+			id: 'openai/gpt-5.6-sol',
+			name: 'GPT-5.6 Sol',
+			supported_parameters: ['reasoning_effort', 'tools'],
+			architecture: { input_modalities: ['text'] },
+			context_length: 200000,
+			top_provider: { context_length: 200000 },
+			reasoning: {
+				supported_efforts: ['minimal', 'low', 'medium', 'high'],
+				default_effort: 'medium',
+			},
+		});
+
+		expect(caps?.defaultReasoningEffort).toBe('medium');
+		expect(caps?.supportsReasoningEffort).toEqual(['minimal', 'low', 'medium', 'high']);
+	});
+
+	it('leaves defaultReasoningEffort unset when the model reports no default_effort', () => {
+		const provider = createProvider();
+
+		const caps = provider.resolveCapabilities({
+			id: 'openai/gpt-5',
+			name: 'GPT-5',
+			supported_parameters: ['reasoning_effort'],
+			architecture: { input_modalities: ['text'] },
+			context_length: 200000,
+			top_provider: { context_length: 200000 },
+			reasoning: {
+				supported_efforts: ['low', 'medium', 'high'],
+			},
+		});
+
+		expect(caps?.defaultReasoningEffort).toBeUndefined();
+	});
+});
