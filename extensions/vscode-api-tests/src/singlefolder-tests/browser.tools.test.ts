@@ -239,6 +239,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			await agentConfig.update('networkFilter', undefined, vscode.ConfigurationTarget.Global);
 			await agentConfig.update('allowedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
 			await agentConfig.update('deniedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
+			await Promise.all(vscode.window.browserTabs.map(tab => tab.close()));
 			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 		}
 	});
