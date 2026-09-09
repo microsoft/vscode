@@ -73,6 +73,11 @@ suite('Chat session state indicator theming', () => {
 				'chat-session-state-indicator chat-state-idle',
 			].map(state => readState(state).content);
 			workbench.classList.remove('monaco-reduce-motion');
+			session.className = 'interactive-session chat-session-state-indicator chat-state-in-progress';
+			// Finish pseudo-element transitions before checking the steady-state color.
+			for (const animation of session.getAnimations({ subtree: true })) {
+				animation.finish();
+			}
 			const inProgressWithoutReducedMotion = readState('chat-session-state-indicator chat-state-in-progress');
 			const inProgressAnimation = targetWindow.getComputedStyle(session, '::before').animationName;
 
