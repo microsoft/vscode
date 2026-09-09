@@ -10,22 +10,40 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { AgentMergeConfigKey, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import type { IAgent } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { URI } from '../../../../base/common/uri.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { SessionStatus, buildDefaultChatUri, MessageKind, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
-import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
+import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
+import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError, parsePullRequestUrl } from '../../node/agentMergeController.js';
+import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 let sessionCounter = 0;
+
+function createProviderService(getAutonomousSessionConfig: NonNullable<IAgent['getAutonomousSessionConfig']>): IAgentHostProviderService {
+	const provider = new class extends mock<IAgent>() {
+		override getAutonomousSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+			return getAutonomousSessionConfig(config);
+		}
+	}();
+	return new class extends mock<IAgentHostProviderService>() {
+		override getProviderForSession(): IAgent {
+			return provider;
+		}
+	}();
+}
 
 /**
  * The controller only reads git to resolve the worktree commit that backs the
@@ -56,10 +74,6 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: () => { },
-				getAutonomousSessionConfig: () => ({
-					[SessionConfigKey.Mode]: 'autopilot',
-					[SessionConfigKey.AutoApprove]: 'assisted',
-				}),
 			},
 			stateManager,
 			configurationService,
@@ -67,6 +81,10 @@ suite('AgentMergeController', () => {
 			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => ({
+				[SessionConfigKey.Mode]: 'autopilot',
+				[SessionConfigKey.AutoApprove]: 'assisted',
+			})),
 			logService,
 		));
 		const session = 'copilot:/agent-merge-controller';
@@ -258,7 +276,6 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: () => { },
-				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
 			configurationService,
@@ -266,6 +283,7 @@ suite('AgentMergeController', () => {
 			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => ({})),
 			logService,
 		));
 		stateManager.createSession(summary(session));
@@ -325,7 +343,6 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: () => { },
-				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
 			configurationService,
@@ -333,6 +350,7 @@ suite('AgentMergeController', () => {
 			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => ({})),
 			logService,
 		));
 		stateManager.createSession(summary(session));
@@ -378,7 +396,6 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: () => { },
-				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
 			configurationService,
@@ -386,6 +403,7 @@ suite('AgentMergeController', () => {
 			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => ({})),
 			logService,
 		));
 		for (const [session, gitState] of [
@@ -422,7 +440,7 @@ suite('AgentMergeController', () => {
 		});
 	});
 
-	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): {
+	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot): {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
 		readonly session: string;
@@ -444,19 +462,37 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: (_session, kind, content) => notices.push({ kind, content }),
-				getAutonomousSessionConfig: () => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
-					? { [SessionConfigKey.Mode]: 'autopilot' }
-					: {
-						[SessionConfigKey.Mode]: 'autopilot',
-						[SessionConfigKey.AutoApprove]: 'assisted',
-					},
 			},
 			stateManager,
 			configurationService,
 			gitStateService,
 			noopGitService,
-			new class extends mock<IGitHubService>() { }(),
+			new class extends mock<IGitHubService>() {
+				override readonly credentials = new class extends mock<IGitHubCredentials>() {
+					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
+						assert.ok(snapshot);
+						return { account: snapshot.ref, token: 'test-token', generation: 1, signal };
+					}
+				}();
+				override readonly pullRequests = new class extends mock<IPullRequestResources>() {
+					override subscribePullRequest(): PullRequestSubscription {
+						assert.ok(snapshot);
+						return {
+							resource: { ref: snapshot.ref, snapshot: constObservable(snapshot) },
+							refresh: async () => { },
+							update: () => { },
+							dispose: () => { },
+						};
+					}
+				}();
+			}(),
 			endpointService,
+			createProviderService(() => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
+				? { [SessionConfigKey.Mode]: 'autopilot' }
+				: {
+					[SessionConfigKey.Mode]: 'autopilot',
+					[SessionConfigKey.AutoApprove]: 'assisted',
+				}),
 			logService,
 		));
 		const session = `copilot:/agent-merge-controller-${++sessionCounter}`;
@@ -466,6 +502,62 @@ suite('AgentMergeController', () => {
 			values: {},
 		});
 		return { stateManager, configurationService, session, notices };
+	}
+
+	for (const state of ['merged', 'closed'] as const) {
+		test(`announces a ${state} pull request when monitoring stops`, async () => {
+			const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
+			const snapshot: PullRequestSnapshot = {
+				ref: { owner: 'octo', repo: 'repo', number: 1, host: 'api.github.com', accountId: 'account' },
+				generation: 1,
+				headGeneration: 1,
+				core: {
+					status: 'ready',
+					complete: true,
+					value: {
+						repositoryNameWithOwner: 'octo/repo',
+						number: 1, title: 'Change', url: pullRequestUrl, state, draft: false,
+						headSha: 'head', headRef: 'feature', baseSha: 'base', baseRef: 'main',
+					},
+				},
+				topLevelComments: { status: 'missing', complete: false },
+				submittedReviews: { status: 'missing', complete: false },
+				inlineComments: { status: 'missing', complete: false },
+				reviewThreads: { status: 'missing', complete: false },
+				checks: { status: 'missing', complete: false },
+				mergeability: { status: 'missing', complete: false },
+				participants: { status: 'missing', complete: false },
+			};
+			const { stateManager, configurationService, session, notices } = createControllerHarness(disposables, snapshot);
+			stateManager.setSessionMeta(session, withSessionGitHubState(
+				withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }),
+				{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
+			));
+			const disabled = new Promise<void>(resolve => {
+				disposables.add(stateManager.onDidChangeSessionConfig(event => {
+					if (event.session.toString() === session && readAgentMergeSessionState(event.current?.values)?.enabled === false) {
+						resolve();
+					}
+				}));
+			});
+			configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+			await disabled;
+
+			assert.deepStrictEqual({
+				notices: notices.slice(1),
+				enabled: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.enabled,
+			}, {
+				notices: [state === 'merged' ? {
+					kind: AgentSystemNotificationKind.AgentMergePullRequestMerged,
+					content: 'Pull request [#1](https://github.com/octo/repo/pull/1) was merged. Agent Merge is now disabled.',
+				} : {
+					kind: AgentSystemNotificationKind.AgentMergeDisabled,
+					content: 'Agent Merge was disabled because its pull request was closed without merging.',
+				}],
+				enabled: false,
+			});
+		});
 	}
 
 	test('announces enablement once it captures a branch, and again on the branch that turned it off', async () => {
@@ -486,7 +578,6 @@ suite('AgentMergeController', () => {
 				startTurn: () => false,
 				cancelTurn: () => { },
 				postNotice: (_session, kind, content) => notices.push({ kind, content }),
-				getAutonomousSessionConfig: () => ({}),
 			},
 			stateManager,
 			configurationService,
@@ -494,6 +585,7 @@ suite('AgentMergeController', () => {
 			noopGitService,
 			new class extends mock<IGitHubService>() { }(),
 			endpointService,
+			createProviderService(() => ({})),
 			logService,
 		));
 		stateManager.createSession(summary(session));
@@ -627,7 +719,7 @@ suite('AgentMergeController', () => {
 			whilePaused: [{
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed.',
+					'Agent Merge settings changed for this session.',
 					'It will no longer fix failing CI checks.',
 					'It will now merge the pull request automatically when it is ready.',
 					'It will now choose an available merge method automatically.',
@@ -635,14 +727,14 @@ suite('AgentMergeController', () => {
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed.',
+					'Agent Merge default settings changed for all sessions.',
 					'It will no longer address new pull request review comments or wait for them before merging.',
 				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}],
 			notices: [{
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed.',
+					'Agent Merge settings changed for this session.',
 					'It will no longer fix failing CI checks.',
 					'It will now merge the pull request automatically when it is ready.',
 					'It will now choose an available merge method automatically.',
@@ -650,12 +742,12 @@ suite('AgentMergeController', () => {
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 				content: [
-					'Agent Merge settings changed.',
+					'Agent Merge default settings changed for all sessions.',
 					'It will no longer address new pull request review comments or wait for them before merging.',
 				].map((line, index) => index === 0 ? `${line}\n` : `- ${line}`).join('\n'),
 			}, {
 				kind: AgentSystemNotificationKind.AgentMergeConfigurationChanged,
-				content: 'Agent Merge settings changed.\n\n- It will no longer resolve merge conflicts or update a behind branch.',
+				content: 'Agent Merge default settings changed for all sessions.\n\n- It will no longer resolve merge conflicts or update a behind branch.',
 			}],
 		});
 	});

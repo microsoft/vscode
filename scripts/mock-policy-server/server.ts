@@ -34,7 +34,7 @@ const MOCK_SERVER_HEADER = 'X-Mock-Policy-Server';
 const args = parseArgs(process.argv.slice(2));
 const PORT = args.port ?? DEFAULT_PORT;
 const HOST = args.host || '127.0.0.1';
-const SCHEMA_SOURCE = args.schema || process.env.MANAGED_SETTINGS_SCHEMA || DEFAULT_SCHEMA_SOURCE;
+let schemaSource = args.schema || process.env.MANAGED_SETTINGS_SCHEMA || DEFAULT_SCHEMA_SOURCE;
 const UPSTREAM = stripTrailingSlash(args.upstream || process.env.MOCK_POLICY_UPSTREAM || DEFAULT_UPSTREAM);
 const STATE_FILE = path.resolve(args.stateFile || process.env.MOCK_POLICY_STATE_FILE || DEFAULT_STATE_FILE);
 
@@ -88,6 +88,7 @@ const CONTROL_ROUTES = [
 	{ method: 'POST', path: '/api/state', purpose: 'Apply and persist one update or an atomic endpoints array.', returns: 'Updated server state.', sideEffects: 'server-state,filesystem' },
 	{ method: 'POST', path: '/api/reset', purpose: 'Restore and persist default endpoint state.', returns: 'Reset server state.', sideEffects: 'server-state,filesystem' },
 	{ method: 'GET', path: '/api/schema', purpose: 'Read the managed-settings schema.', returns: 'Schema source, resolved location, load status, and schema or error.', sideEffects: 'none' },
+	{ method: 'POST', path: '/api/schema', purpose: 'Change and reload the managed-settings schema source for this server process. Only accepted through a loopback URL.', returns: 'Schema source, resolved location, load status, and schema or error.', sideEffects: 'server-state' },
 	{ method: 'GET', path: '/api/file-deployment', purpose: 'Generate install and removal commands for the current Managed Settings body.', returns: 'Source body and per-platform paths, install commands, and removal commands.', sideEffects: 'none' },
 	{ method: 'GET', path: '/api/log', purpose: 'Read the request log.', returns: 'Object containing the newest-first entries array.', sideEffects: 'none' },
 	{ method: 'DELETE', path: '/api/log', purpose: 'Clear the request log.', returns: 'Object containing an empty entries array.', sideEffects: 'server-state' },
@@ -252,6 +253,37 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: s
 		return void loadSchema()
 			.then(result => sendJson(res, 200, result))
 			.catch(e => sendJson(res, 500, { error: errorMessage(e) }));
+	}
+
+	if (pathname === '/api/schema' && req.method === 'POST') {
+		if (!isLoopbackRequest(req)) {
+			return sendJson(res, 403, { error: 'Changing the schema source is only allowed from a loopback URL.' });
+		}
+		return readBody(req, (err, raw) => {
+			if (err) {
+				return sendJson(res, 400, { error: String(err) });
+			}
+			let payload: unknown;
+			try {
+				payload = JSON.parse(raw);
+			} catch (e) {
+				return sendJson(res, 400, { error: `Invalid JSON: ${errorMessage(e)}` });
+			}
+			if (!isRecord(payload)) {
+				return sendJson(res, 400, { error: 'Request body must be a JSON object.' });
+			}
+			const unknownKeys = Object.keys(payload).filter(key => key !== 'source');
+			if (unknownKeys.length) {
+				return sendJson(res, 400, { error: `Unknown field${unknownKeys.length > 1 ? 's' : ''}: ${unknownKeys.join(', ')}.` });
+			}
+			if (typeof payload.source !== 'string' || !payload.source.trim()) {
+				return sendJson(res, 400, { error: '"source" must be a non-empty string.' });
+			}
+			schemaSource = payload.source.trim();
+			return void loadSchema()
+				.then(result => sendJson(res, 200, result))
+				.catch(e => sendJson(res, 500, { error: errorMessage(e) }));
+		});
 	}
 
 	if (pathname === '/api/file-deployment' && req.method === 'GET') {
@@ -493,6 +525,24 @@ function isAllowedControlOrigin(req: IncomingMessage): boolean {
 	}
 }
 
+function isLoopbackRequest(req: IncomingMessage): boolean {
+	const remoteAddress = req.socket.remoteAddress;
+	const host = req.headers.host;
+	if (!remoteAddress || !host || Array.isArray(host)) {
+		return false;
+	}
+	try {
+		return isLoopbackAddress(remoteAddress) && isLoopbackAddress(new URL(`http://${host}`).hostname);
+	} catch {
+		return false;
+	}
+}
+
+function isLoopbackAddress(address: string): boolean {
+	const normalized = address.replace(/^\[|\]$/g, '').replace(/^::ffff:/, '');
+	return normalized === '::1' || normalized === 'localhost' || /^127(?:\.\d{1,3}){3}$/.test(normalized);
+}
+
 /**
  * Forward a request to the real upstream API and stream the response back, so
  * anything this server is not deliberately faking still behaves normally.
@@ -567,7 +617,7 @@ server.listen(PORT, HOST, () => {
 	console.log('  Configure endpoint mocking and client routing in the GUI.');
 	console.log('');
 	console.log(`  Upstream  ${UPSTREAM}  (anything not mocked is proxied here)`);
-	console.log(`  Schema    ${SCHEMA_SOURCE}`);
+	console.log(`  Schema    ${schemaSource}`);
 	console.log(`  State     ${STATE_FILE}`);
 	console.log('');
 });
@@ -668,13 +718,12 @@ function endpointUrl(endpoint: EndpointDef): string {
 }
 
 /**
- * Resolve and load the managed-settings JSON schema from {@link SCHEMA_SOURCE}.
+ * Resolve and load the managed-settings JSON schema from the current source.
  * Accepts a web URL (`http(s)://`), a `file://` URI, or a filesystem path
- * (relative paths are resolved against the app's cwd). The GUI loads it once
- * during initialization.
+ * (relative paths are resolved against the app's cwd).
  */
 async function loadSchema(): Promise<{ source: string; resolved: string; ok: boolean; schema?: unknown; error?: string }> {
-	const source = SCHEMA_SOURCE;
+	const source = schemaSource;
 	try {
 		if (/^https?:\/\//i.test(source)) {
 			const res = await fetch(source);

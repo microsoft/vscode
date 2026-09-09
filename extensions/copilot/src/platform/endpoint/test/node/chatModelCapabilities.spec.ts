@@ -9,7 +9,7 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isHiddenModelN, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isHiddenModelN, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model } as unknown as IChatEndpoint;
@@ -65,6 +65,8 @@ describe('Hidden model N capabilities', () => {
 			isHidden: isHiddenModelN(model),
 			isGpt56: isGpt56(model),
 			applyPatch: modelSupportsApplyPatch(model),
+			applyPatchExclusively: modelCanUseApplyPatchExclusively(model),
+			simplifiedApplyPatchInstructions: modelSupportsSimplifiedApplyPatchInstructions(model),
 			jsonNotebook: modelPrefersJsonNotebookRepresentation(model),
 			pdf: modelSupportsPDFDocuments(model),
 			cacheBreakpoints: modelSupportCacheBreakPoints(model),
@@ -75,6 +77,8 @@ describe('Hidden model N capabilities', () => {
 			isHidden: true,
 			isGpt56: false,
 			applyPatch: true,
+			applyPatchExclusively: true,
+			simplifiedApplyPatchInstructions: true,
 			jsonNotebook: true,
 			pdf: true,
 			cacheBreakpoints: true,

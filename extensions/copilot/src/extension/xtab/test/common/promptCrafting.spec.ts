@@ -844,6 +844,32 @@ describe('getUserPrompt', () => {
 		}
 	});
 
+	test.each([
+		[AggressivenessLevel.Medium, ''],
+		[AggressivenessLevel.High, '<|aggression|>high<|/aggression|>'],
+		[AggressivenessLevel.Low, '<|aggression|>low<|/aggression|>'],
+	])('PatchBased02UnifiedEagerness places the %s eagerness tag before the postscript', (aggressivenessLevel, eagernessTag) => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+			aggressivenessLevel,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		const cursorLocation = `${PromptTags.CURSOR_LOCATION.start}\n  const ${PromptTags.CURSOR}x = 1;\n${PromptTags.CURSOR_LOCATION.end}`;
+		const postScript = 'The developer was working on a section of code within the `current_file_content`';
+		expect(prompt).toContain(cursorLocation);
+		expect(prompt.indexOf(cursorLocation)).toBeLessThan(prompt.indexOf(postScript));
+		if (aggressivenessLevel === AggressivenessLevel.Medium) {
+			expect(prompt).not.toContain('<|aggression|>');
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${postScript}`);
+		} else {
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${eagernessTag}\n\n${postScript}`);
+		}
+	});
+
 	describe('Xtab275AggressivenessHighLow', () => {
 		test('medium level does not include aggressive tag', () => {
 			const pieces = createTestPromptPieces({

@@ -76,9 +76,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		assert.deepStrictEqual(
 			Object.fromEntries(Object.entries(infos[0].metadata.configurationSchema?.properties ?? {}).map(([key, property]) => [key, property.group])),
-			// `contextTier` needs token counts from the catalogue to be worth showing, and there is
-			// none here; see the context-tier tests below.
-			{ reasoningEffort: 'navigation' }
+			{ reasoningEffort: 'navigation', contextTier: 'tokens' }
 		);
 	});
 
@@ -269,9 +267,9 @@ suite('AgentHostLanguageModelProvider', () => {
 		};
 	}
 
-	test('labels the host context tiers with the token counts from the workbench catalogue', async () => {
-		// The host names its tiers because the SDK gives it no per-model windows. The workbench
-		// already knows them, so the picker shows the numbers while the wire value stays the tier.
+	test('publishes the host context tiers with the host labels, not catalogue token counts', async () => {
+		// The host's tier enum and the catalogue's `contextSize` list are independent catalogues,
+		// so pairing them by position mislabels the moment either changes. The host names its own.
 		const { catalogue: known } = catalogue([{ id: 'claude-opus-5', contextSizes: [264_000, 1_000_000] }]);
 		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'copilot', known));
 		provider.updateModels([
@@ -289,13 +287,13 @@ suite('AgentHostLanguageModelProvider', () => {
 		const tier = infos[0].metadata.configurationSchema?.properties?.contextTier;
 		assert.deepStrictEqual(
 			{ enum: tier?.enum, labels: tier?.enumItemLabels, group: tier?.group },
-			{ enum: ['default', 'long_context'], labels: ['264K', '1M'], group: 'tokens' }
+			{ enum: ['default', 'long_context'], labels: ['Default', 'Long context'], group: 'tokens' }
 		);
 	});
 
-	test('drops the context tier when there is no distinct long-context window to choose', async () => {
-		// Matches how the GitHub desktop app suppresses the picker: an unknown model, or one whose
-		// tiers are the same size, offers a choice the user cannot act on.
+	test('keeps a host config property the catalogue cannot enrich', async () => {
+		// A host advertises a property because it will honour it, and an unknown model, a staged
+		// rollout and an unresolved catalogue are indistinguishable from here.
 		const { catalogue: known } = catalogue([{ id: 'known-single-tier', contextSizes: [200_000] }]);
 		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'copilot', known));
 		const contextTierOnly = {
@@ -311,8 +309,8 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.deepStrictEqual(
 			infos.map(info => ({ id: info.metadata.id, properties: Object.keys(info.metadata.configurationSchema?.properties ?? {}) })),
 			[
-				{ id: 'known-single-tier', properties: [] },
-				{ id: 'unknown-to-catalogue', properties: [] },
+				{ id: 'known-single-tier', properties: ['contextTier'] },
+				{ id: 'unknown-to-catalogue', properties: ['contextTier'] },
 			]
 		);
 	});

@@ -113,11 +113,11 @@ import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 const $ = dom.$;
 
 /**
- * Total horizontal padding of a chat item in the agents window (`.interactive-item-container`,
- * `padding: 0 32px` in sessions `style.css`). Reserved when laying out embedded editors so code
+ * Baseline total horizontal padding of a chat item in the Agents window (`.interactive-item-container`,
+ * `padding: 0 32px` in Sessions `chatView.css`). Reserved when laying out embedded editors so code
  * blocks match the rendered content width. See {@link IChatListItemRendererOptions.contentHorizontalPadding}.
  */
-const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
+export const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
 
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;
@@ -377,6 +377,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
+	private _persistentContentHeight: number;
 	private transcriptProgress: { readonly container: HTMLElement; readonly content: HTMLElement } | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
 	private transcriptProgressActive = false;
@@ -433,8 +434,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private hasActiveRequest: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
 
-	private _visible = false;
-	get visible() { return this._visible; }
+	private readonly _visible = observableValue(this, false);
+	get visible() { return this._visible.get(); }
 
 	private _inputVisible = true;
 	private _readOnly = false;
@@ -608,6 +609,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
 
 		this.readOnlyBanner = viewOptions.isSessionsWindow
 			? undefined
@@ -1086,12 +1088,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 		this.updateSessionStateIndicator();
-		if (this.viewOptions.persistentContentHeight) {
-			// The class floats the persistent content; the variable tells the
-			// surfaces the list now extends behind how far to keep clear.
-			this.container.classList.add(chatFloatingPersistentContentClass);
-			this.container.style.setProperty(chatPersistentContentHeightVariable, `${this.viewOptions.persistentContentHeight}px`);
-		}
+		this._applyPersistentContentHeight();
 		this.editorOverflowWidgetsDomNode = this.viewOptions.editorOverflowWidgetsDomNode;
 		if (!this.editorOverflowWidgetsDomNode) {
 			const editorOverflowWidgetsDomNode = this.layoutService.getContainer(dom.getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
@@ -1135,7 +1132,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
-			const registration = this._register(this.chatPetWidgetService.register(this, {
+			this._register(this.chatPetWidgetService.register(this, {
 				parent: petHost,
 				dragBounds: inputContainer ?? petHost,
 				movementBounds: petMovementBounds ?? parent,
@@ -1145,7 +1142,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getPlatformTop: petCenterX => this.inputPart.getChatPetPlatformTop(petCenterX),
 				onDidChangePlatform: this.inputPart.onDidChangeChatPetHorizontalPlatforms,
 			}, preferredPetHost));
-			const petSpaceReserved = derived(this, reader => shouldReserveChatPetSpace(this.chatPetService.enabled.read(reader), registration.active.read(reader)));
+			const petSpaceReserved = derived(this, reader => shouldReserveChatPetSpace(this.chatPetService.enabled.read(reader), this._visible.read(reader)));
 			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petSpaceReserved.read(reader))));
 		}
 
@@ -1426,7 +1423,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
-		if (this._visible || !this.viewModel) {
+		if (this._visible.get() || !this.viewModel) {
 			const items = this.viewModel?.getItems() ?? [];
 
 			if (items.length > 0) {
@@ -1762,10 +1759,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// This ensures handoffs reflect what the response agent offers, regardless of mode picker state.
 		// Fall back to the current mode picker for old sessions where modeInfo was not persisted.
 		const modeInfo = lastItem.model.request?.modeInfo;
-		let responseMode: IChatMode | undefined;
 		const modes = this.input.currentChatModesObs.get();
+		let responseMode: IChatMode | undefined;
 		if (modeInfo?.modeInstructions?.name) {
 			responseMode = modes.findModeByName(modeInfo.modeInstructions.name);
+		} else if (modeInfo?.kind) {
+			responseMode = modes.findModeById(modeInfo.kind);
 		} else {
 			responseMode = this.input.currentModeObs.get();
 		}
@@ -2039,7 +2038,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * editing on a read-only chat.
 	 */
 	private _applyRendererEditable(editable: boolean): void {
-		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly });
+		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly, readOnly: this._readOnly });
 	}
 
 	/**
@@ -2057,6 +2056,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	/**
+	 * Updates the horizontal space reserved for chat item content and re-lays out embedded editors.
+	 */
+	setContentHorizontalPadding(contentHorizontalPadding: number): void {
+		this.listWidget.updateRendererOptions({ contentHorizontalPadding });
+		if (this.bodyDimension) {
+			this._layoutListForInputHeight();
+		}
+	}
+
 	private _applyInputVisibility(): void {
 		const inputElement = this.inputPartDisposable.value?.element;
 		if (inputElement) {
@@ -2066,8 +2075,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	setVisible(visible: boolean): void {
-		const wasVisible = this._visible;
-		this._visible = visible;
+		const wasVisible = this._visible.get();
+		this._visible.set(visible, undefined);
 		this.visibleChangeCount++;
 		this.listWidget.setVisible(visible);
 		this.input.setVisible(visible);
@@ -2077,7 +2086,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.visibilityTimeoutDisposable.value = disposableTimeout(() => {
 					// Progressive rendering paused while hidden, so start it up again.
 					// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
-					if (this._visible) {
+					if (this._visible.get()) {
 						this.onDidChangeItems(true);
 					}
 				}, 0);
@@ -2102,7 +2111,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatListWidget,
 			listContainer,
 			{
-				rendererOptions: options,
+				rendererOptions: { ...options, readOnly: this._readOnly },
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -2118,7 +2127,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getSelectedModelRequestOptions: () => this.getSelectedModelRequestOptions(),
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
-				paddingBottom: this.viewOptions.persistentContentHeight,
+				paddingBottom: this._persistentContentHeight,
 			}
 		));
 
@@ -2696,6 +2705,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	setPersistentContentHeight(height: number | undefined): void {
+		const persistentContentHeight = Math.max(0, height ?? 0);
+		if (persistentContentHeight === this._persistentContentHeight) {
+			return;
+		}
+		this._persistentContentHeight = persistentContentHeight;
+		this._applyPersistentContentHeight();
+	}
+
+	private _applyPersistentContentHeight(): void {
+		if (!this.container) {
+			return;
+		}
+		const floatsPersistentContent = this._persistentContentHeight > 0;
+		this.container.classList.toggle(chatFloatingPersistentContentClass, floatsPersistentContent);
+		if (floatsPersistentContent) {
+			this.container.style.setProperty(chatPersistentContentHeightVariable, `${this._persistentContentHeight}px`);
+		} else {
+			this.container.style.removeProperty(chatPersistentContentHeightVariable);
+		}
+		this.listWidget?.setPaddingBottom(this._persistentContentHeight);
+	}
 
 	setModel(model: IChatModel | undefined): void {
 		if (!this.container || !this.inputPart) {
@@ -3141,11 +3172,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!slashCommand) {
 			return true;
 		}
-		const parseResult = slashCommand.parsedPromptFile;
-		// add the prompt file to the context
-		const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
-		const toolReferences = this.toolsService.toToolReferences(refs);
-		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 		const promptRunEvent: ChatPromptRunEvent = {
 			storage: slashCommand.storage,
@@ -3157,6 +3183,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			promptRunEvent.promptNameHash = hash(slashCommand.name).toString(16);
 		}
 		this.telemetryService.publicLog2<ChatPromptRunEvent, ChatPromptRunClassification>('chat.promptRun', promptRunEvent);
+
+		const parseResult = slashCommand.parsedPromptFile;
+		if (!parseResult) {
+			return true;
+		}
+
+		// add the prompt file to the context
+		const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
+		const toolReferences = this.toolsService.toToolReferences(refs);
+		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 		if (parseResult.header) {
 			const applied = await this._applyPromptMetadata(parseResult.header, requestInput);
@@ -3653,6 +3689,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// resend/confirmation flows preserve custom per-model settings.
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'> {
 		const modelId = this.input.currentLanguageModel;
+		const model = this.viewModel?.model;
+		const intendedModel = model?.inputModel.intendedModel;
+		if (this._lockedAgent?.agentHostProviderId && model?.getRequests().length && intendedModel && intendedModel.modelId !== modelId) {
+			return { userSelectedModelId: undefined, userSelectedModelConfiguration: undefined };
+		}
 		return {
 			userSelectedModelId: modelId,
 			userSelectedModelConfiguration: modelId ? this.input.getModelConfiguration(modelId) : undefined,

@@ -500,6 +500,10 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 			.filter(([, value]) => typeof value === 'string')
 			.map(([key, value]) => [key, value as string]))
 		: undefined;
+	const rawOAuth = candidate['oauth'] && typeof candidate['oauth'] === 'object' ? candidate['oauth'] as Record<string, unknown> : undefined;
+	const oauthClientId = (typeof rawOAuth?.['clientId'] === 'string' ? rawOAuth['clientId'] : undefined)
+		?? (typeof candidate['oauthClientId'] === 'string' ? candidate['oauthClientId'] : undefined);
+	const oauth = oauthClientId ? { clientId: oauthClientId } : undefined;
 	const dev = candidate['dev'] && typeof candidate['dev'] === 'object' ? candidate['dev'] as IMcpStdioServerConfiguration['dev'] : undefined;
 
 	if (type === 'ws') {
@@ -517,7 +521,7 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		if (!url) {
 			return undefined;
 		}
-		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, dev };
+		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, ...(oauth ? { oauth } : {}), dev };
 	}
 
 	return undefined;
@@ -912,7 +916,7 @@ export async function readSkills(
 	pluginRoot: URI,
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI },
+	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI; readonly deduplicateByName?: boolean },
 ): Promise<readonly ISkillPluginResource[]> {
 	const seen = new Set<string>();
 	const skills: ISkillPluginResource[] = [];
@@ -931,7 +935,7 @@ export async function readSkills(
 		} catch {
 			// Keep the existing best-effort discovery behavior for malformed skills.
 		}
-		if (seen.has(name)) {
+		if (options?.deduplicateByName !== false && seen.has(name)) {
 			return;
 		}
 		seen.add(name);

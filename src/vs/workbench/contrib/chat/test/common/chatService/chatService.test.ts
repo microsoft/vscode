@@ -57,11 +57,11 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IMod
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { ChatViewModel, isPendingDividerVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -2122,7 +2122,11 @@ suite('ChatService', () => {
 		const sessionType = SessionType.AgentHostCopilot;
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
-		migrationService.computeMigrationHint.resolves('Found 3 customization files that could be migrated.');
+		const migrationHint = {
+			message: 'Found 3 customization files that could be migrated.',
+			target: CustomizationMigrationHintTarget.FileMigrations,
+		};
+		migrationService.computeMigrationHint.resolves(migrationHint);
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2145,7 +2149,7 @@ suite('ChatService', () => {
 
 		const testService = createChatService();
 		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			sessionResource => migrationService.computeMigrationHint(sessionResource)
+			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
 		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
@@ -2197,7 +2201,8 @@ suite('ChatService', () => {
 		const dismissedSessionHint = ((testService.getSession(dismissedSessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 			.filter(part => part.kind === 'systemNotification')
 			.map(part => part.content.value);
-		const expectedHint = `*Found 3 customization files that could be migrated. [Review customizations](command:aiCustomization.openManagementEditor "Open Chat Customizations") | [Hide for this workspace](command:aiCustomization.dismissMigrationHint "Stop Showing Migration Hints for This Harness")*`;
+		const expectedReviewLink = `[Review customizations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%257D%255D "Open Chat Customizations")`;
+		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | [Hide for this workspace](command:aiCustomization.dismissMigrationHint "Stop Showing Migration Hints for This Harness")*`;
 		assert.deepStrictEqual({
 			computeCalls: migrationService.computeMigrationHint.callCount,
 			computedFor: migrationService.computeMigrationHint.firstCall.args[0].toString(),
@@ -2225,7 +2230,10 @@ suite('ChatService', () => {
 		const sessionType = SessionType.AgentHostCopilot;
 		const sessionResource = URI.from({ scheme: sessionType, path: '/restored-session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
-		migrationService.computeMigrationHint.resolves('Found customization files that could be migrated.');
+		migrationService.computeMigrationHint.resolves({
+			message: 'Found customization files that could be migrated.',
+			target: CustomizationMigrationHintTarget.FileMigrations,
+		});
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2250,7 +2258,7 @@ suite('ChatService', () => {
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
 		const testService = createChatService();
 		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			sessionResource => migrationService.computeMigrationHint(sessionResource)
+			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
 		));
 		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(firstRef);
@@ -2281,7 +2289,7 @@ suite('ChatService', () => {
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		const testService = createChatService();
 		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			sessionResource => migrationService.computeMigrationHint(sessionResource)
+			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
 		));
 		const model = startSessionModel(testService).object;
 		const response = await testService.sendRequest(model.sessionResource, 'test');
@@ -2321,7 +2329,7 @@ suite('ChatService', () => {
 
 		const testService = createChatService();
 		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			sessionResource => migrationService.computeMigrationHint(sessionResource)
+			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
 		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
@@ -3124,6 +3132,73 @@ suite('ChatService', () => {
 			});
 		});
 
+		test('preserves explicit Agent Merge identity in history and live server requests', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'user', type: 'request', prompt: 'user request', participant: remoteScheme },
+					{ id: 'history', type: 'request', prompt: 'merge history', participant: remoteScheme, isSystemInitiated: true, requestSource: 'agentMerge' },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt: 'merge live', isSystemInitiated: true, requestSource: 'agentMerge' });
+
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => ({ id: request.id, requestSource: request.requestSource })),
+				viewModels: viewModel.getItems().filter(isRequestVM).map(request => ({ id: request.id, requestSource: request.requestSource })),
+				serialized: ref.object.toJSON().requests.map(request => ({ id: request.requestId, requestSource: request.requestSource })),
+			}, {
+				requests: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+				viewModels: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+				serialized: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+			});
+		});
+
+		test('backfills legacy Agent Merge history but not live requests or user prompts', async () => {
+			const prompt = '<agent_merge_state>\nAuthorized actions this run: fix failed required CI checks\n</agent_merge_state>';
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'user', type: 'request', prompt, participant: remoteScheme },
+					{ id: 'labelled', type: 'request', prompt, participant: remoteScheme, isSystemInitiated: true, systemInitiatedLabel: 'Terminal needs input' },
+					{ id: 'legacy', type: 'request', prompt, participant: remoteScheme, isSystemInitiated: true },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', false),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt, isSystemInitiated: true });
+
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			const expected = [
+				{ id: 'user', requestSource: undefined },
+				{ id: 'labelled', requestSource: undefined },
+				{ id: 'legacy', requestSource: 'agentMerge' },
+				{ id: 'live', requestSource: undefined },
+			];
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => ({ id: request.id, requestSource: request.requestSource })),
+				viewModels: viewModel.getItems().filter(isRequestVM).map(request => ({ id: request.id, requestSource: request.requestSource })),
+				serialized: ref.object.toJSON().requests.map(request => ({ id: request.requestId, requestSource: request.requestSource })),
+			}, {
+				requests: expected,
+				viewModels: expected,
+				serialized: expected,
+			});
+		});
+
 		test('uses the Agent Host timestamp for live server-initiated requests', async () => {
 			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
 			const timestamp = 1_752_012_321_000;
@@ -3167,6 +3242,53 @@ suite('ChatService', () => {
 				{ id: 'turn-1', message: 'hello' },
 				{ id: 'turn-2', message: 'server request' },
 			]);
+		});
+
+		test('hides a live workspace-continuation request while keeping its response boundary and provider output', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const { resource } = setupRemoteProvider({
+				history: [],
+				progressObs,
+				isCompleteObs: observableValue<boolean>('complete', false),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({
+				id: 'workspace-continuation',
+				prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.',
+				isSystemInitiated: true,
+				isRequestHidden: true,
+			});
+			progressObs.set([{
+				kind: 'systemNotification',
+				content: new MarkdownString('Now working in vscode'),
+				presentation: 'workspaceTransition',
+				workspaceName: 'vscode',
+				accessibilityLabel: 'Workspace changed. This session is now working directly in vscode.',
+			}, {
+				kind: 'markdownContent',
+				content: new MarkdownString('Provider continued work'),
+			}], undefined);
+
+			const request = ref.object.getRequests()[0];
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			assert.deepStrictEqual({
+				requestHidden: request.isRequestHiddenFromTranscript,
+				responseHidden: request.response?.isHiddenFromTranscript,
+				visibleItems: viewModel.getItems().map(item => isResponseVM(item) ? 'response' : 'request'),
+				responseParts: request.response?.response.value.map(part => part.kind),
+			}, {
+				requestHidden: true,
+				responseHidden: false,
+				visibleItems: ['response'],
+				responseParts: ['systemNotification', 'markdownContent'],
+			});
 		});
 
 		test('remote resume reopens the existing request without duplicating it', async () => {

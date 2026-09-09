@@ -13,7 +13,7 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
@@ -195,20 +195,23 @@ suite('WorktreeIsolation', () => {
 		const repoWorktree = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 		const repoWorktreeSelected = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' } });
 		const repoFolder = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
+		const repoFolderSelected = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.Branch]: 'main' } });
 		headCommit = undefined; // unborn HEAD (no commits)
 		const noCommits = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 
 		assert.deepStrictEqual({
 			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, branchTrack: noRepo.worktreeBranchTrackProperty, createNewBranch: noRepo.worktreeCreateNewBranchProperty },
-			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
+			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchDynamic: repoWorktree.branchProperty?.protocol.enumDynamic, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
 			repoWorktreeSelected: { branchDefault: repoWorktreeSelected.branchDefault, branchValue: repoWorktreeSelected.branchValue, branchEnum: repoWorktreeSelected.branchProperty?.protocol.enum },
-			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchDynamic: repoFolder.branchProperty?.protocol.enumDynamic, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			repoFolderSelected: { branchDefault: repoFolderSelected.branchDefault, branchValue: repoFolderSelected.branchValue },
 			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, branchTrack: noCommits.worktreeBranchTrackProperty, createNewBranch: noCommits.worktreeCreateNewBranchProperty },
 		}, {
 			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
-			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
+			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchDynamic: true, branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
 			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
-			repoFolder: { value: 'folder', branchDefault: 'feature', branchReadOnly: true, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			repoFolder: { value: 'folder', branchDefault: 'feature', branchDynamic: true, branchReadOnly: false, hasPrefix: true, hasIncludeFiles: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			repoFolderSelected: { branchDefault: 'feature', branchValue: 'main' },
 			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, branchTrack: undefined, createNewBranch: undefined },
 		});
 	});
@@ -507,20 +510,22 @@ suite('WorktreeIsolation', () => {
 			},
 		});
 		const meta = await isolation.readWorktreeMetadata(sessionUri);
-		const project = isolation.sessionWorktreeProject(sessionId);
+		const worktreeInfo = isolation.sessionWorktreeInfo(sessionId);
 
 		assert.deepStrictEqual({
 			worktree: worktree?.toString(),
 			addWorktreeRoot: addWorktreeRoot?.toString(),
 			includeFileRoot: copyIncludeCalls[0]?.repositoryRoot.toString(),
 			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
-			project: project && { uri: project.uri.toString(), displayName: project.displayName },
+			project: worktreeInfo && { uri: worktreeInfo.project.uri.toString(), displayName: worktreeInfo.project.displayName },
+			branchName: worktreeInfo?.branchName,
 		}, {
 			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 			addWorktreeRoot: repoRoot.toString(),
 			includeFileRoot: checkoutRoot.toString(),
 			metaRepositoryRoot: repoRoot.toString(),
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
+			branchName,
 		});
 	});
 
@@ -875,7 +880,7 @@ suite('WorktreeIsolation', () => {
 		);
 	});
 
-	test('resolveWorktreeProject / sessionWorktreeProject expose the repository as the session project', async () => {
+	test('resolveWorktreeProject / sessionWorktreeInfo expose the repository as the session project', async () => {
 		// The worktree lives at `<repo>.worktrees/<name>`, but a worktree session
 		// must group under the repository in the sessions UI. Both accessors return
 		// the repo root as the project so agents can merge it into the reported
@@ -885,19 +890,19 @@ suite('WorktreeIsolation', () => {
 		const expectedDisplayName = basename(repoRoot);
 
 		const beforeAsync = await isolation.resolveWorktreeProject(sessionUri);
-		const beforeSync = isolation.sessionWorktreeProject(sessionId);
+		const beforeSync = isolation.sessionWorktreeInfo(sessionId)?.project;
 
 		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
 		const afterAsync = await isolation.resolveWorktreeProject(sessionUri);
-		const afterSync = isolation.sessionWorktreeProject(sessionId);
+		const afterSync = isolation.sessionWorktreeInfo(sessionId)?.project;
 
 		assert.deepStrictEqual({
 			beforeAsync,
 			beforeSync,
 			afterAsync: { uri: afterAsync?.uri.toString(), displayName: afterAsync?.displayName },
 			afterSync: { uri: afterSync?.uri.toString(), displayName: afterSync?.displayName },
-			unknownSession: isolation.sessionWorktreeProject('does-not-exist'),
+			unknownSession: isolation.sessionWorktreeInfo('does-not-exist'),
 		}, {
 			beforeAsync: undefined,
 			beforeSync: undefined,
@@ -1097,6 +1102,31 @@ suite('WorktreeIsolation', () => {
 		}, {
 			removeCalls: [{ worktree: worktree!.toString(), force: true }],
 			resolvedWorktree: undefined,
+		});
+	});
+
+	test('discardSessionWorktree removes provisional worktree metadata', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+
+		await isolation.discardSessionWorktree(sessionUri, sessionId, await isolation.prepareSessionDeletion(sessionUri, sessionId));
+
+		assert.deepStrictEqual({
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+			metadata: await db.getMetadataObject({
+				'copilot.worktree.branchName': true,
+				'copilot.worktree.path': true,
+				'copilot.worktree.repositoryRoot': true,
+				[META_DIFF_BASE_BRANCH]: true,
+			}),
+		}, {
+			removeCalls: [{ worktree: worktree!.toString(), force: true }],
+			metadata: {
+				'copilot.worktree.branchName': undefined,
+				'copilot.worktree.path': undefined,
+				'copilot.worktree.repositoryRoot': undefined,
+				[META_DIFF_BASE_BRANCH]: undefined,
+			},
 		});
 	});
 

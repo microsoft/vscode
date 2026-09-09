@@ -5,13 +5,15 @@
 
 import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import type { IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -35,7 +37,7 @@ const maxCreatedChats = 25;
 /** Process-wide backstop against runaway `send_message` fan-out. */
 const maxSentMessages = 50;
 
-const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
+const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
 const createSessionRelationshipValues = ['currentSession', 'independent'] as const;
 export type CreateSessionRelationship = typeof createSessionRelationshipValues[number];
 
@@ -71,10 +73,11 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		relationship: {
 			type: 'string',
 			enum: [...createSessionRelationshipValues],
-			description: 'Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks. Use `independent` only for a separate deliverable that needs its own workspace and top-level lifecycle.',
+			description: 'Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks, unless the user explicitly requests a worktree. Use `independent` for a separate deliverable that needs its own workspace, provider, or top-level lifecycle, or for an explicitly requested worktree.',
 		},
 		prompt: { type: 'string', description: 'Initial prompt to send to the new session.' },
 		workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`.' },
+		worktree: { type: 'boolean', description: 'Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session\'s isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
@@ -84,6 +87,21 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 const getCurrentSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {},
+};
+
+const setWorkspaceInputSchema: ToolDefinition['inputSchema'] = {
+	type: 'object',
+	properties: {
+		workspaceFolder: {
+			type: 'string',
+			description: 'Absolute local folder path or file URI to set as the current session\'s workspace. Use an exact path from the user or `list_sessions`; do not guess.',
+		},
+		isolation: {
+			type: 'boolean',
+			description: 'Whether to create an isolated Git worktree and use it as the workspace. Include this choice in the required user confirmation immediately before calling this tool.',
+		},
+	},
+	required: ['workspaceFolder', 'isolation'],
 };
 
 const renameChatInputSchema: ToolDefinition['inputSchema'] = {
@@ -147,9 +165,16 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		annotations: { readOnlyHint: true },
 	},
 	{
+		name: SessionServerToolName.SetWorkspace,
+		title: 'Set Workspace',
+		description: 'Set the current session\'s workspace when the task should continue in a workspace not yet attached to this session. This preserves the session, chat, and conversation history. Immediately before every call to this tool, always use the available user-input tool to ask the user to confirm both the workspace and whether the work should be isolated, even if the user previously mentioned or requested those choices. Tool approval is separate and does not replace this confirmation. Set `isolation` to true to create a managed Git worktree, or false to work directly in the folder. The workspace change is deferred until the current turn ends, then the host automatically continues the original task in the selected workspace. Make this the final tool call of the turn.',
+		inputSchema: setWorkspaceInputSchema,
+		annotations: { readOnlyHint: false },
+	},
+	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session\'s workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle.',
+		description: 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -163,7 +188,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.SendMessage,
 		title: 'Send Message',
-		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. The message is delivered asynchronously — this tool does not wait for or return the reply.',
+		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.',
 		inputSchema: sendMessageInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -192,6 +217,7 @@ export function currentSessionUri(toolCallChannel: ProtocolURI): URI {
 interface ICreateSessionArgs {
 	readonly relationship?: unknown;
 	readonly workspace?: unknown;
+	readonly worktree?: unknown;
 	readonly prompt?: unknown;
 	readonly title?: unknown;
 	readonly model?: unknown;
@@ -205,16 +231,19 @@ export type IResolvedCreateSessionArgs = {
 } | {
 	readonly relationship: 'independent';
 	readonly workspace: URI;
+	readonly worktree?: boolean;
 	readonly prompt: string;
 	readonly title: string;
 	readonly model?: IAgentModelInfo;
 };
 
-/** Minimal dependency surface needed by the session server-tool group. */
-export interface ISessionServerToolAccessor {
+/** AgentService-owned operations used by the session server-tool group. */
+export interface IAgentServiceSessionServerToolAccessor {
 	readonly isActiveAgentTitleGenerationEnabled: () => boolean;
+	readonly canConvertWorkspace: (session: URI) => boolean;
 	readonly listSessions: () => Promise<readonly IAgentSessionMetadata[]>;
 	readonly getSession: (session: URI) => Promise<IAgentSessionMetadata | undefined>;
+	readonly getWorktreeRoots: (workspace: URI) => Promise<readonly URI[]>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
@@ -229,6 +258,11 @@ export interface ISessionServerToolAccessor {
 	readonly getSessionSpawnDepth: (session: URI) => number;
 	/** Records the spawn depth of a freshly-created session so its own `create_session` calls can enforce the recursion limit. */
 	readonly setSessionSpawnDepth: (session: URI, depth: number) => void;
+}
+
+/** Complete dependency surface needed by the session server-tool group. */
+export interface ISessionServerToolAccessor extends IAgentServiceSessionServerToolAccessor {
+	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean) => void;
 }
 
 export interface IRenameTitleResult {
@@ -308,6 +342,13 @@ function getRequiredString(value: unknown, field: string, toolName: string): str
 	return value;
 }
 
+function getRequiredBoolean(value: unknown, field: string, toolName: string): boolean {
+	if (typeof value !== 'boolean') {
+		throw new Error(`Invalid ${toolName} input: ${field} must be a boolean.`);
+	}
+	return value;
+}
+
 function getOptionalString(value: unknown, field: string, toolName: string): string | undefined {
 	if (value === undefined) {
 		return undefined;
@@ -376,6 +417,20 @@ function parseWorkspaceUri(workspace: string): URI | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+/** Validates and resolves the workspace requested by `set_workspace`. */
+export function getSetWorkspaceArgs(rawArgs: unknown): { readonly workspaceFolder: URI; readonly isolation: boolean } {
+	const args = (rawArgs ?? {}) as { readonly workspaceFolder?: unknown; readonly isolation?: unknown };
+	const input = getRequiredString(args.workspaceFolder, 'workspaceFolder', SessionServerToolName.SetWorkspace);
+	const workspaceFolder = parseWorkspaceUri(input);
+	if (!workspaceFolder || workspaceFolder.scheme !== Schemas.file || !workspaceFolder.path.startsWith('/') || workspaceFolder.query || workspaceFolder.fragment) {
+		throw new Error(`Invalid ${SessionServerToolName.SetWorkspace} input: workspaceFolder must be an absolute local path or file URI.`);
+	}
+	return {
+		workspaceFolder,
+		isolation: getRequiredBoolean(args.isolation, 'isolation', SessionServerToolName.SetWorkspace),
+	};
 }
 
 function resolveWorkspace(workspace: string, sessions: readonly IAgentSessionMetadata[]): URI {
@@ -464,10 +519,14 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	validateRenameTitle(title, SessionServerToolName.CreateSession);
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
+	const worktree = getOptionalBoolean(args.worktree, 'worktree', SessionServerToolName.CreateSession);
 	const model = resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
 	if (relationship === 'currentSession') {
 		if (workspace !== undefined) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: workspace is only valid when relationship is "independent".`);
+		}
+		if (worktree !== undefined) {
+			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: worktree is only valid when relationship is "independent"; chats in the current session share its workspace.`);
 		}
 		return {
 			relationship,
@@ -479,6 +538,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	return {
 		relationship,
 		workspace: resolveWorkspace(getRequiredString(workspace, 'workspace', SessionServerToolName.CreateSession), sessions),
+		...(worktree !== undefined ? { worktree } : {}),
 		prompt,
 		title,
 		...(model !== undefined ? { model } : {}),
@@ -766,13 +826,23 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	if (parentDepth >= maxSessionSpawnDepth) {
 		throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
 	}
+	let workspace = args.workspace;
+	if (args.worktree === false) {
+		const [primaryRoot, ...linkedRoots] = await accessor.getWorktreeRoots(workspace);
+		if (primaryRoot && linkedRoots.some(root => isEqual(root, workspace))) {
+			workspace = primaryRoot;
+		}
+	}
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const provider = args.model?.provider ?? defaults?.provider;
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
 	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
-	const isolation = defaults?.project !== undefined && isEqual(defaults.project, args.workspace)
-		? defaults.isolation
-		: 'worktree';
+	let isolation: 'folder' | 'worktree' | undefined = 'worktree';
+	if (args.worktree !== undefined) {
+		isolation = args.worktree ? 'worktree' : 'folder';
+	} else if (defaults?.project !== undefined && isEqual(defaults.project, workspace)) {
+		isolation = defaults.isolation;
+	}
 	const configValues = inheritedProviderConfig === undefined && isolation === undefined
 		? undefined
 		: {
@@ -780,7 +850,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 			...(isolation !== undefined ? { [SessionConfigKey.Isolation]: isolation } : {}),
 		};
 	const config: IAgentCreateSessionConfig = {
-		workingDirectories: args.workspace ? [args.workspace] : undefined,
+		workingDirectories: [workspace],
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
 		...(configValues !== undefined ? { config: configValues } : {}),
@@ -1065,11 +1135,12 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 }
 
 /**
- * Sends a message to an existing session/chat, starting a new turn there.
+ * Sends a message to an existing session/chat, starting a new turn there or
+ * queuing it behind the target chat's active or pending messages.
  * Refuses to target {@link currentChannel} (the chat channel the tool runs on)
  * to avoid a session trivially messaging itself in a loop.
  */
-export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string): Promise<string> {
+export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string, stateManager?: AgentHostStateManager): Promise<string> {
 	const sessions = await accessor.listSessions();
 	const { session, chat, chatId, message } = getSendMessageArgs(rawArgs, sessions);
 	if (currentChannel && chat.toString() === URI.parse(currentChannel).toString()) {
@@ -1077,17 +1148,33 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 	}
 	const sourceChat = currentChannel ? URI.parse(currentChannel) : undefined;
 	const sourceSession = sourceChat ? currentSessionUri(sourceChat.toString()) : undefined;
-	await accessor.startPrompt(session, chat, message, sourceSession ? {
+	const delegation: IAgentMessageDelegationMeta | undefined = sourceSession ? {
 		sourceSession: sourceSession.toString(),
 		sourceChat: sourceChat?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
-	} : undefined);
-	return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId));
+	} : undefined;
+	const targetState = stateManager?.getChatState(chat.toString());
+	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessage || targetState?.queuedMessages?.length)) {
+		const queuedMessage: Message = {
+			text: message,
+			origin: { kind: MessageKind.Agent },
+			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
+		};
+		stateManager.dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: generateUuid(),
+			message: queuedMessage,
+		});
+		return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), true);
+	}
+	await accessor.startPrompt(session, chat, message, delegation);
+	return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), false);
 }
 
 /** Builds the model-facing `send_message` result. */
-export function formatSendMessageResult(openLink: string): string {
-	return `Message sent (${openLink}).`;
+export function formatSendMessageResult(openLink: string, queued: boolean): string {
+	return `Message ${queued ? 'queued' : 'sent'} (${openLink}).`;
 }
 
 // --- get_session_context -----------------------------------------------------
@@ -1311,6 +1398,18 @@ export async function applyDeleteSessionTool(accessor: ISessionServerToolAccesso
 	return `Deleted session ${session.toString()}. Reply with one short sentence confirming the session was deleted.`;
 }
 
+/** Requests setting the workspace in place after the tool's active turn completes. */
+export function applySetWorkspaceTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, chat: URI, turnId: string | undefined): string {
+	if (!turnId) {
+		throw new Error(`${SessionServerToolName.SetWorkspace} must run from an active chat turn.`);
+	}
+	const { workspaceFolder, isolation } = getSetWorkspaceArgs(rawArgs);
+	accessor.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation);
+	return isolation
+		? `An isolated worktree will be created from ${workspaceFolder.toString()} and set as the workspace after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the isolated workspace.`
+		: `Workspace will be set to ${workspaceFolder.toString()} after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the selected workspace.`;
+}
+
 function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 	switch (toolName) {
 		case SessionServerToolName.ListSessions:
@@ -1364,6 +1463,29 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 				displayName: localize('toolName.getCurrentSession', "Get Current Session"),
 				invocationMessage: localize('toolInvoke.getCurrentSession', "Get current session"),
 			};
+		case SessionServerToolName.SetWorkspace:
+			{
+				const input = args as { readonly workspaceFolder?: unknown; readonly isolation?: unknown } | undefined;
+				const workspaceFolder = typeof input?.workspaceFolder === 'string'
+					? input.workspaceFolder
+					: localize('toolConfirm.setWorkspace.selectedWorkspace', "the selected workspace");
+				const workspaceName = typeof input?.workspaceFolder === 'string'
+					? basename(parseWorkspaceUri(input.workspaceFolder) ?? URI.file(input.workspaceFolder)) || workspaceFolder
+					: workspaceFolder;
+				const confirmationMessage = input?.isolation === true
+					? localize('toolConfirm.setWorkspace.isolated', "Continue this session in {0} with changes isolated from the existing folder?", workspaceFolder)
+					: input?.isolation === false
+						? localize('toolConfirm.setWorkspace.direct', "Continue this session in {0} and make changes directly in that folder?", workspaceFolder)
+						: localize('toolConfirm.setWorkspace.generic', "Continue this session in {0}?", workspaceFolder);
+				return {
+					displayName: localize('toolName.setWorkspace', "Set Workspace"),
+					invocationMessage: localize('toolInvoke.setWorkspace', "Setting workspace"),
+					pastTenseMessage: localize('toolComplete.setWorkspace', "Scheduled workspace change"),
+					confirmationTitle: localize('toolConfirm.setWorkspace.title', "Continue in {0}?", workspaceName),
+					confirmationMessage,
+					hideConfirmationInput: true,
+				};
+			}
 		case SessionServerToolName.DeleteSession:
 			return {
 				displayName: localize('toolName.deleteSession', "Delete Session"),
@@ -1396,13 +1518,16 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		isEnabled(toolName: string): boolean {
 			return toolName !== SessionServerToolName.RenameChat || accessor?.isActiveAgentTitleGenerationEnabled() !== false;
 		},
+		isEnabledForSession(toolName: string, sessionUri: ProtocolURI): boolean {
+			return toolName !== SessionServerToolName.SetWorkspace || accessor?.canConvertWorkspace(URI.parse(sessionUri)) === true;
+		},
 		canRequireConfirmation(toolName: string): boolean {
 			return sessionToolRequiresConfirmation(toolName);
 		},
 		getDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 			return getSessionToolDisplay(toolName, args, result);
 		},
-		async execute(_stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown): Promise<string> {
+		async execute(stateManager: AgentHostStateManager, context, toolName: string, rawArgs: unknown): Promise<string> {
 			if (!accessor) {
 				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
 			}
@@ -1418,6 +1543,9 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 						const metadata = await accessor.getSession(currentSession);
 						return serializeCurrentSession(currentSession, metadata ? [metadata] : []);
 					}
+				case SessionServerToolName.SetWorkspace: {
+					return applySetWorkspaceTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
+				}
 				case SessionServerToolName.CreateSession: {
 					const relationship = getCreateSessionRelationship(rawArgs);
 					if (relationship === 'currentSession' && createdChatCount >= maxCreatedChats) {
@@ -1448,7 +1576,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					if (sentMessageCount >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
 					}
-					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId);
+					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
 					sentMessageCount++;
 					return result;
 				}

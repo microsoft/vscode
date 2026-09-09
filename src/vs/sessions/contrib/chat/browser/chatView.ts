@@ -10,7 +10,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -28,7 +28,7 @@ import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
-import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { chatPersistentContentVisibleClass, ChatWidget, SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -36,7 +36,7 @@ import { IChatModel } from '../../../../workbench/contrib/chat/common/model/chat
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions } from '../../../browser/parts/chatView.js';
 import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
@@ -53,6 +53,18 @@ import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
+import { SessionArchiveNudge } from './sessionArchiveNudge.js';
+import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+
+const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
+
+/**
+ * Returns the total horizontal space the renderer must reserve for Sessions chat items.
+ * The background increment must match the response's `--vscode-spacing-size120` padding on both sides.
+ */
+export function getSessionChatItemHorizontalPadding(hasBackground: boolean): number {
+	return SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING + (hasBackground ? SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING * 2 : 0);
+}
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
@@ -104,9 +116,15 @@ export class NewChatView extends AbstractChatView {
 		this._widget.focusInput();
 	}
 
-	override selectWorkspace(folderUri: URI, providerId?: string): void {
+	override selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
 		if (this._widget instanceof NewChatWidget) {
-			this._widget.selectWorkspace(folderUri, providerId);
+			this._widget.selectWorkspace(folderUri, options);
+		}
+	}
+
+	override selectNoWorkspace(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.selectNoWorkspace();
 		}
 	}
 
@@ -174,16 +192,22 @@ export class ChatView extends AbstractChatView {
 	private _currentChatResource: URI | undefined;
 	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionObs = observableValue<ISession | undefined>(this, undefined);
+	override readonly hasVisibleTranscriptContent = observableValue(this, false);
+	override readonly isLoadingTranscript = observableValue(this, false);
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
+	/** Whether this view occupies the first group in the session's chat grid. */
+	private readonly _isPrimaryObs = observableValue(this, false);
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
 
 	/** Whether this view is currently visible. `undefined` so the first push always reaches the widget. */
 	private _isVisible: boolean | undefined;
+	private readonly _isVisibleObs = observableValue(this, false);
 	private _lastLayout: { width: number; height: number } | undefined;
+	private _chatItemHorizontalPadding: number;
 
 	/**
 	 * Per-view mirror of `agentsVoiceInitiatedHere`, scoped above the chat widget.
@@ -209,9 +233,11 @@ export class ChatView extends AbstractChatView {
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
+		this._chatItemHorizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
 
 		this.element.classList.add('chat-view-chat');
 		this._widgetContainer = $('.chat-view-widget');
@@ -236,6 +262,7 @@ export class ChatView extends AbstractChatView {
 				rendererOptions: {
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
+					contentHorizontalPadding: this._chatItemHorizontalPadding,
 				},
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
@@ -249,6 +276,7 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatItemHorizontalPadding()));
 		const transcript = this._widget.transcriptDomNode;
 		this._register(addDisposableListener(transcript, EventType.CONTEXT_MENU, event => {
 			if (isHighContrast(this.themeService.getColorTheme().type)) {
@@ -292,8 +320,28 @@ export class ChatView extends AbstractChatView {
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
 		this._banners.setActive(this._isActive);
 
+		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derived(this, reader => {
+			if (!this._isVisibleObs.read(reader) || !this._isPrimaryObs.read(reader) || this.isLoadingTranscript.read(reader)) {
+				return undefined;
+			}
+			const session = this._currentSessionObs.read(reader);
+			const resource = this._currentChatResourceObs.read(reader);
+			if (!isEqual(chatModel.read(reader)?.sessionResource, resource)) {
+				return undefined;
+			}
+			const chat = session?.chats.read(reader).find(chat => isEqual(chat.resource, resource));
+			return chat?.interactivity.read(reader) === ChatInteractivity.Full ? session : undefined;
+		})));
+		this._register(autorun(reader => {
+			const options = archiveNudge.options.read(reader);
+			this._widget.inputPart.setSessionArchiveNudge(options);
+			if (options) {
+				archiveNudge.markShown();
+			}
+		}));
+
 		// Floating status pills above the input.
-		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar));
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput()));
 		const updateChatPillsVisibility = (visible: boolean) => {
 			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
 		};
@@ -305,6 +353,10 @@ export class ChatView extends AbstractChatView {
 		}));
 		this._register(chatPillsDebugService.register(this._chatPills, this._banners, this._isActiveObs));
 		this._ensureBannersMounted();
+		this._register(this.chatSessionsService.onDidChangeContentProviderSchemes(({ added }) => {
+			// Remote providers are registered after their host connects, possibly after this view's initial load.
+			this._retryUnresolvedChatLoad(added);
+		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
@@ -370,6 +422,8 @@ export class ChatView extends AbstractChatView {
 			const model = chatModel.read(reader);
 			model?.lastRequestObs.read(reader);
 			const requests = model?.getRequests() ?? [];
+			const hasVisibleRequest = requests.some(request => !request.isHiddenFromTranscript);
+			this.hasVisibleTranscriptContent.set(hasVisibleRequest, undefined);
 			const entry = findInitialTranscriptContextEntry(requests);
 			if (entry?.id === currentEntryId) {
 				return;
@@ -405,7 +459,7 @@ export class ChatView extends AbstractChatView {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const previousSession = this._currentSessionObs.get();
 		this._currentSessionObs.set(session, undefined);
-		this._externalSessionBanner.setSession(session);
+		this._externalSessionBanner.setSession(this._isPrimaryObs.get() ? session : undefined);
 		const resource = chat.resource;
 		const previousChatResource = this._currentChatResource;
 		const chatChanged = !isEqual(previousChatResource, resource);
@@ -439,10 +493,32 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 
+		this.hasVisibleTranscriptContent.set(false, undefined);
 		this._currentChatResource = resource;
 		this._currentChatResourceObs.set(resource, undefined);
 		this.logService.trace(`[ChatView] setChat start uri=${resource.toString()} session=${session?.resource.toString()}`);
 
+		this._loadChat(resource, session, previousChatResource, previousSession);
+	}
+
+	private _retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void {
+		const resource = this._currentChatResource;
+		if (!resource || this._modelRef.value || !addedSessionTypes.includes(getChatSessionType(resource))) {
+			return;
+		}
+		this._loadChat(resource, this._currentSessionObs.get());
+	}
+
+	/**
+	 * Drives the widget's loading affordance and the observable mirror of it together, so a
+	 * consumer reading {@link isLoadingTranscript} can never disagree with what the widget shows.
+	 */
+	private _setLoading(isLoading: boolean): void {
+		this._widget.setLoading(isLoading);
+		this.isLoadingTranscript.set(isLoading, undefined);
+	}
+
+	private _loadChat(resource: URI, session: ISession | undefined, previousChatResource?: URI, previousSession?: ISession): void {
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
 		if (previousChatResource) {
@@ -451,7 +527,7 @@ export class ChatView extends AbstractChatView {
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
-		this._widget.setLoading(true);
+		this._setLoading(true);
 
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
@@ -459,13 +535,14 @@ export class ChatView extends AbstractChatView {
 
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
 			const isCurrentChat = isEqual(this._currentChatResource, resource);
-			if (token.isCancellationRequested || !ref || !isCurrentChat) {
+			const isCurrentLoad = this._loadCts.value === cts;
+			if (token.isCancellationRequested || !ref || !isCurrentChat || !isCurrentLoad) {
 				ref?.dispose();
-				if (!token.isCancellationRequested && !ref && isCurrentChat && session) {
+				if (!token.isCancellationRequested && !ref && isCurrentChat && isCurrentLoad && session) {
 					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
 				}
-				if (isCurrentChat) {
-					this._widget.setLoading(false);
+				if (isCurrentChat && isCurrentLoad) {
+					this._setLoading(false);
 				}
 				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
 				return;
@@ -478,7 +555,7 @@ export class ChatView extends AbstractChatView {
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
-			this._widget.setLoading(false);
+			this._setLoading(false);
 			if (session) {
 				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
 			}
@@ -494,12 +571,12 @@ export class ChatView extends AbstractChatView {
 			} else {
 				this.logService.trace(`[ChatView] setChat cancelled uri=${resource.toString()}`);
 			}
-			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
+			if (isEqual(this._currentChatResource, resource) && this._loadCts.value === cts) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
 				this._currentChatResourceObs.set(undefined, undefined);
-				this._widget.setLoading(false);
+				this._setLoading(false);
 			}
-			if (!token.isCancellationRequested && session) {
+			if (!token.isCancellationRequested && this._loadCts.value === cts && session) {
 				this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
 			}
 		});
@@ -582,6 +659,16 @@ export class ChatView extends AbstractChatView {
 		this._widget.layout(widgetHeight, width);
 	}
 
+	private _updateChatItemHorizontalPadding(): void {
+		const horizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
+		if (horizontalPadding === this._chatItemHorizontalPadding) {
+			return;
+		}
+
+		this._chatItemHorizontalPadding = horizontalPadding;
+		this._widget.setContentHorizontalPadding(horizontalPadding);
+	}
+
 	/**
 	 * Mounts the status pills and session banners above the chat input.
 	 */
@@ -637,6 +724,14 @@ export class ChatView extends AbstractChatView {
 		}
 	}
 
+	override setPrimary(primary: boolean): void {
+		if (this._isPrimaryObs.get() === primary) {
+			return;
+		}
+		this._isPrimaryObs.set(primary, undefined);
+		this._externalSessionBanner.setSession(primary ? this._currentSessionObs.get() : undefined);
+	}
+
 	override setActive(active: boolean): void {
 		if (this._isActive === active) {
 			return;
@@ -653,6 +748,7 @@ export class ChatView extends AbstractChatView {
 		}
 		this._isVisible = visible;
 		this._widget.setVisible(visible);
+		this._isVisibleObs.set(visible, undefined);
 	}
 }
 
@@ -701,11 +797,11 @@ export class ChatViewFactory implements IChatViewFactory {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions): AbstractChatView {
-		return this.instantiationService.createInstance(NewChatView, isNewChatInSession, options);
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService = this.instantiationService): AbstractChatView {
+		return instantiationService.createInstance(NewChatView, isNewChatInSession, options);
 	}
 
-	createChatView(): AbstractChatView {
-		return this.instantiationService.createInstance(ChatView);
+	createChatView(instantiationService = this.instantiationService): AbstractChatView {
+		return instantiationService.createInstance(ChatView);
 	}
 }
