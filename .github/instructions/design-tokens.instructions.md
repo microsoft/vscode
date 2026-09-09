@@ -127,7 +127,7 @@ The icon-size token defines the rendered area. Use contain-style fitting for ima
 
 ## Codicon compatibility — icon `font-size`
 
-Codicons use only the xSmall and small icon roles. Keep the Codicon-specific font tokens because they also communicate font and glyph behavior:
+Standard control and inline Codicons use the xSmall and small icon roles. Keep the Codicon-specific font tokens because they also communicate font and glyph behavior:
 
 | px | Variable | Use |
 |----|----------|-----|
@@ -135,6 +135,8 @@ Codicons use only the xSmall and small icon roles. Keep the Codicon-specific fon
 | 12 | `--vscode-codiconFontSize-compact` (xSmall) | dense/inline Codicon |
 
 If a design or existing CSS sizes a codicon at 14px, treat it as a bug: snap it to 16 (default) or 12 (compact) and flag it.
+
+Purpose-specific glyphs outside the standard control and inline roles, such as large orientation or illustration icons, may intentionally use another registered size. Review those by their product role rather than treating every non-standard Codicon size as a defect.
 
 When sizing an icon at the **compact** 12px size, also swap the registered glyph to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`) so the icon is visually optimized for the small size. CSS `font-size` alone only scales the icon — it does not change to the compact glyph. Only swap the glyph when no CSS selector targets the original glyph class (e.g. `.codicon-close`), otherwise update that selector too. Some icons (agent, vm, info, lock) have no compact variant — keep the regular glyph at the compact size.
 
