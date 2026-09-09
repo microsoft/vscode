@@ -330,21 +330,17 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
-/* Primary action button */
-.changes-view-body .chat-editing-session-actions .monaco-button.monaco-text-button {
-	/* The button bar owns leading icon-label spacing. Other inline icons do not
-	 * add their own spacing to the relationship chosen by their container. */
-	.codicon:not(.monaco-button-leading-icon) {
-		margin: 0;
-	}
-}
-
 /* Line counts in buttons */
 .changes-view-body .chat-editing-session-actions .monaco-button.working-set-diff-stats {
 	gap: 2px;
 	flex-shrink: 0;
 	padding-left: 4px;
 	padding-right: 8px;
+
+	/* The control's gap owns spacing among its inline statistics. */
+	.codicon {
+		margin: 0;
+	}
 }
 
 .changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-added {

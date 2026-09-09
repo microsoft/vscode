@@ -193,10 +193,10 @@ export class WorkbenchButtonBar extends ButtonBar {
 			if (leading) {
 				leading.classList.add('monaco-button-leading-icon');
 				if (showLabel) {
-					contentButton.classList.add('monaco-button-with-leading-icon');
-					if (config?.iconLabelSpacing) {
-						contentButton.classList.add(`monaco-button-icon-label-spacing-${config.iconLabelSpacing}`);
-					}
+					contentButton.classList.add(
+						'monaco-button-with-leading-icon',
+						`monaco-button-icon-label-spacing-${config?.iconLabelSpacing ?? 'compact'}`,
+					);
 				} else {
 					// Nothing follows it, so it carries no gap to a label.
 					leading.classList.add('monaco-button-leading-icon-only');
