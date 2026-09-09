@@ -133,6 +133,35 @@ suite('codexGuardianReview', () => {
 		});
 	});
 
+	test('maps and summarizes a writeStdin review action', () => {
+		const writeStdinReview: ItemGuardianApprovalReviewCompletedNotification = {
+			threadId: 'thread-3',
+			turnId: 'turn-3',
+			startedAtMs: 30,
+			completedAtMs: 40,
+			reviewId: 'review-3',
+			targetItemId: null,
+			decisionSource: 'agent',
+			review: { status: 'denied', riskLevel: null, userAuthorization: null, rationale: null },
+			action: { type: 'writeStdin', approvalId: 'approval-3', processId: 'process-3', stdin: 'y\n', cwd: '/tmp' },
+		};
+		assert.deepStrictEqual({
+			event: toGuardianAssessmentEventJson(writeStdinReview),
+			summary: summarizeGuardianReviewAction(writeStdinReview.action),
+		}, {
+			event: {
+				id: 'review-3',
+				turn_id: 'turn-3',
+				started_at_ms: 30,
+				completed_at_ms: 40,
+				status: 'denied',
+				decision_source: 'agent',
+				action: { type: 'write_stdin', approval_id: 'approval-3', process_id: 'process-3', stdin: 'y\n', cwd: '/tmp' },
+			},
+			summary: { title: 'Write to terminal', detail: 'y\n', toolKind: 'terminal' },
+		});
+	});
+
 	test('formatGuardianDenialNotification renders the action summary and rationale as a distinct blockquote', () => {
 		assert.deepStrictEqual(
 			[

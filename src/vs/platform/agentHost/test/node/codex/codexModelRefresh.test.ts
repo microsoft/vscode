@@ -1452,12 +1452,16 @@ suite('CodexAgent model refresh', () => {
 			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
 		});
 		await second;
 		resolveFirst({
 			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: 100 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
+			accountId: null,
+			rateLimitUpsell: null,
 		});
 		await first;
 
