@@ -911,7 +911,7 @@ suite('ChatListRenderer', () => {
 				const sent = fixture.model.addRequest(
 					{ text: combinedText, parts: [new ChatRequestTextPart(new OffsetRange(0, combinedText.length), new Range(1, 1, 3, pending[1].message.text.length + 1), combinedText)] },
 					{ variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-					pending[0].id, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pending.map(request => request.id),
+					pending[0].id, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pending.map(request => request.id),
 				);
 				const sentViewModel = fixture.renderRequest(sent);
 				const collapsed = renderedState(fixture.template);

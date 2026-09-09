@@ -26,6 +26,7 @@ import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
+import { parseAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { canLog, ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
@@ -118,6 +119,21 @@ export namespace IChatRequestVariableData {
 	}
 }
 
+/** A feature that submits a chat request on the user's behalf. */
+export type ChatRequestSource = 'agentMerge';
+
+/** Backfills the source of legacy Agent Merge requests when restoring history. */
+export function getRestoredChatRequestSource(request: Pick<IChatRequestModel, 'requestSource' | 'isSystemInitiated' | 'systemInitiatedLabel'>, messageText: string): ChatRequestSource | undefined {
+	// TODO: Remove this legacy Agent Merge compatibility helper after 2026-09-16.
+	if (request.requestSource !== undefined) {
+		return request.requestSource;
+	}
+	if (request.isSystemInitiated && request.systemInitiatedLabel === undefined && parseAgentMergePrompt(messageText)) {
+		return 'agentMerge';
+	}
+	return undefined;
+}
+
 export interface IChatRequestModel {
 	readonly id: string;
 	/** IDs of pending messages combined into this request, retained for the current session only. */
@@ -143,6 +159,8 @@ export interface IChatRequestModel {
 	readonly modelId?: string;
 	readonly userSelectedTools?: UserSelectedTools;
 	readonly isSystemInitiated?: boolean;
+	/** The request source, independent of the request text or responding participant. */
+	readonly requestSource?: ChatRequestSource;
 	readonly isHiddenFromTranscript: boolean;
 	/** Whether only the request row is hidden. Full-turn hiding also implies this. */
 	readonly isRequestHiddenFromTranscript: boolean;
@@ -397,6 +415,7 @@ export interface IChatRequestModelParameters {
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
+	requestSource?: ChatRequestSource;
 	isHiddenFromTranscript?: boolean;
 	isRequestHiddenFromTranscript?: boolean;
 	systemInitiatedLabel?: string;
@@ -419,6 +438,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
+	public readonly requestSource?: ChatRequestSource;
 	public readonly isHiddenFromTranscript: boolean;
 	public readonly isRequestHiddenFromTranscript: boolean;
 	public readonly systemInitiatedLabel?: string;
@@ -499,6 +519,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
+		this.requestSource = params.requestSource;
 		this.isHiddenFromTranscript = params.isHiddenFromTranscript ?? false;
 		this.isRequestHiddenFromTranscript = this.isHiddenFromTranscript || params.isRequestHiddenFromTranscript === true;
 		this.systemInitiatedLabel = params.systemInitiatedLabel;
@@ -1923,6 +1944,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	modelId?: string;
 	modeInfo?: IChatRequestModeInfo;
 	isSystemInitiated?: boolean;
+	requestSource?: ChatRequestSource;
 	systemInitiatedLabel?: string;
 	terminalExecutionId?: string;
 	origin?: ISerializableChatRequestOrigin;
@@ -2959,6 +2981,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modelId: raw.modelId,
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
+			requestSource: getRestoredChatRequestSource(raw, parsedRequest.text),
 			isHiddenFromTranscript: raw.hiddenFromTranscript,
 			isRequestHiddenFromTranscript: raw.requestHiddenFromTranscript,
 			systemInitiatedLabel: raw.systemInitiatedLabel,
@@ -3170,6 +3193,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		hideFromTranscript?: boolean,
 		origin?: IChatRequestOrigin,
 		isRequestHiddenFromTranscript?: boolean,
+		requestSource?: ChatRequestSource,
 		pendingRequestIds?: readonly string[],
 	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
@@ -3197,6 +3221,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 			userSelectedTools,
 			isSystemInitiated,
+			requestSource,
 			isHiddenFromTranscript: hideFromTranscript,
 			isRequestHiddenFromTranscript,
 			systemInitiatedLabel,
@@ -3362,6 +3387,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelId: r.modelId,
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
+					...(r.requestSource !== undefined ? { requestSource: r.requestSource } : {}),
 					hiddenFromTranscript: r.isHiddenFromTranscript || undefined,
 					...(r.isRequestHiddenFromTranscript && !r.isHiddenFromTranscript ? { requestHiddenFromTranscript: true } : {}),
 					systemInitiatedLabel: r.systemInitiatedLabel,

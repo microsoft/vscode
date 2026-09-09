@@ -461,6 +461,38 @@ export function setup(logger: Logger) {
 			},
 		});
 
+		it('recovers when the command palette loses focus before finding New Session', async function () {
+			const app = this.app as Application;
+			await app.workbench.agentsWindow.waitForNewSessionView();
+			const inputSelector = `.sessions-chat-editor .monaco-editor[role="code"] ${app.code.editContextEnabled ? '.native-edit-context' : 'textarea'}`;
+			const interruption = await app.code.driver.currentPage.evaluateHandle(selector => {
+				const chatInput = document.querySelector<HTMLElement>(selector);
+				if (!chatInput) {
+					throw new Error('New-session chat input not found');
+				}
+				let interrupted = false;
+				const interruptFocus = (event: Event) => {
+					if (event.target instanceof HTMLInputElement && event.target.matches('.quick-input-box input') && event.target.value === '>workbench.action.sessions.newChat') {
+						document.removeEventListener('input', interruptFocus);
+						chatInput.focus();
+						interrupted = true;
+					}
+				};
+				document.addEventListener('input', interruptFocus);
+				return {
+					get interrupted() { return interrupted; },
+					dispose: () => document.removeEventListener('input', interruptFocus),
+				};
+			}, inputSelector);
+			try {
+				await app.workbench.agentsWindow.startNewSession();
+				assert.strictEqual(await interruption.evaluate(state => state.interrupted), true);
+			} finally {
+				await interruption.evaluate(state => state.dispose());
+				await interruption.dispose();
+			}
+		});
+
 		it('Test Codex session', async function () {
 			this.timeout(5 * 60 * 1000);
 

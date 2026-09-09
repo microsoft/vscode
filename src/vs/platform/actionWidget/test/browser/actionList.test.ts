@@ -101,6 +101,10 @@ function dispatchKeyDown(target: HTMLElement, init: KeyboardEventInit): Keyboard
 	return event;
 }
 
+function settleLayout(): Promise<void> {
+	return new Promise(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+}
+
 function getVisibleRowText(widget: ActionListWidget<ITestActionItem>): string[] {
 	return Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'))
 		.map(row => row.textContent ?? '')
@@ -1353,9 +1357,6 @@ suite('ActionListWidget', () => {
 			widget.focus();
 			widget.showHoverForCheckedItem();
 
-			const settleLayout = () => new Promise<void>(resolve => {
-				mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve()));
-			});
 			const measure = () => {
 				const row = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.textContent === 'active');
 				const rowBounds = row?.getBoundingClientRect();
@@ -1378,6 +1379,88 @@ suite('ActionListWidget', () => {
 			const expected = { rowVisible: true, centeredOnRow: true, expanded: 'true', focused: 'active' };
 			assert.deepStrictEqual({ before, after: measure() }, { before: expected, after: expected });
 		});
+	}
+
+	for (const side of ['left', 'right']) {
+		for (const zoom of [1, 1.25]) {
+			for (const nearBottom of [false, true]) {
+				test(`resizable hover keeps its ${side} anchor at ${zoom} zoom${nearBottom ? ' near the viewport bottom' : ''}`, async () => {
+					const content = document.createElement('div');
+					content.style.cssText = 'width: 120px; height: 80px;';
+					const button = document.createElement('button');
+					button.textContent = 'Pricing details';
+					content.appendChild(button);
+					const widget = createActionListWidget(disposables, {
+						items: [{
+							...action('active'),
+							item: { id: 'active', checked: true },
+							hover: { content, alignToParent: true, preserveVerticalPosition: true },
+						}],
+						listOptions: { showFilter: false, persistentHover: true },
+					});
+					const popup = document.createElement('div');
+					const left = side === 'left' ? (mainWindow.innerWidth - 320) / zoom : 40;
+					const top = nearBottom ? (mainWindow.innerHeight - 100) / zoom : 100;
+					popup.className = 'action-widget';
+					popup.style.cssText = `position: fixed; top: ${top}px; left: ${left}px; width: 260px; padding: 8px; zoom: ${zoom};`;
+					document.body.appendChild(popup);
+					disposables.add({ dispose: () => popup.remove() });
+					popup.appendChild(widget.domNode);
+					widget.layout(24, 240);
+					widget.focus();
+					widget.showHoverForCheckedItem();
+					await settleLayout();
+
+					const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+					const viewport = panel.querySelector<HTMLElement>('.action-list-submenu-viewport')!;
+					button.focus();
+					const before = panel.getBoundingClientRect();
+					const beforeButton = button.getBoundingClientRect();
+					content.style.height = nearBottom ? `${mainWindow.innerHeight}px` : '160px';
+					await settleLayout();
+					const expanded = panel.getBoundingClientRect();
+					const expandedButton = button.getBoundingClientRect();
+					const scrolls = viewport.scrollHeight > viewport.clientHeight;
+					const pageDown = dispatchKeyDown(button, { key: 'PageDown', keyCode: 34 });
+					const scrolled = viewport.scrollTop > 0;
+					dispatchKeyDown(button, { key: 'PageUp', keyCode: 33 });
+					const pageUpRestored = viewport.scrollTop === 0;
+					dispatchKeyDown(button, { key: 'PageDown', keyCode: 34 });
+					content.style.height = '80px';
+					await settleLayout();
+					const collapsed = panel.getBoundingClientRect();
+					const sameOrigin = (rect: DOMRect) => Math.abs(rect.x - before.x) < 1 && Math.abs(rect.y - before.y) < 1 && Math.abs(rect.width - before.width) < 1;
+
+					assert.deepStrictEqual({
+						expandedAnchored: sameOrigin(expanded),
+						controlsAnchored: Math.abs(expandedButton.x - beforeButton.x) < 1 && Math.abs(expandedButton.y - beforeButton.y) < 1,
+						grewDownward: expanded.height > before.height,
+						withinViewport: expanded.bottom <= mainWindow.innerHeight - 7,
+						scrolls,
+						scrolled,
+						pageDownHandled: pageDown.defaultPrevented,
+						pageUpRestored,
+						collapsedAnchored: sameOrigin(collapsed),
+						collapsedHeight: Math.abs(collapsed.height - before.height) < 1,
+						scrollReset: viewport.scrollTop === 0,
+						focusRetained: document.activeElement === button,
+					}, {
+						expandedAnchored: true,
+						controlsAnchored: true,
+						grewDownward: true,
+						withinViewport: true,
+						scrolls: nearBottom,
+						scrolled: nearBottom,
+						pageDownHandled: true,
+						pageUpRestored: true,
+						collapsedAnchored: true,
+						collapsedHeight: true,
+						scrollReset: true,
+						focusRetained: true,
+					});
+				});
+			}
+		}
 	}
 
 	for (const side of ['left', 'right']) {

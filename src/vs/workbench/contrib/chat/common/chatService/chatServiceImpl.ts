@@ -40,7 +40,7 @@ import { awaitStatsForSession } from '../chat.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, getRestoredChatRequestSource, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
@@ -943,6 +943,7 @@ export class ChatService extends Disposable implements IChatService {
 					message.isHidden,
 					message.origin,
 					message.isRequestHidden,
+					getRestoredChatRequestSource(message, requestText),
 				);
 			} else {
 				// response
@@ -1008,7 +1009,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, requestSource, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
 					if (resume) {
 						const request = model.getRequests().find(request => request.id === id);
 						if (!request?.response) {
@@ -1049,6 +1050,7 @@ export class ChatService extends Disposable implements IChatService {
 						isHidden,
 						origin,
 						isRequestHidden,
+						requestSource,
 					);
 
 					// Reset progress tracking for the new turn
@@ -1491,7 +1493,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const responseCreated = new DeferredPromise<IChatResponseModel>();
 		const addRequestWithoutAgent = () => {
-			const requestWithoutAgent = preservedRequest ?? model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, requestId, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pendingRequestIds);
+			const requestWithoutAgent = preservedRequest ?? model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, requestId, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pendingRequestIds);
 			preservedRequest?.response?.reopen();
 			return requestWithoutAgent;
 		};
@@ -1683,7 +1685,7 @@ export class ChatService extends Disposable implements IChatService {
 					const initialAgent = agentPart?.agent ?? defaultAgent;
 					const initialCommand = agentSlashCommandPart?.command;
 					const initVariableData: IChatRequestVariableData = { variables: [] };
-					request = preservedRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), requestId, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand, undefined, options?.hideFromTranscript, undefined, undefined, pendingRequestIds);
+					request = preservedRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), requestId, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand, undefined, options?.hideFromTranscript, undefined, undefined, undefined, pendingRequestIds);
 					preservedRequest?.response?.reopen();
 					const thisRequest = request;
 					completeResponseCreated();
