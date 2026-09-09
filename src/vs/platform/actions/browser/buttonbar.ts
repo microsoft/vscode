@@ -36,7 +36,8 @@ export interface IButtonConfig {
 	customClass?: string;
 	/**
 	 * Selects the control-owned spacing between a leading icon or spinner and
-	 * its label. The compact spacing preserves the existing button bar layout.
+	 * its label. Defaults to `compact`, which preserves the existing button bar
+	 * layout.
 	 */
 	iconLabelSpacing?: 'compact' | 'default';
 	/**
@@ -119,22 +120,20 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 			const secondary = i > 0;
 			const actionOrSubmenu = actions[i];
-			const action = actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0
-				? actionOrSubmenu.actions[0]
-				: actionOrSubmenu;
-			const config = configProvider(action, i);
+			let action: IAction;
 			let btn: IButton;
 			let tooltip: string;
 
 			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 1) {
-				const [, ...rest] = actionOrSubmenu.actions;
+				const [first, ...rest] = actionOrSubmenu.actions;
+				action = <MenuItemAction>first;
 
 				tooltip = action.tooltip || action.label;
 				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
 
 				btn = this.addButtonWithDropdown({
 					addPrimaryActionToDropdown: false,
-					secondary: config?.isSecondary ?? secondary,
+					secondary: configProvider(action, i)?.isSecondary ?? secondary,
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
@@ -143,11 +142,15 @@ export class WorkbenchButtonBar extends ButtonBar {
 					small: this._options?.small,
 				});
 			} else {
+				action = actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length === 1
+					? actionOrSubmenu.actions[0]
+					: actionOrSubmenu;
+
 				tooltip = action.tooltip || action.label;
 				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
 
 				btn = this.addButton({
-					secondary: config?.isSecondary ?? secondary,
+					secondary: configProvider(action, i)?.isSecondary ?? secondary,
 					ariaLabel: tooltip,
 					supportIcons: true,
 					small: this._options?.small,
@@ -158,6 +161,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			btn.checked = action.checked ?? false;
 			btn.element.classList.add('default-colors');
 
+			const config = configProvider(action, i);
 			const showLabel = config?.showLabel ?? true;
 			const showIcon = config?.showIcon;
 			const customClass = config?.customClass;
@@ -197,9 +201,6 @@ export class WorkbenchButtonBar extends ButtonBar {
 						'monaco-button-with-leading-icon',
 						`monaco-button-icon-label-spacing-${config?.iconLabelSpacing ?? 'compact'}`,
 					);
-				} else {
-					// Nothing follows it, so it carries no gap to a label.
-					leading.classList.add('monaco-button-leading-icon-only');
 				}
 			}
 
