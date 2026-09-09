@@ -191,7 +191,7 @@ suite('WorkbenchButtonBar', () => {
 			idleLeading: leadingSlot(idle),
 		}, {
 			busyWearsIcon: false,
-			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon monaco-button-leading-icon-only',
+			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
 			idleWearsIcon: true,
 			idleLeading: undefined,
 		});
@@ -250,7 +250,7 @@ suite('WorkbenchButtonBar', () => {
 			idleLeading: leadingSlot(idle),
 		}, {
 			busyWearsIcon: false,
-			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon monaco-button-leading-icon-only',
+			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
 			idleWearsIcon: true,
 			idleLeading: undefined,
 		});
