@@ -956,7 +956,7 @@ export class Configuration {
 	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel, keys?: string[]): IConfigurationChange {
 		const overrides: [string, string[]][] = [];
 		if (!keys) {
-			const { added, updated, removed } = compare(this._defaultConfiguration, defaults, this.platformOverrideIdentifier);
+			const { added, updated, removed } = compare(this._defaultConfiguration, defaults);
 			keys = [...added, ...updated, ...removed];
 		}
 		for (const key of keys) {
@@ -969,9 +969,7 @@ export class Configuration {
 					...fromKeys.filter(key => !objects.equals(this._defaultConfiguration.override(overrideIdentifier).getValue(key), defaults.override(overrideIdentifier).getValue(key)))
 				];
 				if (isPlatformOverrideIdentifier(overrideIdentifier)) {
-					if (overrideIdentifier === this.platformOverrideIdentifier) {
-						keys.push(...overrideKeys);
-					}
+					keys.push(...overrideKeys);
 				} else {
 					overrides.push([overrideIdentifier, overrideKeys]);
 				}
@@ -991,7 +989,7 @@ export class Configuration {
 	}
 
 	compareAndUpdateApplicationConfiguration(application: ConfigurationModel): IConfigurationChange {
-		const { added, updated, removed, overrides } = compare(this.applicationConfiguration, application, this.platformOverrideIdentifier);
+		const { added, updated, removed, overrides } = compare(this.applicationConfiguration, application);
 		const keys = [...added, ...updated, ...removed];
 		if (keys.length) {
 			this.updateApplicationConfiguration(application);
@@ -1000,7 +998,7 @@ export class Configuration {
 	}
 
 	compareAndUpdateLocalUserConfiguration(user: ConfigurationModel): IConfigurationChange {
-		const { added, updated, removed, overrides } = compare(this.localUserConfiguration, user, this.platformOverrideIdentifier);
+		const { added, updated, removed, overrides } = compare(this.localUserConfiguration, user);
 		const keys = [...added, ...updated, ...removed];
 		if (keys.length) {
 			this.updateLocalUserConfiguration(user);
@@ -1009,7 +1007,7 @@ export class Configuration {
 	}
 
 	compareAndUpdateRemoteUserConfiguration(user: ConfigurationModel): IConfigurationChange {
-		const { added, updated, removed, overrides } = compare(this.remoteUserConfiguration, user, this.platformOverrideIdentifier);
+		const { added, updated, removed, overrides } = compare(this.remoteUserConfiguration, user);
 		const keys = [...added, ...updated, ...removed];
 		if (keys.length) {
 			this.updateRemoteUserConfiguration(user);
@@ -1018,7 +1016,7 @@ export class Configuration {
 	}
 
 	compareAndUpdateWorkspaceConfiguration(workspaceConfiguration: ConfigurationModel): IConfigurationChange {
-		const { added, updated, removed, overrides } = compare(this.workspaceConfiguration, workspaceConfiguration, this.platformOverrideIdentifier);
+		const { added, updated, removed, overrides } = compare(this.workspaceConfiguration, workspaceConfiguration);
 		const keys = [...added, ...updated, ...removed];
 		if (keys.length) {
 			this.updateWorkspaceConfiguration(workspaceConfiguration);
@@ -1028,7 +1026,7 @@ export class Configuration {
 
 	compareAndUpdateFolderConfiguration(resource: URI, folderConfiguration: ConfigurationModel): IConfigurationChange {
 		const currentFolderConfiguration = this.folderConfigurations.get(resource);
-		const { added, updated, removed, overrides } = compare(currentFolderConfiguration, folderConfiguration, this.platformOverrideIdentifier);
+		const { added, updated, removed, overrides } = compare(currentFolderConfiguration, folderConfiguration);
 		const keys = [...added, ...updated, ...removed];
 		if (keys.length || !currentFolderConfiguration) {
 			this.updateFolderConfiguration(resource, folderConfiguration);
@@ -1042,7 +1040,7 @@ export class Configuration {
 			throw new Error('Unknown folder');
 		}
 		this.deleteFolderConfiguration(folder);
-		const { added, updated, removed, overrides } = compare(folderConfig, undefined, this.platformOverrideIdentifier);
+		const { added, updated, removed, overrides } = compare(folderConfig, undefined);
 		return { keys: [...added, ...updated, ...removed], overrides };
 	}
 
@@ -1356,14 +1354,12 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 	}
 }
 
-function compare(from: ConfigurationModel | undefined, to: ConfigurationModel | undefined, platformOverrideIdentifier?: string): IConfigurationCompareResult {
+function compare(from: ConfigurationModel | undefined, to: ConfigurationModel | undefined): IConfigurationCompareResult {
 	const { added, removed, updated } = compareConfigurationContents(to?.rawConfiguration, from?.rawConfiguration);
 	const overrides: [string, string[]][] = [];
 	const addOverrideChanges = (identifier: string, keys: string[]): void => {
 		if (isPlatformOverrideIdentifier(identifier)) {
-			if (identifier === platformOverrideIdentifier) {
-				updated.push(...keys);
-			}
+			updated.push(...keys);
 		} else {
 			overrides.push([identifier, keys]);
 		}

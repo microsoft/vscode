@@ -1109,7 +1109,7 @@ suite('Configuration', () => {
 		assert.strictEqual(windowsConfiguration.getValue('a', {}, undefined), 'workspace');
 	});
 
-	test('reports configuration changes for the current platform only', () => {
+	test('reports configuration changes for every platform', () => {
 		const empty = ConfigurationModel.createEmptyModel(new NullLogService());
 		const from = parseConfigurationModel({ '[windows]': { 'a': 1 } });
 		const to = parseConfigurationModel({ '[windows]': { 'a': 2 } });
@@ -1117,7 +1117,7 @@ suite('Configuration', () => {
 		const linuxConfiguration = new TestConfiguration(empty, empty, empty, from, undefined, OperatingSystem.Linux);
 
 		assert.deepStrictEqual(windowsConfiguration.compareAndUpdateLocalUserConfiguration(to), { keys: ['[windows]', 'a'], overrides: [] });
-		assert.deepStrictEqual(linuxConfiguration.compareAndUpdateLocalUserConfiguration(to), { keys: ['[windows]'], overrides: [] });
+		assert.deepStrictEqual(linuxConfiguration.compareAndUpdateLocalUserConfiguration(to), { keys: ['[windows]', 'a'], overrides: [] });
 	});
 
 	test('Test update value', () => {
