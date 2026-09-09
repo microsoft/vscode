@@ -266,6 +266,22 @@ suite('MultiEditorTabsControl', () => {
 			rightShoulder: mainWindow.getComputedStyle(secondFill, '::after').content,
 			rightMask: mainWindow.getComputedStyle(secondEdge, '::after').content,
 		};
+		scroll(156);
+		const leftShoulderAtViewport = {
+			edge: secondTab.classList.contains('connected-tab-left-edge'),
+			clipped: secondTab.classList.contains('connected-tab-left-clipped'),
+			left: mainWindow.getComputedStyle(secondFill).borderLeftWidth,
+			leftShoulder: mainWindow.getComputedStyle(secondFill, '::before').content,
+			leftMask: mainWindow.getComputedStyle(secondEdge, '::before').content,
+			overflowEdge: mainWindow.getComputedStyle(overflowEdge).display,
+		};
+		scroll(152);
+		const leftShoulderRevealed = {
+			edge: secondTab.classList.contains('connected-tab-left-edge'),
+			clipped: secondTab.classList.contains('connected-tab-left-clipped'),
+			leftShoulder: mainWindow.getComputedStyle(secondFill, '::before').content,
+			leftMask: mainWindow.getComputedStyle(secondEdge, '::before').content,
+		};
 		await layout(240);
 		scroll(0);
 		const overflowRightOffsets = [];
@@ -311,16 +327,18 @@ suite('MultiEditorTabsControl', () => {
 		root.classList.remove('modern-ui-connected-editor-tabs');
 		await layout(100);
 		assert.deepStrictEqual({
-			clippedLeft, multiSelected, singleSelected, terminalOutline, normalOutline, rightShoulderAtViewport, rightShoulderRevealed, clippedRight, hiddenAtFillEdge, highContrast,
+			clippedLeft, multiSelected, singleSelected, terminalOutline, normalOutline, rightShoulderAtViewport, rightShoulderRevealed, leftShoulderAtViewport, leftShoulderRevealed, clippedRight, hiddenAtFillEdge, highContrast,
 			reset: overflowEdge.style.left,
 		}, {
-			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, edgeOverlay: ['none', 'block', '8', '5px', '5px', 'border-box', '1px', '1px', 'rgb(255, 255, 255)'] },
+			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, edgeOverlay: ['none', 'block', '8', '5px', '0px', 'border-box', '1px', '1px', 'rgb(255, 255, 255)'] },
 			multiSelected: { clipping: '', edge: 'none', radius: '4px', connectedClass: false },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: 'none', rightMask: 'none' },
 			normalOutline: { left: '1px', right: '1px', leftShoulder: '""', rightShoulder: '""', edge: 'block', overflowEdge: 'none', leftMaskHeight: '6px', leftMaskTop: '0px', rightMaskHeight: '6px', rightMaskTop: '0px' },
 			rightShoulderAtViewport: { edge: true, clipped: false, right: '1px', rightShoulder: 'none', rightMask: 'none', overflowEdge: 'none' },
 			rightShoulderRevealed: { edge: false, clipped: false, rightShoulder: '""', rightMask: '""' },
+			leftShoulderAtViewport: { edge: true, clipped: false, left: '1px', leftShoulder: 'none', leftMask: 'none', overflowEdge: 'none' },
+			leftShoulderRevealed: { edge: false, clipped: false, leftShoulder: '""', leftMask: '""' },
 			clippedRight: {
 				edge: true,
 				clipped: true,
