@@ -315,15 +315,19 @@ suite('AgentHostStateManager', () => {
 		// has no per-chat working-directory override, so getSessionState must
 		// project the RESOLVED session working directory, never the stale
 		// create-time value that was seeded onto the default chat.
+		const workingDirectoryChanges: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => workingDirectoryChanges.push(session)));
 		manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///provisional'] }, { emitNotification: false });
 		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectories: ['file:///resolved-worktree'] });
 
 		assert.deepStrictEqual({
 			session: manager.getSessionState(sessionUri)?.workingDirectories?.[0],
 			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectories?.[0],
+			workingDirectoryChanges,
 		}, {
 			session: 'file:///resolved-worktree',
 			defaultChat: 'file:///resolved-worktree',
+			workingDirectoryChanges: [sessionUri.toString()],
 		});
 	});
 
