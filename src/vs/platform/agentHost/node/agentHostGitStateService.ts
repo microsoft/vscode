@@ -230,6 +230,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
+		const initialPrimaryWorkingDirectory = sessionState?.workingDirectories?.[0];
 
 		if (!workingDirectory) {
 			const workingDirectoryStr = sessionState?.workingDirectories?.[0];
@@ -249,7 +250,15 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
 				const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
 				if (gitState) {
-					const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+					const currentState = this._stateManager.getSessionState(sessionKey);
+					const currentWorkingDirectory = currentState?.workingDirectories?.[0];
+					const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
+						? currentWorkingDirectory !== undefined
+						: currentWorkingDirectory === undefined || !isEqual(URI.parse(initialPrimaryWorkingDirectory), URI.parse(currentWorkingDirectory));
+					if (primaryWorkingDirectoryChanged) {
+						return;
+					}
+					const currentMeta = currentState?._meta;
 					const previousGitState = readSessionGitState(currentMeta);
 					const gitStateChanged = !objectEquals(previousGitState, gitState);
 					if (gitStateChanged) {
@@ -293,6 +302,18 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}:`, error);
 			}
+		});
+	}
+
+	getMaterializedWorktreeMeta(sessionKey: string, branchName: string): SessionSummaryMeta | undefined {
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const currentGitState = readSessionGitState(currentMeta);
+		return withSessionGitState(currentMeta, {
+			branchName,
+			...(currentGitState?.hasGitHubRemote !== undefined ? { hasGitHubRemote: currentGitState.hasGitHubRemote } : {}),
+			...(currentGitState?.baseBranchName !== undefined ? { baseBranchName: currentGitState.baseBranchName } : {}),
+			...(currentGitState?.githubOwner !== undefined ? { githubOwner: currentGitState.githubOwner } : {}),
+			...(currentGitState?.githubRepo !== undefined ? { githubRepo: currentGitState.githubRepo } : {}),
 		});
 	}
 

@@ -1029,6 +1029,7 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 		this.refreshedWith.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
 		this._onDidRefreshSessionGitState.fire(sessionKey);
 	}
+	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
