@@ -104,6 +104,7 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 	created: { readonly sessionId: string } | undefined,
 ) => void;
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
+const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 
@@ -111,6 +112,13 @@ interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
 	readonly _newChatInput: { clearPromptOptions(): void };
 	_refreshPromptOptions(): Promise<void>;
+}
+
+interface ISyncWorkspacePickerHarness {
+	readonly _workspacePicker: {
+		matchesSelectedWorkspace(workspace: ISessionWorkspace): boolean;
+		setSelectedWorkspace(folderUri: URI, options: { fireEvent: false }): void;
+	};
 }
 
 interface ISessionCountHarness {
@@ -743,6 +751,34 @@ suite('NewChatWidget', () => {
 		handlePromptOptionsWorkspaceChange.call(harness, undefined, first);
 
 		assert.deepStrictEqual(changes, ['refreshed', 'cleared', 'refreshed']);
+	});
+
+	test('preserves the selected local workspace when a cloud draft represents the same repository', () => {
+		const localFolder = URI.file('/project');
+		const cloudFolder = URI.parse('github-remote-file://github/owner/project/HEAD');
+		const otherCloudFolder = URI.parse('github-remote-file://github/owner/other/HEAD');
+		const selected: string[] = [];
+		const harness: ISyncWorkspacePickerHarness = {
+			_workspacePicker: {
+				matchesSelectedWorkspace: workspace => workspace.folders[0].root.toString() === cloudFolder.toString(),
+				setSelectedWorkspace: folderUri => selected.push(folderUri.toString()),
+			},
+		};
+		const workspace = (root: URI): ISessionWorkspace => upcastPartial<ISessionWorkspace>({
+			uri: root,
+			folders: [{
+				root,
+				workingDirectory: root,
+				name: root.path,
+				description: undefined,
+			}],
+		});
+
+		syncWorkspacePickerFromSessionWorkspace.call(harness, workspace(cloudFolder));
+		syncWorkspacePickerFromSessionWorkspace.call(harness, workspace(otherCloudFolder));
+		syncWorkspacePickerFromSessionWorkspace.call(harness, workspace(localFolder));
+
+		assert.deepStrictEqual(selected, [otherCloudFolder.toString(), localFolder.toString()]);
 	});
 
 	test('only allows first-run notices once the session count threshold is reached', () => {

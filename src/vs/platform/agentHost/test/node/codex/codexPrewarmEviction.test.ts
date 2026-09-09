@@ -11,7 +11,7 @@ import * as os from 'os';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -50,6 +50,7 @@ import { codexSkillsToContainers } from '../../../node/codex/codexCustomizations
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
+import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
@@ -77,6 +78,8 @@ interface ITestWireRequest {
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
 		readonly extraRoots?: readonly string[];
 		readonly sandboxPolicy?: SandboxPolicy;
+		readonly sandbox?: string;
+		readonly approvalPolicy?: string;
 		readonly config?: Record<string, unknown>;
 		readonly developerInstructions?: string;
 		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
@@ -2748,7 +2751,12 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('fork from a workspace-less session owns an independent managed directory', async () => {
-		const agent = await createAgent(disposables);
+		const agent = await createAgent(disposables, {
+			sessionConfig: {
+				[CodexSessionConfigKey.PermissionsPreset]: 'default',
+				[CodexSessionConfigKey.NetworkAccessEnabled]: true,
+			},
+		});
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2767,8 +2775,31 @@ suite('CodexAgent prewarm eviction', () => {
 		// the managed temp folder Codex creates for it.
 		const sending = agent.chats.sendMessage(sourceChat, 'hello', undefined, undefined, 'turn-1');
 		const start = await readNextRequest(peer.outbound);
+		assert.strictEqual(start.params.config?.['features.default_mode_request_user_input'], true);
+		assert.ok(start.params.developerInstructions?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+		assert.deepStrictEqual({
+			approvalPolicy: start.params.approvalPolicy,
+			sandbox: start.params.sandbox,
+		}, {
+			approvalPolicy: 'on-request',
+			sandbox: 'workspace-write',
+		});
 		peer.push({ id: start.id, result: { thread: { id: 'managed-source', cwd: start.params.cwd } } });
 		const sourceTurn = await readNextRequest(peer.outbound);
+		assert.ok(sourceTurn.params.collaborationMode?.settings.developer_instructions?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+		assert.deepStrictEqual({
+			approvalPolicy: sourceTurn.params.approvalPolicy,
+			sandboxPolicy: sourceTurn.params.sandboxPolicy,
+		}, {
+			approvalPolicy: 'on-request',
+			sandboxPolicy: {
+				type: 'workspaceWrite',
+				writableRoots: [start.params.cwd],
+				networkAccess: true,
+				excludeTmpdirEnvVar: false,
+				excludeSlashTmp: false,
+			},
+		});
 		peer.push({ id: sourceTurn.id, result: {} });
 		await sending;
 		const sourceDirectory = sourceEntry.managedWorkingDirectory;
@@ -2801,6 +2832,11 @@ suite('CodexAgent prewarm eviction', () => {
 		const forkDirectory = fork.params.cwd;
 		assert.ok(forkDirectory);
 		assert.notStrictEqual(forkDirectory, sourceDirectory.fsPath);
+		assert.deepStrictEqual({
+			approvalPolicy: fork.params.approvalPolicy,
+			sandbox: fork.params.sandbox,
+			requestUserInput: fork.params.config?.['features.default_mode_request_user_input'],
+		}, { approvalPolicy: 'on-request', sandbox: 'workspace-write', requestUserInput: true });
 		peer.push({
 			id: fork.id,
 			result: {
@@ -2847,6 +2883,97 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.push({ id: forkUnsubscribe.id, result: {} });
 		await disposingFork;
 		assert.strictEqual(fs.existsSync(forkDirectory), false);
+		peer.exit();
+	});
+
+	test('workspace-less turns honor the full-access permissions preset', async () => {
+		const agent = await createAgent(disposables, { sessionConfig: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' } });
+		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(source.session))!;
+		entry.managedWorkingDirectory = URI.file('/scratch/permissions');
+		const options = agent['_turnStartOptions'](entry, 'gpt-test');
+		assert.deepStrictEqual({ approvalPolicy: options.approvalPolicy, sandboxPolicy: options.sandboxPolicy }, {
+			approvalPolicy: 'never', sandboxPolicy: { type: 'dangerFullAccess' },
+		});
+		entry.managedWorkingDirectory = undefined;
+	});
+
+	test('conversion releases scratch ownership only after confirmation and forks in the attached workspace', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = { kind: 'ready', client, usageSource: 'github', child: { kill: () => true } } as never;
+		agent['_registerWorkingDirectoryNotifications'](client, disposables.add(new DisposableStore()));
+		disposables.add(client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+		disposables.add(client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		agent['_refreshMcpInventory'] = async () => { };
+		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const sourceChat = defaultChatOf(source.session);
+		const sourceEntry = agent['_sessions'].get(AgentSession.id(source.session))!;
+		const sending = agent.chats.sendMessage(sourceChat, 'Add a welcome paragraph to the README', undefined, undefined, 'turn-1');
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'managed-source', cwd: start.params.cwd } } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+		const appTurn = { id: 'turn-1', items: [], itemsView: 'full', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000 };
+		peer.push({ method: 'turn/started', params: { threadId: 'managed-source', turn: { ...appTurn, status: 'inProgress' } } });
+		peer.push({ method: 'turn/completed', params: { threadId: 'managed-source', turn: appTurn } });
+		const scratch = sourceEntry.managedWorkingDirectory!;
+		assert.strictEqual((await agent['_metadataStore'].read(source.session)).managedWorkingDirectory?.fsPath, scratch.fsPath);
+		const folder = URI.file('/workspace/converted');
+		await agent['_fileService'].createFolder(folder);
+		const changing = agent.setWorkingDirectory(sourceChat, source.session, folder);
+		const update = await readNextRequest(peer.outbound);
+		peer.push({ id: update.id, result: {} });
+		await new Promise(resolve => setImmediate(resolve));
+		assert.deepStrictEqual({ cwd: sourceEntry.workingDirectory?.fsPath, scratchExists: fs.existsSync(scratch.fsPath) }, {
+			cwd: scratch.fsPath, scratchExists: true,
+		});
+		peer.push({ method: 'thread/settings/updated', params: { threadId: 'managed-source', threadSettings: { cwd: folder.fsPath } } });
+		await changing;
+		const metadata = await agent['_metadataStore'].read(source.session);
+		assert.strictEqual(await database.getMetadata('codex.ownsManagedWorkingDirectory'), 'false');
+
+		const forkSession = AgentSession.uri(agent.id, generateUuid());
+		const forkChat = defaultChatOf(forkSession);
+		const forking = createSession(agent, { session: forkSession, fork: { source: sourceChat, turnId: 'turn-1', turnIndex: 0 } });
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: 'managed-source', cwd: folder.fsPath } } });
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: 'managed-source', cwd: folder.fsPath, historyMode: 'paginated', turns: [] } } });
+		const history = await readNextRequest(peer.outbound);
+		peer.push({ id: history.id, result: { data: [{ id: 'turn-1' }], nextCursor: null, backwardsCursor: null } });
+		const fork = await readNextRequest(peer.outbound);
+		peer.push({ id: fork.id, result: { thread: { id: 'converted-fork', cwd: folder.fsPath }, cwd: folder.fsPath } });
+		await forking;
+		const forkEntry = agent['_sessions'].get(AgentSession.id(forkSession))!;
+		assert.deepStrictEqual({
+			resume: { method: resume.method, cwd: resume.params.cwd },
+			fork: { method: fork.method, threadId: fork.params.threadId, cwd: fork.params.cwd },
+			sourceManagedDirectory: sourceEntry.managedWorkingDirectory,
+			persistedManagedDirectory: metadata.managedWorkingDirectory,
+			ownsManagedWorkingDirectory: metadata.ownsManagedWorkingDirectory,
+			forkManagedDirectory: forkEntry.managedWorkingDirectory,
+			forkDirectory: forkEntry.workingDirectory?.fsPath,
+			scratchExists: fs.existsSync(scratch.fsPath),
+		}, {
+			resume: { method: 'thread/resume', cwd: folder.fsPath },
+			fork: { method: 'thread/fork', threadId: 'managed-source', cwd: undefined },
+			sourceManagedDirectory: undefined, persistedManagedDirectory: undefined, ownsManagedWorkingDirectory: undefined,
+			forkManagedDirectory: undefined, forkDirectory: folder.fsPath, scratchExists: false,
+		});
+		for (const { chat, session } of [{ chat: sourceChat, session: source.session }, { chat: forkChat, session: forkSession }]) {
+			const disposing = agent.chats.disposeChat(chat, { configurationResource: session, resource: chat });
+			const release = await readNextRequest(peer.outbound);
+			peer.push({ id: release.id, result: {} });
+			await disposing;
+		}
 		peer.exit();
 	});
 
