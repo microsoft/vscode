@@ -87,7 +87,7 @@ Matching: a contributor matches a model by `static matchesModel(model)` (takes p
 
 The runtime keeps its *own* per-model config (system-prompt parts, capabilities, reasoning-effort profile) keyed off the model id it receives, so an aliased session gets the real model's runtime config with the family's host overrides layered on top. Aliasing the runtime's half too would need `COPILOT_MODEL_FAMILY`, which is process-scoped and would leak across every session in the window.
 
-> **Security note.** The setting is application-scoped (not workspace- configurable) and forwarded to the agent host. `promptOverrideString` and `promptOverrideFile` deliberately carry prompt content and a host-local file path for debugging and evaluation; do not add other prompt or filesystem inputs to this setting without an explicit security review. Code-managed prompt experiments should still use a contributor (Lever 2) gated on its own opt-in setting.
+> **Security note.** The setting is application-scoped (not workspace-configurable) and forwarded to the agent host. `promptOverrideString` and `promptOverrideFile` deliberately carry prompt content and a host-local file path for debugging and evaluation; do not add other prompt or filesystem inputs to this setting without an explicit security review. Code-managed prompt experiments should still use a contributor (Lever 2) gated on its own opt-in setting.
 
 ## Reference
 
