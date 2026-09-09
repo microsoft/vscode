@@ -62,6 +62,14 @@ export interface IAgentHostSessionListDelta {
 }
 
 /**
+ * Whether a session's project root names a directory a workspace folder can
+ * contain, rather than a remote repository URL such as `https://host/owner/repo`.
+ */
+function isDirectoryProjectRoot(project: URI): boolean {
+	return project.scheme === Schemas.file || project.scheme === Schemas.vscodeRemote;
+}
+
+/**
  * Shared provider-agnostic cache of agent-host sessions. It owns the
  * provider-wide listSessions refresh, workspace filtering, and root session
  * notifications. Per-provider list controllers project this state into chat
@@ -90,7 +98,7 @@ export class AgentHostSessionListStore extends Disposable {
 	 */
 	private _mutationGeneration = 0;
 
-	/** Sessions already reported as having an unusable (non-local) project root. */
+	/** Sessions already reported as having a project root no workspace folder can contain. */
 	private readonly _reportedNonLocalProjects = new Set<string>();
 
 	constructor(
@@ -383,15 +391,24 @@ export class AgentHostSessionListStore extends Disposable {
 	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
 		const inWorkspace = this._computeSessionInWorkspace(entry);
-		// A legacy session is matched by its repository root, which must be a local
-		// path; a remote project (e.g. an `https://` repo URL) silently matches
-		// nothing. Excluding one is legitimate, so only report the broken input, and
-		// only once — this runs for every session on every refresh.
-		if (!inWorkspace && readSessionMatchesByProjectRoot(entry.summary._meta) && entry.summary.project && URI.parse(entry.summary.project.uri).scheme !== Schemas.file && !this._reportedNonLocalProjects.has(entry.summary.resource)) {
+		const unmatchable = inWorkspace ? undefined : this._unmatchableProjectRoot(entry.summary);
+		if (unmatchable && !this._reportedNonLocalProjects.has(entry.summary.resource)) {
 			this._reportedNonLocalProjects.add(entry.summary.resource);
-			this._logService.warn(`[AgentHost] legacy session ${entry.summary.resource} has a non-local project '${entry.summary.project.uri}' and cannot be matched to a workspace folder`);
+			this._logService.warn(`[AgentHost] legacy session ${entry.summary.resource} has a non-local project '${unmatchable}' and cannot be matched to a workspace folder`);
 		}
 		return inWorkspace;
+	}
+
+	/**
+	 * The project root of a legacy session that no workspace folder can contain,
+	 * such as an `https://` repository URL. Excluding such a session is legitimate,
+	 * so the caller reports the input rather than treating it as an error.
+	 */
+	private _unmatchableProjectRoot(summary: SessionSummary): string | undefined {
+		const project = summary.project?.uri;
+		return project && readSessionMatchesByProjectRoot(summary._meta) && !isDirectoryProjectRoot(URI.parse(project))
+			? project
+			: undefined;
 	}
 
 	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
@@ -451,9 +468,7 @@ export class AgentHostSessionListStore extends Disposable {
 		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
 		if (summary.project?.uri && readSessionMatchesByProjectRoot(summary._meta)) {
 			const project = URI.parse(summary.project.uri);
-			// A project can be a remote (e.g. `https://github.com/owner/repo`), whose
-			// `fsPath` is not a location on disk and would silently never match.
-			if (project.scheme === Schemas.file) {
+			if (isDirectoryProjectRoot(project)) {
 				candidates.push(project);
 			}
 		}
