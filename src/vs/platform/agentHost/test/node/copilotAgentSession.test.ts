@@ -197,6 +197,7 @@ class MockCopilotSession {
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	private readonly _allHandlers = new Set<SessionEventHandler>();
+	private _eventCount = 0;
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
 	planReadPromise: Promise<{ exists: boolean; content: string | null; path: string | null }> | undefined;
 
@@ -225,7 +226,7 @@ class MockCopilotSession {
 
 	/** Push an event through to all registered handlers of the given type. */
 	fire<K extends SessionEventType>(type: K, data: SessionEventPayload<K>['data'], overrides?: Partial<Omit<SessionEventPayload<K>, 'type' | 'data'>>): void {
-		const event = { type, data, id: 'evt-1', timestamp: new Date().toISOString(), parentId: null, ...overrides } as SessionEventPayload<K>;
+		const event = { type, data, id: `evt-${++this._eventCount}`, timestamp: new Date().toISOString(), parentId: null, ...overrides } as SessionEventPayload<K>;
 		this._accumulateUsageMetrics(type, data);
 		const set = this._handlers.get(type);
 		if (set) {
@@ -4132,6 +4133,10 @@ suite('CopilotAgentSession', () => {
 			totalToolCalls: 0,
 		} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-1' });
 
+		mockSession.fire('user.message', {
+			content: 'Continue the investigation',
+			source: 'agent-parent',
+		}, { agentId: 'agent-1' });
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 6,
@@ -9460,6 +9465,839 @@ Use the attached image as context.
 			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
 		});
 
+		test('drains the final SDK messages of a resumed subagent before completing it', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'Investigate the follow-up',
+				source: 'agent-parent',
+				interactionId: 'follow-up',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '11', interactionId: 'follow-up' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'subagent-stop',
+				hookType: 'subagentStop',
+				input: { agentId: 'agent-1' },
+			});
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'subagent-stop',
+				hookType: 'subagentStop',
+				success: true,
+			});
+			mockSession.fire('assistant.message', {
+				messageId: 'empty-tail',
+				content: '',
+				interactionId: 'follow-up',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.message', {
+				messageId: 'final-message',
+				content: 'Final response',
+				interactionId: 'follow-up',
+			}, { agentId: 'agent-1' });
+			const completionsBeforeTurnEnd = signals.filter(signal => signal.kind === 'subagent_completed').length;
+
+			mockSession.fire('assistant.turn_end', { turnId: '11' }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				completionsBeforeTurnEnd,
+				lifecycle: signals.filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed')
+					.map(signal => ({ kind: signal.kind, toolCallId: signal.toolCallId })),
+				responseParts: getActions(signals)
+					.filter(action => action.type === ActionType.ChatResponsePart)
+					.map(action => action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind),
+				parentCompleted: signals.some(signal => isAction(signal, ActionType.ChatTurnComplete)),
+			}, {
+				completionsBeforeTurnEnd: 1,
+				lifecycle: [
+					{ kind: 'subagent_completed', toolCallId: 'tc-subagent' },
+					{ kind: 'subagent_resumed', toolCallId: 'tc-subagent' },
+					{ kind: 'subagent_completed', toolCallId: 'tc-subagent' },
+				],
+				responseParts: ['Final response'],
+				parentCompleted: false,
+			});
+		});
+
+		test('completes a subagent immediately when its stop hook follows the SDK turn end', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn-1' }, { agentId: 'agent-1' });
+			const completionsBeforeStopHook = signals.filter(signal => signal.kind === 'subagent_completed').length;
+
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'agent-stop',
+				hookType: 'agentStop',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'agent-stop',
+				hookType: 'agentStop',
+				success: true,
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn-1' }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				completionsBeforeStopHook,
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+			}, {
+				completionsBeforeStopHook: 0,
+				completed: ['tc-subagent'],
+			});
+		});
+
+		test('late response events cannot reopen a completed subagent', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'first-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'subagent-stop',
+				hookType: 'subagentStop',
+				input: { agentId: 'agent-1' },
+			});
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'subagent-stop',
+				hookType: 'subagentStop',
+				success: true,
+			});
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			signals.length = 0;
+
+			mockSession.fire('assistant.message', {
+				messageId: 'late-message',
+				content: 'Late assembled response',
+				interactionId: 'first-interaction',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.message_delta', {
+				messageId: 'late-message',
+				deltaContent: 'Late response delta',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.reasoning_delta', {
+				reasoningId: 'late-reasoning',
+				deltaContent: 'Late reasoning',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.usage', {
+				model: 'gpt-5.5',
+				inputTokens: 5,
+				outputTokens: 7,
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'late-tool',
+				toolName: 'bash',
+				inputDelta: '{"command":"echo late"}',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'late-tool',
+				toolName: 'bash',
+				arguments: { command: 'echo late' },
+			}, { agentId: 'agent-1' });
+			mockSession.fire('skill.invoked', {
+				name: 'late-skill',
+				path: '/skills/late/SKILL.md',
+				content: 'Late skill instructions',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('session.compaction_complete', { success: true }, { agentId: 'agent-1' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed'),
+				childActions: signals.filter(signal => signal.kind === 'action' && signal.parentToolCallId === 'tc-subagent'),
+			}, {
+				resumed: [],
+				childActions: [],
+			});
+		});
+
+		test('an old stop hook cannot complete a newer subagent follow-up', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'First request',
+				interactionId: 'first-interaction',
+			}, { agentId: 'agent-1', id: 'first-request' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'first-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'old-stop',
+				hookType: 'subagentStop',
+				input: { agentId: 'agent-1' },
+			});
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'Follow-up request',
+				interactionId: 'next-interaction',
+			}, { agentId: 'agent-1', id: 'next-request' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'next-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'old-stop',
+				hookType: 'subagentStop',
+				success: true,
+			});
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			const completionsAfterOldHook = signals.filter(signal => signal.kind === 'subagent_completed').length;
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'next-stop',
+				hookType: 'subagentStop',
+				input: { agentId: 'agent-1' },
+			});
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'next-stop',
+				hookType: 'subagentStop',
+				success: true,
+			});
+
+			assert.deepStrictEqual({
+				completionsAfterOldHook,
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.message?.text),
+			}, {
+				completionsAfterOldHook: 1,
+				completed: ['tc-subagent', 'tc-subagent'],
+				resumed: ['Follow-up request'],
+			});
+		});
+
+		test('late messages from a completed interaction cannot enter a newer subagent follow-up', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'first-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'Follow-up request',
+				interactionId: 'next-interaction',
+			}, { agentId: 'agent-1', id: 'next-request' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'next-interaction' }, { agentId: 'agent-1' });
+			signals.length = 0;
+
+			mockSession.fire('assistant.message', {
+				messageId: 'old-message',
+				interactionId: 'first-interaction',
+				content: 'Old response',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.message', {
+				messageId: 'next-message',
+				interactionId: 'next-interaction',
+				content: 'Follow-up response',
+			}, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual(
+				getActions(signals).filter(action => action.type === ActionType.ChatResponsePart)
+					.map(action => action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind),
+				['Follow-up response'],
+			);
+		});
+
+		test('late response and accounting events retain their original subagent invocation', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'first-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.message', {
+				messageId: 'old-message',
+				apiCallId: 'old-call',
+				interactionId: 'first-interaction',
+				content: 'First response',
+				toolRequests: [{ toolCallId: 'old-tool', name: 'bash', arguments: { command: 'echo old' } }],
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.reasoning_delta', {
+				reasoningId: 'old-reasoning',
+				deltaContent: 'First reasoning',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('skill.invoked', {
+				name: 'explore',
+				path: '/skills/explore/SKILL.md',
+				content: 'Explore instructions',
+			}, { agentId: 'agent-1', id: 'old-skill' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1', id: 'initial-completion' });
+			mockSession.fire('user.message', {
+				content: 'Follow-up request',
+				interactionId: 'next-interaction',
+				source: 'agent-parent',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'next-interaction' }, { agentId: 'agent-1' });
+			signals.length = 0;
+
+			mockSession.fire('assistant.message_delta', { messageId: 'old-message', deltaContent: 'Late first response' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'old-reasoning', deltaContent: 'Late first reasoning' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.usage', { model: 'gpt-5.5', apiCallId: 'old-call', inputTokens: 10, outputTokens: 20 }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.usage', { model: 'gpt-5.5', apiCallId: 'old-call', inputTokens: 10, outputTokens: 20, parentToolCallId: 'tc-subagent' });
+			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'old-tool', toolName: 'bash', inputDelta: '{}' }, { agentId: 'agent-1' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'old-tool', toolName: 'bash' }, { agentId: 'agent-1' });
+			mockSession.fire('skill.invoked', {
+				name: 'explore',
+				path: '/skills/explore/SKILL.md',
+				content: 'Explore instructions',
+			}, { agentId: 'agent-1', id: 'old-skill' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1', id: 'initial-completion' });
+			await timeout(0);
+			const lateSignals = [...signals];
+			mockSession.fire('assistant.message_delta', { messageId: 'next-message', deltaContent: 'Follow-up response' }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				lateSignals,
+				responseParts: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart)
+					.map(action => action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind),
+			}, {
+				lateSignals: [],
+				responseParts: ['Follow-up response'],
+			});
+		});
+
+		test('a delayed task completion cannot close a newer subagent follow-up', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'first-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'first-stop',
+				hookType: 'subagentStop',
+				input: { agentId: 'agent-1' },
+			});
+			mockSession.fire('hook.end', { hookInvocationId: 'first-stop', hookType: 'subagentStop', success: true });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('user.message', { content: 'Follow-up request', interactionId: 'next-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'next-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1' });
+			const completionsAfterTask = signals.filter(signal => signal.kind === 'subagent_completed').length;
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'next-stop',
+				hookType: 'subagentStop',
+				input: { agentId: 'agent-1' },
+			});
+			mockSession.fire('hook.end', { hookInvocationId: 'next-stop', hookType: 'subagentStop', success: true });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				completionsAfterTask,
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+			}, {
+				completionsAfterTask: 1,
+				completed: ['tc-subagent', 'tc-subagent'],
+			});
+		});
+
+		test('matches a late SDK turn end to its invocation when loop counters restart', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'first-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('user.message', { content: 'Follow-up request', interactionId: 'next-interaction', delivery: 'idle' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'next-interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'next-stop',
+				hookType: 'subagentStop',
+				input: { agentId: 'agent-1' },
+			});
+			mockSession.fire('hook.end', { hookInvocationId: 'next-stop', hookType: 'subagentStop', success: true });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1', id: 'first-end' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1', id: 'first-end' });
+			const completionsBeforeFollowupEnd = signals.filter(signal => signal.kind === 'subagent_completed').length;
+			mockSession.fire('assistant.message', {
+				messageId: 'next-message',
+				interactionId: 'next-interaction',
+				content: 'Follow-up response',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1', id: 'next-end' });
+
+			assert.deepStrictEqual({
+				completionsBeforeFollowupEnd,
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				responseParts: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart)
+					.map(action => action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind),
+			}, {
+				completionsBeforeFollowupEnd: 1,
+				completed: ['tc-subagent', 'tc-subagent'],
+				responseParts: ['Follow-up response'],
+			});
+		});
+
+		test('a blocking stop hook keeps its subagent invocation active', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'interaction' }, { agentId: 'agent-1' });
+			for (const id of ['blocking-stop', 'other-stop']) {
+				mockSession.fire('hook.start', { hookInvocationId: id, hookType: 'agentStop' }, { agentId: 'agent-1' });
+			}
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'blocking-stop',
+				hookType: 'agentStop',
+				success: true,
+				output: { decision: 'block', reason: 'Continue the investigation' },
+			}, { agentId: 'agent-1' });
+			mockSession.fire('hook.end', { hookInvocationId: 'other-stop', hookType: 'agentStop', success: true }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			const completionsAfterBlockedStop = signals.filter(signal => signal.kind === 'subagent_completed').length;
+			mockSession.fire('assistant.turn_start', { turnId: '1', interactionId: 'interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', { hookInvocationId: 'final-stop', hookType: 'agentStop' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.end', { hookInvocationId: 'final-stop', hookType: 'agentStop', success: true }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_end', { turnId: '1' }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				completionsAfterBlockedStop,
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed'),
+			}, {
+				completionsAfterBlockedStop: 0,
+				completed: ['tc-subagent'],
+				resumed: [],
+			});
+		});
+
+		test('a retained subagent can start new work after cancellation without late events reactivating it', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 10, outputTokens: 20 }, { agentId: 'agent-1' });
+			await session.abort();
+			signals.length = 0;
+			mockSession.fire('assistant.message_delta', { messageId: 'cancelled-message', deltaContent: 'Cancelled response' }, { agentId: 'agent-1' });
+			mockSession.fire('user.message', { content: 'Late follow-up' }, { agentId: 'agent-1' });
+			const signalsAfterCancellation = [...signals];
+			session.resetTurnState('next-parent-turn');
+			mockSession.fire('user.message', { content: 'New parent request' });
+			mockSession.fire('user.message', { content: 'New child request', source: 'agent-parent' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.message_delta', { messageId: 'next-message', deltaContent: 'New response' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 1, outputTokens: 2 }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				signalsAfterCancellation,
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.message?.text),
+				responseParts: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart)
+					.map(action => action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind),
+				childUsage: signals.flatMap(signal => signal.kind === 'action' && signal.parentToolCallId === 'tc-subagent' && signal.action.type === ActionType.ChatUsage
+					? [signal.action.usage._meta?.directTurnTokenTotals] : []),
+			}, {
+				signalsAfterCancellation: [],
+				resumed: ['New child request'],
+				responseParts: ['New response'],
+				childUsage: [[{ model: 'gpt-5.5', inputTokens: 1, cachedTokens: 0, outputTokens: 2 }]],
+			});
+		});
+
+		for (const interactionId of [undefined, 'shared-interaction']) {
+			test(`an idle delivery starts a new invocation with ${interactionId ? 'reused' : 'missing'} interaction IDs`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-parent');
+				mockSession.fire('subagent.started', {
+					toolCallId: 'tc-subagent',
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: 'agent-1' });
+				mockSession.fire('user.message', { content: 'First request', interactionId, delivery: 'idle' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.turn_start', { turnId: '0', interactionId }, { agentId: 'agent-1' });
+				mockSession.fire('hook.start', { hookInvocationId: 'old-stop', hookType: 'agentStop' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+				mockSession.fire('user.message', { content: 'Follow-up request', interactionId, delivery: 'idle' }, { agentId: 'agent-1' });
+				mockSession.fire('hook.end', { hookInvocationId: 'old-stop', hookType: 'agentStop', success: true }, { agentId: 'agent-1' });
+				const completionsAfterOldHook = signals.filter(signal => signal.kind === 'subagent_completed').length;
+				mockSession.fire('assistant.turn_start', { turnId: '0', interactionId }, { agentId: 'agent-1' });
+				mockSession.fire('hook.start', { hookInvocationId: 'next-stop', hookType: 'agentStop' }, { agentId: 'agent-1' });
+				mockSession.fire('hook.end', { hookInvocationId: 'next-stop', hookType: 'agentStop', success: true }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+
+				assert.deepStrictEqual({
+					completionsAfterOldHook,
+					completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+					resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.message?.text),
+				}, {
+					completionsAfterOldHook: 1,
+					completed: ['tc-subagent', 'tc-subagent'],
+					resumed: ['Follow-up request'],
+				});
+			});
+		}
+
+		test('explicit new work can reuse an interaction ID or originate from a system notification', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'interaction' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'continuation-stop',
+				hookType: 'subagentStop',
+				parentToolCallId: 'tc-subagent',
+			});
+			mockSession.fire('hook.end', { hookInvocationId: 'continuation-stop', hookType: 'subagentStop', success: true });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'A background task finished',
+				source: 'system',
+				delivery: 'idle',
+				interactionId: 'notification-interaction',
+			}, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.message?.text),
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+			}, {
+				resumed: [undefined, 'A background task finished'],
+				completed: ['tc-subagent', 'tc-subagent'],
+			});
+		});
+
+		test('a new SDK subagent start can reuse a child chat but a replayed start cannot', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			const subagent = {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			};
+			mockSession.fire('subagent.started', subagent, { agentId: 'first-agent', id: 'first-start' });
+			mockSession.fire('subagent.completed', subagent, { agentId: 'first-agent' });
+			signals.length = 0;
+			mockSession.fire('subagent.started', subagent, { agentId: 'first-agent', id: 'first-start' });
+			const replayedStartSignals = [...signals];
+			mockSession.fire('subagent.started', subagent, { agentId: 'next-agent', id: 'next-start' });
+			mockSession.fire('assistant.turn_start', { turnId: '0' }, { agentId: 'next-agent' });
+			mockSession.fire('hook.start', { hookInvocationId: 'next-stop', hookType: 'agentStop' }, { agentId: 'next-agent' });
+			mockSession.fire('hook.end', { hookInvocationId: 'next-stop', hookType: 'agentStop', success: true }, { agentId: 'next-agent' });
+			mockSession.fire('assistant.message', { messageId: 'next-message', content: 'New response' }, { agentId: 'next-agent' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'next-agent' });
+
+			assert.deepStrictEqual({
+				replayedStartSignals,
+				started: signals.filter(signal => signal.kind === 'subagent_started').map(signal => signal.toolCallId),
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				responseParts: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart)
+					.map(action => action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind),
+			}, {
+				replayedStartSignals: [],
+				started: ['tc-subagent'],
+				completed: ['tc-subagent'],
+				responseParts: ['New response'],
+			});
+		});
+
+		test('scheduled tool display updates cannot outlive their subagent invocation', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'old-tool', toolName: 'bash', inputDelta: '{"command":"echo ' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'old-tool', toolName: 'bash', inputDelta: 'old"}' }, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('user.message', { content: 'Follow-up request' }, { agentId: 'agent-1' });
+			signals.length = 0;
+			await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS + 10);
+
+			assert.deepStrictEqual(signals, []);
+		});
+
+		for (const terminalEvent of ['completed', 'failed', 'abort', 'error']) {
+			test(`subagent ${terminalEvent} terminates its invocation without an SDK turn end`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-parent');
+				mockSession.fire('subagent.started', {
+					toolCallId: 'tc-subagent',
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: 'agent-1' });
+				mockSession.fire('assistant.turn_start', { turnId: '0' }, { agentId: 'agent-1' });
+				switch (terminalEvent) {
+					case 'completed':
+						mockSession.fire('subagent.completed', { toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore' }, { agentId: 'agent-1' });
+						break;
+					case 'failed':
+						mockSession.fire('subagent.failed', { toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', error: 'Failed' }, { agentId: 'agent-1' });
+						break;
+					case 'abort':
+						mockSession.fire('abort', { reason: 'user_abort' }, { agentId: 'agent-1' });
+						break;
+					case 'error':
+						mockSession.fire('session.error', { errorType: 'TestError', message: 'Failed' }, { agentId: 'agent-1' });
+						break;
+				}
+				const completions = signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId);
+				signals.length = 0;
+				mockSession.fire('assistant.message_delta', { messageId: 'late-message', deltaContent: 'Late response' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 1, outputTokens: 2 }, { agentId: 'agent-1' });
+
+				assert.deepStrictEqual({
+					completions,
+					signals,
+					parentActive: session.hasActiveTurn,
+				}, {
+					completions: ['tc-subagent'],
+					signals: [],
+					parentActive: true,
+				});
+			});
+		}
+
+		test('only new work boundaries resume a completed subagent', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'First request',
+				interactionId: 'first-interaction',
+			}, { agentId: 'agent-1', id: 'first-request' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'first-interaction' }, { agentId: 'agent-1', id: 'first-start' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1' });
+
+			for (const source of ['skill', 'harness']) {
+				mockSession.fire('user.message', {
+					content: 'Injected instructions',
+					source,
+				}, { agentId: 'agent-1', id: `injection-${source}` });
+			}
+			mockSession.fire('user.message', { content: 'Old steering', delivery: 'steering' }, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'First request',
+				interactionId: 'first-interaction',
+			}, { agentId: 'agent-1', id: 'first-request' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'first-interaction' }, { agentId: 'agent-1', id: 'first-start' });
+			const resumedBeforeNewWork = signals.filter(signal => signal.kind === 'subagent_resumed').length;
+
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'next-interaction' }, { agentId: 'agent-1', id: 'next-start' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'next-stop',
+				hookType: 'agentStop',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'next-stop',
+				hookType: 'agentStop',
+				success: true,
+			}, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				resumedBeforeNewWork,
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+			}, {
+				resumedBeforeNewWork: 0,
+				resumed: ['tc-subagent'],
+				completed: ['tc-subagent', 'tc-subagent'],
+			});
+		});
+
+		test('matches deferred subagent completion to the correct agent and SDK turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			for (const id of ['first', 'second']) {
+				mockSession.fire('subagent.started', {
+					toolCallId: `tc-${id}`,
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: `agent-${id}` });
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' }, { agentId: `agent-${id}` });
+			}
+			mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn-1' }, { agentId: 'agent-first' });
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' }, { agentId: 'agent-first' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'stop-first',
+				hookType: 'agentStop',
+			}, { agentId: 'agent-first' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'stop-first',
+				hookType: 'agentStop',
+				success: true,
+			}, { agentId: 'agent-first' });
+			mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn-1' }, { agentId: 'agent-first' });
+			mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn-2' });
+			mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn-1' }, { agentId: 'agent-second' });
+			const completionsBeforeMatchingEnd = signals.filter(signal => signal.kind === 'subagent_completed').length;
+
+			mockSession.fire('assistant.turn_end', { turnId: 'sdk-turn-2' }, { agentId: 'agent-first' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'stop-second',
+				hookType: 'agentStop',
+			}, { agentId: 'agent-second' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'stop-second',
+				hookType: 'agentStop',
+				success: true,
+			}, { agentId: 'agent-second' });
+
+			assert.deepStrictEqual({
+				completionsBeforeMatchingEnd,
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+			}, {
+				completionsBeforeMatchingEnd: 0,
+				completed: ['tc-first', 'tc-second'],
+			});
+		});
+
+		test('resumes a subagent after deferred completion and still completes failures without a turn end', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'first-stop',
+				hookType: 'agentStop',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'first-stop',
+				hookType: 'agentStop',
+				success: true,
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('user.message', {
+				content: 'Review the follow-up',
+				source: 'agent-parent',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0' }, { agentId: 'agent-1' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'second-stop',
+				hookType: 'agentStop',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('hook.end', {
+				hookInvocationId: 'second-stop',
+				hookType: 'agentStop',
+				success: true,
+			}, { agentId: 'agent-1' });
+			mockSession.fire('subagent.failed', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				error: 'Follow-up failed',
+			}, { agentId: 'agent-1' });
+			const completionsAfterFailure = signals.filter(signal => signal.kind === 'subagent_completed').length;
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'agent-1' });
+
+			assert.deepStrictEqual({
+				completionsAfterFailure,
+				lifecycle: signals.filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed')
+					.map(signal => ({ kind: signal.kind, toolCallId: signal.toolCallId })),
+			}, {
+				completionsAfterFailure: 2,
+				lifecycle: [
+					{ kind: 'subagent_completed', toolCallId: 'tc-subagent' },
+					{ kind: 'subagent_resumed', toolCallId: 'tc-subagent' },
+					{ kind: 'subagent_completed', toolCallId: 'tc-subagent' },
+				],
+			});
+		});
+
 		test('matches overlapping subagent stop hooks to their own agents', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
@@ -10737,6 +11575,10 @@ Use the attached image as context.
 				totalToolCalls: 0,
 			} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-client-tool' });
 
+			mockSession.fire('user.message', {
+				content: 'Use the client tool in the follow-up',
+				source: 'agent-parent',
+			}, { agentId: 'agent-client-tool' });
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-sub-client',
 				toolName: 'my_tool',
@@ -10759,6 +11601,10 @@ Use the attached image as context.
 			session.respondToPermissionRequest('tc-sub-client', false);
 			await resultPromise;
 
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'hook-follow-up-stop',
+				hookType: 'agentStop',
+			}, { agentId: 'agent-client-tool' });
 			mockSession.fire('hook.end', {
 				hookInvocationId: 'hook-follow-up-stop',
 				hookType: 'agentStop',
