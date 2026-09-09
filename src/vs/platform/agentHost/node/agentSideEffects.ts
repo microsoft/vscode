@@ -1405,7 +1405,7 @@ export class AgentSideEffects extends Disposable {
 							session: sessionChannel,
 							channel,
 							turnId: action.turnId,
-							reason: { kind: 'error', error: failure.error, resumable: false },
+							reason: { kind: 'error', error: failure.error, resumable: true },
 							clientContext,
 						});
 					}

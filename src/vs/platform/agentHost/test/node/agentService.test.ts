@@ -818,6 +818,14 @@ suite('AgentService (node dispatcher)', () => {
 
 			test('finalizes the same turn with another resumable error when continuation fails immediately', async () => {
 				const { chat } = await createErroredTurn();
+				const checkpointService = getCheckpointService(service);
+				const originalCapture = checkpointService.captureTurnCheckpoint.bind(checkpointService);
+				let endCheckpointCaptures = 0;
+				checkpointService.captureTurnCheckpoint = async (...args) => {
+					endCheckpointCaptures++;
+					await originalCapture(...args);
+				};
+				disposables.add(toDisposable(() => checkpointService.captureTurnCheckpoint = originalCapture));
 				copilotAgent.chats.resumeTurn = async () => {
 					throw new Error('continuation failed');
 				};
@@ -833,6 +841,7 @@ suite('AgentService (node dispatcher)', () => {
 					state: turn?.state,
 					errors: turn?.responseParts.filter(part => part.kind === ResponsePartKind.Error),
 					durationAtLeastInitial: (turn?.duration ?? 0) >= 100,
+					endCheckpointCaptures,
 				}, {
 					turnCount: 1,
 					id: 'turn-1',
@@ -842,6 +851,7 @@ suite('AgentService (node dispatcher)', () => {
 						createErrorResponsePart({ errorType: 'sendFailed', message: 'Error: continuation failed' }, true),
 					],
 					durationAtLeastInitial: true,
+					endCheckpointCaptures: 0,
 				});
 			});
 		});
