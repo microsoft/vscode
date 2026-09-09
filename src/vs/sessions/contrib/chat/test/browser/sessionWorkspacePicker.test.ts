@@ -3500,6 +3500,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 
 	test('uses repository icons and hides GitHub recents represented by local folders when enabled', () => {
 		const localRepositoryUri = URI.file('/local/vscode');
+		const nonGitHubRepositoryUri = URI.file('/local/gitlab');
 		const localFolderUri = URI.file('/local/plain');
 		const githubRepositoryUri = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
 		const localBaseProvider = createMockProvider('local-1');
@@ -3512,12 +3513,15 @@ suite('WorkspacePicker - Tab discovery', () => {
 					group: SESSION_WORKSPACE_GROUP_LOCAL,
 					folders: workspace.folders.map(folder => ({
 						...folder,
-						gitRepository: uri.toString() === localRepositoryUri.toString()
+						gitRepository: uri.toString() === localRepositoryUri.toString() || uri.toString() === nonGitHubRepositoryUri.toString()
 							? {
 								uri,
 								workTreeUri: uri,
+								isRepository: constObservable(true),
 								baseBranchName: 'main',
-								gitHubInfo: constObservable({ owner: 'microsoft', repo: 'vscode' }),
+								gitHubInfo: constObservable(uri.toString() === localRepositoryUri.toString()
+									? { owner: 'microsoft', repo: 'vscode' }
+									: undefined),
 							}
 							: undefined,
 					})),
@@ -3540,6 +3544,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		seedStorage(storage, [
 			{ uri: githubRepositoryUri, providerId: githubProvider.id, checked: false },
 			{ uri: localFolderUri, providerId: localProvider.id, checked: false },
+			{ uri: nonGitHubRepositoryUri, providerId: localProvider.id, checked: false },
 			{ uri: localRepositoryUri, providerId: localProvider.id, checked: false },
 		]);
 		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, storage, true);
@@ -3550,6 +3555,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''));
 
 		assert.deepStrictEqual(items, [
+			{ label: 'local/gitlab', icon: 'repo' },
 			{ label: 'local/plain', icon: 'folder' },
 			{ label: 'local/vscode', icon: 'repo' },
 		]);

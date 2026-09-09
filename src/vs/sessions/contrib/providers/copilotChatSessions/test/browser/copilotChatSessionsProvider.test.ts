@@ -957,6 +957,16 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(types.length, 1);
 	});
 
+	test('rejects local session types for a remote GitHub workspace', () => {
+		const provider = createProvider(disposables, model);
+		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repo/HEAD' });
+
+		assert.throws(
+			() => provider.createNewSession(workspace, CopilotCLISessionType.id),
+			/Only Copilot Cloud sessions can be created for GitHub repositories/,
+		);
+	});
+
 	test('getSessionTypes offers Cloud for a local workspace with a GitHub remote', async () => {
 		const folder = URI.file('/test/vscode');
 		const provider = createProvider(disposables, model, {
@@ -997,13 +1007,16 @@ suite('CopilotChatSessionsProvider', () => {
 
 		const beforeResolve = provider.getSessionTypes(folder).map(type => type.label);
 		await timeout(0);
+		const isRepository = provider.resolveWorkspace(folder)?.folders[0].gitRepository?.isRepository?.get();
 
 		assert.deepStrictEqual({
 			beforeResolve,
 			afterResolve: provider.getSessionTypes(folder).map(type => type.label),
+			isRepository,
 		}, {
 			beforeResolve: [],
 			afterResolve: [],
+			isRepository: true,
 		});
 	});
 

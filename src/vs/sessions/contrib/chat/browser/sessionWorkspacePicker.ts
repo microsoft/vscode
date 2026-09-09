@@ -1195,6 +1195,18 @@ export class WorkspacePicker extends Disposable {
 		return undefined;
 	}
 
+	private _isGitRepositoryForResolvedWorkspace(selection: IResolvedFolderWorkspace): boolean {
+		for (const workspace of this._getRepositoryWorkspaceCandidates(selection)) {
+			for (const folder of workspace.folders) {
+				folder.gitRepository?.resolveRepository?.();
+				if (folder.gitRepository?.isRepository?.get()) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private _getRepositoryWorkspaceCandidates(selection: IResolvedFolderWorkspace): ISessionWorkspace[] {
 		const folderUri = selection.workspace.folders[0]?.root;
 		if (!folderUri) {
@@ -1427,7 +1439,8 @@ export class WorkspacePicker extends Disposable {
 			if (workspace.group === SESSION_WORKSPACE_GROUP_GITHUB && repositoryId && localRepositoryIds?.has(repositoryId)) {
 				continue;
 			}
-			const icon = this._useConsolidatedRemoteWorkspaces() && repositoryId ? Codicon.repo : workspace.icon;
+			const isGitRepository = this._isGitRepositoryForResolvedWorkspace({ workspace, providerId });
+			const icon = this._useConsolidatedRemoteWorkspaces() && (repositoryId || isGitRepository) ? Codicon.repo : workspace.icon;
 			const selected = this._isSelectedFolder(folderUri)
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
