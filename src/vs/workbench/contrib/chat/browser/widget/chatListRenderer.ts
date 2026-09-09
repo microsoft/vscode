@@ -8,6 +8,7 @@ import { renderFormattedText } from '../../../../../base/browser/formattedTextRe
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
@@ -741,6 +742,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * by screen readers
 	 */
 	private readonly _announcedToolProgressKeys = new Set<string>();
+	private readonly requestExpansionState = new Map<string, boolean>();
 
 	constructor(
 		editorOptions: ChatEditorOptions,
@@ -913,6 +915,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!isRequestVM(element)
 			|| element.isSystemInitiated
 			|| !!element.confirmation
+			|| (this.requestExpansionState.get(element.id) === false && element.id !== this.viewModel?.editing?.id)
 			|| !this.requestHasStickyScrollContent(element)) {
 			return undefined;
 		}
@@ -952,6 +955,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
+		if (this.viewModel?.sessionResource.toString() !== viewModel?.sessionResource.toString()) {
+			this.requestExpansionState.clear();
+		}
 		this.viewModel = viewModel;
 		this._announcedToolProgressKeys.clear();
 		this._notifiedQuestionCarousels.clear();
@@ -1356,7 +1362,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Clear pending-related classes and drag handle from previous renders
 		// Do this before element-type checks to ensure dividers also get cleaned up
-		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'chat-pending-dragging', 'terminal-command-request', 'chat-system-notification-response');
+		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'chat-pending-dragging', 'chat-request-collapsed', 'terminal-command-request', 'chat-system-notification-response');
 		templateData.dragHandle?.remove();
 		templateData.dragHandle = undefined;
 		delete templateData.rowContainer.dataset.pendingRequestId;
@@ -2337,6 +2343,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			stickyScrollSourcePart.addDisposable(this.registerSynchronizedRequestBubbleHover(element.id, templateData, templateData.stickyScrollSource));
 		}
 
+		if (!isStickyScrollRow && !element.confirmation && element.id !== this.viewModel?.editing?.id && (element.pendingKind || this.requestExpansionState.has(element.id))) {
+			this.renderRequestCollapseControl(element, templateData);
+		}
+
 		if (!isStickyScrollRow && !element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && templateData.value.childElementCount > 0) {
 			const timestamp = renderChatRequestTimestamp(templateData.requestTimestampContainer, element.requestTimestamp);
 			if (timestamp?.hoverText) {
@@ -2373,6 +2383,38 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}));
 			}
 		}
+	}
+
+	private renderRequestCollapseControl(element: IChatRequestViewModel, templateData: IChatListItemTemplate): void {
+		const control = dom.$('.chat-request-collapse-control.chat-used-context-label');
+		templateData.value.prepend(control);
+		const button = templateData.elementDisposables.add(new ButtonWithIcon(control, {}));
+		button.iconElement.setAttribute('aria-hidden', 'true');
+		const preview = element.messageText.replace(/\s+/g, ' ').trim() || localize('requestCollapseMessage', "Message");
+		let expanded = this.requestExpansionState.get(element.id) ?? true;
+		const update = () => {
+			templateData.rowContainer.classList.toggle('chat-request-collapsed', !expanded);
+			button.label = expanded ? localize('requestCollapseMessage', "Message") : preview;
+			button.icon = expanded ? Codicon.chevronDownCompact : Codicon.chevronRightCompact;
+			button.element.ariaExpanded = String(expanded);
+			button.element.ariaLabel = expanded
+				? localize('collapseRequest', "Collapse Message")
+				: localize('expandRequest', "Expand Message: {0}", preview);
+		};
+		update();
+		templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button.element, () => expanded
+			? localize('collapseRequest', "Collapse Message")
+			: localize('expandRequestTooltip', "Expand Message")));
+		templateData.elementDisposables.add(button.onDidClick(e => {
+			dom.EventHelper.stop(e, true);
+			control.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+			expanded = !expanded;
+			// Pending view models are recreated on updates. Keep the choice by request ID,
+			// including when the same request moves into the transcript.
+			this.requestExpansionState.set(element.id, expanded);
+			update();
+			this.fireItemHeightChange(templateData);
+		}));
 	}
 
 	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry)): string | undefined {
