@@ -2298,6 +2298,7 @@ class NewSession extends Disposable {
 				...primaryFolder,
 				gitRepository: {
 					...currentRepository,
+					isRepository: constObservable(true),
 					branchName: gitState?.branchName ?? currentRepository.branchName,
 					baseBranchName: gitState?.baseBranchName ?? currentRepository.baseBranchName,
 					hasGitHubRemote: gitState?.hasGitHubRemote ?? currentRepository.hasGitHubRemote,
