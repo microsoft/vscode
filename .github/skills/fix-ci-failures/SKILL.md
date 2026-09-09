@@ -50,7 +50,7 @@ Before waiting on any `IN_PROGRESS` check, inspect its check-run output and clas
 
 ```bash
 HEAD=$(gh pr view --json headRefOid --jq .headRefOid)
-gh api "repos/microsoft/vscode/commits/$HEAD/check-runs" \
+gh api --paginate "repos/microsoft/vscode/commits/$HEAD/check-runs?per_page=100" \
   --jq '.check_runs[] | select(.status != "completed") | {name, status, details_url, title: .output.title, summary: .output.summary}'
 ```
 
