@@ -9,6 +9,7 @@ import * as os from 'os';
 import { pickRemoteSource } from './remoteSource';
 import { l10n, workspace, window, Uri, ProgressLocation, commands } from 'vscode';
 import { RepositoryCache, RepositoryCacheInfo } from './repositoryCache';
+import { filterExistingCachedRepositories, resolveCachedCloneOpenPath } from './cloneCache';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Model } from './model';
 
@@ -186,13 +187,23 @@ export class CloneManager {
 		}
 	}
 
+	private async pathExists(p: string): Promise<boolean> {
+		return !!(await fs.promises.stat(p).catch(() => undefined));
+	}
+
+	private async getOpenPath(info: RepositoryCacheInfo): Promise<string> {
+		return resolveCachedCloneOpenPath(info, p => this.pathExists(p));
+	}
+
 	private async chooseExistingRepository(url: string, existingCachedRepositories: RepositoryCacheInfo[], ref: string | undefined, parentPath?: string, postCloneAction?: ApiPostCloneAction): Promise<string | undefined> {
 		try {
-			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = existingCachedRepositories.map(knownFolder => {
-				const isWorkspace = knownFolder.workspacePath.endsWith('.code-workspace');
-				const label = isWorkspace ? l10n.t('Workspace: {0}', path.basename(knownFolder.workspacePath, '.code-workspace')) : path.basename(knownFolder.workspacePath);
-				return { label, description: knownFolder.workspacePath, item: knownFolder };
-			});
+			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = [];
+			for (const knownFolder of existingCachedRepositories) {
+				const openPath = await this.getOpenPath(knownFolder);
+				const isWorkspace = openPath.endsWith('.code-workspace');
+				const label = isWorkspace ? l10n.t('Workspace: {0}', path.basename(openPath, '.code-workspace')) : path.basename(openPath);
+				items.push({ label, description: openPath, item: knownFolder });
+			}
 			const cloneAgain = { label: l10n.t('Clone again') };
 			items.push(cloneAgain);
 			const placeHolder = l10n.t('Open Existing Repository Clone');
@@ -203,22 +214,18 @@ export class CloneManager {
 			if (!pick?.item) {
 				return undefined;
 			}
-			return pick.item.workspacePath;
+			return this.getOpenPath(pick.item);
 		} catch {
 			return undefined;
 		}
 	}
 
 	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: ApiPostCloneAction, parentPath?: string, ref?: string): Promise<string | undefined> {
-		// Gather existing folders/workspace files (ignore ones that no longer exist)
-		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
-			const stat = await fs.promises.stat(folder.workspacePath).catch(() => undefined);
-			if (stat) {
-				return folder;
-			}
-			return undefined;
-		}
-		))).filter<RepositoryCacheInfo>((folder): folder is RepositoryCacheInfo => folder !== undefined);
+		// Validate repositoryPath (not workspacePath) so a surviving parent folder is not treated as a live clone.
+		const existingCachedRepositories = await filterExistingCachedRepositories(cachedRepository, {
+			pathExists: p => this.pathExists(p),
+			onMissing: (folder) => this.repositoryCache.delete(url, folder.workspacePath),
+		});
 
 		if (!existingCachedRepositories.length) {
 			// fallback to clone
@@ -226,15 +233,17 @@ export class CloneManager {
 		}
 
 		// First, find the cached repo that exists in the current workspace
-		const matchingInCurrentWorkspace = existingCachedRepositories?.find(cachedRepo => {
-			return workspace.workspaceFolders?.some(workspaceFolder => workspaceFolder.uri.fsPath === cachedRepo.workspacePath);
+		const matchingInCurrentWorkspace = existingCachedRepositories.find(cachedRepo => {
+			return workspace.workspaceFolders?.some(workspaceFolder =>
+				workspaceFolder.uri.fsPath === cachedRepo.workspacePath ||
+				workspaceFolder.uri.fsPath === cachedRepo.repositoryPath);
 		});
 
 		if (matchingInCurrentWorkspace) {
-			return matchingInCurrentWorkspace.workspacePath;
+			return this.getOpenPath(matchingInCurrentWorkspace);
 		}
 
-		let repoForWorkspace: string | undefined = (existingCachedRepositories.length === 1 ? existingCachedRepositories[0].workspacePath : undefined);
+		let repoForWorkspace: string | undefined = (existingCachedRepositories.length === 1 ? await this.getOpenPath(existingCachedRepositories[0]) : undefined);
 		if (!repoForWorkspace) {
 			repoForWorkspace = await this.chooseExistingRepository(url, existingCachedRepositories, ref, parentPath, postCloneAction);
 		}
