@@ -565,6 +565,14 @@ class CodeMain {
 					throw error;
 				}
 
+				// The lock can be released in between the failed serve attempt
+				// and the connect probe above (on macOS and Linux the socket
+				// file is removed, on Windows the named pipe disappears):
+				// retry acquiring the lock in that case
+				if (error.code === 'ENOENT') {
+					continue;
+				}
+
 				// On macOS and Linux the socket file can be left behind when
 				// a process dies: since we cannot connect to it, remove it
 				// and try to become the lock owner again
@@ -572,7 +580,12 @@ class CodeMain {
 					try {
 						unlinkSync(handle);
 					} catch (unlinkError) {
-						logService.warn(`Error removing stale session data lock: ${unlinkError.toString()}`);
+
+						// The socket file can also be removed by another
+						// process in the meantime: nothing to clean up
+						if (unlinkError.code !== 'ENOENT') {
+							logService.warn(`Error removing stale session data lock: ${unlinkError.toString()}`);
+						}
 					}
 
 					continue;
