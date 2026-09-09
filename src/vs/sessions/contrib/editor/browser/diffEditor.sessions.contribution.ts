@@ -11,7 +11,7 @@ import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBro
 import { DiffEditorViewMode } from '../../../../editor/common/config/editorOptions.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -170,7 +170,7 @@ registerSingleton(IDiffEditorOptionsService, DiffEditorOptionsService, Instantia
 registerSingleton(IDiffEditorCommandsService, SessionsDiffEditorCommandsService, InstantiationType.Delayed);
 registerWorkbenchContribution2(SessionsDiffEditorLayoutContribution.ID, SessionsDiffEditorLayoutContribution, WorkbenchPhase.AfterRestored);
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+export const sessionsEditorWordWrapConfiguration = {
 	id: 'sessions',
 	properties: {
 		[SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING]: {
@@ -202,4 +202,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('sessions.editor.wordWrap', "Controls how code editors in the Agents window wrap lines."),
 		},
 	},
-});
+} satisfies IConfigurationNode;
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(sessionsEditorWordWrapConfiguration);

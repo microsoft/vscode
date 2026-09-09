@@ -10,13 +10,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IEditorPane, IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { SessionChangesEditor } from '../../../changes/browser/sessionChangesEditor.js';
-import { SessionsDiffEditorCommandsService, SessionsDiffEditorLayoutContribution } from '../../browser/diffEditor.sessions.contribution.js';
+import { sessionsEditorWordWrapConfiguration, SessionsDiffEditorCommandsService, SessionsDiffEditorLayoutContribution } from '../../browser/diffEditor.sessions.contribution.js';
 import { TextDiffEditor } from '../../../../../workbench/browser/parts/editor/textDiffEditor.js';
 import { DiffEditorViewMode, IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -29,9 +27,8 @@ suite('SessionsDiffEditorCommandsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registers independent editor and diff word wrap auto experiments', () => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		const properties = configurationRegistry.getConfigurationProperties();
-		const summarize = (settingId: string) => {
+		const properties = sessionsEditorWordWrapConfiguration.properties;
+		const summarize = (settingId: keyof typeof properties) => {
 			const property = properties[settingId];
 			return {
 				type: property.type,
