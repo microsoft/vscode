@@ -169,6 +169,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 
 export class SessionsChatBackgroundReplica extends Disposable {
 
+	private readonly viewport: HTMLElement;
 	private readonly element: HTMLElement;
 	private readonly renderer: SessionsChatBackgroundRenderer;
 
@@ -178,10 +179,14 @@ export class SessionsChatBackgroundReplica extends Disposable {
 	) {
 		super();
 
+		this.viewport = $('.sessions-chat-background-replica-viewport');
+		this.viewport.ariaHidden = 'true';
+		this.viewport.hidden = true;
 		this.element = $('.sessions-chat-background-replica');
 		this.element.ariaHidden = 'true';
-		this.container.prepend(this.element);
-		this._register(toDisposable(() => this.element.remove()));
+		this.viewport.appendChild(this.element);
+		this.container.prepend(this.viewport);
+		this._register(toDisposable(() => this.viewport.remove()));
 		this.layout();
 
 		this.renderer = this._register(new SessionsChatBackgroundRenderer(this.element));
@@ -196,6 +201,7 @@ export class SessionsChatBackgroundReplica extends Disposable {
 	}
 
 	setBackground(background: ISessionsChatBackground | undefined): void {
+		this.viewport.hidden = !background;
 		this.renderer.setBackground(background);
 	}
 

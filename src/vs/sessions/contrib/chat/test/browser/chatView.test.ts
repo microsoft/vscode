@@ -76,6 +76,12 @@ suite('Sessions - Chat View', () => {
 		return { store, part, chatView, stickyContainer, source, sourceRenderer };
 	}
 
+	function getBackgroundReplicaElements(stickyContainer: HTMLElement) {
+		const viewport = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica-viewport');
+		const replica = viewport?.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		return { viewport, replica };
+	}
+
 	test('retries an unresolved chat when its content provider is registered', () => {
 		const resource = URI.parse('remote-agent:/session');
 		const loads: URI[] = [];
@@ -1003,13 +1009,14 @@ suite('Sessions - Chat View', () => {
 			const list = dom.append(interactiveList, dom.$('.monaco-list'));
 			const scrollable = dom.append(list, dom.$('.monaco-scrollable-element'));
 			const stickyContainer = dom.append(scrollable, dom.$('.monaco-tree-sticky-container'));
+			const replicaViewport = dom.append(stickyContainer, dom.$('.sessions-chat-background-replica-viewport'));
 			const stickyRow = dom.append(stickyContainer, dom.$('.monaco-tree-sticky-row.monaco-list-row.request.passive-focused'));
 			const treeRow = dom.append(stickyRow, dom.$('.monaco-tl-row'));
 			const treeContents = dom.append(treeRow, dom.$('.monaco-tl-contents'));
 			const request = dom.append(treeContents, dom.$('.interactive-item-container.editing-session.interactive-request.show-verbose-details'));
 			const value = dom.append(request, dom.$('.value'));
 			const bubble = dom.append(value, dom.$('.rendered-markdown'));
-			return { stickyContainer, stickyRow, treeContents, request, bubble };
+			return { stickyContainer, replicaViewport, stickyRow, treeContents, request, bubble };
 		};
 		const background = createStickyRequest(part);
 		const plain = createStickyRequest(plainPart);
@@ -1019,6 +1026,7 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({
 			container: dom.getWindow(background.stickyContainer).getComputedStyle(background.stickyContainer).backgroundColor,
 			overflow: dom.getWindow(background.stickyContainer).getComputedStyle(background.stickyContainer).overflow,
+			replicaOverflow: dom.getWindow(background.replicaViewport).getComputedStyle(background.replicaViewport).overflow,
 			row: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).backgroundColor,
 			rowZIndex: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).zIndex,
 			contents: dom.getWindow(background.treeContents).getComputedStyle(background.treeContents).backgroundColor,
@@ -1027,12 +1035,14 @@ suite('Sessions - Chat View', () => {
 			bubble: dom.getWindow(background.bubble).getComputedStyle(background.bubble).backgroundColor,
 			plainContainer: dom.getWindow(plain.stickyContainer).getComputedStyle(plain.stickyContainer).backgroundColor,
 			plainOverflow: dom.getWindow(plain.stickyContainer).getComputedStyle(plain.stickyContainer).overflow,
+			plainReplicaOverflow: dom.getWindow(plain.replicaViewport).getComputedStyle(plain.replicaViewport).overflow,
 			plainRow: dom.getWindow(plain.stickyRow).getComputedStyle(plain.stickyRow).backgroundColor,
 			plainHoverBackground: dom.getWindow(plain.stickyRow).getComputedStyle(plain.stickyRow).getPropertyValue('--vscode-chat-list-background'),
 			plainRequest: dom.getWindow(plain.request).getComputedStyle(plain.request).backgroundColor,
 		}, {
 			container: 'rgba(0, 0, 0, 0)',
-			overflow: 'hidden',
+			overflow: 'visible',
+			replicaOverflow: 'hidden',
 			row: 'rgba(0, 0, 0, 0)',
 			rowZIndex: '1',
 			contents: 'rgba(0, 0, 0, 0)',
@@ -1041,6 +1051,7 @@ suite('Sessions - Chat View', () => {
 			bubble: 'rgb(32, 32, 32)',
 			plainContainer: 'rgb(255, 0, 0)',
 			plainOverflow: 'visible',
+			plainReplicaOverflow: 'hidden',
 			plainRow: 'rgb(255, 0, 0)',
 			plainHoverBackground: '#ff0000',
 			plainRequest: 'rgba(0, 0, 0, 0)',
@@ -1060,19 +1071,30 @@ suite('Sessions - Chat View', () => {
 		replica.setBackground(background);
 		replica.layout();
 
-		const replicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		const { viewport, replica: replicaElement } = getBackgroundReplicaElements(stickyContainer);
 		const replicaLayer = replicaElement?.querySelector<HTMLElement>(':scope > .sessions-chat-background');
-		if (!replicaElement || !replicaLayer) {
+		if (!viewport || !replicaElement || !replicaLayer) {
 			throw new Error('Sticky background replica did not render');
 		}
 		const sourceBounds = source.getBoundingClientRect();
 		const stickyBounds = stickyContainer.getBoundingClientRect();
+		const viewportBounds = viewport.getBoundingClientRect();
 		const replicaBounds = replicaElement.getBoundingClientRect();
+		const viewportStyle = dom.getWindow(viewport).getComputedStyle(viewport);
 		const replicaStyle = dom.getWindow(replicaElement).getComputedStyle(replicaElement);
 
 		assert.deepStrictEqual({
 			source: { left: sourceBounds.left, top: sourceBounds.top, width: sourceBounds.width, height: sourceBounds.height },
 			sticky: { width: stickyBounds.width, height: stickyBounds.height, overflow: dom.getWindow(stickyContainer).getComputedStyle(stickyContainer).overflow },
+			viewport: {
+				left: viewportBounds.left,
+				top: viewportBounds.top,
+				width: viewportBounds.width,
+				height: viewportBounds.height,
+				overflow: viewportStyle.overflow,
+				pointerEvents: viewportStyle.pointerEvents,
+				ariaHidden: viewport.ariaHidden,
+			},
 			replica: {
 				left: replicaBounds.left,
 				top: replicaBounds.top,
@@ -1098,7 +1120,16 @@ suite('Sessions - Chat View', () => {
 			ariaHidden: replicaElement.ariaHidden,
 		}, {
 			source: { left: sourceBounds.left, top: sourceBounds.top, width: 600, height: 400 },
-			sticky: { width: 440, height: 64, overflow: 'hidden' },
+			sticky: { width: 440, height: 64, overflow: 'visible' },
+			viewport: {
+				left: stickyBounds.left,
+				top: stickyBounds.top,
+				width: 440,
+				height: 64,
+				overflow: 'hidden',
+				pointerEvents: 'none',
+				ariaHidden: 'true',
+			},
 			replica: {
 				left: sourceBounds.left,
 				top: sourceBounds.top,
@@ -1148,7 +1179,7 @@ suite('Sessions - Chat View', () => {
 		replica.setBackground(background);
 		const resizedSourceLayout = iconLayout(source);
 		const resizedReplicaLayout = iconLayout(stickyContainer);
-		const replicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		const { replica: replicaElement } = getBackgroundReplicaElements(stickyContainer);
 
 		assert.deepStrictEqual({
 			initial: {
@@ -1195,13 +1226,14 @@ suite('Sessions - Chat View', () => {
 		const { store, stickyContainer, source, sourceRenderer } = createBackgroundReplicaHost(image);
 		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
 		replica.setBackground(image);
-		const replicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		const { viewport, replica: replicaElement } = getBackgroundReplicaElements(stickyContainer);
 		const replicaLayer = replicaElement?.querySelector<HTMLElement>(':scope > .sessions-chat-background');
 		const codiconLayer = replicaLayer?.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-background');
-		if (!replicaElement || !replicaLayer || !codiconLayer) {
+		if (!viewport || !replicaElement || !replicaLayer || !codiconLayer) {
 			throw new Error('Sticky background replica did not render its layers');
 		}
 		const imageState = {
+			viewportHidden: viewport.hidden,
 			hasBackground: replicaElement.classList.contains('has-chat-background'),
 			hasImage: replicaElement.classList.contains('has-chat-background-image'),
 			image: replicaLayer.style.backgroundImage,
@@ -1211,6 +1243,7 @@ suite('Sessions - Chat View', () => {
 		sourceRenderer.setBackground(codicons);
 		replica.setBackground(codicons);
 		const codiconState = {
+			viewportHidden: viewport.hidden,
 			hasBackground: replicaElement.classList.contains('has-chat-background'),
 			hasImage: replicaElement.classList.contains('has-chat-background-image'),
 			image: replicaLayer.style.backgroundImage,
@@ -1227,6 +1260,8 @@ suite('Sessions - Chat View', () => {
 			image: imageState,
 			codicons: codiconState,
 			cleared: {
+				viewportHidden: viewport.hidden,
+				viewportDisplay: dom.getWindow(viewport).getComputedStyle(viewport).display,
 				hasBackground: replicaElement.classList.contains('has-chat-background'),
 				hasImage: replicaElement.classList.contains('has-chat-background-image'),
 				display: clearedStyle.display,
@@ -1236,12 +1271,14 @@ suite('Sessions - Chat View', () => {
 			},
 		}, {
 			image: {
+				viewportHidden: false,
 				hasBackground: true,
 				hasImage: true,
 				image: 'url("file:///textures/kirby.png")',
 				layerHidden: false,
 			},
 			codicons: {
+				viewportHidden: false,
 				hasBackground: true,
 				hasImage: false,
 				image: '',
@@ -1250,9 +1287,11 @@ suite('Sessions - Chat View', () => {
 				iconCountMatches: true,
 			},
 			cleared: {
+				viewportHidden: true,
+				viewportDisplay: 'none',
 				hasBackground: false,
 				hasImage: false,
-				display: 'none',
+				display: 'block',
 				layerHidden: true,
 				codiconLayerHidden: true,
 				iconCount: 0,
@@ -1260,7 +1299,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('reuses and disposes the ChatView sticky background replica', () => {
+	test('reuses, replaces, and disposes the ChatView sticky background replica', () => {
 		const image: ISessionsChatBackground = {
 			kind: 'image',
 			backgroundImage: 'url("file:///textures/kirby.png")',
@@ -1272,11 +1311,12 @@ suite('Sessions - Chat View', () => {
 		const { store, chatView, stickyContainer, sourceRenderer } = createBackgroundReplicaHost(image);
 		const replicaSlot = store.add(new MutableDisposable<SessionsChatBackgroundReplica>());
 		let background: ISessionsChatBackground | undefined = image;
+		let stickyScrollDomNode: HTMLElement | undefined = stickyContainer;
 		let paddingUpdates = 0;
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			element: chatView,
 			_widget: {
-				stickyScrollDomNode: stickyContainer,
+				get stickyScrollDomNode() { return stickyScrollDomNode; },
 				setContentHorizontalPadding: () => paddingUpdates++,
 			},
 			_stickyScrollBackgroundReplica: replicaSlot,
@@ -1285,35 +1325,56 @@ suite('Sessions - Chat View', () => {
 		}) as IStickyBackgroundChatView;
 
 		view._layoutStickyScrollBackground();
-		const firstReplicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		const firstReplicaElement = getBackgroundReplicaElements(stickyContainer).replica;
 		view._layoutStickyScrollBackground();
-		const secondReplicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		const secondReplicaElement = getBackgroundReplicaElements(stickyContainer).replica;
 
 		background = codicons;
 		sourceRenderer.setBackground(background);
 		view._updateChatBackground();
 		view._updateChatBackground();
-		const updatedReplicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		const updatedReplicaElement = getBackgroundReplicaElements(stickyContainer).replica;
+
+		stickyScrollDomNode = undefined;
+		view._layoutStickyScrollBackground();
+		const oldReplicaCountAfterDisable = stickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica-viewport').length;
+
+		const replacementStickyContainer = dom.append(stickyContainer.parentElement!, dom.$('.monaco-tree-sticky-container'));
+		replacementStickyContainer.style.position = 'absolute';
+		replacementStickyContainer.style.left = '80px';
+		replacementStickyContainer.style.top = '40px';
+		replacementStickyContainer.style.width = '440px';
+		replacementStickyContainer.style.height = '64px';
+		stickyScrollDomNode = replacementStickyContainer;
+		view._layoutStickyScrollBackground();
+		const replacementReplicaElement = getBackgroundReplicaElements(replacementStickyContainer).replica;
 
 		background = undefined;
 		sourceRenderer.setBackground(background);
 		view._updateChatBackground();
-		const hiddenBeforeDispose = updatedReplicaElement ? dom.getWindow(updatedReplicaElement).getComputedStyle(updatedReplicaElement).display : undefined;
-		const replicaCountBeforeDispose = stickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica').length;
+		const replacementViewport = getBackgroundReplicaElements(replacementStickyContainer).viewport;
+		const hiddenBeforeDispose = replacementViewport ? dom.getWindow(replacementViewport).getComputedStyle(replacementViewport).display : undefined;
+		const replicaCountBeforeDispose = replacementStickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica-viewport').length;
 		replicaSlot.dispose();
 
 		assert.deepStrictEqual({
 			created: !!firstReplicaElement,
 			reusedOnLayout: secondReplicaElement === firstReplicaElement,
 			reusedOnBackgroundUpdate: updatedReplicaElement === firstReplicaElement,
+			oldReplicaCountAfterDisable,
+			replacementCreated: !!replacementReplicaElement,
+			recreatedForReplacement: !!replacementReplicaElement && replacementReplicaElement !== firstReplicaElement,
 			replicaCountBeforeDispose,
 			hiddenBeforeDispose,
 			paddingUpdates,
-			replicaCountAfterDispose: stickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica').length,
+			replicaCountAfterDispose: replacementStickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica-viewport').length,
 		}, {
 			created: true,
 			reusedOnLayout: true,
 			reusedOnBackgroundUpdate: true,
+			oldReplicaCountAfterDisable: 0,
+			replacementCreated: true,
+			recreatedForReplacement: true,
 			replicaCountBeforeDispose: 1,
 			hiddenBeforeDispose: 'none',
 			paddingUpdates: 1,

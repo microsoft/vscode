@@ -23,16 +23,24 @@
 	display: none;
 }
 
+.sessions-chat-background-replica-viewport {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.sessions-chat-background-replica-viewport[hidden] {
+	display: none;
+}
+
 .sessions-chat-background-replica {
 	position: absolute;
 	z-index: 0;
 	overflow: hidden;
 	pointer-events: none;
 	background-color: var(--session-view-background);
-}
-
-.sessions-chat-background-replica:not(.has-chat-background) {
-	display: none;
 }
 
 .sessions-chat-background > .sessions-chat-codicon-background {

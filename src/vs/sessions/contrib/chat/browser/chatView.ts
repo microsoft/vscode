@@ -187,6 +187,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	private readonly _stickyScrollBackgroundReplica = this._register(new MutableDisposable<SessionsChatBackgroundReplica>());
+	private _stickyScrollBackgroundContainer: HTMLElement | undefined;
 
 	/** Tracks the current chat's interactivity and hides the input for read-only chats. */
 	private readonly _interactiveDisposable = this._register(new MutableDisposable());
@@ -279,6 +280,7 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
 		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatBackground()));
 		const transcript = this._widget.transcriptDomNode;
 		this._register(addDisposableListener(transcript, EventType.CONTEXT_MENU, event => {
@@ -684,17 +686,27 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _layoutStickyScrollBackground(): void {
+		const stickyContainer = this._widget.stickyScrollDomNode;
+		if (stickyContainer !== this._stickyScrollBackgroundContainer) {
+			this._stickyScrollBackgroundReplica.clear();
+			this._stickyScrollBackgroundContainer = undefined;
+		}
+
+		if (!stickyContainer) {
+			return;
+		}
+
 		let replica = this._stickyScrollBackgroundReplica.value;
 		if (!replica) {
 			const sessionsPart = this.element.closest('.part.sessionspart');
 			const source = sessionsPart ? Array.from(sessionsPart.children).find(element => element.classList.contains('sessions-chat-background')) : undefined;
-			const stickyContainer = this._widget.stickyScrollDomNode;
-			if (!isHTMLElement(source) || !stickyContainer) {
+			if (!isHTMLElement(source)) {
 				return;
 			}
 
 			replica = new SessionsChatBackgroundReplica(source, stickyContainer);
 			this._stickyScrollBackgroundReplica.value = replica;
+			this._stickyScrollBackgroundContainer = stickyContainer;
 			replica.setBackground(this.chatBackgroundService.getBackground());
 		}
 		replica.layout();

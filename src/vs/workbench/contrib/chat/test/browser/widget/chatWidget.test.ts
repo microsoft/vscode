@@ -78,13 +78,20 @@ suite('ChatWidget', () => {
 		};
 	}
 
-	test('forwards the sticky scroll DOM node from the list widget', () => {
+	test('forwards sticky scroll DOM state from the list widget', () => {
 		const stickyScrollDomNode = mainWindow.document.createElement('div');
+		const onDidChangeStickyScrollDomNode = store.add(new Emitter<HTMLElement | undefined>()).event;
 		const widget = Object.assign(Object.create(ChatWidget.prototype), {
-			listWidget: { stickyScrollDomNode },
+			listWidget: { stickyScrollDomNode, onDidChangeStickyScrollDomNode },
 		}) as ChatWidget;
 
-		assert.strictEqual(widget.stickyScrollDomNode, stickyScrollDomNode);
+		assert.deepStrictEqual({
+			domNode: widget.stickyScrollDomNode,
+			event: widget.onDidChangeStickyScrollDomNode,
+		}, {
+			domNode: stickyScrollDomNode,
+			event: onDidChangeStickyScrollDomNode,
+		});
 	});
 
 	test('does not send a picker fallback over an existing agent host conversation model', () => {
