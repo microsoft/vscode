@@ -51,14 +51,13 @@ registerThemingParticipant((theme, collector) => {
 	const activeHoverBackground = resolveLegacyTabColor(theme, TAB_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND]);
 	const unfocusedActiveHoverBackground = resolveLegacyTabColor(theme, TAB_UNFOCUSED_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND], TAB_HOVER_BACKGROUND);
 	const editorBackgroundColor = theme.getColor(editorBackground);
-	const connectedActiveBackground = activeBackground ?? theme.getColor(MODERN_EDITOR_TAB_ACTIVE_BACKGROUND);
 	const hasModernActiveActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND);
 	const hasModernHoverActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND);
 	const hasModernActiveHoverActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND);
 
 	addColorVariable(declarations, '--modern-ui-editor-tab-active-background', activeBackground);
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-active-background', unfocusedActiveBackground);
-	addColorVariable(declarations, '--modern-ui-connected-tab-surface', connectedActiveBackground ? flattenTabBackground(connectedActiveBackground, editorBackgroundColor) : undefined);
+	addColorVariable(declarations, '--modern-ui-connected-tab-surface', activeBackground ? flattenTabBackground(activeBackground, editorBackgroundColor) : undefined);
 	addColorVariable(declarations, '--modern-ui-editor-tab-inactive-background', inactiveBackground);
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-inactive-background', unfocusedInactiveBackground);
 	addColorVariable(declarations, '--modern-ui-editor-tab-hover-background', hoverBackground);
