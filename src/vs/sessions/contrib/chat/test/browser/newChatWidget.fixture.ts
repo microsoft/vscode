@@ -130,7 +130,7 @@ class AutoModelFixtureMenuService extends FixtureMenuService {
  * paints the real codicon wallpaper into it, so the fixture shows the composer
  * the way it reads once a chat background is set.
  */
-export function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
+function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
 	const part = dom.append(container, dom.$('.part.sessionspart'));
 	part.style.position = 'relative';
 	part.style.width = '100%';

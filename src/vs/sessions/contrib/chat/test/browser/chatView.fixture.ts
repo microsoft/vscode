@@ -6,14 +6,14 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../../workbench/browser/chatPills.js';
-import { renderChatWidget } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { createChatBackgroundPart } from './newChatWidget.fixture.js';
+import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/media/sessionView.css';
@@ -23,6 +23,17 @@ const fixtureWidth = 800;
 const fixtureHeight = 720;
 const plainContentHorizontalPadding = 64;
 const backgroundContentHorizontalPadding = 88;
+
+function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
+	const part = dom.append(container, dom.$('.part.sessionspart'));
+	part.style.position = 'relative';
+	part.style.width = '100%';
+	part.style.height = '100%';
+	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part));
+	renderer.setBackground({ kind: 'codicons' });
+	return part;
+}
 
 const assistantResponse = [
 	'## Background-aware response',
@@ -48,6 +59,7 @@ const assistantResponse = [
 
 async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
 	const { container, disposableStore } = context;
+	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
 	container.style.width = `${fixtureWidth}px`;
 	container.style.height = `${fixtureHeight}px`;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
