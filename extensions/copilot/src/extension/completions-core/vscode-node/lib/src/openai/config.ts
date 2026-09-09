@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServicesAccessor } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
+import { ByokCompletionModel } from '../../../../../byok/common/byokCompletionModels';
 import { TokenizerName } from '../../../prompt/src/tokenization';
 import { TelemetryWithExp } from '../telemetry';
 import { CompletionHeaders } from './fetch';
@@ -16,6 +17,8 @@ export type EngineRequestInfo = {
 	modelId: string;
 	engineChoiceSource: ModelChoiceSourceTelemetryValue;
 	tokenizer: TokenizerName;
+	/** Set when the selected model is a custom BYOK (OpenAI-compatible) completion model. */
+	customModel?: ByokCompletionModel;
 };
 
 export function getEngineRequestInfo(
@@ -31,5 +34,6 @@ export function getEngineRequestInfo(
 		modelId: modelRequestInfo.modelId,
 		engineChoiceSource: modelRequestInfo.modelChoiceSource,
 		tokenizer,
+		customModel: modelRequestInfo.customModel,
 	};
 }

@@ -9,6 +9,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun, observableFromEvent } from '../../../util/vs/base/common/observableInternal';
+import { getByokCompletionModels, onDidChangeByokCompletionModels } from '../../byok/common/byokCompletionModels';
 import { registerUnificationCommands } from '../../completions-core/vscode-node/completionsServiceBridges';
 import { ICopilotInlineCompletionItemProviderService } from '../common/copilotInlineCompletionItemProviderService';
 import { unificationStateObservable } from './completionsUnificationContribution';
@@ -16,6 +17,13 @@ import { unificationStateObservable } from './completionsUnificationContribution
 export class CompletionsCoreContribution extends Disposable {
 
 	private readonly _copilotToken = observableFromEvent(this, this.authenticationService.onDidCopilotTokenChange, () => this.authenticationService.copilotToken);
+
+	/** Whether custom BYOK (OpenAI-compatible) completion models are configured — these work fully offline. */
+	private readonly _hasCustomCompletionModels = observableFromEvent(
+		this,
+		listener => onDidChangeByokCompletionModels(listener),
+		() => getByokCompletionModels().length > 0
+	);
 
 	constructor(
 		@ICopilotInlineCompletionItemProviderService _copilotInlineCompletionItemProviderService: ICopilotInlineCompletionItemProviderService,
@@ -32,13 +40,15 @@ export class CompletionsCoreContribution extends Disposable {
 			const configEnabled = configurationService.getExperimentBasedConfigObservable<boolean>(ConfigKey.TeamInternal.InlineEditsEnableGhCompletionsProvider, experimentationService).read(reader);
 			const extensionUnification = unificationStateValue?.extensionUnification ?? false;
 			const copilotToken = this._copilotToken.read(reader);
+			const hasCustomModels = this._hasCustomCompletionModels.read(reader);
 
 			let hasInstantiatedProvider = false;
 			// Completions require a Copilot token to call the completions endpoint, so don't
 			// register the provider in air-gapped / signed-out scenarios — it would just fail
-			// with GitHubLoginFailedError on every keystroke.
-			const wantsProvider = unificationStateValue?.codeUnification || extensionUnification || configEnabled || copilotToken?.isNoAuthUser;
-			if (wantsProvider && copilotToken) {
+			// with GitHubLoginFailedError on every keystroke. Custom BYOK (OpenAI-compatible)
+			// completion models are an exception: they work fully offline, without a token.
+			const wantsProvider = unificationStateValue?.codeUnification || extensionUnification || configEnabled || copilotToken?.isNoAuthUser || hasCustomModels;
+			if (wantsProvider && (copilotToken || hasCustomModels)) {
 				const provider = _copilotInlineCompletionItemProviderService.getOrCreateProvider();
 				reader.store.add(
 					languages.registerInlineCompletionItemProvider(

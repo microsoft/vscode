@@ -92,7 +92,12 @@ export interface ICompletionsFetchService {
 		params: Completions.ModelParams,
 		requestId: string,
 		ct: CancellationToken,
-		headerOverrides?: Record<string, string>
+		headerOverrides?: Record<string, string>,
+		/**
+		 * When true the request goes to a custom (BYOK) OpenAI-compatible FIM endpoint:
+		 * Copilot-specific headers are omitted and no Copilot token semantics apply.
+		 */
+		isCustomEndpoint?: boolean
 	): Promise<Result<ResponseStream, Completions.CompletionsFetchFailure>>;
 
 	disconnectAll(): Promise<unknown>;

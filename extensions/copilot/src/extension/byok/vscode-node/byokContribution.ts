@@ -9,6 +9,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { clearByokCompletionModelConfigs } from '../../byok/common/byokCompletionModels';
 import { BYOKKnownModels, isClientBYOKAllowed } from '../../byok/common/byokProvider';
 import { IExtensionContribution } from '../../common/contributions';
 import { AbstractLanguageModelChatProvider } from './abstractLanguageModelChatProvider';
@@ -92,6 +93,9 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		} else if (!allowed && this._providersRegistered) {
 			this._providerRegistrations.clear();
 			this._providersRegistered = false;
+			// Also drop any BYOK completion models so completions never route to a
+			// custom endpoint once BYOK is disabled by enterprise policy.
+			clearByokCompletionModelConfigs();
 			this._logService.info('BYOK: unregistered providers due to enterprise policy.');
 		}
 	}

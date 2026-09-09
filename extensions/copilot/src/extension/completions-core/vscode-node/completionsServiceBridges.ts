@@ -23,6 +23,7 @@ import { ModelPickerManager } from './extension/src/modelPicker';
 import { CopilotStatusBar } from './extension/src/statusBar';
 import { CopilotStatusBarPickMenu } from './extension/src/statusBarPicker';
 import { ExtensionTextDocumentManager } from './extension/src/textDocumentManager';
+import { ByokCompletionModelsContribution } from './extension/src/byokCompletionModelsContribution';
 import { exception } from './extension/src/vscodeInlineCompletionItemProvider';
 import { CopilotTokenManagerImpl, ICompletionsCopilotTokenManager } from './lib/src/auth/copilotTokenManager';
 import { ICompletionsCitationManager } from './lib/src/citationManager';
@@ -123,6 +124,15 @@ export function createContext(serviceAccessor: ServicesAccessor, store: Disposab
 	serviceCollection.set(ICompletionsDefaultContextProviders, new DefaultContextProvidersContainer());
 
 	return serviceAccessor.get(IInstantiationService).createChild(serviceCollection, store);
+}
+
+/**
+ * Bridges `chatLanguageModels.json` custom (BYOK) models into the completions model
+ * manager. Invoked early during extension activation, independently of the inline
+ * completion provider registration, so signed-out/offline BYOK setups work.
+ */
+export function setupByokCompletionModels(accessor: ServicesAccessor): IDisposable {
+	return accessor.get(IInstantiationService).createInstance(ByokCompletionModelsContribution);
 }
 
 /** @public */
