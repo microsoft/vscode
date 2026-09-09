@@ -7,8 +7,7 @@ description: Use when writing, recording, updating, validating, or troubleshooti
 
 These tests run the whole agent host end-to-end (real server, real bundled provider SDK/CLI, real AHP protocol) while replaying recorded model traffic from committed YAML fixtures — deterministic and tokenless.
 
-**Before doing anything, read the architecture + troubleshooting reference:**
-`src/vs/platform/agentHost/test/node/e2e/README.md`
+**Before doing anything, read the architecture + troubleshooting reference:** `src/vs/platform/agentHost/test/node/e2e/README.md`
 
 It documents the mental model, the fixture format, every config flag, and a symptom→cause→fix troubleshooting table. This skill is only the *workflows*; the README is the source of truth for *how it works*.
 

@@ -6,7 +6,7 @@
 import { addDisposableListener, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import type { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, Separator, toAction, type IAction, type IActionRunner } from '../../../../base/common/actions.js';
+import { Action, Separator, SubmenuAction, toAction, type IAction, type IActionRunner } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
@@ -26,7 +26,10 @@ import { sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionIs
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
 	readonly hasData: IObservable<boolean>;
+	/** Whether any entries remain after the pill's own filtering. */
+	readonly isVisible?: IObservable<boolean>;
 	readonly pill: IObservable<IChatPill>;
+	getContextMenuActions?(): readonly IAction[];
 }
 
 export interface IChatInputPillsOptions {
@@ -44,7 +47,10 @@ export interface IChatInputPillsOptions {
 
 export interface IStandardChatInputPillSections {
 	readonly sections: IObservable<readonly IChatPillSection[]>;
+	/** Keeps configuration reachable when the source filters out all its entries. */
+	readonly hasData?: IObservable<boolean>;
 	readonly icon?: ThemeIcon | IObservable<ThemeIcon>;
+	getContextMenuActions?(): readonly IAction[];
 }
 
 export interface IStandardChatInputPillsData {
@@ -52,6 +58,7 @@ export interface IStandardChatInputPillsData {
 		readonly stats: IObservable<IChatChangesStats>;
 		readonly label: IObservable<string>;
 		open(): void;
+		getContextMenuActions?(): readonly IAction[];
 	};
 	readonly pullRequests?: IStandardChatInputPillSections;
 	readonly issues?: IStandardChatInputPillSections;
@@ -112,6 +119,7 @@ export class StandardChatInputPillSources extends Disposable {
 				kind: SessionChatPillKind.Changes,
 				hasData: derived(reader => changes.stats.read(reader).files > 0),
 				pill: constObservable(pill),
+				getContextMenuActions: () => changes.getContextMenuActions?.() ?? [],
 			});
 		}
 
@@ -120,7 +128,13 @@ export class StandardChatInputPillSources extends Disposable {
 				return;
 			}
 			const action = this._register(new Action(`chatInputPills.${kind}`, getSessionChatPillLabel(kind)));
-			sources.push(createChatSectionPillSource(kind, action, source.sections, source.icon ? { ...options, icon: source.icon } : options, resourceLabels, instantiationService));
+			const pillSource = createChatSectionPillSource(kind, action, source.sections, source.icon ? { ...options, icon: source.icon } : options, resourceLabels, instantiationService);
+			sources.push({
+				...pillSource,
+				hasData: source.hasData ?? pillSource.hasData,
+				isVisible: pillSource.hasData,
+				getContextMenuActions: () => source.getContextMenuActions?.() ?? [],
+			});
 		};
 		addSections(SessionChatPillKind.PullRequests, data.pullRequests, sessionPullRequestsPillOptions);
 		addSections(SessionChatPillKind.Issues, data.issues, sessionIssuesPillOptions);
@@ -168,7 +182,7 @@ export class ChatInputPills extends Disposable {
 				return [];
 			}
 			return _options.sources.read(reader).filter(source =>
-				source.hasData.read(reader) && (!source.kind || this._visibility.isVisible(source.kind, reader)));
+				source.hasData.read(reader) && (source.isVisible?.read(reader) ?? true) && (!source.kind || this._visibility.isVisible(source.kind, reader)));
 		});
 		const model = {
 			pills: derived(this, reader => visibleSources.read(reader).map(source => source.pill.read(reader))),
@@ -269,20 +283,33 @@ export class ChatInputPills extends Disposable {
 				restoreFocus();
 			},
 		});
-		const groups: IAction[][] = [];
+		const targetActions: IAction[] = [];
 		if (menu.hide) {
 			const hide = menu.hide;
-			groups.push([toAction({
+			targetActions.push(toAction({
 				id: `chatInputPills.hide.${hide.kind}`,
 				label: hide.label,
 				run: () => {
 					this._visibility.hide(hide.kind);
 					restoreFocus();
 				},
-			})]);
+			}));
 		}
-		groups.push(menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
-		return Separator.join(...groups);
+		for (const source of this._options.sources.get()) {
+			if (!source.kind || !this._options.offeredKinds.includes(source.kind)
+				|| (targetKind ? source.kind !== targetKind : !kindsWithData.has(source.kind))) {
+				continue;
+			}
+			const actions = source.getContextMenuActions?.();
+			if (actions?.length) {
+				targetActions.push(new SubmenuAction(
+					`chatInputPills.options.${source.kind}`,
+					localize('chatInputPills.options', "{0} Options", getSessionChatPillLabel(source.kind)),
+					actions,
+				));
+			}
+		}
+		return Separator.join(targetActions, menu.withData.map(toggleAction), menu.withoutData.map(toggleAction));
 	}
 }
 

@@ -52,7 +52,7 @@ export interface IAgentHostGitStateService {
 	recordSessionMerge(sessionKey: string, commit: string): Promise<void>;
 
 	/**
-	 * Refresh git state, then find and save a GitHub pull request for the current branch.
+	 * Refresh git state, then reconcile the actionable GitHub pull request for the current branch.
 	 * @param sessionKey The key of the session for which to check the GitHub pull request.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */

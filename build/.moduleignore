@@ -246,6 +246,16 @@ zone.js/dist/**
 @github/copilot-win32-arm64/**
 @github/copilot-win32-x64/**
 
+# @github/copilot-sdk platform packages - VS Code uses the SDK's stdio transport.
+@github/copilot-sdk-darwin-arm64/**
+@github/copilot-sdk-darwin-x64/**
+@github/copilot-sdk-linux-arm64/**
+@github/copilot-sdk-linux-x64/**
+@github/copilot-sdk-linuxmusl-arm64/**
+@github/copilot-sdk-linuxmusl-x64/**
+@github/copilot-sdk-win32-arm64/**
+@github/copilot-sdk-win32-x64/**
+
 # @vscode/os-proxy-resolver platform binaries - selected target is re-added during packaging
 @vscode/os-proxy-resolver-darwin-arm64/**
 @vscode/os-proxy-resolver-darwin-x64/**

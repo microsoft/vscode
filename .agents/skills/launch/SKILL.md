@@ -193,19 +193,13 @@ If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSI
 
 ### Focusing the chat input
 
-Use the `playwrightScripts/focus-chat-input.ts` script in both the regular
-workbench and the Agents window. It performs the complete focus flow in one
-Playwright call:
+Use the `playwrightScripts/focus-chat-input.ts` script in both the regular workbench and the Agents window. It performs the complete focus flow in one Playwright call:
 
 1. If a visible chat input is already focused, it does nothing.
 2. If a visible chat input exists but is not focused, it focuses that input.
-3. Otherwise, it invokes the platform chat-focus chord, waits for the input,
-   and focuses it only if the chord did not already do so.
+3. Otherwise, it invokes the platform chat-focus chord, waits for the input, and focuses it only if the chord did not already do so.
 
-The script detects the platform from the browser page, prefers the active
-Agents session, and excludes inline chat inputs. If the cloned profile has
-customized the default chord, it falls back to the surface-specific command
-through the Command Palette.
+The script detects the platform from the browser page, prefers the active Agents session, and excludes inline chat inputs. If the cloned profile has customized the default chord, it falls back to the surface-specific command through the Command Palette.
 
 ```bash
 LAUNCH_DIR=<dir-of-this-SKILL.md>
@@ -219,13 +213,7 @@ $focusChat = Join-Path $skillDir 'playwrightScripts\focus-chat-input.ts'
 npx @playwright/cli "-s=$pwSession" run-code "--filename=$focusChat"
 ```
 
-The script returns
-`{ focused, focusChanged, focusInvoked, shortcutInvoked, commandPaletteFallbackInvoked, selector }`.
-`focusChanged` reports whether this script invocation moved focus into Chat,
-while `focusInvoked` reports whether the script had to call `focus()` directly.
-Both are `false` when the chat input was already focused. If the script fails,
-take a fresh snapshot and resolve any blocking dialog or unavailable chat state
-before retrying.
+The script returns `{ focused, focusChanged, focusInvoked, shortcutInvoked, commandPaletteFallbackInvoked, selector }`. `focusChanged` reports whether this script invocation moved focus into Chat, while `focusInvoked` reports whether the script had to call `focus()` directly. Both are `false` when the chat input was already focused. If the script fails, take a fresh snapshot and resolve any blocking dialog or unavailable chat state before retrying.
 
 ### Typing into Monaco (chat input, editors)
 
@@ -326,8 +314,7 @@ document.querySelectorAll('.view-line')
 document.activeElement?.matches('.native-edit-context, textarea.inputarea')
 ```
 
-The focus script accounts for these DOM differences and prioritizes the active
-Agents session.
+The focus script accounts for these DOM differences and prioritizes the active Agents session.
 
 ### Verifying and clearing chat text
 
@@ -354,9 +341,7 @@ npx @playwright/cli -s=$PW_SESSION press Control+a
 npx @playwright/cli -s=$PW_SESSION press Backspace
 ```
 
-If the focus script cannot reach Chat because the surface is not available yet,
-take a snapshot and navigate the UI into a state where chat exists before
-retrying. Avoid treating completed CLI commands as proof that text was entered.
+If the focus script cannot reach Chat because the surface is not available yet, take a snapshot and navigate the UI into a state where chat exists before retrying. Avoid treating completed CLI commands as proof that text was entered.
 
 ### Screenshots (paper trail)
 

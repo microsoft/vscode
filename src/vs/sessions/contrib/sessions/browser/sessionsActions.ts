@@ -42,7 +42,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { $, append, EventHelper, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
+import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -1270,6 +1270,10 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 	/** Hook invoked right before the action runs (e.g. for telemetry). */
 	protected onRun(): void { }
 
+	protected runAction(_event: MouseEvent | undefined): void {
+		void this.actionRunner.run(this.action, this._context);
+	}
+
 	protected configureButton(_button: Button): void { }
 
 	override render(container: HTMLElement): void {
@@ -1301,7 +1305,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 				return;
 			}
 			this.onRun();
-			this.actionRunner.run(this.action, this._context);
+			this.runAction(isMouseEvent(e) ? e : undefined);
 		}));
 
 		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
@@ -1362,7 +1366,7 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
  * Renders the new-session action as the compact "New" pill, shared by the sessions sidebar
  * header and the titlebar.
  */
-class NewSessionActionViewItem extends CompactButtonActionViewItem {
+export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
 	constructor(
 		action: IAction,
@@ -1372,6 +1376,7 @@ class NewSessionActionViewItem extends CompactButtonActionViewItem {
 		@IHoverService hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(action, keybindingService, hoverService, contextKeyService);
 	}
@@ -1410,6 +1415,14 @@ class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
 	protected override onRun(): void {
 		logSessionsInteraction(this.telemetryService, 'newSession', this.telemetrySource);
+	}
+
+	protected override runAction(event: MouseEvent | undefined): void {
+		if (event?.altKey) {
+			this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { toSide: true }).catch(onUnexpectedError);
+		} else {
+			super.runAction(event);
+		}
 	}
 }
 

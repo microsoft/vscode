@@ -14,7 +14,7 @@ import { CompletionItemKind, type CompletionsResult, type ResolveSessionConfigRe
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type { RootState } from '../../../../common/state/protocol/state.js';
 import { ActionType, type RootAgentsChangedAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageAttachmentKind, MessageKind, ROOT_STATE_URI, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageAttachmentKind, MessageKind, ROOT_STATE_URI, TurnState, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
 	dispatchTurn,
@@ -26,7 +26,7 @@ import {
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 export function defineCoreTests(context: IAgentHostE2ETestContext): void {
@@ -392,11 +392,15 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			clientSeq: clientSeq + 1,
 			action: { type: ActionType.ChatTurnCancelled, turnId, duration: 0 },
 		});
-		await context.client.waitForNotification(n =>
-			isActionNotification(n, 'chat/turnCancelled')
-			&& getActionEnvelope(n).channel === chatUri,
-			30_000,
-		);
+		await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnCancelled')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return envelope.channel === chatUri
+				&& envelope.action.type === ActionType.ChatTurnCancelled
+				&& envelope.action.turnId === turnId;
+		}, 30_000);
 		const replacement = await driveTurnToCompletion(
 			context.client,
 			sessionUri,
@@ -405,7 +409,21 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			clientSeq + 2,
 		);
 
-		assert.strictEqual(replacement.responseText.trim(), 'replacement');
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			response: replacement.responseText.trim(),
+			replacementTurns: state.turns.filter(turn => turn.id === 'turn-after-input-cancel').map(turn => ({
+				message: turn.message.text,
+				state: turn.state,
+			})),
+			activeTurn: state.activeTurn,
+			inputNeeded: state.inputNeeded,
+		}, {
+			response: 'replacement',
+			replacementTurns: [{ message: 'Reply exactly "replacement".', state: TurnState.Complete }],
+			activeTurn: undefined,
+			inputNeeded: undefined,
+		});
 	});
 
 	(textInputPrompt ? test : test.skip)('provider freeform input is answered through AHP', async function () {

@@ -21,6 +21,7 @@ import { autorun, constObservable, derived, disposableObservableValue, IObservab
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
@@ -1270,6 +1271,7 @@ export function renderForm(
 		// A scheduling form, not a chat about to be sent: keep promos out.
 		isTransientChat: true,
 		inputEditorMinLines: 3,
+		inputEditorQuickSuggestions: EditorOptions.quickSuggestions.defaultValue,
 		// The dialog renders the composer flush with its form column (the
 		// `.interactive-input-part` margin is zeroed in CSS), so there is no
 		// outer horizontal gutter. Without this, ChatInputPart would still
