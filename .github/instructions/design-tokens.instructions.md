@@ -9,8 +9,6 @@ applyTo: src/vs/**/*.css
 
 VS Code ships a design-system **size** ramp. These tokens are registered in [baseSizes.ts](../../src/vs/platform/theme/common/sizes/baseSizes.ts) and emitted as `--vscode-*` CSS variables. **When generating or editing CSS, use the token variable instead of a raw `px` value** wherever a token exists for that value. This keeps new UI visually consistent with the design system.
 
-> [baseSizes.ts](../../src/vs/platform/theme/common/sizes/baseSizes.ts) is the source of truth for current token IDs, values, and descriptions. The tables below are a transitional authoring reference; if they disagree with the registry, the code wins. Do not copy the tables into other instructions or skills.
-
 > Every `--vscode-*` size var you reference must already exist in [vscode-known-variables.json](../../build/lib/stylelint/vscode-known-variables.json) (`"sizes"` array, alphabetically sorted) or stylelint/hygiene fails. Adding a *new* token means adding it both in `baseSizes.ts` and that JSON file.
 
 ## Spacing — padding, margin, gap
@@ -127,7 +125,7 @@ The icon-size token defines the rendered area. Use contain-style fitting for ima
 
 ## Codicon compatibility — icon `font-size`
 
-Standard control and inline Codicons use the xSmall and small icon roles. Keep the Codicon-specific font tokens because they also communicate font and glyph behavior:
+Standard control and inline Codicons use the xSmall and small icon roles. Keep the Codicon-specific font tokens because they identify Codicon sizing intent separately from representation-neutral icon-box geometry:
 
 | px | Variable | Use |
 |----|----------|-----|
