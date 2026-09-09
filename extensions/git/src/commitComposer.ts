@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource, LanguageModelChatMessage, ProgressLocation, Uri, l10n, lm, window, workspace } from 'vscode';
+import { CancellationTokenSource, LanguageModelChat, LanguageModelChatMessage, ProgressLocation, Uri, l10n, lm, window, workspace } from 'vscode';
 import { Repository } from './repository';
 import { relativePath, truncate } from './util';
 
@@ -105,7 +105,7 @@ async function collectDiffs(repository: Repository, uris: Uri[]): Promise<{ path
 	return result;
 }
 
-async function requestCommitPlan(model: { sendRequest: (m: LanguageModelChatMessage[], o: object, t: unknown) => Promise<{ text: AsyncIterable<string> }> }, diffs: { path: string; diff: string }[], tokenSource: CancellationTokenSource): Promise<ProposedCommit[]> {
+async function requestCommitPlan(model: LanguageModelChat, diffs: { path: string; diff: string }[], tokenSource: CancellationTokenSource): Promise<ProposedCommit[]> {
 	const changes = diffs.map(({ path, diff }) => `### ${path}\n\`\`\`diff\n${diff}\n\`\`\``).join('\n\n');
 
 	const prompt = [
