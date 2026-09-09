@@ -61,7 +61,8 @@ function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService
 	const name = plugin.label;
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 	const marketplace = plugin.fromMarketplace?.marketplace;
-	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin, outdated };
+	const keywords = plugin.fromMarketplace?.keywords;
+	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin, outdated, keywords };
 }
 
 function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePluginItem {
@@ -76,6 +77,7 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		marketplaceReference: plugin.marketplaceReference,
 		marketplaceType: plugin.marketplaceType,
 		readmeUri: plugin.readmeUri,
+		keywords: plugin.keywords,
 	};
 }
 
@@ -424,7 +426,8 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			installed = installed.filter(p =>
 				p.name.toLowerCase().includes(text) ||
 				p.description.toLowerCase().includes(text) ||
-				(p.marketplace ?? '').toLowerCase().includes(text)
+				(p.marketplace ?? '').toLowerCase().includes(text) ||
+				(p.keywords ?? []).some(k => k.toLowerCase().includes(text))
 			);
 		}
 
@@ -456,7 +459,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				});
 			} else {
 				const lowerText = text.toLowerCase();
-				filteredMp = filteredMp.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText) || p.marketplace.toLowerCase().includes(lowerText));
+				filteredMp = filteredMp.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText) || p.marketplace.toLowerCase().includes(lowerText) || (p.keywords ?? []).some(k => k.toLowerCase().includes(lowerText)));
 			}
 
 			const marketplace = filteredMp.map(marketplacePluginToItem);
