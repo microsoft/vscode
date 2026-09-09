@@ -363,6 +363,16 @@ export class WorkspacePicker extends Disposable {
 		return this._preselectionSource;
 	}
 
+	matchesSelectedWorkspace(workspace: ISessionWorkspace): boolean {
+		const folderUri = workspace.folders[0]?.root;
+		if (folderUri && this._selectedFolderUri && this.uriIdentityService.extUri.isEqual(folderUri, this._selectedFolderUri)) {
+			return true;
+		}
+
+		const selectedRepositoryId = this._getCurrentRepositoryId();
+		return selectedRepositoryId !== undefined && selectedRepositoryId === this._getRepositoryId(workspace);
+	}
+
 	constructor(
 		protected readonly options: IWorkspacePickerOptions,
 		@IActionWidgetService protected readonly actionWidgetService: IActionWidgetService,
