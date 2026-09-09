@@ -78,6 +78,8 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, IAgentHostInternalTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
+type BackgroundTasks = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'];
+
 const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTransaction = {
 	prepare: async () => { },
 	rollback: async () => { },
@@ -192,7 +194,9 @@ class MockCopilotSession {
 	 * Lets a test make an earlier-issued read resolve after a later one.
 	 */
 	readonly usageMetricsGates: Array<Promise<unknown>> = [];
-	backgroundTasks: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'] = [];
+	backgroundTasks: BackgroundTasks = [];
+	readonly backgroundTaskListResults: BackgroundTasks[] = [];
+	readonly backgroundTaskListGates: Promise<void>[] = [];
 	backgroundTaskListCalls = 0;
 	backgroundTaskRefreshCalls = 0;
 	backgroundTaskListError: Error | undefined;
@@ -423,7 +427,8 @@ class MockCopilotSession {
 					this.backgroundTaskListError = undefined;
 					throw error;
 				}
-				const tasks = this.backgroundTasks.map(task => ({ ...task }));
+				const tasks = (this.backgroundTaskListResults.shift() ?? this.backgroundTasks).map(task => ({ ...task }));
+				await this.backgroundTaskListGates.shift();
 				return { tasks };
 			},
 			refresh: async () => {
@@ -4164,14 +4169,19 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 7,
 			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
-		mockSession.fire('subagent.completed', {
+		mockSession.backgroundTasks = [{
+			type: 'agent',
+			id: 'agent-1',
 			toolCallId: 'tc-subagent',
-			agentName: 'explore',
-			agentDisplayName: 'Explore',
-			durationMs: 1,
-			totalTokens: 12,
-			totalToolCalls: 0,
-		} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-1' });
+			description: 'Explore tests',
+			status: 'idle',
+			agentType: 'explore',
+			prompt: 'Explore tests',
+			startedAt: new Date(0).toISOString(),
+			idleSince: new Date(1).toISOString(),
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
 
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
@@ -9699,7 +9709,7 @@ Use the attached image as context.
 			]);
 		});
 
-		test('completes a resumed subagent when its stop hook identifies the agent only in the input', async () => {
+		test('completes a resumed subagent when its background task becomes idle', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
 
@@ -9717,51 +9727,69 @@ Use the attached image as context.
 				totalTokens: 0,
 				totalToolCalls: 0,
 			};
-			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+			const initialTask = {
+				type: 'agent',
+				id: 'agent-1',
+				toolCallId: 'tc-subagent',
+				description: 'Explore tests',
+				status: 'idle',
+				agentType: 'explore',
+				prompt: 'Initial request',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>;
+			mockSession.backgroundTasks = [initialTask];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 			mockSession.fire('user.message', {
 				content: 'Review the follow-up',
 				source: 'agent-parent',
 			}, { agentId: 'agent-1' });
-			mockSession.fire('hook.end', {
-				hookInvocationId: 'agent-stop',
-				hookType: 'agentStop',
-				success: true,
-			});
-			mockSession.fire('hook.start', {
-				hookInvocationId: 'subagent-stop',
-				hookType: 'subagentStop',
-				input: { agentId: 'agent-1' },
-			});
-
-			const completions = () => signals
-				.filter(signal => signal.kind === 'subagent_completed')
-				.map(signal => signal.toolCallId);
-			const beforeHookEnd = completions();
-
+			mockSession.fire('subagent.completed', completion);
+			const backgroundTask = {
+				...initialTask,
+				status: 'running',
+				prompt: 'Review the follow-up',
+				idleSince: undefined,
+				activeStartedAt: new Date(2).toISOString(),
+			} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>;
+			mockSession.backgroundTasks = [backgroundTask];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 			mockSession.fire('hook.end', {
 				hookInvocationId: 'subagent-stop',
 				hookType: 'subagentStop',
 				success: true,
 			});
-			const afterHookEnd = completions();
-			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+			await timeout(0);
+			const beforeIdle = signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId);
+
+			mockSession.backgroundTasks = [{
+				...backgroundTask,
+				status: 'idle',
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
 			assert.deepStrictEqual({
-				beforeHookEnd,
-				afterHookEnd,
-				afterDuplicateCompletion: completions(),
+				beforeIdle,
+				afterIdle: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
 				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
 				parentCompleted: signals.some(signal => isAction(signal, ActionType.ChatTurnComplete)),
+				listCalls: mockSession.backgroundTaskListCalls,
 			}, {
-				beforeHookEnd: ['tc-subagent'],
-				afterHookEnd: ['tc-subagent', 'tc-subagent'],
-				afterDuplicateCompletion: ['tc-subagent', 'tc-subagent'],
+				beforeIdle: ['tc-subagent'],
+				afterIdle: ['tc-subagent', 'tc-subagent'],
 				resumed: ['tc-subagent'],
 				parentCompleted: false,
+				listCalls: 4,
 			});
 		});
 
-		test('ignores subagent stop hook inputs without a string agent ID', async () => {
+		test('retries subagent task status reconciliation after a transient failure', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
 			mockSession.fire('subagent.started', {
@@ -9771,61 +9799,97 @@ Use the attached image as context.
 				agentDescription: 'Explore tests',
 			}, { agentId: 'agent-1' });
 
-			const inputs: SessionEventPayload<'hook.start'>['data']['input'][] = [
-				undefined, null, true, 1, 'agent-1', [], {}, { agentId: 1 }, { agentId: null }, { agentId: ['agent-1'] },
-			];
-			for (const input of inputs) {
-				mockSession.fire('hook.start', {
-					hookInvocationId: 'subagent-stop',
-					hookType: 'subagentStop',
-					input,
-				});
-				mockSession.fire('hook.end', {
-					hookInvocationId: 'subagent-stop',
-					hookType: 'subagentStop',
-					success: true,
-				});
-			}
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-1',
+				toolCallId: 'tc-subagent',
+				description: 'Explore tests',
+				status: 'idle',
+				agentType: 'explore',
+				prompt: 'Explore tests',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.backgroundTaskListError = new Error('transient tasks.list failure');
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const afterFailure = signals.filter(signal => signal.kind === 'subagent_completed').length;
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
-			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+			assert.deepStrictEqual({
+				afterFailure,
+				afterRetry: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				listCalls: mockSession.backgroundTaskListCalls,
+			}, {
+				afterFailure: 0,
+				afterRetry: ['tc-subagent'],
+				listCalls: 2,
+			});
 		});
 
-		test('matches overlapping subagent stop hooks to their own agents', async () => {
+		test('does not apply a stale idle status to a newer subagent turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
 
-			for (const id of ['first', 'second']) {
-				mockSession.fire('subagent.started', {
-					toolCallId: `tc-${id}`,
-					agentName: 'explore',
-					agentDisplayName: 'Explore',
-					agentDescription: 'Explore tests',
-				}, { agentId: `agent-${id}` });
-				mockSession.fire('hook.start', {
-					hookInvocationId: `stop-${id}`,
-					hookType: 'subagentStop',
-					input: { agentId: `agent-${id}` },
-				});
-			}
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
 
-			for (const id of ['second', 'first']) {
-				mockSession.fire('hook.end', {
-					hookInvocationId: `stop-${id}`,
-					hookType: 'subagentStop',
-					success: true,
-				});
-			}
-			mockSession.fire('user.message', { content: 'Another turn' }, { agentId: 'agent-first' });
-			mockSession.fire('hook.end', {
-				hookInvocationId: 'stop-first',
-				hookType: 'subagentStop',
-				success: true,
+			const task = {
+				type: 'agent' as const,
+				id: 'agent-1',
+				toolCallId: 'tc-subagent',
+				description: 'Explore tests',
+				status: 'idle' as const,
+				agentType: 'explore',
+				prompt: 'First turn',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			};
+			mockSession.backgroundTasks = [task];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const staleRead = new DeferredPromise<void>();
+			mockSession.backgroundTaskListResults.push([task]);
+			mockSession.backgroundTaskListGates.push(staleRead.p);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			mockSession.fire('user.message', { content: 'Second turn' }, { agentId: 'agent-1' });
+			mockSession.backgroundTaskListResults.push([{
+				...task,
+				status: 'running',
+				prompt: 'Second turn',
+				idleSince: undefined,
+				activeStartedAt: new Date(2).toISOString(),
+			}]);
+			mockSession.fire('session.background_tasks_changed', {});
+			staleRead.complete();
+			await timeout(0);
+			await timeout(0);
+			const afterStaleIdle = signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId);
+
+			mockSession.backgroundTasks = [{
+				...task,
+				prompt: 'Second turn',
+				idleSince: new Date(3).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterStaleIdle,
+				afterCurrentIdle: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
+			}, {
+				afterStaleIdle: ['tc-subagent'],
+				afterCurrentIdle: ['tc-subagent', 'tc-subagent'],
+				resumed: ['tc-subagent'],
 			});
-
-			assert.deepStrictEqual(
-				signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
-				['tc-second', 'tc-first'],
-			);
 		});
 
 		test('history replay seeds turn id from the SDK envelope id, matching `turns.event_id`', async () => {
@@ -11058,14 +11122,19 @@ Use the attached image as context.
 				agentDescription: 'Helps',
 			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-client-tool' });
 
-			mockSession.fire('subagent.completed', {
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-client-tool',
 				toolCallId: 'tc-parent-subagent',
-				agentName: 'helper',
-				agentDisplayName: 'Helper',
-				durationMs: 1,
-				totalTokens: 0,
-				totalToolCalls: 0,
-			} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-client-tool' });
+				description: 'Helps',
+				status: 'idle',
+				agentType: 'helper',
+				prompt: 'Use the client tool',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-sub-client',
@@ -11089,11 +11158,19 @@ Use the attached image as context.
 			session.respondToPermissionRequest('tc-sub-client', false);
 			await resultPromise;
 
-			mockSession.fire('hook.end', {
-				hookInvocationId: 'hook-follow-up-stop',
-				hookType: 'agentStop',
-				success: true,
-			} as SessionEventPayload<'hook.end'>['data'], { agentId: 'agent-client-tool' });
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-client-tool',
+				toolCallId: 'tc-parent-subagent',
+				description: 'Helps',
+				status: 'idle',
+				agentType: 'helper',
+				prompt: 'Follow-up',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
 			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), [
 				'tc-parent-subagent',
