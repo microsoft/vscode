@@ -1732,6 +1732,118 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual(strokes, ['#333333', '#e5e5e5', 'rgba(0, 0, 0, 0)']);
 	});
 
+	test('paints connected tab strokes outside the fill without moving tab content', () => {
+		const root = document.createElement('div');
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--modern-ui-connected-tab-border', '#333333');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(row, 'tabs-container');
+		const tab = appendElement(tabs, 'tab');
+		tab.style.position = 'relative';
+		tab.style.width = '120px';
+		const fill = appendElement(tab, 'tab-fill');
+		const { label, name } = createEditorTabLabel(tab);
+		name.textContent = 'main.ts';
+		const targetWindow = getWindow(root);
+
+		for (const modernUI of [true, false]) {
+			for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+				root.className = `monaco-workbench modern-ui-tabs ${modernUI ? 'modern-ui' : ''} ${theme}`;
+				const connected = modernUI && !theme.startsWith('hc-');
+				for (const activeGroup of [true, false]) {
+					group.classList.toggle('active', activeGroup);
+					for (const compact of [true, false]) {
+						title.classList.toggle('compact-height', compact);
+						tab.classList.remove('active');
+						const tabBounds = tab.getBoundingClientRect();
+						const labelBounds = label.getBoundingClientRect();
+						const fillBounds = fill.getBoundingClientRect();
+						tab.classList.add('active');
+						const activeFillBounds = fill.getBoundingClientRect();
+						const activeFillStyle = targetWindow.getComputedStyle(fill);
+
+						assert.deepStrictEqual({
+							tabBounds: tab.getBoundingClientRect().toJSON(),
+							labelBounds: label.getBoundingClientRect().toJSON(),
+							fillExpansion: [
+								fillBounds.top - activeFillBounds.top,
+								fillBounds.left - activeFillBounds.left,
+								activeFillBounds.right - fillBounds.right,
+							],
+							topRadius: activeFillStyle.borderTopLeftRadius,
+						}, {
+							tabBounds: tabBounds.toJSON(),
+							labelBounds: labelBounds.toJSON(),
+							fillExpansion: connected ? [1, 1, 1] : [0, 0, 0],
+							topRadius: connected ? '5px' : '4px',
+						}, JSON.stringify({ modernUI, theme, activeGroup, compact }));
+					}
+				}
+			}
+		}
+	});
+
+	test('adjusts connected shoulder radii for the outside stroke and omits the first outer shoulder', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs';
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const tabs = appendElement(title, 'tabs-container');
+		const firstTab = appendElement(tabs, 'tab active');
+		const firstFill = appendElement(firstTab, 'tab-fill');
+		const nextTab = appendElement(tabs, 'tab');
+		const nextFill = appendElement(nextTab, 'tab-fill');
+		const targetWindow = getWindow(root);
+		const getShoulders = (fill: HTMLElement) => [
+			targetWindow.getComputedStyle(fill, '::before').content,
+			targetWindow.getComputedStyle(fill, '::after').content,
+		];
+
+		const firstShoulders = getShoulders(firstFill);
+		firstTab.classList.remove('active');
+		nextTab.classList.add('active');
+		const leftShoulderStyle = targetWindow.getComputedStyle(nextFill, '::before');
+		const rightShoulderStyle = targetWindow.getComputedStyle(nextFill, '::after');
+
+		assert.deepStrictEqual({
+			firstTab: firstShoulders,
+			nextTab: {
+				shoulders: getShoulders(nextFill),
+				radii: [leftShoulderStyle.borderBottomRightRadius, rightShoulderStyle.borderBottomLeftRadius],
+				sizes: [
+					[leftShoulderStyle.width, leftShoulderStyle.height],
+					[rightShoulderStyle.width, rightShoulderStyle.height],
+				],
+			},
+		}, {
+			firstTab: ['none', '""'],
+			nextTab: {
+				shoulders: ['""', '""'],
+				radii: ['8px', '8px'],
+				sizes: [['8px', '8px'], ['8px', '8px']],
+			},
+		});
+	});
+
 	test('uses the registered modern tab colors', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui-tabs';
