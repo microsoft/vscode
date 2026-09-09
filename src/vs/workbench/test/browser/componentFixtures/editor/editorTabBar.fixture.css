@@ -7,6 +7,10 @@
 	background-color: var(--modern-ui-editor-tab-hover-background);
 }
 
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab.fixture-hover:not(.selected):not(.active) > .tab-fill {
+	bottom: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.fixture-hover:not(.selected):not(.active) .tab-label:not(.monaco-decoration-itemColor) a,
 .modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.fixture-hover:not(.selected):not(.active) > .tab-actions .action-label {
 	color: var(--modern-ui-editor-tab-hover-foreground) !important;

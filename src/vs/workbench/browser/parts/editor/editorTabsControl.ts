@@ -629,7 +629,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		if (this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs')) {
 			const height = isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
 			// Connected tabs reserve one extra pixel for the separator below the gutter.
-			return height + (this.parent.closest('.modern-ui.modern-ui-tabs') ? 1 : 0);
+			return height + (this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs') ? 1 : 0);
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
 	}

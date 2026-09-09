@@ -1071,6 +1071,7 @@
 		"--model-hover-surface-background",
 		"--modern-ui-activitybar-lane",
 		"--modern-ui-connected-tab-border",
+		"--modern-ui-connected-tab-cap-radius",
 		"--modern-ui-connected-tab-gutter",
 		"--modern-ui-connected-tab-radius",
 		"--modern-ui-connected-tab-shoulder-radius",
