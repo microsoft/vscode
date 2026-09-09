@@ -758,11 +758,11 @@ function createThemeColorFixtures() {
 	};
 }
 
-function renderConnectedSurface(stroke: boolean): (ctx: ComponentFixtureContext) => void {
+function renderConnectedSurface(stroke: boolean, firstTabActive = false): (ctx: ComponentFixtureContext) => void {
 	return render(true, {
 		editors: [
-			{ resource: file('/project/README.md'), pinned: true },
-			{ resource: file('/project/src/main.ts'), pinned: true, active: true },
+			{ resource: file('/project/README.md'), pinned: true, active: firstTabActive },
+			{ resource: file('/project/src/main.ts'), pinned: true, active: !firstTabActive },
 			{ resource: file('/project/src/styles.css'), pinned: true },
 			{ resource: file('/project/package.json'), pinned: true, dirty: true },
 		],
@@ -798,7 +798,14 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			expectedVisualDescriptions: [
 				'The active main.ts tab joins the code editor with curved shoulders and no bottom divider. Inactive tabs sit on the panel-colored strip. A single subtle stroke follows the active tab into the strip separator. High contrast retains explicit focus and selection borders.',
 				'The stroke remains uniform through the cap, shoulders and separator, including dark themes with translucent borders. There are no brighter overlaps at the tangent joins.',
-				'In standard themes, the larger concave shoulders are concentric with the rounded corners of neighbouring tabs, maintaining even clearance. The lower gutter reserves an extra pixel for the separator so the visible gap matches the upper gutter.',
+				'In standard themes, the concave shoulder radii are reduced by the outward stroke offset while the convex cap radii grow. The lower gutter reserves an extra pixel for the separator so the visible gap matches the upper gutter.',
+			],
+		}),
+		FirstTabActive: defineComponentFixture({
+			render: renderConnectedSurface(true, true),
+			additionalThemes: ['darkHighContrast'],
+			expectedVisualDescriptions: [
+				'The first active tab has a straight left edge meeting the strip separator, with no clipped outer shoulder. The right shoulder still curves into the separator. High contrast retains explicit selection borders.',
 			],
 		}),
 		WithoutStroke: defineComponentFixture({
