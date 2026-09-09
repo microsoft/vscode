@@ -205,7 +205,7 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 	private _focusedIndex = -1;
 
 	constructor(
-		private readonly _renderManagementActions: (element: IMcpInstalledEntry, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void) => void,
+		private readonly _renderManagementActions: (getEntry: () => IMcpInstalledEntry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void) => void,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -330,7 +330,7 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 				const disabled = element.localServer ? isContributionDisabled(element.localServer.enablement.read(reader)) : false;
 				const connectionState = element.localServer?.connectionState.read(reader);
 				templateData.container.classList.toggle('disabled', disabled);
-				this.updateStatus(templateData, element, disabled ? 'disabled' : connectionState?.state, undefined, connectionState?.state === McpConnectionState.Kind.Error ? connectionState.message : undefined);
+				this.updateStatus(templateData, element, element, disabled ? 'disabled' : connectionState?.state, undefined, connectionState?.state === McpConnectionState.Kind.Error ? connectionState.message : undefined);
 			}));
 		}
 	}
@@ -339,18 +339,17 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 		let localDisabled = false;
 		let connectionState: McpConnectionState | undefined;
 		const update = () => {
-			const activeSessionServer = element.activeSessionServer === undefined
-				? undefined
-				: this.agentHostCustomizationService.getMcpServers(this.customizationHarnessService.activeSessionResource.get()).find(server => server.id === element.activeSessionServer?.id);
+			const currentEntry = resolveMcpEntry(element, this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get());
+			const activeSessionServer = currentEntry && getActiveSessionServer(currentEntry);
 			if (element.activeSessionServer !== undefined) {
 				const presentation = activeSessionServer && getActiveSessionServerPresentation(activeSessionServer);
 				templateData.container.classList.toggle('disabled', presentation?.enabled === false);
-				this.updateStatus(templateData, element, presentation?.status, presentation?.enabled ? undefined : activeSessionServer?.disabledReason, activeSessionServer?.state?.kind === McpServerStatus.Error ? activeSessionServer.state.error?.message : undefined);
+				this.updateStatus(templateData, element, currentEntry, presentation?.status, presentation?.enabled ? undefined : activeSessionServer?.disabledReason, activeSessionServer?.state?.kind === McpServerStatus.Error ? activeSessionServer.state.error?.message : undefined);
 				return;
 			}
 			templateData.container.classList.toggle('disabled', localDisabled);
 			const localError = !this.workspaceService.isSessionsWindow && connectionState?.state === McpConnectionState.Kind.Error ? connectionState : undefined;
-			this.updateStatus(templateData, element, localDisabled ? 'disabled' : localError?.state, undefined, localError?.message);
+			this.updateStatus(templateData, element, currentEntry, localDisabled ? 'disabled' : localError?.state, undefined, localError?.message);
 		};
 		templateData.elementDisposables.add(autorun(reader => {
 			this.customizationHarnessService.activeSessionResource.read(reader);
@@ -363,10 +362,11 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 
 	private updateActiveSessionStatus(templateData: IMcpServerItemTemplateData, element: IMcpSessionServerItemEntry): void {
 		const update = () => {
-			const server = this.agentHostCustomizationService.getMcpServers(this.customizationHarnessService.activeSessionResource.get()).find(server => server.id === element.server.id);
+			const currentEntry = resolveMcpEntry(element, this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get());
+			const server = currentEntry && getActiveSessionServer(currentEntry);
 			const presentation = server && getActiveSessionServerPresentation(server);
 			templateData.container.classList.toggle('disabled', presentation?.enabled === false);
-			this.updateStatus(templateData, element, presentation?.status, server?.disabledReason, server?.state?.kind === McpServerStatus.Error ? server.state.error?.message : undefined);
+			this.updateStatus(templateData, element, currentEntry, presentation?.status, server?.disabledReason, server?.state?.kind === McpServerStatus.Error ? server.state.error?.message : undefined);
 		};
 		templateData.elementDisposables.add(autorun(reader => {
 			this.customizationHarnessService.activeSessionResource.read(reader);
@@ -375,7 +375,7 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 		templateData.elementDisposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(update));
 	}
 
-	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, state: McpStatusKind | undefined, disabledReason?: CustomizationDisabledReason, errorMessage?: string): void {
+	private updateStatus(templateData: IMcpServerItemTemplateData, element: IMcpInstalledEntry, currentEntry: IMcpInstalledEntry | undefined, state: McpStatusKind | undefined, disabledReason?: CustomizationDisabledReason, errorMessage?: string): void {
 		const error = getMcpErrorMessage(state, errorMessage);
 		const description = error ?? (element.type === 'session-server-item' ? '' : element.type === 'builtin-item' ? element.description : element.server.description?.trim() ?? '');
 		const text = error ?? truncateToFirstLine(description);
@@ -400,8 +400,8 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 			templateData.statusBadge.textContent = '';
 			templateData.statusBadge.style.display = 'none';
 		}
-		const activeSessionServer = getActiveSessionServer(element);
-		const label = getMcpEntryLabel(element);
+		const activeSessionServer = currentEntry && getActiveSessionServer(currentEntry);
+		const label = getMcpEntryLabel(currentEntry ?? element);
 		const activeSessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const localServer = element.type === 'session-server-item' ? undefined : element.localServer;
 
@@ -426,8 +426,13 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 		templateData.actionDisposables.clear();
 		DOM.clearNode(templateData.actions);
 
+		if (!currentEntry) {
+			return;
+		}
+
+		const getEntry = () => resolveMcpEntry(currentEntry, this.agentHostCustomizationService, activeSessionResource);
 		if (!presentation) {
-			this._renderManagementActions(element, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
+			this._renderManagementActions(getEntry, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
 			this.updateActionsTabbability(templateData);
 			return;
 		}
@@ -437,7 +442,7 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 			registerMcpInlineButtonAction(templateData.actionDisposables, signInButton, async () => {
 				signInButton.enabled = false;
 				try {
-					await authenticateMcpServer(this.agentHostCustomizationService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer.id);
+					await authenticateMcpServer(this.agentHostCustomizationService, activeSessionResource, activeSessionServer.id);
 				} finally {
 					signInButton.enabled = true;
 				}
@@ -445,7 +450,7 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 		}
 
 		if (!presentation.icon || error !== undefined) {
-			this._renderManagementActions(element, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
+			this._renderManagementActions(getEntry, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
 			this.updateActionsTabbability(templateData);
 			return;
 		}
@@ -454,7 +459,7 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 		statusElement.classList.add(presentation.className, ...ThemeIcon.asClassNameArray(presentation.icon));
 		statusElement.setAttribute('aria-hidden', 'true');
 		templateData.actionDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), statusElement, presentation.label));
-		this._renderManagementActions(element, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
+		this._renderManagementActions(getEntry, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
 		this.updateActionsTabbability(templateData);
 	}
 
@@ -640,6 +645,16 @@ function getMcpErrorMessage(state: McpStatusKind | undefined, message: string | 
 
 function getActiveSessionServer(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): AgentHostMcpServer | undefined {
 	return entry.type === 'session-server-item' ? entry.server : entry.activeSessionServer;
+}
+
+/** A missing host snapshot invalidates the row's actions, rather than falling back to its local twin. */
+function resolveMcpEntry(entry: IMcpInstalledEntry, customizations: IAgentHostCustomizationService, sessionResource: URI): IMcpInstalledEntry | undefined {
+	const activeSessionServer = getActiveSessionServer(entry);
+	if (!activeSessionServer) {
+		return entry;
+	}
+	const server = customizations.getMcpServers(sessionResource).find(server => server.id === activeSessionServer.id);
+	return server ? entry.type === 'session-server-item' ? { ...entry, server } : { ...entry, activeSessionServer: server } : undefined;
 }
 
 /**
@@ -1691,7 +1706,7 @@ export class McpListWidget extends Disposable {
 		container.removeAttribute('aria-label');
 		const itemRenderer = this.instantiationService.createInstance(
 			McpServerItemRenderer,
-			(entry, actions, disposables, updateTabbability) => this.renderMcpListActions(entry, actions, disposables, updateTabbability),
+			(getEntry, actions, disposables, updateTabbability) => this.renderMcpListActions(getEntry, actions, disposables, updateTabbability),
 		);
 		const marketplaceRenderer = new McpMarketplaceItemRenderer((server, button) => this.installMarketplaceServer(server, button));
 		const ariaLabels = new Map(entries.map(entry => [
@@ -1799,17 +1814,22 @@ export class McpListWidget extends Disposable {
 		});
 	}
 
-	private renderMcpListActions(entry: IMcpInstalledEntry, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void): void {
+	private renderMcpListActions(getEntry: () => IMcpInstalledEntry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void): void {
+		const entry = getEntry();
+		if (!entry) {
+			return;
+		}
 		const label = getMcpEntryLabel(entry);
 		let enabled = this.isInstalledEntryEnabled(entry);
 		const toggle = disposables.add(new Switch({ ariaLabel: label, checked: enabled }));
 		DOM.append(actions, toggle.domNode);
 		const update = () => {
-			enabled = this.isInstalledEntryEnabled(entry);
-			const blockedByPlugin = getMcpDisabledReason(entry)?.source === 'plugin';
+			const currentEntry = getEntry();
+			enabled = currentEntry ? this.isInstalledEntryEnabled(currentEntry) : false;
+			const blockedByPlugin = currentEntry && getMcpDisabledReason(currentEntry)?.source === 'plugin';
 			const toggleLabel = enabled ? localize('disableMcpServerAria', "Disable {0}", label) : localize('enableMcpServerAria', "Enable {0}", label);
 			const accessibleLabel = blockedByPlugin ? localize('mcpServerManagedByPluginAria', "{0} is disabled by its plugin", label) : toggleLabel;
-			toggle.disabled = blockedByPlugin;
+			toggle.disabled = !currentEntry || !!blockedByPlugin;
 			toggle.checked = enabled;
 			toggle.setAriaLabel(accessibleLabel);
 			updateTabbability();
@@ -1817,8 +1837,13 @@ export class McpListWidget extends Disposable {
 		update();
 		disposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
 		disposables.add(toggle.onChange(checked => {
+			const currentEntry = getEntry();
+			if (!currentEntry) {
+				update();
+				return;
+			}
 			enabled = checked;
-			this.setInstalledEntryEnabled(entry, enabled);
+			this.setInstalledEntryEnabled(currentEntry, enabled);
 			update();
 			status(enabled ? localize('mcpServerEnabledStatus', "{0} enabled.", label) : localize('mcpServerDisabledStatus', "{0} disabled.", label));
 		}));
@@ -1838,7 +1863,12 @@ export class McpListWidget extends Disposable {
 		}));
 		more.element.classList.add('plugin-card-icon-button');
 		more.label = `$(${Codicon.ellipsis.id})`;
-		registerMcpInlineButtonAction(disposables, more, () => this.showMcpServerActions(entry, more.element));
+		registerMcpInlineButtonAction(disposables, more, () => {
+			const currentEntry = getEntry();
+			if (currentEntry) {
+				this.showMcpServerActions(currentEntry, more.element);
+			}
+		});
 	}
 
 	private layoutMcpSectionLists(): void {
@@ -2433,19 +2463,20 @@ export class McpListWidget extends Disposable {
 	}
 
 	private getMcpServerActions(entry: IMcpInstalledEntry, disposables: DisposableStore): IAction[] {
-		const activeSessionServer = getActiveSessionServer(entry);
 		const sessionResource = this.customizationHarnessService.activeSessionResource.get();
-		const currentServer = activeSessionServer && this.agentHostCustomizationService.getMcpServers(sessionResource).find(server => server.id === activeSessionServer.id);
-		if (currentServer) {
-			entry = entry.type === 'session-server-item' ? { ...entry, server: currentServer } : { ...entry, activeSessionServer: currentServer };
+		const currentEntry = resolveMcpEntry(entry, this.agentHostCustomizationService, sessionResource);
+		if (!currentEntry) {
+			return [];
 		}
+		entry = currentEntry;
+		const activeSessionServer = getActiveSessionServer(entry);
 		const actions = this.getMcpServerManagementActions(entry, disposables);
 		if (!activeSessionServer && entry.type === 'server-item') {
 			return actions;
 		}
 
 		const showOutput = activeSessionServer
-			? currentServer && getMcpServerOutputHandler(this.outputService, undefined, currentServer, undefined, () => this.agentHostCustomizationService.showMcpServerLog(sessionResource, currentServer.id))
+			? getMcpServerOutputHandler(this.outputService, undefined, activeSessionServer, undefined, () => this.agentHostCustomizationService.showMcpServerLog(sessionResource, activeSessionServer.id))
 			: getMcpServerOutputHandler(this.outputService, entry.type === 'session-server-item' ? undefined : entry.localServer, undefined);
 		const outputIndex = actions.findIndex(action => action instanceof ShowServerOutputAction);
 		if (outputIndex !== -1) {

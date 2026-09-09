@@ -886,7 +886,7 @@ suite('mcpListWidget', () => {
 		// replaced between mousedown and mouseup never receives the click.
 		type Entry = Parameters<McpServerItemRenderer['renderElement']>[0];
 
-		function createRenderer(server: AgentHostMcpServer, isSessionsWindow = true) {
+		function createRenderer(server: AgentHostMcpServer, isSessionsWindow = true, useRealManagementActions = false) {
 			const store = new DisposableStore();
 			const onDidChangeCustomizations = store.add(new Emitter<void>());
 			const sessionResource = URI.parse('vscode-agent-session:///session-1');
@@ -895,6 +895,9 @@ suite('mcpListWidget', () => {
 			const shownLogs: string[] = [];
 			const shownLogSessions: string[] = [];
 			const managementClicks: string[] = [];
+			const hostEnablementCalls: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>[] = [];
+			let localEnablementCalls: [string, ContributionEnablementState][] = [];
+			let menuActions: IAction[] = [];
 			const hoverContents = new Map<HTMLElement, IManagedHoverContent>();
 
 			const agentHostCustomizationService = {
@@ -902,6 +905,7 @@ suite('mcpListWidget', () => {
 				onDidChangeCustomizations: onDidChangeCustomizations.event,
 				showMcpServerLog: async (resource: URI, serverId: string) => { shownLogs.push(serverId); shownLogSessions.push(resource.toString()); },
 				getWorkingDirectories: () => [],
+				setCustomizationEnablement: (...args: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>) => { hostEnablementCalls.push(args); },
 			} as unknown as IAgentHostCustomizationService;
 			const customizationHarnessService = {
 				activeSessionResource,
@@ -918,7 +922,11 @@ suite('mcpListWidget', () => {
 				override setupDelayedHover() { return Disposable.None; }
 			}();
 			const agentPluginService = { plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService;
-			const renderManagementActions = (_entry: Entry, actions: HTMLElement, disposables: DisposableStore) => {
+			const renderManagementActions = (getEntry: () => Entry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void) => {
+				if (useRealManagementActions) {
+					widget.renderMcpListActions(getEntry, actions, disposables, updateTabbability);
+					return;
+				}
 				const button = disposables.add(new Button(actions, unthemedButtonStyles));
 				button.element.classList.add('test-management-action');
 				button.label = 'More Actions';
@@ -939,6 +947,7 @@ suite('mcpListWidget', () => {
 			const widget = Object.create(McpListWidget.prototype) as {
 				getMcpEntryAriaLabel(entry: Entry): IObservable<string>;
 				getMcpServerActions(entry: Entry, store: DisposableStore): IAction[];
+				renderMcpListActions(getEntry: () => Entry | undefined, actions: HTMLElement, store: DisposableStore, updateTabbability: () => void): void;
 				createMcpSectionList(container: HTMLElement, label: string, entries: readonly Entry[]): void;
 				layoutMcpSectionLists(): void;
 				sectionLists: { list: WorkbenchList<Entry>; container: HTMLElement }[];
@@ -948,6 +957,7 @@ suite('mcpListWidget', () => {
 				customizationHarnessService,
 				workspaceService: { isSessionsWindow },
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
+				showMcpServerActions: (entry: Entry) => { menuActions = widget.getMcpServerActions(entry, store); },
 			});
 			const ariaSubscription = store.add(new MutableDisposable());
 			let ariaLabel = '';
@@ -958,12 +968,17 @@ suite('mcpListWidget', () => {
 				shownLogs,
 				shownLogSessions,
 				managementClicks,
+				hostEnablementCalls,
+				localEnablementCalls: () => localEnablementCalls,
+				menuActions: () => menuActions,
 				activeSessionResource,
 				menu: (entry: Entry, localServer?: IMcpServer) => {
 					const instantiationService = workbenchInstantiationService({}, store);
+					const enablement = createMcpService(ContributionEnablementState.EnabledProfile);
+					localEnablementCalls = enablement.calls;
 					const mcpService = new class extends mock<IMcpService>() {
 						override readonly servers = observableValue<readonly IMcpServer[]>('servers', localServer ? [localServer] : []);
-						override readonly enablementModel = createMcpService(ContributionEnablementState.EnabledProfile).service.enablementModel;
+						override readonly enablementModel = enablement.service.enablementModel;
 					}();
 					const mcpWorkbenchService = new class extends mock<IMcpWorkbenchService>() {
 						override readonly local = [];
@@ -1112,7 +1127,120 @@ suite('mcpListWidget', () => {
 			const native = nativeServer();
 			ctx.setServers([]);
 			const actions = ctx.menu({ type: 'server-item', server: native.workbenchServer, localServer: native.server, activeSessionServer: erroring() }, native.server);
-			assert.strictEqual(actions.filter(action => action.label === 'Show Output').length, 0);
+			assert.deepStrictEqual(actions, []);
+		});
+
+		for (const kind of ['matched', 'builtin', 'plugin', 'session-only'] as const) {
+			test(`${kind} actions follow current host enablement without replacing the row or message-only buttons`, async () => {
+				const server = createAgentHostServer({ ...erroring(), isPluginProvided: true, isClientBundled: false });
+				const ctx = createRenderer(server, true, true);
+				disposables.add(ctx.store);
+				const native = nativeServer();
+				const entry: Entry = kind === 'session-only'
+					? { type: 'session-server-item', server }
+					: kind === 'matched'
+						? { type: 'server-item', server: native.workbenchServer, localServer: native.server, activeSessionServer: server }
+						: { type: 'builtin-item', id: 'builtin', label: 'Builtin', description: 'Description', localServer: native.server, activeSessionServer: server, collectionId: kind === 'plugin' ? `${MCP_PLUGIN_COLLECTION_ID_PREFIX}file:///plugin` : undefined };
+				ctx.menu(entry, native.server);
+				document.body.appendChild(ctx.templateData.container);
+				disposables.add({ dispose: () => ctx.templateData.container.remove() });
+				ctx.render(entry);
+				const toggle = ctx.templateData.actions.querySelector<HTMLButtonElement>('[role="switch"]')!;
+				const more = ctx.templateData.actions.querySelector<HTMLElement>('.plugin-card-icon-button')!;
+				more.focus();
+				more.dispatchEvent(new MouseEvent(DOM.EventType.MOUSE_DOWN, { bubbles: true }));
+				const starts: string[] = [];
+				const enablement: CustomizationEnablement[] = [
+					{ kind: CustomizationEnablementKind.Session, enabled: true },
+					{ kind: CustomizationEnablementKind.Global, enabled: false },
+				];
+				ctx.setServers([{ ...server, enablement, start: async () => { starts.push('current'); } }]);
+				ctx.notifyUnchanged();
+				const checkedAfterSnapshot = toggle.getAttribute('aria-checked');
+				ctx.setServers([{ ...server, enablement, start: async () => { starts.push('latest'); }, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'New detail' } } }]);
+				ctx.notifyUnchanged();
+				more.dispatchEvent(new MouseEvent(DOM.EventType.MOUSE_UP, { bubbles: true }));
+				more.click();
+				const latestActions = ctx.menuActions();
+				await latestActions.find(action => action.label === 'Start Server')!.run();
+				await latestActions.find(action => action.label === 'Show Output')!.run();
+				const focused = document.activeElement === more;
+				toggle.click();
+				assert.deepStrictEqual({
+					checkedAfterSnapshot,
+					currentToggle: ctx.templateData.actions.querySelector('[role="switch"]') === toggle,
+					currentMore: ctx.templateData.actions.querySelector('.plugin-card-icon-button') === more,
+					focused,
+					scopeLabels: latestActions.filter(action => action.id.startsWith('mcpServer.agentHost.')).map(action => action.label),
+					starts,
+					hostEnablement: ctx.hostEnablementCalls,
+					localEnablement: ctx.localEnablementCalls(),
+					logs: ctx.shownLogs,
+					logSessions: ctx.shownLogSessions,
+				}, {
+					checkedAfterSnapshot: 'false', currentToggle: true, currentMore: true, focused: true,
+					scopeLabels: kind === 'matched' ? ['Disable (Session)'] : ['Enable', 'Disable (Session)'],
+					starts: ['latest'],
+					hostEnablement: [[ctx.activeSessionResource.get(), server.id, enablement, CustomizationEnablementKind.Global, true]],
+					localEnablement: [], logs: [server.id], logSessions: [ctx.activeSessionResource.get().toString()],
+				});
+				ctx.setServers([]);
+				ctx.notifyUnchanged();
+				toggle.click();
+				more.click();
+				assert.deepStrictEqual({
+					badge: ctx.templateData.statusBadge.textContent,
+					controls: ctx.templateData.actions.childElementCount,
+					menu: ctx.menu(entry, native.server),
+					hostEnablementCount: ctx.hostEnablementCalls.length,
+				}, { badge: '', controls: 0, menu: [], hostEnablementCount: 1 });
+
+				ctx.setServers([{ ...server, enablement }]);
+				const replacementSession = URI.parse('vscode-agent-session:///replacement');
+				ctx.activeSessionResource.set(replacementSession, undefined);
+				ctx.templateData.actions.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
+				ctx.templateData.actions.querySelector<HTMLElement>('.plugin-card-icon-button')!.click();
+				await ctx.menuActions().find(action => action.label === 'Show Output')!.run();
+				assert.deepStrictEqual({
+					enablement: ctx.hostEnablementCalls.at(-1),
+					outputSession: ctx.shownLogSessions.at(-1),
+				}, {
+					enablement: [replacementSession, server.id, enablement, CustomizationEnablementKind.Global, true],
+					outputSession: replacementSession.toString(),
+				});
+			});
+		}
+
+		test('a fresh disabled reason locks the existing switch even when status remains disabled', () => {
+			const server = createAgentHostServer({ ...erroring(), enabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] });
+			const ctx = createRenderer(server, true, true);
+			disposables.add(ctx.store);
+			const entry: Entry = { type: 'session-server-item', server };
+			ctx.menu(entry);
+			ctx.render(entry);
+			ctx.setServers([{ ...server, disabledReason: { source: 'plugin', plugin: { id: 'plugin', name: 'Plugin', uri: 'file:///plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] } } }]);
+			ctx.notifyUnchanged();
+			const toggle = ctx.templateData.actions.querySelector<HTMLButtonElement>('[role="switch"]')!;
+			assert.deepStrictEqual({
+				disabled: toggle.disabled,
+				label: toggle.getAttribute('aria-label'),
+				calls: ctx.hostEnablementCalls,
+			}, { disabled: true, label: 'Server One is disabled by its plugin', calls: [] });
+		});
+
+		test('native management controls keep their durable local target', () => {
+			const ctx = createRenderer(erroring(), false, true);
+			disposables.add(ctx.store);
+			const native = nativeServer();
+			const entry: Entry = { type: 'server-item', server: native.workbenchServer, localServer: native.server };
+			ctx.menu(entry, native.server);
+			ctx.render(entry);
+			ctx.setServers([]);
+			ctx.notifyUnchanged();
+			ctx.templateData.actions.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
+			assert.deepStrictEqual({ local: ctx.localEnablementCalls(), host: ctx.hostEnablementCalls }, {
+				local: [['native', ContributionEnablementState.DisabledProfile]], host: [],
+			});
 		});
 
 		test('dynamic error rows show every line and unbroken token, resize and preserve actions', async () => {
