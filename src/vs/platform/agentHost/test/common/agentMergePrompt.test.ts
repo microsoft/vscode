@@ -96,6 +96,26 @@ suite('Agent Merge prompt', () => {
 			{ reviewThreads: source.reviewThreads, failedChecks: ['Build'], conflicting: false });
 	});
 
+	test('finds state tags adjacent to other angle-bracketed content', () => {
+		const source = context({
+			title: 'Preserve <angle-bracketed> content',
+			reviewThreads: [{ id: 'thread-1', comments: [{ author: 'reviewer', body: 'Keep Array<string> intact' }] }],
+		});
+		const prompt = `<current_datetime>2026-09-09</current_datetime>${buildAgentMergePrompt(['addressReviews'], source)}<system_reminder>continue</system_reminder>`;
+
+		const parsed = parseAgentMergePrompt(prompt);
+
+		assert.deepStrictEqual({
+			actions: parsed?.actions,
+			title: parsed?.title,
+			reviewThreads: parsed?.reviewThreads,
+		}, {
+			actions: ['addressReviews'],
+			title: source.title,
+			reviewThreads: source.reviewThreads,
+		});
+	});
+
 	test('folds a multi-comment thread into a single entry', () => {
 		const source = context({
 			reviewThreads: [{ id: 'thread-1', comments: [{ author: 'maintainer', body: 'Please fix this' }, { author: 'other', body: 'Agreed' }] }],
