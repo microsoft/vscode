@@ -15,6 +15,7 @@ import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../.
 import { getAgentHostCopilotSandboxSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../browser/agentHostPermissionPickerDelegate.js';
@@ -33,6 +34,12 @@ function makeWellKnownConfig(value: string | undefined, levels: readonly string[
 		schema: {
 			type: 'object',
 			properties: {
+				[SessionConfigKey.SandboxEnabled]: {
+					title: 'Sandbox',
+					type: 'string',
+					enum: ['default', 'on', 'off'],
+					sessionMutable: true,
+				},
 				autoApprove: {
 					title: 'Auto Approve',
 					description: '',
@@ -54,12 +61,13 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	readonly onDidChangeRootConfig = this._onDidChangeRoot.event;
 
 	config: ResolveSessionConfigResult | undefined;
+	readonly sessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	rootConfig: RootConfigState | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
 	readonly resolving = observableValue<boolean>('resolving', false);
 
-	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
-		return this.config;
+	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
+		return this.sessionConfigs.get(sessionId) ?? this.config;
 	}
 	getRootConfig(): RootConfigState | undefined {
 		return this.rootConfig;
@@ -69,6 +77,11 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
+		const config = this.sessionConfigs.get(sessionId);
+		if (config) {
+			config.values[property] = value;
+			this.fireChange(sessionId);
+		}
 	}
 	fireChange(sessionId: string = SESSION_ID): void {
 		this._onDidChange.fire(sessionId);
@@ -194,6 +207,57 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		setManagedSandboxEnforced(true);
 
 		assert.deepStrictEqual({ before, after: delegate.managedSandboxEnforced.get() }, { before: false, after: true });
+	});
+
+	test('sandbox choices are retained by the selected session', () => {
+		const { delegate, provider, activeSessionObs } = setup(store, makeActiveSession(), 'default');
+		const secondSessionId = 'local-agent-host:s2';
+		provider.sessionConfigs.set(SESSION_ID, makeWellKnownConfig('default'));
+		provider.sessionConfigs.set(secondSessionId, makeWellKnownConfig('default'));
+
+		delegate.setSandboxEnabled(false);
+		const firstSessionValue = delegate.sandboxEnabled.get();
+		activeSessionObs.set({ ...makeActiveSession(), sessionId: secondSessionId }, undefined);
+		delegate.setSandboxEnabled(true);
+		const secondSessionValue = delegate.sandboxEnabled.get();
+		activeSessionObs.set(makeActiveSession(), undefined);
+
+		assert.deepStrictEqual({
+			writes: provider.setCalls,
+			firstSessionValue,
+			secondSessionValue,
+			restoredFirstSessionValue: delegate.sandboxEnabled.get(),
+		}, {
+			writes: [
+				[SESSION_ID, SessionConfigKey.SandboxEnabled, 'off'],
+				[secondSessionId, SessionConfigKey.SandboxEnabled, 'on'],
+			],
+			firstSessionValue: false,
+			secondSessionValue: true,
+			restoredFirstSessionValue: false,
+		});
+	});
+
+	test('reads restored sandbox choices and follows session changes', () => {
+		const { delegate, provider, activeSessionObs } = setup(store, makeActiveSession(), 'default');
+		const values = [delegate.sandboxEnabled.get()];
+		for (const value of ['off', 'on', 'default']) {
+			provider.config!.values[SessionConfigKey.SandboxEnabled] = value;
+			provider.fireChange();
+			values.push(delegate.sandboxEnabled.get());
+		}
+		activeSessionObs.set(undefined, undefined);
+		values.push(delegate.sandboxEnabled.get());
+		assert.deepStrictEqual(values, [undefined, false, true, undefined, undefined]);
+	});
+
+	test('does not expose a global fallback toggle for older hosts', () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		delete provider.config!.schema.properties[SessionConfigKey.SandboxEnabled];
+		provider.fireChange();
+		assert.strictEqual(delegate.isSandboxToggleApplicable(), false);
+		assert.throws(() => delegate.setSandboxEnabled(false), /Sandbox configuration is unavailable/);
+		assert.deepStrictEqual(provider.setCalls, []);
 	});
 
 	test('returns Default when the active session has no config seeded yet', () => {

@@ -284,11 +284,9 @@ export type AgentHostCopilotSandboxSettingId =
 	| typeof AgentHostSdkSandboxEnabledSettingId
 	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
 
-export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
-	if (customTerminalToolEnabled) {
-		return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
-	}
-	return windows ? AgentHostSdkSandboxWindowsEnabledSettingId : AgentHostSdkSandboxEnabledSettingId;
+export function getAgentHostCopilotSandboxSettingId(_customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
+	// TODO: Check Agent Host-specific sandbox settings once they are enabled for users.
+	return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
 
 /**

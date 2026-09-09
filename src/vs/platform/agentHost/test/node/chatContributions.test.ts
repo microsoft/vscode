@@ -1646,6 +1646,7 @@ suite('AgentHostChatContributions', () => {
 			schema: { type: 'object', properties: {} },
 			values: config,
 		});
+
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsReadChanged, isRead: false }, 'rejected'));
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'rejected'));
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: { mode: 'interactive' } }, 'rejected'));
@@ -1660,6 +1661,20 @@ suite('AgentHostChatContributions', () => {
 			isArchived: undefined,
 			configValues: JSON.stringify({ mode: 'plan', autoApprove: 'default' }),
 		});
+	});
+
+	test('persists sandbox selections through the session metadata path', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const values = {
+			[SessionConfigKey.SandboxEnabled]: 'off',
+			[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
+		};
+		contributions.stateManager.setSessionConfig(contributions.session, {
+			schema: { type: 'object', properties: {} }, values,
+		});
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: values }));
+		await Promise.resolve();
+		assert.strictEqual(await contributions.database.getMetadata('configValues'), JSON.stringify({ [SessionConfigKey.SandboxEnabled]: 'off' }));
 	});
 
 	test('persists turn usage from envelopes but skips subagent chats', async () => {

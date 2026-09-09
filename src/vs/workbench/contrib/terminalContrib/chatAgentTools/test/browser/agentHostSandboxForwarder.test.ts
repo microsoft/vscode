@@ -394,10 +394,11 @@ suite('AgentHostSandboxForwarder', () => {
 			}]);
 		});
 
-		test('forwards an empty sandbox object when both customTerminalTool and sdkSandbox are off (default)', () => {
+		test('retains sandbox restrictions for session overrides when the SDK default is off', () => {
 			const { local } = setup(disposables, {
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
 				[AgentSandboxSettingId.AgentSandboxAllowNetwork]: true,
+				[AgentSandboxSettingId.AgentSandboxWindowsFileSystem]: { denyRead: ['C:\\private'] },
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
 				// sdkSandbox unset → defaults to 'off'.
 			});
@@ -407,7 +408,14 @@ suite('AgentHostSandboxForwarder', () => {
 
 			assert.deepStrictEqual(local.dispatched, [{
 				type: ActionType.RootConfigChanged,
-				config: { [AgentHostSandboxConfigKey.Sandbox]: {} },
+				config: {
+					[AgentHostSandboxConfigKey.Sandbox]: {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
+						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
+						[AgentHostSandboxKey.AllowNetwork]: true,
+						[AgentHostSandboxKey.WindowsFileSystem]: { denyRead: ['C:\\private'] },
+					},
+				},
 			}]);
 		});
 
@@ -484,7 +492,6 @@ suite('AgentHostSandboxForwarder', () => {
 				[AgentHostSdkSandboxWindowsEnabledSettingId]: AgentSandboxEnabledValue.Off,
 			});
 			local.setRootState(rootStateWithSandboxSchema());
-			assert.deepStrictEqual(local.dispatched, []);
 
 			configurationService.setUserConfiguration(AgentHostSdkSandboxWindowsEnabledSettingId, AgentSandboxEnabledValue.On);
 			configurationService.onDidChangeConfigurationEmitter.fire({
@@ -495,6 +502,14 @@ suite('AgentHostSandboxForwarder', () => {
 			});
 
 			assert.deepStrictEqual(local.dispatched, [{
+				type: ActionType.RootConfigChanged,
+				config: {
+					[AgentHostSandboxConfigKey.Sandbox]: {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
+						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
+					},
+				},
+			}, {
 				type: ActionType.RootConfigChanged,
 				config: {
 					[AgentHostSandboxConfigKey.Sandbox]: {
@@ -528,7 +543,12 @@ suite('AgentHostSandboxForwarder', () => {
 
 			assert.deepStrictEqual(local.dispatched, [{
 				type: ActionType.RootConfigChanged,
-				config: { [AgentHostSandboxConfigKey.Sandbox]: {} },
+				config: {
+					[AgentHostSandboxConfigKey.Sandbox]: {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
+						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
+					},
+				},
 			}]);
 		});
 
@@ -570,19 +590,25 @@ suite('AgentHostSandboxForwarder', () => {
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
 				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.Off,
 			});
-			// Both gates off → forwarder pushes `{}`, which clears the host's
-			// prior value.
 			local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On }));
 			assert.deepStrictEqual(local.dispatched, [{
 				type: ActionType.RootConfigChanged,
-				config: { [AgentHostSandboxConfigKey.Sandbox]: {} },
+				config: {
+					[AgentHostSandboxConfigKey.Sandbox]: {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
+						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
+					},
+				},
 			}]);
 
 			// Simulate the host applying that dispatch (the mock does not do this
 			// automatically). Without this, the equals-check inside _tryPush would
 			// short-circuit the second push because the host's view of the sandbox
-			// values would still be the stale pre-clear value.
-			local.setRootState(rootStateWithSandboxSchema({}));
+			// values would still be the stale enabled value.
+			local.setRootState(rootStateWithSandboxSchema({
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
+				[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
+			}));
 
 			// Flip customTerminalTool ON → forwarder should push the real
 			// sandbox values verbatim (engine path needs them).

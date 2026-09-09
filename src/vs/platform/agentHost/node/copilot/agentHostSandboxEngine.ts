@@ -18,6 +18,8 @@ import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandbo
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { getAppNodeModulesDirName } from '../appNodeModules.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
+import { getSessionSandboxOverrides } from '../sessionSandbox.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
@@ -43,7 +45,10 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 	) {
 		super();
 		this._sandboxHelper = sandboxHelper;
-		this.onDidChangeSandboxSettings = this._agentConfigurationService.onDidRootConfigChange;
+		this.onDidChangeSandboxSettings = Event.any(
+			this._agentConfigurationService.onDidRootConfigChange,
+			Event.map(Event.filter(this._agentConfigurationService.onDidSessionConfigChange, event => event.session === resolveAgentHostSession(URI.parse(this._sessionId)).toString()), () => undefined),
+		);
 	}
 
 	setWorkingDirectory(workingDirectory: URI): void {
@@ -122,7 +127,10 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		if (innerKey === undefined) {
 			return undefined;
 		}
-		const sandbox = this._agentConfigurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
+		const sandbox = {
+			...this._agentConfigurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
+			...getSessionSandboxOverrides(this._agentConfigurationService, this._sessionId),
+		};
 		return sandbox?.[innerKey] as T | undefined;
 	}
 }

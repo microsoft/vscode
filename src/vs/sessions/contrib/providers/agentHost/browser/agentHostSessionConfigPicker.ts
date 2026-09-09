@@ -488,6 +488,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (!this._isPickable(schema)) {
 				continue;
 			}
+			if (property === SessionConfigKey.SandboxEnabled) {
+				continue;
+			}
 			// Hidden carrier properties (see `worktreeBranchTrackProperty` in
 			// `worktreeIsolation.ts`) consumed only by the host for worktree
 			// isolation, never edited by the user. Its boolean type otherwise

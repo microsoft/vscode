@@ -37,6 +37,7 @@ import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
+import { getSessionSandboxOverrides } from '../sessionSandbox.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -998,6 +999,7 @@ export class CopilotAgentSession extends Disposable {
 	private _lastAppliedPermissionMode: PermissionMode | undefined;
 	private _autoApprovalExperimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
+	private readonly _sandboxConfigSequencer = new Sequencer();
 	private readonly _mcpEnablementSequencer = new Sequencer();
 	private readonly _mcpServerLifecycleSequencer = new SequencerByKey<string>();
 	private readonly _steeringMessagesInFlight = new Set<string>();
@@ -2242,6 +2244,7 @@ export class CopilotAgentSession extends Disposable {
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
 		return {
 			chatUri: this._chatChannelUri,
+			configurationResource: this._ownerSessionUri,
 			handlePermissionRequest: this._guarded(request => this._handlePermissionRequest(request), { kind: 'reject' } satisfies PermissionRequestResult, 'permission'),
 			handleExitPlanModeRequest: this._guarded((request, invocation) => this._handleExitPlanModeRequest(request, invocation), { approved: false } satisfies CopilotExitPlanModeResponse, 'exit-plan-mode'),
 			handleUserInputRequest: this._guarded((request, invocation) => this._handleUserInputRequest(request, invocation), { answer: '', wasFreeform: true } satisfies UserInputResponse, 'user-input'),
@@ -2905,8 +2908,8 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Applies the per-turn SDK configuration shared by every operation that starts
 	 * an agent loop (normal `session.send` and the `/fleet` start path): agent mode,
-	 * permission mode, sandbox, shell init script, and MCP enablement. Mode,
-	 * sandbox, and shell init keep their existing best-effort semantics.
+	 * permission mode, sandbox, shell init script, and MCP enablement.
+	 * Permission and sandbox failures prevent the turn from starting.
 	 */
 	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined): Promise<void> {
 		await this.applyMode(mode);
@@ -3940,7 +3943,10 @@ export class CopilotAgentSession extends Disposable {
 		if (this._isCustomTerminalToolEnabled()) {
 			return undefined;
 		}
-		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
+		const sandbox = {
+			...this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
+			...getSessionSandboxOverrides(this._configurationService, this._ownerSessionUri.toString()),
+		};
 		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
 	}
 
@@ -4018,7 +4024,7 @@ export class CopilotAgentSession extends Disposable {
 			if (event.session !== this._ownerSessionUri.toString()) {
 				return;
 			}
-			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove)) {
+			if (Object.hasOwn(event.config, SessionConfigKey.AutoApprove) || Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
 				void this._syncPermissionModeAfterConfigChange();
 			}
 			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitScripts)) {
@@ -4104,12 +4110,15 @@ export class CopilotAgentSession extends Disposable {
 	 * (the host's own terminal sandbox engine handles containment and the SDK's
 	 * built-in shell is unused). Otherwise it always pushes the effective state.
 	 */
-	private async _applyEffectiveSandboxConfig(failOnError = false): Promise<void> {
+	private async _applyEffectiveSandboxConfig(failOnError = true): Promise<void> {
+		return this._sandboxConfigSequencer.queue(() => this._updateEffectiveSandboxConfig(failOnError));
+	}
+
+	private async _updateEffectiveSandboxConfig(failOnError: boolean): Promise<void> {
 		if (this._isCustomTerminalToolEnabled()) {
 			return;
 		}
-		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		const base = buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
+		const base = this._computeSdkSandboxConfig();
 		const sandboxConfig: SandboxConfig = base ?? { enabled: false };
 		try {
 			const result = await this._wrapper.session.rpc.options.update({ sandboxConfig });
@@ -4296,7 +4305,12 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
-		const pendingPermission = this._pendingPermissions.register(request.toolCallId, { managedApprovalRequired: false });
+		const policy = this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString());
+		if (policy?.allowBypass === false || (policy?.enabled && !policy.allowBypass)) {
+			return false;
+		}
+		const managedApprovalRequired = policy?.enabled === true;
+		const pendingPermission = this._pendingPermissions.register(request.toolCallId, { managedApprovalRequired });
 
 		const displayName = getToolDisplayName(request.toolName);
 		const blockedDomains = request.blockedDomains?.length ? request.blockedDomains.join(', ') : undefined;
@@ -4329,9 +4343,13 @@ export class CopilotAgentSession extends Disposable {
 			// `isAutoApproveAllowed: false` whenever `requiresUnsandboxConfirmation`
 			// is set.
 			parentToolCallId,
+			requestSandboxBypass: true,
+			managedApprovalRequired,
 		});
 
-		return (await pendingPermission).kind === 'approve-once';
+		const approved = (await pendingPermission).kind === 'approve-once';
+		const currentPolicy = this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString());
+		return approved && currentPolicy?.allowBypass !== false && !(currentPolicy?.enabled && !currentPolicy.allowBypass);
 	}
 
 	// ---- user input handling ------------------------------------------------

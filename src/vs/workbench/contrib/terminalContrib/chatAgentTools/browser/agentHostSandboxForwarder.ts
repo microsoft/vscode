@@ -157,26 +157,7 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 		return this._desired;
 	}
 
-	/**
-	 * Compute the sandbox config to forward to the Agent Host.
-	 *
-	 *  - When the Agent Host's own terminal sandbox engine is enabled
-	 *    (`chat.agentHost.customTerminalTool.enabled === true`), forward the
-	 *    user's full `chat.agent.sandbox.*` policy verbatim. The engine reads
-	 *    those values directly.
-	 *
-	 *  - Otherwise (the SDK runs the shell tool), gate on
-	 *    `chat.agentHost.sdkSandbox.enabled` and
-	 *    `chat.agentHost.sdkSandbox.enabledWindows` independently:
-	 *      - both `'off'` (the default) — forward an empty object so any
-	 *        previously-pushed values are cleared and the SDK runs commands
-	 *        unsandboxed.
-	 *      - either `'on'` — forward the user's policy and
-	 *        set `enabled` and `enabled.windows` from their corresponding SDK
-	 *        settings. The SDK sandbox modes are independent of the
-	 *        engine sandbox mode, so the user can run the SDK sandboxed
-	 *        even when the engine sandbox is off.
-	 */
+	/** Retains sandbox restrictions even when the default is off, so sessions can enable sandboxing independently. */
 	private _computeDesired(): Record<string, unknown> {
 		const customTerminalToolEnabled = this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true;
 		const values = readAgentHostSandboxValues(this._configurationService, this._logService);
@@ -187,9 +168,6 @@ export class AgentHostSandboxForwarder extends Disposable implements IWorkbenchC
 		const windowsSdkSandbox = this._configurationService.getValue<AgentSandboxEnabledValue>(AgentHostSdkSandboxWindowsEnabledSettingId) ?? AgentSandboxEnabledValue.Off;
 		const sdkSandboxEnabled = sdkSandbox === AgentSandboxEnabledValue.On;
 		const windowsSdkSandboxEnabled = windowsSdkSandbox === AgentSandboxEnabledValue.On;
-		if (!sdkSandboxEnabled && !windowsSdkSandboxEnabled) {
-			return {};
-		}
 		values[AgentHostSandboxKey.Enabled] = sdkSandboxEnabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 		values[AgentHostSandboxKey.WindowsEnabled] = windowsSdkSandboxEnabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 		return values;

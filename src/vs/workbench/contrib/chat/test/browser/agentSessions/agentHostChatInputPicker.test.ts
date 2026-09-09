@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -32,6 +32,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
@@ -92,7 +93,11 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		const picker = store.add(new AgentHostChatInputPicker(
 			widget,
 			SessionConfigKey.AutoApprove,
-			new class extends mock<IAgentHostService>() { }(),
+			new class extends mock<IAgentHostService>() {
+				override dispatch(channel: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
+					writes.push({ channel, action });
+				}
+			}(),
 			actionWidgetService,
 			new class extends mock<IHoverService>() { }(),
 			new class extends mock<IOpenerService>() { }(),
@@ -100,9 +105,13 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			new class extends mock<IWorkspaceContextService>() { }(),
 			new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 				override readonly onDidChange = Event.None;
+				override getResolvedConfig() { return undefined; }
+				override async refreshResolvedConfig(): Promise<void> { }
 			}(),
 			configurationService,
-			new class extends mock<IAgentHostNewSessionFolderService>() { }(),
+			new class extends mock<IAgentHostNewSessionFolderService>() {
+				override getFolder() { return URI.file('/workspace'); }
+			}(),
 			new class extends mock<IDialogService>() { }(),
 			store.add(new TestStorageService()),
 			enablementService,
@@ -110,11 +119,25 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
 		}();
+		picker['_initialResolved'] = {
+			sessionResource: widget.viewModel.sessionResource,
+			result: {
+				values: { [SessionConfigKey.AutoApprove]: 'default' },
+				schema: {
+					type: 'object',
+					properties: {
+						[SessionConfigKey.AutoApprove]: { type: 'string', title: 'Permissions', enum: ['default', 'autoApprove'], default: 'default' },
+						[SessionConfigKey.SandboxEnabled]: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
+					},
+				},
+			},
+		};
 
 		for (const managed of [false, true]) {
 			managedSandboxEnforced.set(managed, undefined);
 			for (const bypass of [undefined, false, true]) {
 				allowBypass = bypass;
+				managedSettingsChanged.fire();
 				for (const configured of [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On]) {
 					await configurationService.setUserConfiguration(sandboxSettingId, configured);
 					const toggle = picker['_getSandboxStandaloneToggle']()!;
@@ -127,38 +150,38 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 						disabled,
 						title: managed
 							? disabled ? 'Sandboxing is required by your organization' : 'Sandboxing is enabled by your organization, but you may disable it'
-							: 'Run terminal commands inside a sandbox that restricts file system and network access',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.',
 						writes: disabled ? [] : [
-							{ key: sandboxSettingId, value: AgentSandboxEnabledValue.Off },
-							{ key: sandboxSettingId, value: AgentSandboxEnabledValue.On },
+							{ channel: 'copilotcli:/test-session', action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: toggle.checked ? 'off' : 'on' } } },
 						],
 					});
 				}
 			}
 		}
 
+		const sessionConfig = picker['_initialResolved'].result;
+		sessionConfig.values[SessionConfigKey.SandboxEnabled] = 'off';
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.checked, false);
+		sessionConfig.values[SessionConfigKey.SandboxEnabled] = 'on';
+		await configurationService.setUserConfiguration(sandboxSettingId, AgentSandboxEnabledValue.Off);
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.checked, true);
+		delete sessionConfig.values[SessionConfigKey.SandboxEnabled];
+
 		const toggle = picker['_getSandboxStandaloneToggle']()!;
 		allowBypass = false;
+		managedSettingsChanged.fire();
 		writes.length = 0;
 		toggle.onChange(false);
 		assert.deepStrictEqual({ writes, disabled: picker['_getSandboxStandaloneToggle']()!.disabled }, { writes: [], disabled: true });
 		allowBypass = true;
+		managedSettingsChanged.fire();
 		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, false);
 
-		picker['_initialResolved'] = {
-			sessionResource: widget.viewModel.sessionResource,
-			result: {
-				values: { [SessionConfigKey.AutoApprove]: 'default' },
-				schema: {
-					type: 'object',
-					properties: {
-						[SessionConfigKey.AutoApprove]: { type: 'string', title: 'Permissions', enum: ['default', 'autoApprove'], default: 'default' },
-					},
-				},
-			},
-		};
 		allowBypass = false;
+		managedSettingsChanged.fire();
 		await picker['_showPicker'](document.createElement('div'));
+		picker['_sandboxConfigChanged'].trigger(undefined);
+		picker['_sandboxConfigChanged'].trigger(undefined);
 		allowBypass = true;
 		managedSettingsChanged.fire();
 		managedSettingsChanged.fire();
@@ -172,12 +195,13 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
-			{ disabled: true, title: 'Sandboxing is required by your organization' },
 			{ disabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it' },
-			{ disabled: false, title: 'Run terminal commands inside a sandbox that restricts file system and network access' },
+			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.' },
 			{ disabled: false, title: 'Sandboxing is enabled by your organization, but you may disable it' },
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
+		delete sessionConfig.schema.properties[SessionConfigKey.SandboxEnabled];
+		assert.strictEqual(picker['_getSandboxStandaloneToggle'](), undefined);
 	});
 });
 
@@ -275,8 +299,8 @@ suite('AgentHostChatInputPicker - list options', () => {
 			customTerminalWindows: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true, true),
 			claude: getAgentHostSandboxSettingId(SessionType.AgentHostClaude, false, false),
 		}, {
-			sdk: AgentHostSdkSandboxEnabledSettingId,
-			sdkWindows: AgentHostSdkSandboxWindowsEnabledSettingId,
+			sdk: AgentSandboxSettingId.AgentSandboxEnabled,
+			sdkWindows: AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 			customTerminal: AgentSandboxSettingId.AgentSandboxEnabled,
 			customTerminalWindows: AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 			claude: undefined,
