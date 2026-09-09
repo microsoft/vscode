@@ -4,21 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
+import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
+import { isWorktreeUnderRepository } from '../../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot, resolveWorktreesRootHomeDirectory } from '../../../node/shared/worktreeIsolation.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
 
@@ -186,6 +188,80 @@ suite('WorktreeIsolation', () => {
 			namedNoPrefix: 'plain-branch',
 			namedWithBranchPrefix: 'add-config',
 		});
+	});
+
+	test('getWorktreesRoot nests under .git when the repository root is the home directory', () => {
+		const home = URI.file('/home/alice');
+
+		// Repository root *is* the home directory: a sibling directory would be
+		// `/home/alice.worktrees`, which requires write access to `/home` that a
+		// non-root user does not have on a standard FHS layout. Nest under `.git`
+		// instead - writable (git requires it), and never walked by `git ls-files`,
+		// so it cannot dirty `git status` or leak into the gitignored-file copy step.
+		assert.strictEqual(getWorktreesRoot(home, home).fsPath, URI.file('/home/alice/.git/vscode-worktrees').fsPath);
+
+		// Any other repository root keeps deriving a sibling, home directory or not.
+		assert.strictEqual(getWorktreesRoot(URI.file('/home/alice/src/vscode'), home).fsPath, URI.file('/home/alice/src/vscode.worktrees').fsPath);
+
+		// No home directory supplied (e.g. the browser trust gate): unchanged sibling behavior.
+		assert.strictEqual(getWorktreesRoot(home).fsPath, URI.file('/home/alice.worktrees').fsPath);
+	});
+
+	test('isWorktreeUnderRepository recognizes the .git-nested container without knowing the home directory', () => {
+		// The browser workspace-trust gate calls isWorktreeUnderRepository(candidate, repositoryRoot)
+		// with no home-directory argument (it has no such concept). A worktree actually created
+		// under the .git-nested container (because repositoryRoot was the home directory) must
+		// still pass this check, or workspace trust throws and worktree creation fails outright.
+		const home = URI.file('/home/alice');
+		const nestedWorktree = URI.joinPath(getWorktreesRoot(home, home), 'my-branch');
+		assert.strictEqual(isWorktreeUnderRepository(nestedWorktree, home), true);
+
+		// The container itself is still excluded, same as the sibling container always was.
+		assert.strictEqual(isWorktreeUnderRepository(getWorktreesRoot(home, home), home), false);
+
+		// Ordinary (non-home) repositories are unaffected.
+		const repo = URI.file('/src/vscode');
+		assert.strictEqual(isWorktreeUnderRepository(URI.joinPath(getWorktreesRoot(repo), 'my-branch'), repo), true);
+		assert.strictEqual(isWorktreeUnderRepository(URI.file('/etc/passwd'), repo), false);
+	});
+
+	test('resolveWorktreesRootHomeDirectory declines the .git-nested fallback when .git is a redirect file', () => {
+		// A submodule (or a checkout created by `git worktree add`) has a `.git`
+		// file, not directory, pointing elsewhere. getWorktreesRoot's home-directory
+		// case assumes `.git` is a real directory it can nest under, so this must
+		// return undefined rather than let the caller try to mkdir inside a file.
+		const normalRepo = URI.file(mkdtempSync(join(tmpdir(), 'wt-home-normal-')));
+		mkdirSync(URI.joinPath(normalRepo, '.git').fsPath);
+
+		const submoduleRepo = URI.file(mkdtempSync(join(tmpdir(), 'wt-home-submodule-')));
+		writeFileSync(URI.joinPath(submoduleRepo, '.git').fsPath, 'gitdir: /elsewhere/.git/modules/foo\n');
+
+		return Promise.all([
+			resolveWorktreesRootHomeDirectory(normalRepo, normalRepo).then(result =>
+				assert.strictEqual(result?.fsPath, normalRepo.fsPath)),
+			resolveWorktreesRootHomeDirectory(submoduleRepo, submoduleRepo).then(result =>
+				assert.strictEqual(result, undefined)),
+			// Not the home directory at all: short-circuits without needing `.git` to exist.
+			resolveWorktreesRootHomeDirectory(URI.file('/some/unrelated/repo'), normalRepo).then(result =>
+				assert.strictEqual(result, undefined)),
+		]).finally(() => {
+			rmSync(normalRepo.fsPath, { recursive: true, force: true });
+			rmSync(submoduleRepo.fsPath, { recursive: true, force: true });
+		});
+	});
+
+	test('getWorktreesRoot detects the home directory case-insensitively on Windows/macOS', () => {
+		// os.homedir() and the repository root URI can report the same directory
+		// with different casing. On case-insensitive filesystems (Windows/macOS)
+		// this must still be recognized as the home directory; on Linux, differing
+		// case is genuinely a different directory.
+		const home = URI.file('/home/alice');
+		const repoRootDifferentCase = URI.file('/home/Alice');
+
+		const expected = (isWindows || isMacintosh)
+			? URI.file('/home/Alice/.git/vscode-worktrees').fsPath
+			: URI.file('/home/Alice.worktrees').fsPath;
+		assert.strictEqual(getWorktreesRoot(repoRootDifferentCase, home).fsPath, expected);
 	});
 
 	test('resolveIsolationConfig advertises folder/worktree + branch based on git state', async () => {
