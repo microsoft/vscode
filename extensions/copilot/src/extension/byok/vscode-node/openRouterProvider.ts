@@ -39,7 +39,7 @@ interface OpenRouterModelData {
 		max_completion_tokens?: number;
 	};
 	reasoning?: {
-		supported_efforts: string[] | null;
+		supported_efforts?: string[] | null;
 		default_effort?: string;
 	};
 }

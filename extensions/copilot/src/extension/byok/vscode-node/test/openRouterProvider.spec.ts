@@ -108,7 +108,7 @@ describe('OpenRouterLMProvider context window (issue #324671)', () => {
 	});
 });
 
-describe('OpenRouterLMProvider reasoning effort (issue #332152)', () => {
+describe('OpenRouterLMProvider reasoning effort (issue #335272)', () => {
 	it('uses the model-declared supported_efforts instead of the hard-coded list', () => {
 		const provider = createProvider();
 
