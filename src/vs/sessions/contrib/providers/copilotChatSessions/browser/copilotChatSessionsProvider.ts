@@ -1585,7 +1585,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const useConsolidatedRemoteWorkspaces = this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
 		const repositoryActions: ISessionWorkspaceBrowseAction[] = useConsolidatedRemoteWorkspaces
 			? [
-				...(!isWeb && this.pathService.defaultUriScheme === Schemas.file ? [
+				...(!isWeb && this._supportsLocalRepositoryActions() ? [
 					{
 						label: localize('addGitHubRepository', "Add GitHub Repository..."),
 						group: SESSION_WORKSPACE_GROUP_GITHUB,
@@ -1633,6 +1633,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				run: workspace => this._browseForGitHubContext(OPEN_PULL_REQUEST_COMMAND, useConsolidatedRemoteWorkspaces ? Codicon.github : Codicon.gitPullRequest, workspace),
 			},
 		];
+	}
+
+	private _supportsLocalRepositoryActions(): boolean {
+		return this.pathService.defaultUriScheme === Schemas.file
+			|| this.pathService.defaultUriScheme === GITHUB_REMOTE_FILE_SCHEME
+			|| this.pathService.defaultUriScheme === SessionType.CopilotCloud;
 	}
 
 	// -- Sessions --

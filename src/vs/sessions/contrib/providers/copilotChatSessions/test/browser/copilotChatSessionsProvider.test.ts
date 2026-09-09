@@ -550,6 +550,35 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('keeps local repository acquisition available when a Cloud draft changes the default URI scheme', () => {
+		const pathService = new TestPathService(URI.file('/home/test'));
+		const provider = createProvider(disposables, model, {
+			consolidatedRemoteWorkspaces: true,
+			pathService,
+		});
+		const labels = () => provider.browseActions.map(action => action.label);
+
+		const local = labels();
+		pathService.defaultUriScheme = GITHUB_REMOTE_FILE_SCHEME;
+		const cloud = labels();
+
+		assert.deepStrictEqual({
+			local,
+			cloud,
+		}, {
+			local: [
+				...isWeb ? [] : ['Add GitHub Repository...', 'Clone Repository...'],
+				'Issue...',
+				'Pull Request...',
+			],
+			cloud: [
+				...isWeb ? [] : ['Add GitHub Repository...', 'Clone Repository...'],
+				'Issue...',
+				'Pull Request...',
+			],
+		});
+	});
+
 	test('preserves the legacy repository action when unified workspaces are disabled', () => {
 		const provider = createProvider(disposables, model);
 
