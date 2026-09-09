@@ -26,6 +26,7 @@ import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
+import { parseAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { canLog, ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
@@ -120,6 +121,18 @@ export namespace IChatRequestVariableData {
 
 /** A feature that submits a chat request on the user's behalf. */
 export type ChatRequestSource = 'agentMerge';
+
+/** Backfills the source of legacy Agent Merge requests when restoring history. */
+export function getRestoredChatRequestSource(request: Pick<IChatRequestModel, 'requestSource' | 'isSystemInitiated' | 'systemInitiatedLabel'>, messageText: string): ChatRequestSource | undefined {
+	// TODO: Remove this legacy Agent Merge compatibility helper after 2026-09-16.
+	if (request.requestSource !== undefined) {
+		return request.requestSource;
+	}
+	if (request.isSystemInitiated && request.systemInitiatedLabel === undefined && parseAgentMergePrompt(messageText)) {
+		return 'agentMerge';
+	}
+	return undefined;
+}
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -2963,7 +2976,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modelId: raw.modelId,
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
-			requestSource: raw.requestSource,
+			requestSource: getRestoredChatRequestSource(raw, parsedRequest.text),
 			isHiddenFromTranscript: raw.hiddenFromTranscript,
 			isRequestHiddenFromTranscript: raw.requestHiddenFromTranscript,
 			systemInitiatedLabel: raw.systemInitiatedLabel,

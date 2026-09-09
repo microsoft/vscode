@@ -132,6 +132,45 @@ suite('ChatModel', () => {
 		]);
 	});
 
+	test('backfills and persists legacy Agent Merge sources without reclassifying other requests', () => {
+		const prompt = '<agent_merge_state>\nAuthorized actions this run: fix failed required CI checks\n</agent_merge_state>';
+		const exportedData: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: [
+				{ message: prompt, isSystemInitiated: true },
+				{ message: { text: `Context\n${prompt}`, parts: [] }, isSystemInitiated: true },
+				{ message: prompt },
+				{ message: prompt, isSystemInitiated: false },
+				{ message: prompt, isSystemInitiated: true, systemInitiatedLabel: 'Terminal needs input' },
+				{ message: prompt, isSystemInitiated: true, systemInitiatedLabel: '' },
+				{ message: '<agent_merge_state>malformed', isSystemInitiated: true },
+				{ message: 'Modern request', isSystemInitiated: true, requestSource: 'agentMerge' as const },
+			].map((request, index) => ({
+				requestId: `request-${index}`,
+				variableData: { variables: [] },
+				response: [],
+				...request,
+			})),
+		};
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: exportedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const operationLog = new ChatSessionOperationLog();
+		const expected = ['agentMerge', 'agentMerge', undefined, undefined, undefined, undefined, undefined, 'agentMerge'];
+		assert.deepStrictEqual({
+			model: model.getRequests().map(request => request.requestSource),
+			json: model.toJSON().requests.map(request => request.requestSource),
+			operationLog: operationLog.read(operationLog.createInitial(model)).requests.map(request => request.requestSource),
+		}, {
+			model: expected,
+			json: expected,
+			operationLog: expected,
+		});
+	});
+
 	test('legacy requests without timestamps keep display time unknown', () => {
 		const creationDate = 1_752_012_321_000;
 		const serializableData: ISerializableChatData3 = {
