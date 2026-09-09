@@ -66,12 +66,12 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		super.render(container, options);
 	}
 
-	protected override _showPicker(): void {
-		if (!this._triggerElement) {
+	protected override _showPicker(anchor = this._triggerElement): void {
+		if (!anchor) {
 			return;
 		}
 		if (!isPhoneLayout(this.layoutService)) {
-			super._showPicker();
+			super._showPicker(anchor);
 			return;
 		}
 		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
@@ -114,6 +114,9 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		}
 
 		const trigger = this._triggerElement;
+		if (!trigger) {
+			return;
+		}
 		trigger.setAttribute('aria-expanded', 'true');
 		showMobilePickerSheet(
 			this.layoutService.mainContainer,

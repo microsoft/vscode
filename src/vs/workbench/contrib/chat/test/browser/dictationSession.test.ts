@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -118,6 +119,29 @@ suite('DictationSession', () => {
 		await stopDictation();
 
 		assert.deepStrictEqual([interimValue, editor.getValue()], ['', transcript]);
+	});
+
+	test('stops and inserts the final transcript after 20 minutes', async () => {
+		const transcript = 'hello world';
+		const { service } = createService(transcript, false);
+		const model = store.add(createTextModel(''));
+		const editor = store.add(createTestCodeEditor(model));
+		const clock = sinon.useFakeTimers();
+
+		try {
+			await startDictation(service, editor, mainWindow, new NullLogService());
+			await clock.tickAsync(20 * 60 * 1000);
+
+			assert.deepStrictEqual({
+				isDictating: isDictating(),
+				value: editor.getValue(),
+			}, {
+				isDictating: false,
+				value: transcript,
+			});
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('stops only when the submitted editor owns dictation', async () => {

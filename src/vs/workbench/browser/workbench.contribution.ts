@@ -15,7 +15,7 @@ import { NotificationsPosition, NotificationsSettings } from '../common/notifica
 import { ACCOUNTS_AVATAR_SETTING } from '../services/authentication/common/authentication.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
-import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -256,6 +256,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enum': ['default', 'compact'],
 				'default': 'default',
 				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'workbench.editor.tabHeight' }, "Controls the height of editor tabs. Also applies to the title control bar when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`')
+			},
+			[LayoutSettings.MODERN_UI_DENSITY]: {
+				'type': 'string',
+				'enum': [ModernUIDensity.Default, ModernUIDensity.Compact],
+				'enumDescriptions': [
+					localize('windowDensityLayout.default', "Uses the standard spacing between workbench parts."),
+					localize('windowDensityLayout.compact', "Removes the gaps between workbench parts and reduces their internal spacing to provide more room for content."),
+				],
+				'default': ModernUIDensity.Default,
+				'markdownDescription': localize({ key: 'windowDensityLayout', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls the spacing density of the workbench layout. Only applies when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',

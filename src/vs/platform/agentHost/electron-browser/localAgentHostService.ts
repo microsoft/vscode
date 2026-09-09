@@ -28,6 +28,7 @@ import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, NullAg
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
+import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import {
@@ -38,7 +39,7 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
-	IAgentCreateChatOptions,
+	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
@@ -63,8 +64,9 @@ import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTermi
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
-import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
@@ -143,6 +145,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = generateUuid();
+	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
@@ -214,9 +217,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				AgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 				() => this._createTransport(),
-				undefined,
-				this.clientId,
-				this._clientInfo,
+				{ clientId: this.clientId, clientInfo: this._clientInfo },
 			));
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
@@ -376,7 +377,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		this._requireClient().dispatch(channel, action);
 	}
 
@@ -419,6 +420,26 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().createSession(config);
 	}
 
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		return this._getManagementService().createDetachedWorktree(session, prompt);
+	}
+
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
+	}
+
+	claimDetachedWorktree(handle: string): Promise<void> {
+		return this._getManagementService().claimDetachedWorktree(handle);
+	}
+
+	deleteDetachedWorktree(handle: string): Promise<void> {
+		return this._getManagementService().deleteDetachedWorktree(handle);
+	}
+
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
+	}
+
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._requireClient().resolveSessionConfig(params);
 	}
@@ -431,6 +452,18 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().completions(params);
 	}
 
+	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
+		return this._requireClient().listAutomationTriggerDefinitions(params);
+	}
+
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		return this._requireClient().runAutomation(params);
+	}
+
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
+		return this._requireClient().fetchAutomationRuns(params);
+	}
+
 	getCompletionTriggerCharacters(): Promise<readonly string[]> {
 		return this._requireClient().getCompletionTriggerCharacters();
 	}
@@ -439,7 +472,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().disposeSession(session);
 	}
 
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		if (options && hasChatExtensions(options)) {
 			return this._getManagementService().createChatWithExtensions(session, chat, options);
 		}
@@ -518,12 +551,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().diagnosticsFetch(url);
 	}
 
-	getSessionStateFile(session: URI): Promise<URI | undefined> {
-		return this._getManagementService().getSessionStateFile(session);
+	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+		return this._getManagementService().getSessionStateFile(session, chat);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
-		return this._getManagementService().collectDebugLogs(session, kind);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+		return this._getManagementService().collectDebugLogs(session, kind, chat);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
@@ -554,7 +587,7 @@ function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
 	return config.model !== undefined || config.agent !== undefined || config.importConversation !== undefined;
 }
 
-function hasChatExtensions(options: IAgentCreateChatOptions): boolean {
+function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {
 	return options.title !== undefined || options.model !== undefined;
 }
 

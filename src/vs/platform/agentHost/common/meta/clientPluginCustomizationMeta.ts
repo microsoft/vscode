@@ -17,7 +17,6 @@ export function toClientPluginMcpDefaultCwdsMeta(defaultCwds: ClientPluginMcpDef
 }
 
 function readClientPluginMcpDefaultCwds(customization: ClientPluginCustomization): Record<string, unknown> | undefined {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned reader for the namespaced MCP default-cwd slot; validated below.
 	const value = customization._meta?.[mcpDefaultCwdsKey];
 	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }

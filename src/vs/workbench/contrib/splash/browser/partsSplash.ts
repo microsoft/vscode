@@ -9,7 +9,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { editorBackground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { getThemeTypeSelector, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { getThemeTypeSelector, IPartsSplashPartBounds, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../browser/parts/editor/editor.js';
 import * as themes from '../../../common/theme.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
@@ -70,6 +70,8 @@ export class PartsSplash {
 
 	private _savePartsSplash() {
 		const theme = this._themeService.getColorTheme();
+		const modernUIShellBackground = theme.getColor(themes.MODERN_UI_SHELL_BACKGROUND);
+		const modernUIInactiveShellBackground = theme.getColor(themes.MODERN_UI_INACTIVE_SHELL_BACKGROUND);
 
 		this._partSplashService.saveWindowSplash({
 			zoomLevel: this._configService.getValue<undefined>('window.zoomLevel'),
@@ -78,17 +80,28 @@ export class PartsSplash {
 				foreground: theme.getColor(foreground)?.toString(),
 				background: Color.Format.CSS.formatHex(theme.getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(theme)),
 				editorBackground: theme.getColor(editorBackground)?.toString(),
-				titleBarBackground: theme.getColor(themes.TITLE_BAR_ACTIVE_BACKGROUND)?.toString(),
+				titleBarBackground: theme.getColor(themes.TITLE_BAR_ACTIVE_BACKGROUND)?.makeOpaque(themes.WORKBENCH_BACKGROUND(theme)).toString(),
+				titleBarInactiveBackground: theme.getColor(themes.TITLE_BAR_INACTIVE_BACKGROUND)?.makeOpaque(themes.WORKBENCH_BACKGROUND(theme)).toString(),
 				titleBarBorder: theme.getColor(themes.TITLE_BAR_BORDER)?.toString(),
 				activityBarBackground: theme.getColor(themes.ACTIVITY_BAR_BACKGROUND)?.toString(),
 				activityBarBorder: theme.getColor(themes.ACTIVITY_BAR_BORDER)?.toString(),
+				modernActivityBarBackground: theme.getColor(themes.MODERN_ACTIVITY_BAR_BACKGROUND)?.toString(),
+				modernActivityBarInactiveBackground: theme.getColor(themes.MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND)?.toString(),
+				modernActivityBarBorder: theme.getColor(themes.MODERN_ACTIVITY_BAR_BORDER)?.toString(),
+				modernPanelBorder: theme.getColor(themes.MODERN_PANEL_BORDER)?.toString(),
+				modernUIShellBackground: modernUIShellBackground?.makeOpaque(themes.WORKBENCH_BACKGROUND(theme)).toString(),
+				modernUIInactiveShellBackground: modernUIInactiveShellBackground?.makeOpaque(themes.WORKBENCH_BACKGROUND(theme)).toString(),
 				sideBarBackground: theme.getColor(themes.SIDE_BAR_BACKGROUND)?.toString(),
 				sideBarBorder: theme.getColor(themes.SIDE_BAR_BORDER)?.toString(),
 				panelBackground: theme.getColor(themes.PANEL_BACKGROUND)?.toString(),
 				editorGroupBorder: theme.getColor(themes.EDITOR_GROUP_BORDER)?.toString(),
+				editorBorder: theme.getColor(themes.EDITOR_BORDER)?.toString(),
+				surfaceBackground: theme.getColor(themes.SURFACE_BACKGROUND)?.toString(),
+				surfaceBorder: theme.getColor(themes.SURFACE_BORDER)?.toString(),
 				agentsPanelBackground: theme.getColor('agentsPanel.background')?.toString(),
 				agentsPanelBorder: theme.getColor('agentsPanel.border')?.toString(),
 				statusBarBackground: theme.getColor(themes.STATUS_BAR_BACKGROUND)?.toString(),
+				statusBarInactiveBackground: theme.getColor(themes.STATUS_BAR_INACTIVE_BACKGROUND)?.toString(),
 				statusBarBorder: theme.getColor(themes.STATUS_BAR_BORDER)?.toString(),
 				statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND)?.toString(),
 				windowBorder: theme.getColor(themes.WINDOW_ACTIVE_BORDER)?.toString() ?? theme.getColor(themes.WINDOW_INACTIVE_BORDER)?.toString()
@@ -104,7 +117,9 @@ export class PartsSplash {
 				windowBorder: this._layoutService.hasMainWindowBorder(),
 				windowBorderRadius: this._layoutService.getMainWindowBorderRadius(),
 				modernUI: this._layoutService.isFloatingPanelsEnabled(),
+				modernUICompact: this._layoutService.isModernUICompact(),
 				partBounds: this._layoutService.isFloatingPanelsEnabled() ? {
+					activityBar: this._getPartBounds(Parts.ACTIVITYBAR_PART),
 					sideBar: this._getPartBounds(Parts.SIDEBAR_PART),
 					auxiliaryBar: this._getPartBounds(Parts.AUXILIARYBAR_PART),
 					panel: this._getPartBounds(Parts.PANEL_PART),
@@ -114,7 +129,7 @@ export class PartsSplash {
 		});
 	}
 
-	private _getPartBounds(part: Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | Parts.PANEL_PART | Parts.EDITOR_PART): { top: number; left: number; width: number; height: number } | undefined {
+	private _getPartBounds(part: Parts.ACTIVITYBAR_PART | Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | Parts.PANEL_PART | Parts.EDITOR_PART): IPartsSplashPartBounds | undefined {
 		if (part === Parts.EDITOR_PART) {
 			if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				return undefined;
@@ -123,12 +138,26 @@ export class PartsSplash {
 			return undefined;
 		}
 
-		const position = dom.getDomNodePagePosition(assertReturnsDefined(this._layoutService.getContainer(mainWindow, part)));
+		const container = assertReturnsDefined(this._layoutService.getContainer(mainWindow, part));
+		const position = dom.getDomNodePagePosition(container);
+		const classPrefix = part === Parts.EDITOR_PART ? 'floating-editor' : 'floating-part';
+		const activityBarOnLeft = this._layoutService.getSideBarPosition() === Position.LEFT;
 		return {
 			top: position.top,
 			left: position.left,
 			width: position.width,
-			height: position.height
+			height: position.height,
+			outerEdges: part === Parts.ACTIVITYBAR_PART ? {
+				left: activityBarOnLeft,
+				right: !activityBarOnLeft,
+				top: true,
+				bottom: true,
+			} : {
+				left: container.classList.contains(`${classPrefix}-outer-left`),
+				right: container.classList.contains(`${classPrefix}-outer-right`),
+				top: container.classList.contains(`${classPrefix}-outer-top`),
+				bottom: container.classList.contains(`${classPrefix}-outer-bottom`),
+			}
 		};
 	}
 

@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostDebugLogsCollector } from '../../node/agentHostDebugLogs.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES } from '../../common/agentService.js';
+import { buildChatUri } from '../../common/state/sessionState.js';
 
 suite('AgentHostDebugLogsCollector', () => {
 	const emptyProvider = { id: 'test', collectDebugLogs: async () => false };
@@ -37,12 +38,20 @@ suite('AgentHostDebugLogsCollector', () => {
 	});
 
 	teardown(async () => {
-		await rm(testRoot, { recursive: true, force: true });
+		// The collector's disposal cleans retained artifacts without awaiting
+		// (`dispose` is synchronous), and that teardown runs first. So this
+		// delete can race a still-running recursive delete of the same tree,
+		// which Windows reports as `EPERM` on `rmdir`. `maxRetries` is Node's
+		// built-in backoff for exactly those errors.
+		await rm(testRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 	});
 
 	test('creates a flat archive from provider and host logs', async () => {
 		const logsHome = join(testRoot, 'logs');
 		const outputRoot = join(testRoot, 'tmp');
+		const session = URI.parse('test:/session-1');
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		let collectedTarget: { session: string | undefined; chat: string | undefined } | undefined;
 		await mkdir(logsHome, { recursive: true });
 		await mkdir(outputRoot, { recursive: true });
 		await writeFile(join(logsHome, 'agenthost.log'), 'agent host');
@@ -53,21 +62,24 @@ suite('AgentHostDebugLogsCollector', () => {
 
 		const result = await collector.collect([{
 			id: 'test',
-			collectDebugLogs: async (_session, outputDirectory) => {
+			collectDebugLogs: async (session, outputDirectory, chat) => {
+				collectedTarget = { session: session?.toString(), chat: chat?.toString() };
 				await writeFile(join(outputDirectory.fsPath, 'events.jsonl'), 'event');
 				return true;
 			},
-		}], URI.parse('test:/session-1'), 'archive');
+		}], session, 'archive', chat);
 
 		assert.deepStrictEqual({
 			kind: result.kind,
 			providerLogsIncluded: result.providerLogsIncluded,
+			collectedTarget,
 			sizesArePositive: result.size > 0 && result.uncompressedSize > 0,
 			events: (await buffer(result.resource.fsPath, 'events.jsonl')).toString(),
 			agentHost: (await buffer(result.resource.fsPath, 'agenthost.log')).toString(),
 		}, {
 			kind: 'archive',
 			providerLogsIncluded: true,
+			collectedTarget: { session: session.toString(), chat: chat.toString() },
 			sizesArePositive: true,
 			events: 'event',
 			agentHost: 'agent host',

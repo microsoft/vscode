@@ -7,6 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -42,16 +43,21 @@ export class MobilePermissionPicker extends PermissionPicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 	) {
-		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService, hoverService);
+		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService, hoverService, agentHostEnablementService);
 	}
 
 	override showPicker(): void {
+		this._showPicker();
+	}
+
+	protected override _showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
 			return;
 		}
 		if (!isPhoneLayout(this._layoutService)) {
-			super.showPicker();
+			super._showPicker();
 			return;
 		}
 

@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId, resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
-import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
+import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
 
 function createConfigurationService(values: Record<string, IConfigurationValue<unknown>>): IConfigurationService {
 	return {
@@ -107,6 +107,38 @@ suite('AgentHostManagedSettings', () => {
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
 			deny: ['Domain(blocked.example)', 'Domain(ported.example)', 'Domain(*.wild.example)'],
+		});
+	});
+
+	test('canonicalizes IPv6 denied domains the same way as the network filter', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['[::1]', '::ffff:127.0.0.1', 'https://[2001:0db8:0:0:0:0:0:1]:8443/path'],
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain([::1])', 'Domain([::ffff:7f00:1])', 'Domain([2001:db8::1])'],
+		});
+	});
+
+	test('canonicalizes alternative IPv4 denied domains the same way as the network filter', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['127.1', '0300.0250.01.01', '0xa9fea9fe'],
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(127.0.0.1)', 'Domain(192.168.1.1)', 'Domain(169.254.169.254)'],
 		});
 	});
 
@@ -237,6 +269,98 @@ suite('AgentHostManagedSettings', () => {
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
 			ask: ['Shell(rm)'],
+		});
+	});
+
+	test('locks the bypass mode when a tool is marked ineligible for auto-approval', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: { fetch: false } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			disableBypassPermissionsMode: 'disable',
+		});
+	});
+
+	test('contributes nothing when every tool is left eligible for auto-approval', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			// Only `true` entries: the policy re-affirms the default and removes nothing.
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: { fetch: true, runTask: true } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('contributes nothing from the default empty per-tool auto-approval map', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: {} },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('does not promote user, application, or workspace per-tool auto-approval values', () => {
+		const userConfigurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, userValue: { fetch: false } },
+		});
+		const applicationConfigurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, applicationValue: { fetch: false } },
+		});
+		const workspaceConfigurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, workspaceValue: { fetch: false } },
+		});
+
+		assert.deepStrictEqual([
+			resolveManagedSettingsPermissions(userConfigurationService),
+			resolveManagedSettingsPermissions(applicationConfigurationService),
+			resolveManagedSettingsPermissions(workspaceConfigurationService),
+		], [{}, {}, {}]);
+	});
+
+	test('clears the bypass lock after the per-tool auto-approval policy is removed', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {} },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('ignores a malformed per-tool auto-approval value without throwing', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: ['fetch'] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('fails closed and locks the bypass mode for a non-boolean per-tool auto-approval entry', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: { fetch: 'no' } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			disableBypassPermissionsMode: 'disable',
+		});
+	});
+
+	test('does not duplicate the bypass lock across the global and per-tool auto-approval policies', () => {
+		const configurationService = createConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: { defaultValue: false, userValue: true },
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, policyValue: false },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: { fetch: false } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			disableBypassPermissionsMode: 'disable',
 		});
 	});
 });

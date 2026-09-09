@@ -34,6 +34,7 @@ import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcp
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { McpServerEditorInput } from '../../browser/mcpServerEditorInput.js';
 import { McpWorkbenchService } from '../../browser/mcpWorkbenchService.js';
 import { IMcpService } from '../../common/mcpTypes.js';
 
@@ -127,6 +128,7 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 	installFromGalleryResult: IWorkbenchLocalMcpServer | undefined;
 	installFromGalleryBarrier: DeferredPromise<void> | undefined;
 	private readonly installedResults: Promise<IWorkbenchLocalMcpServer[]>[] = [];
+	private installedError: Error | undefined;
 
 	constructor(store: Pick<DisposableStore, 'add'>) {
 		super();
@@ -139,6 +141,11 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 	}
 
 	override async getInstalled(): Promise<IWorkbenchLocalMcpServer[]> {
+		if (this.installedError) {
+			const error = this.installedError;
+			this.installedError = undefined;
+			throw error;
+		}
 		return this.installedResults.shift() ?? this.installed;
 	}
 
@@ -182,6 +189,18 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 	queueInstalledResult(result: Promise<IWorkbenchLocalMcpServer[]>): void {
 		this.installedResults.push(result);
 	}
+
+	failNextInstalledQuery(error: Error): void {
+		this.installedError = error;
+	}
+}
+
+class TestLogService extends NullLogService {
+	readonly errors: (string | Error)[] = [];
+
+	override error(message: string | Error, ..._args: unknown[]): void {
+		this.errors.push(message);
+	}
 }
 
 function createGallery(name: string, remoteUrls: readonly string[] = []): IGalleryMcpServer {
@@ -222,22 +241,34 @@ function notFound(): IMcpGalleryServerResolveResult {
 	return { status: McpGalleryResolveStatus.NotFound };
 }
 
-suite('McpWorkbenchService - registry-only enforcement', () => {
+suite('McpWorkbenchService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry) {
+	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error) {
 		const galleryService = new TestMcpGalleryService(store);
 		const manifestService = new TestMcpGalleryManifestService(store);
 		const managementService = new TestWorkbenchMcpManagementService(store);
 		managementService.installed = [...installed];
+		if (initialInstalledError) {
+			managementService.failNextInstalledQuery(initialInstalledError);
+		}
 		const configurationService = new TestConfigurationService({ [mcpAccessConfig]: accessValue });
 		const allowedMcpServersEmitter = store.add(new Emitter<void>());
+		const openedEditors: McpServerEditorInput[] = [];
+		const logService = store.add(new TestLogService());
 		const services = new ServiceCollection(
 			[IMcpGalleryManifestService, manifestService],
 			[IMcpGalleryService, galleryService],
 			[IWorkbenchMcpManagementService, managementService],
-			[IEditorService, upcastPartial<IEditorService>({})],
+			[IEditorService, upcastPartial<IEditorService>({
+				openEditor: async editor => {
+					if (editor instanceof McpServerEditorInput) {
+						openedEditors.push(store.add(editor));
+					}
+					return undefined;
+				}
+			})],
 			[IUserDataProfilesService, upcastPartial<IUserDataProfilesService>({ profiles: [] })],
 			[IUriIdentityService, upcastPartial<IUriIdentityService>({})],
 			[IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({})],
@@ -247,7 +278,7 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 			[IRemoteAgentService, upcastPartial<IRemoteAgentService>({})],
 			[IConfigurationService, configurationService],
 			[ITelemetryService, NullTelemetryService],
-			[ILogService, store.add(new NullLogService())],
+			[ILogService, logService],
 			[IExtensionsWorkbenchService, upcastPartial<IExtensionsWorkbenchService>({})],
 			[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: allowedMcpServersEmitter.event })],
 			[IMcpService, upcastPartial<IMcpService>({ servers: constObservable([]) })],
@@ -256,8 +287,8 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		);
 		const instantiationService = store.add(new TestInstantiationService(services));
 		const service = store.add(instantiationService.createInstance(McpWorkbenchService));
-		await Event.toPromise(service.onChange);
-		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter };
+		await service.whenInitialLocalMcpServersLoaded;
+		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter, openedEditors, logService };
 	}
 
 	async function complete(request: IResolveRequest, result: Map<string, IMcpGalleryServerResolveResult>): Promise<void> {
@@ -265,6 +296,73 @@ suite('McpWorkbenchService - registry-only enforcement', () => {
 		await timeout(0);
 		await timeout(0);
 	}
+
+	test('sanitizes local MCP server configurations from install URIs', async () => {
+		const { service, openedEditors } = await createFixture([]);
+		const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({
+			name: 'local-server',
+			type: 'invalid',
+			command: '/bin/sh',
+			args: ['-c', 'open -a Calculator'],
+			unknown: 'value',
+			url: 'https://example.com/mcp',
+		}))}`);
+
+		const handled = await service.handleURL(uri);
+
+		assert.deepStrictEqual({
+			handled,
+			config: openedEditors[0]?.mcpServer.config,
+		}, {
+			handled: true,
+			config: {
+				type: McpServerType.LOCAL,
+				command: '/bin/sh',
+				args: ['-c', 'open -a Calculator'],
+			},
+		});
+
+	});
+
+	test('settles initial local server readiness after a failed query', async () => {
+		const error = new Error('Failed to query installed MCP servers');
+		const { service, logService } = await createFixture([], McpAccessValue.Registry, error);
+
+		assert.deepStrictEqual({
+			local: service.local,
+			errors: logService.errors,
+		}, {
+			local: [],
+			errors: [error],
+		});
+	});
+
+	test('strips local and unknown properties from remote MCP server install URIs', async () => {
+		const { service, openedEditors } = await createFixture([]);
+		const uri = URI.parse(`vscode:mcp/install?${encodeURIComponent(JSON.stringify({
+			name: 'remote-server',
+			type: McpServerType.REMOTE,
+			url: 'https://example.com/mcp',
+			headers: { Authorization: 'Bearer token' },
+			command: '/bin/sh',
+			args: ['-c', 'open -a Calculator'],
+			unknown: 'value',
+		}))}`);
+
+		const handled = await service.handleURL(uri);
+
+		assert.deepStrictEqual({
+			handled,
+			config: openedEditors[0]?.mcpServer.config,
+		}, {
+			handled: true,
+			config: {
+				type: McpServerType.REMOTE,
+				url: 'https://example.com/mcp',
+				headers: { Authorization: 'Bearer token' },
+			},
+		});
+	});
 
 	test('enables only manually configured servers found in the registry', async () => {
 		const foundLocal = createLocal('found');

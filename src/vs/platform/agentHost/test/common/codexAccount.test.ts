@@ -24,6 +24,7 @@ suite('Codex account metadata', () => {
 			status: 'signedIn',
 			email: 'person@example.com',
 			planType: undefined,
+			profileImage: undefined,
 			requiresOpenaiAuth: undefined,
 			rateLimit: { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 },
 			authUrl: undefined,
@@ -40,6 +41,27 @@ suite('Codex account metadata', () => {
 		});
 		assert.strictEqual(account.status, 'signedIn');
 		assert.strictEqual(account.rateLimit, undefined);
+	});
+
+	test('reads only safe profile-image references', () => {
+		const nonce = 'a'.repeat(64);
+		const profileImage = {
+			uri: `vscode-codex-profile-image:/profile-${nonce}.png`,
+			contentType: 'image/png',
+			sizeHint: 5,
+			nonce,
+		};
+		const account = readCodexAccountInfo({
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', profileImage } },
+		});
+		assert.deepStrictEqual(account.profileImage, profileImage);
+
+		const unsafeAccount = readCodexAccountInfo({
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', profileImage: { ...profileImage, uri: 'https://example.test/profile.png' } } },
+		});
+		assert.strictEqual(unsafeAccount.profileImage, undefined);
 	});
 
 	test('reads the downloading account state', () => {

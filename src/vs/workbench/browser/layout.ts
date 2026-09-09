@@ -12,7 +12,7 @@ import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeExposed } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeExposed, ModernUIDensity } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
@@ -115,6 +115,7 @@ enum LayoutClasses {
 	// runtime by `ModernUIContribution`. It is *also* applied here at render
 	// time (see `getLayoutClasses`) to avoid a flash of unstyled workbench chrome.
 	MODERN_UI = 'modern-ui',
+	MODERN_UI_COMPACT = 'modern-ui-compact',
 	// Module-specific gate shared with the Agents workbench.
 	MODERN_UI_TABS = 'modern-ui-tabs'
 }
@@ -453,7 +454,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			// Modern UI Update (floating panels presentation)
-			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
 				this.updateFloatingPanels();
 			}
 
@@ -635,12 +636,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true;
 	}
 
+	isModernUICompact(): boolean {
+		return this.isFloatingPanelsEnabled() && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact;
+	}
+
 	private updateFloatingPanels(): void {
 		// Floating panels is a main-window concept: only the main container hosts
 		// the side bars and bottom panel. Scope the class (and therefore the CSS
 		// card margins) to the main container so auxiliary windows — whose parts do
 		// not apply the matching content insets in code — are left untouched.
 		this.mainContainer.classList.toggle(LayoutClasses.FLOATING_PANELS, this.isFloatingPanelsEnabled());
+		this.mainContainer.classList.toggle(LayoutClasses.MODERN_UI_COMPACT, this.isModernUICompact());
 		this.updateWindowBorder();
 	}
 
@@ -1932,6 +1938,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
 			// Also seed the modern-ui class here (see `LayoutClasses.MODERN_UI`).
 			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI : undefined,
+			this.isModernUICompact() ? LayoutClasses.MODERN_UI_COMPACT : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI_TABS : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`

@@ -16,6 +16,10 @@ function makeResponse(requestId: string): IChatResponseViewModel {
 	return upcastPartial<IChatResponseViewModel>({ requestId, setVote: () => undefined });
 }
 
+function nextAnimationFrame(node: Node): Promise<void> {
+	return new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(node), resolve));
+}
+
 function stubSelection(store: DisposableStore, anchorNode: Node, focusNode: Node, text: string, focusOffset?: number): void {
 	const doc = anchorNode.ownerDocument!;
 	const range = doc.createRange();
@@ -90,7 +94,7 @@ suite('resolveResponseSelection', () => {
 		assert.strictEqual(resolveResponseSelection(widget)?.text, '    indented text');
 	});
 
-	test('resolves a line selection that ends at the start of the element after the markdown', () => {
+	test('resolves a line selection that ends at the start of the element after the markdown', async () => {
 		// A triple-click selects the whole line and parks the selection's focus
 		// at offset 0 of the *next* block, which for the last line of a
 		// response lands outside the markdown part entirely.
@@ -108,6 +112,7 @@ suite('resolveResponseSelection', () => {
 
 		const response = makeResponse('turn-1');
 		stubSelection(store, textNode, footer, 'hello world\n', 0);
+		await nextAnimationFrame(widgetDomNode);
 		const widget = upcastPartial<IChatWidget>({
 			domNode: widgetDomNode,
 			getElementFromNode: () => response,
@@ -254,7 +259,7 @@ suite('resolveResponseSelection', () => {
 		assert.strictEqual(resolveResponseSelection(widget)?.text, 'hello world');
 	});
 
-	test('ignores unrendered text when finding the selection endpoints', () => {
+	test('ignores unrendered text when finding the selection endpoints', async () => {
 		// The transcript contains `<style>` elements and display:none metadata
 		// that a triple-click's range spans but the user cannot see or select.
 		// Treating them as endpoints puts the endpoint outside the response's
@@ -279,6 +284,7 @@ suite('resolveResponseSelection', () => {
 
 		const response = makeResponse('turn-1');
 		stubSelection(store, textNode, footer, 'hello world\n', 0);
+		await nextAnimationFrame(widgetDomNode);
 		const widget = upcastPartial<IChatWidget>({
 			domNode: widgetDomNode,
 			getElementFromNode: () => response,

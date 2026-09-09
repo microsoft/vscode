@@ -16,7 +16,9 @@
 
 import { IAgentHostByokLmHandler } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { registerWorkbenchContribution2, IWorkbenchContribution, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentHostAllowSignedOutWhenUsableContribution } from './agentHostAllowSignedOutWhenUsableContribution.js';
 import { AgentHostByokLmHandler } from './agentHostByokLmHandler.js';
 import { AgentHostContribution } from './agentHostChatContribution.js';
@@ -27,10 +29,24 @@ import { AgentHostSdkSetupNotificationContribution } from './agentHostSdkSetupNo
 import { AgentHostSignedOutModelsNotificationContribution } from './agentHostSignedOutModelsNotification.js';
 import { AgentHostTerminalContribution } from './agentHostTerminalContribution.js';
 import { CopilotConfigSlashSubmitHandlerContribution } from './copilotConfigSlashSubmitHandler.js';
+import { primeLegacyMigrationStartupSnapshot } from './agentHostLegacyMigration.js';
 import './agentHostSettings.contribution.js';
 import './agentSessionSettings.contribution.js';
 
+/**
+ * Freezes the legacy-migration setting at startup so enabling it only takes effect
+ * on the next window reload. Runs before any session can be opened (BlockStartup).
+ */
+class AgentHostLegacyMigrationGateContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.chat.agentHostLegacyMigrationGate';
+	constructor(@IConfigurationService configurationService: IConfigurationService) {
+		super();
+		primeLegacyMigrationStartupSnapshot(configurationService);
+	}
+}
+
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostLegacyMigrationGateContribution.ID, AgentHostLegacyMigrationGateContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(CopilotConfigSlashSubmitHandlerContribution.ID, CopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSessionListContribution.ID, AgentHostSessionListContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostOpenSessionLinkOpenerContribution.ID, AgentHostOpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
