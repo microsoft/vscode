@@ -657,7 +657,7 @@ suite('CopilotChatSessionsProvider', () => {
 					args: [
 						'https://github.com/microsoft/vscode.git',
 						undefined,
-						{ postCloneAction: 'none' },
+						{ postCloneAction: 'none', returnRepositoryPath: true },
 					],
 				},
 			],
@@ -701,7 +701,7 @@ suite('CopilotChatSessionsProvider', () => {
 			calls: [
 				{
 					commandId: 'git.clone',
-					args: [undefined, undefined, { postCloneAction: 'none' }],
+					args: [undefined, undefined, { postCloneAction: 'none', returnRepositoryPath: true }],
 				},
 			],
 			workspace: URI.file('/repos/vscode').toString(),

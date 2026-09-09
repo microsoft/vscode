@@ -2977,7 +2977,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				'git.clone',
 				url,
 				undefined,
-				{ postCloneAction: 'none' },
+				{ postCloneAction: 'none', returnRepositoryPath: true },
 			);
 			if (repositoryPath?.endsWith('.code-workspace')) {
 				this.notificationService.error(localize('cloneRepository.workspaceFile', "The selected clone is a workspace file. Choose Clone again to select a repository folder."));
