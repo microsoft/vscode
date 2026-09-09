@@ -180,13 +180,13 @@ For every provider, migration and discovery partition the same native catalog: m
 
 ### Server-tool creation provenance
 
-Treat a session as the user-visible unit of work. `create_session` requires a relationship: `currentSession` creates a peer chat for tasks in the current plan or deliverable, sharing its workspace, lifecycle, and aggregate diff; `independent` creates a top-level session for a separate deliverable that needs its own workspace, provider, or lifecycle. A title is required for both relationships and is applied before the initial prompt starts.
+Treat a session as the user-visible unit of work. `create_session` requires a relationship: `currentSession` creates a peer chat for tasks in the current plan or deliverable, sharing its workspace, lifecycle, and aggregate diff; `independent` creates a top-level session for a separate deliverable that needs its own workspace, provider, or lifecycle, or for an explicitly requested worktree. A title is required for both relationships and is applied before the initial prompt starts.
 
 Sessions created by the `create_session` server tool record only the creating session, chat, and turn as immutable, provider-neutral creation provenance in the initial session summary `_meta` bag, before the session is published or its first prompt starts. The reference supports related-session placement, source identification and session-list presentation; it does not define a hierarchy, grant communication privileges, or trigger lifecycle notifications.
 
 `list_sessions` exposes a session's configured project URI separately from its primary and additional working directories. `create_session` accepts those URIs directly and can resolve a unique project display name, preferring the configured project root over a transient worktree. Ambiguous names require an explicit project URI.
 
-An independent session inherits the creating session's host-owned isolation selection independently of provider-owned configuration. The target workspace still constrains the effective selection, so a folder that cannot support Git worktrees resolves to folder isolation.
+An independent session inherits the creating session's host-owned isolation selection independently of provider-owned configuration; otherwise it uses worktree isolation. The optional `worktree` argument overrides that selection. Agents must set it only when the user explicitly asks to create a worktree (`true`) or work without one (`false`); otherwise they must omit it. With `false`, an exact linked-worktree root reported by Git resolves to its primary checkout before session creation. Nested and ordinary additional workspace folders are preserved. The option is invalid with `currentSession`, whose chats share the existing workspace. The target workspace still constrains the effective selection, so a folder that cannot support Git worktrees resolves to folder isolation.
 
 ---
 

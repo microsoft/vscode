@@ -1169,6 +1169,7 @@ export class AgentService extends Disposable implements IAgentService {
 				&& readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta),
 			listSessions: () => this.listSessions(),
 			getSession: session => this._getSessionMetadata(session),
+			getWorktreeRoots: workspace => this._gitService.getWorktreeRoots(workspace),
 			createSession: config => this.createSession(config),
 			getModels: () => {
 				const models: IAgentModelInfo[] = [];
