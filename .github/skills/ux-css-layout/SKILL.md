@@ -69,6 +69,24 @@ Do not introduce `!important` in new or modified CSS. When a declaration loses t
 
 The narrow exception is shared focus/active-outline suppression, where `outline: 0 !important` is intentionally used to override native or global focus indicators and prevent flashing outlines during pointer activation. Keep this exception scoped to focus-indicator behavior; feature styling must still resolve cascade conflicts through selector specificity.
 
+### Composition Ownership
+
+Use **one relationship, one owner** when composing controls:
+
+1. A leaf owns its intrinsic content. An icon source does not add spacing for an unknown neighbor.
+2. A rendered icon owns its semantic size, fitting, and optical correction.
+3. A control owns relationships among its internal parts, including icon-to-label spacing and reserved space for conditional actions.
+4. A parent owns relationships between controls.
+
+Choose the CSS mechanism from the relationship:
+
+- Use `gap` when one container lays out a repeatable sequence and conditional children should not require selector changes.
+- Use padding for the inset between a control boundary and its contents.
+- Use a pair-specific margin when only one neighboring pair has a relationship and moving it to the parent would obscure that exception.
+- Do not split one relationship across child margin, pseudo-element padding, and parent padding. Trace the visible space to one owner before changing its value.
+
+For multi-part controls, keep fixed icon/action areas from shrinking and let the text area own truncation with `min-width: 0` plus the complete ellipsis pattern. Optical transforms belong inside the icon area and must not move the label or change the control footprint.
+
 ## 5. SplitView Layout
 
 **File**: `src/vs/base/browser/ui/splitview/splitview.ts`
@@ -255,9 +273,9 @@ VS Code ships a design-system **size** ramp, registered in `src/vs/platform/them
 
 ### Spacing — `padding`, `margin`, `gap`
 
-Scale (px): `0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40` → `--vscode-spacing-sizeNone`, `--vscode-spacing-size20` … `--vscode-spacing-size400` (token number = px × 10, so `size200` = 20px).
+Scale (px): `0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40` → `--vscode-spacing-sizeNone`, `--vscode-spacing-size10` … `--vscode-spacing-size400` (token number = px × 10, so `size200` = 20px).
 
-**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale**. What breaks rhythm is an **off-scale** value (3, 5, 7, 14, 26px…). Snap off-scale values to the nearest scale value, **ties round up** (`5px → 6px`, `3px → 4px`, `1px → 2px`, `26px → 28px`). Each length of a shorthand is checked independently (`0 5px → 0 6px`). Leave `auto`, `%`, `em`/`rem`, `var()`/`calc()` untouched.
+**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale**. What breaks rhythm is an **off-scale** value (5, 7, 14, 26px…). Snap off-scale values to the nearest scale value, **ties round up** (`5px → 6px`, `7px → 8px`, `26px → 28px`). Each length of a shorthand is checked independently (`0 5px → 0 6px`). Leave `auto`, `%`, `em`/`rem`, `var()`/`calc()` untouched.
 
 ### Corner radius — `border-radius`
 
@@ -300,9 +318,23 @@ The legacy Agents-specific `--vscode-agents-fontSize-*` and `--vscode-agents-fon
 - **"Strong" is not a separate size.** "Body 1 Strong" = the matching `--vscode-fontSize-*` size token + `semiBold`. Never add a strong *size*.
 - `normal` ≡ 400 → `regular`. Leave `inherit`, `lighter`, `bolder`, `var()`/`calc()` untouched.
 
-### Codicon size — icon `font-size`
+### Icon size
 
-Codicons are **only ever 16px or 12px** — never `14px` or any in-between value.
+Use the representation-neutral icon-size ramp for rendered geometry:
+
+| px | Variable | Use |
+|----|----------|-----|
+| 12 | `--vscode-iconSize-xSmall` | subordinate inline status and dense secondary chrome |
+| 16 | `--vscode-iconSize-small` | ordinary controls, tabs, and default Codicons |
+| 20 | `--vscode-iconSize-medium` | emphasized controls and selectors |
+| 24 | `--vscode-iconSize-large` | prominent navigation |
+| 32 | `--vscode-iconSize-xLarge` | welcome-state and orientation cues |
+
+Image and SVG sources should contain-fit inside the selected area without distorting their aspect ratio. Optical transforms stay inside that area and do not affect surrounding layout.
+
+### Codicon compatibility — icon `font-size`
+
+Codicons use only the xSmall and small roles — never `14px` or any in-between value.
 
 | px | Variable | Use |
 |----|----------|-----|

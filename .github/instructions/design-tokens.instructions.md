@@ -18,7 +18,9 @@ Use for `padding`, `margin`, `gap`, and fixed `width`/`height` of spacers. The n
 | px | Variable |
 |----|----------|
 | 0  | `--vscode-spacing-sizeNone` |
+| 1  | `--vscode-spacing-size10` |
 | 2  | `--vscode-spacing-size20` |
+| 3  | `--vscode-spacing-size30` |
 | 4  | `--vscode-spacing-size40` |
 | 6  | `--vscode-spacing-size60` |
 | 8  | `--vscode-spacing-size80` |
@@ -38,7 +40,7 @@ Use for `padding`, `margin`, `gap`, and fixed `width`/`height` of spacers. The n
 /* avoid   */          padding: 5px 7px;    /* off-scale - breaks rhythm */
 ```
 
-**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale** (0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40). What breaks visual rhythm is an **off-scale** value (3, 5, 7, 14, 26px…). Snap those to the nearest scale value (ties round **up**), e.g. `5px → 6px`, `3px → 4px`, `1px → 2px`, `26px → 28px`. Each length of a shorthand is checked independently (`0 5px → 0 6px`). `auto`, `%`, `em`/`rem`, and any `var()`/`calc()` expression are left untouched.
+**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale** (0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40). What breaks visual rhythm is an **off-scale** value (5, 7, 14, 26px…). Snap those to the nearest scale value (ties round **up**), e.g. `5px → 6px`, `7px → 8px`, `26px → 28px`. Each length of a shorthand is checked independently (`0 5px → 0 6px`). `auto`, `%`, `em`/`rem`, and any `var()`/`calc()` expression are left untouched.
 
 ## Corner radius — `border-radius`
 
@@ -107,14 +109,28 @@ The legacy `--vscode-agents-fontWeight-regular` and `--vscode-agents-fontWeight-
 /* prefer */           font-weight: var(--vscode-fontWeight-semiBold);
 ```
 
-## Codicon size — icon `font-size`
+## Icon size
 
-Codicons are **only ever 16px or 12px**. There is no in-between size — never use `14px` (or any other value) for a codicon. Pick the base or the compact token:
+Use the icon-size ramp for the rendered geometry of Codicons, product icons, file icons, SVGs, and raster images. Choose the role from the icon's density and prominence, not its source format.
 
 | px | Variable | Use |
 |----|----------|-----|
-| 16 | `--vscode-codiconFontSize` (base) | default icon size |
-| 12 | `--vscode-codiconFontSize-compact` | dense/inline chrome |
+| 12 | `--vscode-iconSize-xSmall` | subordinate inline status and dense secondary chrome |
+| 16 | `--vscode-iconSize-small` | ordinary controls, tabs, and default Codicons |
+| 20 | `--vscode-iconSize-medium` | emphasized controls and selectors |
+| 24 | `--vscode-iconSize-large` | prominent navigation |
+| 32 | `--vscode-iconSize-xLarge` | welcome-state and orientation cues |
+
+The icon-size token defines the rendered area. Use contain-style fitting for image and SVG sources so their aspect ratio is preserved. Apply any optical correction within that area; transforms must not change the spacing to adjacent content.
+
+## Codicon compatibility — icon `font-size`
+
+Codicons use only the xSmall and small icon roles. Keep the Codicon-specific font tokens because they also communicate font and glyph behavior:
+
+| px | Variable | Use |
+|----|----------|-----|
+| 16 | `--vscode-codiconFontSize` (small) | default Codicon size |
+| 12 | `--vscode-codiconFontSize-compact` (xSmall) | dense/inline Codicon |
 
 If a design or existing CSS sizes a codicon at 14px, treat it as a bug: snap it to 16 (default) or 12 (compact) and flag it.
 

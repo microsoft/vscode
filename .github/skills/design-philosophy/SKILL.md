@@ -140,6 +140,8 @@ How rounded - and how raised - a surface is *means something*: it tells you wher
 
 Equivalent elements must look equivalent, because they pull from the same named scale. When two similar things differ, that difference should *mean* something; accidental drift is the enemy. This is why every size, radius, weight, and color is a **named token with a role**, not a literal - the literal is only ever a stand-in for the token it lands on.
 
+**One relationship, one owner.** Each visual relationship should be expressed once at the lowest layer that has enough context to own it. An icon source owns its intrinsic content, the rendered icon owns its semantic size and fitting, a control owns relationships among its internal parts, and a parent composition owns relationships between controls. When two layers both contribute to the same spacing or alignment, equivalent controls drift as their contents change.
+
 *Carried out by:* every move below - they *are* the shared scales. See especially [design tokens](#design-tokens), [the spacing ramp](#spacing-ramp), [the type ramp](#type-ramp), [icon sizes](#icon-sizes), [one stroke](#one-stroke).
 
 > **Worked example - two mismatched dialogs**
@@ -208,8 +210,8 @@ Pills (radius ≈ half the height) are **fully round** (`--vscode-cornerRadius-c
 <a id="spacing-ramp"></a>
 ### The spacing ramp - on-scale or off-scale
 
-Padding, margin, and gap come from the **spacing ramp** (0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40).
-- **Decision rule:** a value either lands *on* the ramp or it doesn't. Off-scale values (3, 5, 7, 14, 26…) break the rhythm; snap to the nearest step, ties rounding up. Report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
+Padding, margin, and gap come from the **spacing ramp** (0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40).
+- **Decision rule:** a value either lands *on* the ramp or it doesn't. Off-scale values (5, 7, 14, 26…) break the rhythm; snap to the nearest step, ties rounding up. Report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
 - **Serves:** *Room to breathe* (2), *Sameness signals sameness* (6).
 
 <a id="type-ramp"></a>
@@ -220,10 +222,20 @@ Text styles are **roles**, not arbitrary sizes: `heading1–3`, `body1–2`, `la
 - **Serves:** *One thing leads* (4), *Sameness signals sameness* (6).
 
 <a id="icon-sizes"></a>
-### Icon sizes - two sizes, chosen by context
+### Icon sizes - semantic roles chosen by context
 
-Codicons are **16px (base)** or **12px (compact)** - nothing in between; `14px` is always a bug. At the compact size, also swap to the `*Compact` glyph (`Codicon.close` → `Codicon.closeCompact`) so the icon is *optically* tuned, not just scaled.
-- **Decision rule:** size tracks the **density and rank of the context**. Use **base (16px)** for standalone or primary actions and comfortable click targets; use **compact (12px)** for dense rows, inline glyphs, and secondary chrome where the icon rides alongside text. So the answer to "16 or 12?" is *"what is this icon's role here?"* - not a taste call. Say *"this icon should be compact,"* not *"shrink it a bit."*
+Icons use a representation-neutral size ramp:
+
+| Role | Size | Typical context |
+|------|------|-----------------|
+| **xSmall** | 12px | subordinate inline status and dense secondary chrome |
+| **small** | 16px | ordinary controls, tabs, and default Codicons |
+| **medium** | 20px | emphasized controls and selectors |
+| **large** | 24px | prominent navigation |
+| **xLarge** | 32px | welcome-state and orientation cues |
+
+- **Decision rule:** size tracks the **density and rank of the context**, independent of whether the source is a Codicon, product icon, file icon, SVG, or raster image. Optical correction happens inside the rendered icon geometry and must not move adjacent content.
+- **Codicon rule:** Codicons use xSmall (12px) or small (16px). At xSmall, use the corresponding `*Compact` glyph when one exists so the icon is tuned for that size rather than only scaled.
 - **Serves:** *One thing leads* (4), *Sameness signals sameness* (6).
 
 <a id="one-stroke"></a>
@@ -277,8 +289,9 @@ Lead with the **role / tier / ramp**, not the number - then name the principle s
 | "make this 14px" | "this should use the **`label1` / `body1` type role**" | 4 · One thing leads |
 | "the title looks thin" | "the heading is **missing the `semiBold` weight**" | 4 · One thing leads |
 | "font-weight 500 here" | "**500 is off the ramp** - snap to `semiBold` (600)" | 6 · Sameness |
-| "shrink this icon a touch" | "this icon should be the **compact (12px) size + `*Compact` glyph**" | 4 · One thing leads |
-| "this icon is 14px" | "codicons are **16 or 12 only** - pick base or compact" | 6 · Sameness |
+| "shrink this icon a touch" | "this icon should use the **xSmall semantic role**" | 4 · One thing leads |
+| "this icon is 14px" | "this icon is **off the role-based size ramp**; Codicons use xSmall or small" | 6 · Sameness |
+| "add margin to the icon and label" | "the **control owns the icon-label relationship**; express it once there" | 6 · Sameness |
 | "this ordinary border is too thick" | "standard borders are **one stroke (1px)** - this should/shouldn't have one; preserve thicker focus/semantic strokes" | 1 · Quiet at rest |
 | "change this grey hex" | "this is the **wrong theme token** / it **vanishes in light/HC**" | 6 · Sameness |
 | "the command center has a box around it" | "chrome should be **quiet at rest, reveal on hover**" | 1 · Quiet at rest |
