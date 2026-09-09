@@ -178,11 +178,11 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
 			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
 				.find((content): content is ToolResultFileEditContent =>
-				content.type === ToolResultContentType.FileEdit
-				&& !!content.before?.content.uri
-				&& !!content.after?.content.uri
-				&& !!parseSessionDbUri(content.before.content.uri)
-				&& !!parseSessionDbUri(content.after.content.uri)
+					content.type === ToolResultContentType.FileEdit
+					&& !!content.before?.content.uri
+					&& !!content.after?.content.uri
+					&& !!parseSessionDbUri(content.before.content.uri)
+					&& !!parseSessionDbUri(content.after.content.uri)
 				);
 			assert.ok(edit?.before?.content.uri);
 			assert.ok(edit.after?.content.uri);
