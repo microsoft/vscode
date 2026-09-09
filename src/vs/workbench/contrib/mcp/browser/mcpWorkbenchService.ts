@@ -1036,7 +1036,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		if (accessValue === McpAccessValue.Registry) {
-			if (!mcpServer.gallery) {
+			if (!mcpServer.gallery && mcpServer.local.source !== 'gallery') {
+				// Allow gallery-source servers through before async gallery sync completes
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {
@@ -1048,7 +1049,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 			// Registry membership is name-based for local configurations; remote URLs must match exactly.
 			const remoteUrl = mcpServer.local.config.type === McpServerType.REMOTE && mcpServer.local.config.url;
-			if (remoteUrl && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl)) {
+			if (remoteUrl && mcpServer.gallery && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl)) {
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {
