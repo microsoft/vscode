@@ -65,10 +65,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[AUTO_REMOVE_WORKTREES_AFTER_MERGE_SETTING]: {
 			type: 'boolean',
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
-			markdownDescription: localize('autoRemoveWorktreesAfterMerge.description', "Controls standalone worktree cleanup for inactive agent sessions after their pull request is merged. Enabling {0} or {1} overrides this setting because those lifecycles require eligible worktrees to be removed. A worktree is only removed when its branch tracks an upstream, has no unpushed commits, and has no uncommitted changes; the session remains available.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`', '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`'),
+			markdownDescription: localize('autoRemoveWorktreesAfterMerge.description', "Controls standalone worktree cleanup for inactive agent sessions after their pull request is merged. This is disabled by default. Enabling {0} or {1} overrides this setting because those lifecycles require eligible worktrees to be removed. A worktree is only removed when its branch tracks an upstream, has no unpushed commits, and has no uncommitted changes; the session remains available.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`', '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`'),
 			agentHost: { key: AgentHostAutoRemoveWorktreesAfterMergeConfigKey },
 		},
 	},

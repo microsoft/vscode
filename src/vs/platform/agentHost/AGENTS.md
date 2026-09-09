@@ -125,9 +125,9 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
   the session; their local eligibility is revalidated before a single
   authoritative pull-request refresh immediately preceding cleanup. Sessions
   whose worktree is already absent are filtered before database access or
-  pull-request refresh. The default-on worktree setting controls
-  standalone cleanup; configured archive or deletion lifecycles override that
-  toggle because they require eligible worktrees to be removed. Removal still
+  pull-request refresh. The default-off worktree setting opts into standalone
+  cleanup; configured archive or deletion lifecycles override that toggle
+  because they require eligible worktrees to be removed. Removal still
   requires Git to confirm that the branch tracks an upstream with no unpushed
   or uncommitted work. Archive and deletion thresholds accept any positive
   whole number of days; zero disables the corresponding lifecycle.

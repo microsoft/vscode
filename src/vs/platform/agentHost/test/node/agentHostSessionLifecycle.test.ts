@@ -56,7 +56,7 @@ suite('AgentHostSessionLifecycle', () => {
 			});
 		}
 		configurationService.updateRootConfig({
-			[AgentHostAutoRemoveWorktreesAfterMergeConfigKey]: options?.autoRemoveWorktreesAfterMerge ?? true,
+			[AgentHostAutoRemoveWorktreesAfterMergeConfigKey]: options?.autoRemoveWorktreesAfterMerge ?? false,
 		});
 
 		const session = URI.parse('ahp-copilot://auto-archive');
@@ -214,6 +214,7 @@ suite('AgentHostSessionLifecycle', () => {
 	test('cleans up an inactive merged session worktree without restoring when record cleanup is disabled', async () => {
 		const { lifecycle, session, restored, resolved, cleanedWorktrees } = createHarness({
 			enabled: false,
+			autoRemoveWorktreesAfterMerge: true,
 			status: mergedPullRequestStatus(),
 		});
 
@@ -230,10 +231,9 @@ suite('AgentHostSessionLifecycle', () => {
 		});
 	});
 
-	test('keeps the worktree when automatic removal and record cleanup are disabled', async () => {
+	test('keeps the worktree by default when record cleanup is disabled', async () => {
 		const { lifecycle, restored, resolved, cleanedWorktrees, listed } = createHarness({
 			enabled: false,
-			autoRemoveWorktreesAfterMerge: false,
 			status: mergedPullRequestStatus(),
 		});
 
@@ -574,7 +574,7 @@ suite('AgentHostSessionLifecycle', () => {
 			: { ...mergedPullRequestStatus(SECOND_PULL_REQUEST_URL, 2), state: 'open' as const };
 		const harnesses = [
 			createHarness({ pullRequestUrls, resolveStatus }),
-			createHarness({ enabled: false, pullRequestUrls, resolveStatus }),
+			createHarness({ enabled: false, autoRemoveWorktreesAfterMerge: true, pullRequestUrls, resolveStatus }),
 			createHarness({
 				sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
 				autoArchivedAt: NOW - 2 * DAY_MS,
@@ -601,7 +601,7 @@ suite('AgentHostSessionLifecycle', () => {
 	test('does not archive, delete, or clean the worktree without a related pull request', async () => {
 		const harnesses = [
 			createHarness({ pullRequestUrls: [] }),
-			createHarness({ enabled: false, pullRequestUrls: [] }),
+			createHarness({ enabled: false, autoRemoveWorktreesAfterMerge: true, pullRequestUrls: [] }),
 			createHarness({
 				sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
 				autoArchivedAt: NOW - 2 * DAY_MS,
@@ -682,6 +682,7 @@ suite('AgentHostSessionLifecycle', () => {
 			createHarness({ pullRequestUrls, resolveStatus: reopeningStatus() }),
 			createHarness({
 				enabled: false,
+				autoRemoveWorktreesAfterMerge: true,
 				pullRequestUrls,
 				resolveStatus: pullRequestUrl => pullRequestUrl === PULL_REQUEST_URL
 					? mergedPullRequestStatus()
@@ -745,7 +746,7 @@ suite('AgentHostSessionLifecycle', () => {
 
 	test('skips fully disabled, active, and external sessions before restoring', async () => {
 		const harnesses = [
-			createHarness({ enabled: false, autoRemoveWorktreesAfterMerge: false, status: mergedPullRequestStatus() }),
+			createHarness({ enabled: false, status: mergedPullRequestStatus() }),
 			createHarness({ sessionStatus: SessionStatus.InProgress, status: mergedPullRequestStatus() }),
 			createHarness({ external: true, status: mergedPullRequestStatus() }),
 		];

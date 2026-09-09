@@ -565,7 +565,7 @@ export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'auto
 export const AgentHostAutoRemoveWorktreesAfterMergeConfigKey = 'autoRemoveWorktreesAfterMerge';
 
 export function isAgentHostWorktreeCleanupEnabled(autoRemoveWorktreesAfterMerge: unknown, archiveAfterDays: unknown, deleteAfterDays: unknown): boolean {
-	return autoRemoveWorktreesAfterMerge !== false
+	return autoRemoveWorktreesAfterMerge === true
 		|| isAgentHostSessionLifecycleThresholdEnabled(archiveAfterDays)
 		|| isAgentHostSessionLifecycleThresholdEnabled(deleteAfterDays);
 }
@@ -912,7 +912,7 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.autoRemoveWorktreesAfterMerge.title', "Auto-Remove Worktrees After Merge"),
 		description: localize('agentHost.config.autoRemoveWorktreesAfterMerge.description', "Whether worktrees for inactive sessions are automatically removed after their pull request is merged. Worktrees are only removed when the branch tracks an upstream, has no unpushed commits, and has no uncommitted changes."),
-		default: true,
+		default: false,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
