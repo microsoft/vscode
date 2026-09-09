@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -162,6 +162,68 @@ suite('ScopedModePickerModelCache', () => {
 			selectedAfterSwitchingProvider: 'agent',
 			availableAfterSwitchingProvider: ['agent'],
 			disposed: ['first', 'second'],
+		});
+	});
+
+	test('recovers the selected label after close and reopen hydration', () => {
+		const entry = createSession('reviewer');
+		let customModes: readonly CustomChatMode[] = [entry.customAgent];
+		const modesChanged = store.add(new Emitter<void>());
+		const modes: IChatModes & IDisposable = {
+			onDidChange: modesChanged.event,
+			builtin: [ChatMode.Agent],
+			get custom() {
+				return customModes;
+			},
+			findModeById: id => customModes.find(mode => mode.id === id) ?? (id === ChatMode.Agent.id ? ChatMode.Agent : undefined),
+			findModeByName: name => customModes.find(mode => mode.name.get() === name),
+			waitForPendingUpdates: async () => { },
+			dispose: () => { },
+		};
+		const model = store.add(new ModePickerModel(
+			new class extends mock<IChatSessionsService>() {
+				override getCustomAgentTargetForSessionType(): Target {
+					return Target.Undefined;
+				}
+			}(),
+			new class extends mock<IChatModeService>() {
+				override createModes(): IChatModes & IDisposable {
+					return modes;
+				}
+			}(),
+		));
+		const observedSelections: string[] = [];
+		store.add(model.onDidChange(() => observedSelections.push(model.selectedMode.id)));
+
+		model.setSession(entry.session, entry.customAgent.id);
+		const initial = { selected: model.selectedMode.id, persistedId: model.selectedModeId };
+		customModes = [];
+		modesChanged.fire();
+		const catalogGap = { selected: model.selectedMode.id, persistedId: model.selectedModeId };
+		model.setSession(undefined, undefined);
+		model.setSession(entry.session, entry.customAgent.id);
+		const reopened = { selected: model.selectedMode.id, persistedId: model.selectedModeId };
+		customModes = [entry.customAgent];
+		modesChanged.fire();
+
+		assert.deepStrictEqual({
+			initial,
+			catalogGap,
+			reopened,
+			restored: { selected: model.selectedMode.id, persistedId: model.selectedModeId },
+			observedSelections,
+		}, {
+			initial: { selected: entry.customAgent.id, persistedId: entry.customAgent.id },
+			catalogGap: { selected: ChatMode.Agent.id, persistedId: entry.customAgent.id },
+			reopened: { selected: ChatMode.Agent.id, persistedId: entry.customAgent.id },
+			restored: { selected: entry.customAgent.id, persistedId: entry.customAgent.id },
+			observedSelections: [
+				entry.customAgent.id,
+				ChatMode.Agent.id,
+				ChatMode.Agent.id,
+				ChatMode.Agent.id,
+				entry.customAgent.id,
+			],
 		});
 	});
 });
