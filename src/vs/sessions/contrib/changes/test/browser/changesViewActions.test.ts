@@ -19,7 +19,6 @@ import { SessionsDiffViewModeContext } from '../../../editor/common/diffEditorOp
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -121,13 +120,13 @@ suite('Changes View Actions', () => {
 		context.setValue(SinglePaneLayoutEnabledContext.key, true);
 		context.setValue(ActiveEditorContext.key, SessionChangesEditor.ID);
 		context.setValue(ActiveSessionContextKeys.HasGitRepository.key, false);
-		context.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
-		const visibleForChangesWithoutGit = picker.when.evaluate(context);
-		context.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
+		context.setValue(ActiveSessionContextKeys.HasSelectableChangesets.key, true);
+		const visibleForSelectableChangesetsWithoutGit = picker.when.evaluate(context);
+		context.setValue(ActiveSessionContextKeys.HasSelectableChangesets.key, false);
 		context.setValue(ActiveSessionContextKeys.HasGitRepository.key, true);
 		const visibleForGitWithoutChanges = picker.when.evaluate(context);
 		context.setValue(ActiveSessionContextKeys.HasGitRepository.key, false);
-		const hiddenWithoutGitOrChanges = !picker.when.evaluate(context);
+		const hiddenWithoutGitOrSelectableChangesets = !picker.when.evaluate(context);
 		const classicHeaderHasDiffStatsAction = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionChangesFileHeaderRightToolbar)
 			.filter(isIMenuItem)
 			.some(item => item.command.id === 'workbench.changesView.action.viewChanges');
@@ -141,9 +140,9 @@ suite('Changes View Actions', () => {
 					hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 				};
 			}),
-			visibleForChangesWithoutGit,
+			visibleForSelectableChangesetsWithoutGit,
 			visibleForGitWithoutChanges,
-			hiddenWithoutGitOrChanges,
+			hiddenWithoutGitOrSelectableChangesets,
 			classicHeaderHasDiffStatsAction,
 		}, {
 			singlePaneHeader: [{
@@ -151,9 +150,9 @@ suite('Changes View Actions', () => {
 				hasActiveEditorGate: true,
 				hasSinglePaneConfigGate: true,
 			}],
-			visibleForChangesWithoutGit: true,
+			visibleForSelectableChangesetsWithoutGit: true,
 			visibleForGitWithoutChanges: true,
-			hiddenWithoutGitOrChanges: true,
+			hiddenWithoutGitOrSelectableChangesets: true,
 			classicHeaderHasDiffStatsAction: true,
 		});
 	});

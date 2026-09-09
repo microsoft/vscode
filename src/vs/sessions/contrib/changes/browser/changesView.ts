@@ -2009,7 +2009,7 @@ class VersionsPickerAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorHeader,
-					ContextKeyExpr.or(ActiveSessionContextKeys.HasGitRepository, ChatContextKeys.hasAgentSessionChanges)
+					ContextKeyExpr.or(ActiveSessionContextKeys.HasGitRepository, ActiveSessionContextKeys.HasSelectableChangesets)
 				),
 			}],
 		});
