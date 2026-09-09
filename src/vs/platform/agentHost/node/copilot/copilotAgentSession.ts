@@ -2258,7 +2258,7 @@ export class CopilotAgentSession extends Disposable {
 			this._reconcileMcpServerEnablement().catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
 		}));
 		this._subscribeToEvents();
-		this._subscribeForLogging();
+		this._subscribeToSdkEvents();
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
@@ -6448,7 +6448,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
-	private _subscribeForLogging(): void {
+	private _subscribeToSdkEvents(): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
