@@ -250,6 +250,26 @@
 	box-sizing: border-box;
 }
 
+/* Let the scrollbar reach the pane edge while keeping list content aligned to the pane inset. */
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget {
+	width: calc(100% + var(--vscode-spacing-size400) + var(--vscode-spacing-size400));
+	margin-inline: calc(-1 * var(--vscode-spacing-size400));
+}
+
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .section-title-header,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .list-search-and-button-container,
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget .plugin-card-scroll {
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
+}
+
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable {
+	max-width: none;
+}
+
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget .plugin-card-scroll {
+	margin-inline: auto;
+}
+
 .plugin-list-widget > .section-title-header,
 .plugin-list-widget > .plugin-marketplace-back-container,
 .plugin-list-widget > .list-search-and-button-container,
