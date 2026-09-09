@@ -84,10 +84,16 @@ suite('SessionsDiffEditorCommandsService', () => {
 		return pane;
 	}
 
-	function createCodeEditor(controlUpdates: Array<{ wordWrapOverride2?: 'off' | 'on' | 'inherit' }>): IVisibleEditorPane {
+	function createCodeEditor(controlUpdates: Array<{
+		wordWrapOverride1?: 'off' | 'on' | 'inherit';
+		wordWrapOverride2?: 'off' | 'on' | 'inherit';
+	}>): IVisibleEditorPane {
 		const control = new class extends mock<ICodeEditor>() {
 			override getEditorType() { return EditorType.ICodeEditor; }
-			override updateOptions(options: { wordWrapOverride2?: 'off' | 'on' | 'inherit' }): void {
+			override updateOptions(options: {
+				wordWrapOverride1?: 'off' | 'on' | 'inherit';
+				wordWrapOverride2?: 'off' | 'on' | 'inherit';
+			}): void {
 				controlUpdates.push(options);
 			}
 		};
@@ -205,10 +211,13 @@ suite('SessionsDiffEditorCommandsService', () => {
 		});
 	});
 
-	test('applies the experiment word wrap preference to code, text diff, and multi-diff editors', () => {
+	test('applies the experiment word wrap preference without replacing transient code editor word wrap', () => {
 		const textControlUpdates: IDiffEditorOptions[] = [];
 		const textEditor = createTextDiffEditor(URI.file('/workspace/active.ts'), true, textControlUpdates);
-		const codeControlUpdates: Array<{ wordWrapOverride2?: 'off' | 'on' | 'inherit' }> = [];
+		const codeControlUpdates: Array<{
+			wordWrapOverride1?: 'off' | 'on' | 'inherit';
+			wordWrapOverride2?: 'off' | 'on' | 'inherit';
+		}> = [];
 		const codeEditor = createCodeEditor(codeControlUpdates);
 		const multiDiffLayoutOptions: Array<{ viewMode: DiffEditorViewMode; wordWrap: SessionsEditorWordWrap }> = [];
 		const multiDiffEditor = Object.create(MultiDiffEditor.prototype) as MultiDiffEditor;
@@ -244,9 +253,9 @@ suite('SessionsDiffEditorCommandsService', () => {
 				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true, diffWordWrap: 'off' },
 			],
 			codeControlUpdates: [
-				{ wordWrapOverride2: 'inherit' },
-				{ wordWrapOverride2: 'on' },
-				{ wordWrapOverride2: 'off' },
+				{ wordWrapOverride1: 'inherit' },
+				{ wordWrapOverride1: 'on' },
+				{ wordWrapOverride1: 'off' },
 			],
 			multiDiffLayoutOptions: [
 				{ viewMode: 'automatic', wordWrap: 'inherit' },
