@@ -98,6 +98,7 @@ export interface ICloseChatOptions {
 export interface IOpenSessionOptions {
 	readonly preserveFocus?: boolean;
 	readonly source?: SessionOpenSource;
+	readonly restoreOnlySideOrToolChat?: boolean;
 }
 
 /**
@@ -110,6 +111,8 @@ interface ISessionState {
 	sessionResource: string;
 	/** The resource URI of the last active chat within the session. */
 	activeChatResource?: string;
+	/** The origin of the last active chat within the session. */
+	activeChatOrigin?: ChatOriginKind;
 	/**
 	 * Resource URIs of chats that were closed (hidden from the tab strip) at save
 	 * time. Restored so closed chats stay hidden across reloads; reopen them from
@@ -621,6 +624,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					...existing,
 					sessionResource: activeSession.resource.toString(),
 					activeChatResource: chat.resource.toString(),
+					activeChatOrigin: chat.origin?.kind,
 				});
 			}
 		}));
@@ -868,6 +872,24 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
+	private _applyActiveChatSelection(session: ISession, restoreOnlySideOrToolChat: boolean | undefined): void {
+		if (!restoreOnlySideOrToolChat) {
+			return;
+		}
+		const state = this._sessionStates.get(session.resource);
+		if (state?.activeChatOrigin === ChatOriginKind.SideChat || state?.activeChatOrigin === ChatOriginKind.Tool) {
+			return;
+		}
+		const mainChat = session.mainChat.get();
+		this._visibility.setActiveChat(session, mainChat);
+		this._sessionStates.set(session.resource, {
+			...state,
+			sessionResource: session.resource.toString(),
+			activeChatResource: mainChat.resource.toString(),
+			activeChatOrigin: mainChat.origin?.kind,
+		});
+	}
+
 	openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
 		return this._openSession(sessionResource, options, 'explicit');
 	}
@@ -894,6 +916,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return;
 			}
+			this._applyActiveChatSelection(sessionData, options?.restoreOnlySideOrToolChat);
 			this.sessionOpenTelemetryService.sessionResolved(
 				telemetryAttempt,
 				sessionData.resource,
@@ -977,7 +1000,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (options?.chatResource) {
 			await this.openChat(session, options.chatResource, { preserveFocus: options.preserveFocus, source: options.source });
 		} else {
-			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source });
+			await this.openSession(session.resource, { preserveFocus: options?.preserveFocus, source: options?.source, restoreOnlySideOrToolChat: options?.restoreOnlySideOrToolChat });
 		}
 	}
 
@@ -1366,6 +1389,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			entries.push({
 				sessionResource: state.sessionResource,
 				activeChatResource: state.activeChatResource,
+				activeChatOrigin: state.activeChatOrigin,
 				closedChatResources: state.closedChatResources,
 				openedChatResources: state.openedChatResources,
 			});
@@ -1396,6 +1420,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const state: ISessionState = {
 				sessionResource: session.resource.toString(),
 				activeChatResource: this._pendingRestoredChatResources.get(session.resource)?.toString() ?? session.activeChat.get()?.resource.toString() ?? existing?.activeChatResource,
+				activeChatOrigin: session.activeChat.get()?.origin?.kind ?? existing?.activeChatOrigin,
 				closedChatResources: existing?.closedChatResources ?? session.closedChats.get().map(c => c.resource.toString()),
 				openedChatResources: existing?.openedChatResources,
 				visibleOrder: index,

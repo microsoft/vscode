@@ -3701,6 +3701,51 @@ suite('SessionsManagementService', () => {
 		const closedTitles = (view: SessionsService) =>
 			(view.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get());
 
+		test('the active side chat is restored after switching sessions', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('sideA', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sessionA.chats.get()[1].resource);
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource, { restoreOnlySideOrToolChat: true });
+
+			assert.strictEqual(view.activeSession.get()?.activeChat.get().title.get(), 'sideA');
+		});
+
+		test('the active subagent chat is restored after switching sessions', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('subagentA', SessionStatus.Completed, ChatOriginKind.Tool)]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sessionA.chats.get()[1].resource);
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource, { restoreOnlySideOrToolChat: true });
+
+			assert.deepStrictEqual({
+				activeChat: view.activeSession.get()?.activeChat.get().title.get(),
+				visibleTabs: view.activeSession.get()?.visibleChatTabs.get().map(chat => chat.title.get()),
+			}, {
+				activeChat: 'subagentA',
+				visibleTabs: ['mainA', 'subagentA'],
+			});
+		});
+
+		test('a session-list open selects the main chat instead of a regular peer chat', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('peerA')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sessionA.chats.get()[1].resource);
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource, { restoreOnlySideOrToolChat: true });
+
+			assert.strictEqual(view.activeSession.get()?.activeChat.get().title.get(), 'mainA');
+		});
+
 		test('a chat closed in one session stays closed after switching away and back', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);
