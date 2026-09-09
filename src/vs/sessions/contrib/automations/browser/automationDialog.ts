@@ -142,11 +142,14 @@ export function registerAutomationDialogKeyboardNavigation(
 
 	store.add(DOM.addDisposableListener(targetWindow, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
 		const target = event.target;
-		if (target instanceof targetWindow.HTMLElement && isPopupTarget(target)) {
-			suppressPopupEscapeKeyUp = event.key === 'Escape';
+		const isPopup = target instanceof targetWindow.HTMLElement && isPopupTarget(target);
+		// Keep ownership of the Escape press when the popup closes and key repeat targets the form.
+		if (event.key === 'Escape' && !event.repeat) {
+			suppressPopupEscapeKeyUp = isPopup;
+		}
+		if (isPopup) {
 			return;
 		}
-		suppressPopupEscapeKeyUp = false;
 		if (event.key !== 'Tab') {
 			return;
 		}
@@ -177,12 +180,12 @@ export function registerAutomationDialogKeyboardNavigation(
 	}, true));
 
 	store.add(DOM.addDisposableListener(targetWindow, DOM.EventType.KEY_UP, (event: KeyboardEvent) => {
-		if (event.key === 'Escape' && suppressPopupEscapeKeyUp) {
+		if (event.key === 'Escape') {
+			if (suppressPopupEscapeKeyUp) {
+				event.stopImmediatePropagation();
+			}
 			suppressPopupEscapeKeyUp = false;
-			event.stopImmediatePropagation();
-			return;
 		}
-		suppressPopupEscapeKeyUp = false;
 	}, true));
 
 	return {
