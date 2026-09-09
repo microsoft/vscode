@@ -198,7 +198,7 @@
 	bottom: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected) > .tab-actions {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected) > .tab-actions {
 	--modern-ui-editor-tab-action-active-background: var(--vscode-editor-background);
 	--modern-ui-editor-tab-action-unfocused-active-background: var(--vscode-editor-background);
 	--modern-ui-editor-tab-action-active-hover-background: var(--vscode-editor-background);
@@ -206,6 +206,14 @@
 	border-radius: 0 var(--modern-ui-connected-tab-radius) 0 0;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected).tab-actions-left > .tab-actions {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.multi-selected).tab-actions-left > .tab-actions {
 	border-radius: var(--modern-ui-connected-tab-radius) 0 0 0;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.tab-actions-left) > .tab-actions .actions-container {
+	justify-content: flex-end;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.tab-actions-left > .tab-actions .actions-container {
+	justify-content: flex-start;
 }

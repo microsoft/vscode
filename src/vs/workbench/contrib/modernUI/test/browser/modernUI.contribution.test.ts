@@ -16,6 +16,7 @@ import { Color } from '../../../../../base/common/color.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { combinedDisposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -41,6 +42,7 @@ import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
 import '../../../../browser/parts/titlebar/media/menubarControl.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
+import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
 
@@ -73,6 +75,21 @@ class ModernUITestLayoutService extends TestLayoutService {
 	addContainer(container: HTMLDivElement, disposables: DisposableStore): void {
 		this.containers.push(container);
 		this.onDidAddContainerEmitter.fire({ container, disposables });
+	}
+}
+
+class ModernUITestAuxiliaryWindowService extends mock<IAuxiliaryWindowService>() {
+
+	readonly auxiliaryWindow = new class extends mock<IAuxiliaryWindow>() {
+		layoutCount = 0;
+
+		override layout(): void {
+			this.layoutCount++;
+		}
+	};
+
+	override getWindow(): IAuxiliaryWindow {
+		return this.auxiliaryWindow;
 	}
 }
 
@@ -220,7 +237,8 @@ suite('ModernUIContribution', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
-		store.add(new ModernUIContribution(configurationService, layoutService));
+		const auxiliaryWindowService = new ModernUITestAuxiliaryWindowService();
+		store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService));
 		const pane = store.add(new ModernUITestPane());
 		const paneView = document.createElement('div');
 		paneView.classList.add('monaco-pane-view');
@@ -248,6 +266,7 @@ suite('ModernUIContribution', () => {
 			paneHeaderLineHeight: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
 			paneHeaderInlineLineHeight: pane.draggableElement!.style.lineHeight,
 			layoutCount: layoutService.layoutCount,
+			auxiliaryLayoutCount: auxiliaryWindowService.auxiliaryWindow.layoutCount,
 		};
 
 		await configurationService.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Default);
@@ -263,6 +282,7 @@ suite('ModernUIContribution', () => {
 			paneHeaderSize: pane.minimumSize,
 			paneHeaderLineHeight: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
 			layoutCount: layoutService.layoutCount,
+			auxiliaryLayoutCount: auxiliaryWindowService.auxiliaryWindow.layoutCount,
 		};
 
 		await configurationService.setUserConfiguration(LayoutSettings.MODERN_UI, false);
@@ -290,6 +310,7 @@ suite('ModernUIContribution', () => {
 			paneHeaderLineHeightAfterToggle: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
 			paneHeaderInlineLineHeightAfterToggle: pane.draggableElement!.style.lineHeight,
 			layoutCountAfterToggle: layoutService.layoutCount,
+			auxiliaryLayoutCountAfterToggle: auxiliaryWindowService.auxiliaryWindow.layoutCount,
 		}, {
 			startupState: {
 				mainEnabled: true,
@@ -306,6 +327,7 @@ suite('ModernUIContribution', () => {
 				paneHeaderLineHeight: '28px',
 				paneHeaderInlineLineHeight: '',
 				layoutCount: 0,
+				auxiliaryLayoutCount: 0,
 			},
 			defaultDensityState: {
 				mainCompact: false,
@@ -313,6 +335,7 @@ suite('ModernUIContribution', () => {
 				paneHeaderSize: 28,
 				paneHeaderLineHeight: '28px',
 				layoutCount: 1,
+				auxiliaryLayoutCount: 1,
 			},
 			mainEnabledAfterToggle: false,
 			mainCompactAfterToggle: false,
@@ -328,6 +351,7 @@ suite('ModernUIContribution', () => {
 			paneHeaderLineHeightAfterToggle: '22px',
 			paneHeaderInlineLineHeightAfterToggle: '',
 			layoutCountAfterToggle: 2,
+			auxiliaryLayoutCountAfterToggle: 2,
 		});
 	});
 
@@ -339,12 +363,14 @@ suite('ModernUIContribution', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
-		const contribution = store.add(new ModernUIContribution(configurationService, layoutService));
+		const auxiliaryWindowService = new ModernUITestAuxiliaryWindowService();
+		const contribution = store.add(new ModernUIContribution(configurationService, layoutService, auxiliaryWindowService));
 		const auxiliaryContainer = document.createElement('div');
 		const getState = () => ({
 			connected: layoutService.containers.map(container => container.classList.contains('modern-ui-connected-editor-tabs')),
 			modernTabs: layoutService.containers.map(container => container.classList.contains('modern-ui-tabs')),
 			layoutCount: layoutService.layoutCount,
+			auxiliaryLayoutCount: auxiliaryWindowService.auxiliaryWindow.layoutCount,
 		});
 		const update = async (key: string, value: boolean | ModernUIEditorTabStyle) => {
 			await configurationService.setUserConfiguration(key, value);
@@ -375,14 +401,14 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual({
 			startup, auxiliaryStartup, pill, connected, disabled, changedWhileDisabled, reenabled, disposed: getState(),
 		}, {
-			startup: { connected: [true], modernTabs: [true], layoutCount: 0 },
-			auxiliaryStartup: { connected: [true, true], modernTabs: [true, true], layoutCount: 0 },
-			pill: { connected: [false, false], modernTabs: [true, true], layoutCount: 1 },
-			connected: { connected: [true, true], modernTabs: [true, true], layoutCount: 2 },
-			disabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3 },
-			changedWhileDisabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3 },
-			reenabled: { connected: [false, false], modernTabs: [true, true], layoutCount: 4 },
-			disposed: { connected: [false, false], modernTabs: [false, false], layoutCount: 5 },
+			startup: { connected: [true], modernTabs: [true], layoutCount: 0, auxiliaryLayoutCount: 0 },
+			auxiliaryStartup: { connected: [true, true], modernTabs: [true, true], layoutCount: 0, auxiliaryLayoutCount: 0 },
+			pill: { connected: [false, false], modernTabs: [true, true], layoutCount: 1, auxiliaryLayoutCount: 1 },
+			connected: { connected: [true, true], modernTabs: [true, true], layoutCount: 2, auxiliaryLayoutCount: 2 },
+			disabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3, auxiliaryLayoutCount: 3 },
+			changedWhileDisabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3, auxiliaryLayoutCount: 3 },
+			reenabled: { connected: [false, false], modernTabs: [true, true], layoutCount: 4, auxiliaryLayoutCount: 4 },
+			disposed: { connected: [false, false], modernTabs: [false, false], layoutCount: 5, auxiliaryLayoutCount: 5 },
 		});
 	});
 
@@ -668,7 +694,7 @@ suite('ModernUIContribution', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const layoutService = new ModernUITestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
-		store.add(new ModernUIContribution(configurationService, layoutService));
+		store.add(new ModernUIContribution(configurationService, layoutService, new ModernUITestAuxiliaryWindowService()));
 
 		layoutService.mainContainer.classList.add('monaco-workbench');
 		const paneView = appendElement(layoutService.mainContainer, 'monaco-pane-view');
@@ -2029,6 +2055,65 @@ suite('ModernUIContribution', () => {
 			bottom: '1px',
 			height: 32,
 			separatorHeight: 1,
+		});
+	});
+
+	test('aligns connected actions to the tab edge and preserves high contrast pill radii', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const tabs = appendElement(title, 'tabs-container');
+		const createTabAction = (className: string) => {
+			const tab = appendElement(tabs, `tab active ${className}`);
+			appendElement(tab, 'tab-fill');
+			const actions = appendElement(tab, 'tab-actions');
+			const actionBar = appendElement(actions, 'monaco-action-bar');
+			const actionsContainer = appendElement(actionBar, 'actions-container');
+			const actionItem = appendElement(actionsContainer, 'action-item');
+			const actionLabel = appendElement(actionItem, 'action-label codicon');
+			actionLabel.tabIndex = 0;
+			return { actions, actionBar, actionsContainer, actionLabel };
+		};
+		const right = createTabAction('');
+		const left = createTabAction('tab-actions-left');
+		const targetWindow = getWindow(root);
+		const getActionStyle = (action: typeof right) => {
+			action.actionLabel.focus();
+			return {
+				radius: targetWindow.getComputedStyle(action.actions).borderRadius,
+				alignment: targetWindow.getComputedStyle(action.actionsContainer).justifyContent,
+				targetWidth: targetWindow.getComputedStyle(action.actions).width,
+				actionBarWidth: targetWindow.getComputedStyle(action.actionBar).width,
+			};
+		};
+
+		const connected = {
+			right: getActionStyle(right),
+			left: getActionStyle(left),
+		};
+		root.classList.add('hc-black');
+		const highContrast = {
+			right: getActionStyle(right),
+			left: getActionStyle(left),
+		};
+
+		assert.deepStrictEqual({ connected, highContrast }, {
+			connected: {
+				right: { radius: '0px 4px 0px 0px', alignment: 'flex-end', targetWidth: '24px', actionBarWidth: '24px' },
+				left: { radius: '4px 0px 0px', alignment: 'flex-start', targetWidth: '24px', actionBarWidth: '24px' },
+			},
+			highContrast: {
+				right: { radius: '0px 4px 4px 0px', alignment: 'flex-end', targetWidth: '24px', actionBarWidth: '24px' },
+				left: { radius: '4px 0px 0px 4px', alignment: 'flex-start', targetWidth: '24px', actionBarWidth: '24px' },
+			},
 		});
 	});
 

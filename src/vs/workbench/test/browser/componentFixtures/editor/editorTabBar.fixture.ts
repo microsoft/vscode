@@ -784,7 +784,7 @@ function createThemeColorFixtures() {
 	};
 }
 
-function renderConnectedSurface(stroke: boolean, activeTabIndex = 1, forcedHoverTab?: number): (ctx: ComponentFixtureContext) => void {
+function renderConnectedSurface(stroke: boolean, activeTabIndex = 1, forcedHoverTab?: number, focusedTabAction?: number): (ctx: ComponentFixtureContext) => void {
 	return render(true, {
 		editors: [
 			{ resource: file('/project/README.md'), pinned: true, active: activeTabIndex >= 0 },
@@ -804,6 +804,7 @@ function renderConnectedSurface(stroke: boolean, activeTabIndex = 1, forcedHover
 		].join('\n'),
 		colorCustomizations: stroke ? undefined : { 'editorGroup.border': 'transparent' },
 		forcedHoverTab,
+		focusedTabAction,
 	});
 }
 
@@ -872,6 +873,13 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			render: renderConnectedSurface(true, 1, 0),
 			expectedVisualDescriptions: [
 				'The hovered README.md pill sits one stroke closer to the strip separator than an ordinary pill, balancing its top and bottom whitespace.',
+			],
+		}),
+		FocusedCloseAction: defineComponentFixture({
+			render: renderConnectedSurface(true, 1, undefined, 1),
+			additionalThemes: ['darkHighContrast'],
+			expectedVisualDescriptions: [
+				'The focused close action keeps its full interaction target while sitting close to the active tab edge. In high contrast, the action follows the complete pill corner instead of squaring its lower outside corner.',
 			],
 		}),
 		FirstTabActive: defineComponentFixture({
