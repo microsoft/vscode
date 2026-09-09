@@ -10,6 +10,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 
 export const IAiEmbeddingVectorService = createDecorator<IAiEmbeddingVectorService>('IAiEmbeddingVectorService');
 
@@ -40,6 +41,10 @@ export class AiEmbeddingVectorService implements IAiEmbeddingVectorService {
 	}
 
 	registerAiEmbeddingVectorProvider(model: string, provider: IAiEmbeddingVectorProvider): IDisposable {
+		if (isFalsyOrWhitespace(model)) {
+			throw new Error('Embedding vector model must be a non-empty string.');
+		}
+
 		this._providers.push(provider);
 		return {
 			dispose: () => {
