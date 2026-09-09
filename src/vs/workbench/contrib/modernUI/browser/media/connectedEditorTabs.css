@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Only the full Modern UI experiment joins editor tabs to the editor surface.
- * The independently enabled modern tab treatment keeps its existing pills. */
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs {
+/* The connected tab setting is scoped to Modern UI; other modern tabs retain their pills. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs {
 	--modern-ui-editor-tab-active-background: var(--vscode-editor-background);
 	--modern-ui-editor-tab-unfocused-active-background: var(--vscode-editor-background);
 	--modern-ui-editor-tab-active-hover-background: var(--vscode-editor-background);
@@ -25,40 +24,40 @@
 	--modern-ui-connected-tab-gutter: calc(var(--vscode-spacing-size40) + var(--vscode-strokeThickness));
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
 	background-color: var(--vscode-panel-background);
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container {
 	padding-bottom: var(--vscode-strokeThickness);
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .sticky-tabs-background,
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tabs-bar-add-tab {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .sticky-tabs-background,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tabs-bar-add-tab {
 	background-color: var(--vscode-panel-background);
 }
 
 /* Keep the separator underneath the active fill without changing the tab,
  * scrollbar, pinned-tab or drag-and-drop stacking order. */
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after {
 	z-index: 0;
 	background-color: var(--modern-ui-connected-tab-border);
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping {
 	--modern-ui-connected-tab-gutter: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs.two-tab-bars > .tabs-and-actions-container:first-child {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs.two-tab-bars > .tabs-and-actions-container:first-child {
 	--modern-ui-connected-tab-gutter: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs.two-tab-bars > .tabs-and-actions-container:not(:first-child) {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs.two-tab-bars > .tabs-and-actions-container:not(:first-child) {
 	--modern-ui-connected-tab-gutter: calc(var(--vscode-spacing-size60) + var(--vscode-strokeThickness));
 }
 
 /* Preserve the existing explicit selection and focus borders in high contrast. */
-.modern-ui.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill {
 	--modern-ui-editor-tab-active-border-top: var(--modern-ui-connected-tab-border);
 	--modern-ui-editor-tab-unfocused-active-border-top: var(--modern-ui-connected-tab-border);
 	--modern-ui-editor-tab-active-border: transparent;
@@ -73,8 +72,8 @@
 }
 
 /* The clipped shadow covers the cap's continuing side border. */
-.modern-ui.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::before,
-.modern-ui.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::after {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::before,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::after {
 	content: '';
 	position: absolute;
 	bottom: calc(-1 * var(--vscode-strokeThickness));
@@ -86,28 +85,28 @@
 	pointer-events: none;
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::before {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::before {
 	right: 100%;
 	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 	border-bottom-right-radius: var(--modern-ui-connected-tab-shoulder-radius);
 	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--vscode-editor-background);
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:first-child > .tab-fill::before {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:first-child > .tab-fill::before {
 	content: none;
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::after {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-fill::after {
 	left: 100%;
 	border-left: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 	border-bottom-left-radius: var(--modern-ui-connected-tab-shoulder-radius);
 	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / -2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--vscode-editor-background);
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-actions {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active > .tab-actions {
 	border-radius: 0 var(--modern-ui-connected-tab-radius) 0 0;
 }
 
-.modern-ui.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.tab-actions-left > .tab-actions {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.tab-actions-left > .tab-actions {
 	border-radius: var(--modern-ui-connected-tab-radius) 0 0 0;
 }

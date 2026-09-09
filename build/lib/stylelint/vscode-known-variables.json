@@ -560,6 +560,7 @@
 		"--vscode-modernEditorTab-activeForeground",
 		"--vscode-modernEditorTab-activeHoverActionBackground",
 		"--vscode-modernEditorTab-activeHoverBackground",
+		"--vscode-modernEditorTab-connectedBorder",
 		"--vscode-modernEditorTab-hoverActionBackground",
 		"--vscode-modernEditorTab-hoverBackground",
 		"--vscode-modernEditorTab-hoverForeground",
