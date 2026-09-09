@@ -70,7 +70,7 @@ suite('Agent Merge gate', () => {
 		assert.deepStrictEqual(evaluateAgentMerge(snapshot, configuration, '2026-08-02T00:00:00.000Z'), {
 			kind: 'prompt',
 			actions: ['addressReviews', 'fixCI'],
-			fingerprint: JSON.stringify({ actions: ['addressReviews', 'fixCI'], context: expectedContext }),
+			fingerprint: JSON.stringify({ actions: ['addressReviews', 'fixCI'], context: expectedContext, failedCheckIds: ['required'] }),
 			context: expectedContext,
 		});
 	});
@@ -172,6 +172,47 @@ suite('Agent Merge gate', () => {
 				},
 			}),
 		});
+	});
+
+	test('repairs failed checks while other checks are still pending', () => {
+		const result = evaluateAgentMerge(readySnapshot({
+			checks: [
+				{ id: 'failed', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' },
+				{ id: 'pending', type: 'checkRun', name: 'Slow test', required: true, status: 'IN_PROGRESS' },
+			],
+		}), configuration, '2026-08-02T00:00:00.000Z');
+
+		assert.deepStrictEqual(result.kind === 'prompt' ? { actions: result.actions, failedChecks: result.context.failedChecks } : result.kind, {
+			actions: ['fixCI'],
+			failedChecks: ['Build'],
+		});
+	});
+
+	test('deferred failures still block merging but do not block new repair work', () => {
+		const failedCheck = { id: 'deferred', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' } as const;
+		const deferredCheckIds = new Set(['deferred']);
+		const watermark = '2026-08-02T00:00:00.000Z';
+		const waiting = evaluateAgentMerge(readySnapshot({ checks: [failedCheck] }), configuration, watermark, deferredCheckIds);
+		const repair = evaluateAgentMerge(readySnapshot({
+			checks: [failedCheck, { ...failedCheck, id: 'new', name: 'Test' }],
+			topLevelComments: [{ id: 'feedback', author: { login: 'maintainer', association: 'MEMBER' }, body: 'Please fix this', createdAt: '2026-08-03T00:00:00.000Z' }],
+		}), configuration, watermark, deferredCheckIds);
+
+		assert.deepStrictEqual({
+			waiting: waiting.kind === 'noWork' ? { kind: waiting.kind, waitingOnChecks: waiting.waitingOnChecks } : waiting.kind,
+			repair: repair.kind === 'prompt' ? { actions: repair.actions, failedChecks: repair.context.failedChecks } : repair.kind,
+		}, {
+			waiting: { kind: 'noWork', waitingOnChecks: true },
+			repair: { actions: ['addressReviews', 'fixCI'], failedChecks: ['Test'] },
+		});
+	});
+
+	test('distinguishes a newly failed check from an earlier failure with the same name', () => {
+		const check = { id: 'attempt-1', type: 'checkRun', name: 'Build', required: true, status: 'COMPLETED', conclusion: 'FAILURE' } as const;
+		const first = evaluateAgentMerge(readySnapshot({ checks: [check] }), configuration, '');
+		const next = evaluateAgentMerge(readySnapshot({ checks: [{ ...check, id: 'attempt-2' }] }), configuration, '');
+
+		assert.ok(first.kind === 'prompt' && next.kind === 'prompt' && first.fingerprint !== next.fingerprint);
 	});
 
 	test('keeps feedback bounded for a comment-heavy pull request', () => {

@@ -9116,7 +9116,16 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// always present pre-materialize for discoverability (before a live SDK
 		// set exists): the built-in agents directory and the "Built-in" skills
 		// container.
-		assert.deepStrictEqual(customizations.map(c => c.uri), ['https://a', 'file:///mock-home/.claude/agents', 'agent-builtin:/skills']);
+		assert.deepStrictEqual(customizations.map(c => c.uri), [
+			'https://a',
+			'file:///work/.claude/agents',
+			'file:///work/.claude/skills',
+			'file:///work/.claude/rules',
+			'file:///mock-home/.claude/agents',
+			'file:///mock-home/.claude/skills',
+			'file:///mock-home/.claude/rules',
+			'agent-builtin:/skills',
+		]);
 	});
 
 	test('getChatCustomizations overlays the enablement state onto client-pushed entries', async () => {
@@ -9346,7 +9355,16 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// the client-pushed entry survives (UI not blanked) and the curated
 		// built-ins are appended (the built-in agents directory and the skills
 		// container) since there is no live set to derive from.
-		assert.deepStrictEqual(customizations.map(c => c.uri), ['https://a', 'file:///mock-home/.claude/agents', 'agent-builtin:/skills'], 'client-pushed projection survives SDK snapshot failure');
+		assert.deepStrictEqual(customizations.map(c => c.uri), [
+			'https://a',
+			'file:///work/.claude/agents',
+			'file:///work/.claude/skills',
+			'file:///work/.claude/rules',
+			'file:///mock-home/.claude/agents',
+			'file:///mock-home/.claude/skills',
+			'file:///mock-home/.claude/rules',
+			'agent-builtin:/skills',
+		], 'client-pushed projection survives SDK snapshot failure');
 	});
 
 	test('getChatCustomizations derives the Built-in container from the live SDK command set post-materialize', async () => {
@@ -9368,8 +9386,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
 		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
-		assert.strictEqual(customizations.length, 1);
-		const container = customizations[0];
+		const container = customizations.find(customization => customization.uri === 'agent-builtin:/skills');
+		assert.ok(container);
 		assert.strictEqual(container.type, CustomizationType.Directory);
 		assert.strictEqual(container.uri, 'agent-builtin:/skills');
 

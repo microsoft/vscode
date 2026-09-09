@@ -183,7 +183,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// to another application) because the matching `keyup` is never received. Give
 		// up on the swap entirely in that case so that a tab that is still hovered does
 		// not silently keep the "Close Others" action (https://github.com/microsoft/vscode/issues/331979)
-		this._register(this.hostService.onDidChangeFocus(hasFocus => {
+		this._register(hostService.onDidChangeFocus(hasFocus => {
 			if (!hasFocus) {
 				this.setAltPressed(false);
 				this.setHoveredTab(undefined);
@@ -2547,11 +2547,11 @@ registerThemingParticipant((theme, collector) => {
 				outline-offset: -5px;
 			}
 
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky > .tab-actions .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {
+			.monaco-workbench:not(.modern-ui-tabs) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
+			.monaco-workbench:not(.modern-ui-tabs) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,
+			.monaco-workbench:not(.modern-ui-tabs) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
+			.monaco-workbench:not(.modern-ui-tabs) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky > .tab-actions .action-label,
+			.monaco-workbench:not(.modern-ui-tabs) .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {
 				opacity: 1 !important;
 			}
 		`);

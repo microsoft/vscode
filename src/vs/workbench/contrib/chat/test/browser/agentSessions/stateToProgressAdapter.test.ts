@@ -12,6 +12,7 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -341,6 +342,25 @@ suite('stateToProgressAdapter', () => {
 				isSystemInitiated: true,
 				systemInitiatedLabel: 'Workspace Set',
 			});
+		});
+
+		test('identifies Agent Merge history by system origin and metadata, not prompt text', () => {
+			const messages: Message[] = [
+				{ ...message('Repair the pull request', MessageKind.SystemNotification), _meta: toAgentMergeMessageMeta() },
+				message('Repair the pull request', MessageKind.SystemNotification),
+				{ ...message('Repair the pull request'), _meta: toAgentMergeMessageMeta() },
+				{ ...message('Repair the pull request', MessageKind.SystemNotification), _meta: { 'vscode.chat.agentMerge': 'true' } },
+			];
+			const history = turnsToHistory(URI.file('/'), messages.map(message => createTurn({ message })), 'participant-1');
+			assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => ({
+				isSystemInitiated: item.isSystemInitiated,
+				requestSource: item.requestSource,
+			})), [
+				{ isSystemInitiated: true, requestSource: 'agentMerge' },
+				{ isSystemInitiated: true, requestSource: undefined },
+				{ isSystemInitiated: undefined, requestSource: undefined },
+				{ isSystemInitiated: true, requestSource: undefined },
+			]);
 		});
 
 		test('hidden turn remains hidden when restored from protocol history', () => {
@@ -2100,6 +2120,8 @@ suite('stateToProgressAdapter', () => {
 				description: 'Review current branch',
 				agentName: 'code-review',
 				chatResource: buildSubagentChatUri(sessionResource.toString(), 'tc-subagent'),
+				hasStarted: false,
+				isChatAvailable: false,
 			});
 		});
 

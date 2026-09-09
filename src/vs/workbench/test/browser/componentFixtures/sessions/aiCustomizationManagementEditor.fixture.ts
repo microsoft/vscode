@@ -6,6 +6,8 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { assert } from '../../../../../base/common/assert.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -20,6 +22,9 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -39,6 +44,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -55,6 +61,7 @@ import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/comm
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
@@ -166,7 +173,8 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 		override getCustomAgents() { return []; }
 		override getCustomizations() { return []; }
 		override getWorkingDirectory() { return undefined; }
-		override getWorkingDirectories() { return []; }
+		override getWorkingDirectories() { return ['file:///workspace']; }
+		override getClientWorkingDirectoryUris() { return [URI.file('/workspace')]; }
 		override getMcpServers() { return mcpServers; }
 		override addMcpServer() { }
 		override async authenticateMcpServer() { return true; }
@@ -701,6 +709,7 @@ interface IRenderEditorOptions {
 	readonly activeSessionMcpServers?: readonly FixtureAgentHostMcpServer[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
+	readonly enableHovers?: boolean;
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
@@ -758,6 +767,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
 	const createdFolders = new ResourceSet();
+	const migrationFileService = new class extends mock<IFileService>() {
+		override async readFile(resource: URI) {
+			return createFixtureFileContentStat(resource, fileContents.get(resource) ?? '');
+		}
+	};
 
 	// Holds a lazy reference to the model service so the ITextModelService mock
 	// (registered below) can create real ITextModel instances on demand. The
@@ -774,18 +788,35 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const harnessService = createMockHarnessService(options.sessionResource, availableHarnesses);
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
-			registerWorkbenchServices(reg);
-			// Enable the structured customization preview setting so the
-			// editor exercises the preview-first behavior in fixtures.
-			// Also enable customization migration so migration affordances render in
-			// screenshot fixtures that depend on agent-host harnesses.
-			reg.defineInstance(IConfigurationService, new TestConfigurationService({
+			const configurationService = new TestConfigurationService({
 				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
 				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
 				...options.configuration,
-			}));
+			});
+			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
+			registerWorkbenchServices(reg);
+			if (options.enableHovers) {
+				reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+					override getContainer() { return ctx.container; }
+				}());
+				reg.define(IHoverService, class extends HoverService {
+					override setupManagedHover(...[, targetElement, content, hoverOptions]: Parameters<IHoverService['setupManagedHover']>) {
+						return super.setupManagedHover({
+							delay: 0,
+							placement: 'element',
+							showHover: options => this.showInstantHover({ ...options, container: ctx.container }),
+						}, targetElement, content, hoverOptions);
+					}
+				});
+			}
+			// Enable the structured customization preview setting so the
+			// editor exercises the preview-first behavior in fixtures.
+			// Also enable customization migration so migration affordances render in
+			// screenshot fixtures that depend on agent-host harnesses.
+			reg.defineInstance(IConfigurationService, configurationService);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
@@ -835,9 +866,46 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				promptsService,
 				harnessService,
 				new class extends mock<IAgentHostActiveClientService>() {
-					override acquireMcpServerSupportScope() { return undefined; }
+					override acquireMcpServerSupportScope() {
+						if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers) {
+							return undefined;
+						}
+						const support: IAgentHostMcpServerSupportSnapshot = {
+							servers: [{
+								id: 'mcp.config.ws0.remote-browser',
+								name: 'Remote Browser',
+								collectionId: 'mcp.config.ws0',
+								source: {
+									group: undefined,
+									kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
+									label: 'Workspace',
+									collectionUri: URI.file('/workspace/.vscode/mcp.json'),
+									definitionLocation: undefined,
+									remoteAuthority: null,
+									extensionId: undefined,
+									pluginUri: undefined,
+								},
+								enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
+								applicability: AgentHostMcpServerApplicability.Applicable,
+								delivery: AgentHostMcpServerDelivery.ClientForwarded,
+								compatibility: { kind: 'supported' },
+								projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://mcp.example.com' },
+							}],
+							discoveryComplete: true,
+							coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+						};
+						return {
+							support: constObservable(support),
+							isResolved: constObservable(true),
+							whenResolved: () => Promise.resolve(),
+							dispose: () => { },
+						};
+					}
 				}(),
 				agentHostCustomizationService,
+				migrationFileService,
+				new NullLogService(),
+				configurationService,
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
@@ -1681,6 +1749,60 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 const localSessionResource = LocalChatSessionUri.getNewSessionUri();
 const agentHostCopilotSessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/fixture-session' });
 
+async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureContext, isSessionsWindow: boolean): Promise<void> {
+	const skill: IFixtureFile = {
+		uri: URI.file('/workspace/.codex/skills/dreaming/SKILL.md'),
+		storage: PromptsStorage.local,
+		type: PromptsType.skill,
+		name: 'dreaming',
+	};
+	await renderEditor(ctx, {
+		sessionResource: URI.from({ scheme: 'agent-host-codex', path: '/fixture-session' }),
+		isSessionsWindow,
+		selectedSection: AICustomizationManagementSection.Skills,
+		files: [skill],
+		enableHovers: true,
+		availableHarnesses: [
+			createVSCodeHarnessDescriptor(),
+			{
+				id: 'agent-host-codex',
+				label: 'Codex',
+				icon: Codicon.openai,
+				hiddenSections: [AICustomizationManagementSection.Prompts],
+				hideGenerateButton: true,
+				itemProvider: {
+					onDidChange: Event.None,
+					async provideChatSessionCustomizations() {
+						return [{
+							uri: skill.uri,
+							type: PromptsType.skill,
+							name: 'dreaming',
+							source: PromptsStorage.local,
+							extensionId: undefined,
+							pluginUri: undefined,
+							enabled: false,
+							status: 'error',
+							statusMessage: 'missing field `description`',
+						}];
+					},
+				},
+			},
+		],
+	});
+	await timeout(50);
+
+	const row = ctx.container.querySelector<HTMLElement>('.ai-customization-list-item');
+	assert(row?.querySelector('.item-name')?.textContent === 'dreaming' && row.classList.contains('disabled'), 'The invalid Codex skill must remain visible and disabled.');
+	assert(row.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
+	const statusIcon = row.querySelector<HTMLElement>('.item-status-icon');
+	assert(statusIcon !== null && statusIcon.classList.contains('codicon-error'), 'The invalid Codex skill must show an error status icon.');
+	statusIcon.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+	await timeout(50);
+
+	const hover = ctx.container.querySelector<HTMLElement>('.monaco-hover');
+	assert(hover !== null && hover.textContent?.includes('missing field `description`') === true && hover.getBoundingClientRect().height > 0, 'Hovering the error icon must show the missing-description diagnostic.');
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 
@@ -1850,6 +1972,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	CodexSkillMissingDescriptionHover: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The editor-window Customizations Skills view shows one disabled dreaming skill under Workspace. An error icon appears beside the skill name, and its visible hover reads "missing field `description`".'],
+		render: ctx => renderCodexSkillMissingDescriptionHover(ctx, false),
+	}),
+
+	SessionsCodexSkillMissingDescriptionHover: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Agents-window Customizations Skills view shows one disabled dreaming skill under Workspace. An error icon appears beside the skill name, and its visible hover reads "missing field `description`".'],
+		render: ctx => renderCodexSkillMissingDescriptionHover(ctx, true),
+	}),
+
 	RemoteSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
@@ -2004,6 +2138,15 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.UserData,
+		}),
+	}),
+
+	McpMigration: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Migrate MCP Servers page shows Remote Browser moving from the workspace .vscode/mcp.json file to the root .mcp.json file, with no file open or more-actions controls.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.McpServers,
 		}),
 	}),
 

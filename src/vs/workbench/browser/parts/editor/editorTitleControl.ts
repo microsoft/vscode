@@ -7,7 +7,7 @@ import './media/editortitlecontrol.css';
 import { Dimension, clearNode } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
+import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorTabsControl } from './editorTabsControl.js';
 import { MultiEditorTabsControl } from './multiEditorTabsControl.js';
 import { SingleEditorTabsControl } from './singleEditorTabsControl.js';
@@ -49,6 +49,7 @@ export class EditorTitleControl extends Themable {
 		private readonly model: IReadonlyEditorGroupModel,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		private readonly showHeader: boolean,
+		private readonly reserveHeaderSpace: IEditorGroupViewOptions['reserveHeaderSpace'],
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -78,7 +79,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private createHeaderControl(): EditorHeaderControl {
-		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader);
+		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader, this.reserveHeaderSpace);
 		this.headerControlDisposable.value = control;
 		return control;
 	}
