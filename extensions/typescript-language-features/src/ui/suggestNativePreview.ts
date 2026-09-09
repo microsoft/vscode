@@ -6,14 +6,17 @@
 import * as vscode from 'vscode';
 import { getTsNativeExtension, tsNativeExtensionOldId } from '../commands/useTsgo';
 import { ExperimentationService } from '../experimentationService';
+import type { PluginManager } from '../tsServer/plugins.js';
+import { copilotChatExtensionId } from '../typescriptServiceClient.js';
 
-const suggestNativePreviewStorageKey = 'typescript.suggestNativePreview.dismissed';
+const suggestTS7NoPluginsStorageKey = 'typescript.suggestTS7NoPlugins.dismissed';
 
 export async function suggestNativePreview(
 	context: vscode.ExtensionContext,
 	experimentationService: ExperimentationService,
+	pluginManager: PluginManager
 ): Promise<void> {
-	if (context.globalState.get<boolean>(suggestNativePreviewStorageKey)) {
+	if (context.globalState.get<boolean>(suggestTS7NoPluginsStorageKey)) {
 		return;
 	}
 
@@ -22,19 +25,19 @@ export async function suggestNativePreview(
 		return;
 	}
 
-	// Only show when the nightly extension is installed
-	if (!vscode.extensions.getExtension('ms-vscode.vscode-typescript-next')) {
-		return;
-	}
-
 	// Don't show if the native preview extension is already installed
 	if (getTsNativeExtension()) {
 		// Also don't prompt in the future
-		await context.globalState.update(suggestNativePreviewStorageKey, true);
+		// await context.globalState.update(suggestTS7NoPluginsStorageKey, true);
 		return;
 	}
 
-	const inExperiment = await experimentationService.getTreatmentVariable('suggestNativePreview', false);
+	// TSServer plugins are not supported by TypeScript 7
+	if (pluginManager.plugins.some(plugin => plugin.extension.id.toLowerCase() !== copilotChatExtensionId)) {
+		return;
+	}
+
+	const inExperiment = await experimentationService.getTreatmentVariable('suggestTS7IfNoPlugins', false);
 	if (!inExperiment) {
 		return;
 	}
@@ -44,18 +47,18 @@ export async function suggestNativePreview(
 	const dismiss: vscode.MessageItem = { title: vscode.l10n.t("Don't Show Again") };
 
 	const selection = await vscode.window.showInformationMessage(
-		vscode.l10n.t("Try TypeScript 7 Native Preview for significantly faster type checking and language features."),
+		vscode.l10n.t("Try TypeScript 7 for significantly faster type checking and language features."),
 		{},
 		install,
 		learnMore,
 		dismiss,
 	);
 	// Don't show again
-	await context.globalState.update(suggestNativePreviewStorageKey, true);
+	await context.globalState.update(suggestTS7NoPluginsStorageKey, true);
 
 	if (selection === install) {
 		await vscode.commands.executeCommand('workbench.extensions.installExtension', tsNativeExtensionOldId);
 	} else if (selection === learnMore) {
-		await vscode.env.openExternal(vscode.Uri.parse('https://aka.ms/vscode-try-ts-7-learn-more'));
+		await vscode.env.openExternal(vscode.Uri.parse('https://aka.ms/typescript7'));
 	}
 }
