@@ -1719,6 +1719,59 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('single-pane editor part initializes tabs from restored visibility at content creation', () => {
+		interface ITabsOverrideLifecycleHarness {
+			configurationService: { getValue(): 'single' };
+			agentWorkbenchLayoutService: { isVisible(part: Parts): boolean };
+			_enforcedShowTabs: 'multiple' | 'single' | undefined;
+			_tabsOverride: { value: IDisposable | undefined };
+			enforcePartOptions(options: { showTabs: 'multiple' | 'single' }): IDisposable;
+			_updateTabsOverride(): void;
+		}
+
+		const updateTabsOverride = Reflect.get(SinglePaneMainEditorPart.prototype, '_updateTabsOverride') as (this: ITabsOverrideLifecycleHarness) => void;
+		const createContentArea = Reflect.get(SinglePaneMainEditorPart.prototype, 'createContentArea') as (this: ITabsOverrideLifecycleHarness, parent: HTMLElement) => HTMLElement;
+		const effectiveModeAtContentCreation = (constructorEditorVisible: boolean, restoredEditorVisible: boolean): 'multiple' | 'single' => {
+			let editorVisible = constructorEditorVisible;
+			let enforcedShowTabs: 'multiple' | 'single' | undefined;
+			const stopBeforeContentCreation = new Error('Tabs initialized');
+			const editorPart = Object.assign(Object.create(SinglePaneMainEditorPart.prototype), {
+				configurationService: { getValue: () => 'single' as const },
+				agentWorkbenchLayoutService: {
+					isVisible: (part: Parts) => part === Parts.EDITOR_PART ? editorVisible : part === Parts.AUXILIARYBAR_PART,
+				},
+				_enforcedShowTabs: undefined,
+				_tabsOverride: { value: undefined },
+				enforcePartOptions: (options: { showTabs: 'multiple' | 'single' }) => {
+					enforcedShowTabs = options.showTabs;
+					return { dispose: () => { } };
+				},
+				_updateTabsOverride() {
+					updateTabsOverride.call(this);
+					throw stopBeforeContentCreation;
+				},
+			}) as ITabsOverrideLifecycleHarness;
+
+			editorVisible = restoredEditorVisible;
+			let thrown: unknown;
+			try {
+				createContentArea.call(editorPart, mainWindow.document.createElement('div'));
+			} catch (error) {
+				thrown = error;
+			}
+			assert.strictEqual(thrown, stopBeforeContentCreation);
+			return enforcedShowTabs ?? 'single';
+		};
+
+		assert.deepStrictEqual({
+			restoredEditorVisible: effectiveModeAtContentCreation(false, true),
+			restoredDetailsOnly: effectiveModeAtContentCreation(true, false),
+		}, {
+			restoredEditorVisible: 'single',
+			restoredDetailsOnly: 'multiple',
+		});
+	});
+
 	test('single-pane editor part rejects editor group creation and multi-group layouts', () => {
 		const group = {};
 		const addGroup = Reflect.get(SinglePaneMainEditorPart.prototype, 'addGroup') as (location: object, direction: GroupDirection) => object;
