@@ -43,19 +43,18 @@
 }
 
 .monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-idle-unvisited::before {
-	border-color: var(--vscode-charts-green);
+	border-color: var(--vscode-chat-sessionStateIndicator-unvisitedBorder);
 	border-style: dotted;
 }
 
 .monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-needs-input::before {
-	border-color: var(--vscode-errorForeground);
+	border-color: var(--vscode-chat-sessionStateIndicator-needsInputBorder);
 	border-style: dashed;
-	box-shadow: 0 0 var(--vscode-spacing-size80) color-mix(in srgb, var(--vscode-errorForeground) 60%, transparent);
+	box-shadow: 0 0 var(--vscode-spacing-size80) color-mix(in srgb, var(--vscode-chat-sessionStateIndicator-needsInputBorder) 60%, transparent);
 }
 
 .monaco-workbench.hc-black .interactive-session.chat-session-state-indicator::before,
 .monaco-workbench.hc-light .interactive-session.chat-session-state-indicator::before {
-	border-color: var(--vscode-contrastActiveBorder);
 	box-shadow: none;
 }
 
