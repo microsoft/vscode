@@ -3248,6 +3248,55 @@ suite('AgentService (node dispatcher)', () => {
 			));
 		}
 
+		testWithExternalSessionClock('hydrated discovery refreshes surfaced titles without changing recency or custom titles', async () => {
+			class LazyTitleAgent extends TimedExternalAgent {
+				title = 'Session';
+
+				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					const metadata = await super.getChatMetadata(chat, context);
+					return metadata ? { ...metadata, summary: this.title } : undefined;
+				}
+			}
+
+			const results = [];
+			for (const customTitle of [undefined, 'My saved title']) {
+				const sessionData = createPerSessionDataService();
+				const svc = createExternalSessionService(sessionData.service);
+				const agent = disposables.add(new LazyTitleAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await svc.listSessions();
+				const modifiedTime = Date.now();
+				const session = agent.addSession('lazy-title', modifiedTime);
+				if (customTitle) {
+					await sessionData.database(session).setMetadata('customTitle', customTitle);
+				}
+				const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+				await registry.register(session, { provider: agent.id, startTime: modifiedTime, modifiedTime, source: 'discovery' }, { checkTombstone: true });
+				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last7Days, 1);
+				await waitForSessionListReconciliation(svc);
+				const before = getStateManager(svc).getSurfacedSessionSummary(session.toString())?.title;
+				agent.title = 'Imported native title';
+				await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [{
+					...discoveredChat(session, true, modifiedTime),
+					summary: agent.title,
+				}]);
+				await waitForSessionListReconciliation(svc);
+				const listed = (await svc.listSessions()).find(metadata => metadata.session.toString() === session.toString());
+				results.push({
+					before,
+					after: getStateManager(svc).getSurfacedSessionSummary(session.toString())?.title,
+					listed: listed?.summary,
+					sameRecency: listed?.modifiedTime === modifiedTime,
+					materialized: !!getStateManager(svc).getSessionState(session.toString()),
+				});
+			}
+
+			assert.deepStrictEqual(results, [
+				{ before: 'Session', after: 'Imported native title', listed: 'Imported native title', sameRecency: true, materialized: false },
+				{ before: 'My saved title', after: 'My saved title', listed: 'My saved title', sameRecency: true, materialized: false },
+			]);
+		});
+
 		testWithExternalSessionClock('external discovery waits for startup settlement after the setting enables it', async () => {
 			const database = new TransientRegistryWriteDatabase();
 			await database.markProviderBackfilled('copilot');

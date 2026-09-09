@@ -1050,6 +1050,7 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.strictEqual(agent['_sessions'].has('restored-peer'), false);
 
 		agent['_models'].set([catalogModel], undefined);
+		agent['_modelsRefreshPromise'] = undefined;
 		await refresh.complete(undefined);
 		await materializing;
 
@@ -1092,7 +1093,61 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.deepStrictEqual(agent['_sessions'].get('restored-updated-model')?.model, persistedModel);
 	});
 
-	test('cold chat history resumes its backing thread and pages turns', async () => {
+	for (const source of ['chat backing', 'session metadata']) {
+		test(`cold chat restore preserves an unlisted model from ${source} when its provider is unavailable`, async () => {
+			const database = new TestSessionDatabase();
+			const agent = await createAgent(disposables, { database });
+			const selectedModel = { id: OPENAI_TEST_MODEL, config: { reasoningEffort: 'high' } };
+			const persisted = source === 'session metadata';
+			if (persisted) {
+				await database.setMetadata('codex.model', selectedModel.id);
+			}
+			const parent = AgentSession.uri('codex', 'parent');
+
+			await agent.materializeChat(chatOf(parent, 'restored'), parent, JSON.stringify({
+				sessionId: 'restored-unlisted-model',
+				model: persisted ? { id: COPILOT_TEST_MODEL } : selectedModel,
+			}));
+
+			assert.deepStrictEqual(agent['_sessions'].get('restored-unlisted-model')?.model, persisted ? { id: selectedModel.id } : selectedModel);
+		});
+
+		test(`cold chat restore falls back within the provider of the unavailable model from ${source}`, async () => {
+			const database = new TestSessionDatabase();
+			const agent = await createAgent(disposables, { database });
+			const selectedModel = { id: toCodexModelSelectionId('openai', 'desktop-only-model'), config: { thinkingLevel: 'ultra' } };
+			const baseModel = agent.models.get()[0];
+			agent['_models'].set([baseModel, { ...baseModel, id: OPENAI_TEST_MODEL }], undefined);
+			const persisted = source === 'session metadata';
+			if (persisted) {
+				await database.setMetadata('codex.model', selectedModel.id);
+			}
+			const parent = AgentSession.uri('codex', 'parent');
+			const chat = chatOf(parent, 'restored');
+			const providerData = JSON.stringify({ sessionId: 'restored-fallback-model', model: persisted ? { id: COPILOT_TEST_MODEL } : selectedModel });
+
+			await agent.materializeChat(chat, parent, providerData);
+			const metadata = await agent.getChatMetadata(chat, parent, providerData);
+
+			assert.deepStrictEqual({ runtimeModel: agent['_sessions'].get('restored-fallback-model')?.model, metadataModel: metadata?.model }, {
+				runtimeModel: { id: OPENAI_TEST_MODEL },
+				metadataModel: { id: OPENAI_TEST_MODEL },
+			});
+		});
+	}
+
+	test('unlisted models are still rejected for explicit creation and model changes', async () => {
+		const agent = await createAgent(disposables);
+		const unlistedModel = { id: OPENAI_TEST_MODEL };
+		await assert.rejects(createSession(agent, { model: unlistedModel }), /is not available/);
+		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const chat = defaultChatOf(session);
+
+		await assert.rejects(agent.chats.changeModel(chat, unlistedModel, chatContext(session, chat)), /is not available/);
+		assert.deepStrictEqual(agent['_sessions'].get(AgentSession.id(session))?.model, { id: COPILOT_TEST_MODEL });
+	});
+
+	test('cold chat history pages turns without resuming until the first send', async () => {
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.threadId', 'restored-history-thread');
 		const agent = await createAgent(disposables, { database });
@@ -1108,10 +1163,6 @@ suite('CodexAgent prewarm eviction', () => {
 		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored-history' }));
 
 		const reading = agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
-		const resume = await readNextRequest(peer.outbound);
-		peer.push({ id: resume.id, result: { thread: { id: 'restored-history', turns: [] }, runtimeWorkspaceRoots: [] } });
-		const inventory = await readNextRequest(peer.outbound);
-		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 		const read = await readNextRequest(peer.outbound);
 		assert.strictEqual(read.params.includeTurns, false);
 		peer.push({
@@ -1168,17 +1219,26 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 
 		const turns = await reading;
+		const needsResumeAfterRead = agent['_sessions'].get('restored-history')?.needsResume;
 		const sending = agent.chats.sendMessage(chat, 'follow up', undefined, undefined, 'turn-2');
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: 'restored-history', turns: [] }, runtimeWorkspaceRoots: [] } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 		const turn = await readNextRequest(peer.outbound);
 		peer.push({ id: turn.id, result: {} });
 		await sending;
 		assert.deepStrictEqual({
+			needsResumeAfterRead,
 			requests: [
-				{ method: resume.method, threadId: resume.params.threadId },
-				{ method: inventory.method, threadId: inventory.params.threadId },
 				{ method: read.method, threadId: read.params.threadId },
 				{ method: firstPage.method, threadId: firstPage.params.threadId },
 				{ method: secondPage.method, threadId: secondPage.params.threadId },
+				{ method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+				{ method: resume.method, threadId: resume.params.threadId },
+				{ method: inventory.method, threadId: inventory.params.threadId },
 				{ method: turn.method, threadId: turn.params.threadId },
 			],
 			turns: turns.map(turn => ({
@@ -1187,12 +1247,14 @@ suite('CodexAgent prewarm eviction', () => {
 				response: turn.responseParts.map(part => part.kind === ResponsePartKind.Markdown ? part.content : undefined),
 			})),
 		}, {
+			needsResumeAfterRead: true,
 			requests: [
-				{ method: 'thread/resume', threadId: 'restored-history-thread' },
-				{ method: 'mcpServerStatus/list', threadId: 'restored-history-thread' },
 				{ method: 'thread/read', threadId: 'restored-history-thread' },
 				{ method: 'thread/turns/list', threadId: 'restored-history-thread' },
 				{ method: 'thread/turns/list', threadId: 'restored-history-thread' },
+				{ method: 'thread/unsubscribe', threadId: 'restored-history-thread' },
+				{ method: 'thread/resume', threadId: 'restored-history-thread' },
+				{ method: 'mcpServerStatus/list', threadId: 'restored-history-thread' },
 				{ method: 'turn/start', threadId: 'restored-history-thread' },
 			],
 			turns: [{
@@ -1208,7 +1270,7 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
-	test('cold resume carries workspace and client MCP and consumes an in-flight MCP invalidation before reading', async () => {
+	test('cold resume carries workspace and client MCP and consumes an in-flight MCP invalidation before sending', async () => {
 		const database = new TestSessionDatabase();
 		const repo = URI.file('/repo');
 		await database.setMetadata('codex.threadId', 'restored-mcp-thread');
@@ -1248,7 +1310,9 @@ suite('CodexAgent prewarm eviction', () => {
 			},
 		}]);
 
-		const reading = agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
+		const sending = agent.chats.sendMessage(chat, 'follow up', undefined, undefined, 'turn-1');
+		const initialUnsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: initialUnsubscribe.id, result: {} });
 		const resume = await readNextRequest(peer.outbound);
 		assert.strictEqual(entry.needsResume, false);
 		agent['_markSessionForReload'](entry);
@@ -1261,13 +1325,12 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.push({ id: followUpResume.id, result: { thread: { id: 'restored-mcp-thread', turns: [] }, runtimeWorkspaceRoots: [] } });
 		const followUpInventory = await readNextRequest(peer.outbound);
 		peer.push({ id: followUpInventory.id, result: { data: [], nextCursor: null } });
-		const read = await readNextRequest(peer.outbound);
-		peer.push({ id: read.id, result: { thread: { id: 'restored-mcp-thread', historyMode: 'paginated', turns: [] } } });
-		const historyPage = await readNextRequest(peer.outbound);
-		peer.push({ id: historyPage.id, result: { data: [], nextCursor: null, backwardsCursor: null } });
-		await reading;
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
 
 		assert.deepStrictEqual({
+			initialUnsubscribe: { method: initialUnsubscribe.method, threadId: initialUnsubscribe.params.threadId },
 			resume: {
 				method: resume.method,
 				threadId: resume.params.threadId,
@@ -1279,7 +1342,9 @@ suite('CodexAgent prewarm eviction', () => {
 			},
 			needsResume: entry.needsResume,
 			unsubscribeBeforeResume: entry.unsubscribeBeforeResume,
+			turn: { method: turn.method, threadId: turn.params.threadId },
 		}, {
+			initialUnsubscribe: { method: 'thread/unsubscribe', threadId: 'restored-mcp-thread' },
 			resume: {
 				method: 'thread/resume',
 				threadId: 'restored-mcp-thread',
@@ -1294,6 +1359,7 @@ suite('CodexAgent prewarm eviction', () => {
 			},
 			needsResume: false,
 			unsubscribeBeforeResume: false,
+			turn: { method: 'turn/start', threadId: 'restored-mcp-thread' },
 		});
 		peer.exit();
 	});
@@ -2863,6 +2929,111 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('reads a Desktop thread owned by another app and continues with an available native fallback', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const modelId = 'desktop-only-model';
+		const selectedModelId = toCodexModelSelectionId('openai', modelId);
+		const baseModel = agent.models.get()[0];
+		agent['_models'].set([
+			baseModel,
+			{ ...baseModel, id: OPENAI_TEST_MODEL },
+			{ ...baseModel, id: toCodexModelSelectionId('vscode-proxy', modelId) },
+		], undefined);
+		const peer = disposables.add(createTestPeer());
+		const client = disposables.add(new CodexAppServerClient(peer.transport));
+		agent['_connection'] = { kind: 'ready', client, usageSource: 'github', child: { kill: () => true } } as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const session = AgentSession.uri('codex', 'desktop-thread');
+		const chat = defaultChatOf(session);
+		const context = chatContext(session, chat);
+		const workingDirectory = URI.file('/workspace/codex');
+		const sessionsDirectory = URI.joinPath(agent['_environmentService'].userHome, '.codex', 'sessions');
+		const rollout = URI.joinPath(sessionsDirectory, 'desktop-thread.jsonl');
+		await agent['_fileService'].createFolder(sessionsDirectory);
+		await agent['_fileService'].createFile(rollout, VSBuffer.fromString([
+			JSON.stringify({ type: 'session_meta', payload: { originator: 'Codex Desktop', model_provider: 'openai' } }),
+			JSON.stringify({ type: 'turn_context', payload: { turn_id: 'desktop-turn', model: modelId } }),
+		].join('\n')));
+		const thread = {
+			id: 'desktop-thread',
+			cwd: workingDirectory.fsPath,
+			modelProvider: 'openai',
+			path: rollout.fsPath,
+			source: 'vscode',
+			historyMode: 'paginated',
+			turns: [],
+		};
+		const persistedTurn = {
+			id: 'desktop-turn',
+			items: [
+				{ type: 'userMessage', id: 'user-1', clientId: null, content: [{ type: 'text', text: 'remember capybara', text_elements: [] }] },
+				{ type: 'agentMessage', id: 'assistant-1', text: 'I will remember capybara.', phase: 'final_answer', memoryCitation: null },
+			],
+			itemsView: { type: 'full' },
+			status: 'completed',
+			error: null,
+			startedAt: 1,
+			completedAt: 2,
+			durationMs: 1000,
+		};
+		const responses: Record<string, object> = {
+			'thread/read': { thread },
+			'thread/unsubscribe': {},
+			'thread/resume': { thread, cwd: workingDirectory.fsPath },
+			'mcpServerStatus/list': { data: [], nextCursor: null },
+			'thread/turns/list': { data: [persistedTurn], nextCursor: null, backwardsCursor: null },
+			'turn/start': {},
+		};
+		const requests: ITestWireRequest[] = [];
+		let externalWriterActive = true;
+		disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(chunk => {
+			const request: ITestWireRequest = JSON.parse(chunk.toString('utf8'));
+			requests.push(request);
+			if (request.method === 'thread/resume' && externalWriterActive) {
+				peer.push({ id: request.id, error: { code: -32600, message: 'thread desktop-thread already has an active writer' } });
+				return;
+			}
+			assert.ok(responses[request.method], `Unexpected request: ${request.method}`);
+			peer.push({ id: request.id, result: responses[request.method] });
+		}));
+
+		const metadata = await agent.getChatMetadata(chat, context);
+		await agent.materializeChat(chat, context, undefined);
+		const history = await agent.chats.getMessages(chat, context);
+		const needsResumeAfterRead = agent['_sessions'].get('desktop-thread')?.needsResume;
+		const modelAfterRead = agent['_sessions'].get('desktop-thread')?.model;
+		externalWriterActive = false;
+		await agent.chats.sendMessage(chat, 'continue here', [workingDirectory], undefined, 'turn-1', undefined, undefined, context);
+
+		assert.deepStrictEqual({
+			metadataModel: metadata?.model?.id,
+			needsResumeAfterRead,
+			modelAfterRead,
+			history: history.map(turn => ({ id: turn.id, text: turn.message.text, model: turn.message.model?.id })),
+			requests: requests.map(request => ({ method: request.method, threadId: request.params.threadId })),
+			resumeProvider: requests.find(request => request.method === 'thread/resume')?.params.modelProvider,
+			resumeModel: requests.find(request => request.method === 'thread/resume')?.params.model,
+			turnModel: requests.find(request => request.method === 'turn/start')?.params.model,
+			persistedThreadId: await database.getMetadata('codex.threadId'),
+			persistedModelId: await database.getMetadata('codex.model'),
+		}, {
+			metadataModel: OPENAI_TEST_MODEL,
+			needsResumeAfterRead: true,
+			modelAfterRead: { id: OPENAI_TEST_MODEL },
+			history: [{ id: 'desktop-turn', text: 'remember capybara', model: selectedModelId }],
+			requests: ['thread/read', 'thread/read', 'thread/turns/list', 'thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'turn/start']
+				.map(method => ({ method, threadId: 'desktop-thread' })),
+			resumeProvider: 'openai',
+			resumeModel: 'gpt-5.6-sol',
+			turnModel: 'gpt-5.6-sol',
+			persistedThreadId: 'desktop-thread',
+			persistedModelId: OPENAI_TEST_MODEL,
+		});
+		peer.exit();
+	});
+
 	test('directly restored Desktop thread heals a stale overlay and uses the latest rollout provider', async () => {
 		const database = new TestSessionDatabase();
 		await Promise.all([
@@ -2933,16 +3104,6 @@ suite('CodexAgent prewarm eviction', () => {
 		await agent.materializeChat(chat, context, JSON.stringify({ sessionId: AgentSession.id(session) }));
 
 		const historyPromise = agent.chats.getMessages(chat, context);
-		const resume = await readNextRequest(peer.outbound);
-		peer.push({
-			id: resume.id,
-			result: {
-				thread: { id: resume.params.threadId, cwd: workingDirectory.fsPath },
-				cwd: workingDirectory.fsPath,
-			},
-		});
-		const resumeInventory = await readNextRequest(peer.outbound);
-		peer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
 		const historyRead = await readNextRequest(peer.outbound);
 		assert.strictEqual(historyRead.params.includeTurns, false);
 		peer.push({
@@ -2964,6 +3125,18 @@ suite('CodexAgent prewarm eviction', () => {
 		const history = await historyPromise;
 
 		const send = agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, undefined, context);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({
+			id: resume.id,
+			result: {
+				thread: { id: resume.params.threadId, cwd: workingDirectory.fsPath },
+				cwd: workingDirectory.fsPath,
+			},
+		});
+		const resumeInventory = await readNextRequest(peer.outbound);
+		peer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
 		const turn = await readNextRequest(peer.outbound);
 		peer.push({ id: turn.id, result: {} });
 		await send;
@@ -2983,6 +3156,7 @@ suite('CodexAgent prewarm eviction', () => {
 				usageModel: item.usage?.model,
 			})),
 			resume: { method: resume.method, threadId: resume.params.threadId, modelProvider: resume.params.modelProvider },
+			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
 			historyReadThreadId: historyRead.params.threadId,
 			turn: { method: turn.method, threadId: turn.params.threadId, model: turn.params.model },
 			overlay: {
@@ -3004,6 +3178,7 @@ suite('CodexAgent prewarm eviction', () => {
 				usageModel: COPILOT_TEST_MODEL,
 			}],
 			resume: { method: 'thread/resume', threadId: 'desktop-thread', modelProvider: 'vscode-proxy' },
+			unsubscribe: { method: 'thread/unsubscribe', threadId: 'desktop-thread' },
 			historyReadThreadId: 'desktop-thread',
 			turn: { method: 'turn/start', threadId: 'desktop-thread', model: 'gpt-test' },
 			overlay: { threadId: 'desktop-thread', modelId: COPILOT_TEST_MODEL },

@@ -1795,6 +1795,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let registeredExternal = false;
 		let alreadyRegistered = 0;
 		let registryChanged = false;
+		let surfacedMetadataChanged = false;
 		const untitledExternal: IAgentSessionMetadata[] = [];
 		const modifiedTimeAdvances: { readonly session: URI; readonly modifiedTime: number }[] = [];
 		const results = await Promise.all(chats.map(({ external: reportedExternal, ...metadata }) => discoveryLimiter.queue(async () => {
@@ -1807,6 +1808,10 @@ export class AgentService extends Disposable implements IAgentService {
 				// steady-state startup issues no recency writes at all.
 				if (registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
+					const surfaced = this._stateManager.getSurfacedSessionSummary(session.toString());
+					if (surfaced && sessionMetadata.summary && surfaced.title !== sessionMetadata.summary) {
+						surfacedMetadataChanged = true;
+					}
 					const stored = registeredRecency.get(session.toString());
 					if (Number.isFinite(sessionMetadata.modifiedTime) && (stored === undefined || sessionMetadata.modifiedTime > stored)) {
 						modifiedTimeAdvances.push({ session, modifiedTime: sessionMetadata.modifiedTime });
@@ -1865,10 +1870,10 @@ export class AgentService extends Disposable implements IAgentService {
 			);
 			this._invalidateSessionList();
 		}
-		if (registryChanged) {
+		if (registryChanged || surfacedMetadataChanged) {
 			this._invalidateSessionList();
 		}
-		if (registeredExternal) {
+		if (registeredExternal || surfacedMetadataChanged) {
 			this._queueSessionListReconciliation();
 		}
 		if (untitledExternal.length > 0) {
@@ -2740,7 +2745,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _announceSurfacedSession(meta: IAgentSessionMetadata, provider: string): Promise<void> {
 		const key = meta.session.toString();
-		if (!this._shouldIncludeSession(meta) || this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
+		if (!this._shouldIncludeSession(meta) || this._stateManager.getSessionState(key)) {
+			return;
+		}
+		if (meta.summary) {
+			this._stateManager.updateSurfacedSessionTitle(key, meta.summary);
+		}
+		if (this._announcedSurfacedKeys.has(key)) {
 			return;
 		}
 		this._announcedSurfacedKeys.add(key);
