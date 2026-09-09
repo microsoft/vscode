@@ -12,7 +12,6 @@ import { AgentSession } from '../common/agentService.js';
 import { ISessionDataService, type ISessionDatabase } from '../common/sessionDataService.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, readSessionWorkspaceless } from '../common/state/sessionState.js';
-import { ActionType } from '../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
@@ -183,14 +182,12 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			if (session !== undefined) {
 				this._sessionsById.set(AgentSession.id(session), session);
 				void this.initializeSession(session);
-				if (envelope.action.type === ActionType.SessionWorkingDirectorySet
-					|| envelope.action.type === ActionType.SessionWorkingDirectoryRemoved
-					|| envelope.action.type === ActionType.SessionWorkingDirectoryReplaced) {
-					const affectedSessions = this._applyPendingReplacements(session);
-					affectedSessions.add(session);
-					this._notifyDecisionChanged(affectedSessions);
-				}
 			}
+		}));
+		this._register(this._sessionState.onDidChangeSessionWorkingDirectories(({ session }) => {
+			const affectedSessions = this._applyPendingReplacements(session);
+			affectedSessions.add(session);
+			this._notifyDecisionChanged(affectedSessions);
 		}));
 		this._register(this._worktree.onDidChangeWorkingDirectoryPending(sessionId => {
 			const session = this._sessionsById.get(sessionId);

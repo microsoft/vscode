@@ -512,7 +512,6 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _peerChatCatalogWrites = new Map<string, Promise<void>>();
 	private readonly _disposingPeerChats = new Set<string>();
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
-	private readonly _pendingMaterializationWorkingDirectoryReplacements = new Map<string, { readonly directory: string; readonly replacement: string }>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
@@ -712,7 +711,6 @@ export class AgentService extends Disposable implements IAgentService {
 		// turn of its own and survive restore.
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
 			if (!active) {
-				void Promise.resolve().then(() => this._flushMaterializationWorkingDirectoryReplacement(session));
 				this._flushAgentMergeNotices(session);
 			}
 		}));
@@ -3804,7 +3802,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 		if (workingDirectoryReplacement) {
-			this._pendingMaterializationWorkingDirectoryReplacements.set(sessionKey, workingDirectoryReplacement);
+			this._stateManager.dispatchServerAction(sessionKey, {
+				type: ActionType.SessionWorkingDirectoryReplaced,
+				...workingDirectoryReplacement,
+			});
 		}
 		const gitHubState = readSessionGitHubState(summary._meta);
 		if (gitHubState) {
@@ -3812,27 +3813,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// Attach git state for the resolved process root (index 0), if present.
-		if (!workingDirectoryReplacement) {
-			void this._gitStateService.refreshSessionGitState(sessionKey, e.workingDirectories?.[0]);
-		}
+		void this._gitStateService.refreshSessionGitState(sessionKey, e.workingDirectories?.[0]);
 
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, recompute the current
 		// subscriptions now that the working directory is set.
 		this._changesetCoordinator.onSessionMaterialized(sessionKey);
-	}
-
-	private _flushMaterializationWorkingDirectoryReplacement(sessionKey: string): void {
-		const replacement = this._pendingMaterializationWorkingDirectoryReplacements.get(sessionKey);
-		if (!replacement) {
-			return;
-		}
-		this._pendingMaterializationWorkingDirectoryReplacements.delete(sessionKey);
-		this._stateManager.dispatchServerAction(sessionKey, {
-			type: ActionType.SessionWorkingDirectoryReplaced,
-			...replacement,
-		});
-		void this._gitStateService.refreshSessionGitState(sessionKey, URI.parse(replacement.replacement));
 	}
 
 	/** Drop a session's download-progress opt-in, if any. */
