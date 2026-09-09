@@ -145,7 +145,7 @@ export class SessionsDiffEditorLayoutContribution extends Disposable implements 
 			} else {
 				const control = pane?.getControl();
 				if (isCodeEditor(control)) {
-					control.updateOptions({ wordWrapOverride2: wordWrap });
+					control.updateOptions({ wordWrapOverride1: wordWrap });
 				}
 			}
 		}
