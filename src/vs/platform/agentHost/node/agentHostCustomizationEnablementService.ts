@@ -156,6 +156,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	private readonly _sessionLoads = new Map<string, Promise<void>>();
 	private readonly _sessionsById = new Map<string, string>();
 	private readonly _pendingSessionWrites = new Set<Promise<void>>();
+	private readonly _pendingWorkingDirectoryChanges = new Set<string>();
 	/**
 	 * Retains writes made before session metadata or directory registration resolves.
 	 * Replayed after either session load or a working-directory event, while resolution reports `pending` rather than no decision.
@@ -185,9 +186,17 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			}
 		}));
 		this._register(this._sessionState.onDidChangeSessionWorkingDirectories(({ session }) => {
-			const affectedSessions = this._applyPendingReplacements(session);
-			affectedSessions.add(session);
-			this._notifyDecisionChanged(affectedSessions);
+			const sessionKey = session.toString();
+			if (this._sessionState.getActiveTurnId(session)) {
+				this._pendingWorkingDirectoryChanges.add(sessionKey);
+				return;
+			}
+			this._notifyWorkingDirectoryChanged(sessionKey);
+		}));
+		this._register(this._sessionState.onDidChangeSessionActiveTurn(({ session, active }) => {
+			if (!active && this._pendingWorkingDirectoryChanges.delete(session)) {
+				this._notifyWorkingDirectoryChanged(session);
+			}
 		}));
 		this._register(this._worktree.onDidChangeWorkingDirectoryPending(sessionId => {
 			const session = this._sessionsById.get(sessionId);
@@ -199,6 +208,12 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			}
 			this._notifyDecisionChanged([session]);
 		}));
+	}
+
+	private _notifyWorkingDirectoryChanged(session: string): void {
+		const affectedSessions = this._applyPendingReplacements(session);
+		affectedSessions.add(session);
+		this._notifyDecisionChanged(affectedSessions);
 	}
 
 	async initializeSession(session: string): Promise<void> {
