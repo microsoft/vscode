@@ -11,7 +11,6 @@ import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
-import { FileAccess } from '../../../base/common/network.js';
 import { join } from '../../../base/common/path.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -28,7 +27,7 @@ import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDev
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
-import { getAppNodeModulesPath } from './appNodeModules.js';
+import { getAppNodeModulesUri } from './appNodeModules.js';
 import {
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
@@ -513,7 +512,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 }
 
 export function getDevContainerCliPath(): string {
-	return join(FileAccess.asFileUri(getAppNodeModulesPath()).fsPath, '@devcontainers', 'cli', 'devcontainer.js');
+	return join(getAppNodeModulesUri().fsPath, '@devcontainers', 'cli', 'devcontainer.js');
 }
 
 export function parseDevContainerUpResult(output: string): IDevContainerUpResult | undefined {

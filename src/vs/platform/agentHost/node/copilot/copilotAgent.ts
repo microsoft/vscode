@@ -14,7 +14,7 @@ import { CancellationError, getErrorMessage } from '../../../../base/common/erro
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { FileAccess, Schemas } from '../../../../base/common/network.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
@@ -95,7 +95,7 @@ import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, workspaceDirectoryHasHooks, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
-import { getAppNodeModulesPath } from '../appNodeModules.js';
+import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
 import { hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
@@ -1376,7 +1376,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.debug('[Copilot] Collecting runtime managed-settings diagnostics');
 		let stage = 'resolving the Copilot CLI path';
 		const diagnostics = (async () => {
-			const nodeModulesUri = FileAccess.asFileUri(getAppNodeModulesPath());
+			const nodeModulesUri = getAppNodeModulesUri();
 			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
 			const runtimeSdkPath = join(dirname(cliPath), 'sdk', 'index.js');
 			stage = 'checking the Copilot runtime SDK';
@@ -2309,7 +2309,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// in a plain `node_modules`.
 			// We can't use require.resolve() because @github/copilot's exports map
 			// blocks direct subpath access.
-			const nodeModulesUri = FileAccess.asFileUri(getAppNodeModulesPath());
+			const nodeModulesUri = getAppNodeModulesUri();
 			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
