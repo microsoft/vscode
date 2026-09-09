@@ -92,9 +92,6 @@ function supportsCacheBreakpoint(message: Raw.ChatMessage, apiType: string | und
 		}
 
 		return message.content.some(part => {
-			if (message.role === Raw.ChatRole.Tool) {
-				return part.type === Raw.ChatCompletionContentPartKind.Image || part.type === Raw.ChatCompletionContentPartKind.Document;
-			}
 			return part.type === Raw.ChatCompletionContentPartKind.Text
 				|| part.type === Raw.ChatCompletionContentPartKind.Image
 				|| part.type === Raw.ChatCompletionContentPartKind.Document

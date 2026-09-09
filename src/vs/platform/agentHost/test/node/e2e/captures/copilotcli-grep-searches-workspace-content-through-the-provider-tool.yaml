@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use grep exactly once to find COPILOT_E2E_NEEDLE in the workspace, then reply exactly "found".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: grep
+          input:
+            pattern: COPILOT_E2E_NEEDLE
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use grep exactly once to find COPILOT_E2E_NEEDLE in the workspace, then reply exactly "found".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: grep
+              input:
+                pattern: COPILOT_E2E_NEEDLE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: ./needle.txt
+    response:
+      content: found
+      stopReason: end_turn

@@ -13,6 +13,8 @@ import type { ChangesetState } from '../channels-changeset/state.js';
 import type { ResourceWatchState } from '../channels-resource-watch/state.js';
 import type { AnnotationsState } from '../channels-annotations/state.js';
 import type { ChatState } from '../channels-chat/state.js';
+import type { AutomationState } from '../channels-automation/state.js';
+import type { AutomationRunState } from '../channels-automation-run/state.js';
 
 // ─── Type Aliases ────────────────────────────────────────────────────────────
 
@@ -110,12 +112,6 @@ export interface ProtectedResourceMetadata {
 
 	/** OPTIONAL. JSON array of JWS signing algorithms supported. */
 	resource_signing_alg_values_supported?: string[];
-
-	/** OPTIONAL. JSON array of JWE encryption algorithms (alg) supported. */
-	resource_encryption_alg_values_supported?: string[];
-
-	/** OPTIONAL. JSON array of JWE encryption algorithms (enc) supported. */
-	resource_encryption_enc_values_supported?: string[];
 
 	/** OPTIONAL. URL of human-readable documentation for the resource. */
 	resource_documentation?: string;
@@ -338,7 +334,7 @@ export interface Snapshot {
 	/** The subscribed channel URI (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState;
+	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState | AutomationState | AutomationRunState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

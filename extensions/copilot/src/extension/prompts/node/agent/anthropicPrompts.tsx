@@ -422,6 +422,25 @@ class Claude46SonnetPrompt extends Claude46OptimizedBasePrompt {
 	}
 }
 
+/**
+ * Prompt for Claude Sonnet 5, extending the optimized Sonnet 4.6 prompt with a scope-discipline
+ * paragraph. Sonnet 5 explores and explains more than Sonnet 4.6 on the same task, which raises
+ * both its score and its token cost. Constraining scope alone regresses cases where a backwards
+ * compatibility shim looks like adjacent work, so the interface-preservation clause is required
+ * alongside it.
+ */
+class ClaudeSonnet5Prompt extends Claude46SonnetPrompt {
+	protected override renderAppendedInstructions() {
+		return <Tag name='scopeDiscipline'>
+			Do exactly what was asked - don't extend scope to new adjacent code, tests, examples, or unrelated files unless the task explicitly includes them.<br />
+			But always preserve existing public interfaces: never remove or change the signature of module-level functions, exported names, or class methods that other code might depend on, unless explicitly told to.<br />
+			If you think adjacent work is needed, mention it rather than doing it.<br />
+			Be direct and minimal on file reads and editor-tool calls; spend your reasoning on design decisions, debugging, and writing code.<br />
+			Keep your responses to the user concise - a few sentences explaining what you did and why is enough; the work happens in tool calls, not in prose.<br />
+		</Tag>;
+	}
+}
+
 /** Opus-specific optimized prompt for Claude 4.6. */
 class Claude46OpusPrompt extends Claude46OptimizedBasePrompt {
 	protected override renderExplorationGuidance(_tools: ReturnType<typeof detectToolCapabilities>) {
@@ -541,6 +560,10 @@ class AnthropicPromptResolver implements IAgentPrompt {
 		return endpoint.model.startsWith('claude-sonnet') || endpoint.family.startsWith('claude-sonnet');
 	}
 
+	private isSonnet5(endpoint: IChatEndpoint): boolean {
+		return endpoint.model.startsWith('claude-sonnet-5') || endpoint.family.startsWith('claude-sonnet-5');
+	}
+
 	private isHaiku(endpoint: IChatEndpoint): boolean {
 		return endpoint.model.startsWith('claude-haiku') || endpoint.family.startsWith('claude-haiku');
 	}
@@ -555,6 +578,9 @@ class AnthropicPromptResolver implements IAgentPrompt {
 		}
 		if (this.isClaude45(endpoint)) {
 			return Claude45DefaultPrompt;
+		}
+		if (this.isSonnet5(endpoint) && this.configurationService.getExperimentBasedConfig(ConfigKey.ClaudeSonnet5PromptEnabled, this.experimentationService)) {
+			return ClaudeSonnet5Prompt;
 		}
 		if (this.isSonnet(endpoint)) {
 			return Claude46SonnetPrompt;

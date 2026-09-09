@@ -5,6 +5,7 @@
 
 import { Code } from './code';
 import { acceptToolConfirmationIfPresent } from './chat';
+import { IModelConfigSection, readModelConfigSections } from './modelConfigPicker';
 import { QuickAccess } from './quickaccess';
 
 const AGENTS_WORKBENCH = '.agent-sessions-workbench';
@@ -13,6 +14,8 @@ const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
+const DEV_CONTAINER_CHECKBOX = `${NEW_SESSION_VIEW} .sessions-chat-dev-container-checkbox .monaco-checkbox`;
+const NEW_WORKTREE_CHECKBOX = `${NEW_SESSION_VIEW} .sessions-chat-isolation-checkbox .monaco-checkbox`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
 const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
@@ -108,6 +111,49 @@ export class AgentsWindow {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE, undefined, retryCount);
 	}
 
+	async waitForActiveSessionView(timeoutMs: number = 30_000): Promise<void> {
+		const retryCount = Math.ceil(timeoutMs / 100);
+		await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, retryCount);
+		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+	}
+
+	async selectDevContainer(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const devContainer = page.locator(DEV_CONTAINER_CHECKBOX).first();
+		const newWorktree = page.locator(NEW_WORKTREE_CHECKBOX).first();
+		const deadline = Date.now() + 120_000;
+		while (Date.now() < deadline) {
+			if (await newWorktree.count() > 0 && await newWorktree.getAttribute('aria-checked') === 'true') {
+				await newWorktree.click();
+				continue;
+			}
+			if (await devContainer.count() > 0 && await devContainer.getAttribute('aria-disabled') !== 'true') {
+				break;
+			}
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+		if (await devContainer.count() === 0) {
+			throw new Error('Timed out waiting for Dev Container checkbox to appear');
+		}
+		if (await devContainer.getAttribute('aria-disabled') === 'true') {
+			throw new Error('Timed out waiting for Dev Container checkbox to become enabled');
+		}
+		if (await devContainer.getAttribute('aria-checked') !== 'true') {
+			await devContainer.click();
+		}
+		while (await devContainer.getAttribute('aria-checked') !== 'true') {
+			if (Date.now() >= deadline) {
+				throw new Error('Timed out waiting for Dev Container checkbox to become checked');
+			}
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+	}
+
+	private async isSessionTypeSelected(label: string): Promise<boolean> {
+		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
+		return ((await picker.textContent()) ?? '').trim().toLowerCase() === label.trim().toLowerCase();
+	}
+
 	/**
 	 * Returns whether the given session type appears in the new-session picker.
 	 *
@@ -125,6 +171,10 @@ export class AgentsWindow {
 	async isSessionTypeAvailable(label: string, timeoutMs: number = 30_000): Promise<boolean> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
+		if (await this.isSessionTypeSelected(label)) {
+			return true;
+		}
+
 		const itemSel = `.action-widget .monaco-list-row`;
 		const needle = label.toLowerCase();
 		const isEnabledAction = (el: { className: string }) => el.className.includes('action') && !el.className.includes('option-disabled');
@@ -135,6 +185,10 @@ export class AgentsWindow {
 		const deadline = Date.now() + timeoutMs;
 
 		while (Date.now() < deadline) {
+			if (await this.isSessionTypeSelected(label)) {
+				return true;
+			}
+
 			// (Re-)open the dropdown so its rows reflect the current provider set.
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
 
@@ -176,6 +230,10 @@ export class AgentsWindow {
 	async selectSessionType(label: string): Promise<void> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
+		if (await this.isSessionTypeSelected(label)) {
+			return;
+		}
+
 		const itemSel = `.action-widget .monaco-list-row`;
 		const maxAttempts = 3;
 		const needle = label.toLowerCase();
@@ -195,6 +253,10 @@ export class AgentsWindow {
 		// appears, instead of just waiting for "any item".
 		let lastSeen: string[] = [];
 		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			if (await this.isSessionTypeSelected(label)) {
+				return;
+			}
+
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
 			const deadline = Date.now() + 10_000;
 			while (Date.now() < deadline) {
@@ -610,19 +672,8 @@ export class AgentsWindow {
 				// to narrow the list.
 				await page.keyboard.type(modelName);
 				await row.waitFor({ state: 'visible', timeout: 5_000 });
-				// `force` bypasses the transient `context-view-pointerBlock` overlay
-				// that intercepts pointer events while the action widget animates open.
-				await row.click({ force: true });
-				// Confirm the selection actually committed: the picker name button
-				// must now reflect the chosen model. A non-committing click (e.g.
-				// absorbed by the animating pointer-block overlay) silently leaves the
-				// previous model selected and the picker dismissed, so waiting only
-				// for the popup to close would miss it. Match on the button's accessible
-				// name (aria-label, e.g. "Models, <modelName>") rather than the visible
-				// text: when the input is narrow the picker collapses to an icon-only
-				// button and no longer renders the model name as visible text. Scope to
-				// `:visible` so a hidden overflow duplicate of the name button can't
-				// produce a false positive.
+				await row.click();
+				// Match the accessible name because narrow inputs collapse the picker to an icon-only button.
 				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`)
 					.first()
 					.waitFor({ state: 'visible', timeout: 15_000 });
@@ -742,6 +793,41 @@ export class AgentsWindow {
 		await page.locator(`${ACTION_WIDGET_ROW}:visible`).first()
 			.waitFor({ state: 'hidden', timeout: 5_000 })
 			.catch(() => { /* already detached */ });
+	}
+
+	/**
+	 * Return the active session's model-configuration button label (the combined
+	 * "Effort Context" summary, e.g. "High 1M").
+	 *
+	 * The label is (re-)rendered when the selected model and its configuration
+	 * resolve, so this polls until it carries text rather than returning an empty
+	 * intermediate state.
+	 *
+	 * Mirrors {@link Chat.getModelConfigLabel} but scoped to the Agents Window's
+	 * active session view rather than the panel chat.
+	 */
+	async getModelConfigLabel(timeoutMs: number = 15_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const button = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first();
+		await button.waitFor({ state: 'visible', timeout: timeoutMs });
+		const deadline = Date.now() + timeoutMs;
+		let label = '';
+		while (Date.now() < deadline) {
+			label = ((await button.textContent()) ?? '').trim();
+			if (label) {
+				break;
+			}
+			await new Promise(r => setTimeout(r, 100));
+		}
+		return label;
+	}
+
+	/**
+	 * Return the section headers and option rows of the open model configuration
+	 * dropdown. Call after {@link openModelConfig}.
+	 */
+	async getModelConfigSections(): Promise<IModelConfigSection[]> {
+		return readModelConfigSections(this.code.driver.currentPage);
 	}
 
 	/**

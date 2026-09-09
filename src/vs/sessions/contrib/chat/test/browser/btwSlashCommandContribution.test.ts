@@ -18,20 +18,22 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatSlashCallback, IChatSlashCommandService, IChatSlashData } from '../../../../../workbench/contrib/chat/common/participants/chatSlashCommands.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { BtwSlashCommandContribution } from '../../browser/btwSlashCommand.contribution.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('BtwSlashCommandContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('opens the created side chat through the sessions service before sending', async () => {
+	test('opens the created side chat through the sessions service before sending attached context', async () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
 		let registered: { data: IChatSlashData; callback: IChatSlashCallback } | undefined;
@@ -88,6 +90,7 @@ suite('BtwSlashCommandContribution', () => {
 		});
 		const callOrder: string[] = [];
 		let createArgs: { selection?: { text: string } } | undefined;
+		let sendOptions: ISendRequestOptions | undefined;
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			getSessionForChatResource: resource => resource.toString() === sourceChat.resource.toString() ? { session, chat: sourceChat } : undefined,
 			createSideChatInSession: async (_session, _sourceChat, _turnId, selection) => {
@@ -97,12 +100,16 @@ suite('BtwSlashCommandContribution', () => {
 			},
 			sendRequest: async (_session, chat, options) => {
 				callOrder.push(`send:${chat.resource.toString()}:${options.query}`);
+				sendOptions = options;
 			},
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			openChat: async (_session, chatUri) => {
 				callOrder.push(`open:${chatUri.toString()}`);
 			},
+		}));
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: () => undefined,
 		}));
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(ILogService, new NullLogService());
@@ -112,6 +119,7 @@ suite('BtwSlashCommandContribution', () => {
 
 		assert.ok(registered);
 		assert.strictEqual(registered.data.executeDuringRequest, true);
+		const pastedText = toPasteVariableEntry('Pasted text #1', 'Long pasted text');
 
 		await registered.callback(
 			'what about this?',
@@ -120,6 +128,7 @@ suite('BtwSlashCommandContribution', () => {
 			ChatAgentLocation.Chat,
 			sourceChat.resource,
 			CancellationToken.None,
+			{ attachedContext: [pastedText] },
 		);
 
 		assert.deepStrictEqual(callOrder, [
@@ -128,5 +137,6 @@ suite('BtwSlashCommandContribution', () => {
 			`send:${sideChat.resource.toString()}:what about this?`,
 		]);
 		assert.deepStrictEqual(createArgs, { selection: { text: '  selected text  ' } });
+		assert.deepStrictEqual(sendOptions?.attachedContext, [pastedText]);
 	});
 });

@@ -5,13 +5,34 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, GitCheckoutProgressParser, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps branches and GitHub pull request refs to origin tracking refs', () => {
+		assert.deepStrictEqual({
+			branch: getRemoteTrackingRef('feature'),
+			pullRequest: getRemoteTrackingRef('refs/pull/42/head'),
+		}, {
+			branch: {
+				branchName: 'feature',
+				remoteBranch: 'origin/feature',
+				remoteRef: 'refs/remotes/origin/feature',
+				sourceRef: 'refs/heads/feature',
+			},
+			pullRequest: {
+				branchName: 'pull/42/head',
+				remoteBranch: 'origin/pull/42/head',
+				remoteRef: 'refs/remotes/origin/pull/42/head',
+				sourceRef: 'refs/pull/42/head',
+			},
+		});
+	});
 
 	test('sorts the current and default branches before recent branches and applying the limit', () => {
 		assert.deepStrictEqual(
@@ -84,6 +105,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: 'main',
+				isDetachedHead: undefined,
 				upstreamBranchName: 'origin/main',
 				outgoingChanges: 0,
 				incomingChanges: 0,
@@ -103,6 +125,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: 'feature',
+				isDetachedHead: undefined,
 				upstreamBranchName: 'origin/feature',
 				outgoingChanges: 3,
 				incomingChanges: 2,
@@ -117,6 +140,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: undefined,
+				isDetachedHead: true,
 				upstreamBranchName: undefined,
 				outgoingChanges: undefined,
 				incomingChanges: undefined,
@@ -126,6 +150,24 @@ suite('AgentHostGitService', () => {
 
 		test('returns empty object for undefined input', () => {
 			assert.deepStrictEqual(parseGitStatusV2(undefined), {});
+		});
+	});
+
+	suite('needsSessionGitStateRefresh', () => {
+		test('separates a branch-less probe failure from a detached HEAD', () => {
+			assert.deepStrictEqual({
+				neverComputed: needsSessionGitStateRefresh(undefined),
+				// The residue of a failed `git status`, as persisted before the
+				// probe learned to withhold state it could not compute.
+				probeFailureRemnant: needsSessionGitStateRefresh({ baseBranchName: 'main' }),
+				detachedHead: needsSessionGitStateRefresh({ isDetachedHead: true, baseBranchName: 'main' }),
+				onABranch: needsSessionGitStateRefresh({ branchName: 'feature', baseBranchName: 'main' }),
+			}, {
+				neverComputed: true,
+				probeFailureRemnant: true,
+				detachedHead: false,
+				onABranch: false,
+			});
 		});
 	});
 
@@ -161,6 +203,22 @@ suite('AgentHostGitService', () => {
 	});
 
 	suite('parseGitHubRepoFromRemote', () => {
+		test('parses only the requested fork remote', () => {
+			const out = [
+				'origin\tgit@github.com:base-owner/repo.git (fetch)',
+				'fork\thttps://github.com/fork-owner/repo.git (fetch)',
+			].join('\n');
+			assert.deepStrictEqual(parseGitHubRepoFromRemote(out, 'fork'), { owner: 'fork-owner', repo: 'repo' });
+		});
+
+		test('does not fall back when the requested remote is not GitHub', () => {
+			const out = [
+				'origin\tgit@github.com:base-owner/repo.git (fetch)',
+				'fork\thttps://gitlab.com/fork-owner/repo.git (fetch)',
+			].join('\n');
+			assert.strictEqual(parseGitHubRepoFromRemote(out, 'fork'), undefined);
+		});
+
 		test('parses ssh (scp-like) origin remote', () => {
 			const out = 'origin\tgit@github.com:microsoft/vscode.git (fetch)\norigin\tgit@github.com:microsoft/vscode.git (push)\n';
 			assert.deepStrictEqual(parseGitHubRepoFromRemote(out), { owner: 'microsoft', repo: 'vscode' });
@@ -242,6 +300,9 @@ suite('AgentHostGitService', () => {
 				'renamed-old.txt',
 				' C copied-new.txt',
 				'copied-old.txt',
+				'AD deleted-index-addition.txt',
+				'RD deleted-rename-destination.txt',
+				'rename-source.txt',
 				' M modified.txt',
 				'',
 			].join('\x00');
@@ -255,6 +316,7 @@ suite('AgentHostGitService', () => {
 				'renamed-old.txt',
 				'copied-new.txt',
 				'copied-old.txt',
+				'rename-source.txt',
 			]);
 		});
 
@@ -425,6 +487,26 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
+	suite('isRetryableWorktreeRemovalError', () => {
+		test('retries transient lock / dir-not-empty races but not fatal removal errors', () => {
+			assert.deepStrictEqual({
+				dirNotEmpty: isRetryableWorktreeRemovalError(new Error(`git worktree exited with code 255: error: failed to delete '.git/worktrees/reply-exactly-materialized': Directory not empty`)),
+				indexLock: isRetryableWorktreeRemovalError(new Error('git worktree exited with code 128: fatal: Unable to create \'.git/worktrees/x/index.lock\': File exists')),
+				couldNotLock: isRetryableWorktreeRemovalError(new Error('git worktree exited with code 1: fatal: could not lock config file')),
+				dirtyTree: isRetryableWorktreeRemovalError(new Error(`git worktree exited with code 1: fatal: 'wt' contains modified or untracked files, use --force to delete it`)),
+				notAWorktree: isRetryableWorktreeRemovalError(new Error(`git worktree exited with code 128: fatal: 'wt' is not a working tree`)),
+				nonError: isRetryableWorktreeRemovalError('boom'),
+			}, {
+				dirNotEmpty: true,
+				indexLock: true,
+				couldNotLock: true,
+				dirtyTree: false,
+				notAWorktree: false,
+				nonError: false,
+			});
+		});
+	});
+
 	suite('summarizeStderrForError', () => {
 		test('returns empty string for empty input', () => {
 			assert.strictEqual(summarizeStderrForError(''), '');
@@ -458,9 +540,11 @@ suite('AgentHostGitService', () => {
 					resolveDiffBaseBranchName('persisted', 'gitState'),
 					resolveDiffBaseBranchName(undefined, 'gitState'),
 					resolveDiffBaseBranchName('persisted', undefined),
+					resolveDiffBaseBranchName('origin/main', undefined),
+					resolveDiffBaseBranchName('refs/remotes/origin/release', undefined),
 					resolveDiffBaseBranchName(undefined, undefined),
 				],
-				['persisted', 'gitState', 'persisted', undefined],
+				['persisted', 'gitState', 'persisted', 'main', 'release', undefined],
 			);
 		});
 	});

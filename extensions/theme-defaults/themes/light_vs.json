@@ -20,6 +20,7 @@
 		"settings.numberInputBorder": "#CECECE",
 		"statusBarItem.remoteForeground": "#FFF",
 		"statusBarItem.remoteBackground": "#16825D",
+		"statusBar.inactiveBackground": "#1476B8",
 		"ports.iconRunningProcessForeground": "#369432",
 		"sideBarSectionHeader.background": "#0000",
 		"sideBarSectionHeader.border": "#61616130",
@@ -36,7 +37,16 @@
 		"actionBar.toggledBackground": "#dddddd",
 		"diffEditor.unchangedRegionBackground": "#f8f8f8",
 		"agentsNewSessionButton.border": "#D8D8D8",
-		"agentsChatInput.border": "#D8D8D8"
+		"agentsChatInput.border": "#D8D8D8",
+		"agentsPanel.border": "#00000000",
+		// modern ui
+		"surface.border": "#F3F3F3",
+		"modernActivityBarItem.activeBackground": "#e4e6f122",
+		"modernActivityBarItem.hoverBackground": "#E8E8E822",
+		"modernActivityBarItem.activeForeground": "#FFF",
+		"modernActivityBarItem.hoverForeground": "#FFF",
+		"modernActivityBar.border": "#2C2C2C",
+		"titleBar.inactiveBackground": "#E5E5E5"
 	},
 	"tokenColors": [
 		{

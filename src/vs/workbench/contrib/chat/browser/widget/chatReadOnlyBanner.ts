@@ -20,6 +20,7 @@ export class ChatReadOnlyBanner extends Disposable {
 	private _visible = false;
 
 	constructor(
+		message: string = localize('chatReadOnlyBanner.archivedMessage', "Archived sessions are read-only."),
 		@IHoverService hoverService: IHoverService,
 	) {
 		super();
@@ -33,7 +34,6 @@ export class ChatReadOnlyBanner extends Disposable {
 		icon.appendChild(renderedIcon);
 
 		const text = dom.append(this.domNode, dom.$('span.chat-readonly-banner-text'));
-		const message = localize('chatReadOnlyBanner.message', "Archived sessions are read-only.");
 		text.textContent = message;
 		this._register(hoverService.setupDelayedHover(text, { content: message }));
 

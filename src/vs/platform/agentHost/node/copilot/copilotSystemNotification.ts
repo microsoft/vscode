@@ -5,6 +5,7 @@
 
 import type { SessionEventPayload, SystemNotification } from '@github/copilot-sdk';
 import { softAssertNever } from '../../../../base/common/assert.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 
 export interface ICopilotSystemNotification {
@@ -34,15 +35,37 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 			};
 		}
 		case 'agent_completed':
+		case 'agent_idle': {
+			const name = kind.displayName?.trim() || kind.description?.trim() || kind.agentType.trim();
+			const formattedName = name ? appendEscapedMarkdownInlineCode(name) : undefined;
+			if (kind.type === 'agent_idle') {
+				return {
+					messageText: formattedName
+						? localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", formattedName)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentIdle', "Background agent is complete"),
+					startsTurn: true,
+				};
+			}
 			return {
 				messageText: kind.status === 'failed'
-					? localize('agentHost.copilot.systemNotification.agentFailed', "Background agent {0} failed", kind.agentId)
-					: localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", kind.agentId),
+					? formattedName
+						? localize('agentHost.copilot.systemNotification.agentFailed', "Background agent {0} failed", formattedName)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentFailed', "Background agent failed")
+					: formattedName
+						? localize('agentHost.copilot.systemNotification.agentCompleted', "Background agent {0} completed", formattedName)
+						: localize('agentHost.copilot.systemNotification.unnamedAgentCompleted', "Background agent completed"),
 				startsTurn: true,
 			};
-		case 'agent_idle':
+		}
+		case 'factory_completed':
 			return {
-				messageText: localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", kind.agentId),
+				messageText: kind.status === 'error'
+					? localize('agentHost.copilot.systemNotification.factoryFailed', "Factory {0} failed", kind.factoryName)
+					: kind.status === 'halted'
+						? localize('agentHost.copilot.systemNotification.factoryHalted', "Factory {0} was halted", kind.factoryName)
+						: kind.status === 'cancelled'
+							? localize('agentHost.copilot.systemNotification.factoryCancelled', "Factory {0} was cancelled", kind.factoryName)
+							: localize('agentHost.copilot.systemNotification.factoryCompleted', "Factory {0} completed", kind.factoryName),
 				startsTurn: true,
 			};
 		case 'new_inbox_message':
@@ -54,6 +77,13 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 			return {
 				messageText: localize('agentHost.copilot.systemNotification.instructionDiscovered', "Instruction discovered: {0}", kind.description ?? kind.sourcePath),
 				startsTurn: false,
+			};
+		case 'unclassified':
+			// External-host notifications that do not match a runtime-owned kind.
+			// Use the cleaned content and wake the agent when idle.
+			return {
+				messageText: content,
+				startsTurn: true,
 			};
 		default:
 			softAssertNever(kind);

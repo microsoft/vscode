@@ -87,7 +87,8 @@ export class SessionGitHubInfoResolver {
 			reader => {
 				const git = readSessionGitState(meta.read(reader));
 				if (git?.githubOwner && git?.githubRepo && git?.branchName) {
-					return { owner: git.githubOwner, repo: git.githubRepo, branch: git.branchName };
+					const branch = git.upstreamBranchName?.replace(/^[^/]+\//, '') ?? git.branchName;
+					return { owner: git.githubOwner, repo: git.githubRepo, branch };
 				}
 				return undefined;
 			});

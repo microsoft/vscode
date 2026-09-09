@@ -41,17 +41,10 @@ const providerPackages = [
 
 const incompatibleFlags = [
 	'AGENT_HOST_REAL_CODEX',
-	'AGENT_HOST_REAL_SDK',
 	'AGENT_HOST_REPLAY_RECORD',
 	'AGENT_HOST_UPDATE_AHP_SNAPSHOTS',
 	'AGENT_HOST_UPDATE_SNAPSHOTS',
 ];
-
-/**
- * Every entrypoint that makes up the portable suite: the conformance tier
- * (registered once) plus one parity entrypoint per provider.
- */
-const e2eGlob = '**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js';
 
 function main(): void {
 	validateEnvironment();
@@ -71,8 +64,7 @@ function main(): void {
 		AGENT_HOST_RECORD_PROTOCOL_SURFACE: '1',
 		AGENT_HOST_PROTOCOL_SURFACE_OUT: observedSurfacePath,
 	};
-	const testScript = join(repoRoot, 'scripts', process.platform === 'win32' ? 'test-integration.bat' : 'test-integration.sh');
-	run(testScript, ['--runGlob', e2eGlob], testEnvironment, process.platform === 'win32');
+	run(process.execPath, [join(repoRoot, 'scripts', 'test-agent-host-e2e.ts')], testEnvironment);
 
 	const rawFiles = readdirSync(rawCoveragePath).filter(file => file.endsWith('.json'));
 	if (rawFiles.length === 0) {
@@ -116,11 +108,10 @@ function validateEnvironment(): void {
 	}
 }
 
-function run(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, shell = false): void {
+function run(command: string, args: readonly string[], environment: NodeJS.ProcessEnv): void {
 	const result = spawnSync(command, args, {
 		cwd: repoRoot,
 		env: environment,
-		shell,
 		stdio: 'inherit',
 	});
 	if (result.error) {

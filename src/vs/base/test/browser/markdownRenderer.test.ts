@@ -95,6 +95,99 @@ suite('MarkdownRenderer', () => {
 			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
+		test('disallowed remote images are rendered as plaintext', () => {
+			const checkedUris: string[] = [];
+			const markdown = { value: '![image](https://example.com/collect?secret=value)' };
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: uri => {
+						checkedUris.push(uri.toString());
+						return false;
+					},
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.deepStrictEqual({
+				checkedUris,
+				html: result.innerHTML,
+			}, {
+				checkedUris: ['https://example.com/collect?secret%3Dvalue'],
+				html: '<p>&lt;img src="https://example.com/collect?secret=value" alt="image"&gt;</p>',
+			});
+		});
+
+		test('network-backed file images are rendered as plaintext', () => {
+			const markdownSources = [
+				{ value: '![image](file://remote-host/share/image.png)' },
+				new MarkdownString('<img src="file://remote-host/share/image.png">', { supportHtml: true }),
+			];
+			const results = markdownSources.map(markdown => store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element);
+
+			assert.deepStrictEqual(
+				results.map(result => ({
+					imageCount: result.querySelectorAll('img').length,
+					text: result.textContent,
+				})),
+				[
+					{ imageCount: 0, text: '<img src="file://remote-host/share/image.png" alt="image">' },
+					{ imageCount: 0, text: '<img src="file://remote-host/share/image.png">' },
+				]
+			);
+		});
+
+		test('relative image with a network-backed file base URI is rendered as plaintext', () => {
+			const markdown = new MarkdownString('![image](image.png)');
+			markdown.baseUri = URI.parse('file://remote-host/share/base.md');
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.deepStrictEqual({
+				imageCount: result.querySelectorAll('img').length,
+				text: result.textContent,
+			}, {
+				imageCount: 0,
+				text: '<img src="image.png" alt="image">',
+			});
+		});
+
+		test('relative image with a local file base URI remains allowed', () => {
+			const markdown = new MarkdownString('![image](image.png)');
+			markdown.baseUri = URI.file('/images/base.md');
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img').length, 1);
+		});
+
+		test('local file image remains allowed by remote image validation', () => {
+			if (isWeb) {
+				return;
+			}
+			const localImage = URI.file('/images/cat.gif');
+			const result = store.add(renderMarkdown({ value: `![image](${localImage.toString()})` }, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img').length, 1);
+		});
+
 		test('image width from title params', () => {
 			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](http://example.com/cat.gif|width=100px 'caption')` })).element;
 			assertNodeEquals(result, `<div><p><img width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
@@ -354,6 +447,45 @@ suite('MarkdownRenderer', () => {
 		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
 	});
 
+	suite('Copy-safe hrefs', () => {
+		// Rich-text copy resolved empty hrefs against the workbench document, so every pasted
+		// link became a `workbench.html` URL. Clicks still route through `data-href`.
+		test('keeps the real href only for targets that resolve elsewhere', () => {
+			const md = new MarkdownString(`[web](https://example.com/page) [mail](mailto:user@example.com) [run](command:doFoo) [file](file:///home/user/a.ts) [ref](http://_vscodecontentref_/0)`, { isTrusted: true });
+
+			const result = store.add(renderMarkdown(md, { actionHandler: () => { } })).element;
+			assert.deepStrictEqual(
+				Array.from(result.querySelectorAll('a'), a => [a.getAttribute('href'), a.getAttribute('data-href'), a.getAttribute('draggable')]),
+				[
+					['https://example.com/page', 'https://example.com/page', 'false'],
+					['mailto:user@example.com', 'mailto:user@example.com', 'false'],
+					['', 'command:doFoo', 'false'],
+					['', 'file:///home/user/a.ts', 'false'],
+					['', 'http://_vscodecontentref_/0', 'false'],
+				]);
+		});
+
+		test('leaves the href empty when nothing intercepts clicks', () => {
+			// Without an action handler the anchor would navigate natively, bypassing the opener.
+			const md = new MarkdownString(`[web](https://example.com/page)`, {});
+
+			const anchor = store.add(renderMarkdown(md)).element.querySelector('a')!;
+			assert.deepStrictEqual(
+				[anchor.getAttribute('href'), anchor.getAttribute('data-href')],
+				['', 'https://example.com/page']);
+		});
+
+		test('keeps the resolved href for relative links against an https baseUri', () => {
+			const md = new MarkdownString(`[text](./foo)`, { isTrusted: true });
+			md.baseUri = URI.parse('https://example.com/path/');
+
+			const anchor = store.add(renderMarkdown(md, { actionHandler: () => { } })).element.querySelector('a')!;
+			assert.deepStrictEqual(
+				[anchor.getAttribute('href'), anchor.getAttribute('data-href')],
+				['https://example.com/path/foo', 'https://example.com/path/foo']);
+		});
+	});
+
 	test('Should use decoded file path as title for file:// links', () => {
 		const fileUri = URI.file('/home/user/project/lib.d.ts');
 		const md = new MarkdownString(`[log](${fileUri.toString()})`, {});
@@ -420,6 +552,26 @@ suite('MarkdownRenderer', () => {
 		test('does not double-escape entities inside code spans', () => {
 			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
 			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
+		});
+
+		test('reduces inline syntax inside list items when omitMarkdownSyntax is set', () => {
+			// A list item's content arrives as a text token carrying inline tokens. By default the
+			// item is emitted as raw source, so a link keeps its target; opting in reduces it to
+			// the text a reader actually sees.
+			const markdown = { value: '- Added [src/](/some/path/to/src)\n- Uses **bold** and `code`' };
+
+			assert.strictEqual(
+				renderAsPlaintext(markdown),
+				'Added [src/](/some/path/to/src)\n\nUses **bold** and `code`',
+				'default output is unchanged');
+			assert.strictEqual(
+				renderAsPlaintext(markdown, { omitMarkdownSyntax: true }),
+				'Added src/\n\nUses bold and code');
+		});
+
+		test('separates a nested list from the item holding it when omitMarkdownSyntax is set', () => {
+			const markdown = { value: '- outer\n    - inner [link](/target)' };
+			assert.strictEqual(renderAsPlaintext(markdown, { omitMarkdownSyntax: true }), 'outer\ninner link');
 		});
 	});
 

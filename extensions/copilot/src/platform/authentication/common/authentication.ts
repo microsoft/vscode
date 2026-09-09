@@ -278,7 +278,6 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 
 	//#region Copilot Token
 
-	private _copilotTokenError: Error | undefined;
 	get copilotToken(): CopilotToken | undefined {
 		return this._tokenStore.copilotToken;
 	}
@@ -287,7 +286,6 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 			const tokenBefore = this._tokenStore.copilotToken;
 			const token = await this._tokenManager.getCopilotToken(force);
 			this._tokenStore.copilotToken = token;
-			this._copilotTokenError = undefined;
 			if (tokenBefore?.token !== token.token) {
 				this.fireCopilotTokenChange('getCopilotToken');
 			}
@@ -295,16 +293,9 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 		} catch (afterError) {
 			const tokenBefore = this._tokenStore.copilotToken;
 			this._tokenStore.copilotToken = undefined;
-			const beforeError = this._copilotTokenError;
-			this._copilotTokenError = afterError;
 			if (tokenBefore) {
 				// Had a valid token before, now errored — token value changed to undefined
 				this.fireCopilotTokenChange('getCopilotToken token lost');
-			} else if (beforeError && afterError && beforeError.message !== afterError.message) {
-				// Still can't get a Copilot Token, but the error has changed.
-				// I.e. They go from being not signed in (no copilot token can be minted)
-				// to an account that doesn't have a valid subscription (no copilot token can be minted).
-				this.fireCopilotTokenChange('getCopilotToken error change');
 			}
 			throw afterError;
 		}

@@ -4,42 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-component.multiDiffEditor {
-	background: var(--vscode-multiDiffEditor-background);
-
 	position: relative;
-
-	height: 100%;
 	width: 100%;
-
+	height: 100%;
 	overflow-y: hidden;
+	background: var(--vscode-multiDiffEditor-background);
 
 	> div {
 		position: absolute;
-		top: 0px;
-		left: 0px;
-
-		height: 100%;
+		top: 0;
+		left: 0;
 		width: 100%;
+		height: 100%;
 
 		&.placeholder {
+			display: grid;
+			place-items: center;
+			place-content: center;
 			visibility: hidden;
 
 			&.visible {
 				visibility: visible;
 			}
-
-			display: grid;
-			place-items: center;
-			place-content: center;
 		}
 	}
 
 	> .multi-diff-root-floating-menu {
 		position: absolute;
-		top: auto;
-		right: 28px;
-		bottom: 24px;
-		left: auto;
+		inset: auto var(--vscode-spacing-size280) var(--vscode-spacing-size240) auto;
 		width: auto;
 	}
 
@@ -49,42 +41,24 @@
 
 	.multiDiffEntry {
 		display: flex;
-		flex-direction: column;
 		flex: 1;
+		flex-direction: column;
 		overflow: hidden;
 
-
 		.collapse-button {
-			margin: 0 5px;
 			cursor: pointer;
-
-			a {
-				display: block;
-			}
 		}
 
 		.header {
 			z-index: 1000;
-			background: var(--vscode-editor-background);
-
-			&:not(.collapsed) .header-content {
-				border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
-			}
 
 			.header-content {
-				margin: 8px 0px 0px 0px;
-				padding: 4px 5px;
-
-				border-top: 1px solid var(--vscode-multiDiffEditor-border);
-
 				display: flex;
 				align-items: center;
-
 				color: var(--vscode-foreground);
-				background: var(--vscode-multiDiffEditor-headerBackground);
 
 				&.shadow {
-					box-shadow: var(--vscode-scrollbar-shadow) 0px 6px 6px -6px;
+					box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px;
 				}
 
 				.file-path {
@@ -94,65 +68,349 @@
 					overflow: hidden;
 
 					.title {
-						font-size: 14px;
-						line-height: 22px;
 						flex: 0 1 auto;
 						min-width: 0;
 						overflow: hidden;
+						line-height: 22px;
 						text-overflow: ellipsis;
+
+						&.modified {
+							display: flex;
+							align-items: center;
+						}
+
+						&.modified > .monaco-icon-label {
+							flex: 0 1 auto;
+							min-width: 0;
+						}
 
 						&.original {
 							flex: 1 1 auto;
 						}
 					}
 
-					.status {
-						font-weight: 600;
-						opacity: 0.75;
-						margin: 0px 10px;
-						line-height: 22px;
+					.multi-diff-resource-label-accessory:empty {
+						display: none;
+					}
 
-						/*
-							TODO@hediet: move colors from git extension to core!
-						&.renamed {
-							color: v ar(--vscode-gitDecoration-renamedResourceForeground);
-						}
-
-						&.deleted {
-							color: v ar(--vscode-gitDecoration-deletedResourceForeground);
-						}
-
-						&.added {
-							color: v ar(--vscode-gitDecoration-addedResourceForeground);
-						}
-						*/
-
-						&:not(.added):not(.deleted):not(.renamed) {
-							display: none;
-						}
+					.status:not(.added):not(.deleted):not(.renamed) {
+						display: none;
 					}
 				}
 
 				.actions {
 					flex: 0 0 auto;
-					padding: 0 8px;
 				}
 			}
-
-
 		}
 
 		.editorParent {
-			flex: 1;
 			display: flex;
+			flex: 1;
 			flex-direction: column;
-
-			border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
 			overflow: hidden;
 		}
 
 		.editorContainer {
 			flex: 1;
+		}
+
+		.binary-file-placeholder {
+			display: none;
+			flex: 1;
+			place-items: center;
+			color: var(--vscode-descriptionForeground);
+
+			&:focus-visible {
+				outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+				outline-offset: calc(-1 * var(--vscode-strokeThickness));
+			}
+
+			.binary-file-placeholder-content {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: var(--vscode-spacing-size80);
+			}
+		}
+	}
+
+	&.multiDiffEditor-standard {
+		.multiDiffEntry {
+			.collapse-button {
+				margin: 0 5px;
+
+				a {
+					display: block;
+				}
+			}
+
+			.header {
+				background: var(--vscode-editor-background);
+
+				&:not(.collapsed) .header-content {
+					border-bottom: var(--vscode-strokeThickness) solid var(--vscode-sideBarSectionHeader-border);
+				}
+
+				.header-content {
+					margin: var(--vscode-spacing-size80) 0 0;
+					padding: var(--vscode-spacing-size40) 5px;
+					border-top: var(--vscode-strokeThickness) solid var(--vscode-multiDiffEditor-border);
+					background: var(--vscode-multiDiffEditor-headerBackground);
+
+					.file-path {
+						.title {
+							font-size: 14px;
+						}
+
+						.status {
+							margin: 0 var(--vscode-spacing-size100);
+							font-weight: var(--vscode-fontWeight-semiBold);
+							line-height: 22px;
+							opacity: 0.75;
+						}
+					}
+
+					.actions {
+						padding: 0 var(--vscode-spacing-size80);
+					}
+				}
+			}
+
+			.editorParent {
+				border-bottom: var(--vscode-strokeThickness) solid var(--vscode-multiDiffEditor-border);
+			}
+		}
+	}
+
+	&.multiDiffEditor-compact {
+		.multiDiffEntry {
+			box-sizing: border-box;
+
+			&::after {
+				position: absolute;
+				right: var(--vscode-spacing-size100);
+				bottom: 0;
+				left: var(--vscode-spacing-size100);
+				z-index: 1001;
+				height: var(--vscode-strokeThickness);
+				pointer-events: none;
+				content: '';
+				background: var(--vscode-panel-border);
+			}
+
+			&.header-hovered,
+			&.header-focused {
+				z-index: 1002;
+				overflow: visible;
+			}
+
+			&.header-hovered::after,
+			&.header-focused::after {
+				right: 0;
+				left: 0;
+				z-index: 1004;
+			}
+
+			&.header-hovered::before,
+			&.header-focused::before {
+				position: absolute;
+				top: calc(-1 * var(--vscode-strokeThickness));
+				right: 0;
+				left: 0;
+				z-index: 1004;
+				height: var(--vscode-strokeThickness);
+				pointer-events: none;
+				content: '';
+				background: var(--vscode-panel-border);
+			}
+
+			&.first-diff-entry.header-hovered::before,
+			&.first-diff-entry.header-focused::before {
+				top: 0;
+			}
+
+			.collapse-button {
+				margin: 0 var(--vscode-spacing-size60);
+
+				a {
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					padding: var(--vscode-spacing-size40);
+					border-radius: var(--vscode-cornerRadius-medium);
+
+					&:hover {
+						background: var(--vscode-toolbar-hoverBackground);
+					}
+
+					&:active {
+						background: var(--vscode-toolbar-activeBackground);
+					}
+
+					&:focus-visible {
+						outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+						outline-offset: calc(-1 * var(--vscode-strokeThickness));
+					}
+
+					&:focus:not(:focus-visible) {
+						outline: none;
+					}
+				}
+			}
+
+			.header {
+				position: relative;
+				background: var(--vscode-multiDiffEditor-background);
+
+				&[role='button'] {
+					cursor: pointer;
+				}
+
+				.header-content {
+					box-sizing: border-box;
+					height: var(--vscode-spacing-size320);
+					margin: 0;
+					padding: 0;
+					border: none;
+					background: transparent;
+
+					.file-path {
+						.title {
+							font-size: var(--vscode-fontSize-body1);
+						}
+
+						.status {
+							display: inline-flex;
+							align-items: center;
+							justify-content: center;
+							width: var(--vscode-spacing-size160);
+							min-width: var(--vscode-spacing-size160);
+							margin: 0 var(--vscode-spacing-size100);
+							font-size: var(--vscode-fontSize-body2);
+							font-weight: var(--vscode-fontWeight-semiBold);
+							line-height: 22px;
+							opacity: 0.9;
+
+							&.added {
+								color: var(--vscode-gitDecoration-addedResourceForeground);
+							}
+
+							&.deleted {
+								color: var(--vscode-gitDecoration-deletedResourceForeground);
+							}
+
+							&.renamed {
+								color: var(--vscode-gitDecoration-modifiedResourceForeground);
+							}
+						}
+					}
+
+					.actions {
+						padding: 0 var(--vscode-spacing-size80);
+
+						.actions-container {
+							gap: var(--vscode-spacing-size40);
+
+							.action-item:not(.multi-diff-action-always-visible) {
+								visibility: hidden;
+							}
+
+							.action-item:not(.checkbox-action-item) .action-label {
+								padding: var(--vscode-spacing-size40);
+							}
+						}
+					}
+				}
+
+				&:hover .header-content {
+					background: var(--vscode-list-hoverBackground);
+				}
+
+				&:active .header-content {
+					background: var(--vscode-toolbar-activeBackground);
+				}
+
+				&[aria-expanded='false'] + .editorParent {
+					border: none;
+				}
+
+				&:focus {
+					outline: none;
+				}
+
+				&:focus-visible .header-content {
+					outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+					outline-offset: calc(-1 * var(--vscode-strokeThickness));
+				}
+			}
+
+			&:hover .header .header-content .actions .actions-container .action-item,
+			&:focus-within .header .header-content .actions .actions-container .action-item {
+				visibility: visible;
+			}
+
+			.editorParent {
+				border: none;
+			}
+		}
+
+		&:focus-within .multiDiffEntry.active {
+			z-index: 1002;
+			overflow: visible;
+		}
+
+		&:focus-within .multiDiffEntry.active::after {
+			right: 0;
+			left: 0;
+			z-index: 1004;
+		}
+
+		&:focus-within .multiDiffEntry.active::before {
+			position: absolute;
+			top: calc(-1 * var(--vscode-strokeThickness));
+			right: 0;
+			left: 0;
+			z-index: 1004;
+			height: var(--vscode-strokeThickness);
+			pointer-events: none;
+			content: '';
+			background: var(--vscode-panel-border);
+		}
+
+		&:focus-within .multiDiffEntry.first-diff-entry.active::before {
+			top: 0;
+		}
+
+		&:focus-within .multiDiffEntry.active .header .header-content,
+		&:focus-within .multiDiffEntry.active .header:hover .header-content,
+		&:focus-within .multiDiffEntry.active .header:active .header-content {
+			background: var(--vscode-list-inactiveSelectionBackground);
+		}
+
+		.diff-hidden-lines .center {
+			overflow: hidden;
+			box-shadow: none;
+		}
+
+		.diff-hidden-lines .first {
+			box-sizing: border-box;
+			justify-content: flex-start;
+			padding-left: var(--vscode-spacing-size60);
+		}
+
+		.fold-unchanged {
+			box-sizing: border-box;
+		}
+
+		.editor.original .diff-hidden-lines .center {
+			border-top-left-radius: var(--vscode-cornerRadius-medium);
+			border-bottom-left-radius: var(--vscode-cornerRadius-medium);
+		}
+
+		.editor.modified .diff-hidden-lines .center {
+			border-top-right-radius: var(--vscode-cornerRadius-medium);
+			border-bottom-right-radius: var(--vscode-cornerRadius-medium);
 		}
 	}
 }
