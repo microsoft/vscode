@@ -834,7 +834,6 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
-	private readonly _resumedSubagentAgentIds = new Set<string>();
 	private _subagentTaskStatusRevision = 0;
 	private readonly _subagentTaskStatusRefreshThrottler = this._register(new Throttler());
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
@@ -1434,7 +1433,6 @@ export class CopilotAgentSession extends Disposable {
 			this._rootTurnIdBySubagentToolCallId.set(parentToolCallId, this._currentTurn.value.id);
 		}
 		this._activeSubagentAgentIds.add(e.agentId);
-		this._resumedSubagentAgentIds.add(e.agentId);
 		this._subagentTaskStatusRevision++;
 		this._onDidSessionProgress.fire({
 			kind: 'subagent_resumed',
@@ -1472,23 +1470,6 @@ export class CopilotAgentSession extends Disposable {
 		this._subagentDirectUsageByToolCallId.delete(parentToolCallId);
 		this._lastSubagentUsageByToolCallId.delete(parentToolCallId);
 		this._autoModeResolvedByToolCallId.delete(parentToolCallId);
-	}
-
-	private _agentIdForSubagentToolCall(toolCallId: string): string | undefined {
-		for (const [agentId, parentToolCallId] of this._parentToolCallIdsByAgentId) {
-			if (parentToolCallId === toolCallId) {
-				return agentId;
-			}
-		}
-		return undefined;
-	}
-
-	private _completeInitialSubagentTurn(agentId: string | undefined, toolCallId: string): void {
-		const knownAgentId = agentId ?? this._agentIdForSubagentToolCall(toolCallId);
-		if (knownAgentId && this._resumedSubagentAgentIds.has(knownAgentId)) {
-			return;
-		}
-		this._completeSubagentTurn(knownAgentId, toolCallId);
 	}
 
 	private _reconcileSubagentTaskStatuses(): Promise<void> {
@@ -6673,12 +6654,10 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSubagentCompleted(e => {
-			this._completeInitialSubagentTurn(e.agentId, e.data.toolCallId);
 			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
 		}));
 
 		this._register(wrapper.onSubagentFailed(e => {
-			this._completeInitialSubagentTurn(e.agentId, e.data.toolCallId);
 			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
 		}));
 

@@ -4168,14 +4168,19 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 7,
 			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
-		mockSession.fire('subagent.completed', {
+		mockSession.backgroundTasks = [{
+			type: 'agent',
+			id: 'agent-1',
 			toolCallId: 'tc-subagent',
-			agentName: 'explore',
-			agentDisplayName: 'Explore',
-			durationMs: 1,
-			totalTokens: 12,
-			totalToolCalls: 0,
-		} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-1' });
+			description: 'Explore tests',
+			status: 'idle',
+			agentType: 'explore',
+			prompt: 'Explore tests',
+			startedAt: new Date(0).toISOString(),
+			idleSince: new Date(1).toISOString(),
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
 
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
@@ -9664,21 +9669,31 @@ Use the attached image as context.
 				totalTokens: 0,
 				totalToolCalls: 0,
 			};
-			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+			const initialTask = {
+				type: 'agent',
+				id: 'agent-1',
+				toolCallId: 'tc-subagent',
+				description: 'Explore tests',
+				status: 'idle',
+				agentType: 'explore',
+				prompt: 'Initial request',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>;
+			mockSession.backgroundTasks = [initialTask];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 			mockSession.fire('user.message', {
 				content: 'Review the follow-up',
 				source: 'agent-parent',
 			}, { agentId: 'agent-1' });
 			mockSession.fire('subagent.completed', completion);
 			const backgroundTask = {
-				type: 'agent',
-				id: 'agent-1',
-				toolCallId: 'tc-subagent',
-				description: 'Explore tests',
+				...initialTask,
 				status: 'running',
-				agentType: 'explore',
 				prompt: 'Review the follow-up',
-				startedAt: new Date(0).toISOString(),
+				idleSince: undefined,
+				activeStartedAt: new Date(2).toISOString(),
 			} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>;
 			mockSession.backgroundTasks = [backgroundTask];
 			mockSession.fire('session.background_tasks_changed', {});
@@ -9712,7 +9727,7 @@ Use the attached image as context.
 				afterIdle: ['tc-subagent', 'tc-subagent'],
 				resumed: ['tc-subagent'],
 				parentCompleted: false,
-				listCalls: 3,
+				listCalls: 4,
 			});
 		});
 
@@ -9777,20 +9792,15 @@ Use the attached image as context.
 				startedAt: new Date(0).toISOString(),
 				idleSince: new Date(1).toISOString(),
 			};
+			mockSession.backgroundTasks = [task];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 			const staleRead = new DeferredPromise<void>();
 			mockSession.backgroundTaskListResults.push([task]);
 			mockSession.backgroundTaskListGates.push(staleRead.p);
 			mockSession.fire('session.background_tasks_changed', {});
 			await timeout(0);
 
-			mockSession.fire('subagent.completed', {
-				toolCallId: 'tc-subagent',
-				agentName: 'explore',
-				agentDisplayName: 'Explore',
-				durationMs: 1,
-				totalTokens: 0,
-				totalToolCalls: 0,
-			}, { agentId: 'agent-1' });
 			mockSession.fire('user.message', { content: 'Second turn' }, { agentId: 'agent-1' });
 			mockSession.backgroundTaskListResults.push([{
 				...task,
@@ -11054,14 +11064,19 @@ Use the attached image as context.
 				agentDescription: 'Helps',
 			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-client-tool' });
 
-			mockSession.fire('subagent.completed', {
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-client-tool',
 				toolCallId: 'tc-parent-subagent',
-				agentName: 'helper',
-				agentDisplayName: 'Helper',
-				durationMs: 1,
-				totalTokens: 0,
-				totalToolCalls: 0,
-			} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-client-tool' });
+				description: 'Helps',
+				status: 'idle',
+				agentType: 'helper',
+				prompt: 'Use the client tool',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-sub-client',

@@ -77,6 +77,8 @@ async function main(): Promise<void> {
 	if (!gitHubToken) {
 		throw new Error('Set GITHUB_TOKEN before running, for example: GITHUB_TOKEN="$(gh auth token)" node scripts/repro-subagent-completed-followup.ts');
 	}
+	const taskMode = process.argv.includes('--sync') ? 'sync' : 'background';
+	const initialOnly = process.argv.includes('--initial-only');
 
 	const workspace = await mkdtemp(join(tmpdir(), 'copilot-sdk-subagent-completed-'));
 	const client = new CopilotClient({
@@ -121,9 +123,9 @@ async function main(): Promise<void> {
 		});
 
 		await sendAndWait(session, [
-			'Use the task tool exactly once to start a general-purpose subagent in background mode.',
+			`Use the task tool exactly once to start a general-purpose subagent in ${taskMode} mode.`,
 			'Tell it to reply exactly FIRST_DONE and not to use tools.',
-			'Wait for its completion notification, then call read_agent once to read the result.',
+			...(taskMode === 'background' ? ['Wait for its completion notification, then call read_agent once to read the result.'] : []),
 			'Do not stop or delete the subagent. Reply exactly PARENT_FIRST_DONE.',
 		].join(' '));
 
@@ -145,6 +147,9 @@ async function main(): Promise<void> {
 		const initialCompletionCount = completionsFor(events, agentId).length;
 		if (initialCompletionCount !== 1) {
 			throw new Error(`Expected one initial subagent.completed event, observed ${initialCompletionCount}.`);
+		}
+		if (initialOnly) {
+			return;
 		}
 
 		const followupStart = events.length;
