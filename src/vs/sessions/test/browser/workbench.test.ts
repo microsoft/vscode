@@ -23,6 +23,8 @@ import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js'
 import { Menus } from '../../browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
+import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -1658,6 +1660,30 @@ suite('Sessions - Workbench', () => {
 			headerSecondary: undefined,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
 		});
+	});
+
+	test('single-pane reserves an empty header only for docked editor inputs', () => {
+		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
+		const options = getOptions.call({});
+		const store = new DisposableStore();
+		try {
+			const dockedEditor = store.add(new TestDockedEditorInput());
+			const ordinaryEditor = store.add(new class extends EditorInput {
+				override get typeId(): string { return 'test.ordinaryEditor'; }
+				override get resource(): undefined { return undefined; }
+			}());
+			assert.deepStrictEqual({
+				docked: options.reserveHeaderSpace?.(dockedEditor),
+				ordinary: options.reserveHeaderSpace?.(ordinaryEditor),
+				empty: options.reserveHeaderSpace?.(undefined),
+			}, {
+				docked: true,
+				ordinary: false,
+				empty: false,
+			});
+		} finally {
+			store.dispose();
+		}
 	});
 
 	test('single-pane editor part chooses the tab override from the visible composition', () => {
