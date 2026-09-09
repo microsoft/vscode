@@ -798,7 +798,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('keeps background-image composer controls on complete opaque surfaces', () => {
+	test('keeps background-image composer controls opaque with centered context usage', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
 		workbench.style.setProperty('--vscode-chat-list-background', '#ffffff');
@@ -821,6 +821,10 @@ suite('Sessions - Chat View', () => {
 		const secondaryToolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
 		const secondaryAction = dom.append(secondaryToolbar, dom.$('.action-label'));
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
+		const contextUsageIcon = dom.append(contextUsage, dom.$('.icon-container'));
+		contextUsageIcon.style.width = '14px';
+		contextUsageIcon.style.height = '14px';
+		dom.append(contextUsage, dom.$('.percentage-label', undefined, '7%'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
@@ -839,6 +843,21 @@ suite('Sessions - Chat View', () => {
 		const workspacePillStyle = dom.getWindow(workspacePill).getComputedStyle(workspacePill);
 		const secondaryActionStyle = dom.getWindow(secondaryAction).getComputedStyle(secondaryAction);
 		const contextUsageStyle = dom.getWindow(contextUsage).getComputedStyle(contextUsage);
+		const horizontalCenterOffset = (container: HTMLElement, content: HTMLElement): number => {
+			const containerRect = container.getBoundingClientRect();
+			const contentRect = content.getBoundingClientRect();
+			return contentRect.left + contentRect.width / 2 - (containerRect.left + containerRect.width / 2);
+		};
+		const contextUsageHorizontalCenterOffset = horizontalCenterOffset(contextUsage, contextUsageIcon);
+		const contextUsageGap = contextUsageStyle.gap;
+		// The Electron unit-test window is hidden, so assert the focus guard on the loaded rule instead.
+		const chatViewStyleSheet = Array.from(contextUsage.ownerDocument.styleSheets)
+			.flatMap(styleSheet => Array.from(styleSheet.cssRules))
+			.filter((rule): rule is CSSImportRule => rule instanceof CSSImportRule)
+			.find(rule => rule.href.endsWith('/vs/sessions/contrib/chat/browser/media/chatView.css'))?.styleSheet;
+		const focusGuardedContextUsageRule = Array.from(chatViewStyleSheet?.cssRules ?? [])
+			.find((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText.endsWith('.chat-context-usage-widget:not(:hover):not(:focus)'));
+		const focusGuardedContextUsageGap = focusGuardedContextUsageRule?.style.gap;
 		assert.deepStrictEqual({
 			newChatBackgroundColor: newChatStyle.backgroundColor,
 			newChatPadding: newChatStyle.padding,
@@ -854,10 +873,14 @@ suite('Sessions - Chat View', () => {
 			contextUsageBackgroundColor: contextUsageStyle.backgroundColor,
 			contextUsageBackgroundImage: contextUsageStyle.backgroundImage,
 			contextUsageBorderRadius: contextUsageStyle.borderRadius,
+			contextUsageGap,
+			contextUsageHorizontalCenterOffset,
+			focusGuardedContextUsageGap,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
 			plainContextUsageBackgroundColor: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).backgroundColor,
 			plainContextUsageBorderStyle: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).borderStyle,
+			plainContextUsageGap: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).gap,
 			plainBottomActionBackgroundColor: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).backgroundColor,
 			plainBottomActionBorderStyle: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).borderStyle,
 		}, {
@@ -875,10 +898,14 @@ suite('Sessions - Chat View', () => {
 			contextUsageBackgroundColor: 'rgb(255, 255, 255)',
 			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',
+			contextUsageGap: '0px',
+			contextUsageHorizontalCenterOffset: 0,
+			focusGuardedContextUsageGap: '0px',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainContextUsageBorderStyle: 'none',
+			plainContextUsageGap: '4px',
 			plainBottomActionBackgroundColor: 'rgb(255, 255, 255)',
 			plainBottomActionBorderStyle: 'none',
 		});
