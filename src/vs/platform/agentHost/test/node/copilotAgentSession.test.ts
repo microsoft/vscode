@@ -9669,7 +9669,7 @@ Use the attached image as context.
 				content: 'Review the follow-up',
 				source: 'agent-parent',
 			}, { agentId: 'agent-1' });
-			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+			mockSession.fire('subagent.completed', completion);
 			const backgroundTask = {
 				type: 'agent',
 				id: 'agent-1',

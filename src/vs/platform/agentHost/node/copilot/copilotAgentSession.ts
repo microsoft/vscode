@@ -834,7 +834,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
-	private readonly _subagentTurnGenerationByAgentId = new Map<string, number>();
+	private readonly _resumedSubagentAgentIds = new Set<string>();
+	private _subagentTaskStatusRevision = 0;
 	private readonly _subagentTaskStatusRefreshThrottler = this._register(new Throttler());
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAssistedApproval | null>();
@@ -1433,7 +1434,8 @@ export class CopilotAgentSession extends Disposable {
 			this._rootTurnIdBySubagentToolCallId.set(parentToolCallId, this._currentTurn.value.id);
 		}
 		this._activeSubagentAgentIds.add(e.agentId);
-		this._subagentTurnGenerationByAgentId.set(e.agentId, (this._subagentTurnGenerationByAgentId.get(e.agentId) ?? 0) + 1);
+		this._resumedSubagentAgentIds.add(e.agentId);
+		this._subagentTaskStatusRevision++;
 		this._onDidSessionProgress.fire({
 			kind: 'subagent_resumed',
 			chat: this._chatChannelUri,
@@ -1472,22 +1474,32 @@ export class CopilotAgentSession extends Disposable {
 		this._autoModeResolvedByToolCallId.delete(parentToolCallId);
 	}
 
+	private _agentIdForSubagentToolCall(toolCallId: string): string | undefined {
+		for (const [agentId, parentToolCallId] of this._parentToolCallIdsByAgentId) {
+			if (parentToolCallId === toolCallId) {
+				return agentId;
+			}
+		}
+		return undefined;
+	}
+
 	private _completeInitialSubagentTurn(agentId: string | undefined, toolCallId: string): void {
-		if (agentId && (this._subagentTurnGenerationByAgentId.get(agentId) ?? 0) > 0) {
+		const knownAgentId = agentId ?? this._agentIdForSubagentToolCall(toolCallId);
+		if (knownAgentId && this._resumedSubagentAgentIds.has(knownAgentId)) {
 			return;
 		}
-		this._completeSubagentTurn(agentId, toolCallId);
+		this._completeSubagentTurn(knownAgentId, toolCallId);
 	}
 
 	private _reconcileSubagentTaskStatuses(): Promise<void> {
+		const revision = ++this._subagentTaskStatusRevision;
 		return this._subagentTaskStatusRefreshThrottler.queue(async () => {
-			const turnGenerations = new Map(this._subagentTurnGenerationByAgentId);
 			const tasks = await this._wrapper.session.rpc.tasks.list();
-			if (this._store.isDisposed) {
+			if (this._store.isDisposed || revision !== this._subagentTaskStatusRevision) {
 				return;
 			}
 			for (const task of tasks.tasks) {
-				if (task.type !== 'agent' || this._subagentTurnGenerationByAgentId.get(task.id) !== turnGenerations.get(task.id)) {
+				if (task.type !== 'agent') {
 					continue;
 				}
 				if (task.status === 'idle' || task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
@@ -5531,7 +5543,6 @@ export class CopilotAgentSession extends Disposable {
 			if (e.agentId) {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 				this._activeSubagentAgentIds.add(e.agentId);
-				this._subagentTurnGenerationByAgentId.set(e.agentId, 0);
 			}
 			if (this._currentTurn.value) {
 				this._rootTurnIdBySubagentToolCallId.set(e.data.toolCallId, this._currentTurn.value.id);
