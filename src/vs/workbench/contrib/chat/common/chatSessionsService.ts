@@ -218,7 +218,7 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly onDidChangeRequiresCopilotSignIn?: Event<void>;
 	/**
-	 * When false, the delegation picker is hidden for this session type.
+	 * Whether this session type can delegate to another session.
 	 * Defaults to true.
 	 */
 	readonly supportsDelegation?: boolean;
