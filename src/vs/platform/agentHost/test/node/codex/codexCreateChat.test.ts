@@ -58,7 +58,7 @@ interface ITestWireRequest {
 		readonly threadId?: string;
 		readonly model?: string;
 		readonly modelProvider?: string;
-		readonly config?: Record<string, unknown>;
+		readonly config?: { readonly 'features.default_mode_request_user_input'?: boolean };
 		readonly includeTurns?: boolean;
 		readonly numTurns?: number;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
@@ -1558,13 +1558,14 @@ suite('CodexAgent workspace conversion', () => {
 				resume: {
 					method: resume.method, threadId: resume.params.threadId, cwd: resume.params.cwd,
 					model: resume.params.model, modelProvider: resume.params.modelProvider,
+					userInputEnabled: resume.params.config?.['features.default_mode_request_user_input'],
 				},
 				turn: { method: nextTurn.method, threadId: nextTurn.params.threadId },
 			}, {
 				unsubscribe: 'thread/unsubscribe',
 				resume: {
 					method: 'thread/resume', threadId, cwd: folder.fsPath,
-					model: 'gpt-test', modelProvider: 'vscode-proxy',
+					model: 'gpt-test', modelProvider: 'vscode-proxy', userInputEnabled: true,
 				},
 				turn: { method: 'turn/start', threadId },
 			});
