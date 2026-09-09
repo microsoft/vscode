@@ -27,6 +27,7 @@ import { SessionsChatViewStateService } from '../../browser/chatViewStateService
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -584,6 +585,42 @@ suite('Sessions - Chat View', () => {
 			plainBackgroundImage: 'none',
 		});
 	});
+
+	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+		test(`keeps the agent merge card opaque over the chat background (${theme})`, () => {
+			const workbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`);
+			workbench.style.setProperty('--session-view-background', '#202020');
+			workbench.style.setProperty('--vscode-chat-statusBackground', 'rgba(255, 255, 255, 0.3)');
+			const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
+			const merge = dom.append(request, dom.$('.chat-agent-merge'));
+			const card = dom.append(merge, dom.$('.chat-agent-merge-card'));
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+
+			const background = () => {
+				const style = dom.getWindow(card).getComputedStyle(card);
+				return { color: style.backgroundColor, image: style.backgroundImage };
+			};
+			const expanded = background();
+			merge.classList.add('collapsed');
+			const collapsed = background();
+			part.classList.remove('has-chat-background');
+			const plain = background();
+
+			const opaqueBackground = {
+				color: 'rgb(32, 32, 32)',
+				image: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			};
+			assert.deepStrictEqual({ expanded, collapsed, plain }, {
+				expanded: opaqueBackground,
+				collapsed: opaqueBackground,
+				plain: { color: 'rgba(255, 255, 255, 0.3)', image: 'none' },
+			});
+		});
+	}
 
 	test('keeps the request edit input opaque over the chat background', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
