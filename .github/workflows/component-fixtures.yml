@@ -317,7 +317,10 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const marker = '<!-- screenshot-diff-report -->';
+            const { pathToFileURL } = require('url');
+            const { COMMENT_MARKER: marker, formatScreenshotComment } = await import(
+              pathToFileURL(`${process.env.GITHUB_WORKSPACE}/build/lib/screenshotComment.ts`).href
+            );
             const bodyPath = process.env.COMMENT_BODY_PATH;
             let body = bodyPath && fs.existsSync(bodyPath)
               ? fs.readFileSync(bodyPath, 'utf8').replace(/\s+$/, '')
@@ -350,7 +353,11 @@ jobs:
               return;
             }
 
-            body = marker + '\n' + body;
+            body = formatScreenshotComment(body, {
+              runUrl: process.env.WORKFLOW_RUN_URL,
+              baseSha: process.env.BASE_SHA,
+              currentSha: process.env.CURRENT_SHA,
+            });
 
             if (existing) {
               await github.rest.issues.updateComment({
@@ -369,6 +376,7 @@ jobs:
             }
         env:
           COMMENT_BODY_PATH: ${{ steps.comment_body.outputs.path }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
           CURRENT_SHA: ${{ github.sha }}
 
