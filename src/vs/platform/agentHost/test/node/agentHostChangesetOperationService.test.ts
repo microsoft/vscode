@@ -304,8 +304,8 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.deepStrictEqual(dispatched, [sampleOperations]);
 	});
 
-	for (const isolation of ['folder', 'worktree'] as const) {
-		test(`implicit ${isolation} summary interest refreshes operations on the selected changeset once`, () => {
+	for (const isolation of ['folder', 'worktree', undefined] as const) {
+		test(`implicit ${isolation ?? 'unresolved'} summary interest refreshes Session Changes operations once`, () => {
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const sessionKey = 'agent:/session';
 			stateManager.createSession({
@@ -315,7 +315,7 @@ suite('AgentHostChangesetOperationService', () => {
 			stateManager.setSessionConfig(sessionKey, {
 				schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: isolation },
 			});
-			const changesetUri = isolation === 'folder' ? buildSessionChangesetUri(sessionKey) : buildBranchChangesetUri(sessionKey);
+			const changesetUri = buildSessionChangesetUri(sessionKey);
 			stateManager.registerChangeset(changesetUri);
 			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 			subscriptions.addSubscription(sessionKey, sessionKey);

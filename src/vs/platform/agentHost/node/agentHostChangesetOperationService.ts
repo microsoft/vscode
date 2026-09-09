@@ -150,7 +150,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
 		const changesets = changeset
 			? [changeset]
-			: resolveChangesetSubscriptions(this._stateManager, sessionKey, this._changesetSubscriptions.getSessionSubscriptions(sessionKey));
+			: resolveChangesetSubscriptions(sessionKey, this._changesetSubscriptions.getSessionSubscriptions(sessionKey));
 
 		// Clear the suppressed per-turn / compare-turns changesets FIRST, before
 		// the git-state gate below. A root transition (e.g. the Editor Window

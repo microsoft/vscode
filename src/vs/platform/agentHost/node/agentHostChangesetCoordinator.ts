@@ -16,8 +16,6 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { readAgentMergeSessionState } from '../common/agentMerge.js';
 import { isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { getSessionChangesSummaryKind } from './agentHostChangesetSummary.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -98,9 +96,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	/** Refreshes config-dependent catalogue entries after restored session config is seeded. */
 	onSessionConfigRestored(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
-		if (getSessionChangesSummaryKind(this._stateManager, sessionStr) === 'session') {
-			this._changesets.recomputeSubscribedChangesets(sessionStr);
-		}
 	}
 
 	/**
@@ -134,23 +129,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const isEnabled = readAgentMergeSessionState(current?.values)?.enabled === true;
 		if (wasEnabled !== isEnabled) {
 			this._changesets.refreshChangesetCatalog(session);
-		}
-		if (previous?.values[SessionConfigKey.Isolation] !== current?.values[SessionConfigKey.Isolation]) {
-			this._changesets.recomputeSubscribedChangesets(session);
-			for (const candidate of this._stateManager.getSessionUris()) {
-				let ancestor = candidate;
-				while (this._stateManager.getSessionState(ancestor)?.config?.values[SessionConfigKey.Isolation] === undefined) {
-					const parent = parseSubagentSessionUri(ancestor);
-					if (!parent) {
-						break;
-					}
-					ancestor = parent.parentSession.toString();
-					if (ancestor === session) {
-						this._changesets.recomputeSubscribedChangesets(candidate);
-						break;
-					}
-				}
-			}
 		}
 	}
 
@@ -209,16 +187,15 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	/** Installs implicit summary interest once state exists, including after a concurrent cold restore. */
 	ensureSessionSubscription(session: string): void {
-		if (!this._stateManager.getSessionState(session) || this._changesetSubscriptions.getSessionSubscriptions(session).has(session)) {
+		if (
+			!this._stateManager.getSessionState(session) ||
+			this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
+		) {
 			return;
 		}
 
 		this._addSubscription(session, session);
-		if (getSessionChangesSummaryKind(this._stateManager, session) === 'session') {
-			this._changesets.refreshSessionChangeset(session);
-		} else {
-			this._changesets.refreshBranchChangeset(session);
-		}
+		this._changesets.refreshSessionChangeset(session);
 		this._changesetFileMonitor.trackSessionChanges(session, session);
 	}
 

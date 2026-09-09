@@ -7651,8 +7651,8 @@ suite('AgentService (node dispatcher)', () => {
 			svc.unsubscribe(session, 'surviving-client');
 		});
 
-		for (const cold of [true, false]) {
-			test(`folder selection replaces cached branch counts for a ${cold ? 'cold' : 'warm'} session`, async () => {
+		for (const [isolation, cold] of [['folder', true], ['folder', false], ['worktree', true], ['worktree', false]] as const) {
+			test(`session selection replaces cached branch counts for a ${cold ? 'cold' : 'warm'} ${isolation} session`, async () => {
 				const db = new TestSessionDatabase();
 				const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/folder-summary' });
 				const cached = { additions: 100, deletions: 20, files: 8 };
@@ -7662,7 +7662,7 @@ suite('AgentService (node dispatcher)', () => {
 				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 				registerTestAgentProvider(svc, agent);
 				const session = await svc.createSession({
-					provider: agent.id, workingDirectories: [workingDirectory], config: { [SessionConfigKey.Isolation]: 'folder' },
+					provider: agent.id, workingDirectories: [workingDirectory], config: { [SessionConfigKey.Isolation]: isolation },
 				});
 				await db.setMetadata(META_CHANGES_SUMMARY, JSON.stringify(cached));
 				const stateManager = getStateManager(svc);
@@ -7677,10 +7677,12 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				assert.deepStrictEqual({
+					isolation: stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.Isolation],
 					live: stateManager.getSessionSummary(session.toString())?.changes,
 					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
 					listed: (await svc.listSessions()).find(entry => entry.session.toString() === session.toString())?.changes,
 				}, {
+					isolation,
 					live: { additions: 0, deletions: 0, files: 0 },
 					persisted: { additions: 0, deletions: 0, files: 0 },
 					listed: { additions: 0, deletions: 0, files: 0 },
@@ -14038,14 +14040,9 @@ suite('AgentService (node dispatcher)', () => {
 			copilotAgent.resolvedWorkingDirectory = workingDirectory;
 			copilotAgent.sessionMetadataOverrides = { workingDirectories: workingDirectory ? [workingDirectory] : undefined };
 
-			const computeCalls: { wd: string; baseBranch: string | undefined }[] = [];
 			const gitService = createNoopGitService();
-			gitService.computeSessionFileDiffs = async (wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
-				computeCalls.push({ wd: wd.toString(), baseBranch: opts.baseBranch });
-				return undefined;
-			};
-
-			const sessionDataService = createSessionDataService();
+			const db = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(db);
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			registerTestAgentProvider(localService, copilotAgent);
 			const sessionResource = await localService.createSession({ provider: 'copilot' });
@@ -14053,12 +14050,17 @@ suite('AgentService (node dispatcher)', () => {
 
 			localService.addSubscriber(sessionChangesetUri, 'client-1');
 			localService.addSubscriber(sessionResource, 'client-2');
-			await new Promise(r => setTimeout(r, 20));
+			for (let i = 0; i < 100 && getStateManager(localService).getSessionSummary(sessionResource.toString())?.changes?.files !== 0; i++) {
+				await timeout(5);
+			}
 
-			assert.ok(
-				computeCalls.some(c => c.wd === workingDirectory.toString()),
-				`session-URI / session-changeset subscriptions must trigger a git diff against the working dir, got: ${JSON.stringify(computeCalls)}`,
-			);
+			assert.deepStrictEqual({
+				changes: getStateManager(localService).getSessionSummary(sessionResource.toString())?.changes,
+				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+			}, {
+				changes: { additions: 0, deletions: 0, files: 0 },
+				persisted: { additions: 0, deletions: 0, files: 0 },
+			});
 
 			localService.unsubscribe(sessionChangesetUri, 'client-1');
 			localService.unsubscribe(sessionResource, 'client-2');
