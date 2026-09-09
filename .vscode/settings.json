@@ -6,6 +6,10 @@
 		"scripts/test.sh": true,
 		"scripts/test-integration.bat": true,
 		"scripts/test-integration.sh": true,
+		"/^brew install node@22$/": {
+			"approve": true,
+			"matchCommandLine": true
+		}
 	},
 	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---

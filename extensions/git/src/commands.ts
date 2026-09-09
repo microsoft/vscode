@@ -20,6 +20,7 @@ import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './typings/git-base';
 import { CloneManager } from './cloneManager';
+import { composeCommits } from './commitComposer';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -2606,6 +2607,11 @@ export class CommandCenter {
 	@command('git.commit', { repository: true })
 	async commit(repository: Repository, postCommitCommand?: string | null): Promise<void> {
 		await this.commitWithAnyInput(repository, { postCommitCommand });
+	}
+
+	@command('git.composeCommits', { repository: true })
+	async composeCommits(repository: Repository): Promise<void> {
+		await composeCommits(repository);
 	}
 
 	@command('git.commitAmend', { repository: true })

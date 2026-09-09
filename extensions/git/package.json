@@ -341,6 +341,13 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.composeCommits",
+        "title": "%command.composeCommits%",
+        "category": "Git",
+        "icon": "$(sparkle)",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.commitAmend",
         "title": "%command.commitAmend%",
         "category": "Git",
@@ -1925,6 +1932,11 @@
       "scm/title": [
         {
           "command": "git.commit",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.composeCommits",
           "group": "navigation",
           "when": "scmProvider == git"
         },

@@ -51,6 +51,7 @@
 	"command.commitStagedSigned": "Commit Staged (Signed Off)",
 	"command.commitStagedAmend": "Commit Staged (Amend)",
 	"command.commitAll": "Commit All",
+	"command.composeCommits": "Compose Commits with Copilot",
 	"command.commitAllSigned": "Commit All (Signed Off)",
 	"command.commitAllAmend": "Commit All (Amend)",
 	"command.commitNoVerify": "Commit (No Verify)",
