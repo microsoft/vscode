@@ -844,6 +844,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 		});
+		this.invalidateConnectedTabLayout();
+	}
+
+	private invalidateConnectedTabLayout(): void {
 		if (this.connectedTabBounds || this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs:not(.hc-black):not(.hc-light)')) {
 			this.clearConnectedTabClipping();
 			this.layout(this.dimensions);
@@ -878,10 +882,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	updateEditorDirty(editor: EditorInput): void {
 		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar));
+		this.invalidateConnectedTabLayout();
 	}
 
 	updateEditorCapabilities(editor: EditorInput): void {
 		this.withTab(editor, (editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTab(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar));
+		this.invalidateConnectedTabLayout();
 	}
 
 	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {

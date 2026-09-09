@@ -194,6 +194,11 @@ function manyEditorSpecs(activeIndex = 0): IEditorSpec[] {
 	}));
 }
 
+/** Successive active opens keep the third editor at the start of the second visual row. */
+function wrappedRowStartEditorSpecs(): IEditorSpec[] {
+	return manyEditorSpecs().slice(0, 6).map((spec, index) => ({ ...spec, active: index <= 2 }));
+}
+
 /** Editors with dirty state to show modified indicators. */
 function dirtyEditorSpecs(): IEditorSpec[] {
 	return [
@@ -829,6 +834,23 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		ThemeColors: defineThemedFixtureGroup(createThemeColorFixtures()),
 	}),
 	ConnectedSurface: defineThemedFixtureGroup({
+		WrappedRowStart: defineComponentFixture({
+			render: render(true, {
+				partOptions: { wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' },
+				editors: wrappedRowStartEditorSpecs(),
+				width: 260,
+			}),
+			expectedVisualDescriptions: ['The active tab at the start of a wrapped row uses a straight left edge while its right shoulder flows into the row separator. The preceding row ends with an uninterrupted straight boundary.'],
+		}),
+		StickyViewport: defineComponentFixture({
+			render: render(true, {
+				partOptions: { pinnedTabSizing: 'compact', editorActionsLocation: 'hidden' },
+				editors: stickyEditorSpecs(),
+				width: 250,
+				activeTabClipping: 'left',
+			}),
+			expectedVisualDescriptions: ['Compact sticky tabs fully occlude the scrolling active tab and its connected gutter. The strip separator remains continuous beneath the sticky region.'],
+		}),
 		ClippedLeft: defineComponentFixture({
 			render: render(true, { editors: manyEditorSpecs(), width: 360, activeTabClipping: 'left' }),
 			expectedVisualDescriptions: ['The partially scrolled active tab closes its stationary outside stroke with a straight left edge. Its top stroke, left edge and strip separator remain continuous without exposing clipped tab content.'],
