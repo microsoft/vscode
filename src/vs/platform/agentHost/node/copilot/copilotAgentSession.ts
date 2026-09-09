@@ -4873,7 +4873,10 @@ export class CopilotAgentSession extends Disposable {
 			this._currentTurn.value?.markRunning();
 			const steering = this._takeMatchingPendingSteering(e.data.content);
 			if (steering) {
-				this._beginSteeringTurn(steering);
+				const turnId = this._beginSteeringTurn(steering);
+				if (e.data.interactionId) {
+					this._hostTurnIdsByInteractionId.set(e.data.interactionId, turnId);
+				}
 			}
 			if (this._turnId) {
 				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
