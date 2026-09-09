@@ -222,15 +222,15 @@ suite('AgentHostPromptRegistry', () => {
 				blocksScratchMutation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('MUST NOT create, edit, or delete files'),
 				requiresConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('follow this exact sequence before using any shell or file-mutation tool'),
 				namesProviderTools: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`request_user_input` in Codex or `ask_user` in Copilot'),
-				batchesQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('exactly two questions together'),
-				forbidsSplitQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not split workspace and isolation into separate user-input calls'),
+				combinesWorkspaceAndIsolation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('exactly one single-select question whose choices each combine an exact workspace with an isolation strategy'),
+				forbidsSplitQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not ask workspace and isolation as separate questions'),
 			}, {
 				usesSetWorkspace: true,
 				avoidsReplacementSession: true,
 				blocksScratchMutation: true,
 				requiresConfirmation: true,
 				namesProviderTools: true,
-				batchesQuestions: true,
+				combinesWorkspaceAndIsolation: true,
 				forbidsSplitQuestions: true,
 			});
 		});
