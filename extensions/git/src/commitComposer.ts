@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource, LanguageModelChat, LanguageModelChatMessage, ProgressLocation, Uri, l10n, lm, window, workspace } from 'vscode';
+import { CancellationTokenSource, Disposable, LanguageModelChat, LanguageModelChatMessage, ProgressLocation, QuickInputButton, QuickPickItem, ThemeIcon, Uri, l10n, lm, window, workspace } from 'vscode';
 import { Repository } from './repository';
 import { relativePath, truncate } from './util';
 
@@ -15,12 +15,29 @@ interface ProposedCommit {
 	readonly files: readonly string[];
 }
 
+/**
+ * A proposed commit after its files have been matched against the actual changes
+ * of the repository. The message is mutable because it can be edited in the preview.
+ */
+interface ResolvedCommit {
+	message: string;
+	readonly uris: Uri[];
+}
+
+interface ResolvedCommitItem extends QuickPickItem {
+	readonly commit: ResolvedCommit;
+}
+
 // Keep the payload sent to the model bounded.
 const MAX_DIFF_CHARS_PER_FILE = 4000;
 
+// Keep the file list of the commit preview readable.
+const MAX_PREVIEW_DETAIL_CHARS = 200;
+
 /**
  * Prototype: ask the Copilot backend to split the current changes into a set of
- * logically-grouped commits and then create those commits one after another.
+ * logically-grouped commits, let the user review the plan and then create the
+ * commits that were confirmed.
  */
 export async function composeCommits(repository: Repository): Promise<void> {
 	// 1. Collect the changed files (unstaged + untracked + already staged).
@@ -44,7 +61,7 @@ export async function composeCommits(repository: Repository): Promise<void> {
 
 	const tokenSource = new CancellationTokenSource();
 	try {
-		await window.withProgress({
+		const proposals = await window.withProgress({
 			location: ProgressLocation.SourceControl,
 			title: l10n.t('Composing commits with Copilot...'),
 		}, async () => {
@@ -52,34 +69,154 @@ export async function composeCommits(repository: Repository): Promise<void> {
 			const diffs = await collectDiffs(repository, changedUris);
 
 			// 4. Ask the model to group the files into commits.
-			const proposals = await requestCommitPlan(model, diffs, tokenSource);
-			if (proposals.length === 0) {
-				window.showInformationMessage(l10n.t('Copilot did not propose any commits.'));
-				return;
-			}
+			return await requestCommitPlan(model, diffs, tokenSource);
+		});
 
-			// 5. Start from a clean index, then stage + commit each group in turn.
+		const { commits, unassigned } = resolveProposals(repository, proposals, changedUris);
+		if (commits.length === 0) {
+			window.showInformationMessage(l10n.t('Copilot did not propose any commits.'));
+			return;
+		}
+
+		// 5. Let the user review the plan before anything is committed.
+		const confirmed = await confirmCommitPlan(repository, commits, unassigned);
+		if (!confirmed || confirmed.length === 0) {
+			return;
+		}
+
+		await window.withProgress({
+			location: ProgressLocation.SourceControl,
+			title: l10n.t('Creating commits...'),
+		}, async () => {
+			// 6. Start from a clean index, then stage + commit each group in turn.
 			if (repository.indexGroup.resourceStates.length > 0) {
 				await repository.revert(repository.indexGroup.resourceStates.map(r => r.resourceUri));
 			}
 
-			for (const proposal of proposals) {
-				const uris = proposal.files
-					.map(file => Uri.joinPath(Uri.file(repository.root), file))
-					.filter(uri => changedUris.some(changed => changed.fsPath === uri.fsPath));
-
-				if (uris.length === 0) {
-					continue;
-				}
-
-				await repository.add(uris);
-				await repository.commit(proposal.message, { all: false });
+			for (const commit of confirmed) {
+				await repository.add(commit.uris);
+				await repository.commit(commit.message, { all: false });
 			}
 		});
 	} catch (err) {
 		window.showErrorMessage(l10n.t('Failed to compose commits: {0}', err instanceof Error ? err.message : String(err)));
 	} finally {
 		tokenSource.dispose();
+	}
+}
+
+/**
+ * Match the files of each proposal against the actual changes of the repository,
+ * dropping files the model made up and reporting the changes it left out.
+ */
+function resolveProposals(repository: Repository, proposals: readonly ProposedCommit[], changedUris: readonly Uri[]): { commits: ResolvedCommit[]; unassigned: Uri[] } {
+	const remaining = new Map(changedUris.map(uri => [uri.fsPath, uri]));
+	const commits: ResolvedCommit[] = [];
+
+	for (const proposal of proposals) {
+		const uris: Uri[] = [];
+
+		for (const file of proposal.files) {
+			const fsPath = Uri.joinPath(Uri.file(repository.root), file).fsPath;
+			const uri = remaining.get(fsPath);
+
+			// Unknown files, and files claimed by an earlier commit, are ignored.
+			if (uri) {
+				remaining.delete(fsPath);
+				uris.push(uri);
+			}
+		}
+
+		if (uris.length > 0) {
+			commits.push({ message: proposal.message, uris });
+		}
+	}
+
+	return { commits, unassigned: [...remaining.values()] };
+}
+
+/**
+ * Show a preview of the proposed commits - their messages and the files grouped
+ * into each of them - and let the user confirm, deselect or rename them.
+ * Returns `undefined` when the user cancels.
+ */
+async function confirmCommitPlan(repository: Repository, commits: readonly ResolvedCommit[], unassigned: readonly Uri[]): Promise<ResolvedCommit[] | undefined> {
+	const editButton: QuickInputButton = { iconPath: new ThemeIcon('edit'), tooltip: l10n.t('Edit Commit Message') };
+	const disposables: Disposable[] = [];
+
+	try {
+		const quickPick = window.createQuickPick<ResolvedCommitItem>();
+		disposables.push(quickPick);
+
+		quickPick.title = l10n.t('Compose Commits with Copilot');
+		quickPick.placeholder = unassigned.length === 0
+			? l10n.t('Review the proposed commits, then press Enter to create them')
+			: l10n.t('Review the proposed commits, then press Enter to create them ({0} changed files were not included)', unassigned.length);
+		quickPick.canSelectMany = true;
+		quickPick.ignoreFocusOut = true;
+
+		const items = commits.map<ResolvedCommitItem>(commit => ({
+			commit,
+			label: commit.message,
+			description: commit.uris.length === 1
+				? l10n.t('1 file')
+				: l10n.t('{0} files', commit.uris.length),
+			detail: truncate(commit.uris.map(uri => relativePath(repository.root, uri.fsPath)).join(', '), MAX_PREVIEW_DETAIL_CHARS),
+			buttons: [editButton]
+		}));
+
+		quickPick.items = items;
+		quickPick.selectedItems = items;
+
+		// Editing a commit message opens an input box, which hides the quick pick. Track
+		// that so the plan is not discarded while the message is being edited.
+		let editing = false;
+
+		const result = await new Promise<ResolvedCommit[] | undefined>(resolve => {
+			disposables.push(
+				quickPick.onDidAccept(() => resolve(quickPick.selectedItems.map(item => item.commit))),
+				quickPick.onDidHide(() => {
+					if (!editing) {
+						resolve(undefined);
+					}
+				}),
+				quickPick.onDidTriggerItemButton(async e => {
+					editing = true;
+					const selected = new Set(quickPick.selectedItems);
+
+					try {
+						const message = await window.showInputBox({
+							title: l10n.t('Edit Commit Message'),
+							value: e.item.commit.message,
+							prompt: l10n.t('Message of the commit that groups: {0}', e.item.detail ?? ''),
+							ignoreFocusOut: true
+						});
+
+						if (message) {
+							e.item.commit.message = message;
+							e.item.label = message;
+
+							// Re-assign the items so the new message is rendered.
+							quickPick.items = [...items];
+						}
+					} finally {
+						editing = false;
+						quickPick.selectedItems = items.filter(item => selected.has(item));
+						quickPick.show();
+					}
+				})
+			);
+
+			quickPick.show();
+		});
+
+		if (result && unassigned.length > 0) {
+			window.showInformationMessage(l10n.t('{0} changed files were not part of the commit plan and remain uncommitted.', unassigned.length));
+		}
+
+		return result;
+	} finally {
+		disposables.forEach(d => d.dispose());
 	}
 }
 
