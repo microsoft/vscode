@@ -427,6 +427,7 @@
 }
 
 .automations-template-card-badge,
+.automations-template-card-source,
 .automations-template-card-schedule,
 .automations-template-card-prompt {
 	font-size: var(--vscode-fontSize-label1);
@@ -435,6 +436,12 @@
 
 .automations-template-card-badge {
 	flex-shrink: 0;
+}
+
+.automations-template-card-source {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .automations-template-card-prompt {

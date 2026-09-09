@@ -8,6 +8,7 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -27,7 +28,8 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -40,6 +42,8 @@ import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialo
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -77,6 +81,10 @@ function hourly(): IAutomationSchedule {
 
 function workspaceTarget(): AutomationTarget {
 	return { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
+}
+
+function getCreateInitialValues(options: IShowAutomationDialogOptions | undefined) {
+	return options?.existing ? undefined : options?.initialValues;
 }
 
 function automation(overrides: Partial<IAutomationDescriptor> = {}): IAutomationDescriptor {
@@ -287,6 +295,14 @@ class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 		}
 		this.beforeReturn?.();
 		return this.result;
+	}
+}
+
+class FakeAgentPluginService extends mock<IAgentPluginService>() {
+	override readonly plugins = observableValue<readonly IAgentPlugin[]>(this, []);
+
+	setPlugins(plugins: readonly IAgentPlugin[]): void {
+		this.plugins.set(plugins, undefined);
 	}
 }
 
@@ -572,6 +588,7 @@ suite('AutomationsCardsWidget', () => {
 	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService) {
 		const automationService = new FakeAutomationService();
 		const automationDialogService = new FakeAutomationDialogService();
+		const agentPluginService = new FakeAgentPluginService();
 		const contextMenuService = new TestContextMenuService();
 		const dialogService = new FakeDialogService();
 		const runner = new FakeRunner();
@@ -591,6 +608,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		instantiationService.stub(IAutomationService, automationService);
 		instantiationService.stub(IAutomationDialogService, automationDialogService);
+		instantiationService.stub(IAgentPluginService, agentPluginService);
 		instantiationService.stub(IContextMenuService, contextMenuService);
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(IAutomationRunner, runner);
@@ -633,7 +651,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, widget };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, widget };
 	}
 
 	function dispatchContextMenu(target: HTMLElement): void {
@@ -859,6 +877,125 @@ suite('AutomationsCardsWidget', () => {
 			buttons: 1,
 			templateSections: 1,
 			templateNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
+		});
+
+		test('shows enabled plugin Automation templates and opens them disabled by default', async () => {
+			const { agentPluginService, automationDialogService, widget } = setup();
+			const pluginEnablement = observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile);
+			agentPluginService.setPlugins([upcastPartial<IAgentPlugin>({
+				uri: URI.file('/plugins/review'),
+				label: 'Review plugin',
+				enablement: pluginEnablement,
+				automations: observableValue('pluginAutomations', [{
+					uri: URI.file('/plugins/review/automations/weekly-review.automation.md'),
+					blueprint: {
+						version: 1,
+						id: 'weekly-review',
+						name: 'Weekly review',
+						description: 'Review the past week.',
+						prompt: 'Review the workspace for the past week.',
+						schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+					},
+				}]),
+			})]);
+
+			const cards = widget.element.querySelectorAll<HTMLButtonElement>('.automations-template-card');
+			cards[cards.length - 1].click();
+			await timeout(0);
+			const enabledNames = Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent);
+			const sourceBadge = cards[cards.length - 1].querySelector('.automations-template-card-badge')?.textContent;
+			const sourceLabel = cards[cards.length - 1].querySelector('.automations-template-card-source')?.textContent;
+			const initialValues = getCreateInitialValues(automationDialogService.lastOptions);
+
+			pluginEnablement.set(ContributionEnablementState.DisabledProfile, undefined);
+			const disabledNames = Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent);
+
+			assert.deepStrictEqual({
+				enabledNames,
+				sourceBadge,
+				sourceLabel,
+				initialValues,
+				disabledNames,
+			}, {
+				enabledNames: ['Catch up on main', 'Issue triage', 'Find bugs', 'Weekly review'],
+				sourceBadge: 'Plugin',
+				sourceLabel: 'From Review plugin',
+				initialValues: {
+					name: 'Weekly review',
+					prompt: 'Review the workspace for the past week.',
+					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+					enabled: false,
+				},
+				disabledNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
+			});
+		});
+
+		test('imports an Automation blueprint through review with disabled defaults', async () => {
+			const { automationDialogService, automationService, instantiationService } = setup();
+			const resource = URI.file('/shared/weekly-review.automation.md');
+			instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+				override async showOpenDialog(): Promise<URI[]> {
+					return [resource];
+				}
+			}());
+			instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+				override async readFile(): Promise<IFileContent> {
+					return upcastPartial<IFileContent>({
+						resource,
+						value: VSBuffer.fromString([
+							'---',
+							'version: 1',
+							'id: weekly-review',
+							'name: Weekly review',
+							'schedule:',
+							'  interval: weekly',
+							'  hour: 10',
+							'  minute: 30',
+							'  day: 5',
+							'---',
+							'Review the workspace for the past week.',
+						].join('\n')),
+					});
+				}
+
+				override async writeFile(): Promise<IFileStatWithMetadata> {
+					throw new Error('Unexpected write');
+				}
+			}());
+			automationDialogService.result = {
+				kind: 'create',
+				value: {
+					name: 'Weekly review',
+					prompt: 'Review the workspace for the past week.',
+					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+					target: workspaceTarget(),
+					enabled: false,
+				},
+			};
+
+			const command = CommandsRegistry.getCommand('sessions.automations.import');
+			assert.ok(command);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor));
+
+			const initialValues = getCreateInitialValues(automationDialogService.lastOptions);
+			assert.deepStrictEqual({
+				initialValues,
+				createCalls: automationService.createCalls,
+			}, {
+				initialValues: {
+					name: 'Weekly review',
+					prompt: 'Review the workspace for the past week.',
+					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+					enabled: false,
+				},
+				createCalls: [{
+					name: 'Weekly review',
+					prompt: 'Review the workspace for the past week.',
+					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+					target: workspaceTarget(),
+					enabled: false,
+				}],
+			});
 		});
 	});
 
@@ -1320,6 +1457,7 @@ suite('AutomationsCardsWidget', () => {
 		).flatMap(([, actions]) => actions);
 		assert.deepStrictEqual(menuActions.map(action => ({ id: action.id, enabled: action.enabled })), [
 			{ id: 'sessions.automations.duplicate', enabled: true },
+			{ id: 'sessions.automations.export', enabled: true },
 			{ id: 'sessions.automations.disable', enabled: false },
 			{ id: 'sessions.automations.delete', enabled: true },
 		]);
@@ -1467,7 +1605,7 @@ suite('AutomationsCardsWidget', () => {
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
-		assert.deepStrictEqual(duplicateActions.map(action => action.id), ['sessions.automations.duplicate', 'sessions.automations.disable', 'sessions.automations.delete']);
+		assert.deepStrictEqual(duplicateActions.map(action => action.id), ['sessions.automations.duplicate', 'sessions.automations.export', 'sessions.automations.disable', 'sessions.automations.delete']);
 		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
 		assert.ok(command);
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
@@ -1658,6 +1796,7 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			actions: [
 				{ id: 'sessions.automations.duplicate', enabled: true },
+				{ id: 'sessions.automations.export', enabled: true },
 				{ id: 'sessions.automations.disable', enabled: true },
 				{ id: 'sessions.automations.delete', enabled: false },
 			],
