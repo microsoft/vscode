@@ -3498,6 +3498,63 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	test('uses repository icons and hides GitHub recents represented by local folders when enabled', () => {
+		const localRepositoryUri = URI.file('/local/vscode');
+		const localFolderUri = URI.file('/local/plain');
+		const githubRepositoryUri = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
+		const localBaseProvider = createMockProvider('local-1');
+		const localProvider: ISessionsProvider = {
+			...localBaseProvider,
+			resolveWorkspace: uri => {
+				const workspace = localBaseProvider.resolveWorkspace(uri);
+				return workspace ? {
+					...workspace,
+					group: SESSION_WORKSPACE_GROUP_LOCAL,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: uri.toString() === localRepositoryUri.toString()
+							? {
+								uri,
+								workTreeUri: uri,
+								baseBranchName: 'main',
+								gitHubInfo: constObservable({ owner: 'microsoft', repo: 'vscode' }),
+							}
+							: undefined,
+					})),
+				} : undefined;
+			},
+		};
+		const githubBaseProvider = createMockProvider('github');
+		const githubProvider: ISessionsProvider = {
+			...githubBaseProvider,
+			resolveWorkspace: uri => uri.toString() === githubRepositoryUri.toString()
+				? {
+					...githubBaseProvider.resolveWorkspace(uri)!,
+					label: 'microsoft/vscode',
+					group: SESSION_WORKSPACE_GROUP_GITHUB,
+				}
+				: undefined,
+		};
+		providersService.setProviders([localProvider, githubProvider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [
+			{ uri: githubRepositoryUri, providerId: githubProvider.id, checked: false },
+			{ uri: localFolderUri, providerId: localProvider.id, checked: false },
+			{ uri: localRepositoryUri, providerId: localProvider.id, checked: false },
+		]);
+		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, storage, true);
+
+		const items = picker.getItems()
+			.filter(item => item.kind === ActionListItemKind.Action)
+			.map(item => ({ label: item.label, icon: item.group?.icon?.id }))
+			.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''));
+
+		assert.deepStrictEqual(items, [
+			{ label: 'local/plain', icon: 'folder' },
+			{ label: 'local/vscode', icon: 'repo' },
+		]);
+	});
+
 	test('keeps unified action dispatch stable when GitHub actions are hidden', async () => {
 		const selectedActions: string[] = [];
 		const providers = [
@@ -3775,7 +3832,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 				},
 				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Clone Repository...'), attachesContext: false },
 				{
-					...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Use Repository in Cloud...'),
+					...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'),
 					attachesContext: false,
 					supportsContextAttachment: true,
 					run: async () => {
@@ -3798,7 +3855,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			items: [
 				'Add GitHub Repository',
 				'Clone Repository',
-				'Use Repository in Cloud',
+				'Repository',
 				'Attach Repository',
 			],
 			actionRuns: ['cloud'],

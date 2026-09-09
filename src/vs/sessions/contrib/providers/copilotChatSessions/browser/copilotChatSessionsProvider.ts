@@ -1563,6 +1563,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._onDidChangeSessionTypes.fire();
 			this._refreshSessionCache();
 		}));
+		this._register(Event.filter(
+			this.configurationService.onDidChangeConfiguration,
+			event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING),
+		)(() => this._onDidChangeSessionTypes.fire()));
 
 		// Forward session changes from the underlying model
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
@@ -1595,15 +1599,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 						run: () => this._cloneRepository(),
 					},
 				] satisfies ISessionWorkspaceBrowseAction[] : []),
-				{
-					label: localize('useRepositoryInCloud', "Use Repository in Cloud..."),
-					group: SESSION_WORKSPACE_GROUP_GITHUB,
-					icon: Codicon.cloud,
-					providerId: this.id,
-					attachesContext: false,
-					supportsContextAttachment: true,
-					run: () => this._browseForCloudRepo(),
-				},
 			]
 			: [{
 				label: localize('repository', "Repository..."),
@@ -1645,6 +1640,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const types: ISessionType[] = [];
 		if (this._isCopilotCliAvailable()) {
 			types.push(CopilotCLISessionType);
+		}
+		if (this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING) && workspaceUri.scheme === Schemas.file) {
+			const gitRepository = this._getLocalGitRepository(workspaceUri);
+			gitRepository.resolveGitHubInfo?.();
+			if (gitRepository.gitHubInfo.get()) {
+				types.push(CopilotCloudSessionType);
+			}
 		}
 		return types;
 	}
@@ -1720,12 +1722,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		assertAutomationSessionTemplate(automationConfiguration?.sessionTemplate);
 		let session: NewSession;
 
-		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			if (sessionTypeId !== CopilotCloudSessionType.id) {
-				throw new Error('Only Copilot Cloud sessions can be created for GitHub repositories');
+		if (sessionTypeId === CopilotCloudSessionType.id) {
+			const cloudWorkspace = workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME
+				? workspace
+				: this._getCloudWorkspaceForLocalRepository(workspace);
+			if (!cloudWorkspace) {
+				throw new Error('Copilot Cloud sessions require a local workspace with a GitHub remote');
 			}
 			const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/untitled-${generateUuid()}` });
-			session = this.instantiationService.createInstance(RemoteNewSession, resource, workspace, AgentSessionProviders.Cloud, this.id, automationConfiguration);
+			session = this.instantiationService.createInstance(RemoteNewSession, resource, cloudWorkspace, AgentSessionProviders.Cloud, this.id, automationConfiguration);
 		} else {
 			if (sessionTypeId !== CopilotCLISessionType.id) {
 				throw new Error(`Unsupported session type '${sessionTypeId}' for local workspaces`);
@@ -1742,6 +1747,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._newSessions.deleteAndDispose(session.sessionId);
 			throw error;
 		}
+	}
+
+	private _getCloudWorkspaceForLocalRepository(workspace: ISessionWorkspace): ISessionWorkspace | undefined {
+		const gitHubInfo = workspace.folders
+			.map(folder => folder.gitRepository?.gitHubInfo.get())
+			.find(info => info !== undefined);
+		if (!gitHubInfo) {
+			return undefined;
+		}
+		const root = URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${gitHubInfo.owner}/${gitHubInfo.repo}/HEAD`,
+		});
+		return this.resolveWorkspace(root);
 	}
 
 	getAutomationModelConfiguration(sessionId: string): AutomationModelConfiguration | undefined {
@@ -3089,7 +3109,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			}
 			this._localGitHubInfoDisposables.set(key, autorun(reader => {
 				const repositoryInfo = getGitHubRemoteInfo(repository.state.read(reader));
-				gitHubInfo.set(repositoryInfo ? { owner: repositoryInfo.owner, repo: repositoryInfo.repo } : undefined, undefined);
+				const nextGitHubInfo = repositoryInfo ? { owner: repositoryInfo.owner, repo: repositoryInfo.repo } : undefined;
+				if (!gitHubInfoEqual(gitHubInfo.read(reader), nextGitHubInfo)) {
+					gitHubInfo.set(nextGitHubInfo, undefined);
+					this._onDidChangeSessionTypes.fire();
+				}
 			}));
 		}, error => {
 			this._localGitHubInfoResolutionStarted.delete(key);

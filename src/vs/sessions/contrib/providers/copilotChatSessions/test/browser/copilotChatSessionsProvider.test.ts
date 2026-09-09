@@ -518,12 +518,10 @@ suite('CopilotChatSessionsProvider', () => {
 					{ label: 'Add GitHub Repository...', icon: 'github' },
 					{ label: 'Clone Repository...', icon: 'link' },
 				],
-				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
 				{ label: 'Issue...', icon: 'issues' },
 				{ label: 'Pull Request...', icon: 'github' },
 			],
 			remote: [
-				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
 				{ label: 'Issue...', icon: 'issues' },
 				{ label: 'Pull Request...', icon: 'github' },
 			],
@@ -561,7 +559,6 @@ suite('CopilotChatSessionsProvider', () => {
 					{ label: 'Add GitHub Repository...', icon: 'github' },
 					{ label: 'Clone Repository...', icon: 'link' },
 				],
-				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
 				{ label: 'Issue...', icon: 'issues' },
 				{ label: 'Pull Request...', icon: 'github' },
 			],
@@ -936,6 +933,80 @@ suite('CopilotChatSessionsProvider', () => {
 		const provider = createProvider(disposables, model);
 		const types = provider.getSessionTypes(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo' }));
 		assert.strictEqual(types.length, 1);
+	});
+
+	test('getSessionTypes offers Cloud for a local workspace with a GitHub remote', async () => {
+		const repositoryState = observableValue('repositoryState', {
+			HEAD: undefined,
+			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const gitService = upcastPartial<IGitService>({
+			repositories: [],
+			openRepository: async () => upcastPartial<IGitRepository>({ state: repositoryState }),
+		});
+		const provider = createProvider(disposables, model, {
+			consolidatedRemoteWorkspaces: true,
+			gitService,
+		});
+		const folder = URI.file('/test/vscode');
+		const changes: string[][] = [];
+		disposables.add(provider.onDidChangeSessionTypes(() => {
+			changes.push(provider.getSessionTypes(folder).map(type => type.label));
+		}));
+
+		const beforeResolve = provider.getSessionTypes(folder).map(type => type.label);
+		await timeout(0);
+		const afterResolve = provider.getSessionTypes(folder).map(type => type.label);
+		const session = provider.createNewSession(folder, CopilotCloudSessionType.id);
+
+		assert.deepStrictEqual({
+			beforeResolve,
+			afterResolve,
+			changes,
+			sessionType: session.sessionType,
+			workspaceRoot: session.workspace.get()?.folders[0].root.toString(),
+		}, {
+			beforeResolve: [],
+			afterResolve: ['Cloud'],
+			changes: [['Cloud']],
+			sessionType: CopilotCloudSessionType.id,
+			workspaceRoot: 'github-remote-file://github/microsoft/vscode/HEAD',
+		});
+	});
+
+	test('getSessionTypes hides Cloud for a local workspace without a GitHub remote', async () => {
+		const repositoryState = observableValue('repositoryState', {
+			HEAD: undefined,
+			remotes: [],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
+		const gitService = upcastPartial<IGitService>({
+			repositories: [],
+			openRepository: async () => upcastPartial<IGitRepository>({ state: repositoryState }),
+		});
+		const provider = createProvider(disposables, model, {
+			consolidatedRemoteWorkspaces: true,
+			gitService,
+		});
+		const folder = URI.file('/test/local-only');
+
+		const beforeResolve = provider.getSessionTypes(folder).map(type => type.label);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeResolve,
+			afterResolve: provider.getSessionTypes(folder).map(type => type.label),
+		}, {
+			beforeResolve: [],
+			afterResolve: [],
+		});
 	});
 
 	// ---- Session listing -------
