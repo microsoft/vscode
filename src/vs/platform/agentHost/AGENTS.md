@@ -112,25 +112,18 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 - Owns the automatic merged-pull-request session lifecycle through
   `AgentHostSessionLifecycle`: the application-scoped policy is synchronized
   into root config; candidates are filtered from the registry using only the
-  persisted archive/GitHub fields needed for cleanup, while standalone cleanup
-  passes reject sessions without retained worktrees before opening their
-  databases; and every related pull request is authoritatively refreshed before
-  a candidate is restored. A
-  session is eligible only when no related pull request is open and at least one
-  related pull request is merged; closed-unmerged PRs do not block it. Pull
-  request state is refreshed again immediately before lifecycle side effects so
-  reopening a closed PR blocks the action. Eligible
-  sessions are archived through the normal `SessionIsArchivedChanged` action
-  and side-effect path. Cleanup-only candidates are handled without restoring
-  the session; their local eligibility is revalidated before a single
-  authoritative pull-request refresh immediately preceding cleanup. Sessions
-  whose worktree is already absent are filtered before database access or
-  pull-request refresh. The default-off worktree setting opts into standalone
-  cleanup; configured archive or deletion lifecycles override that toggle
-  because they require eligible worktrees to be removed. Removal still
-  requires Git to confirm that the branch tracks an upstream with no unpushed
-  or uncommitted work. Archive and deletion thresholds accept any positive
-  whole number of days; zero disables the corresponding lifecycle.
+  persisted archive/GitHub fields needed for cleanup; and every related pull
+  request is authoritatively refreshed before a candidate is restored. A
+  session is eligible only when no related pull request is open and at least
+  one related pull request is merged; closed-unmerged PRs do not block it.
+  Pull request state is refreshed again immediately before lifecycle side
+  effects so reopening a closed PR blocks the action. Eligible sessions are
+  archived through the normal `SessionIsArchivedChanged` action and side-effect
+  path, which removes the worktree when Git confirms that the branch tracks an
+  upstream with no unpushed or uncommitted work. Permanent deletion applies the
+  same safe cleanup to a retained worktree before deleting the session. Archive
+  and deletion thresholds accept any positive whole number of days; zero
+  disables the corresponding lifecycle.
 
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:

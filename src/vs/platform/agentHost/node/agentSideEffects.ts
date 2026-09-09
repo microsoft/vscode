@@ -27,7 +27,6 @@ import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostAutoRemoveWorktreesAfterMergeConfigKey, isAgentHostWorktreeCleanupEnabled, platformRootSchema } from '../common/agentHostSchema.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
@@ -1583,13 +1582,7 @@ export class AgentSideEffects extends Disposable {
 				const sessionUri = URI.parse(channel);
 				const sessionId = AgentSession.id(channel);
 				const worktreeOp = action.isArchived
-					? isAgentHostWorktreeCleanupEnabled(
-						this._agentConfigService.getRootValue(platformRootSchema, AgentHostAutoRemoveWorktreesAfterMergeConfigKey),
-						this._agentConfigService.getRootValue(platformRootSchema, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey),
-						this._agentConfigService.getRootValue(platformRootSchema, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey),
-					)
-						? this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
-						: Promise.resolve()
+					? this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
 					: this._worktree.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 				worktreeOp.catch(err => this._logService.warn(`[AgentSideEffects] worktree ${action.isArchived ? 'cleanup' : 'recreate'} failed for ${channel}`, err));
 				const agent = this._options.getAgent(channel);

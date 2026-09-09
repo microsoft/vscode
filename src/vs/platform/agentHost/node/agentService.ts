@@ -2096,7 +2096,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * This deliberately avoids provider metadata, transcript materialization,
 	 * presentation overlays, and the shared `listSessions()` computation.
 	 */
-	async listSessionLifecycleCandidates(archiveCutoff: number | undefined, deleteCutoff: number | undefined, cleanupWorktrees: boolean): Promise<readonly IAgentHostSessionLifecycleCandidate[]> {
+	async listSessionLifecycleCandidates(archiveCutoff: number | undefined, deleteCutoff: number | undefined): Promise<readonly IAgentHostSessionLifecycleCandidate[]> {
 		const registered = (await this._listRegisteredSessions()).filter(entry => !entry.external);
 		const limiter = new Limiter<IAgentHostSessionLifecycleCandidate | undefined>(4);
 		const candidates = await Promise.all(registered.map(entry => limiter.queue(async () => {
@@ -2108,16 +2108,8 @@ export class AgentService extends Disposable implements IAgentService {
 				return undefined;
 			}
 
-			let cleanupNeeded: boolean | undefined;
-			if (cleanupWorktrees && archiveCutoff === undefined && deleteCutoff === undefined) {
-				cleanupNeeded = await this._worktree.isWorktreeCleanupNeeded(entry.session);
-				if (!cleanupNeeded) {
-					return undefined;
-				}
-			}
-
 			let archived = liveStatus !== undefined ? isSessionStatusArchived(liveStatus) : undefined;
-			if (archived === false && !cleanupWorktrees && (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
+			if (archived === false && (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
 				return undefined;
 			}
 			if (archived === true && deleteCutoff === undefined) {
@@ -2125,7 +2117,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (archived === undefined
 				&& deleteCutoff === undefined
-				&& !cleanupWorktrees
 				&& (archiveCutoff === undefined || !Number.isFinite(modifiedTime) || modifiedTime > archiveCutoff)) {
 				return undefined;
 			}
@@ -2167,12 +2158,8 @@ export class AgentService extends Disposable implements IAgentService {
 			const action = archived
 				? 'delete'
 				: archiveCutoff !== undefined && Number.isFinite(modifiedTime) && modifiedTime <= archiveCutoff
-					? 'archive'
-					: cleanupWorktrees ? 'cleanupWorktree' : undefined;
+					? 'archive' : undefined;
 			if (!action || (action === 'delete' && (deleteCutoff === undefined || autoArchivedAt === undefined || autoArchivedAt > deleteCutoff))) {
-				return undefined;
-			}
-			if (action === 'cleanupWorktree' && !(cleanupNeeded ?? await this._worktree.isWorktreeCleanupNeeded(entry.session))) {
 				return undefined;
 			}
 			const pullRequestUrls = getSessionRelatedPullRequestUrls(gitHubState);

@@ -186,7 +186,7 @@ export function createAgentServiceComposition(
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
 		owned.add(new AgentHostSessionLifecycle(
 			{
-				listCandidates: (archiveCutoff, deleteCutoff, cleanupWorktrees) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff, cleanupWorktrees),
+				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),
 				restoreSession: session => agentService!.restoreSession(session),
 				getAutoArchivedAt: async session => {
 					const ref = await sessionDataService.tryOpenDatabase(session);

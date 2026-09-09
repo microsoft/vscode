@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostAutoRemoveWorktreesAfterMergeConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -3106,7 +3106,7 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('session lifecycle candidates', () => {
-		test('archiveSession runs archive side effects when record cleanup overrides the standalone opt-out', async () => {
+		test('archiveSession runs archive side effects', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const cleaned: string[] = [];
@@ -3116,7 +3116,6 @@ suite('AgentService (node dispatcher)', () => {
 			getConfigurationService(svc).updateRootConfig({
 				[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1,
 				[AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0,
-				[AgentHostAutoRemoveWorktreesAfterMergeConfigKey]: false,
 			});
 			const session = AgentSession.uri('copilot', 'auto-archive-side-effects');
 			getStateManager(svc).createSession({
@@ -3174,7 +3173,7 @@ suite('AgentService (node dispatcher)', () => {
 				}));
 			}
 
-			const candidates = await svc.listSessionLifecycleCandidates(now - 7 * 24 * 60 * 60 * 1000, undefined, false);
+			const candidates = await svc.listSessionLifecycleCandidates(now - 7 * 24 * 60 * 60 * 1000, undefined);
 
 			assert.deepStrictEqual({
 				candidates: candidates.map(candidate => ({
@@ -3214,7 +3213,7 @@ suite('AgentService (node dispatcher)', () => {
 				})),
 			]);
 
-			const candidates = await svc.listSessionLifecycleCandidates(undefined, now - 24 * 60 * 60 * 1000, false);
+			const candidates = await svc.listSessionLifecycleCandidates(undefined, now - 24 * 60 * 60 * 1000);
 
 			assert.deepStrictEqual(candidates.map(candidate => ({
 				session: candidate.session.toString(),
@@ -3227,54 +3226,6 @@ suite('AgentService (node dispatcher)', () => {
 			}]);
 		});
 
-		test('enumerates inactive sessions for worktree cleanup when record cleanup is disabled', async () => {
-			const perSession = createPerSessionDataService();
-			const opened: string[] = [];
-			const sessionDataService = perSession.service as { tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined> };
-			const originalTryOpen = sessionDataService.tryOpenDatabase;
-			sessionDataService.tryOpenDatabase = async session => {
-				opened.push(session.toString());
-				return originalTryOpen.call(perSession.service, session);
-			};
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			let cleanupNeeded = true;
-			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				isWorktreeCleanupNeeded: async () => cleanupNeeded,
-			}));
-			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
-			const session = AgentSession.uri('copilot', 'merged-worktree');
-			await registry.register(session, {
-				provider: 'copilot',
-				startTime: Date.UTC(2026, 8, 5),
-				modifiedTime: Date.UTC(2026, 8, 5),
-				source: 'explicit',
-			}, { checkTombstone: false });
-			await perSession.database(session).setMetadata(META_GITHUB_STATE, JSON.stringify({
-				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/4'],
-			}));
-
-			const candidates = await svc.listSessionLifecycleCandidates(undefined, undefined, true);
-			cleanupNeeded = false;
-			const afterCleanup = await svc.listSessionLifecycleCandidates(undefined, undefined, true);
-
-			assert.deepStrictEqual({
-				candidates: candidates.map(candidate => ({
-					session: candidate.session.toString(),
-					pullRequestUrls: candidate.pullRequestUrls,
-					action: candidate.action,
-				})),
-				afterCleanup,
-				opened,
-			}, {
-				candidates: [{
-					session: session.toString(),
-					pullRequestUrls: ['https://github.com/microsoft/vscode/pull/4'],
-					action: 'cleanupWorktree',
-				}],
-				afterCleanup: [],
-				opened: [session.toString()],
-			});
-		});
 	});
 
 	// ---- disposeSession -------------------------------------------------
@@ -3482,9 +3433,6 @@ suite('AgentService (node dispatcher)', () => {
 				storageResource,
 				orchestratorDatabase,
 			));
-			getConfigurationService(service).updateRootConfig({
-				[AgentHostAutoRemoveWorktreesAfterMergeConfigKey]: false,
-			});
 			return service;
 		}
 
