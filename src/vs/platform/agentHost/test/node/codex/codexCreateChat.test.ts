@@ -1587,6 +1587,37 @@ suite('CodexAgent workspace conversion', () => {
 		assert.deepStrictEqual({ cwd: entry.workingDirectory?.fsPath, pending: agent['_workingDirectoryChanges'].size }, { cwd: scratch.fsPath, pending: 0 });
 	});
 
+	test('cancels a settings notification during chat disposal scope release', async () => {
+		const { agent, peer, session, chat, scratch, folder, entry, notifyDirectory } = await createWorkspaceHarness();
+		const scopeReleased = new DeferredPromise<void>();
+		agent['_reclaimManagedWorkingDirectoryIfNotLive'] = () => scopeReleased.p;
+		const changing = agent.setWorkingDirectory(chat, session, folder);
+		const rejected = assert.rejects(changing, /Canceled/);
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: {} });
+		const disposing = agent.chats.disposeChat(chat, session);
+		notifyDirectory();
+		try {
+			await rejected;
+			assert.deepStrictEqual({
+				binding: agent['_sessionIdByChatUri'].get(chat.toString()),
+				runtimeIsLive: agent['_sessions'].get(entry.sessionId) === entry,
+				disposed: !!entry.disposed,
+				cwd: entry.workingDirectory?.fsPath,
+				persistedCwd: (await agent['_metadataStore'].read(session)).cwd?.fsPath,
+				pending: agent['_workingDirectoryChanges'].size,
+			}, {
+				binding: undefined, runtimeIsLive: true, disposed: false,
+				cwd: scratch.fsPath, persistedCwd: scratch.fsPath, pending: 0,
+			});
+		} finally {
+			scopeReleased.complete();
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			await disposing;
+		}
+	});
+
 	test('bounds a queued update with no notification and reloads before another turn', async () => {
 		const { agent, peer, session, chat, scratch, folder, entry } = await createWorkspaceHarness();
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {

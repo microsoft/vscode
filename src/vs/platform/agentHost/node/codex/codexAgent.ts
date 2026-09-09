@@ -4051,7 +4051,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (!appliedDirectory) {
 				throw new Error('Timed out waiting for Codex to apply the working directory change');
 			}
-			if (session.disposed || this._sessions.get(session.sessionId) !== session || session.threadId !== change.threadId) {
+			if (session.disposed || this._sessions.get(session.sessionId) !== session || session.threadId !== change.threadId
+				|| this._sessionIdByChatUri.get(chat.toString()) !== session.sessionId) {
 				throw new CancellationError();
 			}
 			session.workingDirectory = appliedDirectory;
