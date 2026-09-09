@@ -311,6 +311,7 @@ function createTestPicker(
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
 	options?: IWorkspacePickerOptions,
 	fileService: IFileService = upcastPartial<IFileService>({
+		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
 		hasProvider: () => true,
 		exists: async () => true,
@@ -335,7 +336,10 @@ function createTestPicker(
 	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 	instantiationService.stub(IFileDialogService, fileDialogService);
 	instantiationService.stub(IDialogService, dialogService);
-	instantiationService.stub(IFileService, fileService);
+	instantiationService.stub(IFileService, upcastPartial<IFileService>({
+		...fileService,
+		onDidFilesChange: fileService.onDidFilesChange ?? Event.None,
+	}));
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IMenuService, {
 		createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }),
@@ -593,7 +597,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
-	test('refreshes Dev Container availability each time the picker opens', async () => {
+	test('caches Dev Container availability across picker opens and invalidates when providers change', async () => {
 		const folderUri = URI.file('/agent-host/project');
 		let available = true;
 		let availabilityChecks = 0;
@@ -616,17 +620,71 @@ suite('WorkspacePicker - Connection Status', () => {
 		const initiallyAvailable = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
 		available = false;
 		picker.showPicker();
+		picker.showPicker();
 		await timeout(0);
 		const availableAfterReopen = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
+		providersService.setProviders([]);
+		providersService.setProviders([provider]);
+		picker.getItems();
+		await timeout(0);
+		const availableAfterProviderChange = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
 
 		assert.deepStrictEqual({
 			availabilityChecks,
 			initiallyAvailable,
 			availableAfterReopen,
+			availableAfterProviderChange,
 		}, {
 			availabilityChecks: 2,
 			initiallyAvailable: true,
-			availableAfterReopen: false,
+			availableAfterReopen: true,
+			availableAfterProviderChange: false,
+		});
+	});
+
+	test('limits concurrent Dev Container availability checks', async () => {
+		let activeChecks = 0;
+		let maximumActiveChecks = 0;
+		let availabilityChecks = 0;
+		const pendingChecks: Array<() => void> = [];
+		const provider = createMockProvider('local-agent-host', {
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			isDevContainerWorkspaceAvailable: async () => {
+				availabilityChecks++;
+				activeChecks++;
+				maximumActiveChecks = Math.max(maximumActiveChecks, activeChecks);
+				await new Promise<void>(resolve => pendingChecks.push(resolve));
+				activeChecks--;
+				return false;
+			},
+		});
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, Array.from({ length: 8 }, (_, index) => ({
+			uri: URI.file(`/agent-host/project-${index}`),
+			providerId: provider.id,
+			checked: false,
+		})));
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, storage);
+
+		picker.getItems();
+		const initiallyStarted = availabilityChecks;
+		pendingChecks.splice(0).forEach(resolve => resolve());
+		await timeout(0);
+		const eventuallyStarted = availabilityChecks;
+		pendingChecks.splice(0).forEach(resolve => resolve());
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			initiallyStarted,
+			eventuallyStarted,
+			maximumActiveChecks,
+			activeChecks,
+		}, {
+			initiallyStarted: 4,
+			eventuallyStarted: 8,
+			maximumActiveChecks: 4,
+			activeChecks: 0,
 		});
 	});
 
@@ -3502,6 +3560,7 @@ function createTestablePicker(
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, new TestDialogService());
 	instantiationService.stub(IFileService, upcastPartial<IFileService>({
+		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
 		hasProvider: () => true,
 		exists: async () => true,
@@ -4383,6 +4442,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		instantiationService.stub(IFileDialogService, {});
 		instantiationService.stub(IDialogService, new TestDialogService());
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({
+			onDidFilesChange: Event.None,
 			onDidChangeFileSystemProviderRegistrations: Event.None,
 			hasProvider: () => true,
 			exists: async () => true,

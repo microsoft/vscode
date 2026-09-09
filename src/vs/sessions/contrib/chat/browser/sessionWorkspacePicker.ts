@@ -11,7 +11,7 @@ import { IAction, SubmenuAction, toAction } from '../../../../base/common/action
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, Limiter, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -43,6 +43,7 @@ import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { DevContainerAgentHostEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -252,6 +253,18 @@ export class WorkspacePicker extends Disposable {
 	private readonly _additionalRepositorySelections = new Map<string, IAttachedRepositorySelection>();
 	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
 	private readonly _devContainerAvailability = new Map<string, boolean | Promise<boolean>>();
+	private readonly _devContainerAvailabilityLimiter = this._register(new Limiter<boolean>(4));
+	private readonly _devContainerAvailabilityRefresh = this._register(new RunOnceScheduler(() => {
+		const activeTrigger = this._activeTriggerElement;
+		if (!activeTrigger || (!this.actionWidgetService.isVisible && !this._tabbedWidget.isVisible)) {
+			return;
+		}
+		if (this._tabbedWidget.isVisible) {
+			this._tabbedWidget.refreshActiveList();
+		} else {
+			this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+		}
+	}, 50));
 	private _attachedContext: readonly IChatRequestVariableEntry[] = [];
 	private readonly _tabbedWidget: TabbedActionListWidget;
 	private readonly _pickerGroupContext: IContextKey<string>;
@@ -402,6 +415,7 @@ export class WorkspacePicker extends Disposable {
 
 		this._tabbedWidget = this._register(this.instantiationService.createInstance(TabbedActionListWidget));
 		this._pickerGroupContext = SessionWorkspacePickerGroupContext.bindTo(this.contextKeyService);
+		this._register(this._devContainerAvailabilityLimiter.onDrained(() => this._devContainerAvailabilityRefresh.schedule()));
 		this._register(this._tabbedWidget.onDidChangeTab(tab => this._selectWorkspaceGroup(tab)));
 		this._register(this._tabbedWidget.onDidHide(() => {
 			this._pickerGroupContext.reset();
@@ -433,7 +447,7 @@ export class WorkspacePicker extends Disposable {
 		// stored selection once its provider arrives.
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
 			this._watchProviderSessionTypes();
-			this._devContainerAvailability.clear();
+			this._clearDevContainerAvailability();
 			this._sessionWorkspaceFallback?.refreshProviders();
 			if (this._selectedFolderUri) {
 				// Re-resolve in case the previous resolving provider was removed.
@@ -464,6 +478,19 @@ export class WorkspacePicker extends Disposable {
 		// VS Code's recent-workspace history is loaded asynchronously.
 		this._register(this.recentWorkspacesService.onDidChangeRecentWorkspaces(() => {
 			this._restoreAutomaticSelection();
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(DevContainerAgentHostEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				this._clearDevContainerAvailability(true);
+			}
+		}));
+		this._register(this.fileService.onDidFilesChange(e => {
+			const changedResources = [...e.rawAdded, ...e.rawUpdated, ...e.rawDeleted];
+			if (changedResources.some(resource => resource.path.endsWith('/.devcontainer')
+				|| resource.path.endsWith('/.devcontainer.json')
+				|| resource.path.endsWith('/.devcontainer/devcontainer.json'))) {
+				this._clearDevContainerAvailability(true);
+			}
 		}));
 		// Re-arm auto-tab whenever the workspace selection changes to a new
 		// value, but only while the picker is closed. This way picking a tab
@@ -622,9 +649,6 @@ export class WorkspacePicker extends Disposable {
 			return;
 		}
 		const alreadyVisible = this.actionWidgetService.isVisible || this._tabbedWidget.isVisible;
-		if (!alreadyVisible) {
-			this._devContainerAvailability.clear();
-		}
 		if (alreadyVisible) {
 			if (this._activeTriggerElement === triggerElement) {
 				if (!force) {
@@ -1879,7 +1903,7 @@ export class WorkspacePicker extends Disposable {
 		if (cached) {
 			return false;
 		}
-		const availability = provider.isDevContainerWorkspaceAvailable(folderUri)
+		const availability = this._devContainerAvailabilityLimiter.queue(() => provider.isDevContainerWorkspaceAvailable!(folderUri))
 			.catch(error => {
 				onUnexpectedError(error);
 				return false;
@@ -1890,11 +1914,17 @@ export class WorkspacePicker extends Disposable {
 				return;
 			}
 			this._devContainerAvailability.set(key, available);
-			if (available && this._activeTriggerElement && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
-				this.showPicker(true, this._activeTriggerElement, this._directPickerGroup, this._directPickerAttachesContext);
-			}
 		});
 		return false;
+	}
+
+	private _clearDevContainerAvailability(refreshVisiblePicker = false): void {
+		this._devContainerAvailability.clear();
+		this._devContainerAvailabilityLimiter.clear();
+		this._devContainerAvailabilityRefresh.cancel();
+		if (refreshVisiblePicker) {
+			this._devContainerAvailabilityRefresh.schedule();
+		}
 	}
 
 	/**
