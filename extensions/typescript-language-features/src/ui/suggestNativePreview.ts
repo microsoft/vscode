@@ -25,10 +25,10 @@ export async function suggestNativePreview(
 		return;
 	}
 
-	// Don't show if the native preview extension is already installed
+	// Don't show if the TypeScript 7 extension is already installed
 	if (getTsNativeExtension()) {
 		// Also don't prompt in the future
-		// await context.globalState.update(suggestTS7NoPluginsStorageKey, true);
+		await context.globalState.update(suggestTS7NoPluginsStorageKey, true);
 		return;
 	}
 
