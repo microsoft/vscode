@@ -9,7 +9,8 @@
 	background-color: transparent;
 }
 
-.part.sessionspart.has-chat-background > .sessions-chat-background {
+.part.sessionspart.has-chat-background > .sessions-chat-background,
+.sessions-chat-background-replica.has-chat-background > .sessions-chat-background {
 	position: absolute;
 	inset: 0;
 	z-index: 0;
@@ -17,7 +18,20 @@
 	pointer-events: none;
 }
 
-.part.sessionspart > .sessions-chat-background[hidden] {
+.part.sessionspart > .sessions-chat-background[hidden],
+.sessions-chat-background-replica > .sessions-chat-background[hidden] {
+	display: none;
+}
+
+.sessions-chat-background-replica {
+	position: absolute;
+	z-index: 0;
+	overflow: hidden;
+	pointer-events: none;
+	background-color: var(--session-view-background);
+}
+
+.sessions-chat-background-replica:not(.has-chat-background) {
 	display: none;
 }
 

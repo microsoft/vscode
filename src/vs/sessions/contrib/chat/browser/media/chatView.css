@@ -119,12 +119,15 @@
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container {
 	background-color: transparent;
 	--vscode-chat-list-background: transparent;
+	overflow: hidden;
 
 	> .monaco-tree-sticky-row.request {
+		z-index: 1;
 		background-color: transparent;
 
+		> .monaco-tl-row > .monaco-tl-contents,
 		.interactive-item-container.interactive-request {
-			background-color: var(--session-view-background);
+			background-color: transparent;
 		}
 	}
 }

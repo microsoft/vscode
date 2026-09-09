@@ -281,6 +281,57 @@ suite('ObjectTree', function () {
 		}
 	});
 
+	test('exposes a stable sticky scroll DOM node only when enabled', function () {
+		const disabledContainer = document.createElement('div');
+		disabledContainer.style.width = '200px';
+		disabledContainer.style.height = '100px';
+		const enabledContainer = document.createElement('div');
+		enabledContainer.style.width = '200px';
+		enabledContainer.style.height = '100px';
+
+		const disabledTree = new ObjectTree<number>('disabled', disabledContainer, new Delegate(), [new Renderer()]);
+		const enabledTree = new ObjectTree<number>('enabled', enabledContainer, new Delegate(), [new Renderer()], {
+			enableStickyScroll: true,
+			stickyScrollMaxItemCount: 1,
+		});
+		try {
+			disabledTree.layout(100);
+			enabledTree.layout(100);
+			enabledTree.setChildren(null, [{
+				element: 0,
+				children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+				]
+			}]);
+
+			const stickyScrollDomNode = enabledTree.stickyScrollDomNode;
+			const stickyRowsBeforeScroll = stickyScrollDomNode?.querySelectorAll('.monaco-tree-sticky-row').length;
+			enabledTree.scrollTop = 1;
+
+			assert.deepStrictEqual({
+				disabled: disabledTree.stickyScrollDomNode,
+				isRealContainer: enabledContainer.querySelector('.monaco-tree-sticky-container') === stickyScrollDomNode,
+				stable: enabledTree.stickyScrollDomNode === stickyScrollDomNode,
+				stickyRowsBeforeScroll,
+				stickyRowsAfterScroll: stickyScrollDomNode?.querySelectorAll('.monaco-tree-sticky-row').length,
+			}, {
+				disabled: undefined,
+				isRealContainer: true,
+				stable: true,
+				stickyRowsBeforeScroll: 0,
+				stickyRowsAfterScroll: 1,
+			});
+		} finally {
+			disabledTree.dispose();
+			enabledTree.dispose();
+		}
+	});
+
 	test('shows the default sticky node after its source row starts scrolling out', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';

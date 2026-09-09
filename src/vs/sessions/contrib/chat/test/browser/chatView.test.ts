@@ -21,7 +21,8 @@ import { ResponseModelState } from '../../../../../workbench/contrib/chat/common
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
@@ -35,6 +36,44 @@ suite('Sessions - Chat View', () => {
 	/** Reaches the banner without standing up the widget's whole service graph. */
 	interface ISubSessionTipRenderer {
 		_renderSubSessionTip(): void;
+	}
+
+	interface IStickyBackgroundChatView {
+		_layoutStickyScrollBackground(): void;
+		_updateChatBackground(): void;
+	}
+
+	function createBackgroundReplicaHost(background: ISessionsChatBackground) {
+		const store = disposables.add(new DisposableStore());
+		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		workbench.style.setProperty('--vscode-foreground', '#ffffff');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		part.style.position = 'relative';
+		part.style.width = '600px';
+		part.style.height = '400px';
+		const chatView = dom.append(part, dom.$('.chat-view'));
+		const session = dom.append(chatView, dom.$('.interactive-session'));
+		const interactiveList = dom.append(session, dom.$('.interactive-list'));
+		const list = dom.append(interactiveList, dom.$('.monaco-list'));
+		const scrollable = dom.append(list, dom.$('.monaco-scrollable-element'));
+		const stickyContainer = dom.append(scrollable, dom.$('.monaco-tree-sticky-container'));
+		stickyContainer.style.position = 'absolute';
+		stickyContainer.style.left = '80px';
+		stickyContainer.style.top = '40px';
+		stickyContainer.style.width = '440px';
+		stickyContainer.style.height = '64px';
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		store.add(toDisposable(() => workbench.remove()));
+
+		const sourceRenderer = store.add(new SessionsChatBackgroundRenderer(part));
+		sourceRenderer.setBackground(background);
+		const source = part.querySelector<HTMLElement>(':scope > .sessions-chat-background');
+		if (!source) {
+			throw new Error('Sessions background renderer did not create its background layer');
+		}
+
+		return { store, part, chatView, stickyContainer, source, sourceRenderer };
 	}
 
 	test('retries an unresolved chat when its content provider is registered', () => {
@@ -949,7 +988,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('keeps sticky request gutters transparent over chat backgrounds', () => {
+	test('keeps sticky request chrome transparent over chat backgrounds', () => {
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		workbench.style.setProperty('--vscode-sideBar-background', '#ff0000');
 		workbench.style.setProperty('--vscode-chat-list-background', '#ff0000');
@@ -979,24 +1018,306 @@ suite('Sessions - Chat View', () => {
 
 		assert.deepStrictEqual({
 			container: dom.getWindow(background.stickyContainer).getComputedStyle(background.stickyContainer).backgroundColor,
+			overflow: dom.getWindow(background.stickyContainer).getComputedStyle(background.stickyContainer).overflow,
 			row: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).backgroundColor,
+			rowZIndex: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).zIndex,
 			contents: dom.getWindow(background.treeContents).getComputedStyle(background.treeContents).backgroundColor,
 			hoverBackground: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).getPropertyValue('--vscode-chat-list-background'),
 			request: dom.getWindow(background.request).getComputedStyle(background.request).backgroundColor,
 			bubble: dom.getWindow(background.bubble).getComputedStyle(background.bubble).backgroundColor,
 			plainContainer: dom.getWindow(plain.stickyContainer).getComputedStyle(plain.stickyContainer).backgroundColor,
+			plainOverflow: dom.getWindow(plain.stickyContainer).getComputedStyle(plain.stickyContainer).overflow,
 			plainRow: dom.getWindow(plain.stickyRow).getComputedStyle(plain.stickyRow).backgroundColor,
+			plainHoverBackground: dom.getWindow(plain.stickyRow).getComputedStyle(plain.stickyRow).getPropertyValue('--vscode-chat-list-background'),
 			plainRequest: dom.getWindow(plain.request).getComputedStyle(plain.request).backgroundColor,
 		}, {
 			container: 'rgba(0, 0, 0, 0)',
+			overflow: 'hidden',
 			row: 'rgba(0, 0, 0, 0)',
+			rowZIndex: '1',
 			contents: 'rgba(0, 0, 0, 0)',
 			hoverBackground: 'transparent',
-			request: 'rgb(32, 32, 32)',
+			request: 'rgba(0, 0, 0, 0)',
 			bubble: 'rgb(32, 32, 32)',
 			plainContainer: 'rgb(255, 0, 0)',
+			plainOverflow: 'visible',
 			plainRow: 'rgb(255, 0, 0)',
+			plainHoverBackground: '#ff0000',
 			plainRequest: 'rgba(0, 0, 0, 0)',
+		});
+	});
+
+	test('aligns an image replica to the full sessions background canvas', () => {
+		const background: ISessionsChatBackground = {
+			kind: 'image',
+			backgroundImage: 'url("file:///textures/kirby.png")',
+			backgroundRepeat: 'repeat-x',
+			backgroundSize: '125px 175px',
+			backgroundPosition: '37px 19px',
+		};
+		const { store, stickyContainer, source } = createBackgroundReplicaHost(background);
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+		replica.setBackground(background);
+		replica.layout();
+
+		const replicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		const replicaLayer = replicaElement?.querySelector<HTMLElement>(':scope > .sessions-chat-background');
+		if (!replicaElement || !replicaLayer) {
+			throw new Error('Sticky background replica did not render');
+		}
+		const sourceBounds = source.getBoundingClientRect();
+		const stickyBounds = stickyContainer.getBoundingClientRect();
+		const replicaBounds = replicaElement.getBoundingClientRect();
+		const replicaStyle = dom.getWindow(replicaElement).getComputedStyle(replicaElement);
+
+		assert.deepStrictEqual({
+			source: { left: sourceBounds.left, top: sourceBounds.top, width: sourceBounds.width, height: sourceBounds.height },
+			sticky: { width: stickyBounds.width, height: stickyBounds.height, overflow: dom.getWindow(stickyContainer).getComputedStyle(stickyContainer).overflow },
+			replica: {
+				left: replicaBounds.left,
+				top: replicaBounds.top,
+				width: replicaBounds.width,
+				height: replicaBounds.height,
+				styleLeft: replicaElement.style.left,
+				styleTop: replicaElement.style.top,
+			},
+			sourceImage: {
+				image: source.style.backgroundImage,
+				repeat: source.style.backgroundRepeat,
+				size: source.style.backgroundSize,
+				position: source.style.backgroundPosition,
+			},
+			replicaImage: {
+				image: replicaLayer.style.backgroundImage,
+				repeat: replicaLayer.style.backgroundRepeat,
+				size: replicaLayer.style.backgroundSize,
+				position: replicaLayer.style.backgroundPosition,
+			},
+			base: replicaStyle.backgroundColor,
+			pointerEvents: replicaStyle.pointerEvents,
+			ariaHidden: replicaElement.ariaHidden,
+		}, {
+			source: { left: sourceBounds.left, top: sourceBounds.top, width: 600, height: 400 },
+			sticky: { width: 440, height: 64, overflow: 'hidden' },
+			replica: {
+				left: sourceBounds.left,
+				top: sourceBounds.top,
+				width: 600,
+				height: 400,
+				styleLeft: '-80px',
+				styleTop: '-40px',
+			},
+			sourceImage: {
+				image: 'url("file:///textures/kirby.png")',
+				repeat: 'repeat-x',
+				size: '125px 175px',
+				position: '37px 19px',
+			},
+			replicaImage: {
+				image: 'url("file:///textures/kirby.png")',
+				repeat: 'repeat-x',
+				size: '125px 175px',
+				position: '37px 19px',
+			},
+			base: 'rgb(32, 32, 32)',
+			pointerEvents: 'none',
+			ariaHidden: 'true',
+		});
+	});
+
+	test('keeps source and replica Codicons synchronized across resize', () => {
+		const background = { kind: 'codicons' } as const;
+		const { store, part, stickyContainer, source, sourceRenderer } = createBackgroundReplicaHost(background);
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+		replica.setBackground(background);
+		const iconLayout = (element: HTMLElement) => Array.from(element.querySelectorAll<HTMLElement>('.codicon'))
+			.map(icon => ({
+				className: icon.className,
+				left: icon.style.left,
+				top: icon.style.top,
+				transform: icon.style.transform,
+			}))
+			.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+		const initialSourceLayout = iconLayout(source);
+		const initialReplicaLayout = iconLayout(stickyContainer);
+
+		part.style.width = '720px';
+		part.style.height = '480px';
+		sourceRenderer.setBackground(background);
+		replica.layout();
+		replica.setBackground(background);
+		const resizedSourceLayout = iconLayout(source);
+		const resizedReplicaLayout = iconLayout(stickyContainer);
+		const replicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+
+		assert.deepStrictEqual({
+			initial: {
+				hasIcons: initialSourceLayout.length > 0,
+				sourceCount: initialSourceLayout.length,
+				replicaCount: initialReplicaLayout.length,
+				replicaLayout: initialReplicaLayout,
+			},
+			resized: {
+				hasMoreIcons: resizedSourceLayout.length > initialSourceLayout.length,
+				sourceCount: resizedSourceLayout.length,
+				replicaCount: resizedReplicaLayout.length,
+				replicaLayout: resizedReplicaLayout,
+				replicaWidth: replicaElement?.getBoundingClientRect().width,
+				replicaHeight: replicaElement?.getBoundingClientRect().height,
+			},
+		}, {
+			initial: {
+				hasIcons: true,
+				sourceCount: initialSourceLayout.length,
+				replicaCount: initialSourceLayout.length,
+				replicaLayout: initialSourceLayout,
+			},
+			resized: {
+				hasMoreIcons: true,
+				sourceCount: resizedSourceLayout.length,
+				replicaCount: resizedSourceLayout.length,
+				replicaLayout: resizedSourceLayout,
+				replicaWidth: 720,
+				replicaHeight: 480,
+			},
+		});
+	});
+
+	test('updates and clears replica rendering from explicit background state', () => {
+		const image: ISessionsChatBackground = {
+			kind: 'image',
+			backgroundImage: 'url("file:///textures/kirby.png")',
+			backgroundRepeat: 'no-repeat',
+			backgroundSize: 'auto',
+			backgroundPosition: 'right bottom',
+		};
+		const codicons = { kind: 'codicons' } as const;
+		const { store, stickyContainer, source, sourceRenderer } = createBackgroundReplicaHost(image);
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+		replica.setBackground(image);
+		const replicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		const replicaLayer = replicaElement?.querySelector<HTMLElement>(':scope > .sessions-chat-background');
+		const codiconLayer = replicaLayer?.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-background');
+		if (!replicaElement || !replicaLayer || !codiconLayer) {
+			throw new Error('Sticky background replica did not render its layers');
+		}
+		const imageState = {
+			hasBackground: replicaElement.classList.contains('has-chat-background'),
+			hasImage: replicaElement.classList.contains('has-chat-background-image'),
+			image: replicaLayer.style.backgroundImage,
+			layerHidden: replicaLayer.hidden,
+		};
+
+		sourceRenderer.setBackground(codicons);
+		replica.setBackground(codicons);
+		const codiconState = {
+			hasBackground: replicaElement.classList.contains('has-chat-background'),
+			hasImage: replicaElement.classList.contains('has-chat-background-image'),
+			image: replicaLayer.style.backgroundImage,
+			layerHidden: replicaLayer.hidden,
+			codiconLayerHidden: codiconLayer.hidden,
+			iconCountMatches: source.querySelectorAll('.codicon').length === replicaElement.querySelectorAll('.codicon').length,
+		};
+
+		sourceRenderer.setBackground(undefined);
+		replica.setBackground(undefined);
+		const clearedStyle = dom.getWindow(replicaElement).getComputedStyle(replicaElement);
+
+		assert.deepStrictEqual({
+			image: imageState,
+			codicons: codiconState,
+			cleared: {
+				hasBackground: replicaElement.classList.contains('has-chat-background'),
+				hasImage: replicaElement.classList.contains('has-chat-background-image'),
+				display: clearedStyle.display,
+				layerHidden: replicaLayer.hidden,
+				codiconLayerHidden: codiconLayer.hidden,
+				iconCount: replicaElement.querySelectorAll('.codicon').length,
+			},
+		}, {
+			image: {
+				hasBackground: true,
+				hasImage: true,
+				image: 'url("file:///textures/kirby.png")',
+				layerHidden: false,
+			},
+			codicons: {
+				hasBackground: true,
+				hasImage: false,
+				image: '',
+				layerHidden: false,
+				codiconLayerHidden: false,
+				iconCountMatches: true,
+			},
+			cleared: {
+				hasBackground: false,
+				hasImage: false,
+				display: 'none',
+				layerHidden: true,
+				codiconLayerHidden: true,
+				iconCount: 0,
+			},
+		});
+	});
+
+	test('reuses and disposes the ChatView sticky background replica', () => {
+		const image: ISessionsChatBackground = {
+			kind: 'image',
+			backgroundImage: 'url("file:///textures/kirby.png")',
+			backgroundRepeat: 'no-repeat',
+			backgroundSize: 'auto',
+			backgroundPosition: 'center center',
+		};
+		const codicons = { kind: 'codicons' } as const;
+		const { store, chatView, stickyContainer, sourceRenderer } = createBackgroundReplicaHost(image);
+		const replicaSlot = store.add(new MutableDisposable<SessionsChatBackgroundReplica>());
+		let background: ISessionsChatBackground | undefined = image;
+		let paddingUpdates = 0;
+		const view = Object.assign(Object.create(ChatView.prototype), {
+			element: chatView,
+			_widget: {
+				stickyScrollDomNode: stickyContainer,
+				setContentHorizontalPadding: () => paddingUpdates++,
+			},
+			_stickyScrollBackgroundReplica: replicaSlot,
+			chatBackgroundService: { getBackground: () => background },
+			_chatItemHorizontalPadding: getSessionChatItemHorizontalPadding(true),
+		}) as IStickyBackgroundChatView;
+
+		view._layoutStickyScrollBackground();
+		const firstReplicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		view._layoutStickyScrollBackground();
+		const secondReplicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+
+		background = codicons;
+		sourceRenderer.setBackground(background);
+		view._updateChatBackground();
+		view._updateChatBackground();
+		const updatedReplicaElement = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+
+		background = undefined;
+		sourceRenderer.setBackground(background);
+		view._updateChatBackground();
+		const hiddenBeforeDispose = updatedReplicaElement ? dom.getWindow(updatedReplicaElement).getComputedStyle(updatedReplicaElement).display : undefined;
+		const replicaCountBeforeDispose = stickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica').length;
+		replicaSlot.dispose();
+
+		assert.deepStrictEqual({
+			created: !!firstReplicaElement,
+			reusedOnLayout: secondReplicaElement === firstReplicaElement,
+			reusedOnBackgroundUpdate: updatedReplicaElement === firstReplicaElement,
+			replicaCountBeforeDispose,
+			hiddenBeforeDispose,
+			paddingUpdates,
+			replicaCountAfterDispose: stickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica').length,
+		}, {
+			created: true,
+			reusedOnLayout: true,
+			reusedOnBackgroundUpdate: true,
+			replicaCountBeforeDispose: 1,
+			hiddenBeforeDispose: 'none',
+			paddingUpdates: 1,
+			replicaCountAfterDispose: 0,
 		});
 	});
 

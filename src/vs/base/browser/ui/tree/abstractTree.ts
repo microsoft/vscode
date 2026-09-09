@@ -1381,6 +1381,10 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 
 	private paddingTop: number;
 
+	get domNode(): HTMLElement {
+		return this._widget.domNode;
+	}
+
 	constructor(
 		private readonly tree: AbstractTree<T, TFilterData, TRef>,
 		private readonly model: ITreeModel<T, TFilterData, TRef>,
@@ -1766,6 +1770,10 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			return 0;
 		}
 		return this.getRootHeight(this._previousState);
+	}
+
+	get domNode(): HTMLElement {
+		return this._rootDomNode;
 	}
 
 	get count(): number {
@@ -2812,6 +2820,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onDidUpdateOptions: Event<IAbstractTreeOptions<T, TFilterData>> = this._onDidUpdateOptions.event;
 
 	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
+	get stickyScrollDomNode(): HTMLElement | undefined { return this.stickyScrollController?.domNode; }
 
 	constructor(
 		private readonly _user: string,
