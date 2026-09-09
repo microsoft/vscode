@@ -51,9 +51,11 @@ const hasGit = (() => {
 		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 		// Initialize a tmp git repo as the session's working directory.
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-proto-diff-'));
-		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
-		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot, env, stdio: 'pipe' });
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot, stdio: 'pipe' });
 		run('init', '-q', '-b', 'main');
+		// The agent-host subprocess also needs an identity for its checkpoint commits.
+		run('config', 'user.name', 'Agent Host Test');
+		run('config', 'user.email', 'agent-host-test@example.com');
 		writeFileSync(join(tmpRoot, 'seed.txt'), 'seed\n');
 		run('add', '.');
 		run('commit', '-q', '-m', 'init');
