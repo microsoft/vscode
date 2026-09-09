@@ -1708,7 +1708,7 @@ export class CopilotAgentSession extends Disposable {
 			type: ActionType.ChatError,
 			turnId: turn.id,
 			duration: turn.duration,
-			part: createErrorResponsePart(error),
+			part: createErrorResponsePart(error, true),
 		});
 		this._clearActiveTurn();
 		return turn.id;
@@ -2900,7 +2900,7 @@ export class CopilotAgentSession extends Disposable {
 			part: createErrorResponsePart({
 				errorType: 'developmentRecoverableError',
 				message: localize('copilotAgent.developmentRecoverableError', "Injected recoverable development error ({0}/{1}).", attempt, totalFailures),
-			}),
+			}, true),
 		});
 		this._clearActiveTurn();
 	}
@@ -5527,16 +5527,20 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSessionError(e => {
-			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('session.error')) {
 				return;
 			}
+			const turn = this._currentTurn.value;
+			if (!e.agentId && turn && turn === this._resumingTurnAwaitingProviderStart && !turn.providerTurnStarted) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring error from the failed execution while resumed turn ${turn.id} awaits provider start`);
+				return;
+			}
+			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
 			if (isCopilotSdkAuthRejection(e.data)) {
 				this._onDidRequireAuth.fire();
 			}
 			reportCopilotSdkSessionError(this._telemetryService, e, createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, this._turnId, this.sessionId, this._currentTurn.value?.clientContext));
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			const turn = this._currentTurn.value;
 			if (turn) {
 				this._reportToolCallDetails(turn, 'failed');
 			}
@@ -5544,7 +5548,7 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: turn?.duration ?? 0,
-				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data)),
+				part: createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data), !e.agentId && turn !== undefined),
 			}, parentToolCallId);
 			if (!parentToolCallId) {
 				this._clearActiveTurn();

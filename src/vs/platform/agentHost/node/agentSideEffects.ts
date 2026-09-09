@@ -1394,7 +1394,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.ChatError,
 						turnId: action.turnId,
 						duration: execution.duration + execution.stopWatch.elapsed(),
-						part: createErrorResponsePart(failure.error),
+						part: createErrorResponsePart(failure.error, true),
 					});
 					const endedTurn = this._completeTurn(channel, action.turnId, 'error', failure);
 					this._toolCallTracker.clearSession(channel);

@@ -2042,6 +2042,7 @@ suite('CopilotAgentSession', () => {
 				errorType: 'executionInterrupted',
 				message: 'The agent was interrupted before this request finished.',
 			},
+			resumable: true,
 		});
 	});
 
@@ -6491,7 +6492,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('the development $error-ui path emits an error even with attachments', async () => {
+		test('the development $error-ui path emits a resumable error even with attachments', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
 			await session.send('$error-ui', [{
@@ -6517,6 +6518,7 @@ Use the attached image as context.
 							errorType: 'developmentRecoverableError',
 							message: 'Injected recoverable development error (1/1).',
 						},
+						resumable: true,
 					},
 				}],
 			});
@@ -6668,6 +6670,43 @@ Use the attached image as context.
 				});
 			});
 		}
+
+		test('ignores the failed execution error until the resumed provider turn starts', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+
+			mockSession.fire('session.error', {
+				errorType: 'query',
+				message: 'previous failure',
+			} as SessionEventPayload<'session.error'>['data']);
+			const beforeProviderStart = getActions(signals);
+
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.error', {
+				errorType: 'query',
+				message: 'continuation failure',
+			} as SessionEventPayload<'session.error'>['data']);
+
+			assert.deepStrictEqual({
+				beforeProviderStart,
+				endingActions: getActions(signals).filter(action => action.type === ActionType.ChatError).map(action => ({
+					turnId: action.turnId,
+					error: action.part.error,
+					resumable: action.part.resumable,
+				})),
+			}, {
+				beforeProviderStart: [],
+				endingActions: [{
+					turnId: 'turn-1',
+					error: {
+						errorType: 'query',
+						message: 'continuation failure',
+						stack: undefined,
+					},
+					resumable: true,
+				}],
+			});
+		});
 
 		test('cancellation before the provider turn starts clears the resumed turn', async () => {
 			const abortGate = new DeferredPromise<void>();
@@ -9077,7 +9116,26 @@ Use the attached image as context.
 			assert.strictEqual(authRequiredCount, 2);
 		});
 
-		test('error event is forwarded', async () => {
+		test('root error event is resumable while the turn is active', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			mockSession.fire('session.error', {
+				errorType: 'TestError',
+				message: 'something went wrong',
+			} as SessionEventPayload<'session.error'>['data']);
+
+			assert.deepStrictEqual(getActions(signals).map(action => ({
+				type: action.type,
+				turnId: action.type === ActionType.ChatError ? action.turnId : undefined,
+				resumable: action.type === ActionType.ChatError ? action.part.resumable : undefined,
+			})), [{
+				type: ActionType.ChatError,
+				turnId: 'turn-1',
+				resumable: true,
+			}]);
+		});
+
+		test('unmapped subagent error event is forwarded as non-resumable', async () => {
 			const telemetryService = new CapturingTelemetryService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { telemetryService });
 			session.resetTurnState('turn-1');
