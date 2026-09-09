@@ -410,7 +410,8 @@ export class TS7RegionContextProvider implements Omit<IRegionContextProviderServ
 		} else {
 			return undefined;
 		}
-		return { kind, name: node.name.getText(), rangeNode: node, continueWith: node };
+		const name = ts.isIdentifier(node.name) ? node.name.getText() : undefined;
+		return { kind, name, rangeNode: node, continueWith: node };
 	}
 
 	private getAssignedExpressionContainer(node: ts.Node): AssignedStructuralNode | undefined {

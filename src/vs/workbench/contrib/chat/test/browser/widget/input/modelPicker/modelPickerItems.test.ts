@@ -208,6 +208,36 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(provider.getWidgetRole(), 'menu');
 	});
 
+	test('search uses listbox options and announces the current model without menu check state', () => {
+		const provider = getModelPickerAccessibilityProvider(true);
+		const item: IActionListItem<IActionWidgetDropdownAction> = {
+			kind: ActionListItemKind.Action,
+			label: 'Test Model',
+			item: {
+				id: 'test-model',
+				label: 'Test Model',
+				enabled: true,
+				checked: true,
+				class: undefined,
+				tooltip: '',
+				run: () => { },
+			},
+		};
+		assert.deepStrictEqual({
+			role: provider.getRole(item),
+			listRole: provider.getWidgetRole(),
+			checked: provider.isChecked(item),
+			label: provider.getAriaLabel(item),
+			separatorRole: provider.getRole({ kind: ActionListItemKind.Separator }),
+		}, {
+			role: 'option',
+			listRole: 'listbox',
+			checked: undefined,
+			label: 'Test Model, Current model',
+			separatorRole: 'separator',
+		});
+	});
+
 	test('accessibility provider announces the Restricted Mode Trust action as a plain menuitem (not a radio)', () => {
 		const provider = getModelPickerAccessibilityProvider();
 		const trust = getActionItems(callBuild([], { restrictedMode: true, onRequestTrust: () => { } })).find(a => a.item?.id === 'restrictedModeTrust')!;

@@ -466,7 +466,7 @@ suite('ChatInputPickerResponsiveLayout', () => {
 	test('centers compact primary and secondary picker icons', () => {
 		host.style.setProperty('--vscode-spacing-size60', '6px');
 		host.style.setProperty('--vscode-spacing-size80', '8px');
-		host.classList.add('interactive-session');
+		host.classList.add('monaco-workbench', 'interactive-session');
 		host.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 
 		const renderPicker = (toolbarClass: string, itemClass: string) => {
