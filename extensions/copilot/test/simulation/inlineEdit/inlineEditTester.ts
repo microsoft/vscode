@@ -126,7 +126,6 @@ export class InlineEditTester {
 	private async _runTest(accessor: ServicesAccessor, docId: DocumentId, workspace: ObservableWorkspace, historyContextProvider: IHistoryContextProvider, nesXtabHistoryTracker: NesXtabHistoryTracker, debugRecorder: DebugRecorder | undefined) {
 		const instaService = accessor.get(IInstantiationService);
 		const configService = accessor.get(IConfigurationService);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
 		const expService = accessor.get(IExperimentationService);
 		const gitExtensionService = accessor.get(IGitExtensionService);
 		const notebookService = accessor.get(INotebookService);
@@ -150,6 +149,8 @@ export class InlineEditTester {
 				return undefined;
 			}
 		})();
+
+		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
 
 		if (stestRuntime) {
 			const nesUserEditHistory: ISerializedNesUserEditsHistory = {
