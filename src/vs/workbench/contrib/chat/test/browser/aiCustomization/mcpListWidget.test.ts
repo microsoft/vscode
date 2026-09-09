@@ -10,20 +10,28 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationEnablementKind, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
+import { IAuthenticationQueryService } from '../../../../../services/authentication/common/authenticationQuery.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IMcpServer, IMcpService, McpConnectionState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpConnectionState, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import {
 	AgentHostMcpServer,
@@ -870,47 +878,170 @@ suite('mcpListWidget', () => {
 		});
 	});
 
-	suite('row actions survive no-op updates', () => {
+	suite('row diagnostics and action stability', () => {
 		// The signature tests above only cover the pure helper, so they would still pass if the
 		// early return in `updateStatus` or the row guard in `renderElement` were removed. These
 		// drive the renderer itself, which is the only place the reported failure is observable:
 		// an erroring server re-runs the status update about twice a second, and a button node
 		// replaced between mousedown and mouseup never receives the click.
-		function createRenderer(server: AgentHostMcpServer) {
+		type Entry = Parameters<McpServerItemRenderer['renderElement']>[0];
+
+		function createRenderer(server: AgentHostMcpServer, isSessionsWindow = true) {
 			const store = new DisposableStore();
 			const onDidChangeCustomizations = store.add(new Emitter<void>());
 			const sessionResource = URI.parse('vscode-agent-session:///session-1');
+			const activeSessionResource = observableValue('activeSessionResource', sessionResource);
 			let servers: AgentHostMcpServer[] = [server];
 			const shownLogs: string[] = [];
+			const shownLogSessions: string[] = [];
+			const managementClicks: string[] = [];
+			const hoverContents = new Map<HTMLElement, IManagedHoverContent>();
 
 			const agentHostCustomizationService = {
 				getMcpServers: () => servers,
 				onDidChangeCustomizations: onDidChangeCustomizations.event,
-				showMcpServerLog: async (_resource: URI, serverId: string) => { shownLogs.push(serverId); },
+				showMcpServerLog: async (resource: URI, serverId: string) => { shownLogs.push(serverId); shownLogSessions.push(resource.toString()); },
+				getWorkingDirectories: () => [],
 			} as unknown as IAgentHostCustomizationService;
 			const customizationHarnessService = {
-				activeSessionResource: observableValue<URI>('activeSessionResource', sessionResource),
+				activeSessionResource,
 			} as unknown as ICustomizationHarnessService;
+			const hoverService = new class extends mock<IHoverService>() {
+				override setupManagedHover(_delegate: Parameters<IHoverService['setupManagedHover']>[0], target: HTMLElement) {
+					return {
+						show() { },
+						hide() { },
+						update: (content: IManagedHoverContent) => { hoverContents.set(target, content); },
+						dispose: () => { hoverContents.delete(target); },
+					};
+				}
+				override setupDelayedHover() { return Disposable.None; }
+			}();
+			const agentPluginService = { plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService;
+			const renderManagementActions = (_entry: Entry, actions: HTMLElement, disposables: DisposableStore) => {
+				const button = disposables.add(new Button(actions, unthemedButtonStyles));
+				button.element.classList.add('test-management-action');
+				button.label = 'More Actions';
+				registerMcpInlineButtonAction(disposables, button, () => { managementClicks.push('more'); });
+			};
 			const renderer = new McpServerItemRenderer(
-				async () => { },
-				() => { },
-				{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
-				{ plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService,
-				{ setupManagedHover: () => Disposable.None } as unknown as IHoverService,
+				renderManagementActions,
+				{ isSessionsWindow } as IAICustomizationWorkspaceService,
+				agentPluginService,
+				hoverService,
 				agentHostCustomizationService,
 				customizationHarnessService,
-				{ showChannel: async () => { } } as unknown as IOutputService,
 			);
 
 			const container = document.createElement('div');
 			const templateData = renderer.renderTemplate(container);
 			store.add({ dispose: () => renderer.disposeTemplate(templateData) });
+			const widget = Object.create(McpListWidget.prototype) as {
+				getMcpEntryAriaLabel(entry: Entry): IObservable<string>;
+				getMcpServerActions(entry: Entry, store: DisposableStore): IAction[];
+				createMcpSectionList(container: HTMLElement, label: string, entries: readonly Entry[]): void;
+				layoutMcpSectionLists(): void;
+				sectionLists: { list: WorkbenchList<Entry>; container: HTMLElement }[];
+			};
+			Object.assign(widget, {
+				agentHostCustomizationService,
+				customizationHarnessService,
+				workspaceService: { isSessionsWindow },
+				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
+			});
+			const ariaSubscription = store.add(new MutableDisposable());
+			let ariaLabel = '';
 
 			return {
 				store,
 				templateData,
 				shownLogs,
-				render: () => renderer.renderElement(createBuiltinActiveSessionMcpEntries([server])[0], 0, templateData),
+				shownLogSessions,
+				managementClicks,
+				activeSessionResource,
+				menu: (entry: Entry, localServer?: IMcpServer) => {
+					const instantiationService = workbenchInstantiationService({}, store);
+					const mcpService = new class extends mock<IMcpService>() {
+						override readonly servers = observableValue<readonly IMcpServer[]>('servers', localServer ? [localServer] : []);
+						override readonly enablementModel = createMcpService(ContributionEnablementState.EnabledProfile).service.enablementModel;
+					}();
+					const mcpWorkbenchService = new class extends mock<IMcpWorkbenchService>() {
+						override readonly local = [];
+					}();
+					instantiationService.stub(IMcpService, mcpService);
+					instantiationService.stub(IMcpWorkbenchService, mcpWorkbenchService);
+					instantiationService.stub(IMcpRegistry, { collections: observableValue('collections', []) });
+					instantiationService.stub(IMcpSamplingService, { hasLogs: () => false });
+					instantiationService.stub(IAuthenticationService, {});
+					instantiationService.stub(IAuthenticationQueryService, {
+						mcpServer: () => new class extends mock<ReturnType<IAuthenticationQueryService['mcpServer']>>() {
+							override getAllAccountPreferences() { return new Map(); }
+						}(),
+					});
+					Object.assign(widget, {
+						instantiationService, mcpService, mcpWorkbenchService, agentPluginService,
+						commandService: { executeCommand: async () => undefined },
+						workspaceService: { isSessionsWindow, getActiveProjectRoot: () => undefined },
+						outputService: { showChannel: async () => { } },
+					});
+					return widget.getMcpServerActions(entry, store);
+				},
+				createSection: (entries: readonly Entry[], width = 500, height = 300) => {
+					const root = DOM.append(document.body, DOM.$('.plugin-list-widget'));
+					root.style.cssText = `width: ${width}px; height: ${height}px; --vscode-spacing-size120: 12px; --vscode-spacing-size80: 8px;`;
+					store.add({ dispose: () => root.remove() });
+					const instantiationService = workbenchInstantiationService({}, store);
+					instantiationService.stub(IListService, store.add(new ListService()));
+					instantiationService.stub(IAICustomizationWorkspaceService, { isSessionsWindow });
+					instantiationService.stub(IAgentHostCustomizationService, agentHostCustomizationService);
+					instantiationService.stub(ICustomizationHarnessService, customizationHarnessService);
+					instantiationService.stub(IAgentPluginService, agentPluginService);
+					instantiationService.stub(IHoverService, hoverService);
+					instantiationService.stub(IOutputService, { showChannel: async () => { } });
+					Object.assign(widget, {
+						instantiationService,
+						cardDisposables: store,
+						cardListControllers: new Map(),
+						sectionScrollPositions: new Map(),
+						sectionLists: [],
+						sectionLayoutContainer: root,
+						element: root,
+						pendingSectionLayout: store.add(new MutableDisposable()),
+						cardScrollable: { scanDomNode() { } },
+						renderMcpListActions: renderManagementActions,
+					});
+					const container = DOM.append(root, DOM.$('div'));
+					widget.createMcpSectionList(container, 'Installed MCP Servers', entries);
+					widget.layoutMcpSectionLists();
+					const list = widget.sectionLists[0].list;
+					return {
+						list,
+						root,
+						container,
+						resize: (width: number) => {
+							root.style.width = `${width}px`;
+							widget.layoutMcpSectionLists();
+						},
+						settle: async () => {
+							for (let frame = 0; frame < 4; frame++) {
+								await new Promise<void>(resolve => store.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(root), () => resolve())));
+							}
+						},
+					};
+				},
+				render: (entry: Entry = createBuiltinActiveSessionMcpEntries([server])[0]) => {
+					renderer.renderElement(entry, 0, templateData);
+					renderer.setFocusedIndex(0);
+					const label = widget.getMcpEntryAriaLabel(entry);
+					ariaSubscription.value = autorun(reader => { ariaLabel = label.read(reader); });
+				},
+				read: () => ({
+					text: templateData.description.textContent,
+					error: templateData.description.classList.contains('error'),
+					display: templateData.description.style.display,
+					hover: hoverContents.get(templateData.description),
+					ariaLabel,
+				}),
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
 				actionNode: () => templateData.actions.firstElementChild,
@@ -919,7 +1050,390 @@ suite('mcpListWidget', () => {
 
 		const erroring = () => createAgentHostServer({ id: 'server-1', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed to start' } } });
 
-		test('the Show Output button stays the same clickable node across repeated identical updates', () => {
+		function nativeServer() {
+			const outputCalls: string[] = [];
+			const connectionState = observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Error, message: 'Native connection failed' });
+			const enablement = observableValue('enablement', ContributionEnablementState.EnabledProfile);
+			const server = new class extends mock<IMcpServer>() {
+				override readonly definition = { ...createMcpDetailTestServer().readDefinitions().get().server, id: 'native', label: 'Native' };
+				override readonly connectionState = connectionState;
+				override readonly enablement = enablement;
+				override readonly capabilities = observableValue('capabilities', undefined);
+				override async showOutput() { outputCalls.push('native'); }
+			}();
+			const workbenchServer = new class extends mock<IWorkbenchMcpServer>() {
+				override readonly id = 'native';
+				override readonly label = 'Native';
+				override readonly description = 'Ordinary description';
+				override readonly name = 'Native';
+				override readonly installState = McpServerInstallState.Installed;
+				override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() { }();
+			}();
+			return { server, workbenchServer, connectionState, enablement, outputCalls };
+		}
+
+		for (const kind of ['native', 'matched', 'builtin', 'plugin', 'matched-builtin', 'session-only', 'host-builtin-no-local'] as const) {
+			test(`${kind} errors omit the trailing indicator and retain menu output routing`, async () => {
+				const ctx = createRenderer(erroring(), false);
+				disposables.add(ctx.store);
+				const native = nativeServer();
+				const entry: Entry = kind === 'session-only'
+					? { type: 'session-server-item', server: erroring() }
+					: kind === 'native' || kind === 'matched'
+						? { type: 'server-item', server: native.workbenchServer, localServer: native.server, activeSessionServer: kind === 'matched' ? erroring() : undefined }
+						: { type: 'builtin-item', id: 'builtin', label: 'Builtin', description: '', localServer: kind === 'host-builtin-no-local' ? undefined : native.server, activeSessionServer: kind === 'matched-builtin' || kind === 'host-builtin-no-local' ? erroring() : undefined, collectionId: kind === 'plugin' ? `${MCP_PLUGIN_COLLECTION_ID_PREFIX}file:///plugin` : undefined };
+				ctx.render(entry);
+				ctx.activeSessionResource.set(URI.parse('vscode-agent-session:///session-2'), undefined);
+				const actions = ctx.menu(entry, native.server);
+				const output = actions.filter(action => action.label === 'Show Output');
+				assert.strictEqual(output.length, 1, 'exactly one accessible output action');
+				await output[0].run();
+				const hostOwned = !['native', 'builtin', 'plugin'].includes(kind);
+				assert.deepStrictEqual({
+					badge: ctx.templateData.statusBadge.textContent,
+					trailingStatus: ctx.templateData.actions.querySelectorAll('.mcp-server-status').length,
+					managementButtons: ctx.templateData.actions.querySelectorAll('.test-management-action').length,
+					enabledOutput: output[0].enabled,
+					nativeCalls: native.outputCalls,
+					hostCalls: ctx.shownLogs,
+					hostSessions: ctx.shownLogSessions,
+				}, {
+					badge: 'Error', trailingStatus: 0, managementButtons: 1, enabledOutput: true,
+					nativeCalls: hostOwned ? [] : ['native'],
+					hostCalls: hostOwned ? ['server-1'] : [],
+					hostSessions: hostOwned ? ['vscode-agent-session:/session-2'] : [],
+				});
+			});
+		}
+
+		test('a removed active-session server cannot fall back to native output', () => {
+			const ctx = createRenderer(erroring());
+			disposables.add(ctx.store);
+			const native = nativeServer();
+			ctx.setServers([]);
+			const actions = ctx.menu({ type: 'server-item', server: native.workbenchServer, localServer: native.server, activeSessionServer: erroring() }, native.server);
+			assert.strictEqual(actions.filter(action => action.label === 'Show Output').length, 0);
+		});
+
+		test('dynamic error rows show every line and unbroken token, resize and preserve actions', async () => {
+			const server = erroring();
+			const ctx = createRenderer(server);
+			disposables.add(ctx.store);
+			const section = ctx.createSection([
+				{ type: 'session-server-item', server },
+				{ type: 'builtin-item', id: 'healthy', label: 'Healthy', description: 'Ordinary description' },
+			], 600, 800);
+			await section.settle();
+			section.list.setFocus([0]);
+			const row = section.container.querySelector<HTMLElement>('.mcp-server-item')!;
+			const button = row.querySelector<HTMLElement>('.test-management-action')!;
+			button.focus();
+			const shortHeight = section.list.getElementHeight(0);
+			const message = `First line\nhttps://example.test/${'unbroken'.repeat(65)}\nFINAL CHARACTERS`;
+			ctx.setServers([{ ...server, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message } } }]);
+			ctx.notifyUnchanged();
+			await section.settle();
+			const wideHeight = section.list.getElementHeight(0);
+			section.resize(280);
+			await section.settle();
+			const narrowHeight = section.list.getElementHeight(0);
+			const description = row.querySelector<HTMLElement>('.mcp-server-description')!;
+			const range = document.createRange();
+			range.selectNodeContents(description);
+			const textBounds = range.getBoundingClientRect();
+			const rowBounds = row.getBoundingClientRect();
+			const followingRow = section.container.querySelectorAll<HTMLElement>('.mcp-server-item')[1];
+			assert.deepStrictEqual({
+				grew: wideHeight > shortHeight,
+				narrowGrew: narrowHeight > wideHeight,
+				text: description.textContent,
+				textFitsVertically: textBounds.bottom <= rowBounds.bottom,
+				textFitsHorizontally: textBounds.right <= rowBounds.right,
+				nextRowBelow: followingRow.getBoundingClientRect().top >= rowBounds.bottom,
+				healthyHeight: section.list.getElementHeight(1),
+				contentHeight: section.list.contentHeight,
+				minimumAllocation: section.container.clientHeight,
+				stableAction: row.querySelector('.test-management-action') === button,
+				focus: document.activeElement === button,
+				whiteSpace: DOM.getWindow(description).getComputedStyle(description).whiteSpace,
+				wrap: DOM.getWindow(description).getComputedStyle(description).overflowWrap,
+				padding: DOM.getWindow(row).getComputedStyle(row).paddingBottom,
+			}, {
+				grew: true, narrowGrew: true, text: message, textFitsVertically: true, textFitsHorizontally: true, nextRowBelow: true,
+				healthyHeight: 66, contentHeight: narrowHeight + 66, minimumAllocation: narrowHeight + 66,
+				stableAction: true, focus: true, whiteSpace: 'pre-wrap', wrap: 'anywhere', padding: '12px',
+			});
+			button.click();
+			assert.deepStrictEqual(ctx.managementClicks, ['more']);
+			section.resize(600);
+			await section.settle();
+			assert.strictEqual(section.list.getElementHeight(0), wideHeight);
+			ctx.setServers([server]);
+			ctx.notifyUnchanged();
+			await section.settle();
+			assert.strictEqual(section.list.getElementHeight(0), shortHeight);
+			ctx.setServers([createAgentHostServer()]);
+			ctx.notifyUnchanged();
+			await section.settle();
+			assert.deepStrictEqual([section.list.getElementHeight(0), section.list.contentHeight, section.container.clientHeight, row.classList.contains('has-error')], [66, 132, 132, false]);
+		});
+
+		test('offscreen errors are remeasured on recycling without losing the visible scroll anchor', async () => {
+			const server = erroring();
+			const ctx = createRenderer(server);
+			disposables.add(ctx.store);
+			const entries: Entry[] = Array.from({ length: 20 }, (_, index) => ({
+				type: 'builtin-item', id: `healthy-${index}`, label: `Healthy ${index}`, description: 'Ordinary description',
+			}));
+			entries[15] = { type: 'session-server-item', server };
+			const section = ctx.createSection(entries, 350, 264);
+			await section.settle();
+			section.list.reveal(15);
+			await section.settle();
+			section.list.reveal(0);
+			await section.settle();
+			const scrollTop = section.list.scrollTop;
+			ctx.setServers([{ ...server, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Long error\n'.repeat(20) + 'FINAL' } } }]);
+			ctx.notifyUnchanged();
+			await section.settle();
+			assert.strictEqual(section.list.scrollTop, scrollTop);
+			section.list.reveal(15);
+			await section.settle();
+			assert.ok(section.list.getElementHeight(15) > 280);
+			section.list.reveal(0);
+			await section.settle();
+			ctx.setServers([{ ...server, enabled: false }]);
+			ctx.notifyUnchanged();
+			await section.settle();
+			section.resize(260);
+			section.list.reveal(15);
+			await section.settle();
+			assert.deepStrictEqual({
+				height: section.list.getElementHeight(15),
+				diagnostics: section.container.querySelectorAll('.mcp-server-description.error').length,
+				renderedRows: section.container.querySelectorAll('.mcp-server-item').length < entries.length,
+			}, { height: 66, diagnostics: 0, renderedRows: true });
+		});
+
+		test('native errors resize while visible and after a collapsed section changes', async () => {
+			const ctx = createRenderer(erroring(), false);
+			disposables.add(ctx.store);
+			const native = nativeServer();
+			const section = ctx.createSection([{ type: 'server-item', server: native.workbenchServer, localServer: native.server }], 320);
+			await section.settle();
+			const button = section.container.querySelector('.test-management-action');
+			const longError = 'Transport failure\n'.repeat(12) + 'END';
+			native.connectionState.set({ state: McpConnectionState.Kind.Error, message: longError }, undefined);
+			await section.settle();
+			const longHeight = section.list.getElementHeight(0);
+			assert.ok(longHeight > 66);
+			assert.strictEqual(section.container.querySelector('.test-management-action'), button);
+			native.enablement.set(ContributionEnablementState.DisabledProfile, undefined);
+			await section.settle();
+			assert.strictEqual(section.list.getElementHeight(0), 66);
+			section.container.hidden = true;
+			section.container.style.display = 'none';
+			native.enablement.set(ContributionEnablementState.EnabledProfile, undefined);
+			await section.settle();
+			section.container.hidden = false;
+			section.container.style.display = '';
+			section.resize(320);
+			await section.settle();
+			assert.deepStrictEqual({
+				height: section.list.getElementHeight(0),
+				allocatedHeight: section.container.clientHeight,
+				text: section.container.querySelector('.mcp-server-description')?.textContent,
+			}, { height: longHeight, allocatedHeight: longHeight, text: longError });
+			native.connectionState.set({ state: McpConnectionState.Kind.Stopped }, undefined);
+			await section.settle();
+			assert.strictEqual(section.list.getElementHeight(0), 66);
+		});
+
+		test('switching sessions clears a tall diagnostic and shrinks its section', async () => {
+			const server = { ...erroring(), state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Session error\n'.repeat(15) } } } satisfies AgentHostMcpServer;
+			const ctx = createRenderer(server);
+			disposables.add(ctx.store);
+			const section = ctx.createSection([{ type: 'session-server-item', server }], 320);
+			await section.settle();
+			assert.ok(section.list.getElementHeight(0) > 200);
+			ctx.setServers([]);
+			ctx.activeSessionResource.set(URI.parse('vscode-agent-session:///replacement'), undefined);
+			await section.settle();
+			assert.deepStrictEqual({
+				height: section.list.getElementHeight(0),
+				allocatedHeight: section.container.clientHeight,
+				ariaLabel: section.container.querySelector('.mcp-server-item')?.getAttribute('aria-label'),
+				text: section.container.querySelector('.mcp-server-description')?.textContent,
+			}, { height: 66, allocatedHeight: 66, ariaLabel: 'Server One', text: '' });
+		});
+
+		for (const message of ['Connection refused', '', ' \t\r\n ', 'First line\nSecond line\r\nThird line', 'Long diagnostic '.repeat(100), '<b>not HTML</b> [not a link](command:test) $(error)']) {
+			test(`shows full plain-text error and accessible hover: ${JSON.stringify(message.slice(0, 40))}`, () => {
+				const ctx = createRenderer(createAgentHostServer({ status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message } } }));
+				disposables.add(ctx.store);
+				ctx.render();
+				const expected = message.trim() ? message : 'The server reported an error without additional details.';
+				assert.deepStrictEqual({ ...ctx.read(), childCount: ctx.templateData.description.childElementCount }, {
+					text: expected, error: true, display: '', hover: expected, ariaLabel: `Server One, Error, ${expected}`, childCount: 0,
+				});
+			});
+		}
+
+		test('uses a neutral fallback when full error details are absent', () => {
+			const ctx = createRenderer(createAgentHostServer({ status: McpServerStatus.Error, state: undefined }));
+			disposables.add(ctx.store);
+			ctx.render();
+			assert.deepStrictEqual(ctx.read(), {
+				text: 'The server reported an error without additional details.', error: true, display: '',
+				hover: 'The server reported an error without additional details.',
+				ariaLabel: 'Server One, Error, The server reported an error without additional details.',
+			});
+		});
+
+		test('message-only changes preserve management action identity, keyboard focus and clicks', () => {
+			const ctx = createRenderer(erroring());
+			disposables.add(ctx.store);
+			document.body.appendChild(ctx.templateData.container);
+			disposables.add({ dispose: () => ctx.templateData.container.remove() });
+			ctx.render();
+			const button = ctx.templateData.actions.querySelector<HTMLElement>('.test-management-action')!;
+			button.focus();
+			button.dispatchEvent(new MouseEvent(DOM.EventType.MOUSE_DOWN, { bubbles: true }));
+			ctx.setServers([createAgentHostServer({ ...erroring(), state: { kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'Updated error' } } })]);
+			ctx.notifyUnchanged();
+			button.dispatchEvent(new MouseEvent(DOM.EventType.MOUSE_UP, { bubbles: true }));
+			button.click();
+			assert.deepStrictEqual({
+				...ctx.read(),
+				sameButton: ctx.actionNode() === button,
+				focused: document.activeElement === button,
+				clicks: ctx.managementClicks,
+			}, {
+				text: 'Updated error', error: true, display: '', hover: 'Updated error', ariaLabel: 'Server One, Error, Updated error',
+				sameButton: true, focused: true, clicks: ['more'],
+			});
+		});
+
+		test('native message updates retain management buttons and local errors do not leak into sessions', () => {
+			const native = nativeServer();
+			const entry: Entry = { type: 'server-item', server: native.workbenchServer, localServer: native.server };
+			const ctx = createRenderer(erroring(), false);
+			disposables.add(ctx.store);
+			ctx.render(entry);
+			const button = ctx.actionNode();
+			native.connectionState.set({ state: McpConnectionState.Kind.Error, message: 'Second native error' }, undefined);
+			const sessions = createRenderer(erroring());
+			disposables.add(sessions.store);
+			sessions.render(entry);
+			assert.deepStrictEqual({ local: ctx.read(), sameButton: ctx.actionNode() === button, sessions: sessions.read() }, {
+				local: { text: 'Second native error', error: true, display: '', hover: 'Second native error', ariaLabel: 'Native, Error, Second native error' },
+				sameButton: true,
+				sessions: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native' },
+			});
+		});
+
+		test('starting, stopped and authentication states clear errors without adding explanations', () => {
+			const ctx = createRenderer(erroring());
+			disposables.add(ctx.store);
+			ctx.render();
+			const results = [];
+			for (const status of [McpServerStatus.Starting, McpServerStatus.Stopped, McpServerStatus.AuthRequired]) {
+				ctx.setServers([createAgentHostServer({ ...erroring(), status })]);
+				ctx.notifyUnchanged();
+				results.push({ ...ctx.read(), signIn: !!ctx.templateData.actions.querySelector('.mcp-server-sign-in') });
+			}
+			assert.deepStrictEqual(results, [
+				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Starting', signIn: false },
+				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Stopped', signIn: false },
+				{ text: '', error: false, display: 'none', hover: '', ariaLabel: 'Server One, Authentication required', signIn: true },
+			]);
+		});
+
+		test('recycling an error row for a healthy row clears the diagnostic and hover', () => {
+			const ctx = createRenderer(erroring(), false);
+			disposables.add(ctx.store);
+			ctx.render();
+			const native = nativeServer();
+			native.connectionState.set({ state: McpConnectionState.Kind.Running }, undefined);
+			ctx.render({ type: 'server-item', server: native.workbenchServer, localServer: native.server });
+			ctx.notifyUnchanged();
+			assert.deepStrictEqual(ctx.read(), {
+				text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Running',
+			});
+		});
+
+		for (const kind of ['server-item', 'builtin-item', 'plugin-item'] as const) {
+			test(`${kind} reads native errors and restores descriptions on recovery and disablement`, () => {
+				const ctx = createRenderer(erroring(), false);
+				disposables.add(ctx.store);
+				const native = nativeServer();
+				const entry: Entry = kind === 'server-item'
+					? { type: kind, server: native.workbenchServer, localServer: native.server }
+					: { type: 'builtin-item', id: 'native', label: 'Native', description: 'Ordinary description', localServer: native.server, collectionId: kind === 'plugin-item' ? `${MCP_PLUGIN_COLLECTION_ID_PREFIX}file:///plugin` : undefined };
+				ctx.render(entry);
+				const before = ctx.read();
+				native.connectionState.set({ state: McpConnectionState.Kind.Error, message: '' }, undefined);
+				const empty = ctx.read();
+				native.enablement.set(ContributionEnablementState.DisabledProfile, undefined);
+				const disabled = ctx.read();
+				native.connectionState.set({ state: McpConnectionState.Kind.Running }, undefined);
+				native.enablement.set(ContributionEnablementState.EnabledProfile, undefined);
+				assert.deepStrictEqual({ before, empty, disabled, recovered: ctx.read() }, {
+					before: { text: 'Native connection failed', error: true, display: '', hover: 'Native connection failed', ariaLabel: 'Native, Error, Native connection failed' },
+					empty: { text: 'The server reported an error without additional details.', error: true, display: '', hover: 'The server reported an error without additional details.', ariaLabel: 'Native, Error, The server reported an error without additional details.' },
+					disabled: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: 'Native, Disabled' },
+					recovered: { text: 'Ordinary description', error: false, display: '', hover: 'Ordinary description', ariaLabel: kind === 'server-item' ? 'Native, Running' : 'Native' },
+				});
+			});
+		}
+
+		for (const kind of ['server-item', 'builtin-item', 'session-server-item'] as const) {
+			test(`${kind} uses current session errors, clears removed servers and survives recycling`, () => {
+				const ctx = createRenderer(erroring());
+				disposables.add(ctx.store);
+				const native = nativeServer();
+				native.enablement.set(ContributionEnablementState.DisabledProfile, undefined);
+				const entry: Entry = kind === 'server-item'
+					? { type: kind, server: native.workbenchServer, localServer: native.server, activeSessionServer: erroring() }
+					: kind === 'builtin-item'
+						? { type: kind, id: 'native', label: 'Native', description: 'Ordinary description', localServer: native.server, activeSessionServer: erroring() }
+						: { type: kind, server: erroring() };
+				ctx.render(entry);
+				const error = ctx.read();
+				const action = ctx.actionNode();
+				ctx.setServers([createAgentHostServer({ ...erroring(), state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Changed session error' } } })]);
+				ctx.notifyUnchanged();
+				const updated = { ...ctx.read(), sameAction: ctx.actionNode() === action };
+				ctx.setServers([createAgentHostServer({ ...erroring(), enabled: false })]);
+				ctx.notifyUnchanged();
+				const disabled = ctx.read();
+				ctx.setServers([createAgentHostServer()]);
+				ctx.notifyUnchanged();
+				const recovered = ctx.read();
+				ctx.setServers([]);
+				ctx.activeSessionResource.set(URI.parse('vscode-agent-session:///session-2'), undefined);
+				const removed = ctx.read();
+				ctx.setServers([createAgentHostServer({ ...erroring(), id: 'server-2', name: 'Server Two' })]);
+				ctx.render({ type: 'session-server-item', server: createAgentHostServer({ id: 'server-2', name: 'Server Two' }) });
+				const recycled = ctx.read();
+				native.connectionState.set({ state: McpConnectionState.Kind.Error, message: 'Obsolete native error' }, undefined);
+				ctx.notifyUnchanged();
+				const name = kind === 'session-server-item' ? 'Server One' : 'Native';
+				const description = kind === 'session-server-item' ? '' : 'Ordinary description';
+				const ordinary = { text: description, error: false, display: description ? '' : 'none', hover: description };
+				assert.deepStrictEqual({ error, updated, disabled, recovered, removed, recycled, afterOldUpdate: ctx.read() }, {
+					error: { text: 'failed to start', error: true, display: '', hover: 'failed to start', ariaLabel: `${name}, Error, failed to start` },
+					updated: { text: 'Changed session error', error: true, display: '', hover: 'Changed session error', ariaLabel: `${name}, Error, Changed session error`, sameAction: true },
+					disabled: { ...ordinary, ariaLabel: `${name}, Disabled` },
+					recovered: { ...ordinary, ariaLabel: `${name}, Running` },
+					removed: { ...ordinary, ariaLabel: name },
+					recycled: { text: 'failed to start', error: true, display: '', hover: 'failed to start', ariaLabel: 'Server Two, Error, failed to start' },
+					afterOldUpdate: { text: 'failed to start', error: true, display: '', hover: 'failed to start', ariaLabel: 'Server Two, Error, failed to start' },
+				});
+			});
+		}
+
+		test('management buttons stay the same clickable nodes across repeated identical updates', () => {
 			const ctx = createRenderer(erroring());
 			disposables.add(ctx.store);
 			ctx.render();
@@ -944,7 +1458,7 @@ suite('mcpListWidget', () => {
 
 			(button as HTMLElement).click();
 
-			assert.deepStrictEqual(ctx.shownLogs, ['server-1']);
+			assert.deepStrictEqual(ctx.managementClicks, ['more']);
 		});
 
 		test('re-rendering the same row keeps its actions, so a list refresh cannot swallow a click', () => {
@@ -966,7 +1480,7 @@ suite('mcpListWidget', () => {
 			ctx.render();
 			const button = ctx.actionNode();
 
-			// Recovering from error drops the Show Output action entirely.
+			// Recovering from error restores the non-error status indicator.
 			ctx.setServers([createAgentHostServer({ id: 'server-1', status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready } })]);
 			ctx.notifyUnchanged();
 
