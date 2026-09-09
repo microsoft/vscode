@@ -13,14 +13,14 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('documents model details and activating Auto through its tiers', () => {
+	test('documents model details and activating Auto through Optimize for', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			details: help.includes('selected model\'s details open beside the list'),
 			immediatePreview: help.includes('updates the details immediately without selecting a model'),
-			inactiveTiers: help.includes('tiers remain visible while Auto is off'),
-			activation: help.includes('Enter or Space to choose a tier and turn Auto on'),
-		}, { details: true, immediatePreview: true, inactiveTiers: true, activation: true });
+			inactivePreferences: help.includes('Efficiency, Balance, and Intelligence remain visible while Auto is off'),
+			activation: help.includes('Enter or Space to choose a preference and turn Auto on'),
+		}, { details: true, immediatePreview: true, inactivePreferences: true, activation: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
@@ -55,6 +55,15 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes read-only thinking previews and keyboard expansion', () => {
+		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			readOnlyPreview: help.includes('In read-only chats, thinking details preview while streaming and collapse when finished'),
+			settingOverride: help.includes('regardless of your thinking-style setting'),
+			keyboardExpansion: help.includes('Focus a thinking header and press Enter or Space to expand or collapse its details'),
+		}, { readOnlyPreview: true, settingOverride: true, keyboardExpansion: true });
+	});
+
 	test('only describes inline attachment references when supported', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
@@ -69,14 +78,14 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('describes long pasted text attachments', () => {
+	test('describes long pasted text attachments regardless of line count', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
 		} as unknown as IKeybindingService;
 
 		assert.deepStrictEqual({
-			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text'),
-			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text, including single-line text'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text, including single-line text'),
 		}, {
 			agentView: true,
 			inlineChat: true,

@@ -11,6 +11,7 @@ import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTE
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
+	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostActiveAgentTitleGenerationSettingId,
@@ -38,6 +39,7 @@ import {
 import {
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostActiveAgentTitleGenerationConfigKey,
+	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostArtifactToolsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
@@ -198,6 +200,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostArtifactToolsConfigKey },
+		},
+		[AgentHostAutoAttachPullRequestsSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.experimental.autoAttachPullRequests', "Controls whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded by the agent as artifacts or explicitly selected or created through session actions are considered."),
+			default: product.quality === 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostAutoAttachPullRequestsConfigKey },
 		},
 		[AgentHostMarkdownPlanRichLinksEnabledSettingId]: {
 			type: 'boolean',

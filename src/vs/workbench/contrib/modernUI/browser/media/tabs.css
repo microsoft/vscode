@@ -672,7 +672,7 @@
 	padding: 0 var(--vscode-spacing-size60);
 }
 
-.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > .active-item-indicator {
+.modern-ui-tabs.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item > .active-item-indicator {
 	top: 50%;
 	right: var(--vscode-spacing-size20);
 	bottom: auto;
