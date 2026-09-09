@@ -3403,7 +3403,7 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		function createExternalSessionService(sessionDataService = createSessionDataService(), orchestratorDatabase?: IAgentHostDatabase, copilotApiService?: ICopilotApiService, storageResource?: URI): AgentService {
-			return disposables.add(createTestAgentService(
+			const service = disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
 				sessionDataService,
@@ -3419,6 +3419,10 @@ suite('AgentService (node dispatcher)', () => {
 				storageResource,
 				orchestratorDatabase,
 			));
+			getConfigurationService(service).updateRootConfig({
+				[AgentHostAutoRemoveWorktreesAfterMergeConfigKey]: false,
+			});
+			return service;
 		}
 
 		testWithExternalSessionClock('external discovery waits for startup settlement after the setting enables it', async () => {

@@ -11,6 +11,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
+import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
 import { buildDefaultChatUri, getInlineToolInput, ROOT_STATE_URI, ToolCallCancellationReason, ToolResultContentType, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
@@ -592,7 +593,13 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 				&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
 				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
 			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
-				.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
+				.find((content): content is ToolResultFileEditContent =>
+				content.type === ToolResultContentType.FileEdit
+				&& !!content.before?.content.uri
+				&& !!content.after?.content.uri
+				&& !!parseSessionDbUri(content.before.content.uri)
+				&& !!parseSessionDbUri(content.after.content.uri)
+				);
 			assert.ok(edit?.before?.content.uri);
 			assert.ok(edit.after?.content.uri);
 
