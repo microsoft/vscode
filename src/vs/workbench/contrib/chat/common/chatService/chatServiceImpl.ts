@@ -1224,6 +1224,10 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		let newSessionResource: URI | undefined;
+		let transferredMode: { readonly id: string; readonly kind: ChatModeKind | undefined } | undefined;
+		const submittedModeKind = options?.modeInfo?.kind;
+		const submittedModeId = options?.modeInfo?.isBuiltin ? submittedModeKind : options?.modeInfo?.modeInstructions?.uri?.toString();
+		const submittedMode = submittedModeId && submittedModeKind ? { id: submittedModeId, kind: submittedModeKind } : undefined;
 
 		// A late send may arrive on a stale untitled resource after it already
 		// materialized into a real session but before the UI swapped to the real
@@ -1232,6 +1236,7 @@ export class ChatService extends Disposable implements IChatService {
 		// UI from the untitled resource to the real one (mirroring the first send).
 		const materializedReal = this.chatSessionService.getMaterializedSessionResource(sessionResource);
 		if (materializedReal) {
+			transferredMode = submittedMode ?? this._sessionModels.get(sessionResource)?.inputModel.state.get()?.mode;
 			sessionResource = materializedReal;
 			newSessionResource = materializedReal;
 		}
@@ -1254,11 +1259,13 @@ export class ChatService extends Disposable implements IChatService {
 		// and serialized per untitled resource — see
 		// `_materializeUntitledSession`) before processing the request.
 		if (!model.hasRequests && isUntitledChatSession(sessionResource) && getChatSessionType(sessionResource) !== localChatSessionType) {
+			const untitledMode = model.inputModel.state.get()?.mode;
 			const materialized = await this._materializeUntitledSession(sessionResource, request, options, model);
 			if (materialized) {
 				model = materialized.model;
 				sessionResource = materialized.sessionResource;
 				newSessionResource = materialized.newSessionResource;
+				transferredMode = submittedMode ?? untitledMode;
 			}
 		}
 		if (model.isReadOnly.get()) {
@@ -1268,6 +1275,9 @@ export class ChatService extends Disposable implements IChatService {
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
 
 		if (options?.queue) {
+			if (transferredMode) {
+				model.inputModel.setState({ mode: transferredMode });
+			}
 			const queued = this.queuePendingRequest(model, sessionResource, request, options);
 			if (!options.pauseQueue) {
 				this.processPendingRequests(sessionResource);
@@ -1304,6 +1314,9 @@ export class ChatService extends Disposable implements IChatService {
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
+		if (transferredMode) {
+			model.inputModel.setState({ mode: transferredMode });
+		}
 		return {
 			kind: 'sent',
 			newSessionResource,
@@ -1392,8 +1405,8 @@ export class ChatService extends Disposable implements IChatService {
 			}
 
 			// The real session continues the untitled conversation rather than replacing it, so the
-			// model it was meant to run on carries over. Without this the choice would be stranded
-			// on the discarded untitled model and never reclaimed if the catalog drops it.
+			// model it was meant to run on carries over. The accepted caller transfers the submitted
+			// mode after pending-request arbitration.
 			realModel.inputModel.setIntendedModel(untitledModel.inputModel.intendedModel);
 
 			// Publish the forward mapping only after a successful load (see
