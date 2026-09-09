@@ -366,6 +366,7 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		onSelect: () => { },
 		onTogglePin: () => { },
 		onManageModels: () => { },
+		onDidToggleOtherModels: () => { },
 		onConfigurationChanged: () => { },
 		unavailableContext: {
 			show: true,
