@@ -289,10 +289,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a1e0d6c7c0e65a09d7412e5911c20d7dab69441907b61175a8976bbb251593b7)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/d93fb4ebca3ce647b8c55d92a9800cc66390df14ea7dc55b9e996457f6282be1)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/535a6b75bb2a041c69b8c9c172bf49f61faf0f75c7ba248efde0df8c058b67a0)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/6cb3ba70808752720f26ac58586703642c7f859c23a3375587a42a50a98672fb)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/15d9b179cb3c7c78d9071bc6d5b33948c4e6cebbf507985e353f17a0cafa66b4)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionCompactAutoModel/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8482cf5356b3e7b88aaac72763efc839cbb3d8be491d6ea64de06e1597e1ca86)
@@ -331,10 +331,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/980fa555083b7c0fdaed41b0d1ec2e0d8bb805578280a8932006e8b95cfa7ded)
 
 #### sessions/chat/view/chatView/AssistantResponseBackground/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8b97009bea4df7c4c7254a3bf73c0da96e8d60f32b5e4f9785eb7fe474835e57)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/05277bf5030a154ac7b48a2d6b57a674858a0b8780000b0a791357576b6d20c4)
 
 #### sessions/chat/view/chatView/AssistantResponseBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/46ba46511bc6dbb5013493406d07adfba4ac4fcac3d3c18133864f0177495412)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/b5d7b76a3ba345669e325f420c068759e06e265299859768c0777633d8a824cd)
 
 #### sessions/chat/view/chatView/AssistantResponsePlain/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/5eb7b4e06f315e6df2a4332e2a36d40f920d1bd6cc7af344ea812c0b6ffb841f)
