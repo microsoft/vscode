@@ -1195,18 +1195,6 @@ export class WorkspacePicker extends Disposable {
 		return undefined;
 	}
 
-	private _isGitRepositoryForResolvedWorkspace(selection: IResolvedFolderWorkspace): boolean {
-		for (const workspace of this._getRepositoryWorkspaceCandidates(selection)) {
-			for (const folder of workspace.folders) {
-				folder.gitRepository?.resolveRepository?.();
-				if (folder.gitRepository?.isRepository?.get()) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
 	private _getRepositoryWorkspaceCandidates(selection: IResolvedFolderWorkspace): ISessionWorkspace[] {
 		const folderUri = selection.workspace.folders[0]?.root;
 		if (!folderUri) {
@@ -1439,8 +1427,9 @@ export class WorkspacePicker extends Disposable {
 			if (workspace.group === SESSION_WORKSPACE_GROUP_GITHUB && repositoryId && localRepositoryIds?.has(repositoryId)) {
 				continue;
 			}
-			const isGitRepository = this._isGitRepositoryForResolvedWorkspace({ workspace, providerId });
-			const icon = this._useConsolidatedRemoteWorkspaces() && (repositoryId || isGitRepository) ? Codicon.repo : workspace.icon;
+			const icon = this._useConsolidatedRemoteWorkspaces() && workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
+				? Codicon.folder
+				: workspace.icon;
 			const selected = this._isSelectedFolder(folderUri)
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
@@ -1762,10 +1751,13 @@ export class WorkspacePicker extends Disposable {
 				&& this._getCurrentRepositoryId() === undefined;
 			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
+			const workspaceIcon = workspace && this._useConsolidatedRemoteWorkspaces() && workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
+				? Codicon.folder
+				: workspace?.icon;
 			const icon = noWorkspaceSelected
 				? this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion
-				: (reflectsWorkspace ? workspace?.icon : undefined)
-				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
+				: (reflectsWorkspace ? workspaceIcon : undefined)
+				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspaceIcon : options.icon));
 			if (!icon || (options.hideIconWhenAttached === true && badgeCount > 0)) {
 				contents.icon?.remove();
 				contents.icon = undefined;

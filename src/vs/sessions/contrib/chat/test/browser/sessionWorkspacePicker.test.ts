@@ -3498,7 +3498,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
-	test('uses repository icons and hides GitHub recents represented by local folders when enabled', () => {
+	test('uses folder icons and hides GitHub recents represented by local folders when enabled', () => {
 		const localRepositoryUri = URI.file('/local/vscode');
 		const nonGitHubRepositoryUri = URI.file('/local/gitlab');
 		const localFolderUri = URI.file('/local/plain');
@@ -3511,6 +3511,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 				return workspace ? {
 					...workspace,
 					group: SESSION_WORKSPACE_GROUP_LOCAL,
+					icon: Codicon.repo,
 					folders: workspace.folders.map(folder => ({
 						...folder,
 						gitRepository: uri.toString() === localRepositoryUri.toString() || uri.toString() === nonGitHubRepositoryUri.toString()
@@ -3555,9 +3556,9 @@ suite('WorkspacePicker - Tab discovery', () => {
 			.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''));
 
 		assert.deepStrictEqual(items, [
-			{ label: 'local/gitlab', icon: 'repo' },
+			{ label: 'local/gitlab', icon: 'folder' },
 			{ label: 'local/plain', icon: 'folder' },
-			{ label: 'local/vscode', icon: 'repo' },
+			{ label: 'local/vscode', icon: 'folder' },
 		]);
 	});
 
