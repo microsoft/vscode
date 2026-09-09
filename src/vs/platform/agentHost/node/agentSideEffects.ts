@@ -709,7 +709,18 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 			this._stateManager.dispatchServerAction(sessionKey, action);
-			if (action.type === ActionType.ChatTurnComplete) {
+			if (action.type === ActionType.ChatTurnStarted && this._stateManager.getActiveTurnId(sessionKey) === action.turnId) {
+				// Provider-promoted turns are already running and must not enter the admission/send path again.
+				const sessionChannel = parseRequiredSessionUriFromChatUri(sessionKey);
+				const state = this._stateManager.getSessionState(sessionKey);
+				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, sessionKey, this._chatContext(sessionChannel, sessionKey), state, action.message.model?.id);
+				const clientContext = {
+					...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
+					hostLaunchKind: this._options.hostLaunchKind,
+				};
+				this._turnTracker.turnStarted(agent, sessionKey, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(sessionChannel)));
+				this._turnTracker.setCurrentStage(sessionKey, action.turnId, 'provider');
+			} else if (action.type === ActionType.ChatTurnComplete) {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
 			}
 		}

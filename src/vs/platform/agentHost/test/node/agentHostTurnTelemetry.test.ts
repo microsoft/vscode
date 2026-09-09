@@ -415,6 +415,50 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.modelCallCount, 0);
 	});
 
+	test('tracks provider-promoted steering turns without sending their messages again', async () => {
+		setupSession();
+		setSessionConfig({ autoApprove: 'autopilot', mode: 'interactive' });
+		startTurn('turn-original');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-original', duration: 1000 });
+
+		for (const turnId of ['turn-steering-1', 'turn-steering-2']) {
+			fire({
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: new Date().toISOString(),
+				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
+				queuedMessageId: `queued-${turnId}`,
+			});
+			fireModelCallFinished(turnId, `call-${turnId}`, 250, 'success', true);
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+		}
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			sentPrompts: agent.sendMessageCalls.map(call => call.prompt),
+			completed: completedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					turnId: data.turnId,
+					timeToFirstEdit: data.timeToFirstEdit,
+					permissionLevel: data.permissionLevel,
+					interactionMode: data.interactionMode,
+					messageOriginKind: data.messageOriginKind,
+				};
+			}),
+		}, {
+			sentPrompts: ['hello'],
+			completed: ['turn-original', 'turn-steering-1', 'turn-steering-2'].map(turnId => ({
+				turnId,
+				timeToFirstEdit: turnId === 'turn-original' ? undefined : 250,
+				permissionLevel: 'autopilot',
+				interactionMode: 'interactive',
+				messageOriginKind: 'user',
+			})),
+		});
+	});
+
 	test('deduplicates model-call attempts and leaves time to first edit absent when no edit is requested', () => {
 		setupSession();
 		startTurn('turn-no-edit');
