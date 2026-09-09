@@ -39,7 +39,7 @@ import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsPro
 import { CLOSE_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
@@ -60,7 +60,7 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
-import { groupSessionsForPicker } from './sessionsPicker.js';
+import { createSessionQuickPickItem, groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, isSessionConversationSideChat, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
 import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
@@ -104,43 +104,6 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			session?: ISession;
 		}
 
-		const toPickItem = (session: ISession, reader: IReader): ISessionPickItem => {
-			const title = session.title.read(reader) || getUntitledSessionTitle(session.isQuickChat?.read(reader) ?? false);
-
-			// Status icon, mirroring the sessions list and session header.
-			const status = session.status.read(reader);
-			const isRead = session.isRead.read(reader);
-			const isArchived = session.isArchived.read(reader);
-			const workspace = session.workspace.read(reader);
-			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			const pullRequestIcon = getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
-			const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
-			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
-
-			// Second row: workspace (with its icon, like the session header /
-			// list) and the relative time. A leading blank icon aligns the
-			// workspace icon under the title text (the status icon sits in the
-			// left gutter).
-			const detailParts: string[] = [];
-			if (workspace?.label) {
-				const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const workspaceIcon = workspace.typeIcon ?? (workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree);
-				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
-			} else {
-				detailParts.push(`$(${Codicon.blank.id})`);
-			}
-			detailParts.push(fromNow(session.updatedAt.read(reader), true, true));
-
-			return {
-				id: session.sessionId,
-				label: title,
-				detail: detailParts.join(' \u00B7 '),
-				iconClass: ThemeIcon.asClassName(icon),
-				iconColor: icon.color,
-				session,
-			};
-		};
-
 		const picker = quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true });
 		picker.placeholder = localize('searchSessions', "Search sessions by name or folder");
 		picker.canAcceptInBackground = true;
@@ -166,7 +129,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 				}
 				items.push({ type: 'separator', label });
 				for (const session of sessions) {
-					const item = toPickItem(session, reader);
+					const item = createSessionQuickPickItem(session, sessionsListModelService, reader);
 					firstSessionItem ??= item;
 					items.push(item);
 				}

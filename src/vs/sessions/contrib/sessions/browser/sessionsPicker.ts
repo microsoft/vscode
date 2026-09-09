@@ -3,8 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
+import { fromNow } from '../../../../base/common/date.js';
 import { IReader } from '../../../../base/common/observable.js';
-import { isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
+import { getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+
+export interface ISessionQuickPickItem extends IQuickPickItem {
+	readonly session: ISession;
+}
+
+export function createSessionQuickPickItem(session: ISession, sessionsListModelService: ISessionsListModelService, reader: IReader): ISessionQuickPickItem {
+	const title = session.title.read(reader) || getUntitledSessionTitle(session.isQuickChat?.read(reader) ?? false);
+	const status = session.status.read(reader);
+	const isRead = session.isRead.read(reader);
+	const isArchived = session.isArchived.read(reader);
+	const workspace = session.workspace.read(reader);
+	const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+	const pullRequestIcon = getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+	const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
+	const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
+
+	const detailParts: string[] = [];
+	if (workspace?.label) {
+		const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
+		const workspaceIcon = workspace.typeIcon ?? (workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree);
+		detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
+	} else {
+		detailParts.push(`$(${Codicon.blank.id})`);
+	}
+	detailParts.push(fromNow(session.updatedAt.read(reader), true, true));
+
+	return {
+		id: session.sessionId,
+		label: title,
+		detail: detailParts.join(' \u00B7 '),
+		iconClass: ThemeIcon.asClassName(icon),
+		iconColor: icon.color,
+		session,
+	};
+}
 
 export interface ISessionsPickerGroups {
 	readonly needsInput: readonly ISession[];
