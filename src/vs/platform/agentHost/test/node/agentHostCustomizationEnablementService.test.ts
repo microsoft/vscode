@@ -788,6 +788,11 @@ suite('AgentHostCustomizationEnablementService', () => {
 		state.createSession(makeSummary(session));
 		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
 		assert.strictEqual(service.resolve(session, plugin).kind, 'resolved');
+		state.dispatchServerAction(session, {
+			type: ActionType.SessionWorkingDirectoryReplaced,
+			directory: URI.file('/previous-workspace').toString(),
+			replacement: workspace.toString(),
+		});
 
 		worktree.pending.add(AgentSession.id(session));
 		assert.deepStrictEqual(service.resolve(session, plugin), { kind: 'pending', reason: 'workingDirectory' });
