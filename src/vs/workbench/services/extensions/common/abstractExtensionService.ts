@@ -42,7 +42,7 @@ import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker
 import { ExtensionHostManager } from './extensionHostManager.js';
 import { IExtensionHostManager } from './extensionHostManagers.js';
 import { IResolveAuthorityErrorResult } from './extensionHostProxy.js';
-import { IExtensionManifestPropertiesService } from './extensionManifestPropertiesService.js';
+import { IExtensionManifestPropertiesService, toSessionsWindowSafeExtension } from './extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from './extensionRunningLocation.js';
 import { ExtensionRunningLocationTracker, filterExtensionIdentifiers } from './extensionRunningLocationTracker.js';
 import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionInspectInfo, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IProposedApiUsage, IResponsiveStateChangeEvent, IWillActivateEvent, setProposedApiUsageReporter, WillStopExtensionHostsEvent, toExtension, toExtensionDescription } from './extensions.js';
@@ -300,7 +300,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
 
-			const extensionDescription = toExtensionDescription(extension, false);
+			const extensionDescription = this._getExtensionDescriptionForCurrentWindow(toExtensionDescription(extension, false));
 			if (!extensionDescription) {
 				// could not scan extension...
 				continue;
@@ -523,15 +523,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		for await (const extensions of this._resolveExtensions()) {
 			if (extensions instanceof ResolverExtensions) {
-				resolverExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, extensions.extensions, false);
+				resolverExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, extensions.extensions.map(extension => this._getExtensionDescriptionForCurrentWindow(extension)), false);
 				this._registry.deltaExtensions(lock, resolverExtensions, []);
 				this._doHandleExtensionPoints(resolverExtensions, true);
 			}
 			if (extensions instanceof LocalExtensions) {
-				localExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, extensions.extensions, false);
+				localExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, extensions.extensions.map(extension => this._getExtensionDescriptionForCurrentWindow(extension)), false);
 			}
 			if (extensions instanceof RemoteExtensions) {
-				remoteExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, extensions.extensions, false);
+				remoteExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, extensions.extensions.map(extension => this._getExtensionDescriptionForCurrentWindow(extension)), false);
 			}
 		}
 
@@ -1143,10 +1143,20 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private _safeInvokeIsEnabled(extension: IExtension): boolean {
 		try {
-			return this._extensionEnablementService.isEnabled(extension);
+			const extensionDescription = this._getExtensionDescriptionForCurrentWindow(toExtensionDescription(extension, false));
+			return this._extensionEnablementService.isEnabled(toExtension(extensionDescription));
 		} catch (err) {
 			return false;
 		}
+	}
+
+	private _getExtensionDescriptionForCurrentWindow(extension: IExtensionDescription): IExtensionDescription {
+		if (!this._environmentService.isSessionsWindow || this._extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension)) {
+			return extension;
+		}
+
+		const safeExtension = toSessionsWindowSafeExtension(extension);
+		return safeExtension ? { ...extension, ...safeExtension } : extension;
 	}
 
 	private _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[], onlyResolverExtensionPoints: boolean): void {

@@ -37,6 +37,32 @@ const SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS: ReadonlySet<keyof IExtensionC
 	'languages',
 ]);
 
+/**
+ * Creates a non-executable extension manifest containing only contribution points supported by the Sessions window.
+ */
+export function toSessionsWindowSafeExtension(extension: IExtensionManifest): IExtensionManifest | undefined {
+	const contributes: IExtensionContributions = { ...extension.contributes };
+	for (const contributionPoint of Object.keys(contributes) as Array<keyof IExtensionContributions>) {
+		if (!SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS.has(contributionPoint)) {
+			delete contributes[contributionPoint];
+		}
+	}
+
+	if (Object.keys(contributes).length === 0) {
+		return undefined;
+	}
+
+	return {
+		...extension,
+		main: undefined,
+		browser: undefined,
+		activationEvents: undefined,
+		extensionDependencies: undefined,
+		extensionAffinity: undefined,
+		contributes,
+	};
+}
+
 export interface IExtensionManifestPropertiesService {
 	readonly _serviceBrand: undefined;
 
