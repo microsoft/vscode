@@ -2952,7 +2952,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	// -- Private --
 
 	private async _browseForRepository(): Promise<ISessionWorkspace | undefined> {
-		const allowRepositoryUrl = !isWeb && this._supportsLocalRepositoryActions();
+		const allowRepositoryUrl = this._supportsLocalRepositoryActions();
 		const repository = await this.commandService.executeCommand<string>(
 			OPEN_REPO_COMMAND,
 			undefined,
@@ -2985,9 +2985,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _supportsLocalRepositoryActions(): boolean {
-		return this.pathService.defaultUriScheme === Schemas.file
-			|| this.pathService.defaultUriScheme === GITHUB_REMOTE_FILE_SCHEME
-			|| this.pathService.defaultUriScheme === SessionType.CopilotCloud;
+		return !isWeb
+			&& (this.pathService.defaultUriScheme === Schemas.file
+				|| this.pathService.defaultUriScheme === GITHUB_REMOTE_FILE_SCHEME
+				|| this.pathService.defaultUriScheme === SessionType.CopilotCloud);
 	}
 
 	private async _cloneRepository(url: string): Promise<ISessionWorkspace | undefined> {
