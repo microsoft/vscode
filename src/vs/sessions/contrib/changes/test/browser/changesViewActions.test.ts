@@ -19,13 +19,14 @@ import { SessionsDiffViewModeContext } from '../../../editor/common/diffEditorOp
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
+import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
@@ -110,30 +111,51 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('primary header actions gate themselves to the single-pane Changes editor', () => {
+	test('single-pane header consolidates change stats into the picker while the classic header keeps its action', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'chatEditing.versionsPicker' || item.command.id === 'workbench.changesView.action.viewChanges');
+		const picker = items.find(item => item.command.id === 'chatEditing.versionsPicker');
+		assert.ok(picker?.when);
+		const context = new Context(1, null);
+		context.setValue(SinglePaneLayoutEnabledContext.key, true);
+		context.setValue(ActiveEditorContext.key, SessionChangesEditor.ID);
+		context.setValue(ActiveSessionContextKeys.HasGitRepository.key, false);
+		context.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
+		const visibleForChangesWithoutGit = picker.when.evaluate(context);
+		context.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
+		context.setValue(ActiveSessionContextKeys.HasGitRepository.key, true);
+		const visibleForGitWithoutChanges = picker.when.evaluate(context);
+		context.setValue(ActiveSessionContextKeys.HasGitRepository.key, false);
+		const hiddenWithoutGitOrChanges = !picker.when.evaluate(context);
+		const classicHeaderHasDiffStatsAction = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionChangesFileHeaderRightToolbar)
+			.filter(isIMenuItem)
+			.some(item => item.command.id === 'workbench.changesView.action.viewChanges');
 
-		assert.deepStrictEqual(items.map(item => {
-			const when = item.when?.serialize() ?? '';
-			return {
-				id: item.command.id,
-				hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-				hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
-			};
-		}), [
-			{
+		assert.deepStrictEqual({
+			singlePaneHeader: items.map(item => {
+				const when = item.when?.serialize() ?? '';
+				return {
+					id: item.command.id,
+					hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+					hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+				};
+			}),
+			visibleForChangesWithoutGit,
+			visibleForGitWithoutChanges,
+			hiddenWithoutGitOrChanges,
+			classicHeaderHasDiffStatsAction,
+		}, {
+			singlePaneHeader: [{
 				id: 'chatEditing.versionsPicker',
 				hasActiveEditorGate: true,
 				hasSinglePaneConfigGate: true,
-			},
-			{
-				id: 'workbench.changesView.action.viewChanges',
-				hasActiveEditorGate: true,
-				hasSinglePaneConfigGate: true,
-			},
-		]);
+			}],
+			visibleForChangesWithoutGit: true,
+			visibleForGitWithoutChanges: true,
+			hiddenWithoutGitOrChanges: true,
+			classicHeaderHasDiffStatsAction: true,
+		});
 	});
 
 	test('collapse all diffs is contributed to the editor header layout overflow menu', () => {

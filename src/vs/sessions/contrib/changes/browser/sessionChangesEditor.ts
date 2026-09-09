@@ -310,8 +310,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private _buildHeaderToolbars(left: HTMLElement, right: HTMLElement, instantiationService: IInstantiationService): IDisposable {
 		const store = new DisposableStore();
 
-		// The Branch Changes picker + diff stats render as the leading header menu;
-		// their custom action view items resolve globally via IActionViewItemService.
+		// The consolidated changes picker renders as the leading header menu;
+		// its custom action view item resolves globally via IActionViewItemService.
 		store.add(instantiationService.createInstance(MenuWorkbenchToolBar, left, Menus.SessionsEditorHeaderPrimary, {
 			menuOptions: { shouldForwardArgs: true },
 		}));
