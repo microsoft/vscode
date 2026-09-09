@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
-import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../shared/workspacelessInstructions.js';
 
 /**
  * Identity section of the default agent-host system message. Per-model overrides
@@ -27,15 +26,6 @@ export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
 		},
 	},
 } satisfies SystemMessageConfig;
-
-/**
- * Scratch/repoless guidance appended to a workspace-less chat's system message.
- * A workspace-less chat's working directory is a throwaway SCRATCH dir, not a
- * code repository — so this tells the agent not to treat it like a project, to
- * stay read-only on real repos, and to attach a workspace before project work.
- * Modeled on the GitHub app's `build_general_chat_system_message`.
- */
-export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = AGENT_HOST_WORKSPACELESS_INSTRUCTIONS;
 
 /**
  * Builds a {@link SystemMessageConfig} that fully replaces the CLI/SDK system
