@@ -4012,8 +4012,6 @@ declare namespace monaco.editor {
 		inlineCompletionsAccessibilityVerbose?: boolean;
 	}
 
-	export type DiffEditorViewMode = 'inline' | 'sideBySide' | 'automatic';
-
 	export interface IDiffEditorBaseOptions {
 		/**
 		 * Allow the user to resize the diff editor split view.
