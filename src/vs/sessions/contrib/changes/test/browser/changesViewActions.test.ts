@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -16,14 +16,18 @@ import { Context } from '../../../../../platform/contextkey/browser/contextKeySe
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { ICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
-import { SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext } from '../../../editor/common/diffEditorOptionsService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
-import { EDITOR_WORD_WRAP } from '../../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -265,74 +269,134 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Word Wrap is an always-visible toggle for code and multi-diff editors in both Agents layouts', () => {
-		const getItem = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+	test('Word Wrap uses independent actions for code and multi-diff editors in both Agents layouts', () => {
+		const actionIds = [
+			'workbench.action.agentSessions.toggleDiffEditorWordWrap',
+			'workbench.action.agentSessions.toggleEditorWordWrap',
+		];
+		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === 'workbench.action.agentSessions.toggleEditorWordWrap');
-		const singlePane = getItem(Menus.SessionsEditorTitle);
-		const classic = getItem(MenuId.EditorTitle);
+			.filter(item => actionIds.includes(item.command.id));
+		const createContext = (editorWordWrap: string, diffEditorWordWrap: string, effectiveWordWrap: boolean) => {
+			const context = new Context(1, null);
+			context.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, editorWordWrap);
+			context.setValue(`config.${SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING}`, diffEditorWordWrap);
+			context.setValue('config.editor.wordWrap', effectiveWordWrap ? 'on' : 'off');
+			return context;
+		};
+		const editorOnContext = createContext('on', 'off', false);
+		const diffEditorOnContext = createContext('off', 'on', false);
+		const inheritedOnContext = createContext('inherit', 'inherit', true);
+		const inheritedOffContext = createContext('inherit', 'inherit', false);
+		const summarize = (items: ReturnType<typeof getItems>) => items.map(item => {
+			const when = item.when?.serialize() ?? '';
+			const toggled = getToggledExpression(item.command.toggled);
+			return {
+				id: item.command.id,
+				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+				group: item.group,
+				order: item.order,
+				hasSessionsGate: when.includes(IsSessionsWindowContext.key),
+				hasTextDiffGate: when.includes(TextCompareEditorActiveContext.key),
+				hasChangesGate: when.includes(SessionChangesEditor.ID),
+				hasMultiDiffGate: when.includes(MultiDiffEditor.ID),
+				hasTextEditorGate: when.includes(TEXT_FILE_EDITOR_ID),
+				hasLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+				checkedWhenEditorOn: toggled?.evaluate(editorOnContext),
+				checkedWhenDiffEditorOn: toggled?.evaluate(diffEditorOnContext),
+				checkedWhenInheritedOn: toggled?.evaluate(inheritedOnContext),
+				checkedWhenInheritedOff: toggled?.evaluate(inheritedOffContext),
+			};
+		}).sort((a, b) => a.id.localeCompare(b.id));
 
-		assert.ok(singlePane);
-		assert.ok(classic);
-		const singlePaneWhen = singlePane.when?.serialize() ?? '';
-		const classicWhen = classic.when?.serialize() ?? '';
-		const onContext = new Context(1, null);
-		onContext.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'on');
-		onContext.setValue(EDITOR_WORD_WRAP.key, false);
-		const offContext = new Context(1, null);
-		offContext.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'off');
-		offContext.setValue(EDITOR_WORD_WRAP.key, true);
-		const inheritedOnContext = new Context(1, null);
-		inheritedOnContext.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'inherit');
-		inheritedOnContext.setValue(EDITOR_WORD_WRAP.key, true);
-		const inheritedOffContext = new Context(1, null);
-		inheritedOffContext.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'inherit');
-		inheritedOffContext.setValue(EDITOR_WORD_WRAP.key, false);
-		const toggled = getToggledExpression(singlePane.command.toggled);
+		const expected = [
+			{
+				id: 'workbench.action.agentSessions.toggleDiffEditorWordWrap',
+				title: 'Word Wrap',
+				group: '1_diff',
+				order: 20,
+				hasSessionsGate: true,
+				hasTextDiffGate: false,
+				hasChangesGate: true,
+				hasMultiDiffGate: true,
+				hasTextEditorGate: false,
+				hasLayoutGate: true,
+				checkedWhenEditorOn: false,
+				checkedWhenDiffEditorOn: true,
+				checkedWhenInheritedOn: true,
+				checkedWhenInheritedOff: false,
+			},
+			{
+				id: 'workbench.action.agentSessions.toggleEditorWordWrap',
+				title: 'Word Wrap',
+				group: '1_diff',
+				order: 20,
+				hasSessionsGate: true,
+				hasTextDiffGate: false,
+				hasChangesGate: false,
+				hasMultiDiffGate: false,
+				hasTextEditorGate: true,
+				hasLayoutGate: true,
+				checkedWhenEditorOn: true,
+				checkedWhenDiffEditorOn: false,
+				checkedWhenInheritedOn: true,
+				checkedWhenInheritedOff: false,
+			},
+		];
 		assert.deepStrictEqual({
-			singlePaneTitle: typeof singlePane.command.title === 'string' ? singlePane.command.title : singlePane.command.title.value,
-			singlePaneGroup: singlePane.group,
-			singlePaneOrder: singlePane.order,
-			singlePaneHasTextDiffGate: singlePaneWhen.includes(TextCompareEditorActiveContext.key),
-			singlePaneHasChangesGate: singlePaneWhen.includes(SessionChangesEditor.ID),
-			singlePaneHasMultiDiffGate: singlePaneWhen.includes(MultiDiffEditor.ID),
-			singlePaneHasTextEditorGate: singlePaneWhen.includes(TEXT_FILE_EDITOR_ID),
-			singlePaneHasLayoutGate: singlePaneWhen.includes(SinglePaneLayoutEnabledContext.key),
-			singlePaneHasExperimentGate: singlePaneWhen.includes(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`),
-			classicTitle: typeof classic.command.title === 'string' ? classic.command.title : classic.command.title.value,
-			classicHasSessionsGate: classicWhen.includes(IsSessionsWindowContext.key),
-			classicHasTextDiffGate: classicWhen.includes(TextCompareEditorActiveContext.key),
-			classicHasChangesGate: classicWhen.includes(SessionChangesEditor.ID),
-			classicHasMultiDiffGate: classicWhen.includes(MultiDiffEditor.ID),
-			classicHasTextEditorGate: classicWhen.includes(TEXT_FILE_EDITOR_ID),
-			classicHasLayoutGate: classicWhen.includes(SinglePaneLayoutEnabledContext.key),
-			classicHasExperimentGate: classicWhen.includes(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`),
-			checkedWhenOn: toggled?.evaluate(onContext),
-			checkedWhenOff: toggled?.evaluate(offContext),
-			checkedWhenInheritedOn: toggled?.evaluate(inheritedOnContext),
-			checkedWhenInheritedOff: toggled?.evaluate(inheritedOffContext),
+			singlePane: summarize(getItems(Menus.SessionsEditorTitle)),
+			classic: summarize(getItems(MenuId.EditorTitle)),
 		}, {
-			singlePaneTitle: 'Word Wrap',
-			singlePaneGroup: '1_diff',
-			singlePaneOrder: 20,
-			singlePaneHasTextDiffGate: false,
-			singlePaneHasChangesGate: true,
-			singlePaneHasMultiDiffGate: true,
-			singlePaneHasTextEditorGate: true,
-			singlePaneHasLayoutGate: true,
-			singlePaneHasExperimentGate: false,
-			classicTitle: 'Word Wrap',
-			classicHasSessionsGate: true,
-			classicHasTextDiffGate: false,
-			classicHasChangesGate: true,
-			classicHasMultiDiffGate: true,
-			classicHasTextEditorGate: true,
-			classicHasLayoutGate: true,
-			classicHasExperimentGate: false,
-			checkedWhenOn: true,
-			checkedWhenOff: false,
-			checkedWhenInheritedOn: true,
-			checkedWhenInheritedOff: false,
+			singlePane: expected,
+			classic: expected,
+		});
+	});
+
+	test('Word Wrap actions update their respective editor settings', async () => {
+		const updates: Array<{ target: 'editor' | 'diffEditor'; wordWrap: SessionsWordWrap }> = [];
+		const requestedGroupIds: number[] = [];
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(ICodeEditorService, new class extends mock<ICodeEditorService>() {
+			override getFocusedCodeEditor() { return null; }
+			override getActiveCodeEditor() { return null; }
+		});
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			'editor.wordWrap': 'off',
+		}));
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override get activeEditorPane() { return undefined; }
+		});
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override getGroup(groupId: number): IEditorGroup | undefined {
+				requestedGroupIds.push(groupId);
+				return new class extends mock<IEditorGroup>() {
+					override get activeEditorPane() { return undefined; }
+				};
+			}
+		});
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly editorWordWrap = observableValue<SessionsWordWrap>('test', 'off');
+			override readonly diffEditorWordWrap = observableValue<SessionsWordWrap>('test', 'off');
+			override async setEditorWordWrap(wordWrap: SessionsWordWrap): Promise<void> {
+				updates.push({ target: 'editor', wordWrap });
+			}
+			override async setDiffEditorWordWrap(wordWrap: SessionsWordWrap): Promise<void> {
+				updates.push({ target: 'diffEditor', wordWrap });
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.toggleEditorWordWrap')!.handler(accessor, { groupId: 17 }));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.toggleDiffEditorWordWrap')!.handler(accessor));
+
+		assert.deepStrictEqual({
+			updates,
+			requestedGroupIds,
+		}, {
+			updates: [
+				{ target: 'editor', wordWrap: 'on' },
+				{ target: 'diffEditor', wordWrap: 'on' },
+			],
+			requestedGroupIds: [17],
 		});
 	});
 

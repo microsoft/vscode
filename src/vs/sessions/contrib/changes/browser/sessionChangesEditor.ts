@@ -283,7 +283,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._register(autorun(reader => {
 			this.widget?.setDiffLayoutOptions(
 				this.diffEditorOptionsService.viewMode.read(reader),
-				this.diffEditorOptionsService.wordWrap.read(reader),
+				this.diffEditorOptionsService.diffEditorWordWrap.read(reader),
 			);
 		}));
 	}
