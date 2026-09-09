@@ -137,7 +137,7 @@
 
 .multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center:hover,
 .multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center:focus-visible {
-	background: var(--vscode-toolbar-hoverBackground);
+	background: var(--vscode-list-hoverBackground);
 	color: var(--vscode-foreground);
 }
 
