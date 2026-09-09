@@ -85,6 +85,19 @@ export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
  */
 export const BINARY_TEXT_FILE_MODE = 'code-text-binary';
 
+/**
+ * Configuration entry describing how to map between paired files.
+ */
+export interface IAutoRevealPairedFilePattern {
+	source: string;
+	test: string;
+}
+
+export interface IAutoRevealPairedFileConfiguration {
+	enabled: boolean;
+	patterns: IAutoRevealPairedFilePattern[];
+}
+
 export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {
 		openEditors: {
