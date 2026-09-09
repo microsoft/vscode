@@ -26,6 +26,31 @@ steps:
       KeyVaultName: vscode-oss-build-secrets
       SecretsFilter: "github-token-code-oss"
 
+  - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - task: NuGetAuthenticate@1
+    displayName: Setup NuGet Authentication
+
   - pwsh: |
       $includes = @'
         {
@@ -108,13 +133,11 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      FOUNDRY_LOCAL_NUGET_MODE: dotnet
+      FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.APISCAN_NODE_MODULES_RESTORED, 'true'))
-
-  - template: ../common/foundry-local.yml@self
-    parameters:
-      phase: install
 
   - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries
