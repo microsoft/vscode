@@ -1645,17 +1645,20 @@ suite('Sessions - Workbench', () => {
 		// editor part must keep its default (below-tabs) placement.
 		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => {
 			showHeader?: boolean;
+			useModernUITabs?: boolean;
 			menuIds?: { headerPrimary?: object; headerSecondary?: object; headerLayout?: object };
 		};
 		const options = getOptions.call({});
 
 		assert.deepStrictEqual({
 			showHeader: options.showHeader,
+			useModernUITabs: options.useModernUITabs,
 			headerPrimary: options.menuIds?.headerPrimary,
 			headerSecondary: options.menuIds?.headerSecondary,
 			headerLayout: options.menuIds?.headerLayout,
 		}, {
 			showHeader: true,
+			useModernUITabs: true,
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
 			headerSecondary: undefined,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
@@ -2144,11 +2147,11 @@ suite('Sessions - Workbench', () => {
 
 	// --- DockedAuxiliaryBarController --------------------------------------
 
-	test('aligns docked details with the editor title boundary', () => {
+	test('aligns docked details with the editor header row', () => {
 		const editorContainer = document.createElement('div');
 		const auxiliaryBarContainer = document.createElement('div');
 		const layouts: { height: number; top: number }[] = [];
-		let titleHeight = 33;
+		let tabsHeight = 33;
 
 		Object.defineProperties(editorContainer, {
 			clientHeight: { value: 600 },
@@ -2178,12 +2181,12 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: () => { },
-			getTitleHeight: () => titleHeight,
+			getTabsHeight: () => tabsHeight,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
 		controller.layout();
-		titleHeight = 62;
+		tabsHeight = 62;
 		controller.layout();
 
 		assert.deepStrictEqual({
@@ -2247,7 +2250,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: px => insets.push(px),
-			getTitleHeight: () => 34,
+			getTabsHeight: () => 34,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -2325,7 +2328,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: px => insets.push(px),
-			getTitleHeight: () => 35,
+			getTabsHeight: () => 35,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -2397,7 +2400,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => hideCount++,
 			setEditorContentRightInset: () => { },
-			getTitleHeight: () => 35,
+			getTabsHeight: () => 35,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
