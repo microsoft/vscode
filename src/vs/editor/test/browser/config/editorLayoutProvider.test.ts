@@ -1446,7 +1446,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		// 990px of content at 10px per character hold 98 columns once the 2px kept free for the
 		// cursor are taken off. The indicator occupies the rightmost column, so wrapped text needs
 		// to stop one column earlier rather than overlap the glyph.
-		const wrappingOf = (wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded', wordWrapIndicator: boolean) => {
+		const wrappingOf = (wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded', wordWrapIndicator: boolean, wordWrapColumn = 40) => {
 			const layoutInfo = computeLayoutInfo({
 				outerWidth: 1000,
 				outerHeight: 800,
@@ -1468,7 +1468,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				minimapMaxColumn: 150,
 				pixelRatio: 1,
 				wordWrap,
-				wordWrapColumn: 40,
+				wordWrapColumn,
 				wordWrapIndicator
 			});
 			// `viewportColumn` keeps describing how many columns the viewport holds, so that the
@@ -1485,7 +1485,8 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				// spare width for the glyph to land in.
 				bounded: wrappingOf('bounded', false),
 				boundedWithIndicator: wrappingOf('bounded', true),
-				wordWrapColumnWithIndicator: wrappingOf('wordWrapColumn', true)
+				wordWrapColumnWithIndicator: wrappingOf('wordWrapColumn', true),
+				wideWordWrapColumnWithIndicator: wrappingOf('wordWrapColumn', true, 120)
 			},
 			{
 				off: { viewportColumn: 98, wrappingColumn: -1 },
@@ -1493,7 +1494,8 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				onWithIndicator: { viewportColumn: 98, wrappingColumn: 97 },
 				bounded: { viewportColumn: 98, wrappingColumn: 40 },
 				boundedWithIndicator: { viewportColumn: 98, wrappingColumn: 40 },
-				wordWrapColumnWithIndicator: { viewportColumn: 98, wrappingColumn: 40 }
+				wordWrapColumnWithIndicator: { viewportColumn: 98, wrappingColumn: 40 },
+				wideWordWrapColumnWithIndicator: { viewportColumn: 98, wrappingColumn: 120 }
 			}
 		);
 	});

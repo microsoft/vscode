@@ -43,6 +43,8 @@ const VIEWPORT_FILLING_TEXT = [
 	'ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ',
 ].join('\n');
 
+const WIDE_FIXED_COLUMN_TEXT = 'ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
 const WORD_WRAP_COLUMN = 28;
 
 interface IWordWrapIndicatorFixtureOptions {
@@ -143,6 +145,14 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		render: context => renderWordWrapIndicator(context, {
 			text: VIEWPORT_FILLING_TEXT,
 			options: { wordWrap: 'on', scrollbar: { vertical: 'visible' } },
+		}),
+	}),
+	WordWrapIndicatorFixedColumnBeyondViewport: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A long unbroken token wraps at a fixed column beyond the right edge of the editor viewport. The visible text reaches the viewport edge without a hooked arrow glyph covering any character.'],
+		render: context => renderWordWrapIndicator(context, {
+			text: WIDE_FIXED_COLUMN_TEXT,
+			options: { wordWrapColumn: 80 },
 		}),
 	}),
 	WordWrapIndicatorSelected: defineComponentFixture({

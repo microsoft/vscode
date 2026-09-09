@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { ScrollEvent } from '../../../../base/common/scrollable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestColorTheme } from '../../../../platform/theme/test/common/testThemeService.js';
@@ -209,6 +210,18 @@ suite('WordWrapIndicatorOverlay', () => {
 		);
 	});
 
+	test('does not construct line rendering data to find wrapped lines', () => {
+		withOverlay(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, ({ viewModel, render }) => {
+			const renderingDataSpy = sinon.spy(viewModel, 'getViewportViewLineRenderingData');
+			try {
+				render();
+				assert.strictEqual(renderingDataSpy.callCount, 0);
+			} finally {
+				renderingDataSpy.restore();
+			}
+		});
+	});
+
 	test('renders nothing when the indicator is disabled', () => {
 		assert.deepStrictEqual(
 			renderIndicators(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: false }),
@@ -261,6 +274,22 @@ suite('WordWrapIndicatorOverlay', () => {
 				render(),
 				[indicator(INDICATOR_VIEWPORT_LEFT + 20), indicator(INDICATOR_VIEWPORT_LEFT + 20), '', '', indicator(INDICATOR_VIEWPORT_LEFT + 20), '']
 			);
+		});
+	});
+
+	test('keeps the indicator past a fixed wrapping column wider than the viewport', () => {
+		const options: IEditorOptions = {
+			...VIEWPORT_OPTIONS,
+			wordWrap: 'wordWrapColumn',
+			wordWrapColumn: 12,
+			wordWrapIndicator: true
+		};
+		withOverlay(['aaaaaaaaaaaaaaaaaaaaaaaa'], options, ({ viewModel, render }) => {
+			assert.deepStrictEqual(render(), [indicator(120), '']);
+
+			viewModel.viewLayout.setMaxLineWidth(200);
+			viewModel.viewLayout.setScrollPosition({ scrollLeft: 50 }, ScrollType.Immediate);
+			assert.deepStrictEqual(render(), [indicator(INDICATOR_VIEWPORT_LEFT + 50), '']);
 		});
 	});
 
@@ -348,6 +377,43 @@ suite('WordWrapIndicatorOverlay', () => {
 		assert.strictEqual(invalidated, false);
 	});
 
+	test('renders after being re-enabled on the same overlay', () => {
+		withOverlay(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: false }, ({ overlay, configuration, render }) => {
+			const updateAndRender = (options: IEditorOptions) => {
+				overlay.onDidRender();
+				configuration.updateOptions(options);
+				return {
+					invalidated: overlay.shouldRender(),
+					output: render()
+				};
+			};
+
+			assert.deepStrictEqual(
+				{
+					initiallyDisabled: render(),
+					enabled: updateAndRender({ wordWrapIndicator: true }),
+					disabled: updateAndRender({ wordWrapIndicator: false }),
+					reEnabled: updateAndRender({ wordWrapIndicator: true })
+				},
+				{
+					initiallyDisabled: ['', '', '', '', '', ''],
+					enabled: {
+						invalidated: true,
+						output: [indicator(INDICATOR_VIEWPORT_LEFT), indicator(INDICATOR_VIEWPORT_LEFT), '', '', indicator(INDICATOR_VIEWPORT_LEFT), '']
+					},
+					disabled: {
+						invalidated: true,
+						output: ['', '', '', '', '', '']
+					},
+					reEnabled: {
+						invalidated: true,
+						output: [indicator(INDICATOR_VIEWPORT_LEFT), indicator(INDICATOR_VIEWPORT_LEFT), '', '', indicator(INDICATOR_VIEWPORT_LEFT), '']
+					}
+				}
+			);
+		});
+	});
+
 	test('asks for a rerender only on configuration changes that matter', () => {
 		const options: IEditorOptions = { ...WRAPPING_OPTIONS, wordWrapIndicator: true, lineNumbers: 'on' };
 		assert.deepStrictEqual(
@@ -358,6 +424,7 @@ suite('WordWrapIndicatorOverlay', () => {
 				wrappingTurnedOff: configurationChangeInvalidates(options, { wordWrap: 'off' }),
 				indicatorTurnedOffAndOn: configurationChangesInvalidate(options, [{ wordWrapIndicator: false }, { wordWrapIndicator: true }]),
 				wrappingTurnedOffAndOn: configurationChangesInvalidate(options, [{ wordWrap: 'off' }, WRAPPING_OPTIONS]),
+				wrappingColumnChanged: configurationChangeInvalidates(options, { wordWrapColumn: 7 }),
 				// A layout change can move the right edge of the viewport.
 				layoutChanged: configurationChangeInvalidates(options, { lineNumbers: 'off' }),
 				unrelatedChange: configurationChangeInvalidates(options, { cursorBlinking: 'solid' })
@@ -369,6 +436,7 @@ suite('WordWrapIndicatorOverlay', () => {
 				wrappingTurnedOff: true,
 				indicatorTurnedOffAndOn: [true, true],
 				wrappingTurnedOffAndOn: [true, true],
+				wrappingColumnChanged: true,
 				layoutChanged: true,
 				unrelatedChange: false
 			}

@@ -100,15 +100,18 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 	}
 
 	/**
-	 * Renders the glyph for `lineNumber`, anchored at the right edge of the viewport.
+	 * Renders the glyph for `lineNumber`, anchored at the right edge of the viewport once that
+	 * position is past the wrapping column.
 	 */
 	private _renderLine(ctx: RenderingContext, lineNumber: number): string {
-		const lineData = ctx.viewportData.getViewLineRenderingData(lineNumber);
-		if (!lineData.continuesWithWrappedLine) {
+		if (!ctx.viewportData.getViewLineContinuesWithWrappedLine(lineNumber)) {
 			// The line ends with a real line break, or is the last line of the model.
 			return '';
 		}
-		const left = ctx.scrollLeft + this._options.indicatorViewportLeft;
+		const left = Math.max(
+			ctx.scrollLeft + this._options.indicatorViewportLeft,
+			this._options.indicatorWrappingColumnLeft
+		);
 		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
 		return `<div class="wwi" style="left:${left}px;height:${lineHeight}px;">${String.fromCharCode(WORD_WRAP_INDICATOR_CHAR_CODE)}</div>`;
 	}
@@ -133,14 +136,17 @@ class WordWrapIndicatorOptions {
 	public readonly wordWrapIndicator: boolean;
 	public readonly isWrapping: boolean;
 	public readonly indicatorViewportLeft: number;
+	public readonly indicatorWrappingColumnLeft: number;
 
 	constructor(config: IEditorConfiguration) {
 		const options = config.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
+		const wrappingColumn = options.get(EditorOption.wrappingInfo).wrappingColumn;
 		this.wordWrapIndicator = options.get(EditorOption.wordWrapIndicator);
-		this.isWrapping = (options.get(EditorOption.wrappingInfo).wrappingColumn !== -1);
+		this.isWrapping = wrappingColumn !== -1;
 		this.indicatorViewportLeft = Math.max(0, layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth - fontInfo.typicalHalfwidthCharacterWidth);
+		this.indicatorWrappingColumnLeft = wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth;
 	}
 
 	public equals(other: WordWrapIndicatorOptions): boolean {
@@ -148,6 +154,7 @@ class WordWrapIndicatorOptions {
 			this.wordWrapIndicator === other.wordWrapIndicator
 			&& this.isWrapping === other.isWrapping
 			&& this.indicatorViewportLeft === other.indicatorViewportLeft
+			&& this.indicatorWrappingColumnLeft === other.indicatorWrappingColumnLeft
 		);
 	}
 }
