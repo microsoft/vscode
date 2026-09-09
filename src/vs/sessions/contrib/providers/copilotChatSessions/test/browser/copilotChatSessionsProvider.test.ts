@@ -537,7 +537,7 @@ suite('CopilotChatSessionsProvider', () => {
 		}, {
 			local: [
 				...isWeb ? [] : [
-					{ label: 'Clone Repository...', icon: 'repo-clone' },
+					{ label: 'Clone Repository...', icon: 'github' },
 				],
 				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
 				{ label: 'Issue...', icon: 'issues' },
@@ -610,7 +610,7 @@ suite('CopilotChatSessionsProvider', () => {
 			],
 			unifiedActions: [
 				...isWeb ? [] : [
-					{ label: 'Clone Repository...', icon: 'repo-clone' },
+					{ label: 'Clone Repository...', icon: 'github' },
 				],
 				{ label: 'Use Repository in Cloud...', icon: 'cloud' },
 				{ label: 'Issue...', icon: 'issues' },

@@ -1303,6 +1303,18 @@ export class WorkspacePicker extends Disposable {
 		return this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
 	}
 
+	private _getWorkspaceIcon(workspace: ISessionWorkspace): ThemeIcon {
+		if (this._useConsolidatedRemoteWorkspaces()) {
+			if (workspace.group === SESSION_WORKSPACE_GROUP_LOCAL) {
+				return Codicon.folder;
+			}
+			if (workspace.group === SESSION_WORKSPACE_GROUP_GITHUB) {
+				return Codicon.repo;
+			}
+		}
+		return workspace.icon;
+	}
+
 	private _getTabGroup(group: string | undefined): string | undefined {
 		return this._useConsolidatedRemoteWorkspaces() && group === SESSION_WORKSPACE_GROUP_GITHUB
 			? SESSION_WORKSPACE_GROUP_REMOTE
@@ -1427,9 +1439,7 @@ export class WorkspacePicker extends Disposable {
 			if (workspace.group === SESSION_WORKSPACE_GROUP_GITHUB && repositoryId && localRepositoryIds?.has(repositoryId)) {
 				continue;
 			}
-			const icon = this._useConsolidatedRemoteWorkspaces() && workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
-				? Codicon.folder
-				: workspace.icon;
+			const icon = this._getWorkspaceIcon(workspace);
 			const selected = this._isSelectedFolder(folderUri)
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
@@ -1751,9 +1761,7 @@ export class WorkspacePicker extends Disposable {
 				&& this._getCurrentRepositoryId() === undefined;
 			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
-			const workspaceIcon = workspace && this._useConsolidatedRemoteWorkspaces() && workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
-				? Codicon.folder
-				: workspace?.icon;
+			const workspaceIcon = workspace ? this._getWorkspaceIcon(workspace) : undefined;
 			const icon = noWorkspaceSelected
 				? this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion
 				: (reflectsWorkspace ? workspaceIcon : undefined)

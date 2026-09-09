@@ -1589,7 +1589,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					{
 						label: localize('cloneRepository', "Clone Repository..."),
 						group: SESSION_WORKSPACE_GROUP_GITHUB,
-						icon: Codicon.repoClone,
+						icon: Codicon.github,
 						providerId: this.id,
 						attachesContext: false,
 						run: () => this._browseForRepositoryToClone(),
