@@ -1076,10 +1076,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeAdvisor) === true;
 	}
 
-	private _isMultiTurnContextRoutingEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MultiTurnContextRouting) === true;
-	}
-
 	private _areAutoModeTiersEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) === true;
 	}
@@ -1115,7 +1111,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isSessionSyncEnabled(),
 			this._isRubberDuckEnabled(),
 			this._isClaudeAdvisorEnabled(),
-			this._isMultiTurnContextRoutingEnabled(),
 			this._getCopilotSdkLogLevelSetting(),
 			this._getEnterpriseHost(),
 			this._isSystemProxyEnabled(),
@@ -2306,17 +2301,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['RUBBER_DUCK_AGENT'] = 'true';
 			} else {
 				delete env['RUBBER_DUCK_AGENT'];
-			}
-
-			// Let the Auto router score prior user messages instead of the latest
-			// message alone. `MULTI_TURN_CONTEXT_ROUTING` is the runtime's local
-			// override for the matching ExP flag, and only takes effect on top of
-			// the single-call Auto endpoint that `createCopilotCliEnvironment`
-			// already opts into.
-			if (startupConfig.multiTurnContextRouting) {
-				env['MULTI_TURN_CONTEXT_ROUTING'] = 'true';
-			} else {
-				delete env['MULTI_TURN_CONTEXT_ROUTING'];
 			}
 
 			// Resolve the CLI entry point and native SDK binaries from node_modules.

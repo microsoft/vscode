@@ -6080,38 +6080,28 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('enables the auto v2 endpoint always and multi-turn context routing only when configured', async () => {
-			const defaultClient = new TestCopilotClient([]);
-			const { agent: defaultAgent } = createTestAgentContext(disposables, { copilotClient: defaultClient });
+		test('uses SDK defaults for Auto routing', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
-				await defaultAgent.listChatsToMigrate();
+				await agent.listChatsToMigrate();
 
-				const routingClient = new TestCopilotClient([]);
-				const { agent: routingAgent } = createTestAgentContext(disposables, {
-					copilotClient: routingClient,
-					rootConfig: { [CopilotCliConfigKey.MultiTurnContextRouting]: true },
+				const defaultEnv = createCopilotCliEnvironment({});
+				const clientEnv = getCreatedClientOptions(agent).at(-1)?.env;
+				assert.ok(clientEnv);
+				assert.deepStrictEqual({
+					defaultAutoV2: defaultEnv['AUTO_V2_ENDPOINT'],
+					defaultMultiTurn: defaultEnv['MULTI_TURN_CONTEXT_ROUTING'],
+					clientAutoV2: clientEnv['AUTO_V2_ENDPOINT'],
+					clientMultiTurn: clientEnv['MULTI_TURN_CONTEXT_ROUTING'],
+				}, {
+					defaultAutoV2: undefined,
+					defaultMultiTurn: undefined,
+					clientAutoV2: process.env['AUTO_V2_ENDPOINT'],
+					clientMultiTurn: process.env['MULTI_TURN_CONTEXT_ROUTING'],
 				});
-				try {
-					await routingAgent.listChatsToMigrate();
-
-					const defaultEnv = getCreatedClientOptions(defaultAgent).at(-1)?.env;
-					const routingEnv = getCreatedClientOptions(routingAgent).at(-1)?.env;
-					assert.deepStrictEqual({
-						defaultAutoV2: defaultEnv?.['AUTO_V2_ENDPOINT'],
-						defaultMultiTurn: defaultEnv?.['MULTI_TURN_CONTEXT_ROUTING'],
-						routingAutoV2: routingEnv?.['AUTO_V2_ENDPOINT'],
-						routingMultiTurn: routingEnv?.['MULTI_TURN_CONTEXT_ROUTING'],
-					}, {
-						defaultAutoV2: 'true',
-						defaultMultiTurn: undefined,
-						routingAutoV2: 'true',
-						routingMultiTurn: 'true',
-					});
-				} finally {
-					await disposeAgent(routingAgent);
-				}
 			} finally {
-				await disposeAgent(defaultAgent);
+				await disposeAgent(agent);
 			}
 		});
 
