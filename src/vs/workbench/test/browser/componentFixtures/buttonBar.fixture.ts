@@ -180,7 +180,7 @@ function renderButtonBars(context: ComponentFixtureContext): void {
 	// The shape the changes title bar uses: a labelled primary followed by
 	// icon-only trailing actions.
 	const titleBarConfig: IButtonConfigProvider = (_action, index) => index === 0
-		? { showIcon: true, showLabel: true }
+		? { showIcon: true, showLabel: true, iconLabelSpacing: 'default' }
 		: { showIcon: true, showLabel: false };
 
 	const withDropdown = new SubmenuAction('fixture.dropdown', 'Create Pull Request', [
@@ -194,7 +194,7 @@ function renderButtonBars(context: ComponentFixtureContext): void {
 		['Primary and trailing', [createPullRequest, viewChanges, openPullRequest], titleBarConfig],
 		['Split button', [withDropdown], titleBarConfig],
 		['Split button, busy', [withDropdown], (_action, index) => index === 0
-			? { showIcon: true, showLabel: true, showSpinner: true }
+			? { showIcon: true, showLabel: true, showSpinner: true, iconLabelSpacing: 'default' }
 			: { showIcon: true, showLabel: false }],
 		['Secondary overflow', [createPullRequest], titleBarConfig, [runCodeReview, openPullRequest]],
 	];

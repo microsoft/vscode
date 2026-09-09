@@ -332,11 +332,8 @@
 
 /* Primary action button */
 .changes-view-body .chat-editing-session-actions .monaco-button.monaco-text-button {
-	gap: 2px;
-
-	/* The leading icon is exempt: it shares its box — margin included — with the
-	 * spinner that replaces it while the action runs, so the button bar owns its
-	 * spacing and the button keeps its width across the swap. */
+	/* The button bar owns leading icon-label spacing. Other inline icons do not
+	 * add their own spacing to the relationship chosen by their container. */
 	.codicon:not(.monaco-button-leading-icon) {
 		margin: 0;
 	}
@@ -344,6 +341,7 @@
 
 /* Line counts in buttons */
 .changes-view-body .chat-editing-session-actions .monaco-button.working-set-diff-stats {
+	gap: 2px;
 	flex-shrink: 0;
 	padding-left: 4px;
 	padding-right: 8px;

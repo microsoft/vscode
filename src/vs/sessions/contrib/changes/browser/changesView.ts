@@ -204,7 +204,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 					buttonConfigProvider: (action, index) => {
 						const configuration = this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs);
 						return index === 0
-							? { ...configuration, showIcon: true, showLabel: true }
+							? { ...configuration, showIcon: true, showLabel: true, iconLabelSpacing: 'default' }
 							: configuration;
 					}
 				},
@@ -343,7 +343,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				renderSecondaryActions: false,
 				buttonConfigProvider: (action, index) => {
 					return index === 0
-						? { showIcon: true, showLabel: true, customLabel: primaryCustomLabel ?? stripIcons(action.label), showSpinner: primaryIsBusy }
+						? { showIcon: true, showLabel: true, customLabel: primaryCustomLabel ?? stripIcons(action.label), showSpinner: primaryIsBusy, iconLabelSpacing: 'default' }
 						: { showIcon: true, showLabel: false };
 				}
 			}
