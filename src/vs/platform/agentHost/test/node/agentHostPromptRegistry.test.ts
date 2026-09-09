@@ -220,18 +220,14 @@ suite('AgentHostPromptRegistry', () => {
 				usesSetWorkspace: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('project changes MUST first attach that repository with `set_workspace`'),
 				avoidsReplacementSession: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not create another session solely to move the work'),
 				blocksScratchMutation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('MUST NOT create, edit, or delete files'),
-				requiresConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('follow this exact sequence before using any shell or file-mutation tool'),
-				namesProviderTools: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`request_user_input` in Codex or `ask_user` in Copilot'),
-				batchesQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('exactly two questions together'),
-				forbidsSplitQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not split workspace and isolation into separate user-input calls'),
+				usesCombinedToolConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('The tool confirmation asks the user to approve both values together'),
+				forbidsSeparateConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('do not ask for a separate confirmation first'),
 			}, {
 				usesSetWorkspace: true,
 				avoidsReplacementSession: true,
 				blocksScratchMutation: true,
-				requiresConfirmation: true,
-				namesProviderTools: true,
-				batchesQuestions: true,
-				forbidsSplitQuestions: true,
+				usesCombinedToolConfirmation: true,
+				forbidsSeparateConfirmation: true,
 			});
 		});
 

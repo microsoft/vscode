@@ -2775,7 +2775,6 @@ suite('CodexAgent prewarm eviction', () => {
 		// the managed temp folder Codex creates for it.
 		const sending = agent.chats.sendMessage(sourceChat, 'hello', undefined, undefined, 'turn-1');
 		const start = await readNextRequest(peer.outbound);
-		assert.strictEqual(start.params.config?.['features.default_mode_request_user_input'], true);
 		assert.ok(start.params.developerInstructions?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
 		assert.deepStrictEqual({
 			approvalPolicy: start.params.approvalPolicy,
@@ -2835,8 +2834,7 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.deepStrictEqual({
 			approvalPolicy: fork.params.approvalPolicy,
 			sandbox: fork.params.sandbox,
-			requestUserInput: fork.params.config?.['features.default_mode_request_user_input'],
-		}, { approvalPolicy: 'on-request', sandbox: 'workspace-write', requestUserInput: true });
+		}, { approvalPolicy: 'on-request', sandbox: 'workspace-write' });
 		peer.push({
 			id: fork.id,
 			result: {

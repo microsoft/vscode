@@ -98,7 +98,7 @@ const setWorkspaceInputSchema: ToolDefinition['inputSchema'] = {
 		},
 		isolation: {
 			type: 'boolean',
-			description: 'Whether to create an isolated Git worktree and use it as the workspace. Include this choice in the required user confirmation immediately before calling this tool.',
+			description: 'Whether to create an isolated Git worktree and use it as the workspace. The tool confirmation presents this choice together with the workspace.',
 		},
 	},
 	required: ['workspaceFolder', 'isolation'],
@@ -167,7 +167,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.SetWorkspace,
 		title: 'Set Workspace',
-		description: 'Set the current session\'s workspace when the task should continue in a workspace not yet attached to this session. This preserves the session, chat, and conversation history. Immediately before every call to this tool, always use the available user-input tool to ask the user to confirm both the workspace and whether the work should be isolated, even if the user previously mentioned or requested those choices. Tool approval is separate and does not replace this confirmation. Set `isolation` to true to create a managed Git worktree, or false to work directly in the folder. The workspace change is deferred until the current turn ends, then the host automatically continues the original task in the selected workspace. Make this the final tool call of the turn.',
+		description: 'Set the current session\'s workspace when the task should continue in a workspace not yet attached to this session. This preserves the session, chat, and conversation history. Set `isolation` to true to create a managed Git worktree, or false to work directly in the folder. The tool confirmation presents the exact workspace and isolation choice together; do not ask the user for a separate confirmation first. The workspace change is deferred until the current turn ends, then the host automatically continues the original task in the selected workspace. Make this the final tool call of the turn.',
 		inputSchema: setWorkspaceInputSchema,
 		annotations: { readOnlyHint: false },
 	},
