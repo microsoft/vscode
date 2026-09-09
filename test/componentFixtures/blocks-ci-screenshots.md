@@ -249,6 +249,12 @@
 #### editor/wordWrapIndicator/WordWrapIndicatorDisabled/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/bfd14bc97613141a7bb9914a204d04b4d2e4f1cd3cedfd806201827fdfa6b05c)
 
+#### editor/wordWrapIndicator/WordWrapIndicatorFixedColumnBeyondViewport/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8a431f75140f92db02df6dbbe04bba6bd34309093a1279acb27b430bad131220)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorFixedColumnBeyondViewport/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/44a44a161770ed83c0d9e6214175f1153fe44938942ed85c722fc2d1858cac07)
+
 #### editor/wordWrapIndicator/WordWrapIndicatorVariableLineHeight/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/4bea888e8ddca897be942c3e6b1ad1c1133d1c69b767653315a15616a949d5e1)
 
