@@ -1921,14 +1921,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _forwardGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		if (notification.event.kind === 'response.success' || notification.event.kind === 'response.error') {
+			await this._forwardResponseTelemetry(notification);
+		} else {
+			this._gitHubTelemetryForwarder.forward(notification);
+		}
+	}
+
+	private async _forwardResponseTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
 		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
 		const fallbackTurnId = session?.currentTurnId;
 		const event = notification.event;
-		if (event.kind !== 'response.success' && event.kind !== 'response.error') {
-			this._gitHubTelemetryForwarder.forward(notification, fallbackTurnId);
-			return;
-		}
-
 		const nativeModelCallId = event.properties.modelCallId ?? event.model_call_id;
 		const modelCallId = typeof nativeModelCallId === 'string' ? nativeModelCallId : undefined;
 		const forward = (turnId: string | undefined, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
