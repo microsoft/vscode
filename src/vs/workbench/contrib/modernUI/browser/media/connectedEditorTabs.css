@@ -150,10 +150,6 @@
 	pointer-events: none;
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-left-clipped {
-	background: linear-gradient(var(--vscode-panel-background), var(--vscode-panel-background)) left top / var(--modern-ui-connected-tab-cap-radius) var(--modern-ui-connected-tab-cap-radius) no-repeat;
-}
-
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-left-clipped::before,
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-right-clipped::after {
 	content: '';
@@ -169,7 +165,6 @@
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-left-clipped::before {
 	left: 0;
 	border-left: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
-	border-top-left-radius: var(--modern-ui-connected-tab-cap-radius);
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-right-clipped::after {

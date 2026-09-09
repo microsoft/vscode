@@ -368,7 +368,7 @@ export interface IEditorTabBarFixtureOptions {
 	readonly forcedHoverTab?: number;
 	readonly focusedTabAction?: number;
 	readonly editorContents?: string;
-	readonly activeTabClipping?: 'left' | 'right' | 'right-shoulder';
+	readonly activeTabClipping?: 'left' | 'right' | 'left-shoulder' | 'right-shoulder';
 }
 
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
@@ -600,9 +600,20 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 				throw new Error('The clipped tab fixture requires an active tab');
 			}
 			tabsContainer.classList.add('scroll');
-			tabsContainer.scrollLeft = options.activeTabClipping === 'left'
-				? activeTab.offsetLeft + activeTab.offsetWidth / 2
-				: activeTab.offsetLeft + (options.activeTabClipping === 'right' ? activeTab.offsetWidth / 2 : activeTab.offsetWidth) - tabsContainer.clientWidth;
+			switch (options.activeTabClipping) {
+				case 'left':
+					tabsContainer.scrollLeft = activeTab.offsetLeft + activeTab.offsetWidth / 2;
+					break;
+				case 'right':
+					tabsContainer.scrollLeft = activeTab.offsetLeft + activeTab.offsetWidth / 2 - tabsContainer.clientWidth;
+					break;
+				case 'left-shoulder':
+					tabsContainer.scrollLeft = activeTab.offsetLeft - 4;
+					break;
+				case 'right-shoulder':
+					tabsContainer.scrollLeft = activeTab.offsetLeft + activeTab.offsetWidth - tabsContainer.clientWidth;
+					break;
+			}
 			tabsContainer.dispatchEvent(new UIEvent('scroll'));
 		}));
 	}
@@ -820,7 +831,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 	ConnectedSurface: defineThemedFixtureGroup({
 		ClippedLeft: defineComponentFixture({
 			render: render(true, { editors: manyEditorSpecs(), width: 360, activeTabClipping: 'left' }),
-			expectedVisualDescriptions: ['The partially scrolled active tab keeps a stationary outside stroke with the same rounded upper corner as a fully visible tab and a continuous join to the separator. Its label remains naturally clipped by scrolling.'],
+			expectedVisualDescriptions: ['The partially scrolled active tab closes its stationary outside stroke with a straight left edge. Its top stroke, left edge and strip separator remain continuous without exposing clipped tab content.'],
 		}),
 		ClippedRight: defineComponentFixture({
 			render: render(true, { editors: manyEditorSpecs(5), width: 248, activeTabClipping: 'right' }),
@@ -829,6 +840,10 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		RightViewportEdge: defineComponentFixture({
 			render: render(true, { editors: manyEditorSpecs(5), width: 248, activeTabClipping: 'right-shoulder' }),
 			expectedVisualDescriptions: ['The rightmost visible active tab uses a continuous straight edge when there is no room for its full shoulder. No part of the shoulder is clipped beneath the editor actions.'],
+		}),
+		LeftViewportEdge: defineComponentFixture({
+			render: render(true, { editors: manyEditorSpecs(5), width: 248, activeTabClipping: 'left-shoulder' }),
+			expectedVisualDescriptions: ['The leftmost visible active tab uses a continuous straight edge when there is no room for its full shoulder. No part of the shoulder is clipped at the viewport boundary.'],
 		}),
 		Stroke: defineComponentFixture({
 			render: renderConnectedSurface(true),

@@ -2414,9 +2414,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const visibleFillRight = Math.min(fillRight, visibleRight);
 		const leftClipped = fillLeft < visibleLeft;
 		const rightClipped = fillRight > visibleRight;
+		const leftEdge = fillLeft - shoulderExtent < visibleLeft;
 		const rightEdge = fillRight + shoulderExtent > visibleRight;
 		const hidden = visibleFillLeft + clippingEdgeExtent >= visibleFillRight;
-		tab.classList.toggle('connected-tab-left-edge', leftClipped);
+		tab.classList.toggle('connected-tab-left-edge', leftEdge);
 		tab.classList.toggle('connected-tab-right-edge', rightEdge);
 		tab.classList.toggle('connected-tab-left-clipped', leftClipped);
 		tab.classList.toggle('connected-tab-right-clipped', rightClipped);
