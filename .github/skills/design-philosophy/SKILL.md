@@ -283,7 +283,7 @@ Lead with the **role / tier / ramp**, not the number - then name the principle s
 | "font-weight 500 here" | "**500 is off the ramp** - snap to `semiBold` (600)" | 6 · Sameness |
 | "shrink this icon a touch" | "this icon should use a **less prominent registered role**" | 4 · One thing leads |
 | "this icon uses an arbitrary size" | "choose the **registered icon role** that matches this context" | 6 · Sameness |
-| "add margin to the icon and label" | "the **control owns the icon-label relationship**; express it once there" | 6 · Sameness |
+| "add margin to the icon and label" | "the **lowest composition that understands both elements** owns their relationship; express it once there" | 6 · Sameness |
 | "this ordinary border is too thick" | "standard borders are **one stroke (1px)** - this should/shouldn't have one; preserve thicker focus/semantic strokes" | 1 · Quiet at rest |
 | "change this grey hex" | "this is the **wrong theme token** / it **vanishes in light/HC**" | 6 · Sameness |
 | "the command center has a box around it" | "chrome should be **quiet at rest, reveal on hover**" | 1 · Quiet at rest |
