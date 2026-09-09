@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -26,7 +27,8 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../workben
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
 
 // ---- Mocks ------------------------------------------------------------------
@@ -58,6 +60,10 @@ class MockSessionsManagementService extends Disposable {
 
 	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[] {
 		return this._typesByFolder.get(folderUri.toString()) ?? this._types;
+	}
+
+	getAllProviderSessionTypes(): IProviderSessionType[] {
+		return this._types;
 	}
 
 	getQuickChatSessionTypes(): IProviderSessionType[] {
@@ -108,6 +114,10 @@ class TestSessionTypePicker extends SessionTypePicker {
 		this._handleSelectedSessionType(p);
 	}
 
+	async prepareAndPick(p: IPickedSessionType): Promise<void> {
+		await this._selectSessionType(p);
+	}
+
 	get offeredSessionTypeIds(): readonly string[] {
 		return this._folderSessionTypes.map(type => type.sessionType.id);
 	}
@@ -120,11 +130,18 @@ function createPicker(
 	storage: IStorageService,
 	options?: ISessionTypePickerOptions,
 	actionWidgetService: Partial<IActionWidgetService> = { isVisible: false, hide: () => { }, show: () => { } },
+	localProviderIds: readonly string[] = [],
 ): TestSessionTypePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
 	instantiationService.stub(ISessionsManagementService, managementService);
-	instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
+	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+		override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+			return (localProviderIds.includes(providerId)
+				? { id: providerId, label: providerId, supportsLocalWorkspaces: true }
+				: undefined) as T | undefined;
+		}
+	}());
 	instantiationService.stub(IStorageService, storage);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IChatSessionsService, {
@@ -721,5 +738,87 @@ suite('SessionTypePicker', () => {
 		});
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('offers local harnesses for a selected cloud repository', () => {
+		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/microsoft/vscode/HEAD' });
+		management.setSessionTypes([
+			sessionType('cloud', 'cloud', 'Cloud'),
+			sessionType('local', 'local', 'Local'),
+			sessionType('remote', 'remote', 'Remote'),
+		]);
+		management.setSessionTypesForFolder(repository, [
+			sessionType('cloud', 'cloud', 'Cloud'),
+		]);
+		const picker = createPicker(disposables, session, management, storage, undefined, undefined, ['local']);
+
+		picker.setSessionWorkspaceFolderSource(observableValue<URI | undefined>('folder', repository));
+
+		assert.deepStrictEqual(picker.offeredSessionTypeIds, ['cloud', 'local']);
+	});
+
+	test('prepares a session type before changing the selection', async () => {
+		const prepared: IPickedSessionType[] = [];
+		let allowSelection = false;
+		const picker = createPicker(disposables, session, management, storage, {
+			prepareSessionTypeSelection: async pick => {
+				prepared.push(pick);
+				return allowSelection;
+			},
+		});
+		const fired: IPickedSessionType[] = [];
+		disposables.add(picker.onDidSelectSessionType(pick => {
+			if (pick) {
+				fired.push(pick);
+			}
+		}));
+		const pick = { providerId: 'local', sessionTypeId: 'local' };
+
+		await picker.prepareAndPick(pick);
+		allowSelection = true;
+		await picker.prepareAndPick(pick);
+
+		assert.deepStrictEqual({
+			prepared,
+			fired,
+			selected: picker.selectedPick,
+		}, {
+			prepared: [pick, pick],
+			fired: [pick],
+			selected: pick,
+		});
+	});
+
+	test('preserves the user selection when preparation recomputes the same pick', async () => {
+		const folder = URI.file('/local');
+		const cloudSession = createFakeSession('cloud', 'cloud', URI.parse('github-remote-file://github/microsoft/vscode/HEAD'));
+		session.set(cloudSession, undefined);
+		management.setSessionTypes([
+			sessionType('cloud', 'cloud', 'Cloud'),
+			sessionType('local', 'local', 'Local'),
+		]);
+		const picker = createPicker(disposables, session, management, storage, {
+			prepareSessionTypeSelection: async () => {
+				management.setSessionTypesForFolder(folder, [
+					sessionType('local', 'local', 'Local'),
+				]);
+				return true;
+			},
+		});
+		const fired: IPickedSessionType[] = [];
+		disposables.add(picker.onDidSelectSessionType(pick => {
+			if (pick) {
+				fired.push(pick);
+			}
+		}));
+		const pick = { providerId: 'local', sessionTypeId: 'local' };
+
+		await picker.prepareAndPick(pick);
+		management.setSessionTypes([
+			sessionType('cloud', 'cloud', 'Cloud'),
+			sessionType('local', 'local', 'Local'),
+		]);
+
+		assert.deepStrictEqual({ fired, selected: picker.selectedPick }, { fired: [pick], selected: pick });
 	});
 });

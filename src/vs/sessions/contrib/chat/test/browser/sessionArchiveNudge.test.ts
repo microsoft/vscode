@@ -416,7 +416,9 @@ suite('SessionArchiveNudge', () => {
 			visible: true, dismissed: false, events: [],
 		});
 		session.status.set(SessionStatus.InProgress, undefined);
-		await assert.rejects(options.onArchive(), /no longer available/);
+		await assert.rejects(options.onArchive(), {
+			message: 'This suggestion is no longer available. Review the session before trying again.',
+		});
 		assert.strictEqual(context.archiveTargets.length, 1);
 	});
 
@@ -425,7 +427,9 @@ suite('SessionArchiveNudge', () => {
 		context.setPullRequest(1, GitHubPullRequestState.Merged);
 		const nudge = context.createNudge();
 		context.setArchiveNoop();
-		await assert.rejects(nudge.options.get()!.onArchive(), /could not be archived/);
+		await assert.rejects(nudge.options.get()!.onArchive(), {
+			message: 'The session could not be updated. Check its connection and try again.',
+		});
 		assert.deepStrictEqual({ visible: !!nudge.options.get(), events: context.events }, { visible: true, events: [] });
 	});
 });

@@ -1835,7 +1835,6 @@ export class McpListWidget extends Disposable {
 		this.showCardSurface();
 
 		const content = this.createCardScrollContent('distributed-section-layout');
-		this.renderFeaturedServers(content);
 
 		const installedList = this.renderCardSection(
 			content,
@@ -1865,36 +1864,6 @@ export class McpListWidget extends Disposable {
 		add.label = this.narrowLayout ? localize('addServerNarrow', "Add") : addLabel;
 		this.firstCardFocusElement ??= add.element;
 		this.cardDisposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
-	}
-
-	private renderFeaturedServers(parent: HTMLElement): void {
-		const featured = this.getAvailableGalleryServers().slice(0, 3);
-		if (featured.length === 0) {
-			if (this.gallerySnapshotFailed) {
-				const grid = this.renderCardSection(
-					parent,
-					localize('mcpMarketplaceUnavailable', "Featured MCP servers could not be loaded"),
-					localize('mcpMarketplaceUnavailableDescription', "Check your connection, then try loading marketplace results again."),
-					'plugin-discovery-section',
-				);
-				const retry = this.cardDisposables.add(new Button(grid, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryMcpMarketplace', "Retry Loading MCP Servers") }));
-				retry.label = localize('retry', "Retry");
-				this.cardDisposables.add(retry.onDidClick(() => {
-					this.gallerySnapshotFailed = false;
-					void this.queryGallerySnapshot();
-				}));
-			}
-			return;
-		}
-
-		const grid = this.renderCardSection(
-			parent,
-			localize('featuredMcpServers', "Featured"),
-			localize('featuredMcpServersDescription', "Discover MCP servers that connect agents to popular tools and services."),
-			'plugin-discovery-section',
-		);
-		grid.classList.add('plugin-inventory-list');
-		this.createMcpSectionList(grid, localize('featuredMcpServers', "Featured"), featured.map(server => ({ type: 'marketplace-item', server })));
 	}
 
 	private renderAvailableServers(parent: HTMLElement, servers: readonly IWorkbenchMcpServer[], showDescription: boolean): void {

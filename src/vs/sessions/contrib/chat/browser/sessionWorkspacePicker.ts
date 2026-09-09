@@ -1343,6 +1343,18 @@ export class WorkspacePicker extends Disposable {
 		return this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
 	}
 
+	private _getWorkspaceIcon(workspace: ISessionWorkspace): ThemeIcon {
+		if (this._useConsolidatedRemoteWorkspaces()) {
+			if (workspace.group === SESSION_WORKSPACE_GROUP_LOCAL) {
+				return Codicon.folder;
+			}
+			if (workspace.group === SESSION_WORKSPACE_GROUP_GITHUB) {
+				return Codicon.repo;
+			}
+		}
+		return workspace.icon;
+	}
+
 	private _getTabGroup(group: string | undefined): string | undefined {
 		return this._useConsolidatedRemoteWorkspaces() && group === SESSION_WORKSPACE_GROUP_GITHUB
 			? SESSION_WORKSPACE_GROUP_REMOTE
@@ -1458,17 +1470,29 @@ export class WorkspacePicker extends Disposable {
 				.filter(repositoryId => repositoryId !== undefined))
 			: undefined;
 
-		// Build flat list in recency order (no source grouping)
-		for (const { workspace, providerId } of recentWorkspaces) {
+		const recentWorkspaceEntries = recentWorkspaces
+			.map(resolved => ({
+				...resolved,
+				repositoryId: this._getRepositoryIdForResolvedWorkspace(resolved),
+			}))
+			.filter(({ workspace, repositoryId }) =>
+				workspace.group !== SESSION_WORKSPACE_GROUP_GITHUB
+				|| !repositoryId
+				|| !localRepositoryIds?.has(repositoryId));
+		const orderedRecentWorkspaceEntries = this._useConsolidatedRemoteWorkspaces()
+			? [
+				...recentWorkspaceEntries.filter(({ workspace }) => !ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
+				...recentWorkspaceEntries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
+			]
+			: recentWorkspaceEntries;
+
+		let previousRecentWorkspaceIsRepository: boolean | undefined;
+		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
 			}
-			const repositoryId = this._getRepositoryIdForResolvedWorkspace({ workspace, providerId });
-			if (workspace.group === SESSION_WORKSPACE_GROUP_GITHUB && repositoryId && localRepositoryIds?.has(repositoryId)) {
-				continue;
-			}
-			const icon = this._useConsolidatedRemoteWorkspaces() && repositoryId ? Codicon.repo : workspace.icon;
+			const icon = this._getWorkspaceIcon(workspace);
 			const selected = this._isSelectedFolder(folderUri)
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
@@ -1489,6 +1513,11 @@ export class WorkspacePicker extends Disposable {
 				remoteSubmenuActions.push(submenuAction);
 				continue;
 			}
+			const recentWorkspaceIsRepository = ThemeIcon.isEqual(icon, Codicon.repo);
+			if (previousRecentWorkspaceIsRepository !== undefined && previousRecentWorkspaceIsRepository !== recentWorkspaceIsRepository) {
+				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			previousRecentWorkspaceIsRepository = recentWorkspaceIsRepository;
 			const item: IWorkspacePickerItem = { folderUri, providerId, checked: selected || attached || undefined };
 			const usingDevContainer = !!this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, folderUri);
 			const submenuActions = workspace.group === SESSION_WORKSPACE_GROUP_LOCAL && this._isDevContainerWorkspaceAvailable(folderUri, providerId)
@@ -1513,7 +1542,7 @@ export class WorkspacePicker extends Disposable {
 					],
 				)]
 				: undefined;
-			const workspaceItem: IActionListItem<IWorkspacePickerItem> = {
+			items.push({
 				kind: ActionListItemKind.Action,
 				label: workspace.label,
 				description: workspace.description,
@@ -1522,8 +1551,7 @@ export class WorkspacePicker extends Disposable {
 				item,
 				submenuActions,
 				onRemove: () => this._removeRecentWorkspace(folderUri),
-			};
-			items.push(workspaceItem);
+			});
 		}
 
 		// Browse actions from all providers (filtered to the active tab)
@@ -1562,7 +1590,7 @@ export class WorkspacePicker extends Disposable {
 			const actionLabel = action === this._localBrowseAction
 				&& this._useConsolidatedRemoteWorkspaces()
 				&& this._directPickerAttachesContext !== true
-				? localize('workspacePicker.openFolder', "Open Folder")
+				? localize('workspacePicker.chooseFolder', "Choose Folder")
 				: this._useConsolidatedRemoteWorkspaces()
 					? action.label.replace(/(?:\.\.\.|…)$/, '')
 					: action.label;
@@ -1816,10 +1844,11 @@ export class WorkspacePicker extends Disposable {
 				&& this._getCurrentRepositoryId() === undefined;
 			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
+			const workspaceIcon = workspace ? this._getWorkspaceIcon(workspace) : undefined;
 			const icon = noWorkspaceSelected
 				? this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion
-				: (reflectsWorkspace ? workspace?.icon : undefined)
-				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
+				: (reflectsWorkspace ? workspaceIcon : undefined)
+				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspaceIcon : options.icon));
 			if (!icon || (options.hideIconWhenAttached === true && badgeCount > 0)) {
 				contents.icon?.remove();
 				contents.icon = undefined;

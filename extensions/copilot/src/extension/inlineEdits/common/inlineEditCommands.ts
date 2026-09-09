@@ -3,13 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export enum JointCompletionsProviderStrategy {
-	Regular = 'regular',
-	CursorEndOfLine = 'cursorEndOfLine',
-}
-
-export enum JointCompletionsProviderTriggerChangeStrategy {
-	NoTriggerOnRequestInFlight = 'noTriggerOnRequestInFlight',
-	NoTriggerOnCompletionsRequestInFlight = 'noTriggerOnCompletionsRequestInFlight',
-	AlwaysTrigger = 'alwaysTrigger',
-}
+export const learnMoreCommandId = 'github.copilot.debug.inlineEdit.learnMore';
+export const learnMoreLink = 'https://aka.ms/vscode-nes';
