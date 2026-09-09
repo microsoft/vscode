@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension } from '../../../../../base/browser/dom.js';
+import { $, Dimension, getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -180,7 +180,7 @@ function duplicateNameEditorSpecs(): IEditorSpec[] {
 }
 
 /** A larger set of editors, useful for wrapping / scrollbar / label variants. */
-function manyEditorSpecs(): IEditorSpec[] {
+function manyEditorSpecs(activeIndex = 0): IEditorSpec[] {
 	const names = [
 		'main.ts', 'index.ts', 'button.tsx', 'input.tsx', 'list.tsx', 'tree.tsx',
 		'model.ts', 'service.ts', 'view.ts', 'controller.ts', 'utils.ts', 'types.ts',
@@ -189,7 +189,7 @@ function manyEditorSpecs(): IEditorSpec[] {
 	return names.map((name, index) => ({
 		resource: file(`/project/src/module${index % 4}/${name}`),
 		pinned: true,
-		active: index === 0,
+		active: index === activeIndex,
 		dirty: index % 5 === 0,
 	}));
 }
@@ -368,6 +368,7 @@ export interface IEditorTabBarFixtureOptions {
 	readonly forcedHoverTab?: number;
 	readonly focusedTabAction?: number;
 	readonly editorContents?: string;
+	readonly activeTabClipping?: 'left' | 'right' | 'right-shoulder';
 }
 
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
@@ -591,6 +592,20 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		}
 	}
 	layout();
+	if (options.activeTabClipping) {
+		disposableStore.add(scheduleAtNextAnimationFrame(getWindow(container), () => {
+			const tabsContainer = titleContainer.querySelector<HTMLElement>('.tabs-container');
+			const activeTab = tabsContainer?.querySelector<HTMLElement>('.tab.active');
+			if (!tabsContainer || !activeTab) {
+				throw new Error('The clipped tab fixture requires an active tab');
+			}
+			tabsContainer.classList.add('scroll');
+			tabsContainer.scrollLeft = options.activeTabClipping === 'left'
+				? activeTab.offsetLeft + activeTab.offsetWidth / 2
+				: activeTab.offsetLeft + (options.activeTabClipping === 'right' ? activeTab.offsetWidth / 2 : activeTab.offsetWidth) - tabsContainer.clientWidth;
+			tabsContainer.dispatchEvent(new UIEvent('scroll'));
+		}));
+	}
 }
 
 function render(modernUI: boolean, options: Omit<IEditorTabBarFixtureOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
@@ -761,13 +776,13 @@ function createThemeColorFixtures() {
 	};
 }
 
-function renderConnectedSurface(stroke: boolean, firstTabActive = false): (ctx: ComponentFixtureContext) => void {
+function renderConnectedSurface(stroke: boolean, activeTabIndex = 1, forcedHoverTab?: number): (ctx: ComponentFixtureContext) => void {
 	return render(true, {
 		editors: [
-			{ resource: file('/project/README.md'), pinned: true, active: firstTabActive },
-			{ resource: file('/project/src/main.ts'), pinned: true, active: !firstTabActive },
-			{ resource: file('/project/src/styles.css'), pinned: true },
-			{ resource: file('/project/package.json'), pinned: true, dirty: true },
+			{ resource: file('/project/README.md'), pinned: true, active: activeTabIndex >= 0 },
+			{ resource: file('/project/src/main.ts'), pinned: true, active: activeTabIndex >= 1 },
+			{ resource: file('/project/src/styles.css'), pinned: true, active: activeTabIndex >= 2 },
+			{ resource: file('/project/package.json'), pinned: true, dirty: true, active: activeTabIndex >= 3 },
 		],
 		editorContents: [
 			'import { createApp } from \'./app\';',
@@ -780,6 +795,7 @@ function renderConnectedSurface(stroke: boolean, firstTabActive = false): (ctx: 
 			'await app.start();',
 		].join('\n'),
 		colorCustomizations: stroke ? undefined : { 'editorGroup.border': 'transparent' },
+		forcedHoverTab,
 	});
 }
 
@@ -802,20 +818,45 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		ThemeColors: defineThemedFixtureGroup(createThemeColorFixtures()),
 	}),
 	ConnectedSurface: defineThemedFixtureGroup({
+		ClippedLeft: defineComponentFixture({
+			render: render(true, { editors: manyEditorSpecs(), width: 360, activeTabClipping: 'left' }),
+			expectedVisualDescriptions: ['The partially scrolled active tab keeps a stationary outside stroke with the same rounded upper corner as a fully visible tab and a continuous join to the separator. Its label remains naturally clipped by scrolling.'],
+		}),
+		ClippedRight: defineComponentFixture({
+			render: render(true, { editors: manyEditorSpecs(5), width: 248, activeTabClipping: 'right' }),
+			expectedVisualDescriptions: ['The partially scrolled active tab closes its stationary outside stroke with a straight right edge before the editor actions. Its top stroke, right edge and strip separator remain continuous without exposing clipped tab content.'],
+		}),
+		RightViewportEdge: defineComponentFixture({
+			render: render(true, { editors: manyEditorSpecs(5), width: 248, activeTabClipping: 'right-shoulder' }),
+			expectedVisualDescriptions: ['The rightmost visible active tab uses a continuous straight edge when there is no room for its full shoulder. No part of the shoulder is clipped beneath the editor actions.'],
+		}),
 		Stroke: defineComponentFixture({
 			render: renderConnectedSurface(true),
 			additionalThemes: ['darkHighContrast'],
 			expectedVisualDescriptions: [
 				'The active main.ts tab joins the code editor with curved shoulders and no bottom divider. Inactive tabs sit on the panel-colored strip. A single subtle stroke follows the active tab into the strip separator. High contrast retains explicit focus and selection borders.',
-				'The stroke remains uniform through the cap, shoulders and separator, including dark themes with translucent borders. There are no brighter overlaps at the tangent joins.',
+				'The stroke remains uniform through the cap, shoulders and separator, including dark themes with translucent borders. There are no gaps, vertical protrusions or brighter overlaps at the tangent joins.',
 				'In standard themes, the concave shoulder radii are reduced by the outward stroke offset while the convex cap radii grow. The lower gutter reserves an extra pixel for the separator so the visible gap matches the upper gutter.',
 			],
 		}),
+		HoveredTab: defineComponentFixture({
+			render: renderConnectedSurface(true, 1, 0),
+			expectedVisualDescriptions: [
+				'The hovered README.md pill sits one stroke closer to the strip separator than an ordinary pill, balancing its top and bottom whitespace.',
+			],
+		}),
 		FirstTabActive: defineComponentFixture({
-			render: renderConnectedSurface(true, true),
+			render: renderConnectedSurface(true, 0),
 			additionalThemes: ['darkHighContrast'],
 			expectedVisualDescriptions: [
 				'The first active tab has a straight left edge meeting the strip separator, with no clipped outer shoulder. The right shoulder still curves into the separator. High contrast retains explicit selection borders.',
+			],
+		}),
+		LastTabActive: defineComponentFixture({
+			render: renderConnectedSurface(true, 3),
+			additionalThemes: ['darkHighContrast'],
+			expectedVisualDescriptions: [
+				'The last active tab has a straight right edge meeting the strip separator, with no outer shoulder. The left shoulder still curves into the separator. High contrast retains explicit selection borders.',
 			],
 		}),
 		WithoutStroke: defineComponentFixture({
