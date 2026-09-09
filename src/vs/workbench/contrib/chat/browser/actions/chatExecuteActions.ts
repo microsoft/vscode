@@ -294,9 +294,6 @@ class ToggleChatModeAction extends Action2 {
 
 		const currentMode = widget.input.currentModeObs.get();
 		if (switchToMode.id === currentMode.id) {
-			if (arg) {
-				widget.input.setChatMode(switchToMode.id, true, true);
-			}
 			return;
 		}
 

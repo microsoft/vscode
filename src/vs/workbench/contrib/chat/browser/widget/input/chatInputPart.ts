@@ -102,7 +102,6 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
-import { resolveChatModeForView, withPersistedUnavailableChatMode } from './chatModeSelectionLogic.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { ChatInputStateOrigin, IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, RestoredModelReason } from '../../../common/modelSelection.js';
@@ -138,7 +137,6 @@ import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction, OpenAgentHostFolderPickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { AgentHostFolderPickerActionItem } from '../../agentSessions/agentHost/agentHostFolderPickerActionItem.js';
-import { findAgentHostMode, getAgentHostModeUri } from '../../agentSessions/agentHost/agentHostModeUtils.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
@@ -779,7 +777,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 	private readonly _currentChatModesObservable: ISettableObservable<IChatModes>;
-	private _unavailableCustomMode: IChatModelInputState['mode'] | undefined;
 	private readonly _currentPermissionLevel: ISettableObservable<ChatPermissionLevel>;
 	private permissionLevelKey: IContextKey<ChatPermissionLevel>;
 
@@ -811,7 +808,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			kind: this.currentModeKind,
 			isBuiltin: mode.isBuiltin,
 			modeInstructions: modeInstructions ? {
-				uri: getAgentHostModeUri(mode),
+				uri: mode.uri?.get(),
 				name: mode.name.get(),
 				content: modeInstructions.content,
 				toolReferences: this.toolService.toToolReferences(modeInstructions.toolReferences),
@@ -1236,6 +1233,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const modes = this._currentChatModesObservable.read(reader);
 			reader.store.add(modes.onDidChange(() => {
 				this.validateCurrentChatMode();
+				this._restorePersistedCustomModeIfAvailable();
 			}));
 		}));
 		this._register(autorun(r => {
@@ -1627,7 +1625,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// session-scoped notices are never judged against the model this input is letting go of.
 		this._currentSessionModelObservable.set(undefined, undefined);
 		this._inputModel = model;
-		this._unavailableCustomMode = undefined;
 		this._inputModelSessionResource = forSessionResource;
 		this._modelSyncDisposables.clear();
 		const chatModes = this.chatModeService.createModes(forSessionResource);
@@ -1782,22 +1779,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync mode
 			if (state) {
 				const currentMode = this._currentModeObservable.get();
-				const modes = this._currentChatModesObservable.get();
-				const resolvedMode = findAgentHostMode(modes, state.mode.id) ?? modes.findModeByName(state.mode.id);
-				const resolution = resolveChatModeForView(
-					state.mode,
-					resolvedMode,
-					this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled),
-					!!modes.findModeById(ChatMode.Agent.id),
-				);
-				this._unavailableCustomMode = undefined;
-				if (currentMode.id !== resolution.modeId) {
-					this.setChatMode(resolution.modeId, false);
-				}
-				this._unavailableCustomMode = resolution.unavailableCustomMode;
-				if (resolution.storeSelection && state.mode.id !== resolution.modeId) {
-					const visibleMode = this._currentModeObservable.get();
-					this._inputModel?.setState({ mode: { id: visibleMode.id, kind: visibleMode.kind } });
+				if (currentMode.id !== state.mode.id) {
+					this.setChatMode(state.mode.id, false);
 				}
 			}
 
@@ -1886,17 +1869,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	/** Flushes and detaches the input model before the widget releases its conversation. */
-	public unbindInputModel(): void {
-		this.flushInputStateToModel();
-		this._syncTextDebounced.cancel();
-		this._modelSyncDisposables.clear();
-		this._currentSessionModelObservable.set(undefined, undefined);
-		this._inputModel = undefined;
-		this._inputModelSessionResource = undefined;
-		this._unavailableCustomMode = undefined;
-	}
-
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction = false, storeSelection: boolean = isUserAction) {
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {
@@ -1952,7 +1924,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		this._unavailableCustomMode = undefined;
 		this._currentModeObservable.set(mode, undefined);
 		this._onDidChangeCurrentChatMode.fire({ isUserInitiated });
 
@@ -2140,7 +2111,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Get the current input state for history
 	 */
-	private _getVisibleInputState(): IChatModelInputState {
+	public getCurrentInputState(): IChatModelInputState {
 		const mode = this._currentModeObservable.get();
 		const selectedModel = this._currentLanguageModel.get();
 		const state: IChatModelInputState = {
@@ -2163,10 +2134,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		return state;
-	}
-
-	public getCurrentInputState(): IChatModelInputState {
-		return withPersistedUnavailableChatMode(this._getVisibleInputState(), this._unavailableCustomMode);
 	}
 
 	private _getAriaLabel(): string {
@@ -2210,17 +2177,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private validateCurrentChatMode() {
 		const currentMode = this._currentModeObservable.get();
-		const mode = this._unavailableCustomMode ?? { id: currentMode.id, kind: currentMode.kind };
-		const modes = this._currentChatModesObservable.get();
-		const resolvedMode = findAgentHostMode(modes, mode.id) ?? modes.findModeByName(mode.id);
+		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
-		const resolution = resolveChatModeForView(mode, resolvedMode, isAgentModeEnabled, !!modes.findModeById(ChatMode.Agent.id));
-		if (currentMode.id === resolution.modeId) {
-			this._unavailableCustomMode = resolution.unavailableCustomMode;
+		if (!validMode) {
+			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
 			return;
 		}
-		this.setChatMode(resolution.modeId, resolution.storeSelection);
-		this._unavailableCustomMode = resolution.unavailableCustomMode;
+		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
+			this.setChatMode(ChatModeKind.Ask);
+			return;
+		}
+	}
+
+	/**
+	 * Re-apply the session's own persisted custom agent once its mode becomes available.
+	 *
+	 * A restored agent-host session persists its selected custom agent in `mode`, but the agent
+	 * host's custom modes only register after the backend connects. Until then `setChatMode` falls
+	 * back to the builtin Agent, so when the custom modes arrive (`modes.onDidChange`) re-apply the
+	 * persisted custom agent. Builtin/default modes are handled by {@link validateCurrentChatMode}.
+	 */
+	private _restorePersistedCustomModeIfAvailable(): void {
+		const persistedMode = this._inputModel?.state.get()?.mode;
+		if (!persistedMode) {
+			return;
+		}
+		const modes = this._currentChatModesObservable.get();
+		const found = modes.findModeById(persistedMode.id) ?? modes.findModeByName(persistedMode.id);
+		if (found && !found.isBuiltin && this._currentModeObservable.get().id !== found.id) {
+			this.setChatMode(found.id, false);
+		}
 	}
 
 	logInputHistory(): void {
@@ -2377,7 +2363,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	async acceptInput(isUserQuery?: boolean, preserveFocus?: boolean, preserveInput?: boolean): Promise<void> {
 		if (isUserQuery) {
-			const userQuery = this._getVisibleInputState();
+			const userQuery = this.getCurrentInputState();
 			this.history.append(this._getFilteredEntry(userQuery));
 		}
 
