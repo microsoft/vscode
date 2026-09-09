@@ -83,11 +83,9 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
-		let initialLayoutComplete = false;
-
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
 		this._contextViewService.showContextView({
-			getAnchor: () => list.getAnchor(),
+			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
 				return this._renderWidget(container, list, actionBarActions ?? [], listOptions);
@@ -97,15 +95,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 				this._onWidgetClosed(didCancel);
 			},
 			get anchorPosition() { return list.anchorPosition; },
-			// A permissions-first popup's numeric anchor is only valid for its initial placement.
-			get canRelayout() { return !listOptions?.initialSubmenuId || !initialLayoutComplete; },
-			focus: () => {
-				list.focus();
-				if (listOptions?.initialSubmenuId) {
-					this._contextViewService.layout();
-				}
-				initialLayoutComplete = true;
-			},
+			focus: () => list.focus(),
 		}, container, false);
 	}
 

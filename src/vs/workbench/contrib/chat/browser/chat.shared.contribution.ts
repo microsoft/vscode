@@ -299,8 +299,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: {
 			type: 'boolean',
-			description: nls.localize('chat.experimentalModePermissionsPicker', "Shows permissions alongside the mode in a combined picker for Copilot Agent Host sessions. Permissions are configured in a flyout from the mode picker."),
-			default: false,
+			description: nls.localize('chat.experimentalModePermissionsPicker', "Shows mode and permissions in a combined picker with expandable permission choices for Copilot Agent Host sessions."),
+			default: product.quality !== 'stable',
 			tags: ['experimental'],
 		},
 		'chat.fontSize': {

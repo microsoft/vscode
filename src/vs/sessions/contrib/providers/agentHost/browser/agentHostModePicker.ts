@@ -5,10 +5,13 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -28,7 +31,7 @@ import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/c
 import { getAgentHostModeIcon } from './agentHostModeIcon.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerPermissionsItem, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerTrigger, renderModePickerTrigger } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerTrigger, renderModePickerTrigger } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 
@@ -138,9 +141,23 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected abstract _getWidgetAriaLabel(): string;
 	protected _createTrigger(slot: HTMLElement): HTMLElement { return dom.append(slot, dom.$('a.action-label')); }
 	protected _getTriggerTooltip(tooltip: string): string { return tooltip; }
-	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] { return []; }
+	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] { return []; }
 	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
 	protected _onDidSelectValue(_previousValue: string, _selectedValue: string): void { }
+
+	protected _getActionItems(items: readonly IAgentHostSessionEnumPickerItem[], currentValue: string): IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
+		return items.map(item => ({
+			kind: ActionListItemKind.Action,
+			label: item.label,
+			detail: item.description,
+			group: { title: '', icon: this._getActionItemIcon(item, currentValue) },
+			item: { ...item, checked: item.value === currentValue },
+		}));
+	}
+
+	protected _getAccessibilityProvider(): Partial<IListAccessibilityProvider<IActionListItem<IAgentHostSessionEnumPickerItem | IAction>>> {
+		return { getWidgetAriaLabel: () => this._getWidgetAriaLabel() };
+	}
 
 	/**
 	 * Optional list-widget options for the picker popup. Subclasses whose
@@ -262,18 +279,16 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			return false;
 		}
 
-		const actionItems: IActionListItem<IAgentHostSessionEnumPickerItem>[] = ctx.items.map(item => ({
-			kind: ActionListItemKind.Action,
-			label: item.label,
-			detail: item.description,
-			group: { title: '', icon: this._getActionItemIcon(item, ctx.currentValue) },
-			item: { ...item, checked: item.value === ctx.currentValue },
-		}));
+		const actionItems = this._getActionItems(ctx.items, ctx.currentValue);
 		actionItems.push(...this._getFooterActionItems());
 		const ariaTarget = this._triggerElement?.contains(anchor) ? anchor : this._triggerElement;
 
-		const delegate: IActionListDelegate<IAgentHostSessionEnumPickerItem> = {
-			onSelect: item => {
+		const delegate: IActionListDelegate<IAgentHostSessionEnumPickerItem | IAction> = {
+			onSelect: async item => {
+				if (hasKey(item, { run: true })) {
+					await item.run();
+					return;
+				}
 				this._actionWidgetService.hide();
 				if (this._handleFooterActionItem(item)) {
 					return;
@@ -304,7 +319,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 		this._pickerVisible = true;
 		ariaTarget?.setAttribute('aria-expanded', 'true');
-		this._actionWidgetService.show<IAgentHostSessionEnumPickerItem>(
+		this._actionWidgetService.show<IAgentHostSessionEnumPickerItem | IAction>(
 			this._pickerId,
 			false,
 			actionItems,
@@ -312,9 +327,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			anchor,
 			undefined,
 			[],
-			{
-				getWidgetAriaLabel: () => this._getWidgetAriaLabel(),
-			},
+			this._getAccessibilityProvider(),
 			listOptions,
 		);
 		return true;
@@ -342,7 +355,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		@IHoverService hoverService: IHoverService,
 		@IChatPetService protected readonly _chatPetService: IChatPetService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 	) {
 		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
@@ -358,8 +371,9 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 			this._hidePicker();
 			this._updateTrigger();
 		}));
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove) || e.affectsConfiguration(ChatConfiguration.AssistedPermissionsEnabled)) {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)
+				|| e.affectsConfiguration(ChatConfiguration.AssistedPermissionsEnabled)) {
 				this._hidePicker();
 			}
 			if (e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
@@ -401,15 +415,26 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		return this._permissionDelegate.isModePickerCombined.get() ? this._triggerElement?.ariaLabel ?? tooltip : tooltip;
 	}
 
-	protected override _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] {
+	protected override _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
 		const session = this._session.get();
 		return this._permissionDelegate.isModePickerCombined.get() ? [
 			{ kind: ActionListItemKind.Separator },
-			createModePickerPermissionsItem(this._permissionPicker.presentation, this._permissionPicker.getSubmenuItems(() => this._session.get() === session), async () => {
+			...createModePickerPermissionsItems<IAgentHostSessionEnumPickerItem>(this._permissionPicker.presentation, this._permissionPicker.getActionListItems(() => this._session.get() === session), async () => {
 				this._hidePicker();
 				await this._preferencesService.openSettings({ jsonEditor: false, query: AGENT_HOST_PERMISSIONS_SETTINGS_QUERY });
 			}),
 		] : [];
+	}
+
+	protected override _getActionItems(items: readonly IAgentHostSessionEnumPickerItem[], currentValue: string): IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
+		return createModePickerModeItems(super._getActionItems(items, currentValue), this._permissionDelegate.isModePickerCombined.get());
+	}
+
+	protected override _getAccessibilityProvider(): Partial<IListAccessibilityProvider<IActionListItem<IAgentHostSessionEnumPickerItem | IAction>>> {
+		return {
+			...super._getAccessibilityProvider(),
+			...getModePermissionsPickerAccessibilityProvider(this._permissionDelegate.isModePickerCombined.get()),
+		};
 	}
 
 	protected override _onDidSelectValue(previousValue: string, selectedValue: string): void {

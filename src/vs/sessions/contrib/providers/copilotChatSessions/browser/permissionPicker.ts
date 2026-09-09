@@ -277,7 +277,7 @@ export class PermissionPicker extends Disposable {
 		};
 	}
 
-	getSubmenuItems(isCurrentContext: () => boolean): readonly IActionListItem<IAction>[] {
+	getActionListItems(isCurrentContext: () => boolean): readonly IActionListItem<IAction>[] {
 		this._currentLevel = this._delegate.currentPermissionLevel?.get() ?? this._currentLevel;
 		return this._getActionItems().map(item => {
 			const permission = item.item;
@@ -286,7 +286,7 @@ export class PermissionPicker extends Disposable {
 				item: permission ? toAction({
 					id: `permissionPicker.${permission.level ?? permission.kind}`,
 					label: permission.label,
-					checked: permission.checked,
+					checked: permission.level ? permission.checked : undefined,
 					enabled: !item.disabled,
 					run: () => this._selectItem(permission, isCurrentContext),
 				}) : undefined,

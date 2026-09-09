@@ -7,6 +7,7 @@ import './media/agentHostModePicker.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -49,14 +50,40 @@ export interface IModePickerTrigger extends IDisposable {
 	readonly permissionsButton: HTMLElement;
 }
 
-const PERMISSIONS_SUBMENU_ID = 'agentHostModePicker.permissions';
+const PERMISSIONS_SECTION_ID = 'agentHostModePicker.permissions';
 
 export function getModePermissionsPickerOptions(openPermissions = false): IActionListOptions {
 	return {
 		minWidth: 260,
 		anchorPosition: AnchorPosition.ABOVE,
+		useFullHeight: true,
 		widgetClassName: 'agent-host-mode-permissions-popup',
-		initialSubmenuId: openPermissions ? PERMISSIONS_SUBMENU_ID : undefined,
+		collapsedByDefault: openPermissions ? undefined : new Set([PERMISSIONS_SECTION_ID]),
+		initialFocusGroup: openPermissions ? PERMISSIONS_SECTION_ID : undefined,
+		reserveSubmenuSpace: false,
+	};
+}
+
+export function createModePickerModeItems<T>(items: readonly IActionListItem<T>[], combined: boolean): IActionListItem<T>[] {
+	return combined ? [{
+		kind: ActionListItemKind.Header,
+		label: localize('agentHostModePicker.agentMode', "Agent mode"),
+	}, ...items.map(item => ({ ...item, focusGroup: 'agentHostModePicker.mode' }))] : [...items];
+}
+
+export function getModePermissionsPickerAccessibilityProvider<T extends { readonly checked?: boolean }>(combined: boolean): Partial<IListAccessibilityProvider<IActionListItem<T>>> {
+	if (!combined) {
+		return {};
+	}
+	const getChecked = (element: IActionListItem<T>) => element.kind === ActionListItemKind.Action && !element.isSectionToggle && !element.standaloneToggle
+		? element.item?.checked
+		: undefined;
+	return {
+		isChecked: getChecked,
+		getRole: element => element.kind === ActionListItemKind.Action
+			? getChecked(element) !== undefined ? 'menuitemradio' : 'menuitem'
+			: 'separator',
+		getWidgetRole: () => 'menu',
 	};
 }
 
@@ -93,7 +120,7 @@ export function renderModePickerTrigger(
 		button.role = 'button';
 		button.tabIndex = trigger.ariaDisabled === 'true' ? -1 : 0;
 		button.ariaDisabled = trigger.ariaDisabled;
-		button.ariaHasPopup = 'listbox';
+		button.ariaHasPopup = 'menu';
 		button.ariaExpanded ??= 'false';
 		store.add(Gesture.addTarget(button));
 		const open = () => {
@@ -155,7 +182,7 @@ export function getModePickerAriaLabel(mode: string, permissions: IModePickerPer
 }
 
 export function getModePickerAccessibilityHelp(): string {
-	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the mode menu, or on Permissions to open its flyout directly. The Permissions row below the modes also opens the flyout with Enter or Right Arrow. Focus that row and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a permission level or toggle terminal sandboxing. Left Arrow returns to the mode list. Escape closes the picker and returns focus to the button that opened it.");
+	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the mode menu, or on Permissions to expand its choices and focus the current permission option. Each section initially highlights its current selection. Hover or keyboard navigation moves that section's highlight without changing the selection until you activate a choice. The Permissions row expands its choices within the same menu. Press Enter or Space on the row to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Focus that row and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a permission level or toggle terminal sandboxing. Escape closes the picker and returns focus to the button that opened it.");
 }
 
 function getPermissionLevelStyle(level: ChatPermissionLevel): string | undefined {
@@ -175,15 +202,18 @@ function getShortPermissionLabel(permissions: IModePickerPermissions): string {
 	}
 }
 
-export function createModePickerPermissionsItem<T>(permissions: IModePickerPermissions, items: readonly IActionListItem<IAction>[], configurePermissions: () => Promise<void>): IActionListItem<T> {
-	return {
+export function createModePickerPermissionsItems<T>(permissions: IModePickerPermissions, items: readonly IActionListItem<IAction>[], configurePermissions: () => Promise<void>): IActionListItem<T | IAction>[] {
+	const label = localize('agentHostModePicker.permissions', "Permissions");
+	return [{
 		kind: ActionListItemKind.Action,
-		label: localize('agentHostModePicker.permissions', "Permissions"),
+		label,
+		item: toAction({ id: PERMISSIONS_SECTION_ID, label, run: () => { } }),
+		section: PERMISSIONS_SECTION_ID,
+		isSectionToggle: true,
 		description: getShortPermissionLabel(permissions),
 		ariaDescription: permissions.sandboxed
 			? localize('agentHostModePicker.permissionsSandboxed', "{0}, terminal sandboxed", permissions.label)
 			: permissions.label,
-		group: { title: '', icon: permissions.sandboxed ? Codicon.shield : Codicon.key },
 		className: ['agent-host-mode-permissions', getPermissionLevelStyle(permissions.level)].filter(Boolean).join(' '),
 		toolbarActions: [toAction({
 			id: 'agentHostModePicker.configurePermissions',
@@ -191,6 +221,9 @@ export function createModePickerPermissionsItem<T>(permissions: IModePickerPermi
 			class: ThemeIcon.asClassName(Codicon.gear),
 			run: configurePermissions,
 		})],
-		submenu: { id: PERMISSIONS_SUBMENU_ID, items, options: { minWidth: 255 }, alignWithParentBottom: true, indicatorIcon: Codicon.chevronRightCompact, horizontalGap: 0 },
-	};
+	}, ...items.map(item => ({
+		...item,
+		section: PERMISSIONS_SECTION_ID,
+		focusGroup: PERMISSIONS_SECTION_ID,
+	}))];
 }

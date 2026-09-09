@@ -147,7 +147,7 @@ suite('ActionWidgetService', () => {
 		return { container, layout, service };
 	}
 
-	test('closes a rich submenu once before focusing a warning dialog', () => {
+	test('closes an inline permission action once before focusing a warning dialog', () => {
 		const { container, service } = setup();
 		const trigger = dom.append(container, dom.$('button'));
 		const warning = dom.append(container, dom.$('button'));
@@ -155,33 +155,33 @@ suite('ActionWidgetService', () => {
 		service.show('permissions', false, [{
 			kind: ActionListItemKind.Action,
 			label: 'Permissions',
-			submenu: {
-				id: 'permissions',
-				items: [{
-					kind: ActionListItemKind.Action,
-					label: 'Allow All',
-					item: toAction({
-						id: 'allowAll', label: 'Allow All',
-						run: () => {
-							service.hide();
-							events.push('warning');
-							warning.focus();
-						},
-					}),
-				}],
-			},
+			item: toAction({ id: 'permissions', label: 'Permissions', run: () => { } }),
+			section: 'permissions',
+			isSectionToggle: true,
+		}, {
+			kind: ActionListItemKind.Action,
+			label: 'Allow All',
+			section: 'permissions',
+			focusGroup: 'permissions',
+			item: toAction({
+				id: 'allowAll', label: 'Allow All', checked: true,
+				run: () => {
+					service.hide();
+					events.push('warning');
+					warning.focus();
+				},
+			}),
 		}], {
-			onSelect: () => { },
+			onSelect: action => action.run(),
 			onHide: () => {
 				events.push('hide');
 				trigger.focus();
 			},
 		}, { x: 400, y: 400, width: 100, height: 24 }, undefined, [], undefined, {
 			anchorPosition: AnchorPosition.ABOVE,
-			initialSubmenuId: 'permissions',
+			initialFocusGroup: 'permissions',
 		});
-		const submenu = container.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList')!;
-		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		service.acceptSelected();
 		assert.deepStrictEqual({
 			events,
 			warningFocused: document.activeElement === warning,
@@ -189,37 +189,37 @@ suite('ActionWidgetService', () => {
 		}, { events: ['hide', 'warning'], warningFocused: true, visible: false });
 	});
 
-	test('dismisses a permissions-first popup on subsequent workbench layout changes', () => {
+	test('keeps inline menus open across workbench layout changes from either initial focus group', () => {
 		const { container, layout, service } = setup();
 		const states = [];
-		for (const initialSubmenuId of [undefined, 'permissions']) {
+		for (const initialFocusGroup of [undefined, 'permissions']) {
 			let hides = 0;
 			service.show('mode', false, [{
 				kind: ActionListItemKind.Action,
-				label: 'Permissions',
-				submenu: {
-					id: 'permissions',
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: 'Manual',
-						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
-					}],
-				},
+				label: 'Mode',
+				focusGroup: 'mode',
+				item: toAction({ id: 'mode', label: 'Mode', checked: true, run: () => { } }),
+			}, {
+				kind: ActionListItemKind.Action,
+				label: 'Manual',
+				focusGroup: 'permissions',
+				item: toAction({ id: 'manual', label: 'Manual', checked: true, run: () => { } }),
 			}], {
 				onSelect: () => { },
 				onHide: () => { hides++; },
 			}, { x: 400, y: 400, width: 100, height: 24 }, undefined, [], undefined, {
 				anchorPosition: AnchorPosition.ABOVE,
-				initialSubmenuId,
+				initialFocusGroup,
+				useFullHeight: true,
 			});
 			const openAfterInitialLayout = service.isVisible;
 			layout.fire({ container, dimension: { width: 900, height: 600 } });
-			states.push({ initialSubmenuId, openAfterInitialLayout, visibleAfterResize: service.isVisible, hides });
+			states.push({ initialFocusGroup, openAfterInitialLayout, visibleAfterResize: service.isVisible, hides });
 			service.hide();
 		}
 		assert.deepStrictEqual(states, [
-			{ initialSubmenuId: undefined, openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
-			{ initialSubmenuId: 'permissions', openAfterInitialLayout: true, visibleAfterResize: false, hides: 1 },
+			{ initialFocusGroup: undefined, openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
+			{ initialFocusGroup: 'permissions', openAfterInitialLayout: true, visibleAfterResize: true, hides: 0 },
 		]);
 	});
 });

@@ -25,7 +25,6 @@ import { NullOpenerService } from '../../../opener/test/common/nullOpenerService
 import { URI } from '../../../../base/common/uri.js';
 import { ActionList, ActionListItemKind, ActionListWidget, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
-import { isAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 
 interface ITestActionItem {
 	readonly id: string;
@@ -334,6 +333,63 @@ suite('ActionListWidget', () => {
 		return { widget, popup, panel, contents, selected, rows, hover, isCenteredOnRow };
 	}
 
+	test('focus groups move their highlights immediately on hover, including rows with previews', () => {
+		const selected: string[] = [];
+		const items: IActionListItem<ITestActionItem>[] = [
+			{ ...action('first'), item: { id: 'first', checked: true }, focusGroup: 'a' },
+			{ ...action('second'), focusGroup: 'a', hover: { content: 'Preview' } },
+			{ ...action('third'), item: { id: 'third', checked: true }, focusGroup: 'b' },
+			{ ...action('fourth'), focusGroup: 'b' },
+			{ ...action('disabled'), focusGroup: 'b', disabled: true },
+		];
+		const widget = createActionListWidget(disposables, {
+			items,
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+		const highlights = () => Array.from(widget.domNode.querySelectorAll('.focus-group-highlighted > .title'), title => title.textContent);
+		const states = [highlights()];
+		for (const index of [1, 3, 4]) {
+			widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[index].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			states.push(highlights());
+		}
+
+		assert.deepStrictEqual({
+			states,
+			checked: items.filter(item => item.item?.checked).map(item => item.item?.id),
+			selected,
+		}, {
+			states: [['first', 'third'], ['second', 'third'], ['second', 'fourth'], ['second', 'fourth']],
+			checked: ['first', 'third'],
+			selected: [],
+		});
+	});
+
+	test('focus group highlights survive virtualized row reuse and clear when items are replaced', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('first'), item: { id: 'first', checked: true }, focusGroup: 'a' },
+				{ ...action('second'), focusGroup: 'a' },
+				action('ungrouped'),
+			],
+			listOptions: { showFilter: false },
+		});
+		widget.layout(widget.lineHeight, 200);
+		widget.focus();
+		const highlights = () => Array.from(widget.domNode.querySelectorAll('.focus-group-highlighted > .title'), title => title.textContent);
+		const states = [highlights()];
+		widget.focusNext();
+		states.push(highlights());
+		widget.focusNext();
+		states.push(highlights());
+		widget.focusPrevious();
+		states.push(highlights());
+		widget.updateItems([{ ...action('replacement'), item: { id: 'replacement', checked: true } }]);
+		states.push(highlights());
+
+		assert.deepStrictEqual(states, [['first'], ['second'], [], ['second'], []]);
+	});
+
 	test('renders and activates a standalone toggle row', () => {
 		let checked = false;
 		const widget = createActionListWidget(disposables, {
@@ -419,109 +475,22 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(hideCount, 1);
 	});
 
-	test('opens rich submenu rows on activation and returns focus with Left Arrow', () => {
-		const widget = createActionListWidget(disposables, {
-			items: [{
-				kind: ActionListItemKind.Action,
-				label: 'Permissions',
-				submenu: {
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: 'Manual',
-						detail: 'Asks before running tools',
-						item: toAction({ id: 'manual', label: 'Manual', checked: true, run: () => { } }),
-					}],
-					options: { minWidth: 255 },
-				},
-			}],
-			listOptions: { showFilter: false },
-		});
-
-		widget.focus();
-		widget.acceptSelected();
-		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
-		assert.ok(submenu);
-		assert.deepStrictEqual({
-			detail: submenu.querySelector('.detail')?.textContent,
-			expanded: widget.domNode.querySelector('.monaco-list-row[aria-expanded="true"]')?.getAttribute('aria-expanded'),
-			role: widget.domNode.querySelector('.monaco-list-row[aria-expanded="true"]')?.getAttribute('aria-haspopup'),
-			submenuLabel: submenu.querySelector('[role="listbox"]')?.getAttribute('aria-label'),
-			hasFocus: submenu.contains(document.activeElement),
-		}, {
-			detail: 'Asks before running tools',
-			expanded: 'true',
-			role: 'listbox',
-			submenuLabel: 'Permissions',
-			hasFocus: true,
-		});
-
-		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
-		assert.deepStrictEqual({
-			display: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display,
-			hasFocus: widget.domNode.contains(document.activeElement),
-		}, { display: 'none', hasFocus: true });
-	});
-
-	test('rich submenu toggles stay open and actions run once', () => {
-		let checked = false;
-		let runs = 0;
-		let hides = 0;
-		const widget = createActionListWidget(disposables, {
-			items: [{
-				kind: ActionListItemKind.Action,
-				label: 'Permissions',
-				submenu: {
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: 'Sandboxing',
-						standaloneToggle: {
-							label: 'Sandboxing',
-							checked: false,
-							onChange: value => { checked = value; },
-						},
-					}, {
-						kind: ActionListItemKind.Action,
-						label: 'Manual',
-						item: toAction({ id: 'manual', label: 'Manual', run: () => { widget.hide(); runs++; } }),
-					}],
-				},
-			}],
-			onHide: () => { hides++; },
-			listOptions: { showFilter: false },
-		});
-
-		widget.focus();
-		widget.acceptSelected();
-		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
-		assert.ok(submenu);
-		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-		assert.deepStrictEqual({ checked, runs, hides }, { checked: true, runs: 0, hides: 0 });
-		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-		assert.deepStrictEqual({ checked, runs, hides }, { checked: true, runs: 1, hides: 1 });
-	});
-
 	test('hovering back to the parent keeps focus in the menu when a submenu was focused', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const states = [];
 		for (const hover of [undefined, { content: 'Mode details' }]) {
 			const widget = createActionListWidget(disposables, {
 				items: [{ ...action('mode'), hover }, {
-					kind: ActionListItemKind.Action,
+					...action('permissions'),
 					label: 'Permissions',
-					submenu: {
-						id: 'permissions',
-						items: [{
-							kind: ActionListItemKind.Action,
-							label: 'Manual',
-							item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
-						}],
-					},
+					submenuActions: [toAction({ id: 'manual', label: 'Manual', run: () => { } })],
 				}],
 				listOptions: { showFilter: false },
 			});
 			const parentList = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
 			const modeRow = parentList.querySelector<HTMLElement>('.monaco-list-row')!;
-			widget.openSubmenu('permissions', { x: 400, y: 400 });
+			widget.focus();
+			widget.focusNext();
+			parentList.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 			const initiallyFocusedSubmenu = panel.contains(document.activeElement);
 
@@ -544,21 +513,14 @@ suite('ActionListWidget', () => {
 	test('replacing a focused submenu moves focus before disposing its contents', () => {
 		const widget = createActionListWidget(disposables, {
 			items: ['permissions', 'configuration'].map(id => ({
-				kind: ActionListItemKind.Action,
-				label: id,
-				submenu: {
-					id,
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: id,
-						item: toAction({ id, label: id, run: () => { } }),
-					}],
-				},
+				...action(id),
+				submenuActions: [toAction({ id, label: id, run: () => { } })],
 			})),
 			listOptions: { showFilter: false },
 		});
 		const parentList = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
-		widget.openSubmenu('permissions', { x: 400, y: 400 });
+		widget.focus();
+		parentList.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 		const secondRow = parentList.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
 		secondRow.querySelector<HTMLElement>('.action-list-submenu-indicator')!.click();
 
@@ -566,139 +528,6 @@ suite('ActionListWidget', () => {
 			parentFocused: document.activeElement === parentList,
 			content: widget.domNode.querySelector('.action-list-submenu-panel .title')?.textContent,
 		}, { parentFocused: true, content: 'configuration' });
-	});
-
-	test('aligns the bottom edges of a rich submenu and its parent menu when requested', () => {
-		const widget = createActionListWidget(disposables, {
-			items: [{
-				kind: ActionListItemKind.Action,
-				label: 'Permissions',
-				submenu: {
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: 'Manual',
-						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
-					}],
-					alignWithParentBottom: true,
-				},
-			}],
-			listOptions: { showFilter: false },
-		});
-		const wrapper = document.createElement('div');
-		wrapper.classList.add('action-widget');
-		wrapper.style.padding = '8px';
-		document.body.appendChild(wrapper);
-		disposables.add({ dispose: () => wrapper.remove() });
-		wrapper.appendChild(widget.domNode);
-
-		widget.focus();
-		widget.acceptSelected();
-		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
-		assert.ok(Math.abs(panel.getBoundingClientRect().bottom - wrapper.getBoundingClientRect().bottom) < 1);
-	});
-
-	test('anchors the initial submenu on either side with the default gap or no gap', () => {
-		const results = [];
-		const cases = [{ x: 24 }, { x: 380 }, { x: 24, gap: 0 }, { x: 380, gap: 0 }];
-		for (const { x, gap } of cases) {
-			const anchor = { x, y: 450, width: 120, height: 24 };
-			const list = createActionList(disposables, [action('mode'), {
-				kind: ActionListItemKind.Action,
-				label: 'Permissions',
-				submenu: {
-					id: 'permissions',
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: 'Manual',
-						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
-					}],
-					options: { minWidth: 255 },
-					alignWithParentBottom: true,
-					horizontalGap: gap,
-				},
-			}], { anchor, listOptions: { minWidth: 260, showFilter: false, anchorPosition: AnchorPosition.ABOVE, initialSubmenuId: 'permissions' } });
-			const menu = list.domNode.parentElement!;
-			menu.style.position = 'fixed';
-			menu.style.width = `${list.layout(0)}px`;
-			menu.style.left = `${x}px`;
-			menu.style.top = `${anchor.y - menu.getBoundingClientRect().height}px`;
-			list.focus();
-			const adjustedAnchor = list.getAnchor();
-			assert.ok(isAnchor(adjustedAnchor));
-			menu.style.left = `${adjustedAnchor.x}px`;
-			const panel = list.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
-			const rect = panel.getBoundingClientRect();
-			const menuRect = menu.getBoundingClientRect();
-			results.push({
-				x,
-				gap: x === 24 ? menuRect.left - rect.right : rect.left - menuRect.right,
-				overControl: Math.abs(rect.left - anchor.x) < 1,
-				aboveControl: Math.abs(rect.bottom - anchor.y) < 1,
-				submenuFocused: panel.contains(document.activeElement),
-				modeBesidePermissions: x === 24 ? menuRect.left >= rect.right : menuRect.right <= rect.left,
-			});
-		}
-		assert.deepStrictEqual(results, cases.map(({ x, gap }) => ({
-			x, gap: gap ?? 4, overControl: true, aboveControl: true, submenuFocused: true, modeBesidePermissions: true,
-		})));
-	});
-
-	test('reveals the initial submenu row when the parent list is height-clamped', () => {
-		const list = createActionList(disposables, [
-			...Array.from({ length: 10 }, (_, index) => action(`mode-${index}`)),
-			{
-				kind: ActionListItemKind.Action,
-				label: 'Permissions',
-				submenu: {
-					id: 'permissions',
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: 'Manual',
-						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
-					}],
-					alignWithParentBottom: true,
-				},
-			},
-		], {
-			anchor: { x: 400, y: 90, width: 100, height: 24 },
-			listOptions: { showFilter: false, anchorPosition: AnchorPosition.ABOVE, initialSubmenuId: 'permissions' },
-		});
-		list.layout(260);
-		const initiallyRendered = list.domNode.querySelector('.monaco-list-row[aria-haspopup="listbox"]');
-		list.focus();
-		const submenu = list.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
-		assert.deepStrictEqual({
-			initiallyRendered: !!initiallyRendered,
-			footerRendered: !!list.domNode.querySelector('.monaco-list-row[aria-haspopup="listbox"]'),
-			submenuVisible: submenu.style.display,
-			submenuFocused: submenu.contains(document.activeElement),
-		}, { initiallyRendered: false, footerRendered: true, submenuVisible: '', submenuFocused: true });
-	});
-
-	test('rich submenu skips disabled choices and preserves their details', () => {
-		let runs = 0;
-		const widget = createActionListWidget(disposables, {
-			items: [{
-				kind: ActionListItemKind.Action,
-				label: 'Permissions',
-				submenu: {
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: 'Allow all',
-						detail: 'Disabled by policy',
-						disabled: true,
-						item: toAction({ id: 'allowAll', label: 'Allow all', enabled: false, run: () => { runs++; } }),
-					}],
-				},
-			}],
-			listOptions: { showFilter: false },
-		});
-		widget.focus();
-		widget.acceptSelected();
-		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
-		assert.ok(submenu);
-		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-		assert.deepStrictEqual({ runs, detail: submenu.querySelector('.detail')?.textContent }, { runs: 0, detail: 'Disabled by policy' });
 	});
 
 	test('runs dynamic filter updates immediately', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1212,6 +1041,27 @@ suite('ActionListWidget', () => {
 		);
 	}));
 
+	test('full-height menus show all content instead of scrolling within the viewport fraction cap', () => withWindowInnerHeight(560, () => {
+		const states = [false, true].map(useFullHeight => {
+			const list = createActionList(disposables, Array.from({ length: 17 }, (_, index) => ({
+				...action(`item-${index}`),
+				item: { id: `item-${index}`, checked: index === 16 },
+			})), {
+				anchor: { x: 10, y: 432, width: 100, height: 24 },
+				listOptions: { showFilter: false, anchorPosition: AnchorPosition.ABOVE, useFullHeight },
+			});
+			list.layout(260);
+			list.focus();
+			const rows = list.domNode.querySelector<HTMLElement>('.monaco-list-rows')!;
+			return { useFullHeight, height: list.domNode.clientHeight, contentHeight: rows.clientHeight, contentTop: rows.style.top };
+		});
+
+		assert.deepStrictEqual(states, [
+			{ useFullHeight: false, height: 336, contentHeight: 408, contentTop: '-72px' },
+			{ useFullHeight: true, height: 408, contentHeight: 408, contentTop: '0px' },
+		]);
+	}));
+
 	test('header dismiss removes the banner and requests a re-layout', () => {
 		let dismissed = false;
 		let layoutRequested = false;
@@ -1534,18 +1384,12 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(panel.textContent, 'Details for first');
 	}));
 
-	test('opens a rich submenu on hover after the delay without moving DOM focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('opens a submenu on hover after the delay without moving DOM focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{
-				kind: ActionListItemKind.Action,
+				...action('permissions'),
 				label: 'Permissions',
-				submenu: {
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: 'Manual',
-						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
-					}],
-				},
+				submenuActions: [toAction({ id: 'manual', label: 'Manual', run: () => { } })],
 			}, action('mode')],
 			listOptions: { showFilter: false },
 		});
@@ -1577,18 +1421,12 @@ suite('ActionListWidget', () => {
 		});
 	}));
 
-	test('cancels a rich submenu hover when the pointer leaves before the delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('cancels a submenu hover when the pointer leaves before the delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{
-				kind: ActionListItemKind.Action,
+				...action('permissions'),
 				label: 'Permissions',
-				submenu: {
-					items: [{
-						kind: ActionListItemKind.Action,
-						label: 'Manual',
-						item: toAction({ id: 'manual', label: 'Manual', run: () => { } }),
-					}],
-				},
+				submenuActions: [toAction({ id: 'manual', label: 'Manual', run: () => { } })],
 			}],
 			listOptions: { showFilter: false },
 		});
@@ -1658,6 +1496,52 @@ suite('ActionListWidget', () => {
 		widget.focus();
 
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'active');
+	});
+
+	test('initial focus groups prefer their checked enabled item and leave explicit item focus unchanged', () => {
+		const cases = [
+			{ group: 'permissions', checked: true, disabled: false, itemId: undefined },
+			{ group: 'permissions', checked: false, disabled: false, itemId: undefined },
+			{ group: 'permissions', checked: true, disabled: true, itemId: undefined },
+			{ group: 'missing', checked: true, disabled: false, itemId: undefined },
+			{ group: 'permissions', checked: true, disabled: false, itemId: 'mode' },
+		];
+		const focused = cases.map(({ group, checked, disabled, itemId }) => {
+			const widget = createActionListWidget(disposables, {
+				items: [
+					{ ...action('mode'), item: { id: 'mode', checked: true }, focusGroup: 'modes' },
+					action('permissions'),
+					{ ...action('manual'), focusGroup: 'permissions' },
+					{ ...action('assisted'), item: { id: 'assisted', checked }, focusGroup: 'permissions', disabled },
+				],
+				listOptions: { showFilter: false, initialFocusGroup: group, initialFocusItemId: itemId },
+			});
+			widget.focus();
+			return widget.getFocusedElement()?.item?.id;
+		});
+
+		assert.deepStrictEqual(focused, ['assisted', 'manual', 'manual', 'mode', 'mode']);
+	});
+
+	test('initial focus groups do not reset focus after navigation or layout', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('mode'), item: { id: 'mode', checked: true }, focusGroup: 'modes' },
+				{ ...action('manual'), focusGroup: 'permissions' },
+				{ ...action('assisted'), item: { id: 'assisted', checked: true }, focusGroup: 'permissions' },
+			],
+			listOptions: { showFilter: false, initialFocusGroup: 'permissions' },
+		});
+		widget.focus();
+		const initial = widget.getFocusedElement()?.item?.id;
+		widget.focusPrevious();
+		widget.layout(200, 200);
+		widget.focus();
+
+		assert.deepStrictEqual({ initial, afterNavigation: widget.getFocusedElement()?.item?.id }, {
+			initial: 'assisted',
+			afterNavigation: 'manual',
+		});
 	});
 
 	test('opening the checked hover reveals a model in a collapsed section', () => {

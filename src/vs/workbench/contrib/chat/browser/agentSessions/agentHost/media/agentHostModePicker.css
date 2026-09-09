@@ -70,17 +70,12 @@
 	padding: var(--vscode-spacing-size20);
 }
 
-.action-widget .monaco-list-row.action.agent-host-mode-permissions .action-list-submenu-indicator.has-submenu {
-	visibility: visible;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-codiconFontSize-compact);
-}
-
 .sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger,
 .agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger {
 	display: flex;
 	height: auto;
 	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
 	overflow: visible;
 	background: transparent;
 	color: var(--vscode-icon-foreground);
@@ -90,7 +85,7 @@
 	display: flex;
 	align-items: center;
 	box-sizing: border-box;
-	height: 22px;
+	height: var(--chat-input-control-height);
 	min-width: 0;
 	padding: 0 var(--vscode-spacing-size60);
 	color: inherit;
@@ -99,11 +94,11 @@
 }
 
 .agent-host-mode-permissions-trigger .agent-host-mode-button {
-	padding-right: var(--vscode-spacing-sizeNone);
+	padding-right: calc(var(--vscode-spacing-size60) / 2);
 }
 
-.sessions-chat-picker-slot .agent-host-mode-picker-button {
-	height: var(--vscode-spacing-size240);
+.agent-host-mode-permissions-trigger .agent-host-permissions-button {
+	padding-left: calc(var(--vscode-spacing-size60) / 2);
 }
 
 .action-label.agent-host-mode-permissions-trigger .agent-host-mode-picker-button.agent-host-mode-button > .codicon {
@@ -137,7 +132,7 @@
 }
 
 .compact-picker .agent-host-mode-permissions-trigger .agent-host-mode-button {
-	width: 22px;
+	width: var(--chat-input-control-height);
 	padding: 0;
 	justify-content: center;
 }

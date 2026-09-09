@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -52,7 +53,7 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerPermissionsItem, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 
 const FILTER_THRESHOLD = 10;
@@ -750,28 +751,30 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const anchor = trigger === this._trigger ? this._splitTrigger.value?.modeButton ?? trigger : trigger;
-		const actionItems = await this._getActionItems(this._property, ctx.schema, ctx.value);
-		if (actionItems.length === 0) {
+		const modeItems = await this._getActionItems(this._property, ctx.schema, ctx.value);
+		if (modeItems.length === 0) {
 			return;
 		}
 		const permissions = this._getModePickerPermissions();
+		const showFilter = modeItems.length > FILTER_THRESHOLD || ctx.schema.enumDynamic;
+		const actionItems: IActionListItem<IConfigPickerItem | IAction>[] = createModePickerModeItems(modeItems, !!permissions);
 		const permissionContext = permissions ? this._readContext(SessionConfigKey.AutoApprove) : undefined;
 		if (permissions && permissionContext) {
 			const permissionItems = await this._getActionItems(SessionConfigKey.AutoApprove, permissionContext.schema, permissionContext.value);
-			const submenuItems = permissionItems.map((item): IActionListItem<IAction> => {
+			const permissionActions = permissionItems.map((item): IActionListItem<IAction> => {
 				const value = item.item;
 				return {
 					...item,
 					item: value ? toAction({
 						id: `agentHostPermissions.${value.value}`,
 						label: value.label,
-						checked: value.checked,
+						checked: value.value === LEARN_MORE_VALUE ? undefined : value.checked,
 						enabled: !item.disabled,
 						run: () => this._selectItem(SessionConfigKey.AutoApprove, permissionContext.backendSession, value),
 					}) : undefined,
 				};
 			});
-			actionItems.push({ kind: ActionListItemKind.Separator }, createModePickerPermissionsItem(permissions, submenuItems, async () => {
+			actionItems.push({ kind: ActionListItemKind.Separator }, ...createModePickerPermissionsItems<IConfigPickerItem>(permissions, permissionActions, async () => {
 				this._hidePicker();
 				await this._preferencesService.openSettings({ jsonEditor: false, query: AGENT_HOST_PERMISSIONS_SETTINGS_QUERY });
 			}));
@@ -780,8 +783,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		const delegate: IActionListDelegate<IConfigPickerItem> = {
-			onSelect: item => this._selectItem(this._property, ctx.backendSession, item),
+		const delegate: IActionListDelegate<IConfigPickerItem | IAction> = {
+			onSelect: item => hasKey(item, { run: true }) ? item.run() : this._selectItem(this._property, ctx.backendSession, item),
 			onFilter: ctx.schema.enumDynamic
 				? query => this._filterDelayer.trigger(async () => {
 					const refreshed = this._readContext();
@@ -800,9 +803,9 @@ export class AgentHostChatInputPicker extends Disposable {
 		};
 
 		this._pickerVisible = true;
-		anchor.ariaHasPopup = 'listbox';
+		anchor.ariaHasPopup = permissions ? 'menu' : 'listbox';
 		anchor.ariaExpanded = 'true';
-		this._actionWidgetService.show<IConfigPickerItem>(
+		this._actionWidgetService.show<IConfigPickerItem | IAction>(
 			`agentHostChatInputPicker.${this._property}`,
 			false,
 			actionItems,
@@ -812,11 +815,12 @@ export class AgentHostChatInputPicker extends Disposable {
 			[],
 			{
 				getWidgetAriaLabel: () => localize('agentHostChatInputPicker.ariaLabel', "{0} Picker", ctx.schema.title),
+				...getModePermissionsPickerAccessibilityProvider<IConfigPickerItem | IAction>(!!permissions),
 			},
 			withChatInputPickerMotion({
 				...getConfigPickerListOptions(this._property),
 				...(permissions ? getModePermissionsPickerOptions(openPermissions) : {}),
-				...(actionItems.length > FILTER_THRESHOLD || ctx.schema.enumDynamic
+				...(showFilter
 					? { showFilter: true, filterPlaceholder: localize('agentHostChatInputPicker.filter', "Filter...") }
 					: {}),
 			}),
@@ -834,7 +838,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._agentHostEnablementService.managedSandboxEnforced.read(reader);
 				this._sandboxToggleDisabled.read(reader);
 				this._actionWidgetService.updateItems(actionItems.map(item => item.standaloneToggle
-					? { ...item, standaloneToggle: this._getSandboxStandaloneToggle() }
+					? { ...item, standaloneToggle: this._getSandboxStandaloneToggle(permissions ? SessionConfigKey.AutoApprove : this._property) }
 					: item));
 			}));
 		}

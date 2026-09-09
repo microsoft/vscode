@@ -41,7 +41,8 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../../browser/media/style.css';
 
-async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, flyout = false, editor = false): Promise<void> {
+async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean } = {}): Promise<void> {
+	const { editor = false, openMode = false } = options;
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench', 'interactive-session', 'modern-ui', 'monaco-enable-motion');
 	if (!editor) {
@@ -129,7 +130,9 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 	toolbar.style.position = 'absolute';
 	toolbar.style.left = '350px';
 	toolbar.style.bottom = '8px';
-	const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+	const secondaryToolbar = dom.append(toolbar, dom.$('.chat-secondary-toolbar'));
+	const inputToolbar = dom.append(secondaryToolbar, dom.$('.chat-secondary-input-toolbar'));
+	const actionBar = dom.append(inputToolbar, dom.$('.monaco-action-bar'));
 	const actions = dom.append(actionBar, dom.$('ul.actions-container'));
 	const actionItem = dom.append(actions, dom.$('li.action-item'));
 	if (editor) {
@@ -170,10 +173,10 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		const picker = disposableStore.add(instantiationService.createInstance(AgentHostModePicker, session));
 		picker.render(actionItem);
 	}
-	if (flyout || editor) {
+	if (openPermissions || editor || openMode) {
 		await new Promise<void>(resolve => dom.getWindow(toolbar).requestAnimationFrame(() => resolve()));
 		await dom.getWindow(toolbar).document.fonts.ready;
-		toolbar.querySelector<HTMLElement>(flyout ? '.agent-host-permissions-button' : '.agent-host-mode-button')?.click();
+		toolbar.querySelector<HTMLElement>(openPermissions ? '.agent-host-permissions-button' : '.agent-host-mode-button')?.click();
 	}
 }
 
@@ -182,8 +185,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentHostModePicker' }
 	Assisted: defineComponentFixture({ render: context => render(context, 'plan', ChatPermissionLevel.Assisted) }),
 	AllowAll: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.AutoApprove) }),
 	Sandboxed: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, true) }),
-	PermissionsFlyout: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, true, true) }),
-	AssistedPermissionsFlyout: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, true) }),
-	EditorMode: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, false, true) }),
-	EditorPermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Assisted, false, true, true) }),
+	Mode: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, true, false, { openMode: true }) }),
+	Permissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, true, true) }),
+	AssistedPermissions: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, true) }),
+	EditorMode: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, false, { editor: true }) }),
+	EditorPermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Assisted, false, true, { editor: true }) }),
+	EditorAllowAllPermissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.AutoApprove, true, true, { editor: true }) }),
 });

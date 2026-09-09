@@ -96,18 +96,20 @@ suite('AgentHostModePicker', () => {
 			items: readonly IActionListItem<unknown>[] = [];
 			anchor: Parameters<IActionWidgetService['show']>[4] | undefined;
 			options: IActionListOptions | undefined;
-			select: (label: string) => void = () => { };
+			selectedLabels: (string | undefined)[] = [];
+			select: (label: string) => Promise<void> = async () => { };
 			onHide: (() => void) | undefined;
 			override show<T>(_id: string, _preview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: Parameters<IActionWidgetService['show']>[4], _container: Parameters<IActionWidgetService['show']>[5], _actions?: Parameters<IActionWidgetService['show']>[6], _accessibility?: Parameters<IActionWidgetService['show']>[7], options?: IActionListOptions): void {
 				this.items = items;
 				this.anchor = anchor;
 				this.options = options;
+				this.selectedLabels = items.filter(item => _accessibility?.isChecked?.(item) === true).map(item => item.label);
 				this.isVisible = true;
 				this.onHide = delegate.onHide;
-				this.select = label => {
+				this.select = async label => {
 					const item = items.find(item => item.label === label)?.item;
 					if (item) {
-						delegate.onSelect(item);
+						await delegate.onSelect(item);
 					}
 				};
 			}
@@ -162,7 +164,7 @@ suite('AgentHostModePicker', () => {
 		assert.deepStrictEqual(hoverTargets.map(target => target === trigger), [true]);
 	});
 
-	test('combines labels with one icon and places the permissions flyout below the modes', () => {
+	test('combines labels with one icon and places expandable permissions below the modes', () => {
 		const { trigger, actionWidget, permissionDelegate } = setup();
 		trigger.click();
 		assert.deepStrictEqual({
@@ -170,28 +172,106 @@ suite('AgentHostModePicker', () => {
 			permissions: trigger.querySelector('.agent-host-mode-permission-summary')?.textContent,
 			icons: trigger.querySelectorAll('.codicon').length,
 			separatePermissionsVisible: permissionDelegate.isApplicable.get(),
-			rows: actionWidget.items.map(item => item.label ?? item.kind),
-			permissionLevels: actionWidget.items.at(-1)?.submenu?.items.filter(item => item.detail).map(item => item.label),
+			rows: actionWidget.items.map(item => item.kind === ActionListItemKind.Separator ? item.kind : item.label),
+			permissionLevels: actionWidget.items.filter(item => item.detail).map(item => item.label),
 			aria: trigger.ariaLabel,
 		}, {
 			mode: 'Interactive',
 			permissions: 'Manual permissions',
 			icons: 1,
 			separatePermissionsVisible: false,
-			rows: ['Interactive', 'Plan', 'Autopilot', ActionListItemKind.Separator, 'Permissions'],
+			rows: ['Agent mode', 'Interactive', 'Plan', 'Autopilot', ActionListItemKind.Separator, 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', ActionListItemKind.Separator, 'Sandboxing for terminal', ActionListItemKind.Separator, 'Learn more about permissions'],
 			permissionLevels: ['Manual permissions', 'Assisted permissions', 'Allow all'],
 			aria: 'Pick Mode and Permissions, Interactive, Manual permissions',
+		});
+	});
+
+	test('the combined picker gate enables inline permissions and retains their actions', async () => {
+		const { trigger, configuration, actionWidget, writes, phone } = setup(false);
+		trigger.click();
+		const disabled = actionWidget.items.map(item => item.label);
+		actionWidget.hide();
+		await configuration.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, true);
+		configuration.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === ChatConfiguration.ExperimentalModePermissionsPicker,
+			affectedKeys: new Set([ChatConfiguration.ExperimentalModePermissionsPicker]),
+			source: ConfigurationTarget.USER,
+			change: { keys: [ChatConfiguration.ExperimentalModePermissionsPicker], overrides: [] },
+		});
+		trigger.querySelector<HTMLElement>('.agent-host-permissions-button')!.click();
+		const header = actionWidget.items.find(item => item.isSectionToggle);
+		const enabled = {
+			header: header?.label,
+			modeHeader: actionWidget.items.find(item => item.kind === ActionListItemKind.Header)?.label,
+			selected: actionWidget.selectedLabels,
+			focusGroup: actionWidget.options?.initialFocusGroup,
+			focusItem: actionWidget.options?.initialFocusItemId,
+			collapsed: actionWidget.options?.collapsedByDefault,
+			levels: actionWidget.items.filter(item => item.detail).map(item => item.label),
+		};
+		await actionWidget.select('Allow all');
+		phone.set(true, undefined);
+		trigger.click();
+		assert.deepStrictEqual({
+			disabled,
+			enabled,
+			writes,
+			phoneSections: actionWidget.items.some(item => item.isSectionToggle),
+		}, {
+			disabled: ['Interactive', 'Plan', 'Autopilot'],
+			enabled: {
+				header: 'Permissions',
+				modeHeader: 'Agent mode',
+				selected: ['Interactive', 'Manual permissions'],
+				focusGroup: 'agentHostModePicker.permissions',
+				focusItem: undefined,
+				collapsed: undefined,
+				levels: ['Manual permissions', 'Assisted permissions', 'Allow all'],
+			},
+			writes: [{ session: 'test-session', property: 'autoApprove', value: 'autoApprove' }],
+			phoneSections: false,
+		});
+	});
+
+	test('refreshes both stacked selection indicators when reopening after a change', async () => {
+		const { trigger, actionWidget } = setup();
+		trigger.click();
+		await actionWidget.select('Plan');
+		trigger.click();
+		await actionWidget.select('Allow all');
+		trigger.click();
+		assert.deepStrictEqual(actionWidget.selectedLabels, ['Plan', 'Allow all']);
+	});
+
+	test('switches the combined picker gate live without changing session configuration', async () => {
+		const { trigger, configuration, actionWidget, writes } = setup();
+		const states = [];
+		for (const combined of [false, true]) {
+			trigger.click();
+			await configuration.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, combined);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === ChatConfiguration.ExperimentalModePermissionsPicker,
+				affectedKeys: new Set([ChatConfiguration.ExperimentalModePermissionsPicker]),
+				source: ConfigurationTarget.USER,
+				change: { keys: [ChatConfiguration.ExperimentalModePermissionsPicker], overrides: [] },
+			});
+			const closedAfterChange = !actionWidget.isVisible;
+			trigger.click();
+			states.push({ closedAfterChange, inlinePermissions: actionWidget.items.some(item => item.isSectionToggle) });
+			actionWidget.hide();
+		}
+		assert.deepStrictEqual({ states, writes }, {
+			states: [{ closedAfterChange: true, inlinePermissions: false }, { closedAfterChange: true, inlinePermissions: true }],
+			writes: [],
 		});
 	});
 
 	test('preserves independent mode and permission selections', async () => {
 		const { trigger, actionWidget, writes } = setup();
 		trigger.click();
-		const allowAll = actionWidget.items.at(-1)?.submenu?.items.find(item => item.label === 'Allow all')?.item;
-		assert.ok(allowAll);
-		await allowAll.run();
+		await actionWidget.select('Allow all');
 		trigger.click();
-		actionWidget.select('Plan');
+		await actionWidget.select('Plan');
 		assert.deepStrictEqual({
 			writes,
 			mode: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
@@ -215,15 +295,16 @@ suite('AgentHostModePicker', () => {
 			const state = {
 				anchorMatches: actionWidget.anchor === button,
 				above: actionWidget.options?.anchorPosition === AnchorPosition.ABOVE,
-				submenu: actionWidget.options?.initialSubmenuId,
+				focusGroup: actionWidget.options?.initialFocusGroup,
+				collapsed: [...actionWidget.options?.collapsedByDefault ?? []],
 				expanded: button.ariaExpanded,
 			};
 			actionWidget.hide();
 			states.push({ ...state, focusRestored: document.activeElement === button });
 		}
 		assert.deepStrictEqual(states, [
-			{ anchorMatches: true, above: true, submenu: undefined, expanded: 'true', focusRestored: true },
-			{ anchorMatches: true, above: true, submenu: 'agentHostModePicker.permissions', expanded: 'true', focusRestored: true },
+			{ anchorMatches: true, above: true, focusGroup: undefined, collapsed: ['agentHostModePicker.permissions'], expanded: 'true', focusRestored: true },
+			{ anchorMatches: true, above: true, focusGroup: 'agentHostModePicker.permissions', collapsed: [], expanded: 'true', focusRestored: true },
 		]);
 	});
 
@@ -270,7 +351,7 @@ suite('AgentHostModePicker', () => {
 	test('opens permission settings from the gear without changing session configuration', async () => {
 		const { trigger, actionWidget, settingsRequests, writes } = setup();
 		trigger.click();
-		const gear = actionWidget.items.at(-1)?.toolbarActions?.[0];
+		const gear = actionWidget.items.find(item => item.isSectionToggle)?.toolbarActions?.[0];
 		assert.ok(gear);
 		await gear.run();
 		assert.deepStrictEqual({
@@ -294,14 +375,14 @@ suite('AgentHostModePicker', () => {
 		resetShownWarnings();
 		const { trigger, actionWidget, writes } = setup(true, false);
 		trigger.click();
-		await actionWidget.items.at(-1)?.submenu?.items.find(item => item.label === 'Allow all')?.item?.run();
+		await actionWidget.select('Allow all');
 		assert.deepStrictEqual(writes, []);
 	});
 
 	test('does not apply a permission selection to a different active session', async () => {
 		const { trigger, actionWidget, session, writes } = setup();
 		trigger.click();
-		const selection = actionWidget.items.at(-1)?.submenu?.items.find(item => item.label === 'Allow all')?.item?.run();
+		const selection = actionWidget.select('Allow all');
 		session.set(new class extends mock<IActiveSession>() {
 			override readonly providerId = 'local-agent-host';
 			override readonly sessionId = 'another-session';
@@ -311,11 +392,11 @@ suite('AgentHostModePicker', () => {
 		assert.deepStrictEqual(writes, []);
 	});
 
-	test('preserves enterprise policy restrictions in the permissions flyout', () => {
+	test('preserves enterprise policy restrictions in the permission choices', () => {
 		const { trigger, actionWidget, managedSandboxEnforced } = setup(true, true, true);
 		managedSandboxEnforced.set(true, undefined);
 		trigger.click();
-		const items = actionWidget.items.at(-1)?.submenu?.items ?? [];
+		const items = actionWidget.items;
 		assert.deepStrictEqual({
 			levels: items.filter(item => item.detail).map(item => ({ label: item.label, disabled: item.disabled })),
 			sandboxDisabled: items.find(item => item.standaloneToggle)?.standaloneToggle?.disabled,
@@ -335,7 +416,7 @@ suite('AgentHostModePicker', () => {
 		for (const enabled of [false, true]) {
 			await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), enabled ? 'on' : 'off');
 			trigger.click();
-			const sandboxRow = actionWidget.items.at(-1)?.submenu?.items.find(item => item.standaloneToggle);
+			const sandboxRow = actionWidget.items.find(item => item.standaloneToggle);
 			states.push({ checked: sandboxRow?.standaloneToggle?.checked, icon: sandboxRow?.group?.icon?.id });
 			actionWidget.hide();
 		}

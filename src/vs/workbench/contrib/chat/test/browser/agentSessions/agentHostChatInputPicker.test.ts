@@ -13,11 +13,11 @@ import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListI
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
-import { toAction } from '../../../../../../base/common/actions.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
@@ -53,10 +53,11 @@ import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenA
 import { isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { IChatPhoneInputPresenter } from '../../../browser/widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerPermissionsItem, renderModePickerPermissions, renderModePickerTrigger, shouldCombineModeAndPermissions } from '../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerPermissionsItems, renderModePickerPermissions, renderModePickerTrigger, shouldCombineModeAndPermissions } from '../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { resetShownWarnings } from '../../../common/chatPermissionWarnings.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import '../../../browser/agentSessions/agentHost/media/agentHostChatInputPicker.css';
+import '../../../browser/widget/media/chat.css';
 
 suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -74,12 +75,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		instantiationService.set(IOpenerService, NullOpenerService);
 		const container = dom.append(document.body, dom.$('.action-widget'));
 		store.add(toDisposable(() => container.remove()));
-		const items = permissionPresentations.map(permissions => createModePickerPermissionsItem<string>(permissions, [{
-			kind: ActionListItemKind.Action,
-			label: permissions.label,
-			item: toAction({ id: permissions.level, label: permissions.label, run: () => { } }),
-		}], async () => { }));
-		const widget = store.add(instantiationService.createInstance(ActionListWidget<string>, 'permissionsLayout', false, items, {
+		const items = permissionPresentations.flatMap(permissions => createModePickerPermissionsItems<IAction>(permissions, [], async () => { }));
+		const widget = store.add(instantiationService.createInstance(ActionListWidget<IAction>, 'permissionsLayout', false, items, {
 			onSelect: () => { },
 			onHide: () => { },
 		}, undefined, undefined));
@@ -87,9 +84,9 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		return { container, widget };
 	}
 
-	function setup() {
+	function setup(combined = true) {
 		const configuration = new TestConfigurationService({
-			[ChatConfiguration.ExperimentalModePermissionsPicker]: true,
+			[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
 			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
 			[ChatConfiguration.AssistedPermissionsEnabled]: true,
 		});
@@ -115,15 +112,27 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			items: readonly IActionListItem<unknown>[] = [];
 			anchor: Parameters<IActionWidgetService['show']>[4] | undefined;
 			options: IActionListOptions | undefined;
+			selectedLabels: (string | undefined)[] = [];
+			select: (label: string) => Promise<void> = async () => { };
 			onHide: (() => void) | undefined;
 			override show<T>(_id: string, _preview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: Parameters<IActionWidgetService['show']>[4], _container: Parameters<IActionWidgetService['show']>[5], _actions?: Parameters<IActionWidgetService['show']>[6], _accessibility?: Parameters<IActionWidgetService['show']>[7], options?: IActionListOptions): void {
 				this.showCount++;
 				this.items = items;
 				this.anchor = anchor;
 				this.options = options;
+				this.selectedLabels = items.filter(item => _accessibility?.isChecked?.(item) === true).map(item => item.label);
 				this.isVisible = true;
 				this.onHide = delegate.onHide;
+				this.select = async label => {
+					const item = items.find(item => item.label === label)?.item;
+					if (item) {
+						await delegate.onSelect(item);
+					}
+				};
 				onDidShow.fire();
+			}
+			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
+				this.items = items;
 			}
 			override hide(): void {
 				this.isVisible = false;
@@ -186,19 +195,19 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		assert.deepStrictEqual(hoverTargets.map(target => target === modeContainer.querySelector('.action-label')), [true]);
 	});
 
-	test('uses compact mode glyphs and dimensions inside action bars without shrinking the buttons', () => {
+	test('uses compact mode glyphs and evenly splits the inner gap between picker buttons', () => {
 		const modes = [
 			{ label: 'Interactive', icon: Codicon.comment, labelClassName: 'mode-label' },
 			{ label: 'Plan', icon: Codicon.checklist, labelClassName: 'mode-label' },
 			{ label: 'Autopilot', icon: Codicon.rocket, labelClassName: 'mode-label' },
 		];
 		const surfaces = [
-			{ className: 'sessions-chat-picker-slot', buttonHeight: 24 },
+			{ className: 'sessions-chat-picker-slot', buttonHeight: 22 },
 			{ className: 'agent-host-chat-input-picker-slot', buttonHeight: 22 },
 		];
 		const states = [];
 		for (const surface of surfaces) {
-			const actionBar = dom.append(document.body, dom.$('.monaco-action-bar'));
+			const actionBar = dom.append(document.body, dom.$('.monaco-workbench.monaco-action-bar'));
 			store.add(toDisposable(() => actionBar.remove()));
 			actionBar.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			actionBar.style.setProperty('--vscode-spacing-size240', '24px');
@@ -219,15 +228,70 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 					fontSize: style.fontSize,
 					width: icon.getBoundingClientRect().width,
 					height: icon.getBoundingClientRect().height,
-					buttonHeight: rendered.modeButton.getBoundingClientRect().height,
+					buttonHeights: [rendered.modeButton, rendered.permissionsButton].map(button => button.getBoundingClientRect().height),
+					buttonPadding: [rendered.modeButton, rendered.permissionsButton].map(button => dom.getWindow(button).getComputedStyle(button).padding),
+					contentInsets: [rendered.modeButton, rendered.permissionsButton].map(button => {
+						const bounds = button.getBoundingClientRect();
+						return {
+							left: button.firstElementChild!.getBoundingClientRect().left - bounds.left,
+							right: bounds.right - button.lastElementChild!.getBoundingClientRect().right,
+						};
+					}),
 					labelGap: rendered.permissionsButton.querySelector('.agent-host-mode-permission-summary')!.getBoundingClientRect().left - rendered.modeButton.querySelector('.mode-label')!.getBoundingClientRect().right,
 				});
 			}
 		}
 		assert.deepStrictEqual(states, surfaces.flatMap(surface => modes.map(mode => ({
 			surface: surface.className, label: mode.label, icon: `codicon codicon-${mode.icon.id}-compact`,
-			fontSize: '12px', width: 12, height: 12, buttonHeight: surface.buttonHeight, labelGap: 6,
+			fontSize: '12px', width: 12, height: 12,
+			buttonHeights: [surface.buttonHeight, surface.buttonHeight],
+			buttonPadding: ['0px 3px 0px 6px', '0px 6px 0px 3px'],
+			contentInsets: [{ left: 6, right: 3 }, { left: 3, right: 6 }],
+			labelGap: 6,
 		}))));
+	});
+
+	test('matches picker heights and icon boxes across the primary and secondary composer toolbars', () => {
+		const host = dom.append(document.body, dom.$('.monaco-workbench'));
+		store.add(toDisposable(() => host.remove()));
+		host.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		host.style.setProperty('--vscode-spacing-size60', '6px');
+		host.style.setProperty('--vscode-spacing-size80', '8px');
+		host.style.setProperty('--vscode-cornerRadius-small', '4px');
+		const session = dom.append(host, dom.$('.interactive-session'));
+		const states = [];
+		for (const [containerClass, toolbarClass] of [['chat-input-toolbars', 'chat-input-toolbar'], ['chat-secondary-toolbar', 'chat-secondary-input-toolbar']]) {
+			const container = dom.append(session, dom.$(`.${containerClass}`));
+			const toolbar = dom.append(container, dom.$(`.${toolbarClass}`));
+			const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+			const actions = dom.append(actionBar, dom.$('ul.actions-container'));
+			for (const pickerClass of ['chat-input-picker-item', 'chat-sessionPicker-item', 'agent-host-chat-input-picker-host']) {
+				const item = dom.append(actions, dom.$(`li.action-item.${pickerClass}`));
+				const slot = pickerClass === 'agent-host-chat-input-picker-host' ? dom.append(item, dom.$('.agent-host-chat-input-picker-slot')) : item;
+				const button = dom.append(slot, dom.$('a.action-label'));
+				const icon = dom.append(button, renderIcon(Codicon.rocketCompact));
+				dom.append(button, dom.$('span', undefined, 'Autopilot'));
+				const style = dom.getWindow(icon).getComputedStyle(icon);
+				const buttonStyle = dom.getWindow(button).getComputedStyle(button);
+				states.push({
+					toolbar: toolbarClass,
+					picker: pickerClass,
+					height: button.getBoundingClientRect().height,
+					padding: buttonStyle.padding,
+					radius: buttonStyle.borderRadius,
+					icon: { width: icon.getBoundingClientRect().width, height: icon.getBoundingClientRect().height, fontSize: style.fontSize, lineHeight: style.lineHeight },
+				});
+			}
+		}
+		assert.deepStrictEqual(states, ['chat-input-toolbar', 'chat-secondary-input-toolbar'].flatMap(toolbar =>
+			['chat-input-picker-item', 'chat-sessionPicker-item', 'agent-host-chat-input-picker-host'].map(picker => ({
+				toolbar,
+				picker,
+				height: 22,
+				padding: '0px 6px',
+				radius: '4px',
+				icon: { width: 12, height: 12, fontSize: '12px', lineHeight: '12px' },
+			}))));
 	});
 
 	test('uses one mode icon and a secondary colored permission label, hiding the old picker', async () => {
@@ -240,8 +304,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			permissionColor: trigger.querySelector('.agent-host-mode-permission-summary')?.classList.contains('warning'),
 			icons: trigger.querySelectorAll('.codicon').length,
 			separatePicker: permissionContainer.style.display,
-			rows: actionWidget.items.map(item => item.label ?? item.kind),
-			permissionLevels: actionWidget.items.at(-1)?.submenu?.items.filter(item => item.item && !item.standaloneToggle).map(item => item.label),
+			rows: actionWidget.items.map(item => item.kind === ActionListItemKind.Separator ? item.kind : item.label),
+			permissionLevels: actionWidget.items.filter(item => item.section && item.item && !item.isSectionToggle && !item.standaloneToggle).map(item => item.label),
 			aria: trigger.ariaLabel,
 		}, {
 			mode: 'Interactive',
@@ -249,18 +313,103 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			permissionColor: true,
 			icons: 1,
 			separatePicker: 'none',
-			rows: ['Interactive', 'Plan', 'Autopilot', ActionListItemKind.Separator, 'Permissions'],
+			rows: ['Agent mode', 'Interactive', 'Plan', 'Autopilot', ActionListItemKind.Separator, 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', ActionListItemKind.Separator, 'Sandboxing for terminal', ActionListItemKind.Separator, 'Learn more about permissions'],
 			permissionLevels: ['Manual permissions', 'Assisted permissions', 'Allow all', 'Learn more about permissions'],
 			aria: 'Pick Mode and Permissions, Interactive, Assisted permissions',
 		});
 	});
 
-	test('flyout selections write the permission axis rather than the mode', async () => {
+	test('the combined picker gate controls the inline permissions layout', async () => {
+		const states = [];
+		for (const combined of [false, true]) {
+			const { modePicker, modeContainer, permissionContainer, actionWidget } = setup(combined);
+			await modePicker['_showPicker'](modeContainer.querySelector<HTMLElement>('.action-label')!, true);
+			states.push({
+				combined,
+				disclosure: actionWidget.items.some(item => item.isSectionToggle),
+				oldPickerHidden: permissionContainer.style.display === 'none',
+				initialFocusGroup: actionWidget.options?.initialFocusGroup,
+				initialFocusItem: actionWidget.options?.initialFocusItemId,
+			});
+			actionWidget.hide();
+		}
+		assert.deepStrictEqual(states, [
+			{ combined: false, disclosure: false, oldPickerHidden: false, initialFocusGroup: undefined, initialFocusItem: undefined },
+			{ combined: true, disclosure: true, oldPickerHidden: true, initialFocusGroup: 'agentHostModePicker.permissions', initialFocusItem: undefined },
+		]);
+	});
+
+	test('stacked rows retain the permission axis, sandbox toggle, and settings gear', async () => {
+		const { modePicker, modeContainer, actionWidget, dispatches, settingsRequests } = setup();
+		const trigger = modeContainer.querySelector<HTMLElement>('.agent-host-mode-button')!;
+		await modePicker['_showPicker'](trigger);
+		const modeHeader = actionWidget.items.find(item => item.kind === ActionListItemKind.Header)?.label;
+		const selected = actionWidget.selectedLabels;
+		const collapsed = Array.from(actionWidget.options?.collapsedByDefault ?? []);
+		const showFilter = actionWidget.options?.showFilter;
+		const sandbox = actionWidget.items.find(item => item.standaloneToggle);
+		await actionWidget.select('Allow all');
+		await modePicker['_showPicker'](trigger, true);
+		const expanded = Array.from(actionWidget.options?.collapsedByDefault ?? []);
+		const gear = actionWidget.items.find(item => item.isSectionToggle)?.toolbarActions?.[0];
+		assert.ok(gear);
+		await gear.run();
+		assert.deepStrictEqual({
+			modeHeader,
+			selected,
+			collapsed,
+			expanded,
+			showFilter,
+			sandbox: { label: sandbox?.label, icon: sandbox?.group?.icon?.id, checked: sandbox?.standaloneToggle?.checked },
+			dispatches,
+			settingsRequests,
+		}, {
+			modeHeader: 'Agent mode',
+			selected: ['Interactive', 'Assisted permissions'],
+			collapsed: ['agentHostModePicker.permissions'],
+			expanded: [],
+			showFilter: undefined,
+			sandbox: { label: 'Sandboxing for terminal', icon: 'shield', checked: false },
+			dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } }],
+			settingsRequests: [{ jsonEditor: false, query: AGENT_HOST_PERMISSIONS_SETTINGS_QUERY }],
+		});
+	});
+
+	test('changing the combined setting closes the menu and restores separate pickers', async () => {
+		const { modePicker, modeContainer, permissionContainer, configuration, actionWidget, dispatches } = setup();
+		const permissionsButton = modeContainer.querySelector<HTMLElement>('.agent-host-permissions-button')!;
+		await modePicker['_showPicker'](permissionsButton, true);
+		const states = [];
+		for (const combined of [false, true]) {
+			await configuration.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, combined);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === ChatConfiguration.ExperimentalModePermissionsPicker,
+				affectedKeys: new Set([ChatConfiguration.ExperimentalModePermissionsPicker]),
+				source: ConfigurationTarget.USER,
+				change: { keys: [ChatConfiguration.ExperimentalModePermissionsPicker], overrides: [] },
+			});
+			const closed = !actionWidget.isVisible;
+			await modePicker['_showPicker'](modeContainer.querySelector<HTMLElement>('.action-label')!, true);
+			states.push({
+				combined,
+				closed,
+				inline: actionWidget.items.some(item => item.isSectionToggle),
+				separatePermissionsVisible: permissionContainer.style.display !== 'none',
+			});
+		}
+		assert.deepStrictEqual({ states, dispatches }, {
+			states: [
+				{ combined: false, closed: true, inline: false, separatePermissionsVisible: true },
+				{ combined: true, closed: true, inline: true, separatePermissionsVisible: false },
+			],
+			dispatches: [],
+		});
+	});
+
+	test('inline permission selections write the permission axis rather than the mode', async () => {
 		const { modePicker, modeContainer, actionWidget, dispatches } = setup();
 		await modePicker['_showPicker'](modeContainer.querySelector<HTMLElement>('.action-label')!);
-		const permission = actionWidget.items.at(-1)?.submenu?.items.find(item => item.label === 'Allow all')?.item;
-		assert.ok(permission);
-		await permission.run();
+		await actionWidget.select('Allow all');
 		assert.deepStrictEqual(dispatches, [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } }]);
 	});
 
@@ -275,14 +424,15 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			states.push({
 				anchorMatches: actionWidget.anchor === button,
 				above: actionWidget.options?.anchorPosition === AnchorPosition.ABOVE,
-				submenu: actionWidget.options?.initialSubmenuId,
+				focusGroup: actionWidget.options?.initialFocusGroup,
+				collapsed: [...actionWidget.options?.collapsedByDefault ?? []],
 				expanded: button.ariaExpanded,
 			});
 			actionWidget.hide();
 		}
 		assert.deepStrictEqual(states, [
-			{ anchorMatches: true, above: true, submenu: undefined, expanded: 'true' },
-			{ anchorMatches: true, above: true, submenu: 'agentHostModePicker.permissions', expanded: 'true' },
+			{ anchorMatches: true, above: true, focusGroup: undefined, collapsed: ['agentHostModePicker.permissions'], expanded: 'true' },
+			{ anchorMatches: true, above: true, focusGroup: 'agentHostModePicker.permissions', collapsed: [], expanded: 'true' },
 		]);
 	});
 
@@ -303,9 +453,9 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		]);
 		assert.deepStrictEqual({
 			showCount: actionWidget.showCount,
-			submenu: actionWidget.options?.initialSubmenuId,
+			focusGroup: actionWidget.options?.initialFocusGroup,
 			permissionsExpanded: permissions.ariaExpanded,
-		}, { showCount: 1, submenu: 'agentHostModePicker.permissions', permissionsExpanded: 'true' });
+		}, { showCount: 1, focusGroup: 'agentHostModePicker.permissions', permissionsExpanded: 'true' });
 	});
 
 	test('the combined editor popup fades without changing its geometry', () => {
@@ -356,7 +506,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		for (const enabled of [false, true]) {
 			await configuration.setUserConfiguration(settingId, enabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off);
 			await modePicker['_showPicker'](modeContainer.querySelector<HTMLElement>('.action-label')!);
-			const sandboxRow = actionWidget.items.at(-1)?.submenu?.items.find(item => item.standaloneToggle);
+			const sandboxRow = actionWidget.items.find(item => item.standaloneToggle);
 			states.push({ checked: sandboxRow?.standaloneToggle?.checked, icon: sandboxRow?.group?.icon?.id });
 			actionWidget.hide();
 		}
@@ -366,7 +516,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	test('opens permission settings from the gear without changing session configuration', async () => {
 		const { modePicker, modeContainer, actionWidget, settingsRequests, dispatches } = setup();
 		await modePicker['_showPicker'](modeContainer.querySelector<HTMLElement>('.action-label')!);
-		const gear = actionWidget.items.at(-1)?.toolbarActions?.[0];
+		const gear = actionWidget.items.find(item => item.isSectionToggle)?.toolbarActions?.[0];
 		assert.ok(gear);
 		await gear.run();
 		assert.deepStrictEqual({
@@ -461,7 +611,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			const summaryStyle = targetWindow.getComputedStyle(row.querySelector('.description')!);
 			const gearStyle = targetWindow.getComputedStyle(row.querySelector('.action-list-item-toolbar')!);
 			const gearVisible = gearStyle.display !== 'none' && gearStyle.visibility === 'visible';
-			const chevron = row.querySelector('.action-list-submenu-indicator')!;
+			const chevron = row.querySelector(':scope > .codicon')!;
 			const chevronStyle = targetWindow.getComputedStyle(chevron);
 			const visibleAtRest = chevronStyle.visibility === 'visible';
 			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
@@ -471,7 +621,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				gearVisible,
 				visibleAtRest,
 				visibleOnFocus: chevronStyle.visibility === 'visible',
-				compact: chevronStyle.fontSize === '12px' && chevron.classList.contains('codicon-chevron-right-compact'),
+				compact: chevronStyle.fontSize === '12px' && chevron.classList.contains('codicon-chevron-down'),
 				gap: targetWindow.getComputedStyle(row).columnGap,
 				gearPadding: targetWindow.getComputedStyle(row.querySelector('.action-list-item-toolbar .action-label')!).paddingLeft,
 			});

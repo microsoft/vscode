@@ -224,7 +224,7 @@
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	align-items: center;
-	padding: 0 var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size60);
 	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 	background-color: var(--session-view-background);
@@ -402,7 +402,7 @@
 	align-items: center;
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
-	padding: 0 var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size60);
 	background-color: transparent;
 	border: none;
 	color: var(--vscode-icon-foreground);
