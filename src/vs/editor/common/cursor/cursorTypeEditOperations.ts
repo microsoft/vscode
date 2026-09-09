@@ -244,8 +244,14 @@ export class AutoClosingOpenCharTypeOperation {
 					return null;
 				}
 			}
-			if (shouldCheckBracketBalance && autoCloseConfig !== 'always' && !chIsAlreadyTyped
-				&& model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(lineNumber, beforeColumn), pair.open)) {
+			if (
+				shouldCheckBracketBalance
+				// When 'always', always insert the closing bracket
+				&& autoCloseConfig !== 'always'
+				// Need to check character is not already typed so brackets are still imbalanced
+				&& !chIsAlreadyTyped
+				&& model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(lineNumber, beforeColumn), pair.open)
+			) {
 				return null;
 			}
 			// Do not auto-close ' or " after a word character

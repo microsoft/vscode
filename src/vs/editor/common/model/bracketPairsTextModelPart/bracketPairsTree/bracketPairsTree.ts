@@ -16,8 +16,8 @@ import { TextEditInfo } from './beforeEditPositionMapper.js';
 import { LanguageAgnosticBracketTokens } from './brackets.js';
 import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThan, lengthLessThanEqual, lengthsToRange, lengthZero, positionToLength, toLength } from './length.js';
 import { parseDocument } from './parser.js';
-import { DenseKeyProvider, SmallImmutableSet } from './smallImmutableSet.js';
-import { FastTokenizer, OpeningBracketId, TextBufferTokenizer, TokenKind } from './tokenizer.js';
+import { DenseKeyProvider } from './smallImmutableSet.js';
+import { FastTokenizer, TextBufferTokenizer, Token, TokenKind } from './tokenizer.js';
 import { BackgroundTokenizationState } from '../../../tokenizationTextModelPart.js';
 import { Position } from '../../../core/position.js';
 import { CallbackIterable } from '../../../../../base/common/arrays.js';
@@ -175,22 +175,13 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public hasUnmatchedClosingBracketAfter(position: Position, openingBracket: OpeningBracketKind): boolean {
-		if (!this.textModel.tokenization.hasAccurateTokensForLine(this.textModel.getLineCount())) {
-			return false;
-		}
-
 		this.flushQueue();
 		const openingBracketToken = this.brackets.getToken(openingBracket.bracketText, openingBracket.languageId);
 		if (!openingBracketToken || openingBracketToken.kind !== TokenKind.OpeningBracket) {
 			return false;
 		}
-
 		const node = this.astWithTokens!;
-		if (!node.missingOpeningBracketIds.intersects(openingBracketToken.bracketIds)) {
-			return false;
-		}
-
-		return hasUnmatchedClosingBracketAfter(node, positionToLength(position), openingBracketToken.bracketIds);
+		return hasUnmatchedClosingBracketAfter(node, positionToLength(position), openingBracketToken);
 	}
 
 	public getFirstBracketAfter(position: Position): IFoundBracket | null {
@@ -208,29 +199,31 @@ export class BracketPairsTree extends Disposable {
 	}
 }
 
-function hasUnmatchedClosingBracketAfter(root: AstNode, position: Length, openingBracketIds: SmallImmutableSet<OpeningBracketId>): boolean {
-	const nodes: { node: AstNode; offset: Length }[] = [{ node: root, offset: lengthZero }];
-	while (nodes.length > 0) {
-		const { node, offset } = nodes.pop()!;
-		if (!node.missingOpeningBracketIds.intersects(openingBracketIds)) {
-			continue;
-		}
+function hasUnmatchedClosingBracketAfter(root: AstNode, positionLength: Length, openingBracketToken: Token): boolean {
+	const openingBracketIds = openingBracketToken.bracketIds;
+	if (!root.missingOpeningBracketIds.intersects(openingBracketIds)) {
+		return false;
+	}
+	const nodesToVisit: { node: AstNode; offset: Length }[] = [{ node: root, offset: lengthZero }];
+	while (nodesToVisit.length > 0) {
+		const { node, offset } = nodesToVisit.pop()!;
+		// UnexpectedClosingBracket nodes represent globally unmatched closing brackets.
 		if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
-			if (lengthGreaterThanEqual(offset, position)) {
+			// Ignore unmatched closers before the cursor because the new opener cannot pair with them.
+			if (lengthGreaterThanEqual(offset, positionLength)) {
 				return true;
 			}
 			continue;
 		}
-
 		let childOffset = offset;
-		for (let i = 0; i < node.childrenLength; i++) {
-			const child = node.getChild(i);
-			if (!child) {
-				continue;
-			}
+		for (const child of node.children) {
+			// child.length is the span of source text represented by that AST child—not its number of descendants
 			const childEndOffset = lengthAdd(childOffset, child.length);
-			if (lengthLessThan(position, childEndOffset)) {
-				nodes.push({ node: child, offset: childOffset });
+			const childEndsAfterPosition = lengthGreaterThanEqual(childEndOffset, positionLength);
+			const childCanContainMatchingOrphan = child.missingOpeningBracketIds.intersects(openingBracketIds);
+			// Visit only children that are after the cursor and may contain the matching orphan
+			if (childEndsAfterPosition && childCanContainMatchingOrphan) {
+				nodesToVisit.push({ node: child, offset: childOffset });
 			}
 			childOffset = childEndOffset;
 		}
