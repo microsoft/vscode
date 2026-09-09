@@ -125,7 +125,9 @@ suite('Combined mode and permissions picker', () => {
 	}
 
 	function hoverRow(popup: HTMLElement, label: string): void {
-		getRow(popup, label).dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		const row = getRow(popup, label);
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 	}
 
 	test('opens the same menu with permissions collapsed or expanded for its originating button', () => {

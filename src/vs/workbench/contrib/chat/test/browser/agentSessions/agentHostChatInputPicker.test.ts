@@ -577,6 +577,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			widget.layout(widget.computeListHeight(), width);
 			for (const row of widget.domNode.querySelectorAll('.agent-host-mode-permissions')) {
 				row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 				const title = row.querySelector<HTMLElement>('.title')!;
 				const description = row.querySelector<HTMLElement>('.description')!;
 				sizes.push({ width, summary: description.textContent, headingFits: title.scrollWidth <= title.clientWidth, summaryFits: description.scrollWidth <= description.clientWidth });
@@ -615,6 +616,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			const chevronStyle = targetWindow.getComputedStyle(chevron);
 			const visibleAtRest = chevronStyle.visibility === 'visible';
 			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 			states.push({
 				color: summaryStyle.color,
 				matchesTrigger: summaryStyle.color === triggerStyle.color && summaryStyle.opacity === triggerStyle.opacity,
@@ -793,7 +795,7 @@ suite('AgentHostChatInputPicker - compact layout', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('keeps the Copilot harness picker height stable and centers its compact icon', () => {
-		const session = dom.append(document.body, dom.$('.interactive-session'));
+		const session = dom.append(document.body, dom.$('.monaco-workbench.interactive-session'));
 		disposables.add(toDisposable(() => session.remove()));
 		session.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 		const actionBar = dom.append(session, dom.$('.monaco-action-bar'));
