@@ -24,6 +24,7 @@ import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, W
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHostSkillDiscoveryTestUtils.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
@@ -473,13 +474,13 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		}
 	}
 
-	function createReadinessSut() {
+	function createReadinessSut(provider = 'copilot') {
 		/** Keeps the bounded wait short so timeout coverage costs no real time. */
 		class TestTimeoutCustomizationService extends WorkbenchAgentHostCustomizationService {
 			protected override readonly _snapshotTimeoutMs = 20;
 		}
 		const sessionResource = URI.parse('untitled:chat');
-		const backendSession = URI.parse('copilot:/session');
+		const backendSession = URI.parse(`${provider}:/session`);
 		const subscription = store.add(new LiveSessionSubscription());
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
@@ -538,7 +539,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		const stateWithDirectory: SessionState = {
 			...createSessionState({
 				resource: backendSession.toString(),
-				provider: 'copilot',
+				provider,
 				title: 'Session',
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
@@ -548,6 +549,17 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		};
 		return { service, subscription, sessionResource, stateWithDirectory };
 	}
+
+	test('editor window exposes Codex workspace skills and validation failures from session discovery', async () => {
+		const { service, subscription, sessionResource, stateWithDirectory } = createReadinessSut('codex');
+		subscription.setSnapshot({
+			...stateWithDirectory,
+			workingDirectories: ['file:///workspace'],
+			customizations: createCodexSkillCustomizations(),
+		});
+
+		await assertCodexSkillItems(service, sessionResource, store);
+	});
 
 	test('whenCustomizationsReady defers until the first snapshot rather than reporting no customizations', async () => {
 		const { service, subscription, sessionResource, stateWithDirectory } = createReadinessSut();

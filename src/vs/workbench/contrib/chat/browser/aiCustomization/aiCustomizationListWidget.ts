@@ -639,7 +639,7 @@ export function getCustomizationItemAriaLabel(item: IAICustomizationListItem): s
 	const displayName = item.displayName ?? formatDisplayName(item.name);
 	const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
 	const statusLabel = getCustomizationItemStatusLabel(item);
-	const accessibleSecondaryText = [secondaryText, statusLabel].filter(Boolean).join('. ');
+	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage].filter(Boolean).join('. ');
 	const nameAndDescription = accessibleSecondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText) : displayName;
 	return item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
 }
@@ -887,17 +887,11 @@ export class AICustomizationListWidget extends Disposable {
 						if (entry.type === 'group-header') {
 							return localize('groupAriaLabel', "{0}, {1} items, {2}", entry.label, entry.count, entry.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						const displayName = entry.item.displayName ?? formatDisplayName(entry.item.name);
-						const secondaryText = getCustomizationSecondaryText(entry.item.description, entry.item.filename, entry.item.promptType);
-						const nameAndDesc = secondaryText
-							? localize('itemAriaLabel', "{0}. {1}", displayName, secondaryText)
-							: displayName;
+						const label = getCustomizationItemAriaLabel(entry.item);
 						if (!hasReadableCustomizationContent(entry.item.uri)) {
-							return localize('itemAriaLabelNoSourceContent', "{0}, source content unavailable", nameAndDesc);
+							return localize('itemAriaLabelNoSourceContent', "{0}, source content unavailable", label);
 						}
-						return entry.item.disabled
-							? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDesc)
-							: nameAndDesc;
+						return label;
 					},
 					getWidgetAriaLabel: () => localize('listAriaLabel', "Agent Customizations"),
 				},

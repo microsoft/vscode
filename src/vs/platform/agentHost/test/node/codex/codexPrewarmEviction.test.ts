@@ -1486,6 +1486,42 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('skill catalog refresh publishes one update for a shared validation diagnostic', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const workspace = URI.file('/repo');
+		const { session } = await createSession(agent, { workingDirectories: [workspace] });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const errors = Array.from({ length: 100 }, (_value, index) => ({
+			path: URI.joinPath(workspace, '.codex', 'skills', `skill-${index}`, 'SKILL.md').fsPath,
+			message: 'missing field `description`',
+		}));
+		let catalog = codexSkillsToContainers({ data: [{ cwd: workspace.fsPath, skills: [], errors }] });
+		agent['_fetchSkillHookContainers'] = async () => catalog;
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const summarize = () => ({
+			updates: signals.flatMap(signal => signal.kind === 'action'
+				&& signal.action.type === ActionType.SessionCustomizationUpdated
+				&& signal.action.customization.type === CustomizationType.Directory
+				? [{ id: signal.action.customization.id, childCount: signal.action.customization.children?.length }]
+				: []),
+			removals: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationRemoved ? [signal.action.id] : []),
+		});
+
+		await agent['_refreshSkillHookCustomizations'](entry);
+		const firstRefresh = summarize();
+		const containerId = catalog[0].id;
+		signals.length = 0;
+		catalog = codexSkillsToContainers({ data: [{ cwd: workspace.fsPath, skills: [], errors: errors.slice(1) }] });
+		await agent['_refreshSkillHookCustomizations'](entry);
+
+		assert.deepStrictEqual({ firstRefresh, secondRefresh: summarize() }, {
+			firstRefresh: { updates: [{ id: containerId, childCount: 100 }], removals: [] },
+			secondRefresh: { updates: [{ id: containerId, childCount: 99 }], removals: [] },
+		});
+	});
+
 	test('skill catalog refresh removes directory customizations that disappeared', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
