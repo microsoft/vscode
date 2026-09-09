@@ -1337,9 +1337,15 @@ export class WorkspacePicker extends Disposable {
 	 * workspace-less session, so the no-workspace option must be suppressed.
 	 */
 	private _isScopedToRemoteGroup(): boolean {
-		const availableTabs = this._getAvailableTabs();
-		const activeGroup = this._directPickerGroup ?? this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
-		return activeGroup === SESSION_WORKSPACE_GROUP_REMOTE;
+		if (this._directPickerGroup !== undefined) {
+			return this._directPickerGroup === SESSION_WORKSPACE_GROUP_REMOTE;
+		}
+		if (this._showTabs()) {
+			const availableTabs = this._getAvailableTabs();
+			const activeTab = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
+			return activeTab === SESSION_WORKSPACE_GROUP_REMOTE;
+		}
+		return false;
 	}
 
 	/**

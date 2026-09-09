@@ -3624,6 +3624,48 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	test('hides the no-workspace option when the picker is scoped to the Remote group', () => {
+		const localProvider = { ...createMockProvider('local'), supportsLocalWorkspaces: true, supportsQuickChats: true };
+		const remoteProvider = createMockProvider('remote', { browseActions: [makeBrowseAction('remote', SESSION_WORKSPACE_GROUP_REMOTE, 'Select Remote...')] });
+		providersService.setProviders([localProvider, remoteProvider]);
+		const options: IWorkspacePickerOptions = {
+			getNoWorkspaceOption: () => ({ description: 'Start without a backing workspace', isSelected: false, select: () => { } }),
+		};
+
+		// Unified consolidated picker.
+		const unifiedDefault = createTestablePicker(disposables, providersService, true, options, undefined, undefined, true);
+		const unifiedScopedRemote = createTestablePicker(disposables, providersService, true, options, undefined, undefined, true);
+		unifiedScopedRemote.selectWorkspaceGroup(SESSION_WORKSPACE_GROUP_REMOTE);
+		const unifiedScopedLocal = createTestablePicker(disposables, providersService, true, options, undefined, undefined, true);
+		unifiedScopedLocal.selectWorkspaceGroup(SESSION_WORKSPACE_GROUP_LOCAL);
+
+		// Tabbed picker.
+		const tabbedDefault = createTestablePicker(disposables, providersService, true, options);
+		const tabbedRemote = createTestablePicker(disposables, providersService, true, options);
+		tabbedRemote.selectTab(SESSION_WORKSPACE_GROUP_REMOTE);
+		const tabbedLocal = createTestablePicker(disposables, providersService, true, options);
+		tabbedLocal.selectTab(SESSION_WORKSPACE_GROUP_LOCAL);
+
+		const startFromScratch = 'Start from Scratch';
+		const noWorkspace = 'No workspace';
+
+		assert.deepStrictEqual({
+			unifiedDefault: unifiedDefault.getItemLabels().includes(startFromScratch),
+			unifiedScopedRemote: unifiedScopedRemote.getItemLabels().includes(startFromScratch),
+			unifiedScopedLocal: unifiedScopedLocal.getItemLabels().includes(startFromScratch),
+			tabbedDefault: tabbedDefault.getItemLabels().includes(noWorkspace),
+			tabbedRemote: tabbedRemote.getItemLabels().includes(noWorkspace),
+			tabbedLocal: tabbedLocal.getItemLabels().includes(noWorkspace),
+		}, {
+			unifiedDefault: true,
+			unifiedScopedRemote: false,
+			unifiedScopedLocal: true,
+			tabbedDefault: true,
+			tabbedRemote: false,
+			tabbedLocal: true,
+		});
+	});
+
 	test('persists Start from Scratch as the checked selection until a workspace is selected', () => {
 		const storage = disposables.add(new TestStorageService());
 		const localProvider = createMockProvider('local-1');
