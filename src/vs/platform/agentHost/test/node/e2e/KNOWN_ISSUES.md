@@ -830,23 +830,6 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 - Related investigation: [#325284](https://github.com/microsoft/vscode/pull/325284).
 - Reproduce: temporarily clear the gate and run the exact title with `scripts\test-integration.bat`.
 
-### Copilot custom subagent without a display name
-
-A client-contributed custom agent can specify its stable name, description, and prompt without a separate display name. Invoking that agent as a child should run its prompt and return its response to the parent. Instead, the bundled Copilot runtime starts the child and immediately fails it with `failed to assemble custom-agent system prompt: displayName: Required`. The same validation boundary also rejects the SDK's documented `null`/omitted all-tools representation with `tools: Expected array`, so custom agents that follow either optional-field contract cannot run as subagents.
-
-- Test: `custom agent without a display name completes as a subagent`.
-- Scope: Copilot.
-- Expected: the child responds with `CUSTOM_AGENT_CHILD_OK` and completes.
-- Observed: `subagent.started` is followed by `subagent.failed` before the child makes a model request.
-- Gate: live recording with `AGENT_HOST_RUN_KNOWN_ISSUES=1` until the runtime fix is included in the bundled SDK.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "custom agent without a display name completes as a subagent"
-  ```
-
 ### Mid-turn abort is record-only
 
 - Tests:
@@ -855,6 +838,7 @@ A client-contributed custom agent can specify its stable name, description, and 
 - Scope: deterministic replay for every provider; the second test is Copilot-specific.
 - Reason: replay serves the intentionally truncated response immediately, leaving no real streaming window in which to abort.
 - Gate: direct `AGENT_HOST_REPLAY_RECORD=1` mode only.
+- Latest live check (`1.0.84-1`): the Copilot steering variant timed out before reaching cancellation. The steering message started a separate turn, but the expected `chat/pendingMessageRemoved` notification never arrived. This scenario does not currently verify the deferred-idle abort fix.
 - Run:
 
   ```bash

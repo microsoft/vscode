@@ -188,6 +188,21 @@ suite('AgentFeedbackEditorWidget', () => {
 		}, resolvedComment);
 	});
 
+	test('created feedback uses the standard primary button colors', () => {
+		const createdComment: ISessionEditorComment = { ...comment, state: AgentFeedbackState.Created };
+		withWidget(({ domNode }) => {
+			const acceptButton = domNode.querySelector<HTMLElement>('.agent-feedback-widget-actions-bar .monaco-button:not(.secondary)')!;
+
+			assert.deepStrictEqual({
+				backgroundColor: acceptButton.style.backgroundColor,
+				color: acceptButton.style.color,
+			}, {
+				backgroundColor: 'var(--vscode-button-background)',
+				color: 'var(--vscode-button-foreground)',
+			});
+		}, createdComment);
+	});
+
 	function prReviewComment(sourcePullRequest: IFeedbackPullRequest): ISessionEditorComment {
 		return {
 			...comment,

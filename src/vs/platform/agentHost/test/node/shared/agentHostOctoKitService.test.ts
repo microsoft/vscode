@@ -126,6 +126,53 @@ suite('AgentHostOctoKitService', () => {
 		assert.strictEqual(captured().url, 'https://api.github.com/repos/o/r/pulls?head=fork-owner%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1');
 	});
 
+	test('findPullRequestByHeadBranch considers only allowed pull requests and prefers an open candidate', async () => {
+		const { fetch, captured } = capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/8', number: 8, state: 'open' },
+			{ html_url: 'https://github.com/o/r/pull/9', number: 9, state: 'closed' },
+			{ html_url: 'https://github.com/o/r/pull/7', number: 7, state: 'open' },
+		]));
+		const service = makeService(fetch);
+
+		const result = await service.findPullRequestByHeadBranch(
+			'o',
+			'r',
+			'feature/test',
+			'tok',
+			signal(),
+			undefined,
+			['https://github.com/o/r/pull/9', 'https://github.com/o/r/pull/7'],
+		);
+
+		assert.deepStrictEqual({
+			result,
+			url: captured().url,
+		}, {
+			result: { url: 'https://github.com/o/r/pull/7', number: 7, nodeId: undefined, state: 'open' },
+			url: 'https://api.github.com/repos/o/r/pulls?head=o%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=100',
+		});
+	});
+
+	test('findPullRequestByHeadBranch uses allowed URL order when candidates have the same state', async () => {
+		const { fetch } = capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/7', number: 7, state: 'open' },
+			{ html_url: 'https://github.com/o/r/pull/9', number: 9, state: 'open' },
+		]));
+		const service = makeService(fetch);
+
+		const result = await service.findPullRequestByHeadBranch(
+			'o',
+			'r',
+			'feature/test',
+			'tok',
+			signal(),
+			undefined,
+			['https://github.com/o/r/pull/9', 'https://github.com/o/r/pull/7'],
+		);
+
+		assert.deepStrictEqual(result, { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined, state: 'open' });
+	});
+
 	test('findPullRequestByHeadSha returns the pull request whose head is the commit', async () => {
 		// Pull request 1 only contains the commit; 9 has it as its head.
 		const { fetch, captured } = capturingFetch(jsonResponse([
@@ -141,10 +188,22 @@ suite('AgentHostOctoKitService', () => {
 			url: captured().url,
 			method: captured().init?.method,
 		}, {
-			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9' },
+			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9', state: 'open' },
 			url: 'https://api.github.com/repos/o/r/commits/bbb/pulls?per_page=100',
 			method: 'GET',
 		});
+	});
+
+	test('findPullRequestByHeadSha uses allowed pull requests to disambiguate branches at the same commit', async () => {
+		const { fetch } = capturingFetch(jsonResponse([
+			{ html_url: 'https://github.com/o/r/pull/7', number: 7, state: 'open', head: { sha: 'bbb' } },
+			{ html_url: 'https://github.com/o/r/pull/9', number: 9, state: 'open', head: { sha: 'bbb' } },
+		]));
+		const service = makeService(fetch);
+
+		const result = await service.findPullRequestByHeadSha('o', 'r', 'bbb', 'tok', signal(), ['https://github.com/o/r/pull/9']);
+
+		assert.deepStrictEqual(result, { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: undefined, state: 'open' });
 	});
 
 	test('findPullRequestByHeadSha treats an unpushed commit as no pull request', async () => {
