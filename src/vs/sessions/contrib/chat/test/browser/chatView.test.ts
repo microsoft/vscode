@@ -849,6 +849,29 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps the floating persistent content transparent only over chat backgrounds', () => {
+		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
+		const createPersistentContent = (hasBackground: boolean) => {
+			const part = dom.append(workbench, dom.$(`.part.sessionspart${hasBackground ? '.has-chat-background' : ''}`));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			return dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+		};
+		const background = createPersistentContent(true);
+		const plain = createPersistentContent(false);
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		assert.deepStrictEqual({
+			background: dom.getWindow(background).getComputedStyle(background, '::before').content,
+			plain: dom.getWindow(plain).getComputedStyle(plain, '::before').content,
+		}, {
+			background: 'none',
+			plain: '""',
+		});
+	});
+
 	test('keeps sticky request gutters transparent over chat backgrounds', () => {
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		workbench.style.setProperty('--vscode-sideBar-background', '#ff0000');
