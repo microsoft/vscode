@@ -7,43 +7,12 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getSizeRegistry, registerSize, size, sizeForAllThemes, sizeValueToCss, asCssVariableName, asCssVariable } from '../../common/sizeRegistry.js';
 // Import baseSizes to ensure base size tokens are registered
-import {
-	bodyFontSize,
-	bodyFontSizeSmall,
-	codiconFontSize,
-	cornerRadiusLarge,
-	cornerRadiusMedium,
-	cornerRadiusSmall,
-	iconSizeLarge,
-	iconSizeMedium,
-	iconSizeSmall,
-	iconSizeXLarge,
-	iconSizeXSmall,
-	spacingNone,
-	spacingSize10,
-	spacingSize20,
-	spacingSize30,
-	spacingSize40,
-	spacingSize60,
-	spacingSize80,
-	spacingSize100,
-	spacingSize120,
-	spacingSize160,
-	spacingSize200,
-	spacingSize240,
-	spacingSize280,
-	spacingSize320,
-	spacingSize360,
-	spacingSize400,
-	strokeThickness,
-} from '../../common/sizes/baseSizes.js';
+import { bodyFontSize, bodyFontSizeSmall, codiconFontSize, cornerRadiusMedium, cornerRadiusSmall, cornerRadiusLarge, strokeThickness } from '../../common/sizes/baseSizes.js';
 
-function getSizeTokenValues(ids: readonly string[]) {
-	const sizes = getSizeRegistry().getSizes();
-	return ids.map(id => {
-		const contribution = sizes.find(size => size.id === id);
-		return { id, value: contribution?.defaults };
-	});
+function getSizeTokenValues(prefix: string) {
+	return getSizeRegistry().getSizes()
+		.filter(size => size.id.startsWith(prefix))
+		.map(size => ({ id: size.id, value: size.defaults }));
 }
 
 suite('Size Registry', () => {
@@ -106,26 +75,7 @@ suite('Size Registry', () => {
 	});
 
 	test('spacing size tokens should use the expected scale', () => {
-		const values = getSizeTokenValues([
-			spacingNone,
-			spacingSize10,
-			spacingSize20,
-			spacingSize30,
-			spacingSize40,
-			spacingSize60,
-			spacingSize80,
-			spacingSize100,
-			spacingSize120,
-			spacingSize160,
-			spacingSize200,
-			spacingSize240,
-			spacingSize280,
-			spacingSize320,
-			spacingSize360,
-			spacingSize400,
-		]);
-
-		assert.deepStrictEqual(values, [
+		assert.deepStrictEqual(getSizeTokenValues('spacing.'), [
 			{ id: 'spacing.sizeNone', value: sizeForAllThemes(0, 'px') },
 			{ id: 'spacing.size10', value: sizeForAllThemes(1, 'px') },
 			{ id: 'spacing.size20', value: sizeForAllThemes(2, 'px') },
@@ -146,15 +96,7 @@ suite('Size Registry', () => {
 	});
 
 	test('icon size tokens should use the expected scale', () => {
-		const values = getSizeTokenValues([
-			iconSizeXSmall,
-			iconSizeSmall,
-			iconSizeMedium,
-			iconSizeLarge,
-			iconSizeXLarge,
-		]);
-
-		assert.deepStrictEqual(values, [
+		assert.deepStrictEqual(getSizeTokenValues('iconSize.'), [
 			{ id: 'iconSize.xSmall', value: sizeForAllThemes(12, 'px') },
 			{ id: 'iconSize.small', value: sizeForAllThemes(16, 'px') },
 			{ id: 'iconSize.medium', value: sizeForAllThemes(20, 'px') },
