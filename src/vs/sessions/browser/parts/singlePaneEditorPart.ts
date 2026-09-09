@@ -108,11 +108,6 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 			if (event.partId === Parts.EDITOR_PART || event.partId === Parts.AUXILIARYBAR_PART) {
 				updateTabsOverride();
 			}
-			if (event.partId === Parts.EDITOR_PART) {
-				for (const group of this.groups) {
-					group.relayout();
-				}
-			}
 		}));
 		updateTabsOverride();
 	}
