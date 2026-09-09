@@ -512,6 +512,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _peerChatCatalogWrites = new Map<string, Promise<void>>();
 	private readonly _disposingPeerChats = new Set<string>();
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
+	private readonly _pendingMaterializationWorkingDirectoryReplacements = new Map<string, { readonly directory: string; readonly replacement: string }>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
@@ -711,6 +712,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// turn of its own and survive restore.
 		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
 			if (!active) {
+				void Promise.resolve().then(() => this._flushMaterializationWorkingDirectoryReplacement(session));
 				this._flushAgentMergeNotices(session);
 			}
 		}));
@@ -1169,6 +1171,7 @@ export class AgentService extends Disposable implements IAgentService {
 				&& readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta),
 			listSessions: () => this.listSessions(),
 			getSession: session => this._getSessionMetadata(session),
+			getWorktreeRoots: workspace => this._gitService.getWorktreeRoots(workspace),
 			createSession: config => this.createSession(config),
 			getModels: () => {
 				const models: IAgentModelInfo[] = [];
@@ -3773,7 +3776,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// The agent no longer knows about worktrees; the host's worktree project
 		// (created in the first-send hook) wins for worktree-isolated sessions, and
 		// falls back to whatever the agent reported for folder sessions.
-		const project = this._worktree.sessionWorktreeProject(AgentSession.id(session)) ?? e.project;
+		const worktreeInfo = this._worktree.sessionWorktreeInfo(AgentSession.id(session));
+		const project = worktreeInfo?.project ?? e.project;
+		const materializedMeta = worktreeInfo
+			? this._gitStateService.getMaterializedWorktreeMeta(sessionKey, worktreeInfo.branchName)
+			: currentSummary._meta;
 		const currentSet = currentSummary.workingDirectories?.map(d => URI.parse(d));
 		const summary: SessionSummary = {
 			...currentSummary,
@@ -3784,6 +3791,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// only the process root, so the rest of the current set is preserved.
 			workingDirectories: reconcileWorkingDirectories(currentSet, e.workingDirectories),
 			modifiedAt: new Date().toISOString(),
+			...(materializedMeta !== undefined ? { _meta: materializedMeta } : {}),
 		};
 		const configValues = state.config?.values;
 		if (configValues && Object.keys(configValues).length > 0) {
@@ -3800,20 +3808,43 @@ export class AgentService extends Disposable implements IAgentService {
 		// `markSessionPersisted` writes the summary into state and fires
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.
+		const previousWorkingDirectory = currentSummary.workingDirectories?.[0];
+		const materializedWorkingDirectory = summary.workingDirectories?.[0];
+		const workingDirectoryReplacement = previousWorkingDirectory && materializedWorkingDirectory && previousWorkingDirectory !== materializedWorkingDirectory
+			? { directory: previousWorkingDirectory, replacement: materializedWorkingDirectory }
+			: undefined;
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		if (workingDirectoryReplacement) {
+			this._pendingMaterializationWorkingDirectoryReplacements.set(sessionKey, workingDirectoryReplacement);
+		}
 		const gitHubState = readSessionGitHubState(summary._meta);
 		if (gitHubState) {
 			void this._gitStateService.setSessionGitHubState(sessionKey, gitHubState);
 		}
 
 		// Attach git state for the resolved process root (index 0), if present.
-		void this._gitStateService.refreshSessionGitState(sessionKey, e.workingDirectories?.[0]);
+		if (!workingDirectoryReplacement) {
+			void this._gitStateService.refreshSessionGitState(sessionKey, e.workingDirectories?.[0]);
+		}
 
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, recompute the current
 		// subscriptions now that the working directory is set.
 		this._changesetCoordinator.onSessionMaterialized(sessionKey);
+	}
+
+	private _flushMaterializationWorkingDirectoryReplacement(sessionKey: string): void {
+		const replacement = this._pendingMaterializationWorkingDirectoryReplacements.get(sessionKey);
+		if (!replacement) {
+			return;
+		}
+		this._pendingMaterializationWorkingDirectoryReplacements.delete(sessionKey);
+		this._stateManager.dispatchServerAction(sessionKey, {
+			type: ActionType.SessionWorkingDirectoryReplaced,
+			...replacement,
+		});
+		void this._gitStateService.refreshSessionGitState(sessionKey, URI.parse(replacement.replacement));
 	}
 
 	/** Drop a session's download-progress opt-in, if any. */

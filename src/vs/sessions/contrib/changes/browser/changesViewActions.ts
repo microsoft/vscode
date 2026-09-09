@@ -359,11 +359,11 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 // user's keybinding for it carries over here (issue #324765). The sessions override of
 // IDiffEditorCommandsService updates the Changes editor's own preferred layout.
 
-MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	submenu: Menus.SessionsDiffEditorView,
 	title: localize('diffView', "Diff View"),
-	group: '1_diff',
-	order: 10,
+	group: 'secondary/1_diff',
+	order: 20,
 	when: singlePaneDiffEditorTitleVisible,
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {

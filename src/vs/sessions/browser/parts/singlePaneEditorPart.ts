@@ -51,7 +51,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
 			},
 			showHeader: true,
-			reserveHeaderSpace: editor => editor instanceof DockedEditorInput
+			reserveHeaderSpace: editor => editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow)
 		};
 	}
 
