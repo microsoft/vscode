@@ -93,6 +93,7 @@ import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
+import { CopilotModelCallCorrelationTelemetry } from './copilotModelCallCorrelationTelemetry.js';
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
@@ -826,6 +827,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
+	readonly modelCallCorrelationTelemetry: CopilotModelCallCorrelationTelemetry;
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
 	/**
@@ -1171,6 +1173,7 @@ export class CopilotAgentSession extends Disposable {
 		this._abortCts.value = new CancellationTokenSource();
 		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? !product.commit;
 		this.sessionId = options.rawSessionId;
+		this.modelCallCorrelationTelemetry = this._register(new CopilotModelCallCorrelationTelemetry(this.sessionId, this._telemetryService));
 		this._ownerSessionUri = options.sessionUri;
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
 		this.resourceUri = options.resource ?? options.sessionUri;
@@ -4887,18 +4890,23 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
 			this._resumeSubagentForEvent(e);
-			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.message')) {
-				return;
-			}
 			const stableModelCallId = e.data.apiCallId ?? e.data.clientRequestId;
 			const isCompleteModelCall = stableModelCallId !== undefined
 				|| e.data.chunkCount === undefined
 				|| e.data.chunkCount <= 1
 				|| e.data.chunkIndex === e.data.chunkCount - 1;
 			const modelCallId = stableModelCallId ?? e.data.messageId;
+			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.message')) {
+				if (isCompleteModelCall) {
+					this.modelCallCorrelationTelemetry.reportCompletionIssue(modelCallId, 'cancelledRoot');
+				}
+				return;
+			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (isCompleteModelCall && (!e.agentId || parentToolCallId)) {
 				this._emitModelCallCompleted(this._turnId, modelCallId, parentToolCallId);
+			} else if (isCompleteModelCall && e.agentId) {
+				this.modelCallCorrelationTelemetry.reportCompletionIssue(modelCallId, 'unmappedSubagent');
 			}
 			// Report the enhanced GH `request.options.tools` event for this model call — parity with
 			// the Copilot extension, which emits it per LLM request. `assistant.message` is the

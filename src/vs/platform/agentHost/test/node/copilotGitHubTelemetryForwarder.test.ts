@@ -183,4 +183,45 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		assert.strictEqual(event.data?.duration_ms, 12);
 		assert.strictEqual(event.data?.tool_call_id, 'call-1');
 	});
+
+	test('only accepts host correlation diagnostics on response events', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const notification = (kind: string, restricted = false): GitHubTelemetryNotification => ({
+			sessionId: 'session',
+			restricted,
+			event: {
+				kind,
+				properties: { ahCorrelationOutcome: 'sdk-value', ahModelCallKey: 'raw-provider-id' },
+				metrics: { ahCorrelationWaitMs: 999 },
+			},
+		});
+		const correlation = {
+			ahCorrelationOutcome: 'waitExpired' as const,
+			ahCorrelationWaitMs: 101,
+			ahActiveTurnPresent: true,
+			ahSessionDisposedDuringWait: true,
+			ahModelCallKey: 'host-key',
+		};
+		forwarder.forward(notification('response.success'), undefined, correlation);
+		forwarder.forward(notification('response.error'), undefined, correlation);
+		forwarder.forward(notification('tool_call_executed'), undefined, correlation);
+		forwarder.forward(notification('response.success'));
+		forwarder.forward(notification('response.success', true), undefined, correlation);
+
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			eventName: event.eventName,
+			outcome: event.data?.ahCorrelationOutcome,
+			waitMs: event.data?.ahCorrelationWaitMs,
+			activeTurn: event.data?.ahActiveTurnPresent,
+			disposed: event.data?.ahSessionDisposedDuringWait,
+			key: event.data?.ahModelCallKey,
+			turn: event.data?.turnId,
+		})), [
+			{ eventName: 'copilotSdk/response.success', outcome: 'waitExpired', waitMs: 101, activeTurn: true, disposed: true, key: 'host-key', turn: undefined },
+			{ eventName: 'copilotSdk/response.error', outcome: 'waitExpired', waitMs: 101, activeTurn: true, disposed: true, key: 'host-key', turn: undefined },
+			{ eventName: 'copilotSdk/tool_call_executed', outcome: undefined, waitMs: undefined, activeTurn: undefined, disposed: undefined, key: undefined, turn: undefined },
+			{ eventName: 'copilotSdk/response.success', outcome: undefined, waitMs: undefined, activeTurn: undefined, disposed: undefined, key: undefined, turn: undefined },
+		]);
+	});
 });

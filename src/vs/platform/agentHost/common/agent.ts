@@ -864,6 +864,9 @@ export interface IAgentActionSignal {
 	readonly parentToolCallId?: string;
 }
 
+/** Routing decisions that prevented a model-call signal from recording a host turn immediately. */
+export type AgentModelCallCorrelationIssue = 'staleTurn' | 'noActiveTurn' | 'inactiveSubagent' | 'pendingSubagent';
+
 /** Reports one completed upstream model response for host-owned turn telemetry. */
 export interface IAgentModelCallCompletedSignal {
 	readonly kind: 'model_call_completed';
@@ -1181,6 +1184,9 @@ export interface IAgent {
 
 	/** Record the host-remapped turn for a completed provider model call. */
 	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;
+
+	/** Observe a rejected or buffered model-call correlation without changing its routing. */
+	reportModelCallTurnCorrelationIssue?(chat: URI, modelCallId: string, issue: AgentModelCallCorrelationIssue): void;
 
 	// ---- Active clients and interaction ------------------------------------
 

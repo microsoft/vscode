@@ -630,6 +630,9 @@ export class AgentSideEffects extends Disposable {
 					}
 				} else {
 					this._logService.error(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for inactive subagent ${sessionKey}/${parentToolCallId}`);
+					if (signal.kind === 'model_call_completed') {
+						agent.reportModelCallTurnCorrelationIssue?.(signal.resource, signal.modelCallId, 'inactiveSubagent');
+					}
 					if (signal.kind === 'pending_confirmation') {
 						agent.respondToPermissionRequest(signal.state.toolCallId, false);
 					}
@@ -647,6 +650,9 @@ export class AgentSideEffects extends Disposable {
 			// Subagent session does not exist yet — buffer the signal so we can
 			// replay it after `subagent_started` arrives.
 			this._logService.trace(`[AgentSideEffects] Buffering ${this._describeSignal(signal)} for pending subagent ${sessionKey}/${parentToolCallId}`);
+			if (signal.kind === 'model_call_completed') {
+				agent.reportModelCallTurnCorrelationIssue?.(signal.resource, signal.modelCallId, 'pendingSubagent');
+			}
 			let buffer = pendingSignals;
 			if (!buffer) {
 				buffer = [];
@@ -678,6 +684,11 @@ export class AgentSideEffects extends Disposable {
 			} else {
 				this._dispatchActionForSession(signal, sessionKey, turnId, 'preserve', agent);
 			}
+			return;
+		}
+
+		if (signal.kind === 'model_call_completed') {
+			agent.reportModelCallTurnCorrelationIssue?.(signal.resource, signal.modelCallId, 'noActiveTurn');
 			return;
 		}
 
@@ -900,6 +911,7 @@ export class AgentSideEffects extends Disposable {
 	private _recordModelCallCompleted(agent: IAgent, signal: IAgentModelCallCompletedSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting): void {
 		if (signal.turnId !== turnId && turnIdRouting === 'preserve') {
 			this._logService.trace(`[AgentSideEffects] Dropping stale model_call_completed for ${sessionKey}: producerTurnId=${signal.turnId}, activeTurnId=${turnId}`);
+			agent.reportModelCallTurnCorrelationIssue?.(signal.resource, signal.modelCallId, 'staleTurn');
 			return;
 		}
 		agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, turnId);

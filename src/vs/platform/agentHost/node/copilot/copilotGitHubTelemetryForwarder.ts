@@ -5,6 +5,7 @@
 
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import type { ICopilotModelCallCorrelationTelemetry } from './copilotModelCallCorrelationTelemetry.js';
 
 /* __GDPR__FRAGMENT__
 	"CopilotSdkForwardedTelemetry": {
@@ -34,16 +35,26 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 	}
 */
 
+/* __GDPR__FRAGMENT__
+	"CopilotModelCallCorrelation": {
+		"ahCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, responseAlreadyForwarded, sessionNotFound, activeTurnFallback, or noActiveTurn. A wait expiry does not establish that a completion was produced." },
+		"ahCorrelationWaitMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Actual elapsed correlation wait in milliseconds; absent when no wait occurred." },
+		"ahActiveTurnPresent": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether the SDK session had an active host turn at response callback entry, encoded as 1 or 0. Absent when the session was not found." },
+		"ahSessionDisposedDuringWait": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether the session was disposed by the end of the correlation wait, encoded as 1 or 0. Absent when no wait occurred." },
+		"ahModelCallKey": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "SHA-256 hex join key scoped to the telemetry process, SDK session, and native model-call identifier, computed before telemetry scrubbing. Not a turn identifier." }
+	}
+*/
+
 /* __GDPR__
 	"copilotSdk/response.success": {
 		"owner": "amunger",
 		"comment": "Reports performance and usage details for successful Copilot CLI model responses forwarded by the Copilot SDK.",
-		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"${include}": [ "${CopilotSdkForwardedTelemetry}", "${CopilotModelCallCorrelation}" ],
 		"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason the response completed." },
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
-		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host turn identifier active when the model response was forwarded." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model response, or the active host turn on the fallback path." },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
@@ -80,13 +91,13 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 	"copilotSdk/response.error": {
 		"owner": "amunger",
 		"comment": "Reports performance and usage details for failed Copilot CLI model responses forwarded by the Copilot SDK.",
-		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"${include}": [ "${CopilotSdkForwardedTelemetry}", "${CopilotModelCallCorrelation}" ],
 		"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Type of response failure." },
 		"reason": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Sanitized model response failure message on restricted telemetry rows." },
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
-		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host turn identifier active when the model failure was forwarded." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Host-remapped turn identifier for the model failure, or the active host turn on the fallback path." },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
 		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification." },
@@ -207,7 +218,7 @@ export class CopilotGitHubTelemetryForwarder {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
-	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string): void {
+	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry): void {
 		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
 			return;
 		}
@@ -227,7 +238,19 @@ export class CopilotGitHubTelemetryForwarder {
 			restricted: notification.restricted,
 		};
 		delete data.secondary_assignment_context;
+		delete data.ahCorrelationOutcome;
+		delete data.ahCorrelationWaitMs;
+		delete data.ahActiveTurnPresent;
+		delete data.ahSessionDisposedDuringWait;
+		delete data.ahModelCallKey;
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
+			if (correlation) {
+				data.ahCorrelationOutcome = correlation.ahCorrelationOutcome;
+				data.ahCorrelationWaitMs = correlation.ahCorrelationWaitMs;
+				data.ahActiveTurnPresent = correlation.ahActiveTurnPresent;
+				data.ahSessionDisposedDuringWait = correlation.ahSessionDisposedDuringWait;
+				data.ahModelCallKey = correlation.ahModelCallKey;
+			}
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;
 			} else {

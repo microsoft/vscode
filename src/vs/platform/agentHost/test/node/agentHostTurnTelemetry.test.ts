@@ -402,6 +402,31 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		]);
 	});
 
+	test('reports model-call routing issues without recording a different turn', () => {
+		setupSession();
+		const issues: { modelCallId: string; issue: string }[] = [];
+		agent.reportModelCallTurnCorrelationIssue = (_chat, modelCallId, issue) => issues.push({ modelCallId, issue });
+		fireModelCallCompleted('old-turn', 'inactive-root-call');
+		startTurn('active-turn');
+		fireModelCallCompleted('old-turn', 'stale-call');
+		agent.fireProgress({
+			kind: 'model_call_completed', resource: URI.parse(defaultChatUri),
+			turnId: 'active-turn', modelCallId: 'pending-child-call', parentToolCallId: 'pending-child',
+		});
+
+		assert.deepStrictEqual({
+			issues,
+			correlations: agent.modelCallTurnCorrelationCalls,
+		}, {
+			issues: [
+				{ modelCallId: 'inactive-root-call', issue: 'noActiveTurn' },
+				{ modelCallId: 'stale-call', issue: 'staleTurn' },
+				{ modelCallId: 'pending-child-call', issue: 'pendingSubagent' },
+			],
+			correlations: [],
+		});
+	});
+
 	test('attributes subagent model responses only to the subagent turn', () => {
 		setupSession();
 		setSessionConfig({ mode: 'plan' });
@@ -453,6 +478,32 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				turnId: subagentTurnId,
 			}],
 		});
+	});
+
+	test('reports an inactive subagent model call instead of attributing it to the active root', () => {
+		setupSession();
+		startTurn('root-turn');
+		const child = buildSubagentChatUri(sessionUri, 'child-tool');
+		stateManager.addChat(sessionKey, child);
+		agent.fireProgress({
+			kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'child-tool',
+			agentName: 'explore', agentDisplayName: 'Explore',
+		});
+		const childTurn = stateManager.getActiveTurnId(child);
+		assert.ok(childTurn);
+		fire({ type: ActionType.ChatTurnComplete, turnId: childTurn, duration: 1 }, child);
+		const issues: string[] = [];
+		agent.reportModelCallTurnCorrelationIssue = (_chat, _call, issue) => issues.push(issue);
+		agent.fireProgress({
+			kind: 'model_call_completed', resource: URI.parse(defaultChatUri),
+			turnId: 'root-turn', modelCallId: 'late-child-call', parentToolCallId: 'child-tool',
+		});
+
+		assert.deepStrictEqual({
+			issues,
+			correlations: agent.modelCallTurnCorrelationCalls,
+			activeRoot: stateManager.getActiveTurnId(defaultChatUri),
+		}, { issues: ['inactiveSubagent'], correlations: [], activeRoot: 'root-turn' });
 	});
 
 	test('correlates first-level and nested subagent turns with their immediate parent', () => {
