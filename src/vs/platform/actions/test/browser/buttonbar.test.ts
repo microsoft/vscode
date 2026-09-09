@@ -122,7 +122,7 @@ suite('WorkbenchButtonBar', () => {
 	});
 
 	test('the spinner takes the place of the icon in the shared leading slot', () => {
-		const { bar } = createButtonBar((_action, index) => ({ showLabel: true, showIcon: true, showSpinner: index === 0 }));
+		const { bar } = createButtonBar((_action, index) => ({ showLabel: true, showIcon: true, showSpinner: index === 0, iconLabelSpacing: 'default' }));
 
 		bar.update([iconAction('busy'), iconAction('idle')], []);
 		const busy = bar.buttons[0].element;
@@ -130,16 +130,24 @@ suite('WorkbenchButtonBar', () => {
 
 		assert.deepStrictEqual({
 			busyLeading: leadingSlot(busy),
+			busyOwnsLeadingSpacing: busy.classList.contains('monaco-button-with-leading-icon'),
+			busyUsesDefaultSpacing: busy.classList.contains('monaco-button-icon-label-spacing-default'),
 			busyIcons: busy.querySelectorAll('.codicon').length,
 			busyLabel: busy.textContent,
 			idleLeading: leadingSlot(idle),
+			idleOwnsLeadingSpacing: idle.classList.contains('monaco-button-with-leading-icon'),
+			idleUsesDefaultSpacing: idle.classList.contains('monaco-button-icon-label-spacing-default'),
 			idleSpinners: idle.querySelectorAll(SPINNER_SELECTOR).length,
 			idleLabel: idle.textContent,
 		}, {
 			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
+			busyOwnsLeadingSpacing: true,
+			busyUsesDefaultSpacing: true,
 			busyIcons: 0,
 			busyLabel: 'busy',
 			idleLeading: 'codicon codicon-git-commit monaco-button-leading-icon',
+			idleOwnsLeadingSpacing: true,
+			idleUsesDefaultSpacing: true,
 			idleSpinners: 0,
 			idleLabel: 'idle',
 		});
@@ -178,17 +186,25 @@ suite('WorkbenchButtonBar', () => {
 
 		assert.deepStrictEqual({
 			busyLeading: leadingSlot(busy),
+			busyOwnsLeadingSpacing: busy.classList.contains('monaco-button-with-leading-icon'),
+			busyUsesDefaultSpacing: busy.classList.contains('monaco-button-icon-label-spacing-default'),
 			busyIcons: busy.querySelectorAll('.codicon').length,
 			busyLabel: busy.textContent,
 			idleLeading: leadingSlot(idle),
+			idleOwnsLeadingSpacing: idle.classList.contains('monaco-button-with-leading-icon'),
+			idleUsesDefaultSpacing: idle.classList.contains('monaco-button-icon-label-spacing-default'),
 			idleSpinners: idle.querySelectorAll(SPINNER_SELECTOR).length,
 			// The icon renders in its own slot rather than inline in the label.
 			idleLabel: idle.textContent,
 		}, {
 			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
+			busyOwnsLeadingSpacing: true,
+			busyUsesDefaultSpacing: false,
 			busyIcons: 0,
 			busyLabel: 'busy',
 			idleLeading: 'codicon codicon-git-commit monaco-button-leading-icon',
+			idleOwnsLeadingSpacing: true,
+			idleUsesDefaultSpacing: false,
 			idleSpinners: 0,
 			idleLabel: 'idle',
 		});

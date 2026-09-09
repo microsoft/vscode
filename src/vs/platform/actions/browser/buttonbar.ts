@@ -35,6 +35,11 @@ export interface IButtonConfig {
 	customLabelObs?: IObservable<string | IMarkdownString | undefined>;
 	customClass?: string;
 	/**
+	 * Selects the control-owned spacing between a leading icon or spinner and
+	 * its label. The compact spacing preserves the existing button bar layout.
+	 */
+	iconLabelSpacing?: 'compact' | 'default';
+	/**
 	 * Renders an animated spinner ahead of the label, for a button whose work
 	 * is currently in flight rather than waiting to be started.
 	 *
@@ -114,20 +119,22 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 			const secondary = i > 0;
 			const actionOrSubmenu = actions[i];
-			let action: IAction;
+			const action = actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0
+				? actionOrSubmenu.actions[0]
+				: actionOrSubmenu;
+			const config = configProvider(action, i);
 			let btn: IButton;
 			let tooltip: string;
 
 			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 1) {
-				const [first, ...rest] = actionOrSubmenu.actions;
-				action = <MenuItemAction>first;
+				const [, ...rest] = actionOrSubmenu.actions;
 
 				tooltip = action.tooltip || action.label;
 				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
 
 				btn = this.addButtonWithDropdown({
 					addPrimaryActionToDropdown: false,
-					secondary: configProvider(action, i)?.isSecondary ?? secondary,
+					secondary: config?.isSecondary ?? secondary,
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
@@ -136,15 +143,11 @@ export class WorkbenchButtonBar extends ButtonBar {
 					small: this._options?.small,
 				});
 			} else {
-				action = actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length === 1
-					? actionOrSubmenu.actions[0]
-					: actionOrSubmenu;
-
 				tooltip = action.tooltip || action.label;
 				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
 
 				btn = this.addButton({
-					secondary: configProvider(action, i)?.isSecondary ?? secondary,
+					secondary: config?.isSecondary ?? secondary,
 					ariaLabel: tooltip,
 					supportIcons: true,
 					small: this._options?.small,
@@ -155,7 +158,6 @@ export class WorkbenchButtonBar extends ButtonBar {
 			btn.checked = action.checked ?? false;
 			btn.element.classList.add('default-colors');
 
-			const config = configProvider(action, i);
 			const showLabel = config?.showLabel ?? true;
 			const showIcon = config?.showIcon;
 			const customClass = config?.customClass;
@@ -187,9 +189,15 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const leading = showSpinner
 				? this._updateStore.add(createPixelSpinner()).element
 				: showIcon && showLabel ? renderActionIcon() : undefined;
+			const contentButton = btn instanceof ButtonWithDropdown ? btn.primaryButton.element : btn.element;
 			if (leading) {
 				leading.classList.add('monaco-button-leading-icon');
-				if (!showLabel) {
+				if (showLabel) {
+					contentButton.classList.add('monaco-button-with-leading-icon');
+					if (config?.iconLabelSpacing) {
+						contentButton.classList.add(`monaco-button-icon-label-spacing-${config.iconLabelSpacing}`);
+					}
+				} else {
 					// Nothing follows it, so it carries no gap to a label.
 					leading.classList.add('monaco-button-leading-icon-only');
 				}
@@ -199,7 +207,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			// is (re-)attached after every label write rather than once up front.
 			const applyLeading = () => {
 				if (leading) {
-					(btn instanceof ButtonWithDropdown ? btn.primaryButton.element : btn.element).prepend(leading);
+					contentButton.prepend(leading);
 				}
 			};
 
