@@ -834,7 +834,6 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
-	private readonly _subagentTasksAwaitingCompletion = new Set<string>();
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAssistedApproval | null>();
 	private readonly _pendingAutoApprovals = new PendingRequestRegistry<PermissionAssistedApproval | undefined>();
@@ -5507,7 +5506,6 @@ export class CopilotAgentSession extends Disposable {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 				this._activeSubagentAgentIds.add(e.agentId);
 			}
-			this._subagentTasksAwaitingCompletion.add(e.data.toolCallId);
 			if (this._currentTurn.value) {
 				this._rootTurnIdBySubagentToolCallId.set(e.data.toolCallId, this._currentTurn.value.id);
 			}
@@ -6631,13 +6629,11 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSubagentCompleted(e => {
-			this._subagentTasksAwaitingCompletion.delete(e.data.toolCallId);
 			this._completeSubagentTurn(e.agentId, e.data.toolCallId);
 			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
 		}));
 
 		this._register(wrapper.onSubagentFailed(e => {
-			this._subagentTasksAwaitingCompletion.delete(e.data.toolCallId);
 			this._completeSubagentTurn(e.agentId, e.data.toolCallId);
 			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
 		}));
@@ -6665,11 +6661,6 @@ export class CopilotAgentSession extends Disposable {
 			const agentId = e.agentId ?? subagentIdsByStopHook.get(e.data.hookInvocationId);
 			subagentIdsByStopHook.delete(e.data.hookInvocationId);
 			if (e.data.hookType === 'agentStop' || e.data.hookType === 'subagentStop') {
-				// Initial task stop hooks can precede the final message; only resumed children need the hook fallback.
-				const toolCallId = agentId ? this._parentToolCallIdsByAgentId.get(agentId) : undefined;
-				if (toolCallId && this._subagentTasksAwaitingCompletion.has(toolCallId)) {
-					return;
-				}
 				this._completeSubagentTurn(agentId);
 			}
 		}));

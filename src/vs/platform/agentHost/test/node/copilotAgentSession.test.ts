@@ -9641,43 +9641,6 @@ Use the attached image as context.
 			]);
 		});
 
-		test('initial subagent stop hooks do not complete the turn before its final message', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables);
-			session.resetTurnState('turn-parent');
-			mockSession.fire('subagent.started', {
-				toolCallId: 'tc-subagent',
-				agentName: 'explore',
-				agentDisplayName: 'Explore',
-				agentDescription: 'Explore tests',
-			}, { agentId: 'agent-1' });
-			mockSession.fire('assistant.usage', {
-				model: 'claude-sonnet-5', inputTokens: 1, outputTokens: 1,
-			}, { agentId: 'agent-1' });
-			mockSession.fire('hook.end', {
-				hookInvocationId: 'agent-stop', hookType: 'agentStop', success: true,
-			}, { agentId: 'agent-1' });
-			mockSession.fire('hook.start', {
-				hookInvocationId: 'subagent-stop', hookType: 'subagentStop', input: { agentId: 'agent-1' },
-			});
-			mockSession.fire('hook.end', {
-				hookInvocationId: 'subagent-stop', hookType: 'subagentStop', success: true,
-			});
-			const completionsBeforeMessage = signals.filter(signal => signal.kind === 'subagent_completed').length;
-			mockSession.fire('assistant.message', {
-				messageId: 'child-message', content: 'CUSTOM_AGENT_CHILD_OK',
-			}, { agentId: 'agent-1' });
-			mockSession.fire('subagent.completed', {
-				toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore',
-				durationMs: 1, totalTokens: 2, totalToolCalls: 0,
-			}, { agentId: 'agent-1' });
-
-			assert.deepStrictEqual({
-				completionsBeforeMessage,
-				completions: signals.filter(signal => signal.kind === 'subagent_completed').length,
-				resumptions: signals.filter(signal => signal.kind === 'subagent_resumed').length,
-			}, { completionsBeforeMessage: 0, completions: 1, resumptions: 0 });
-		});
-
 		test('completes a resumed subagent when its stop hook identifies the agent only in the input', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
@@ -9769,7 +9732,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
 		});
 
-		test('matches overlapping resumed subagent stop hooks to their own agents', async () => {
+		test('matches overlapping subagent stop hooks to their own agents', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
 
@@ -9780,11 +9743,6 @@ Use the attached image as context.
 					agentDisplayName: 'Explore',
 					agentDescription: 'Explore tests',
 				}, { agentId: `agent-${id}` });
-				mockSession.fire('subagent.completed', {
-					toolCallId: `tc-${id}`, agentName: 'explore', agentDisplayName: 'Explore',
-					durationMs: 1, totalTokens: 0, totalToolCalls: 0,
-				}, { agentId: `agent-${id}` });
-				mockSession.fire('user.message', { content: 'Follow-up task' }, { agentId: `agent-${id}` });
 				mockSession.fire('hook.start', {
 					hookInvocationId: `stop-${id}`,
 					hookType: 'subagentStop',
@@ -9808,7 +9766,7 @@ Use the attached image as context.
 
 			assert.deepStrictEqual(
 				signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
-				['tc-first', 'tc-second', 'tc-second', 'tc-first'],
+				['tc-second', 'tc-first'],
 			);
 		});
 
