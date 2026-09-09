@@ -142,6 +142,7 @@ const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
+	renderedReadOnly?: boolean;
 	/**
 	 * The parts that are currently rendered in the template. Note that these are purposely not added to elementDisposables-
 	 * they are disposed in a separate cycle after diffing with the next content to render.
@@ -1327,14 +1328,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.checkpointToolbar.context = undefined;
 		templateData.checkpointRestoreToolbar.context = undefined;
 		templateData.currentElement = undefined;
+		templateData.renderedReadOnly = undefined;
 		templateData.completedResponseDisclosureOpen = undefined;
 		templateData.completedResponseCollapseEndIndex = undefined;
 		templateData.wasResponseComplete = undefined;
 	}
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
-		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
-			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
+		const readOnly = !!this.rendererOptions.readOnly;
+		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly)) {
+			this.traceLayout('renderChatTreeItem', `Rendering a different element or read-only state into the template, index=${index}`);
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
 				this.templateDataByRequestId.delete(templateData.currentElement.id);
@@ -1344,6 +1347,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.currentElement = element;
+		templateData.renderedReadOnly = readOnly;
 		// Don't update the template map for sticky scroll renders - their templates
 		// get disposed independently and would leave stale references.
 		if (!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
@@ -2270,6 +2274,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		content.forEach((data, contentIndex) => {
 			const context: IChatContentPartRenderContext = {
 				element,
+				readOnly: this.rendererOptions.readOnly,
 				elementIndex: index,
 				contentIndex: contentIndex,
 				content: content,
@@ -2783,6 +2788,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			const context: IChatContentPartRenderContext = {
 				element,
+				readOnly: this.rendererOptions.readOnly,
 				elementIndex: elementIndex,
 				content: contentForThisTurn,
 				contentIndex: contentIndex,
@@ -2806,6 +2812,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const newPart = this.renderChatContentPart(partToRender, templateData, context, batchedSubagentParts);
 				if (newPart) {
 					renderedParts[contentIndex] = newPart;
+					// Collapsed mode can create a new group instead of appending to the preceding thinking part.
+					if (newPart instanceof ChatThinkingContentPart && !newPart.domNode.parentElement) {
+						if (alreadyRenderedPart?.domNode?.parentElement) {
+							alreadyRenderedPart.domNode.before(newPart.domNode);
+						} else {
+							templateData.value.appendChild(newPart.domNode);
+						}
+					}
 					alreadyRenderedPart?.domNode?.remove();
 				}
 				return;
@@ -3305,7 +3319,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private getLastThinkingPartForGroupedItem(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): { part: ChatThinkingContentPart | undefined; separatedFromReasoning: boolean } {
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-		const displayMode = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService);
+		const displayMode = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
 		if (lastThinking?.hasReasoningContent() && shouldStartNewCollapsedThinkingGroup(displayMode, 'reasoning', 'items')) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 			return { part: undefined, separatedFromReasoning: true };
@@ -3513,7 +3527,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!lastThinking) {
 			return;
 		}
-		const style = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService);
+		const style = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
 		if (style === ThinkingDisplayMode.CollapsedPreview) {
 			lastThinking.collapseContent();
 		}
@@ -3568,6 +3582,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'progressMessage') {
 				return this.instantiationService.createInstance(ChatProgressContentPart, content, this.chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, content.shimmer);
 			} else if (content.kind === 'systemNotification') {
+				this.finalizeCurrentThinkingPart(context, templateData);
 				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'working') {
 				return this.instantiationService.createInstance(ChatWorkingProgressContentPart, content, this.chatContentMarkdownRenderer, context);
@@ -4708,7 +4723,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const element = isResponseVM(context.element) ? context.element : undefined;
 		const streamingCompleted = this.isThinkingLookAheadComplete(context, element);
 		const lastThinkingPart = this.getLastThinkingPart(templateData.renderedParts);
-		if (lastThinkingPart?.hasGroupedItems() && shouldStartNewCollapsedThinkingGroup(getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService), 'items', 'reasoning')) {
+		if (lastThinkingPart?.hasGroupedItems() && shouldStartNewCollapsedThinkingGroup(getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly), 'items', 'reasoning')) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 

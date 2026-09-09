@@ -6,7 +6,7 @@
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { isWindows } from '../../../../base/common/platform.js';
 
-export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = []): Record<string, string | undefined> {
+export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false): Record<string, string | undefined> {
 	const normalizedOmittedKeys = new Set(omittedKeys.map(key => isWindows ? key.toLowerCase() : key));
 	const env: Record<string, string | undefined> = {};
 	for (const [key, value] of Object.entries(environment)) {
@@ -32,8 +32,7 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env['COPILOT_MCP_APPS'] = 'true';
 	env[AiAgentEnvVar] = AiAgentEnvValue;
 	env['AUTO_APPROVAL'] = 'true';
-	// Disable the provider-native Advisor without affecting the separately gated Rubber Duck agent.
-	env['ANTHROPIC_ADVISOR'] = 'false';
+	env['ANTHROPIC_ADVISOR'] = String(claudeAdvisorEnabled);
 	// Resolve Auto mode through the CLI's single-call `POST /auto` endpoint. The
 	// runtime gates this on an ExP flag whose local override is the flag name
 	// itself, so VS Code opts its whole population in rather than splitting it.

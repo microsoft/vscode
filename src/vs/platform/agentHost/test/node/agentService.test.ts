@@ -30,12 +30,12 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
-import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { IAgentHostGitStateService, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { GitRefType } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
@@ -1167,6 +1167,69 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		test('restricted pull-request associations replace the central payload without restoring removed links', async () => {
+			const database = new TestSessionDatabase();
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const baseSessionDataService = createSessionDataService(database);
+			let databaseOpens = 0;
+			const sessionDataService: ISessionDataService = {
+				...baseSessionDataService,
+				openDatabase: resource => {
+					databaseOpens++;
+					return baseSessionDataService.openDatabase(resource);
+				},
+				tryOpenDatabase: async resource => {
+					databaseOpens++;
+					return baseSessionDataService.tryOpenDatabase(resource);
+				},
+			};
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const svc = createService();
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const sessionKey = session.toString();
+			const { _gitStateService: gitStateService } = svc as unknown as { _gitStateService: IAgentHostGitStateService };
+			const stateManager = getStateManager(svc);
+			const initialChanged = Event.toPromise(stateManager.onDidChangeSessionSummary);
+			await gitStateService.setSessionGitHubState(sessionKey, {
+				owner: 'microsoft',
+				repo: 'vscode',
+				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+			});
+			await initialChanged;
+			await svc.whenCatalogReconciliationIdle();
+			const before = readSessionGitHubState(catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?._meta);
+
+			const restrictedChanged = Event.toPromise(stateManager.onDidChangeSessionSummary);
+			getConfigurationService(svc).updateRootConfig({ [AgentHostAutoAttachPullRequestsConfigKey]: false });
+			await gitStateService.attachSessionGitHubPullRequest(sessionKey, undefined);
+			await restrictedChanged;
+			await svc.whenCatalogReconciliationIdle();
+			const central = readSessionGitHubState(catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?._meta);
+			const legacy = await database.getMetadata(META_GITHUB_STATE);
+			const restarted = createService();
+			await restarted.whenCatalogReconciliationIdle();
+			databaseOpens = 0;
+			const [listed] = await restarted.listSessions();
+
+			assert.deepStrictEqual({
+				originalLinks: before?.pullRequestUrls,
+				legacy: JSON.parse(legacy!),
+				central,
+				restarted: readSessionGitHubState(listed._meta),
+				databaseOpens,
+			}, {
+				originalLinks: ['https://github.com/microsoft/vscode/pull/42'],
+				legacy: { owner: 'microsoft', repo: 'vscode' },
+				central: { owner: 'microsoft', repo: 'vscode' },
+				restarted: { owner: 'microsoft', repo: 'vscode' },
+				databaseOpens: 0,
+			});
+		});
+
 		test('batched artifact tools persist centrally and list after restart without local database reads', async () => {
 			class ArtifactAgent extends MockAgent {
 				serverToolHost: IAgentServerToolHost | undefined;
@@ -10810,10 +10873,10 @@ suite('AgentService (node dispatcher)', () => {
 		test('routes token to provider matching the resource', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 
-			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'ghp_test123' });
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'ghp_test123', expiresIn: 3600 });
 
 			assert.deepStrictEqual(result, { authenticated: true });
-			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'ghp_test123' }]);
+			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'ghp_test123', expiresIn: 3600 }]);
 		});
 
 		test('returns not authenticated for unknown resource', async () => {

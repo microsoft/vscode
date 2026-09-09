@@ -4406,17 +4406,6 @@
               "advanced"
             ]
           },
-          "github.copilot.chat.autoModeTierOverride": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null,
-            "markdownDescription": "Overrides the routing tier that the `Auto` model requests, ignoring both the tier picked in the model picker and the tier inline chat defaults to. Accepts `efficiency`, `balance`, `intelligence`, or `fast`. Used by evals.\n\n**Note**: This is an advanced debugging setting.",
-            "tags": [
-              "advanced"
-            ]
-          },
           "github.copilot.chat.anthropic.promptCaching.extendedTtl": {
             "type": "boolean",
             "default": false,
@@ -5078,15 +5067,6 @@
             "markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
             "tags": [
               "advanced"
-            ]
-          },
-          "github.copilot.chat.autoMode.tiers.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.chat.autoMode.tiers.enabled%",
-            "tags": [
-              "advanced",
-              "onExp"
             ]
           },
           "github.copilot.chat.agent.modelDetails.enabled": {
