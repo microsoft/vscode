@@ -9,6 +9,9 @@
   "main": "./out/main.js",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=22.21.1"
+  },
   "scripts": {
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
