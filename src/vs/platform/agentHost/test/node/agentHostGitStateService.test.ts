@@ -300,6 +300,26 @@ suite('AgentHostGitStateService', () => {
 		}
 	}
 
+	test('seeds the materialized worktree branch while preserving known git state', () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			gitState: {
+				branchName: 'main',
+				baseBranchName: 'main',
+				hasGitHubRemote: true,
+			},
+		});
+
+		h.service.seedMaterializedWorktreeBranch(SESSION, 'agents/feature');
+
+		assert.deepStrictEqual(readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta), {
+			branchName: 'agents/feature',
+			baseBranchName: 'main',
+			hasGitHubRemote: true,
+		});
+	});
+
 	test('preserves merge provenance when a later pull request becomes the latest outcome', async () => {
 		const h = createHarness();
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });

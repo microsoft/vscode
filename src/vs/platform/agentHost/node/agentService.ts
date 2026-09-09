@@ -3762,7 +3762,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// The agent no longer knows about worktrees; the host's worktree project
 		// (created in the first-send hook) wins for worktree-isolated sessions, and
 		// falls back to whatever the agent reported for folder sessions.
-		const project = this._worktree.sessionWorktreeProject(AgentSession.id(session)) ?? e.project;
+		const worktreeInfo = this._worktree.sessionWorktreeInfo(AgentSession.id(session));
+		const project = worktreeInfo?.project ?? e.project;
+		if (worktreeInfo) {
+			this._gitStateService.seedMaterializedWorktreeBranch(sessionKey, worktreeInfo.branchName);
+		}
+		const materializedMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const currentSet = currentSummary.workingDirectories?.map(d => URI.parse(d));
 		const summary: SessionSummary = {
 			...currentSummary,
@@ -3773,6 +3778,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// only the process root, so the rest of the current set is preserved.
 			workingDirectories: reconcileWorkingDirectories(currentSet, e.workingDirectories),
 			modifiedAt: new Date().toISOString(),
+			...(materializedMeta !== undefined ? { _meta: materializedMeta } : {}),
 		};
 		const configValues = state.config?.values;
 		if (configValues && Object.keys(configValues).length > 0) {

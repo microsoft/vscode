@@ -38,6 +38,9 @@ export interface IAgentHostGitStateService {
 	 */
 	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void>;
 
+	/** Publishes the branch identity known when an isolated worktree materializes. */
+	seedMaterializedWorktreeBranch(sessionKey: string, branchName: string): void;
+
 	/** Resolves the canonical base branch selected for a session. */
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 
