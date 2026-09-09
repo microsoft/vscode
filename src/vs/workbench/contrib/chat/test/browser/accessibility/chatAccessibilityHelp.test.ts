@@ -19,8 +19,9 @@ suite('Chat Accessibility Help', () => {
 			details: help.includes('selected model\'s details open beside the list'),
 			immediatePreview: help.includes('updates the details immediately without selecting a model'),
 			inactivePreferences: help.includes('Efficiency, Balance, and Intelligence remain visible while Auto is off'),
+			mutedPreferences: help.includes('They look muted while off but remain interactive'),
 			activation: help.includes('Enter or Space to choose a preference and turn Auto on'),
-		}, { details: true, immediatePreview: true, inactivePreferences: true, activation: true });
+		}, { details: true, immediatePreview: true, inactivePreferences: true, mutedPreferences: true, activation: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
@@ -33,13 +34,15 @@ suite('Chat Accessibility Help', () => {
 		}, { typing: true, navigation: true, selection: true, editing: true });
 	});
 
-	test('documents restoring model defaults without changing pinning or requiring another dismissal', () => {
+	test('documents stationary model configuration and pinning with explicit dismissal', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			discovery: help.includes('Reset to Default appears beside Pin Model when thinking effort or context has been changed'),
 			reset: help.includes('restores both settings to the model\'s defaults without changing its pinned state'),
-			dismissal: help.includes('resetting the settings selects that model and closes the picker'),
-		}, { discovery: true, reset: true, dismissal: true });
+			staysOpen: help.includes('resetting the settings selects that model and keeps its details open'),
+			pinning: help.includes('Pinning or unpinning moves the model in the list without moving its details or keyboard focus'),
+			dismissal: help.includes('Escape again to close the picker'),
+		}, { discovery: true, reset: true, staysOpen: true, pinning: true, dismissal: true });
 	});
 
 	test('documents stable pricing expansion and keyboard scrolling', () => {
