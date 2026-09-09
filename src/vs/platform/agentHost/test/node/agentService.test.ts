@@ -41,7 +41,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification } from '../../common/state/sessionActions.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionExternal, withSessionMultiRootMetadata, withSessionWorkspaceless, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -12995,6 +12995,51 @@ suite('AgentService (node dispatcher)', () => {
 				catalogIds: ['legacy-a', 'legacy-b'],
 			});
 		});
+	});
+
+	suite('workspace conversion server tool', () => {
+		for (const scenario of [
+			{ name: 'workspace-less', supported: true, workspaceless: true, roots: ['file:///scratch'], enabled: true },
+			{ name: 'provisional workspace-less', supported: true, workspaceless: true, roots: undefined, enabled: true },
+			{ name: 'unsupported provider', supported: false, workspaceless: true, roots: ['file:///scratch'], enabled: false },
+			{ name: 'existing workspace', supported: true, workspaceless: false, roots: ['file:///workspace'], enabled: false },
+			{ name: 'multi-root', supported: true, workspaceless: true, roots: ['file:///scratch', 'file:///other'], enabled: false },
+			{ name: 'archived', supported: true, workspaceless: true, roots: ['file:///scratch'], archived: true, enabled: false },
+			{ name: 'multiple chats', supported: true, workspaceless: true, roots: ['file:///scratch'], peer: true, enabled: false },
+		]) {
+			test(`set_workspace is ${scenario.enabled ? 'available' : 'disabled'} for ${scenario.name} Codex sessions`, async () => {
+				class ServerToolAgent extends MockAgent {
+					serverToolHost: IAgentServerToolHost | undefined;
+
+					setServerToolHost(host: IAgentServerToolHost): void {
+						this.serverToolHost = host;
+					}
+				}
+				const agent = disposables.add(new ServerToolAgent('codex', { multipleChats: { fork: true } }, { workspaceConversion: scenario.supported }));
+				registerTestAgentProvider(service, agent);
+				const session = AgentSession.uri('codex', 'workspace-conversion');
+				const stateManager = getStateManager(service);
+				stateManager.createSession({
+					resource: session.toString(), provider: 'codex', title: scenario.name,
+					status: SessionStatus.Idle | (scenario.archived ? SessionStatus.IsArchived : 0),
+					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+					workingDirectories: scenario.roots,
+					_meta: withSessionWorkspaceless(undefined, scenario.workspaceless),
+				});
+				if (scenario.peer) {
+					stateManager.addChat(session.toString(), buildChatUri(session, 'peer'), {});
+				}
+				const host = agent.serverToolHost!;
+				host.advertise(session.toString());
+				assert.deepStrictEqual({
+					advertised: stateManager.getSessionState(session.toString())?.serverTools?.some(tool => tool.name === SessionServerToolName.SetWorkspace),
+					definitions: host.getDefinitionsForSession(session.toString()).some(tool => tool.name === SessionServerToolName.SetWorkspace),
+				}, { advertised: scenario.enabled, definitions: scenario.enabled });
+				if (!scenario.enabled) {
+					await assert.rejects(async () => host.executeTool(buildDefaultChatUri(session), SessionServerToolName.SetWorkspace, { workspaceFolder: '/workspace', isolation: false }), /set_workspace.*disabled/);
+				}
+			});
+		}
 	});
 
 	suite('rename server tools', () => {

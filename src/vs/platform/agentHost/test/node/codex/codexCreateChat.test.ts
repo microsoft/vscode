@@ -7,11 +7,13 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PassThrough } from 'stream';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -19,7 +21,7 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
+import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
@@ -27,6 +29,8 @@ import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
+import { SessionServerToolName } from '../../../common/serverToolNames.js';
+import { sessionServerToolDefinitions } from '../../../node/shared/sessionServerTools.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
@@ -238,6 +242,7 @@ async function createSessionBackedChat(agent: CodexAgent, chat: URI, context: IA
 
 function connectPeer(agent: CodexAgent, peer: ITestPeer): void {
 	const client = new CodexAppServerClient(peer.transport);
+	agent['_registerWorkingDirectoryNotifications'](client, peer.disposables);
 	// Mirrors the real `item/tool/call` wiring from `_startConnection` so
 	// tests can simulate the codex app-server invoking a dynamic (server)
 	// tool without needing the full connection bootstrap.
@@ -339,16 +344,16 @@ suite('CodexAgent createChat', () => {
 			agentHostCapabilities: agent.agentHostCapabilities,
 		}, {
 			multipleChats: { fork: true, sideChat: true },
-			agentHostCapabilities: { workspaceConversion: false },
+			agentHostCapabilities: { workspaceConversion: true },
 		});
 	});
 
-	test('setWorkingDirectory rejects because Codex does not advertise workspace conversion', async () => {
+	test('setWorkingDirectory rejects an unbound chat', async () => {
 		const agent = await createAgent(disposables);
 
 		await assert.rejects(
 			() => agent.setWorkingDirectory(URI.parse('codex:/chat'), URI.parse('codex:/session'), URI.file('/workspace')),
-			/Codex does not support changing the working directory/,
+			/not bound to a live Codex thread/,
 		);
 	});
 
@@ -1352,6 +1357,274 @@ suite('CodexAgent createChat', () => {
 		} finally {
 			peer.dispose();
 		}
+	});
+});
+
+suite('CodexAgent workspace conversion', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function createWorkspaceHarness(id = 'workspace-less', existing?: { readonly agent: CodexAgent; readonly peer: ITestPeer; readonly store: ITestSessionStore }) {
+		const store = existing?.store ?? createTestSessionStore();
+		const agent = existing?.agent ?? await createAgent(disposables, { sessionStore: store });
+		const peer = existing?.peer ?? disposables.add(createTestPeer());
+		if (!existing) {
+			connectPeer(agent, peer);
+			const definitions = sessionServerToolDefinitions.filter(tool => tool.name === SessionServerToolName.SetWorkspace);
+			agent.setServerToolHost({
+				...createRecordingServerToolHost([]),
+				definitions,
+				toolNames: definitions.map(tool => tool.name),
+				getDefinitionsForSession: () => definitions,
+			});
+		}
+		const connection = agent['_connection'];
+		assert.ok(connection.kind === 'ready');
+		peer.disposables.add(connection.client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+		peer.disposables.add(connection.client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+		const session = AgentSession.uri('codex', id);
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const scratch = URI.file(`/scratch/${id}`);
+		const folder = URI.file(`/workspace/${id}`);
+		const threadId = `live-${id}`;
+		await agent['_fileService'].createFolder(scratch);
+		await agent['_fileService'].createFolder(folder);
+		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			workingDirectories: [scratch], model: { id: COPILOT_TEST_MODEL },
+		});
+		const sending = agent.chats.sendMessage(chat, 'Continue the original request after selecting a workspace', [scratch], undefined, 'host-turn-1', undefined, undefined, session);
+		const start = await readNextRequest(peer.outbound);
+		assert.ok(start.params.dynamicTools?.some(tool => tool.name === SessionServerToolName.SetWorkspace));
+		peer.push({ id: start.id, result: { thread: { id: threadId, cwd: scratch.fsPath } } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+		const appTurn = { id: 'app-turn-1', items: [], itemsView: 'full', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000 };
+		peer.push({ method: 'turn/started', params: { threadId, turn: { ...appTurn, status: 'inProgress' } } });
+		peer.push({ method: 'turn/completed', params: { threadId, turn: appTurn } });
+		const entry = agent['_sessions'].get(id)!;
+		await agent['_metadataStore'].write(session, { threadId, cwd: scratch });
+		const notifyDirectory = (directory = folder, notificationThreadId = threadId) => peer.push({
+			method: 'thread/settings/updated',
+			params: { threadId: notificationThreadId, threadSettings: { cwd: directory.fsPath } },
+		});
+		return { agent, peer, store, session, chat, scratch, folder, threadId, entry, notifyDirectory };
+	}
+
+	for (const notificationFirst of [false, true]) {
+		test(`keeps the live thread and history when the settings notification arrives ${notificationFirst ? 'before' : 'after'} acknowledgement`, async () => {
+			const harness = await createWorkspaceHarness();
+			const { agent, peer, session, chat, scratch, folder, threadId, entry, notifyDirectory } = harness;
+			const materializations: IAgentMaterializeChatEvent[] = [];
+			disposables.add(agent.onDidMaterializeChat(event => materializations.push(event)));
+			const changing = agent.setWorkingDirectory(chat, session, folder);
+			const request = await readNextRequest(peer.outbound);
+			assert.deepStrictEqual({ method: request.method, params: request.params }, {
+				method: 'thread/settings/update', params: { threadId, cwd: folder.fsPath },
+			});
+			if (notificationFirst) {
+				notifyDirectory();
+			} else {
+				peer.push({ id: request.id, result: {} });
+				notifyDirectory(folder, 'another-thread');
+				notifyDirectory(scratch);
+				await new Promise(resolve => setImmediate(resolve));
+				assert.strictEqual(entry.workingDirectory?.toString(), scratch.toString());
+				notifyDirectory();
+			}
+			await changing;
+			if (notificationFirst) {
+				peer.push({ id: request.id, result: {} });
+			}
+			assert.deepStrictEqual({
+				threadId: entry.threadId,
+				binding: agent['_sessionIdByChatUri'].get(chat.toString()),
+				chat: entry.chatChannel?.toString(),
+				workingDirectories: entry.workingDirectories?.map(directory => directory.toString()),
+				persistedCwd: (await agent['_metadataStore'].read(session)).cwd?.toString(),
+				history: [...entry.codexTurnIdByHostTurnId],
+				materializations,
+			}, {
+				threadId,
+				binding: 'workspace-less',
+				chat: chat.toString(),
+				workingDirectories: [folder.toString()],
+				persistedCwd: folder.toString(),
+				history: [['host-turn-1', 'app-turn-1']],
+				materializations: [],
+			});
+			const sending = agent.chats.sendMessage(chat, 'Continue the original request', [folder], undefined, 'host-turn-2', undefined, undefined, session);
+			const nextTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: nextTurn.id, result: {} });
+			await sending;
+			assert.deepStrictEqual({ method: nextTurn.method, threadId: nextTurn.params.threadId, cwd: entry.workingDirectory?.fsPath }, {
+				method: 'turn/start', threadId, cwd: folder.fsPath,
+			});
+		});
+	}
+
+	for (const notificationError of [false, true]) {
+		test(`preserves the old directory after ${notificationError ? 'an asynchronous settings error' : 'a rejected request'}`, async () => {
+			const { agent, peer, session, chat, folder, scratch, entry, threadId } = await createWorkspaceHarness();
+			const changing = agent.setWorkingDirectory(chat, session, folder);
+			const rejected = assert.rejects(changing, /settings rejected/);
+			const request = await readNextRequest(peer.outbound);
+			if (notificationError) {
+				peer.push({ id: request.id, result: {} });
+				peer.push({ method: 'error', params: { threadId, turnId: 'settings-operation', willRetry: false, error: { message: 'settings rejected' } } });
+			} else {
+				peer.push({ id: request.id, error: { code: -32602, message: 'settings rejected' } });
+			}
+			await rejected;
+			assert.deepStrictEqual({
+				cwd: entry.workingDirectory?.toString(),
+				persistedCwd: (await agent['_metadataStore'].read(session)).cwd?.toString(),
+				pending: agent['_workingDirectoryChanges'].size,
+				needsResume: entry.needsResume,
+			}, { cwd: scratch.toString(), persistedCwd: scratch.toString(), pending: 0, needsResume: true });
+		});
+	}
+
+	test('does not wait for a suppressed notification when the directory is unchanged', async () => {
+		const { agent, peer, session, chat, scratch } = await createWorkspaceHarness();
+		const requests: string[] = [];
+		peer.outbound.on('data', data => requests.push(String(data)));
+		await agent.setWorkingDirectory(chat, session, scratch);
+		assert.deepStrictEqual(requests, []);
+	});
+
+	test('rejects non-local, missing, and non-directory targets before issuing a request', async () => {
+		const { agent, peer, session, chat, folder, scratch, entry } = await createWorkspaceHarness();
+		const file = URI.joinPath(folder, 'not-a-directory');
+		await agent['_fileService'].writeFile(file, VSBuffer.fromString('file'));
+		const requests: string[] = [];
+		peer.outbound.on('data', data => requests.push(String(data)));
+		for (const target of [URI.parse('vscode-remote://host/workspace'), URI.parse('file:relative'), folder.with({ query: 'query' }), URI.file('/missing'), file]) {
+			await assert.rejects(agent.setWorkingDirectory(chat, session, target));
+		}
+		await assert.rejects(agent.setWorkingDirectory(chat, AgentSession.uri('codex', 'wrong-context'), folder), /supplied context/);
+		assert.deepStrictEqual({ requests, cwd: entry.workingDirectory?.toString(), pending: agent['_workingDirectoryChanges'].size }, {
+			requests: [], cwd: scratch.toString(), pending: 0,
+		});
+	});
+
+	test('rejects active turns, multi-root sessions, and shared configurations', async () => {
+		const { agent, session, chat, folder, scratch, entry } = await createWorkspaceHarness();
+		entry.currentTurnId = 'active-turn';
+		await assert.rejects(agent.setWorkingDirectory(chat, session, folder), /is active/);
+		entry.currentTurnId = undefined;
+		entry.workingDirectories = [scratch, folder];
+		await assert.rejects(agent.setWorkingDirectory(chat, session, folder), /multi-root or shared/);
+		entry.workingDirectories = [scratch];
+		agent['_trackConfigScopeChat'](session, URI.parse(buildChatUri(session, 'peer')));
+		await assert.rejects(agent.setWorkingDirectory(chat, session, folder), /multi-root or shared/);
+	});
+
+	test('blocks concurrent changes, sends, and chat creation until the update completes', async () => {
+		const { agent, peer, session, chat, folder, notifyDirectory } = await createWorkspaceHarness();
+		const changing = agent.setWorkingDirectory(chat, session, folder);
+		const request = await readNextRequest(peer.outbound);
+		await assert.rejects(agent.setWorkingDirectory(chat, session, folder), /change is pending/);
+		await assert.rejects(agent.chats.sendMessage(chat, 'too early', [folder], undefined, 'next-turn', undefined, undefined, session), /change is pending/);
+		await assert.rejects(agent.chats.createChat(URI.parse(buildChatUri(session, 'peer')), session), /change is pending/);
+		peer.push({ id: request.id, result: {} });
+		notifyDirectory();
+		await changing;
+		assert.strictEqual(agent['_workingDirectoryChanges'].size, 0);
+	});
+
+	test('routes concurrent workspace changes on the shared client to their exact threads', async () => {
+		const first = await createWorkspaceHarness('first');
+		const second = await createWorkspaceHarness('second', first);
+		const firstChange = first.agent.setWorkingDirectory(first.chat, first.session, first.folder);
+		const firstRequest = await readNextRequest(first.peer.outbound);
+		const secondChange = second.agent.setWorkingDirectory(second.chat, second.session, second.folder);
+		const secondRequest = await readNextRequest(second.peer.outbound);
+		first.peer.push({ id: firstRequest.id, result: {} });
+		second.peer.push({ id: secondRequest.id, result: {} });
+		second.notifyDirectory();
+		await secondChange;
+		assert.strictEqual(first.entry.workingDirectory?.fsPath, first.scratch.fsPath);
+		first.notifyDirectory();
+		await firstChange;
+		assert.deepStrictEqual([first.entry.workingDirectory?.fsPath, second.entry.workingDirectory?.fsPath], [first.folder.fsPath, second.folder.fsPath]);
+	});
+
+	test('a disconnect after acknowledgement cancels the wait and resumes with the last confirmed cwd', async () => {
+		const { agent, peer, session, chat, scratch, folder, entry, threadId } = await createWorkspaceHarness();
+		const changing = agent.setWorkingDirectory(chat, session, folder);
+		const rejected = assert.rejects(changing, /Canceled/);
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: {} });
+		const connection = agent['_connection'];
+		assert.ok(connection.kind === 'ready');
+		agent['_handleConnectionLost'](connection, agent['_connectionGeneration']);
+		await rejected;
+		const replacement = disposables.add(createTestPeer());
+		connectPeer(agent, replacement);
+		agent['_refreshMcpInventory'] = async () => { };
+		const resuming = agent['_ensureThreadConnection'](entry);
+		const unsubscribe = await readNextRequest(replacement.outbound);
+		replacement.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(replacement.outbound);
+		replacement.push({ id: resume.id, result: { thread: { id: threadId, cwd: scratch.fsPath } } });
+		await resuming;
+		assert.deepStrictEqual({ method: resume.method, threadId: resume.params.threadId, cwd: resume.params.cwd, providerCwd: entry.workingDirectory?.fsPath }, {
+			method: 'thread/resume', threadId, cwd: scratch.fsPath, providerCwd: scratch.fsPath,
+		});
+	});
+
+	test('disposing a chat cancels an acknowledged update without changing its cwd', async () => {
+		const { agent, peer, session, chat, scratch, folder, entry } = await createWorkspaceHarness();
+		const changing = agent.setWorkingDirectory(chat, session, folder);
+		const rejected = assert.rejects(changing, /Canceled/);
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: {} });
+		const disposing = agent.chats.disposeChat(chat, session);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		await Promise.all([disposing, rejected]);
+		assert.deepStrictEqual({ cwd: entry.workingDirectory?.fsPath, pending: agent['_workingDirectoryChanges'].size }, { cwd: scratch.fsPath, pending: 0 });
+	});
+
+	test('bounds a queued update with no notification and reloads before another turn', async () => {
+		const { agent, peer, session, chat, scratch, folder, entry } = await createWorkspaceHarness();
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const changing = agent.setWorkingDirectory(chat, session, folder);
+			const rejected = assert.rejects(changing, /Timed out waiting for Codex/);
+			const request = await readNextRequest(peer.outbound);
+			peer.push({ id: request.id, result: {} });
+			await rejected;
+		});
+		assert.deepStrictEqual({ cwd: entry.workingDirectory?.fsPath, needsResume: entry.needsResume, unsubscribe: entry.unsubscribeBeforeResume, pending: agent['_workingDirectoryChanges'].size }, {
+			cwd: scratch.fsPath, needsResume: true, unsubscribe: true, pending: 0,
+		});
+	});
+
+	test('reports the authoritative directory when refreshing provider state fails after application', async () => {
+		const { agent, peer, session, chat, folder, entry, notifyDirectory } = await createWorkspaceHarness();
+		agent['_refreshSessionMcpDiscovery'] = async () => { throw new Error('discovery failed'); };
+		const changing = agent.setWorkingDirectory(chat, session, folder);
+		const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: {} });
+		notifyDirectory();
+		await rejected;
+		assert.deepStrictEqual({ cwd: entry.workingDirectory?.fsPath, persistedCwd: (await agent['_metadataStore'].read(session)).cwd?.fsPath }, {
+			cwd: folder.fsPath, persistedCwd: folder.fsPath,
+		});
+	});
+
+	test('reports an unexpectedly applied directory so the host can validate and align it', async () => {
+		const { agent, peer, session, chat, folder, entry, notifyDirectory } = await createWorkspaceHarness();
+		const actualFolder = URI.file('/actual/workspace');
+		const changing = agent.setWorkingDirectory(chat, session, folder);
+		const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === actualFolder.toString());
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: {} });
+		notifyDirectory(actualFolder);
+		await rejected;
+		assert.strictEqual(entry.workingDirectory?.fsPath, actualFolder.fsPath);
 	});
 });
 

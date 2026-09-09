@@ -12,6 +12,7 @@ import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, rac
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
@@ -30,7 +31,7 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../co
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -732,6 +733,14 @@ interface ICodexSession {
 	readonly clientCustomizations: CodexClientCustomizationStore;
 }
 
+interface ICodexWorkingDirectoryChange {
+	readonly session: ICodexSession;
+	readonly threadId: string;
+	readonly previousWorkingDirectory: URI;
+	readonly updated: DeferredPromise<URI>;
+	requested: boolean;
+}
+
 type ICodexSessionRead = ThreadReadResponse & {
 	readonly persistedWorkingDirectories?: readonly URI[];
 	readonly persistedModelId?: string;
@@ -1004,7 +1013,7 @@ function narrowFileChangeDecision(decision: CommandExecutionApprovalDecision): F
 export class CodexAgent extends Disposable implements IAgent {
 
 	readonly id: AgentProvider = CODEX_AGENT_PROVIDER_ID;
-	readonly agentHostCapabilities = { workspaceConversion: false } as const;
+	readonly agentHostCapabilities = { workspaceConversion: true } as const;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -1044,6 +1053,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/** Keyed by caller-facing sessionId (the URI host). */
 	private readonly _sessions = new Map<string, ICodexSession>();
+	private readonly _workingDirectoryChanges = new Map<string, ICodexWorkingDirectoryChange>();
 	/** Keyed by `${chat.toString()}\u0000${clientId}` — exact-chat, exact-client membership; no session- or sibling-level entries. */
 	private readonly _activeClientHandles = new Map<string, CodexActiveClientHandle>();
 	/** Host-supplied chat URI to Codex session id routing. */
@@ -1404,6 +1414,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _resetSessionForModelProviderChange(session: ICodexSession, modelProvider: string): Promise<void> {
+		this._throwIfWorkingDirectoryChangeActive(session.configurationResource);
 		if (session.threadId === undefined) {
 			return;
 		}
@@ -2480,6 +2491,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		subscriptions.add(client.onNotification('thread/tokenUsage/updated', params => this._dispatchTokenUsageUpdated(params)));
 		subscriptions.add(client.onNotification('item/completed', params => this._dispatchItemCompleted(params)));
 		subscriptions.add(client.onNotification('turn/completed', params => this._dispatchTurnCompleted(params)));
+		this._registerWorkingDirectoryNotifications(client, subscriptions);
 		// Auto-review (guardian) surfacing. The guardian turn-interruption warning
 		// is shown as a system notification; terminal review failures are surfaced
 		// from the structured completion event, and a denied review also gets a
@@ -3043,7 +3055,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		const ignored = [
 			'thread/started', // thread/start response is authoritative for session materialization.
 			'thread/status/changed', // Codex thread status is not surfaced in Agent Host state yet.
-			'thread/settings/updated', // VS Code owns session config; Codex settings echoes are not consumed yet.
 			'thread/goal/updated', // Goals are not surfaced in the Agent Host UI yet.
 			'thread/goal/cleared', // Goals are not surfaced in the Agent Host UI yet.
 			'thread/compacted', // Deprecated completion echo; the contextCompaction item owns UI progress.
@@ -3054,6 +3065,21 @@ export class CodexAgent extends Disposable implements IAgent {
 		for (const method of ignored) {
 			subscriptions.add(client.onNotification(method, () => { /* intentionally ignored */ }));
 		}
+	}
+
+	private _registerWorkingDirectoryNotifications(client: ICodexAppServerClient, subscriptions: DisposableStore): void {
+		subscriptions.add(client.onNotification('thread/settings/updated', params => {
+			const change = this._workingDirectoryChangeForThread(params.threadId);
+			const workingDirectory = URI.file(params.threadSettings.cwd);
+			if (change && !isEqual(workingDirectory, change.previousWorkingDirectory)) {
+				change.updated.complete(workingDirectory);
+			}
+		}));
+		subscriptions.add(client.onNotification('error', params => {
+			if (!params.willRetry) {
+				this._workingDirectoryChangeForThread(params.threadId)?.updated.error(new Error(params.error.message));
+			}
+		}));
 	}
 
 	private async _refreshAccount(client: ICodexAppServerClient, publish = true, awaitDetails = false): Promise<ICodexAccountState> {
@@ -3887,6 +3913,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Notify every known session with a single ChatError + complete
 		// pair so the UI surfaces "agent disconnected" cleanly.
 		for (const session of this._sessions.values()) {
+			this._workingDirectoryChanges.get(session.configurationResource.toString())?.updated.cancel();
 			// A replacement app-server has no in-memory copy of any thread that
 			// was materialized on this connection. The next operation must resume
 			// it before issuing a turn or another thread-scoped request.
@@ -3989,8 +4016,97 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostCodexMultiRootEnabledConfigKey) === true;
 	}
 
-	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
-		throw new Error('Codex does not support changing the working directory of an existing session.');
+	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void> {
+		const session = this._resolveWorkingDirectoryChangeSession(chat, context);
+		const key = session.configurationResource.toString();
+		this._throwIfWorkingDirectoryChangeActive(session.configurationResource);
+		if (workingDirectory.scheme !== Schemas.file || !isAbsolute(workingDirectory.fsPath) || workingDirectory.query || workingDirectory.fragment) {
+			throw new Error(`Cannot change the working directory to non-local or relative resource '${workingDirectory.toString()}'`);
+		}
+		if (isEqual(session.workingDirectory, workingDirectory)) {
+			return;
+		}
+		const change: ICodexWorkingDirectoryChange = {
+			session,
+			threadId: session.threadId!,
+			previousWorkingDirectory: session.workingDirectory!,
+			updated: new DeferredPromise<URI>(),
+			requested: false,
+		};
+		this._workingDirectoryChanges.set(key, change);
+		try {
+			const request = (async () => {
+				if (!(await this._fileService.stat(workingDirectory)).isDirectory) {
+					throw new Error(`Cannot change the working directory because '${workingDirectory.fsPath}' is not a directory`);
+				}
+				const { threadId, connection } = await this._ensureThreadConnection(session);
+				if (change.updated.isSettled || this._resolveWorkingDirectoryChangeSession(chat, context) !== session || threadId !== change.threadId) {
+					throw new CancellationError();
+				}
+				change.requested = true;
+				await connection.client.request<'thread/settings/update'>('thread/settings/update', { threadId, cwd: workingDirectory.fsPath });
+				return change.updated.p;
+			})();
+			const appliedDirectory = await raceTimeout(Promise.race([request, change.updated.p]), 30_000);
+			if (!appliedDirectory) {
+				throw new Error('Timed out waiting for Codex to apply the working directory change');
+			}
+			if (session.disposed || this._sessions.get(session.sessionId) !== session || session.threadId !== change.threadId) {
+				throw new CancellationError();
+			}
+			session.workingDirectory = appliedDirectory;
+			session.workingDirectories = [appliedDirectory];
+			try {
+				await this._metadataStore.write(session.sessionUri, { cwd: appliedDirectory });
+				await this._refreshSessionMcpDiscovery(session);
+				await this._refreshSkillHookCustomizations(session);
+			} catch (error) {
+				throw new AgentWorkingDirectoryChangedError(appliedDirectory, `Codex changed working directory, but provider state could not be refreshed: ${error instanceof Error ? error.message : String(error)}`);
+			}
+			if (!isEqual(appliedDirectory, workingDirectory)) {
+				throw new AgentWorkingDirectoryChangedError(appliedDirectory, `Codex changed working directory to '${appliedDirectory.fsPath}' instead of '${workingDirectory.fsPath}'`);
+			}
+		} catch (error) {
+			if (change.requested && !change.updated.value && !session.disposed) {
+				this._markSessionForReload(session);
+			}
+			throw error;
+		} finally {
+			if (this._workingDirectoryChanges.get(key) === change) {
+				this._workingDirectoryChanges.delete(key);
+			}
+			change.updated.cancel();
+		}
+	}
+
+	private _resolveWorkingDirectoryChangeSession(chat: URI, context: URI | IAgentChatContext): ICodexSession {
+		const resolved = resolveAgentChatContext(context, chat);
+		const runtime = this._resolveConversationSession(chat, resolved);
+		const session = runtime ? this._sessions.get(AgentSession.id(runtime)) : undefined;
+		if (!session || session.disposed || !session.threadId || !session.workingDirectory || !session.firstTurnSent
+			|| !isEqual(session.chatChannel, chat) || !isEqual(session.configurationResource, resolved.configurationResource)) {
+			throw new Error(`Cannot change the working directory: chat '${chat.toString()}' is not bound to a live Codex thread with the supplied context`);
+		}
+		if (session.currentTurnId || session.currentAppTurnId || session.materializePromise || session.resumePromise) {
+			throw new Error(`Cannot change the working directory while Codex chat '${chat.toString()}' is active`);
+		}
+		if (this._workingDirectories(session).length !== 1 || this._configScopeChats.get(session.configurationResource.toString())?.size !== 1) {
+			throw new Error(`Cannot change the working directory for a multi-root or shared Codex configuration '${session.configurationResource.toString()}'`);
+		}
+		return session;
+	}
+
+	private _workingDirectoryChangeForThread(threadId: string): ICodexWorkingDirectoryChange | undefined {
+		const sessionId = this._sessionIdByThreadId.get(threadId);
+		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		const change = session ? this._workingDirectoryChanges.get(session.configurationResource.toString()) : undefined;
+		return change?.requested && change.session === session && change.threadId === threadId ? change : undefined;
+	}
+
+	private _throwIfWorkingDirectoryChangeActive(configurationResource: URI): void {
+		if (this._workingDirectoryChanges.has(configurationResource.toString())) {
+			throw new Error(`Cannot modify Codex configuration '${configurationResource.toString()}' while a working directory change is pending`);
+		}
 	}
 
 	/**
@@ -4055,6 +4171,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * scope when that move emptied it so its resources can be reclaimed.
 	 */
 	private _trackConfigScopeChat(configurationResource: URI, chat: URI): URI | undefined {
+		this._throwIfWorkingDirectoryChangeActive(configurationResource);
 		const key = configurationResource.toString();
 		const chatKey = chat.toString();
 		const previousKey = this._configScopeByChat.get(chatKey);
@@ -4219,6 +4336,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> {
 		const operationContext = resolveAgentChatContext(context, chat);
+		this._throwIfWorkingDirectoryChangeActive(operationContext.configurationResource);
 		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			throw new Error(`Codex conversation is not bound: ${chat.toString()}`);
@@ -4263,6 +4381,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * half-registered chat piling onto the next attempt.
 	 */
 	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+		this._throwIfWorkingDirectoryChangeActive(context.configurationResource);
 		this._activate();
 		const target: ICodexTargetChat = { resource: chat, configurationResource: context.configurationResource };
 		const owningSessionId = AgentSession.id(context.configurationResource);
@@ -5487,6 +5606,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			throw new Error(`Codex session not found: ${sessionUri.toString()} (chat=${chat.toString()}, binding=${this._sessionIdByChatUri.get(chat.toString()) ?? 'none'}, sessions=${[...this._sessions.keys()].join(',') || 'none'})`);
 		}
 		const configResource = operationContext?.configurationResource ?? sessionUri;
+		this._throwIfWorkingDirectoryChangeActive(session.configurationResource);
 		session.agentMergeTurn = operationContext?.agentMergeTurn === true;
 		this._ensureModelProviderAuthenticated(session.model);
 		// The host hands us the complete resolved snapshot (index 0 = the process
@@ -5936,6 +6056,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private async _teardownSessionInMemory(session: ICodexSession, sessionId: string, deleteManagedWorkingDirectory: boolean): Promise<void> {
 		session.disposed = true;
+		this._workingDirectoryChanges.get(session.configurationResource.toString())?.updated.cancel();
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
 		this._releaseMcpPublisher(session);
@@ -6003,6 +6124,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _changeModel(chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> {
 		const operationContext = resolveAgentChatContext(context, chat);
+		this._throwIfWorkingDirectoryChangeActive(operationContext.configurationResource);
 		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return;
@@ -6258,15 +6380,18 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._assertCurrentConnection(conn);
 				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
 					'thread/resume',
-					buildCodexResumeParams(
-						resolvedModel.modelProvider,
-						threadId,
-						mcpServers,
-						runtimeWorkspaceRoots,
-						customizationLaunch.config,
-						customizationLaunch.developerInstructions,
-						this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
-					),
+					{
+						...buildCodexResumeParams(
+							resolvedModel.modelProvider,
+							threadId,
+							mcpServers,
+							runtimeWorkspaceRoots,
+							customizationLaunch.config,
+							customizationLaunch.developerInstructions,
+							this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
+						),
+						cwd: session.workingDirectory?.fsPath,
+					},
 					this._traceContext(session),
 				);
 				this._assertCurrentConnection(conn);
@@ -7697,6 +7822,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _clearRuntimeState(): void {
+		for (const change of this._workingDirectoryChanges.values()) {
+			change.updated.cancel();
+		}
+		this._workingDirectoryChanges.clear();
 		for (const s of this._sessions.values()) {
 			s.disposed = true;
 			if (s.prewarmTimer) {

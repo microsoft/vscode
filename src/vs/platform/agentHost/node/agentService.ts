@@ -1174,8 +1174,14 @@ export class AgentService extends Disposable implements IAgentService {
 	private _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor {
 		return {
 			isActiveAgentTitleGenerationEnabled: () => this._isActiveAgentTitleGenerationEnabled(),
-			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true
-				&& readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta),
+			canConvertWorkspace: session => {
+				const state = this._stateManager.getSessionState(session.toString());
+				return this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true
+					&& readSessionWorkspaceless(state?._meta)
+					&& !!state && (state.status & SessionStatus.IsArchived) === 0
+					&& state.chats.length === 1
+					&& (state.workingDirectories?.length ?? 0) <= 1;
+			},
 			listSessions: () => this.listSessions(),
 			getSession: session => this._getSessionMetadata(session),
 			createSession: config => this.createSession(config),

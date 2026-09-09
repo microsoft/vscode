@@ -459,6 +459,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			|| !readSessionWorkspaceless(state._meta)
 			|| (state.status & SessionStatus.IsArchived) === SessionStatus.IsArchived
 			|| state.defaultChat !== chat.toString()
+			|| state.chats.length !== 1
 			|| state.workingDirectories?.length !== 1
 			|| state.workingDirectories[0] !== previousWorkingDirectory
 			|| (expectedState && (!equals(state._meta, expectedState._meta) || !equals(state.config, expectedState.config) || !equals(state.project, expectedState.project)))
@@ -489,6 +490,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}
 		if (!isDefaultChatUri(chat) || state.defaultChat !== chat.toString()) {
 			throw new Error('Only the owning default chat can convert the session to a workspace session.');
+		}
+		if (state.chats.length !== 1) {
+			throw new Error('A session with multiple chats cannot be converted to a workspace session.');
 		}
 		if (state.workingDirectories?.length !== 1) {
 			throw new Error('A workspace-less session must have exactly one working directory before conversion.');

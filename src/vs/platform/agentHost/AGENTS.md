@@ -497,6 +497,15 @@ explicitly bound to the concrete chat URI AH supplies:
 - Initializing `chats.createChat` binds a thread to the exact host-supplied chat URI at provisioning time (including restored/forked threads); `materializeChat` re-attaches any chat's backing thread on restore.
 - A cold `getChatMetadata` read caches the backing thread's summary, timestamps, and working directories on the live runtime. Later metadata reads return those fields from memory (the app-server may be blocked on a dynamic tool call), so hydrating a runtime must never erase an already-listed session title.
 
+Codex advertises workspace conversion for workspace-less, single-chat sessions.
+`setWorkingDirectory` updates the existing idle thread through the experimental
+`thread/settings/update` API and waits for `thread/settings/updated`, not the
+queue acknowledgement, before publishing its new working directory. Unchanged
+directories are a no-op because Codex suppresses unchanged settings echoes.
+Failed or interrupted updates force a reload with the last confirmed directory
+before another turn, while an applied update with a later refresh failure reports
+`AgentWorkingDirectoryChangedError` so the host follows the authoritative directory.
+
 An additional chat is backed by a **fresh top-level thread minted eagerly** in
 `chats.createChat` (via `thread/start` or `thread/fork` at the
 requested turn, reusing `_forkSession`). For these internal peer backings only,
