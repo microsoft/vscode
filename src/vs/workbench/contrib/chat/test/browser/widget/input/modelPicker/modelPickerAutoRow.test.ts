@@ -229,7 +229,7 @@ suite('ModelPickerAutoRow', () => {
 				checked: [0, 1, 2].map(candidate => String(candidate === index)),
 				description: `Automatic model selection · ${description}`,
 				focused: true,
-				previousConnected: false,
+				previousConnected: true,
 			});
 		});
 	}
@@ -307,7 +307,8 @@ suite('ModelPickerAutoRow', () => {
 		result.toggle.click();
 		const inactive = readState();
 		const inactiveStyle = getWindow(result.tiers[2]).getComputedStyle(result.tiers[2]);
-		const inactiveAppearance = { color: inactiveStyle.color, background: inactiveStyle.backgroundColor, opacity: inactiveStyle.opacity };
+		const selection = result.row.element.querySelector<HTMLElement>('.monaco-radio-selection')!;
+		const inactiveAppearance = { color: inactiveStyle.color, background: getWindow(selection).getComputedStyle(selection).backgroundColor, opacity: inactiveStyle.opacity };
 		result.toggle.click();
 
 		assert.deepStrictEqual({

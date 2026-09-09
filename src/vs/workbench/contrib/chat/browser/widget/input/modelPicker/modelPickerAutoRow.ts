@@ -11,7 +11,7 @@ import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../../nls.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getModelConfigProperty, getModelConfigValueLabel, IModelConfigPropertySchema, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
 
 export interface IAutoRowOptions {
 	readonly autoModel: ILanguageModelChatMetadataAndIdentifier;
@@ -31,6 +31,7 @@ export class ModelPickerAutoRow extends DisposableStore {
 	private readonly _description: HTMLElement;
 	private readonly _tierChanges = new Sequencer();
 	private _tierControl: Radio | undefined;
+	private _tierSchema: IModelConfigPropertySchema | undefined;
 	private _toggleVersion = 0;
 
 	constructor(private readonly _options: IAutoRowOptions) {
@@ -83,11 +84,14 @@ export class ModelPickerAutoRow extends DisposableStore {
 		const tier = getModelConfigProperty(this._options.autoModel, this._options.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
 		const values = tier?.schema.enum ?? [];
 		const selectedIndex = Math.max(0, values.indexOf(tier?.value));
-		dom.clearNode(this._tierContainer);
-		this._renderDisposables.clear();
-		this._tierControl = undefined;
+		if (tier?.schema !== this._tierSchema) {
+			dom.clearNode(this._tierContainer);
+			this._renderDisposables.clear();
+			this._tierControl = undefined;
+			this._tierSchema = tier?.schema;
+		}
 
-		if (tier && values.length > 1) {
+		if (!this._tierControl && tier && values.length > 1) {
 			const control = this._renderDisposables.add(new Radio({
 				ariaLabel: tier.schema.title ?? localize('chat.modelPicker.autoTier', "Optimize for"),
 				className: 'segmented',
@@ -104,8 +108,11 @@ export class ModelPickerAutoRow extends DisposableStore {
 			}));
 			this._tierContainer.appendChild(control.domNode);
 			this._tierControl = control;
+		}
+		if (this._tierControl) {
+			this._tierControl.setActiveItem(selectedIndex);
 			if (focusedTier >= 0) {
-				control.focusItem(focusedTier);
+				this._tierControl.focusItem(focusedTier);
 			}
 		}
 
