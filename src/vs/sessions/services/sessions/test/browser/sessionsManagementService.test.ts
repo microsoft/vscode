@@ -3327,6 +3327,112 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual((second.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get()), ['b2']);
 		});
 
+		test('restores an active subagent tab when it appears after the session', async () => {
+			const main = chat('main');
+			const subagent = chat('subagent', SessionStatus.Completed, ChatOriginKind.Tool);
+			const storage = disposables.add(new InMemoryStorageService());
+			const makeView = (session: ISession) => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+				instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([new TestSessionsProvider(session)]));
+				instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+				instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+				instantiationService.stub(IProgressService, new TestProgressService());
+				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+					override readonly onDidSubmitRequest = Event.None;
+				});
+				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				return createView(instantiationService, service, disposables);
+			};
+
+			const firstSession = stubSession({
+				sessionId: 'subagent-restart',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable([main, subagent]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const first = makeView(firstSession);
+			await first.openSession(firstSession.resource);
+			await first.openChat(firstSession, subagent.resource);
+			await storage.flush();
+			first.dispose();
+
+			const chats = observableValue<readonly IChat[]>('delayedSubagentChats', [main]);
+			const restoredSession = stubSession({
+				...firstSession,
+				chats,
+				mainChat: constObservable(main),
+			});
+			const second = makeView(restoredSession);
+			await second.restoreVisibleSessions();
+			const beforeDiscovery = second.activeSession.get()?.visibleChatTabs.get().map(c => c.title.get());
+
+			chats.set([main, subagent], undefined);
+
+			assert.deepStrictEqual({
+				beforeDiscovery,
+				afterDiscovery: second.activeSession.get()?.visibleChatTabs.get().map(c => c.title.get()),
+				activeChat: second.activeSession.get()?.activeChat.get().title.get(),
+			}, {
+				beforeDiscovery: ['main'],
+				afterDiscovery: ['main', 'subagent'],
+				activeChat: 'subagent',
+			});
+		});
+
+		test('restores an inactive subagent without changing ordinary side chat behavior', async () => {
+			const main = chat('main');
+			const side = chat('side', SessionStatus.Completed, ChatOriginKind.SideChat);
+			const subagent = chat('subagent', SessionStatus.Completed, ChatOriginKind.Tool);
+			const session = stubSession({
+				sessionId: 'inactive-subagent-restart',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable([main, side, subagent]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const storage = disposables.add(new InMemoryStorageService());
+			const provider = new TestSessionsProvider(session);
+			const makeView = () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+				instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+				instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+				instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+				instantiationService.stub(IProgressService, new TestProgressService());
+				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+					override readonly onDidSubmitRequest = Event.None;
+				});
+				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				return createView(instantiationService, service, disposables);
+			};
+
+			const first = makeView();
+			await first.openSession(session.resource);
+			await first.openChat(session, subagent.resource);
+			await first.openChat(session, main.resource);
+			await storage.flush();
+			first.dispose();
+
+			const second = makeView();
+			await second.restoreVisibleSessions();
+
+			assert.deepStrictEqual({
+				tabs: second.activeSession.get()?.visibleChatTabs.get().map(c => c.title.get()),
+				activeChat: second.activeSession.get()?.activeChat.get().title.get(),
+			}, {
+				tabs: ['main', 'side', 'subagent'],
+				activeChat: 'main',
+			});
+		});
+
 		test('restores the active chat when it appears after the session', async () => {
 			const main = chat('main');
 			const side = chat('side', SessionStatus.Completed, ChatOriginKind.SideChat);
