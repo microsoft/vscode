@@ -4188,7 +4188,6 @@ export class AgentService extends Disposable implements IAgentService {
 			// can evict cached state and this subscribe reconstructs it. The
 			// handshake fast path calls addSubscriber directly and therefore pins
 			// its already-returned snapshot instead.
-			const hadSessionState = !!this._stateManager.getSessionState(resourceStr);
 			this.addSubscriber(resource, clientId);
 			// Check for terminal state
 			const terminalState = this._terminalManager.getTerminalState(resourceStr);
@@ -4283,8 +4282,8 @@ export class AgentService extends Disposable implements IAgentService {
 			// a branch-less remnant, and it would otherwise mask the very
 			// repair this lazy refresh exists to perform.
 			const sessionState = this._stateManager.getSessionState(resourceStr);
-			if (!hadSessionState && sessionState && !isAhpChatChannel(resourceStr)) {
-				this._changesetCoordinator.onFirstSubscriber(resource);
+			if (sessionState && !isAhpChatChannel(resourceStr)) {
+				this._changesetCoordinator.ensureSessionSubscription(resourceStr);
 			}
 			if (!isAhpChatChannel(resourceStr) && sessionState && needsSessionGitStateRefresh(readSessionGitState(sessionState._meta))) {
 				const workingDirectory = sessionState.workingDirectories?.[0]

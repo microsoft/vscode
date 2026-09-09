@@ -11,15 +11,19 @@ import type { AgentHostStateManager } from './agentHostStateManager.js';
 
 /** Selects the summary source, preserving branch semantics until folder isolation is resolved. */
 export function getSessionChangesSummaryKind(stateManager: AgentHostStateManager, session: string): StaticChangesetKind {
-	let isolation = stateManager.getSessionState(session)?.config?.values[SessionConfigKey.Isolation];
-	if (isolation === undefined) {
-		const parent = parseSubagentSessionUri(session);
-		if (parent) {
-			isolation = stateManager.getSessionState(parent.parentSession.toString())?.config?.values[SessionConfigKey.Isolation];
+	while (true) {
+		const isolation = stateManager.getSessionState(session)?.config?.values[SessionConfigKey.Isolation];
+		if (isolation !== undefined) {
+			return isolation === 'folder' ? 'session' : 'branch';
 		}
-	}
 
-	return isolation === 'folder' ? 'session' : 'branch';
+		const parent = parseSubagentSessionUri(session);
+		if (!parent) {
+			return 'branch';
+		}
+
+		session = parent.parentSession.toString();
+	}
 }
 
 /** Resolves implicit summary interest without duplicating an explicitly subscribed changeset. */

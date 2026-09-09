@@ -17,7 +17,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
-import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
+import { getSessionChangesSummaryKind, resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
@@ -147,6 +147,57 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('post-restore session subscription setup is idempotent and installs monitoring', async () => {
+		const { coordinator, stateManager, changesets, subscriptions, monitor } = createEnvironment();
+		const session = AgentSession.uri('mock', 'concurrent-restore').toString();
+		coordinator.onFirstSubscriber(URI.parse(session));
+		createSession(stateManager, session, 'file:///repo');
+		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'folder' } });
+
+		coordinator.ensureSessionSubscription(session);
+		coordinator.ensureSessionSubscription(session);
+		await monitor.waitForAcquisitions(1);
+		coordinator.onLastSubscriber(URI.parse(session));
+
+		assert.deepStrictEqual({
+			branch: changesets.branchRefreshes,
+			session: changesets.sessionRefreshes,
+			acquisitions: monitor.acquisitions,
+			disposals: monitor.disposals,
+			subscriptions: [...subscriptions.getSessionSubscriptions(session)],
+		}, {
+			branch: [],
+			session: [session],
+			acquisitions: ['file:///repo'],
+			disposals: ['file:///repo'],
+			subscriptions: [],
+		});
+	});
+
+	test('nested subagents inherit the nearest configured ancestor, even through missing state', () => {
+		const { stateManager } = createEnvironment();
+		const root = AgentSession.uri('mock', 'root-isolation').toString();
+		const child = buildSubagentSessionUri(root, 'child');
+		const grandchild = buildSubagentSessionUri(child, 'grandchild');
+		createSession(stateManager, root);
+		createSession(stateManager, grandchild);
+		stateManager.setSessionConfig(root, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'folder' } });
+		const throughMissingChild = getSessionChangesSummaryKind(stateManager, grandchild);
+
+		createSession(stateManager, child);
+		const throughRestoredChild = getSessionChangesSummaryKind(stateManager, grandchild);
+		stateManager.setSessionConfig(child, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		const nearerOverride = getSessionChangesSummaryKind(stateManager, grandchild);
+		stateManager.setSessionConfig(grandchild, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'folder' } });
+
+		assert.deepStrictEqual({ throughMissingChild, throughRestoredChild, nearerOverride, ownOverride: getSessionChangesSummaryKind(stateManager, grandchild) }, {
+			throughMissingChild: 'session',
+			throughRestoredChild: 'session',
+			nearerOverride: 'branch',
+			ownOverride: 'session',
+		});
+	});
+
 	for (const implicitFirst of [true, false]) {
 		test(`implicit and explicit summary subscriptions survive ${implicitFirst ? 'implicit' : 'explicit'} removal`, () => {
 			const { coordinator, stateManager, subscriptions } = createEnvironment();
@@ -168,22 +219,32 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	}
 
-	test('isolation changes refresh the summary for the session and inheriting subagents', () => {
+	test('isolation changes refresh all inheriting descendants without crossing an override', () => {
 		const { coordinator, stateManager, changesets } = createEnvironment();
 		const session = AgentSession.uri('mock', 'parent-summary').toString();
 		const child = buildSubagentSessionUri(session, 'tool-1');
+		const grandchild = buildSubagentSessionUri(child, 'tool-2');
+		const overridden = buildSubagentSessionUri(session, 'overridden');
+		const overriddenChild = buildSubagentSessionUri(overridden, 'tool-3');
 		createSession(stateManager, session);
 		createSession(stateManager, child);
+		createSession(stateManager, grandchild);
+		createSession(stateManager, overridden);
+		createSession(stateManager, overriddenChild);
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		stateManager.setSessionConfig(overridden, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
 		coordinator.onFirstSubscriber(URI.parse(session));
 		coordinator.onFirstSubscriber(URI.parse(child));
+		coordinator.onFirstSubscriber(URI.parse(grandchild));
+		coordinator.onFirstSubscriber(URI.parse(overriddenChild));
 		changesets.clearRefreshes();
 
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.Isolation]: 'folder' } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.Isolation]: 'worktree' } });
 
 		assert.deepStrictEqual({ branch: changesets.branchRefreshes, session: changesets.sessionRefreshes }, {
-			branch: [],
-			session: [session, child],
+			branch: [session, child, grandchild],
+			session: [session, child, grandchild],
 		});
 	});
 

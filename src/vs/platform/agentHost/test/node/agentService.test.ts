@@ -7603,6 +7603,54 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('restoreSession', () => {
 
+		test('surviving cold subscriber installs summary interest when the restoring subscriber is cancelled', async () => {
+			const db = new TestSessionDatabase();
+			const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/concurrent-folder-summary' });
+			const cached = { additions: 100, deletions: 20, files: 8 };
+			const agent = disposables.add(new MockAgent('copilot'));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectories: [workingDirectory], changes: cached };
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({
+				provider: agent.id, workingDirectories: [workingDirectory], config: { [SessionConfigKey.Isolation]: 'folder' },
+			});
+			await db.setMetadata(META_CHANGES_SUMMARY, JSON.stringify(cached));
+			const stateManager = getStateManager(svc);
+			stateManager.deleteSession(session.toString());
+			const restoring = new DeferredPromise<void>();
+			const finishRestore = new DeferredPromise<void>();
+			agent.getChatCustomizations = async () => {
+				restoring.complete();
+				await finishRestore.p;
+				return [];
+			};
+			let firstActive = true;
+			const first = svc.subscribe(session, 'cancelled-client', () => firstActive);
+			const firstRejected = assert.rejects(first, /Subscription cancelled/);
+			await restoring.p;
+			try {
+				await svc.subscribe(session, 'surviving-client');
+				firstActive = false;
+				svc.unsubscribe(session, 'cancelled-client');
+			} finally {
+				finishRestore.complete();
+			}
+			await firstRejected;
+
+			for (let i = 0; i < 100 && stateManager.getSessionSummary(session.toString())?.changes?.files !== 0; i++) {
+				await timeout(5);
+			}
+			assert.deepStrictEqual({
+				live: stateManager.getSessionSummary(session.toString())?.changes,
+				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+			}, {
+				live: { additions: 0, deletions: 0, files: 0 },
+				persisted: { additions: 0, deletions: 0, files: 0 },
+			});
+			svc.unsubscribe(session, 'surviving-client');
+		});
+
 		for (const cold of [true, false]) {
 			test(`folder selection replaces cached branch counts for a ${cold ? 'cold' : 'warm'} session`, async () => {
 				const db = new TestSessionDatabase();

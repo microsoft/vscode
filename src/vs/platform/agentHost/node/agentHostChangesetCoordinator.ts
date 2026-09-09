@@ -138,8 +138,17 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (previous?.values[SessionConfigKey.Isolation] !== current?.values[SessionConfigKey.Isolation]) {
 			this._changesets.recomputeSubscribedChangesets(session);
 			for (const candidate of this._stateManager.getSessionUris()) {
-				if (parseSubagentSessionUri(candidate)?.parentSession.toString() === session) {
-					this._changesets.recomputeSubscribedChangesets(candidate);
+				let ancestor = candidate;
+				while (this._stateManager.getSessionState(ancestor)?.config?.values[SessionConfigKey.Isolation] === undefined) {
+					const parent = parseSubagentSessionUri(ancestor);
+					if (!parent) {
+						break;
+					}
+					ancestor = parent.parentSession.toString();
+					if (ancestor === session) {
+						this._changesets.recomputeSubscribedChangesets(candidate);
+						break;
+					}
 				}
 			}
 		}
@@ -162,15 +171,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const parsed = parseChangesetUri(resourceStr);
 
 		if (!parsed && !isAhpChatChannel(resourceStr) && this._stateManager.getSessionState(resourceStr)) {
-			// Keep implicit summary interest separate from explicit changeset subscriptions.
-			this._addSubscription(resourceStr, resourceStr);
-			if (getSessionChangesSummaryKind(this._stateManager, resourceStr) === 'session') {
-				this._changesets.refreshSessionChangeset(resourceStr);
-			} else {
-				this._changesets.refreshBranchChangeset(resourceStr);
-			}
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
-
+			this.ensureSessionSubscription(resourceStr);
 			return;
 		}
 
@@ -204,6 +205,21 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			return;
 		}
+	}
+
+	/** Installs implicit summary interest once state exists, including after a concurrent cold restore. */
+	ensureSessionSubscription(session: string): void {
+		if (!this._stateManager.getSessionState(session) || this._changesetSubscriptions.getSessionSubscriptions(session).has(session)) {
+			return;
+		}
+
+		this._addSubscription(session, session);
+		if (getSessionChangesSummaryKind(this._stateManager, session) === 'session') {
+			this._changesets.refreshSessionChangeset(session);
+		} else {
+			this._changesets.refreshBranchChangeset(session);
+		}
+		this._changesetFileMonitor.trackSessionChanges(session, session);
 	}
 
 	/**
