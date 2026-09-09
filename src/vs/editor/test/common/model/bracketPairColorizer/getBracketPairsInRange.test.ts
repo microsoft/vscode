@@ -125,6 +125,105 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		});
 	});
 
+	test('unmatched closing brackets after position', () => {
+		disposeOnReturn(store => {
+			const languageId = 'testLanguage';
+			const instantiationService = createModelServices(store);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const languageService = instantiationService.get(ILanguageService);
+			store.add(languageService.registerLanguage({ id: languageId }));
+			store.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+				]
+			}));
+			const model = store.add(instantiateTextModel(instantiationService, '} text }', languageId));
+
+			const withoutBracketTree = model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{');
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			assert.deepStrictEqual([
+				withoutBracketTree,
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{'),
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 2), '{'),
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 9), '{'),
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '['),
+			], [false, true, true, false, false]);
+		});
+	});
+
+	test('unmatched closing bracket query waits for background tokenization', () => {
+		disposeOnReturn(store => {
+			const languageId = 'testLanguage';
+			const instantiationService = createModelServices(store);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const languageService = instantiationService.get(ILanguageService);
+			store.add(languageService.registerLanguage({ id: languageId }));
+			store.add(languageConfigurationService.register(languageId, {
+				brackets: [['{', '}']]
+			}));
+
+			const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+			const document = new TokenizedDocument([
+				new TokenInfo('"}"', encodedLanguageId, StandardTokenType.String, true),
+				new TokenInfo('}', encodedLanguageId, StandardTokenType.Other, true),
+			]);
+			store.add(TokenizationRegistry.register(languageId, {
+				...document.getTokenizationSupport(),
+				createBackgroundTokenizer: () => ({
+					dispose: () => { },
+					requestTokens: () => { },
+				}),
+			}));
+			const model = store.add(instantiateTextModel(instantiationService, document.getText(), languageId));
+
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			const beforeTokenization = model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{');
+			model.tokenization.forceTokenization(model.getLineCount());
+			const afterTokenization = model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{');
+			model.setValue(`x${document.getText()}`);
+			assert.deepStrictEqual([
+				beforeTokenization,
+				afterTokenization,
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{'),
+			], [false, true, false]);
+		});
+	});
+
+	test('unmatched closing brackets are language scoped', () => {
+		disposeOnReturn(store => {
+			const outerLanguageId = 'outerLanguage';
+			const innerLanguageId = 'innerLanguage';
+			const instantiationService = createModelServices(store);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const languageService = instantiationService.get(ILanguageService);
+			store.add(languageService.registerLanguage({ id: outerLanguageId }));
+			store.add(languageService.registerLanguage({ id: innerLanguageId }));
+			store.add(languageConfigurationService.register(outerLanguageId, {
+				brackets: [['{', '}']]
+			}));
+			store.add(languageConfigurationService.register(innerLanguageId, {
+				brackets: [['{', '}']]
+			}));
+
+			const encodedOuterLanguageId = languageService.languageIdCodec.encodeLanguageId(outerLanguageId);
+			const encodedInnerLanguageId = languageService.languageIdCodec.encodeLanguageId(innerLanguageId);
+			const document = new TokenizedDocument([
+				new TokenInfo('x', encodedOuterLanguageId, StandardTokenType.Other, true),
+				new TokenInfo('}', encodedInnerLanguageId, StandardTokenType.Other, true),
+			]);
+			store.add(TokenizationRegistry.register(outerLanguageId, document.getTokenizationSupport()));
+			const model = store.add(instantiateTextModel(instantiationService, document.getText(), outerLanguageId));
+			model.tokenization.forceTokenization(model.getLineCount());
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+
+			assert.deepStrictEqual([
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{'),
+				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 2), '{'),
+			], [false, true]);
+		});
+	});
+
 	test('Basic All', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ { ( [] ) [  { } ] () } [] ²`);

@@ -199,6 +199,7 @@ export class AutoClosingOpenCharTypeOperation {
 		}
 		let autoCloseConfig: EditorAutoClosingStrategy;
 		let shouldAutoCloseBefore: (ch: string) => boolean;
+		let shouldCheckBracketBalance = false;
 
 		const chIsQuote = isQuote(ch);
 		if (chIsQuote) {
@@ -212,12 +213,10 @@ export class AutoClosingOpenCharTypeOperation {
 			} else {
 				autoCloseConfig = config.autoClosingBrackets;
 				shouldAutoCloseBefore = config.shouldAutoCloseBefore.bracket;
+				shouldCheckBracketBalance = true;
 			}
 		}
 		if (autoCloseConfig === 'never') {
-			return null;
-		}
-		if (!chIsAlreadyTyped && !this._isBracketPairBalanced(model, pair)) {
 			return null;
 		}
 		// Sometimes, it is possible to have two auto-closing pairs that have a containment relationship
@@ -244,6 +243,10 @@ export class AutoClosingOpenCharTypeOperation {
 				if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
 					return null;
 				}
+			}
+			if (shouldCheckBracketBalance && autoCloseConfig !== 'always' && !chIsAlreadyTyped
+				&& model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(lineNumber, beforeColumn), pair.open)) {
+				return null;
 			}
 			// Do not auto-close ' or " after a word character
 			if (pair.open.length === 1 && (ch === '\'' || ch === '"') && autoCloseConfig !== 'always') {
@@ -286,17 +289,6 @@ export class AutoClosingOpenCharTypeOperation {
 		} else {
 			return pair.close;
 		}
-	}
-
-	private static _isBracketPairBalanced(model: ITextModel, pair: StandardAutoClosingPairConditional): boolean {
-		const fullModelRange = model.getFullModelRange();
-		const hasUnclosedOpeningBracket = model.bracketPairs.getBracketPairsInRange(fullModelRange)
-			.some(bracketPair => bracketPair.openingBracketInfo.bracketText === pair.open && !bracketPair.closingBracketRange);
-		if (hasUnclosedOpeningBracket) {
-			return false;
-		}
-		return !model.bracketPairs.getBracketsInRange(fullModelRange)
-			.some(bracket => bracket.isInvalid && model.getValueInRange(bracket.range) === pair.close);
 	}
 
 	/**
