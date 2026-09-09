@@ -118,6 +118,9 @@ export namespace IChatRequestVariableData {
 	}
 }
 
+/** A feature that submits a chat request on the user's behalf. */
+export type ChatRequestSource = 'agentMerge';
+
 export interface IChatRequestModel {
 	readonly id: string;
 	readonly timestamp: number;
@@ -141,6 +144,8 @@ export interface IChatRequestModel {
 	readonly modelId?: string;
 	readonly userSelectedTools?: UserSelectedTools;
 	readonly isSystemInitiated?: boolean;
+	/** The request source, independent of the request text or responding participant. */
+	readonly requestSource?: ChatRequestSource;
 	readonly isHiddenFromTranscript: boolean;
 	/** Whether only the request row is hidden. Full-turn hiding also implies this. */
 	readonly isRequestHiddenFromTranscript: boolean;
@@ -394,6 +399,7 @@ export interface IChatRequestModelParameters {
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
+	requestSource?: ChatRequestSource;
 	isHiddenFromTranscript?: boolean;
 	isRequestHiddenFromTranscript?: boolean;
 	systemInitiatedLabel?: string;
@@ -415,6 +421,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
+	public readonly requestSource?: ChatRequestSource;
 	public readonly isHiddenFromTranscript: boolean;
 	public readonly isRequestHiddenFromTranscript: boolean;
 	public readonly systemInitiatedLabel?: string;
@@ -494,6 +501,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
+		this.requestSource = params.requestSource;
 		this.isHiddenFromTranscript = params.isHiddenFromTranscript ?? false;
 		this.isRequestHiddenFromTranscript = this.isHiddenFromTranscript || params.isRequestHiddenFromTranscript === true;
 		this.systemInitiatedLabel = params.systemInitiatedLabel;
@@ -1918,6 +1926,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	modelId?: string;
 	modeInfo?: IChatRequestModeInfo;
 	isSystemInitiated?: boolean;
+	requestSource?: ChatRequestSource;
 	systemInitiatedLabel?: string;
 	terminalExecutionId?: string;
 	origin?: ISerializableChatRequestOrigin;
@@ -2954,6 +2963,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modelId: raw.modelId,
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
+			requestSource: raw.requestSource,
 			isHiddenFromTranscript: raw.hiddenFromTranscript,
 			isRequestHiddenFromTranscript: raw.requestHiddenFromTranscript,
 			systemInitiatedLabel: raw.systemInitiatedLabel,
@@ -3165,6 +3175,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		hideFromTranscript?: boolean,
 		origin?: IChatRequestOrigin,
 		isRequestHiddenFromTranscript?: boolean,
+		requestSource?: ChatRequestSource,
 	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
@@ -3190,6 +3201,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 			userSelectedTools,
 			isSystemInitiated,
+			requestSource,
 			isHiddenFromTranscript: hideFromTranscript,
 			isRequestHiddenFromTranscript,
 			systemInitiatedLabel,
@@ -3355,6 +3367,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelId: r.modelId,
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
+					...(r.requestSource !== undefined ? { requestSource: r.requestSource } : {}),
 					hiddenFromTranscript: r.isHiddenFromTranscript || undefined,
 					...(r.isRequestHiddenFromTranscript && !r.isHiddenFromTranscript ? { requestHiddenFromTranscript: true } : {}),
 					systemInitiatedLabel: r.systemInitiatedLabel,

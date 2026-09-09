@@ -31,6 +31,7 @@ import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, ICh
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatResponseResource, extractExportableSessionData, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions, toChatHistoryContent } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -93,6 +94,42 @@ suite('ChatModel', () => {
 		assert.strictEqual(model.sessionId, 'existing-session');
 		assert.strictEqual(model.timestamp, now - 1000);
 		assert.strictEqual(model.customTitle, 'My Chat');
+	});
+
+	test('Agent Merge identity survives JSON and operation log roundtrips', () => {
+		const exportedData: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: ([undefined, 'agentMerge'] as const).map(requestSource => ({
+				requestId: requestSource ? 'merge' : 'legacy',
+				message: { text: 'Repair the pull request', parts: [] },
+				variableData: { variables: [] },
+				response: [],
+				isSystemInitiated: true,
+				...(requestSource ? { requestSource } : {}),
+			})),
+		};
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: exportedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const operationLog = new ChatSessionOperationLog();
+		const serializedModels = [model.toJSON(), operationLog.read(operationLog.createInitial(model))];
+		assert.deepStrictEqual(serializedModels.map(value => {
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel,
+				{ value, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+			));
+			return restored.getRequests().map(request => ({
+				id: request.id,
+				requestSource: request.requestSource,
+			}));
+		}), [
+			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
+			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
+		]);
 	});
 
 	test('legacy requests without timestamps keep display time unknown', () => {
