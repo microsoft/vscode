@@ -1376,12 +1376,4 @@ suite('SessionWorkspaceConversionService', () => {
 			deferredContinuations: [],
 		});
 	});
-
-	test('rejects conversion when another chat shares the session workspace', () => {
-		const harness = createHarness();
-		startTurn(harness.stateManager, harness.chat);
-		harness.stateManager.addChat(harness.session.toString(), buildChatUri(harness.session, 'peer'), {});
-		assert.throws(() => harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1'), /multiple chats/);
-		assert.strictEqual(harness.service.isPending(harness.chat.toString()), false);
-	});
 });

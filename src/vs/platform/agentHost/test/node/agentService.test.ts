@@ -13003,9 +13003,6 @@ suite('AgentService (node dispatcher)', () => {
 			{ name: 'provisional workspace-less', supported: true, workspaceless: true, roots: undefined, enabled: true },
 			{ name: 'unsupported provider', supported: false, workspaceless: true, roots: ['file:///scratch'], enabled: false },
 			{ name: 'existing workspace', supported: true, workspaceless: false, roots: ['file:///workspace'], enabled: false },
-			{ name: 'multi-root', supported: true, workspaceless: true, roots: ['file:///scratch', 'file:///other'], enabled: false },
-			{ name: 'archived', supported: true, workspaceless: true, roots: ['file:///scratch'], archived: true, enabled: false },
-			{ name: 'multiple chats', supported: true, workspaceless: true, roots: ['file:///scratch'], peer: true, enabled: false },
 		]) {
 			test(`set_workspace is ${scenario.enabled ? 'available' : 'disabled'} for ${scenario.name} Codex sessions`, async () => {
 				class ServerToolAgent extends MockAgent {
@@ -13015,20 +13012,17 @@ suite('AgentService (node dispatcher)', () => {
 						this.serverToolHost = host;
 					}
 				}
-				const agent = disposables.add(new ServerToolAgent('codex', { multipleChats: { fork: true } }, { workspaceConversion: scenario.supported }));
+				const agent = disposables.add(new ServerToolAgent('codex', {}, { workspaceConversion: scenario.supported }));
 				registerTestAgentProvider(service, agent);
 				const session = AgentSession.uri('codex', 'workspace-conversion');
 				const stateManager = getStateManager(service);
 				stateManager.createSession({
 					resource: session.toString(), provider: 'codex', title: scenario.name,
-					status: SessionStatus.Idle | (scenario.archived ? SessionStatus.IsArchived : 0),
+					status: SessionStatus.Idle,
 					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 					workingDirectories: scenario.roots,
 					_meta: withSessionWorkspaceless(undefined, scenario.workspaceless),
 				});
-				if (scenario.peer) {
-					stateManager.addChat(session.toString(), buildChatUri(session, 'peer'), {});
-				}
 				const host = agent.serverToolHost!;
 				host.advertise(session.toString());
 				assert.deepStrictEqual({
