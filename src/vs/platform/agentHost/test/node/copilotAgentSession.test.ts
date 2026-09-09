@@ -10065,6 +10065,114 @@ Use the attached image as context.
 			});
 		});
 
+		test('reusing a child chat retires all of its previous SDK agent IDs', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			const subagent = {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			};
+			mockSession.fire('subagent.started', { ...subagent, toolCallId: 'tc-other' }, { agentId: 'other-agent' });
+			for (const agentId of ['first-agent', 'second-agent', 'current-agent']) {
+				mockSession.fire('subagent.started', subagent, { agentId });
+				mockSession.fire('subagent.completed', subagent, { agentId });
+			}
+			mockSession.fire('subagent.started', subagent, { agentId: 'current-agent' });
+			mockSession.fire('assistant.turn_start', { turnId: '0' }, { agentId: 'current-agent' });
+			signals.length = 0;
+
+			for (const agentId of ['first-agent', 'second-agent']) {
+				mockSession.fire('assistant.message_delta', { messageId: `late-${agentId}`, deltaContent: 'Old response' }, { agentId });
+				mockSession.fire('hook.start', {
+					hookInvocationId: `late-stop-${agentId}`,
+					hookType: 'subagentStop',
+					input: { agentId },
+				});
+				mockSession.fire('hook.end', { hookInvocationId: `late-stop-${agentId}`, hookType: 'subagentStop', success: true });
+				mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId });
+				mockSession.fire('user.message', { content: 'Old follow-up', delivery: 'idle' }, { agentId });
+				mockSession.fire('assistant.turn_start', { turnId: '0' }, { agentId });
+			}
+			const lateSignalKinds = signals.map(signal => signal.kind);
+			signals.length = 0;
+			mockSession.fire('assistant.message_delta', { messageId: 'current-message', deltaContent: 'Current response' }, { agentId: 'current-agent' });
+			mockSession.fire('assistant.message_delta', { messageId: 'other-message', deltaContent: 'Other response' }, { agentId: 'other-agent' });
+			mockSession.fire('hook.start', { hookInvocationId: 'current-stop', hookType: 'agentStop' }, { agentId: 'current-agent' });
+			mockSession.fire('hook.end', { hookInvocationId: 'current-stop', hookType: 'agentStop', success: true }, { agentId: 'current-agent' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'current-agent' });
+
+			assert.deepStrictEqual({
+				lateSignalKinds,
+				responses: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown
+					? [{ toolCallId: signal.parentToolCallId, content: signal.action.part.content }] : []),
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				parentActive: session.hasActiveTurn,
+			}, {
+				lateSignalKinds: [],
+				responses: [
+					{ toolCallId: 'tc-subagent', content: 'Current response' },
+					{ toolCallId: 'tc-other', content: 'Other response' },
+				],
+				completed: ['tc-subagent'],
+				parentActive: true,
+			});
+		});
+
+		test('retired subagents cannot affect replacement invocations through fallback routing', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			const subagent = {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			};
+			mockSession.fire('subagent.started', subagent, { agentId: 'old-agent' });
+			mockSession.fire('subagent.completed', subagent, { agentId: 'old-agent' });
+			mockSession.fire('subagent.started', subagent, { agentId: 'current-agent' });
+			mockSession.fire('assistant.turn_start', { turnId: '0' }, { agentId: 'current-agent' });
+			signals.length = 0;
+
+			mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 10, outputTokens: 20, parentToolCallId: 'tc-subagent' }, { agentId: 'old-agent' });
+			mockSession.fire('hook.start', {
+				hookInvocationId: 'old-stop',
+				hookType: 'subagentStop',
+				parentToolCallId: 'tc-subagent',
+				input: { agentId: 'old-agent' },
+			});
+			mockSession.fire('hook.end', { hookInvocationId: 'old-stop', hookType: 'subagentStop', success: true });
+			mockSession.fire('subagent.completed', subagent, { agentId: 'old-agent' });
+			mockSession.fire('subagent.failed', { ...subagent, error: 'Old failure' }, { agentId: 'old-agent' });
+			mockSession.fire('session.error', { errorType: 'TestError', message: 'Old failure' }, { agentId: 'old-agent' });
+			mockSession.fire('abort', { reason: 'user_abort' }, { agentId: 'old-agent' });
+			await timeout(0);
+			const lateSignalKinds = signals.map(signal => signal.kind);
+			signals.length = 0;
+
+			mockSession.fire('assistant.message_delta', { messageId: 'current-message', deltaContent: 'Current response' }, { agentId: 'current-agent' });
+			mockSession.fire('assistant.turn_end', { turnId: '0' }, { agentId: 'current-agent' });
+			const completionsBeforeCurrentHook = signals.filter(signal => signal.kind === 'subagent_completed').length;
+			mockSession.fire('hook.start', { hookInvocationId: 'current-stop', hookType: 'agentStop' }, { agentId: 'current-agent' });
+			mockSession.fire('hook.end', { hookInvocationId: 'current-stop', hookType: 'agentStop', success: true }, { agentId: 'current-agent' });
+
+			assert.deepStrictEqual({
+				lateSignalKinds,
+				completionsBeforeCurrentHook,
+				responses: getActions(signals).filter(action => action.type === ActionType.ChatResponsePart)
+					.map(action => action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind),
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				parentActive: session.hasActiveTurn,
+			}, {
+				lateSignalKinds: [],
+				completionsBeforeCurrentHook: 0,
+				responses: ['Current response'],
+				completed: ['tc-subagent'],
+				parentActive: true,
+			});
+		});
+
 		test('scheduled tool display updates cannot outlive their subagent invocation', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
