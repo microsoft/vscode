@@ -23,7 +23,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
@@ -251,6 +251,11 @@ export class NewChatWidget extends Disposable {
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
+		const workspacePickerSelectionChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
+		this._newChatInput.sessionTypePicker.setSessionWorkspaceFolderSource(derived(this, reader => {
+			workspacePickerSelectionChanged.read(reader);
+			return this._isQuickChatComposer.read(reader) ? undefined : this._workspacePicker.selectedFolderUri;
+		}));
 		if (this.options.initialAttachments?.length) {
 			this._newChatInput.addAttachments(...this.options.initialAttachments);
 		}
@@ -372,13 +377,19 @@ export class NewChatWidget extends Disposable {
 		let previousFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
-			const folderUri = session?.workspace.read(reader)?.folders[0]?.root;
+			const workspace = session?.workspace.read(reader);
+			const folderUri = workspace?.folders[0]?.root;
 			this._handlePromptOptionsWorkspaceChange(previousFolderUri, folderUri);
 			previousFolderUri = folderUri;
-			if (folderUri && !this.uriIdentityService.extUri.isEqual(folderUri, this._workspacePicker.selectedFolderUri)) {
-				this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
-			}
+			this._syncWorkspacePickerFromSessionWorkspace(workspace);
 		}));
+	}
+
+	private _syncWorkspacePickerFromSessionWorkspace(workspace: ISessionWorkspace | undefined): void {
+		const folderUri = workspace?.folders[0]?.root;
+		if (folderUri && !this._workspacePicker.matchesSelectedWorkspace(workspace)) {
+			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
+		}
 	}
 
 	private _handlePromptOptionsWorkspaceChange(previousFolderUri: URI | undefined, folderUri: URI | undefined): void {

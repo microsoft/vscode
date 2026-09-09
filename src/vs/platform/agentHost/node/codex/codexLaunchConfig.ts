@@ -53,6 +53,8 @@ export interface ICodexLaunchConfig {
 	readonly args: readonly string[];
 }
 
+export const CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY = 'features.default_mode_request_user_input';
+
 export function buildCodexResumeParams(
 	model: { readonly modelProvider: string; readonly modelId: string },
 	threadId: string,
@@ -65,6 +67,7 @@ export function buildCodexResumeParams(
 ): ThreadResumeParams {
 	const config = {
 		...configOverrides,
+		[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 		'features.image_generation': imageGenerationEnabled,
 		...(Object.keys(mcpServers).length > 0 ? { mcp_servers: mcpServers as JsonValue } : {}),
 	};

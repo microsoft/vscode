@@ -111,13 +111,13 @@ suite('CodexLaunchConfig', () => {
 			threadId: 'thread-a',
 			model: 'native-model',
 			modelProvider: 'openai',
-			config: { 'features.image_generation': true },
+			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': true },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'vscode-proxy', modelId: 'copilot-model' }, 'thread-b', { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } }), {
 			threadId: 'thread-b',
 			model: 'copilot-model',
 			modelProvider: 'vscode-proxy',
-			config: { 'features.image_generation': false, mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
+			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': false, mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-c', {}, undefined, {
 			agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } },
@@ -125,7 +125,7 @@ suite('CodexLaunchConfig', () => {
 			threadId: 'thread-c',
 			model: 'native-model',
 			modelProvider: 'openai',
-			config: { agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } }, 'features.image_generation': false },
+			config: { agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } }, 'features.default_mode_request_user_input': true, 'features.image_generation': false },
 			developerInstructions: 'Use the selected reviewer instructions.',
 		});
 		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'custom-provider', modelId: 'custom-model' }, 'thread-c', {}, ['/repo-a', '/repo-b']), {
@@ -134,7 +134,7 @@ suite('CodexLaunchConfig', () => {
 			modelProvider: 'custom-provider',
 			cwd: '/repo-a',
 			runtimeWorkspaceRoots: ['/repo-a', '/repo-b'],
-			config: { 'features.image_generation': false },
+			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': false },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-d', {}, ['/repo'], {}, undefined, false, {
 			approvalPolicy: 'on-request',
@@ -149,7 +149,7 @@ suite('CodexLaunchConfig', () => {
 			approvalPolicy: 'on-request',
 			approvalsReviewer: 'auto_review',
 			permissions: 'vscode-workspace',
-			config: { 'features.image_generation': false },
+			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': false },
 		});
 	});
 });

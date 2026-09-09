@@ -107,6 +107,10 @@ class TestSessionTypePicker extends SessionTypePicker {
 	pick(p: IPickedSessionType): void {
 		this._handleSelectedSessionType(p);
 	}
+
+	get offeredSessionTypeIds(): readonly string[] {
+		return this._folderSessionTypes.map(type => type.sessionType.id);
+	}
 }
 
 function createPicker(
@@ -526,6 +530,30 @@ suite('SessionTypePicker', () => {
 		picker.setFolderSource(observableValue<URI | undefined>('folder', folderA));
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local-1', sessionTypeId: 'local' });
+	});
+
+	test('session-driven mode uses the selected workspace for availability while displaying the draft type', () => {
+		const localFolder = URI.file('/local/project');
+		const cloudFolder = URI.parse('github-remote-file://github/owner/project/HEAD');
+		management.setSessionTypesForFolder(localFolder, [
+			sessionType('copilot', 'copilot-cli', 'Copilot'),
+			sessionType('copilot', 'cloud', 'Cloud'),
+		]);
+		management.setSessionTypesForFolder(cloudFolder, [
+			sessionType('copilot', 'cloud', 'Cloud'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setSessionWorkspaceFolderSource(observableValue<URI | undefined>('selectedWorkspace', localFolder));
+
+		session.set(createFakeSession('copilot', 'cloud', cloudFolder), undefined);
+
+		assert.deepStrictEqual({
+			selectedPick: picker.selectedPick,
+			offeredSessionTypeIds: picker.offeredSessionTypeIds,
+		}, {
+			selectedPick: { providerId: 'copilot', sessionTypeId: 'cloud' },
+			offeredSessionTypeIds: ['copilot-cli', 'cloud'],
+		});
 	});
 
 	test('folder-driven mode seeds the provided initial pick', () => {

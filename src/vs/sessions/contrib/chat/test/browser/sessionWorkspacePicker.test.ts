@@ -34,7 +34,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { WebWorkspacePicker } from '../../browser/webWorkspacePicker.js';
@@ -3498,6 +3498,110 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	test('uses repository icons and hides GitHub recents represented by local folders when enabled', () => {
+		const localRepositoryUri = URI.file('/local/vscode');
+		const localFolderUri = URI.file('/local/plain');
+		const githubRepositoryUri = URI.parse('vscode-vfs://github/microsoft/vscode/HEAD');
+		const localBaseProvider = createMockProvider('local-1');
+		const localProvider: ISessionsProvider = {
+			...localBaseProvider,
+			resolveWorkspace: uri => {
+				const workspace = localBaseProvider.resolveWorkspace(uri);
+				return workspace ? {
+					...workspace,
+					group: SESSION_WORKSPACE_GROUP_LOCAL,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: uri.toString() === localRepositoryUri.toString()
+							? {
+								uri,
+								workTreeUri: uri,
+								baseBranchName: 'main',
+								gitHubInfo: constObservable({ owner: 'microsoft', repo: 'vscode' }),
+							}
+							: undefined,
+					})),
+				} : undefined;
+			},
+		};
+		const githubBaseProvider = createMockProvider('github');
+		const githubProvider: ISessionsProvider = {
+			...githubBaseProvider,
+			resolveWorkspace: uri => uri.toString() === githubRepositoryUri.toString()
+				? {
+					...githubBaseProvider.resolveWorkspace(uri)!,
+					label: 'microsoft/vscode',
+					group: SESSION_WORKSPACE_GROUP_GITHUB,
+				}
+				: undefined,
+		};
+		providersService.setProviders([localProvider, githubProvider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [
+			{ uri: githubRepositoryUri, providerId: githubProvider.id, checked: false },
+			{ uri: localFolderUri, providerId: localProvider.id, checked: false },
+			{ uri: localRepositoryUri, providerId: localProvider.id, checked: false },
+		]);
+		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, storage, true);
+
+		const items = picker.getItems()
+			.filter(item => item.kind === ActionListItemKind.Action)
+			.map(item => ({ label: item.label, icon: item.group?.icon?.id }))
+			.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''));
+
+		assert.deepStrictEqual(items, [
+			{ label: 'local/plain', icon: 'folder' },
+			{ label: 'local/vscode', icon: 'repo' },
+		]);
+	});
+
+	test('matches local and cloud workspaces for the same GitHub repository', () => {
+		const localRepositoryUri = URI.file('/local/vscode');
+		const githubRepositoryUri = URI.parse('github-remote-file://github/microsoft/vscode/HEAD');
+		const otherRepositoryUri = URI.parse('github-remote-file://github/microsoft/other/HEAD');
+		const localBaseProvider = createMockProvider('local');
+		const localProvider: ISessionsProvider = {
+			...localBaseProvider,
+			resolveWorkspace: uri => {
+				const workspace = localBaseProvider.resolveWorkspace(uri);
+				return workspace ? {
+					...workspace,
+					group: SESSION_WORKSPACE_GROUP_LOCAL,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: {
+							uri,
+							workTreeUri: uri,
+							baseBranchName: 'main',
+							gitHubInfo: constObservable({ owner: 'microsoft', repo: 'vscode' }),
+						},
+					})),
+				} : undefined;
+			},
+		};
+		const githubBaseProvider = createMockProvider('github');
+		const githubProvider: ISessionsProvider = {
+			...githubBaseProvider,
+			resolveWorkspace: uri => uri.scheme === GITHUB_REMOTE_FILE_SCHEME
+				? {
+					...githubBaseProvider.resolveWorkspace(uri)!,
+					group: SESSION_WORKSPACE_GROUP_GITHUB,
+				}
+				: undefined,
+		};
+		providersService.setProviders([localProvider, githubProvider]);
+		const picker = createTestablePicker(disposables, providersService, true);
+		picker.setSelectedWorkspace(localRepositoryUri, { fireEvent: false, persist: false });
+
+		assert.deepStrictEqual({
+			sameRepository: picker.matchesSelectedWorkspace(githubProvider.resolveWorkspace(githubRepositoryUri)!),
+			otherRepository: picker.matchesSelectedWorkspace(githubProvider.resolveWorkspace(otherRepositoryUri)!),
+		}, {
+			sameRepository: true,
+			otherRepository: false,
+		});
+	});
+
 	test('keeps unified action dispatch stable when GitHub actions are hidden', async () => {
 		const selectedActions: string[] = [];
 		const providers = [
@@ -3775,7 +3879,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 				},
 				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Clone Repository...'), attachesContext: false },
 				{
-					...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Use Repository in Cloud...'),
+					...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'),
 					attachesContext: false,
 					supportsContextAttachment: true,
 					run: async () => {
@@ -3798,7 +3902,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			items: [
 				'Add GitHub Repository',
 				'Clone Repository',
-				'Use Repository in Cloud',
+				'Repository',
 				'Attach Repository',
 			],
 			actionRuns: ['cloud'],

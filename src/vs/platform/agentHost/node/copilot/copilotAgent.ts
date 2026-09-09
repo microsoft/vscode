@@ -82,7 +82,7 @@ import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } f
 import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
+import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
@@ -1076,10 +1076,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ClaudeAdvisor) === true;
 	}
 
-	private _isMultiTurnContextRoutingEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MultiTurnContextRouting) === true;
-	}
-
 	private _areAutoModeTiersEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.AutoModeTiers) === true;
 	}
@@ -1115,7 +1111,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isSessionSyncEnabled(),
 			this._isRubberDuckEnabled(),
 			this._isClaudeAdvisorEnabled(),
-			this._isMultiTurnContextRoutingEnabled(),
 			this._getCopilotSdkLogLevelSetting(),
 			this._getEnterpriseHost(),
 			this._isSystemProxyEnabled(),
@@ -1921,30 +1916,45 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _forwardGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
-		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
-		if (!session) {
+		if (notification.event.kind === 'response.success' || notification.event.kind === 'response.error') {
+			await this._forwardResponseTelemetry(notification);
+		} else {
 			this._gitHubTelemetryForwarder.forward(notification);
+		}
+	}
+
+	private async _forwardResponseTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
+		const fallbackTurnId = session?.currentTurnId;
+		const event = notification.event;
+		const nativeModelCallId = event.properties.modelCallId ?? event.model_call_id;
+		const modelCallId = typeof nativeModelCallId === 'string' ? nativeModelCallId : undefined;
+		const forward = (turnId: string | undefined, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
+			this._gitHubTelemetryForwarder.forward(notification, turnId, {
+				ahCorrelationOutcome: outcome,
+				ahCorrelationWaitMs: waitMs,
+				ahActiveRootTurnIdAtResponse: !turnId ? fallbackTurnId : undefined,
+				ahSessionDisposedDuringWait: !turnId && waitMs !== undefined ? session?.isDisposed : undefined,
+			});
+		};
+		if (!session) {
+			forward(undefined, 'sessionNotFound');
 			return;
 		}
-		const fallbackTurnId = session.currentTurnId;
-		const event = notification.event;
-		if (event.kind === 'response.success' || event.kind === 'response.error') {
-			const modelCallId = event.properties.modelCallId ?? event.model_call_id;
-			if (typeof modelCallId === 'string') {
-				const correlatedTurnId = session.modelCallTurnCorrelation.take(modelCallId);
-				if (correlatedTurnId) {
-					this._gitHubTelemetryForwarder.forward(notification, correlatedTurnId);
-					return;
-				}
-				if (event.properties.initiatorType === 'agent') {
-					const delayedTurnId = await session.modelCallTurnCorrelation.wait(modelCallId);
-					this._gitHubTelemetryForwarder.forward(notification, delayedTurnId);
-					return;
-				}
-				session.modelCallTurnCorrelation.markResponseForwarded(modelCallId);
+		if (modelCallId !== undefined) {
+			const correlatedTurnId = session.modelCallTurnCorrelation.take(modelCallId);
+			if (correlatedTurnId) {
+				forward(correlatedTurnId, 'mappingAvailable');
+				return;
 			}
+			if (event.properties.initiatorType === 'agent') {
+				const result = await session.modelCallTurnCorrelation.wait(modelCallId);
+				forward(result.turnId, result.outcome, result.waitMs);
+				return;
+			}
+			session.modelCallTurnCorrelation.markResponseForwarded(modelCallId);
 		}
-		this._gitHubTelemetryForwarder.forward(notification, fallbackTurnId);
+		forward(fallbackTurnId, fallbackTurnId ? 'activeTurnFallback' : 'noActiveTurn');
 	}
 
 	/**
@@ -2306,17 +2316,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['RUBBER_DUCK_AGENT'] = 'true';
 			} else {
 				delete env['RUBBER_DUCK_AGENT'];
-			}
-
-			// Let the Auto router score prior user messages instead of the latest
-			// message alone. `MULTI_TURN_CONTEXT_ROUTING` is the runtime's local
-			// override for the matching ExP flag, and only takes effect on top of
-			// the single-call Auto endpoint that `createCopilotCliEnvironment`
-			// already opts into.
-			if (startupConfig.multiTurnContextRouting) {
-				env['MULTI_TURN_CONTEXT_ROUTING'] = 'true';
-			} else {
-				delete env['MULTI_TURN_CONTEXT_ROUTING'];
 			}
 
 			// Resolve the CLI entry point and native SDK binaries from node_modules.

@@ -40,7 +40,6 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IGitService, IGitRepository } from '../../../../../workbench/contrib/git/common/gitService.js';
-import { getGitHubRemoteInfo } from '../../../../../workbench/contrib/git/common/utils.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -64,6 +63,8 @@ import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { resolveGitHubRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -1525,7 +1526,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _multiChatEnabled: boolean;
 	private readonly _localGitHubInfo = new Map<string, ISettableObservable<IGitHubInfo | undefined>>();
-	private readonly _localGitHubInfoDisposables = this._register(new DisposableMap<string>());
 	private readonly _localGitHubInfoResolutionStarted = new Set<string>();
 
 	private _isCopilotCliAvailable(): boolean {
@@ -1552,7 +1552,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IGitService private readonly gitService: IGitService,
+		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
@@ -1563,6 +1563,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._onDidChangeSessionTypes.fire();
 			this._refreshSessionCache();
 		}));
+		this._register(Event.filter(
+			this.configurationService.onDidChangeConfiguration,
+			event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING),
+		)(() => this._onDidChangeSessionTypes.fire()));
 
 		// Forward session changes from the underlying model
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
@@ -1595,15 +1599,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 						run: () => this._cloneRepository(),
 					},
 				] satisfies ISessionWorkspaceBrowseAction[] : []),
-				{
-					label: localize('useRepositoryInCloud', "Use Repository in Cloud..."),
-					group: SESSION_WORKSPACE_GROUP_GITHUB,
-					icon: Codicon.cloud,
-					providerId: this.id,
-					attachesContext: false,
-					supportsContextAttachment: true,
-					run: () => this._browseForCloudRepo(),
-				},
 			]
 			: [{
 				label: localize('repository', "Repository..."),
@@ -1645,6 +1640,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const types: ISessionType[] = [];
 		if (this._isCopilotCliAvailable()) {
 			types.push(CopilotCLISessionType);
+		}
+		if (this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING) && workspaceUri.scheme === Schemas.file) {
+			const gitRepository = this._getLocalGitRepository(workspaceUri);
+			gitRepository.resolveGitHubInfo?.();
+			if (gitRepository.gitHubInfo.get()) {
+				types.push(CopilotCloudSessionType);
+			}
 		}
 		return types;
 	}
@@ -1720,12 +1722,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		assertAutomationSessionTemplate(automationConfiguration?.sessionTemplate);
 		let session: NewSession;
 
-		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			if (sessionTypeId !== CopilotCloudSessionType.id) {
-				throw new Error('Only Copilot Cloud sessions can be created for GitHub repositories');
+		if (sessionTypeId === CopilotCloudSessionType.id) {
+			const cloudWorkspace = workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME
+				? workspace
+				: this._getCloudWorkspaceForLocalRepository(workspace);
+			if (!cloudWorkspace) {
+				throw new Error('Copilot Cloud sessions require a local workspace with a GitHub remote');
 			}
 			const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/untitled-${generateUuid()}` });
-			session = this.instantiationService.createInstance(RemoteNewSession, resource, workspace, AgentSessionProviders.Cloud, this.id, automationConfiguration);
+			session = this.instantiationService.createInstance(RemoteNewSession, resource, cloudWorkspace, AgentSessionProviders.Cloud, this.id, automationConfiguration);
 		} else {
 			if (sessionTypeId !== CopilotCLISessionType.id) {
 				throw new Error(`Unsupported session type '${sessionTypeId}' for local workspaces`);
@@ -1742,6 +1747,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._newSessions.deleteAndDispose(session.sessionId);
 			throw error;
 		}
+	}
+
+	private _getCloudWorkspaceForLocalRepository(workspace: ISessionWorkspace): ISessionWorkspace | undefined {
+		const gitHubInfo = workspace.folders
+			.map(folder => folder.gitRepository?.gitHubInfo.get())
+			.find(info => info !== undefined);
+		if (!gitHubInfo) {
+			return undefined;
+		}
+		const root = URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${gitHubInfo.owner}/${gitHubInfo.repo}/HEAD`,
+		});
+		return this.resolveWorkspace(root);
 	}
 
 	getAutomationModelConfiguration(sessionId: string): AutomationModelConfiguration | undefined {
@@ -3067,7 +3087,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const oldestKey = this._localGitHubInfo.keys().next().value;
 			if (oldestKey !== undefined) {
 				this._localGitHubInfo.delete(oldestKey);
-				this._localGitHubInfoDisposables.deleteAndDispose(oldestKey);
 				this._localGitHubInfoResolutionStarted.delete(oldestKey);
 			}
 		}
@@ -3082,15 +3101,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return;
 		}
 		this._localGitHubInfoResolutionStarted.add(key);
-		void this.gitService.openRepository(uri).then(repository => {
-			if (!repository || this._localGitHubInfo.get(key) !== gitHubInfo) {
+		void resolveGitHubRepositoryFromGitConfig(this.fileService, uri).then(repositoryInfo => {
+			if (this._localGitHubInfo.get(key) !== gitHubInfo) {
 				this._localGitHubInfoResolutionStarted.delete(key);
 				return;
 			}
-			this._localGitHubInfoDisposables.set(key, autorun(reader => {
-				const repositoryInfo = getGitHubRemoteInfo(repository.state.read(reader));
-				gitHubInfo.set(repositoryInfo ? { owner: repositoryInfo.owner, repo: repositoryInfo.repo } : undefined, undefined);
-			}));
+			if (!repositoryInfo) {
+				this._localGitHubInfoResolutionStarted.delete(key);
+				return;
+			}
+			const nextGitHubInfo = { owner: repositoryInfo.owner, repo: repositoryInfo.repo };
+			if (!gitHubInfoEqual(gitHubInfo.get(), nextGitHubInfo)) {
+				gitHubInfo.set(nextGitHubInfo, undefined);
+				this._onDidChangeSessionTypes.fire();
+			}
 		}, error => {
 			this._localGitHubInfoResolutionStarted.delete(key);
 			this.logService.warn(`Failed to resolve GitHub repository metadata for '${uri.toString()}'.`, error);
