@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -1120,6 +1120,24 @@ export class AgentHostE2EServerLease {
 	 * would only obscure it.
 	 */
 	async release(createdSessions: string[], forceRestart = false): Promise<void> {
+		const diagnosticRoot = process.env['VSCODE_CANCELLATION_DIAGNOSTICS'];
+		if (diagnosticRoot) {
+			const destination = mkdtempSync(join(diagnosticRoot, 'test-'));
+			writeFileSync(join(destination, 'state.json'), JSON.stringify({
+				createdSessions,
+				forceRestart,
+				notifications: this._client?.receivedNotifications(() => true),
+				capturedAt: new Date().toISOString(),
+			}, null, 2));
+			for (const [name, source] of [
+				['host', join(this._startOptions.userDataDir, 'logs')],
+				['runtime', join(this._startOptions.homeDir, '.copilot', 'logs')],
+			]) {
+				if (existsSync(source)) {
+					cpSync(source, join(destination, name), { recursive: true });
+				}
+			}
+		}
 		const client = this._client;
 		const cleanupErrors: Error[] = [];
 		if (client) {
