@@ -18,6 +18,13 @@
  * the CLI. See the README's "Prompt snapshots" section for what is elided and
  * how to add a model.
  *
+ * Sessions run with the harness's representative production client-tool
+ * profile, including the Copilot extension's `toolSearch` AHP reference and a
+ * deferred browser pair. The host consumes the search reference, so these
+ * model-wire snapshots pin its prompt contribution rather than the extension's
+ * internal tool definition, while also exercising deferred-tool assembly and
+ * browser-gated guidance.
+ *
  * Run, then accept a new baseline and review the diff:
  *   ./scripts/test-integration.sh --run <this file>
  *   AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run <this file>
@@ -31,7 +38,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { MessageKind, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
-import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
+import { AgentHostE2EServerLease, createRealSession, registerCanonicalActiveClient, setRootConfigValues } from '../harness/agentHostE2ETestHarness.js';
+import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
 } from '../harness/ahpSnapshot.js';
@@ -78,6 +86,40 @@ const SNAPSHOT_MODELS = [
 	'claude-opus-5',
 	'gemini-2.0-flash',
 ] as const;
+
+type SnapshotModel = typeof SNAPSHOT_MODELS[number];
+
+const CLAUDE_CLIENT_TOOL_SEARCH_MODELS: ReadonlySet<SnapshotModel> = new Set([
+	'claude-haiku-4.5',
+	'claude-sonnet-4.5',
+	'claude-opus-4.5',
+	'claude-sonnet-4.6',
+	'claude-opus-4.6',
+	'claude-opus-4.7',
+	'claude-opus-4.8',
+	'claude-sonnet-5',
+	'claude-opus-5',
+]);
+
+const GPT_CLIENT_TOOL_SEARCH_MODELS: ReadonlySet<SnapshotModel> = new Set([
+	'gpt-5.6-sol',
+	'gpt-5.6-luna',
+	'gpt-5.6-terra',
+]);
+
+const DEFERRED_CLIENT_TOOL_NAMES = ['openBrowserPage', 'readPage'] as const;
+
+const EXPECTED_CLIENT_TOOL_SEARCH_DESCRIPTION = 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the deferred tools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.';
+const EXPECTED_CLIENT_TOOL_SEARCH_SCHEMA = {
+	type: 'object',
+	properties: {
+		query: {
+			type: 'string',
+			description: 'Natural language description of what tool capability you are looking for. Use broad queries to cover related tools in one search (e.g., "github" instead of separate searches for issues and PRs).',
+		},
+	},
+	required: ['query'],
+};
 
 suite('Agent Host E2E — Copilot prompts', function () {
 
@@ -143,11 +185,14 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			tempDirs.push(workspaceDir);
 
 			const sessionUri = await createRealSession(client, COPILOT_CONFIG, `prompt-snap-${model}`, createdSessions, URI.file(workspaceDir));
+			await setRootConfigValues(client, { [CopilotCliConfigKey.ToolSearchEnabled]: true }, 1);
+			await registerCanonicalActiveClient(client, sessionUri, `prompt-snap-${model}`);
 			await driveTurnWithModel(client, sessionUri, model);
 
 			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
+			assertToolSearchWire(body, model);
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
@@ -237,6 +282,59 @@ interface IWireRequest {
 	readonly messages?: ReadonlyArray<{ readonly role?: string; readonly content?: unknown }>;
 	readonly input?: unknown;
 	readonly tools?: readonly unknown[];
+}
+
+interface IWireTool {
+	readonly name?: unknown;
+	readonly type?: unknown;
+	readonly description?: unknown;
+	readonly input_schema?: unknown;
+	readonly parameters?: unknown;
+	readonly defer_loading?: unknown;
+	readonly execution?: unknown;
+}
+
+function assertToolSearchWire(rawBody: string, model: SnapshotModel): void {
+	const request = JSON.parse(rawBody) as IWireRequest;
+	assert.ok(Array.isArray(request.tools), `request for '${model}' carried no tool definitions`);
+	const tools = request.tools as readonly IWireTool[];
+	const expectsClaudeClientSearch = CLAUDE_CLIENT_TOOL_SEARCH_MODELS.has(model);
+	const expectsGptClientSearch = GPT_CLIENT_TOOL_SEARCH_MODELS.has(model);
+	const clientSearch = tools.find(tool => tool.name === 'tool_search_tool');
+	const hostedSearch = tools.find(tool => tool.type === 'tool_search');
+
+	assert.strictEqual(clientSearch !== undefined, expectsClaudeClientSearch,
+		`request for '${model}' has an unexpected client tool-search definition`);
+	assert.strictEqual(hostedSearch !== undefined, expectsGptClientSearch,
+		`request for '${model}' has an unexpected Responses tool-search definition`);
+	assert.strictEqual(hostedSearch?.execution, expectsGptClientSearch ? 'client' : undefined,
+		`request for '${model}' has unexpected Responses tool-search execution`);
+
+	if (clientSearch) {
+		assertNaturalLanguageToolSearchDefinition(clientSearch.description, clientSearch.input_schema, model);
+	}
+	if (hostedSearch) {
+		assertNaturalLanguageToolSearchDefinition(hostedSearch.description, hostedSearch.parameters, model);
+	}
+
+	for (const toolName of DEFERRED_CLIENT_TOOL_NAMES) {
+		const tool = tools.find(candidate => candidate.name === toolName);
+		if (expectsGptClientSearch) {
+			assert.strictEqual(tool, undefined,
+				`request for '${model}' preloaded client-search tool '${toolName}'`);
+		} else {
+			assert.ok(tool, `request for '${model}' is missing representative client tool '${toolName}'`);
+			assert.strictEqual(tool.defer_loading === true, expectsClaudeClientSearch,
+				`request for '${model}' has unexpected defer_loading for '${toolName}'`);
+		}
+	}
+}
+
+function assertNaturalLanguageToolSearchDefinition(description: unknown, schema: unknown, model: SnapshotModel): void {
+	assert.strictEqual(description, EXPECTED_CLIENT_TOOL_SEARCH_DESCRIPTION,
+		`client tool search for '${model}' does not use the extension's exact description`);
+	assert.deepStrictEqual(schema, EXPECTED_CLIENT_TOOL_SEARCH_SCHEMA,
+		`client tool search for '${model}' does not use the extension's exact input schema`);
 }
 
 function formatPromptSnapshot(rawBody: string): string {
