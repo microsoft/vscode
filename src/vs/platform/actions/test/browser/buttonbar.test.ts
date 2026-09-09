@@ -153,6 +153,28 @@ suite('WorkbenchButtonBar', () => {
 		});
 	});
 
+	test('keeps leading spacing pair-specific when the label contains an inline icon', () => {
+		const { bar } = createButtonBar(() => ({
+			showLabel: true,
+			showIcon: true,
+			customLabel: 'Commit $(check) Ready',
+			iconLabelSpacing: 'default',
+		}));
+
+		bar.update([iconAction('commit')], []);
+		const button = bar.buttons[0].element;
+
+		assert.deepStrictEqual(Array.from(button.children).map(child => ({
+			classes: child.className,
+			text: child.textContent,
+		})), [
+			{ classes: 'codicon codicon-git-commit monaco-button-leading-icon', text: '' },
+			{ classes: '', text: 'Commit' },
+			{ classes: 'codicon codicon-check', text: '' },
+			{ classes: '', text: 'Ready' },
+		]);
+	});
+
 	test('the spinner stands in for the icon of an icon-only button', () => {
 		const { bar } = createButtonBar((_action, index) => ({ showLabel: false, showIcon: true, showSpinner: index === 0 }));
 
@@ -187,11 +209,13 @@ suite('WorkbenchButtonBar', () => {
 		assert.deepStrictEqual({
 			busyLeading: leadingSlot(busy),
 			busyOwnsLeadingSpacing: busy.classList.contains('monaco-button-with-leading-icon'),
+			busyUsesCompactSpacing: busy.classList.contains('monaco-button-icon-label-spacing-compact'),
 			busyUsesDefaultSpacing: busy.classList.contains('monaco-button-icon-label-spacing-default'),
 			busyIcons: busy.querySelectorAll('.codicon').length,
 			busyLabel: busy.textContent,
 			idleLeading: leadingSlot(idle),
 			idleOwnsLeadingSpacing: idle.classList.contains('monaco-button-with-leading-icon'),
+			idleUsesCompactSpacing: idle.classList.contains('monaco-button-icon-label-spacing-compact'),
 			idleUsesDefaultSpacing: idle.classList.contains('monaco-button-icon-label-spacing-default'),
 			idleSpinners: idle.querySelectorAll(SPINNER_SELECTOR).length,
 			// The icon renders in its own slot rather than inline in the label.
@@ -199,11 +223,13 @@ suite('WorkbenchButtonBar', () => {
 		}, {
 			busyLeading: 'monaco-pixel-spinner monaco-button-leading-icon',
 			busyOwnsLeadingSpacing: true,
+			busyUsesCompactSpacing: true,
 			busyUsesDefaultSpacing: false,
 			busyIcons: 0,
 			busyLabel: 'busy',
 			idleLeading: 'codicon codicon-git-commit monaco-button-leading-icon',
 			idleOwnsLeadingSpacing: true,
+			idleUsesCompactSpacing: true,
 			idleUsesDefaultSpacing: false,
 			idleSpinners: 0,
 			idleLabel: 'idle',

@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* The button owns the relationship between its leading slot and label. */
-.monaco-button.monaco-text-button.monaco-button-with-leading-icon {
-	column-gap: var(--vscode-spacing-size40);
-}
-
-.monaco-button.monaco-text-button.monaco-button-with-leading-icon.monaco-button-icon-label-spacing-default {
-	column-gap: var(--vscode-spacing-size60);
-}
-
 .monaco-button.monaco-text-button > .monaco-button-leading-icon {
 	flex: 0 0 auto;
 	width: var(--vscode-iconSize-small);
 	height: var(--vscode-iconSize-small);
 	margin: 0;
+}
+
+/* The button owns this pair-specific relationship. Applying the spacing to its
+ * leading slot avoids changing gaps between segments inside an icon-rich label. */
+.monaco-button.monaco-text-button.monaco-button-with-leading-icon > .monaco-button-leading-icon {
+	margin-inline-end: var(--vscode-spacing-size40);
+}
+
+.monaco-button.monaco-text-button.monaco-button-with-leading-icon.monaco-button-icon-label-spacing-default > .monaco-button-leading-icon {
+	margin-inline-end: var(--vscode-spacing-size60);
 }
 
 .monaco-button.monaco-text-button > .codicon.monaco-button-leading-icon {
