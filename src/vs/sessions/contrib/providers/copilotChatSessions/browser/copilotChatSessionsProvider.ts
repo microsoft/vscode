@@ -10,6 +10,7 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableSignal, IReader, ISettableObservable, ITransaction, observableFromPromise, observableSignal, observableValue, observableValueOpts, runOnChange, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -63,6 +64,7 @@ import { getWorkbenchContribution } from '../../../../../workbench/common/contri
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
+import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -78,7 +80,7 @@ const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
 const STORAGE_KEY_USE_SANDBOX = 'sessions.cloudSandboxPicker.useSandbox';
 
 function getGitHubRepositoryId(repository: string): string | undefined {
-	const match = /^(?:(?:https?|ssh):\/\/(?:git@)?github\.com\/|git@github\.com:)?(?<owner>[^/:\s]+)\/(?<repo>[^/\s]+?)(?:\.git)?\/?$/.exec(repository);
+	const match = /^(?:(?:https?|ssh|git):\/\/(?:git@)?github\.com\/|git@github\.com:)?(?<owner>[^/:\s]+)\/(?<repo>[^/\s]+?)(?:\.git)?\/?$/i.exec(repository);
 	return match?.groups ? `${match.groups.owner}/${match.groups.repo}` : undefined;
 }
 
@@ -1560,6 +1562,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
 
@@ -2949,17 +2952,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	// -- Private --
 
 	private async _browseForRepository(): Promise<ISessionWorkspace | undefined> {
+		const allowRepositoryUrl = !isWeb && this._supportsLocalRepositoryActions();
 		const repository = await this.commandService.executeCommand<string>(
 			OPEN_REPO_COMMAND,
 			undefined,
-			{ allowRepositoryUrl: true },
+			{ allowRepositoryUrl },
 		);
 		if (!repository) {
 			return undefined;
 		}
 		const repoId = getGitHubRepositoryId(repository);
 		if (!repoId) {
-			return this._cloneRepository(repository);
+			return allowRepositoryUrl ? this._cloneRepository(repository) : undefined;
 		}
 		const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` });
 		const folder: ISessionFolder = {
@@ -2978,6 +2982,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: true,
 		};
+	}
+
+	private _supportsLocalRepositoryActions(): boolean {
+		return this.pathService.defaultUriScheme === Schemas.file
+			|| this.pathService.defaultUriScheme === GITHUB_REMOTE_FILE_SCHEME
+			|| this.pathService.defaultUriScheme === SessionType.CopilotCloud;
 	}
 
 	private async _cloneRepository(url: string): Promise<ISessionWorkspace | undefined> {

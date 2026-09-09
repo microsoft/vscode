@@ -80,6 +80,7 @@ interface IGitHubRepositoryBrowseHarness {
 	_labelFromUri(uri: URI): string;
 	_iconFromUri(uri: URI): ThemeIcon;
 	_cloneRepository?(url: string): Promise<ISessionWorkspace | undefined>;
+	_supportsLocalRepositoryActions(): boolean;
 }
 
 const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubContext') as (
@@ -605,44 +606,61 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
-	test('selects a pasted GitHub repository without cloning it', async () => {
+	test('selects accepted GitHub repository URLs without cloning', async () => {
 		const calls: { commandId: string; args: unknown[] }[] = [];
+		const selections = ['HTTPS://GITHUB.COM/microsoft/vscode.git', 'git://github.com/microsoft/vscode.git'];
 		const harness: IGitHubRepositoryBrowseHarness = {
 			commandService: new class extends mock<ICommandService>() {
 				override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
 					calls.push({ commandId, args });
-					return 'https://github.com/microsoft/vscode.git' as T;
+					return selections.shift() as T;
 				}
 			}(),
 			notificationService: upcastPartial<INotificationService>({ error: () => undefined }),
 			resolveWorkspace: () => undefined,
 			_labelFromUri: () => 'microsoft/vscode',
 			_iconFromUri: () => Codicon.repo,
+			_supportsLocalRepositoryActions: () => true,
 		};
 
-		const workspace = await browseForRepository.call(harness);
+		const workspaces = [
+			await browseForRepository.call(harness),
+			await browseForRepository.call(harness),
+		];
 
 		assert.deepStrictEqual({
 			calls,
-			workspace: workspace && {
+			workspaces: workspaces.map(workspace => workspace && {
 				uri: workspace.uri.toString(),
 				root: workspace.folders[0].root.toString(),
 				group: workspace.group,
 				isVirtualWorkspace: workspace.isVirtualWorkspace,
-			},
+			}),
 		}, {
 			calls: [
 				{
 					commandId: 'github.copilot.chat.cloudSessions.openRepository',
 					args: [undefined, { allowRepositoryUrl: true }],
 				},
+				{
+					commandId: 'github.copilot.chat.cloudSessions.openRepository',
+					args: [undefined, { allowRepositoryUrl: true }],
+				},
 			],
-			workspace: {
-				uri: 'https://github.com/microsoft/vscode',
-				root: 'github-remote-file://github/microsoft/vscode/HEAD',
-				group: SESSION_WORKSPACE_GROUP_GITHUB,
-				isVirtualWorkspace: true,
-			},
+			workspaces: [
+				{
+					uri: 'https://github.com/microsoft/vscode',
+					root: 'github-remote-file://github/microsoft/vscode/HEAD',
+					group: SESSION_WORKSPACE_GROUP_GITHUB,
+					isVirtualWorkspace: true,
+				},
+				{
+					uri: 'https://github.com/microsoft/vscode',
+					root: 'github-remote-file://github/microsoft/vscode/HEAD',
+					group: SESSION_WORKSPACE_GROUP_GITHUB,
+					isVirtualWorkspace: true,
+				},
+			],
 		});
 	});
 
@@ -668,6 +686,7 @@ suite('CopilotChatSessionsProvider', () => {
 			}),
 			_labelFromUri: () => 'project',
 			_iconFromUri: () => Codicon.repo,
+			_supportsLocalRepositoryActions: () => true,
 			_cloneRepository(url) {
 				return cloneRepository.call(this, url);
 			},
@@ -697,6 +716,38 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('does not offer or clone pasted URLs when local cloning is unsupported', async () => {
+		const calls: { commandId: string; args: unknown[] }[] = [];
+		const workspace = await browseForRepository.call({
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+					calls.push({ commandId, args });
+					return 'ssh://git@gitlab.com/example/project.git' as T;
+				}
+			}(),
+			notificationService: upcastPartial<INotificationService>({ error: () => undefined }),
+			resolveWorkspace: () => undefined,
+			_labelFromUri: () => 'project',
+			_iconFromUri: () => Codicon.repo,
+			_supportsLocalRepositoryActions: () => false,
+			_cloneRepository: async url => {
+				calls.push({ commandId: '_cloneRepository', args: [url] });
+				return undefined;
+			},
+		});
+
+		assert.deepStrictEqual({
+			calls,
+			workspace,
+		}, {
+			calls: [{
+				commandId: 'github.copilot.chat.cloudSessions.openRepository',
+				args: [undefined, { allowRepositoryUrl: false }],
+			}],
+			workspace: undefined,
+		});
+	});
+
 	test('rejects a workspace file returned by clone', async () => {
 		const errors: string[] = [];
 		const workspace = await cloneRepository.call({
@@ -709,6 +760,7 @@ suite('CopilotChatSessionsProvider', () => {
 			resolveWorkspace: () => undefined,
 			_labelFromUri: () => 'project',
 			_iconFromUri: () => Codicon.repo,
+			_supportsLocalRepositoryActions: () => true,
 		}, 'ssh://git@gitlab.com/example/project.git');
 
 		assert.deepStrictEqual({
