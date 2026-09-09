@@ -50,15 +50,12 @@ export interface IChatVariablesService {
 	getSelectedToolAndToolSets(sessionResource: URI): ToolAndToolSetEnablementMap;
 }
 
-export const chatPasteLinkMetadataKey = 'chatPasteLink';
-
 export interface IDynamicVariable {
 	range: IRange;
 	id: string;
 	fullName?: string;
 	icon?: ThemeIcon;
 	modelDescription?: string;
-	promptText?: string;
 	isFile?: boolean;
 	isDirectory?: boolean;
 	isAttachmentReference?: boolean;

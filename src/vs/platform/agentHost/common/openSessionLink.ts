@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILinkPresentation, ILinkPresentationStatus } from '../../dataChannel/common/dataChannel.js';
@@ -24,6 +25,9 @@ export const AGENT_HOST_SESSION_LINK_SCHEME = 'agent-host-session';
 export const AGENT_HOST_SESSION_LINK_PATTERN = /^agent-host-session:\/\/[^/?#]+\/[^?#]+(?:\?[^#]*)?(?:#.*)?$/i;
 export const AGENT_HOST_SESSION_ONLY_LINK_PATTERN = /^(?![^#]*[?&]chat=)agent-host-session:\/\/[^/?#]+\/[^?#]+(?:\?[^#]*)?(?:#.*)?$/i;
 export const AGENT_HOST_CHAT_LINK_PATTERN = /^(?=[^#]*[?&]chat=)agent-host-session:\/\/[^/?#]+\/[^?#]+(?:\?[^#]*)?(?:#.*)?$/i;
+
+const AGENT_HOST_SESSION_LINK_PATH_PREFIX = `/${AGENT_HOST_SESSION_LINK_SCHEME}/`;
+const AGENT_HOST_CHAT_LINK_PATH_SEGMENT = '/chat/';
 
 export type AgentSessionLinkStatus = 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error';
 
@@ -101,6 +105,63 @@ export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: s
 		query.push(`turn=${encodeURIComponent(turnId)}`);
 	}
 	return query.length > 0 ? `${base}?${query.join('&')}` : base;
+}
+
+/**
+ * Builds a product protocol URL that opens an agent-host session in the Agents window.
+ *
+ * Shape: `<product-protocol>://agents/agent-host-session/<provider>/<rawSessionId>[/chat/<chatId>]`.
+ */
+export function buildExternalOpenSessionLinkUri(productUrlProtocol: string, backendSession: URI | string, chatId?: string, turnId?: string): string {
+	const sessionLink = buildOpenSessionLinkUri(backendSession);
+	const encodedTarget = sessionLink.slice(`${AGENT_HOST_SESSION_LINK_SCHEME}://`.length);
+	const chatPath = chatId && chatId !== DEFAULT_CHAT_ID ? `${AGENT_HOST_CHAT_LINK_PATH_SEGMENT}${encodeURIComponent(encodeURIComponent(chatId))}` : '';
+	const query = turnId ? `?turn=${encodeURIComponent(turnId)}` : '';
+	return `${productUrlProtocol}://${AGENTS_AUTHORITY}${AGENT_HOST_SESSION_LINK_PATH_PREFIX}${encodedTarget}${chatPath}${query}`;
+}
+
+/**
+ * Recovers the internal agent-host session link carried by an Agents product protocol URL.
+ */
+export function parseExternalOpenSessionLinkUri(uri: URI | string, productUrlProtocol: string): URI | undefined {
+	const parsed = typeof uri === 'string' ? URI.parse(uri) : uri;
+	if (parsed.scheme !== productUrlProtocol || parsed.authority !== AGENTS_AUTHORITY || !parsed.path.startsWith(AGENT_HOST_SESSION_LINK_PATH_PREFIX)) {
+		return undefined;
+	}
+
+	const sessionPath = parsed.path.slice(AGENT_HOST_SESSION_LINK_PATH_PREFIX.length);
+	const providerEnd = sessionPath.indexOf('/');
+	if (providerEnd <= 0 || providerEnd === sessionPath.length - 1) {
+		return undefined;
+	}
+
+	const chatSegmentIndex = sessionPath.lastIndexOf(AGENT_HOST_CHAT_LINK_PATH_SEGMENT);
+	const hasChatSegment = chatSegmentIndex > providerEnd;
+	let chatId: string | undefined;
+	if (hasChatSegment) {
+		const encodedChatId = sessionPath.slice(chatSegmentIndex + AGENT_HOST_CHAT_LINK_PATH_SEGMENT.length);
+		if (!encodedChatId) {
+			return undefined;
+		}
+		try {
+			chatId = decodeURIComponent(encodedChatId);
+		} catch {
+			return undefined;
+		}
+	}
+	const sessionTarget = hasChatSegment ? sessionPath.slice(0, chatSegmentIndex) : sessionPath;
+	const query = [
+		chatId ? `chat=${encodeURIComponent(chatId)}` : undefined,
+		parsed.query,
+	].filter(queryPart => !!queryPart).join('&');
+	const sessionLink = URI.from({
+		scheme: AGENT_HOST_SESSION_LINK_SCHEME,
+		authority: sessionTarget.slice(0, providerEnd),
+		path: sessionTarget.slice(providerEnd),
+		query,
+		fragment: parsed.fragment,
+	});
+	return parseOpenSessionLinkUri(sessionLink) ? sessionLink : undefined;
 }
 
 /**

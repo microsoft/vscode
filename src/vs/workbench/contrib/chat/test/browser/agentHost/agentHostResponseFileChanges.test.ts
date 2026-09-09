@@ -14,10 +14,13 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildBranchChangesetUri, buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
 	buildDefaultChatUri,
 	ChangesetStatus,
+	MessageKind,
 	ResponsePartKind,
 	SessionStatus,
 	StateComponents,
@@ -25,6 +28,7 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	TurnState,
+	withMessageRequestHiddenFromTranscript,
 	type ChangesetState,
 	type ChatState,
 	type SessionState
@@ -146,6 +150,64 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			{ added: 5, removed: 0, modified: '/repo/b.ts', after: 'b-after', isDeleted: false },
 			{ added: 0, removed: 4, modified: '/repo/c.ts', after: undefined, isDeleted: true },
 		]);
+	});
+
+	test('treats host notices as authoritatively empty without suppressing visible Agent Merge turns', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
+		const changedFile = {
+			id: '1',
+			edit: {
+				after: { uri: URI.file('/repo/changed.ts').toString(), content: { uri: 'git-blob://changed-after' } },
+				diff: { added: 3, removed: 1 },
+			},
+		};
+		const chatState = (message: ChatState['turns'][number]['message']): ChatState => ({
+			turns: [{
+				id: 't1',
+				message,
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		} as unknown as ChatState);
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [changedFile] } satisfies ChangesetState);
+		conn.setState(defaultChatUri.toString(), chatState({
+			text: 'Fix the pull request',
+			origin: { kind: MessageKind.SystemNotification },
+			_meta: toAgentMergeMessageMeta(),
+		}));
+
+		const { latest } = observe(provider, ds);
+		const visibleRepairFiles = latest().map(diff => fromAgentHostUri(diff.modifiedURI).path);
+
+		conn.setState(defaultChatUri.toString(), chatState(withMessageRequestHiddenFromTranscript({
+			text: 'Continue in the requested workspace.',
+			origin: { kind: MessageKind.SystemNotification },
+			_meta: toAgentWorkspaceContinuationMessageMeta(),
+		}, true)));
+		const workspaceContinuationFiles = latest().map(diff => fromAgentHostUri(diff.modifiedURI).path);
+
+		conn.setState(defaultChatUri.toString(), chatState(withMessageRequestHiddenFromTranscript({
+			text: 'Agent Merge is enabled.',
+			origin: { kind: MessageKind.SystemNotification },
+		}, true)));
+
+		assert.deepStrictEqual({
+			visibleRepairFiles,
+			workspaceContinuationFiles,
+			noticeFiles: latest(),
+			noticeIsAuthoritativeEmpty: latest() === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES,
+		}, {
+			visibleRepairFiles: ['/repo/changed.ts'],
+			workspaceContinuationFiles: ['/repo/changed.ts'],
+			noticeFiles: [],
+			noticeIsAuthoritativeEmpty: true,
+		});
 	});
 
 	test('wraps local non-file snapshots through the Agent Host file system', () => {

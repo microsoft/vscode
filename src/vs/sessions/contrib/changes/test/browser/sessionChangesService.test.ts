@@ -22,7 +22,7 @@ import { IEditorGroup } from '../../../../../workbench/services/editor/common/ed
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../browser/sessionChangesService.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
@@ -93,6 +93,7 @@ suite('SessionChangesService', () => {
 			}();
 			const changesViewService = new class extends mock<IChangesViewService>() {
 				override readonly activeSessionResourceObs = noActiveSessionResource;
+				override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
 				override readonly activeSessionChangesObs = noChanges;
 			};
 			instantiationService.stub(IChangesViewService, changesViewService);
@@ -207,6 +208,7 @@ suite('SessionChangesService', () => {
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = noActiveSessionResource;
+			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
 			override readonly activeSessionChangesObs = noChanges;
 			override showChangeset(changeset: ISessionChangeset): void {
 				selections.push(changeset.id);
@@ -223,12 +225,16 @@ suite('SessionChangesService', () => {
 		assert.deepStrictEqual(selections, ['turn:request']);
 	});
 
-	test('registers one decoration provider across repeated Changes editor opens', async () => {
+	test('decorates only when the uncommitted changeset is selected', async () => {
 		const sessionResource = URI.parse('agent-host:test-session');
 		const activeSessionResource = observableValue<URI | undefined>('activeSessionResource', undefined);
+		const activeChangeset = observableValue<ISessionChangeset | undefined>('activeChangeset', upcastPartial<ISessionChangeset>({
+			id: UNCOMMITTED_CHANGES_CHANGESET_ID,
+		}));
 		const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = activeSessionResource;
+			override readonly activeSessionChangesetObs = activeChangeset;
 			override readonly activeSessionChangesObs = changes;
 		};
 		const providers: IDecorationsProvider[] = [];
@@ -277,18 +283,26 @@ suite('SessionChangesService', () => {
 		await service.openChangesEditor(sessionResource);
 		await service.openChangesEditor(sessionResource);
 
+		const editorResource = service.getChangesEditorResource(sessionResource);
+		const uncommittedChangesDecoration = providers[0].provideDecorations(editorResource, CancellationToken.None);
+		const uncommittedChangesCount = service.activeSessionUncommittedChangesCountObs.get();
+		activeChangeset.set(upcastPartial<ISessionChangeset>({ id: TURN_CHANGES_CHANGESET_ID }), undefined);
+		const turnChangesCount = service.activeSessionUncommittedChangesCountObs.get();
+
 		assert.deepStrictEqual({
 			providerCount: providers.length,
-			changeCount: service.activeSessionChangeCountObs.get(),
-			decoration: providers[0].provideDecorations(service.getChangesEditorResource(sessionResource), CancellationToken.None),
+			uncommittedChangesDecoration,
+			uncommittedChangesCount,
+			turnChangesCount,
 		}, {
 			providerCount: 1,
-			changeCount: 1,
-			decoration: {
+			uncommittedChangesDecoration: {
 				weight: 100,
 				letter: '1',
 				tooltip: '1 file',
 			},
+			uncommittedChangesCount: 1,
+			turnChangesCount: undefined,
 		});
 	});
 });

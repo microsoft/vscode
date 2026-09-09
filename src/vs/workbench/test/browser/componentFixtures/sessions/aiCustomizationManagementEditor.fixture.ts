@@ -5,12 +5,12 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
-import type { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { assert } from '../../../../../base/common/assert.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -22,12 +22,15 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
-import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -41,6 +44,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -57,6 +61,7 @@ import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/comm
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
@@ -76,6 +81,7 @@ import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/com
 import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { PromptsConfig } from '../../../../contrib/chat/common/promptSyntax/config/config.js';
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
@@ -167,7 +173,8 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 		override getCustomAgents() { return []; }
 		override getCustomizations() { return []; }
 		override getWorkingDirectory() { return undefined; }
-		override getWorkingDirectories() { return []; }
+		override getWorkingDirectories() { return ['file:///workspace']; }
+		override getClientWorkingDirectoryUris() { return [URI.file('/workspace')]; }
 		override getMcpServers() { return mcpServers; }
 		override addMcpServer() { }
 		override async authenticateMcpServer() { return true; }
@@ -509,6 +516,7 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/workspace/.github/instructions/performance.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Performance', description: 'Performance optimization rules', applyTo: 'src/core/**' },
 	{ uri: URI.file('/workspace/.github/instructions/error-handling.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Error Handling', description: 'Error handling patterns' },
 	{ uri: URI.file('/workspace/.github/instructions/database.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Database', description: 'Database migration and query patterns', applyTo: 'src/db/**' },
+	{ uri: URI.file('/workspace/team-rules/architecture.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, source: PromptFileSource.ConfigWorkspace, name: 'Architecture', description: 'Shared architecture rules' },
 	// Instructions — user
 	{ uri: URI.file('/user-data/prompts/personal.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.UserData, name: 'Personal Instructions', description: 'VS Code profile instructions' },
 	{ uri: URI.file('/home/dev/.copilot/instructions/my-style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, name: 'My Style', description: 'Personal coding style' },
@@ -531,6 +539,7 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/home/dev/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Planner', description: 'Project planning agent' },
 	{ uri: URI.file('/home/dev/.copilot/agents/debugger.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'Debugger', description: 'Interactive debugging assistant' },
 	{ uri: URI.file('/home/dev/.copilot/agents/nls-helper.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, name: 'NLS Helper', description: 'Natural language searching code for clarity' },
+	{ uri: URI.file('/home/dev/my-agents/release-manager.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.ConfigPersonal, name: 'Release Manager', description: 'Coordinates release preparation' },
 	// Agents - extension (built-in + third-party)
 	{ uri: URI.file('/extensions/github.copilot-chat/agents/workspace-guide.agent.md'), storage: PromptsStorage.extension, type: PromptsType.agent, name: 'Workspace Guide', description: 'Built-in workspace exploration agent', extensionId: 'GitHub.copilot-chat', extensionDisplayName: 'GitHub Copilot Chat' },
 	{ uri: URI.file('/extensions/acme.tools/agents/api-helper.agent.md'), storage: PromptsStorage.extension, type: PromptsType.agent, name: 'API Helper', description: 'Third-party API agent', extensionId: 'acme.tools', extensionDisplayName: 'Acme Tools' },
@@ -540,6 +549,7 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/workspace/.github/skills/unit-tests/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Unit Tests', description: 'Test generation and runner integration' },
 	{ uri: URI.file('/workspace/.github/skills/ci-fix/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'CI Fix', description: 'Diagnose and fix CI failures' },
 	{ uri: URI.file('/workspace/.github/skills/migration/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Migration', description: 'Database migration generation' },
+	{ uri: URI.file('/workspace/team-skills/release/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.ConfigWorkspace, name: 'Release', description: 'Release workflow guidance' },
 	{ uri: URI.file('/workspace/.github/skills/accessibility/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Accessibility', description: 'ARIA labels and keyboard navigation' },
 	{ uri: URI.file('/workspace/.github/skills/docker/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'Docker', description: 'Dockerfile and compose generation' },
 	{ uri: URI.file('/workspace/.github/skills/api-docs/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, name: 'API Docs', description: 'OpenAPI spec generation' },
@@ -678,6 +688,8 @@ const fixtureToolSets: readonly IToolSet[] = [
 
 interface IRenderEditorOptions {
 	readonly sessionResource: URI;
+	readonly files?: readonly IFixtureFile[];
+	readonly configuration?: Record<string, unknown>;
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
 	readonly availableHarnesses?: readonly IHarnessDescriptor[];
@@ -697,60 +709,12 @@ interface IRenderEditorOptions {
 	readonly activeSessionMcpServers?: readonly FixtureAgentHostMcpServer[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
+	readonly enableHovers?: boolean;
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationCategory?: CustomizationMigrationCategoryId;
-}
-
-function renderFixtureMarkdown(markdown: string): HTMLElement {
-	const container = DOM.$('div.fixture-rendered-markdown');
-	const lines = markdown.split(/\r?\n/);
-	let index = 0;
-
-	while (index < lines.length) {
-		const line = lines[index].trimEnd();
-		if (!line.trim()) {
-			index++;
-			continue;
-		}
-
-		if (line.startsWith('## ')) {
-			const heading = DOM.append(container, DOM.$('h2'));
-			heading.textContent = line.slice(3);
-			index++;
-			continue;
-		}
-
-		if (line.startsWith('- ')) {
-			const list = DOM.append(container, DOM.$('ul'));
-			while (index < lines.length && lines[index].trimStart().startsWith('- ')) {
-				DOM.append(list, DOM.$('li')).textContent = lines[index].trimStart().slice(2);
-				index++;
-			}
-			continue;
-		}
-
-		if (line.startsWith('```')) {
-			index++;
-			const codeLines: string[] = [];
-			while (index < lines.length && !lines[index].startsWith('```')) {
-				codeLines.push(lines[index]);
-				index++;
-			}
-			const pre = DOM.append(container, DOM.$('pre'));
-			DOM.append(pre, DOM.$('code')).textContent = codeLines.join('\n');
-			index++;
-			continue;
-		}
-
-		const paragraph = DOM.append(container, DOM.$('p'));
-		paragraph.textContent = line.replace(/\*\*/g, '');
-		index++;
-	}
-
-	return container;
 }
 
 // ============================================================================
@@ -794,7 +758,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				: options.selectedSection === AICustomizationManagementSection.Hooks ? PromptsType.hook
 					: options.selectedSection === AICustomizationManagementSection.Prompts ? PromptsType.prompt
 						: undefined;
-	const fixtureFiles = allFiles
+	const fixtureFiles = (options.files ?? allFiles)
 		.filter(file => !(file.type === selectedPromptType && options.emptyWorkspaceSection && file.storage === PromptsStorage.local))
 		.filter(file => !(file.type === selectedPromptType && options.emptyUserSection && file.storage === PromptsStorage.user))
 		.filter(file => !(options.emptyMigrationUserSection && file.type === PromptsType.prompt && file.storage === PromptsStorage.user))
@@ -803,6 +767,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
 	const createdFolders = new ResourceSet();
+	const migrationFileService = new class extends mock<IFileService>() {
+		override async readFile(resource: URI) {
+			return createFixtureFileContentStat(resource, fileContents.get(resource) ?? '');
+		}
+	};
 
 	// Holds a lazy reference to the model service so the ITextModelService mock
 	// (registered below) can create real ITextModel instances on demand. The
@@ -819,16 +788,35 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const harnessService = createMockHarnessService(options.sessionResource, availableHarnesses);
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+				...options.configuration,
+			});
+			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
+			if (options.enableHovers) {
+				reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+					override getContainer() { return ctx.container; }
+				}());
+				reg.define(IHoverService, class extends HoverService {
+					override setupManagedHover(...[, targetElement, content, hoverOptions]: Parameters<IHoverService['setupManagedHover']>) {
+						return super.setupManagedHover({
+							delay: 0,
+							placement: 'element',
+							showHover: options => this.showInstantHover({ ...options, container: ctx.container }),
+						}, targetElement, content, hoverOptions);
+					}
+				});
+			}
 			// Enable the structured customization preview setting so the
 			// editor exercises the preview-first behavior in fixtures.
 			// Also enable customization migration so migration affordances render in
 			// screenshot fixtures that depend on agent-host harnesses.
-			reg.defineInstance(IConfigurationService, new TestConfigurationService({
-				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
-			}));
+			reg.defineInstance(IConfigurationService, configurationService);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
@@ -878,9 +866,46 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				promptsService,
 				harnessService,
 				new class extends mock<IAgentHostActiveClientService>() {
-					override acquireMcpServerSupportScope() { return undefined; }
+					override acquireMcpServerSupportScope() {
+						if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers) {
+							return undefined;
+						}
+						const support: IAgentHostMcpServerSupportSnapshot = {
+							servers: [{
+								id: 'mcp.config.ws0.remote-browser',
+								name: 'Remote Browser',
+								collectionId: 'mcp.config.ws0',
+								source: {
+									group: undefined,
+									kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
+									label: 'Workspace',
+									collectionUri: URI.file('/workspace/.vscode/mcp.json'),
+									definitionLocation: undefined,
+									remoteAuthority: null,
+									extensionId: undefined,
+									pluginUri: undefined,
+								},
+								enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
+								applicability: AgentHostMcpServerApplicability.Applicable,
+								delivery: AgentHostMcpServerDelivery.ClientForwarded,
+								compatibility: { kind: 'supported' },
+								projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://mcp.example.com' },
+							}],
+							discoveryComplete: true,
+							coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+						};
+						return {
+							support: constObservable(support),
+							isResolved: constObservable(true),
+							whenResolved: () => Promise.resolve(),
+							dispose: () => { },
+						};
+					}
 				}(),
 				agentHostCustomizationService,
+				migrationFileService,
+				new NullLogService(),
+				configurationService,
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
@@ -1035,15 +1060,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override async reveal() { return false; }
 			}());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
-			reg.defineInstance(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
-				override render(markdown: IMarkdownString | string) {
-					const rendered: IRenderedMarkdown = {
-						element: renderFixtureMarkdown(typeof markdown === 'string' ? markdown : markdown.value),
-						dispose() { },
-					};
-					return rendered;
-				}
-			}());
+			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
@@ -1159,6 +1176,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 	}
 
+	if (options.migrationCategory) {
+		editor.showCustomizationMigrationPage(options.migrationCategory);
+	}
+
 	if (options.migrationPartialSelection) {
 		let firstMigrationCheckbox: HTMLElement | null = null;
 		for (let attempt = 0; attempt < 20 && !firstMigrationCheckbox; attempt++) {
@@ -1175,10 +1196,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.revealLastItem();
 		// Allow the 500ms hide delay and 800ms fade transition to complete.
 		await new Promise(resolve => setTimeout(resolve, 1400));
-	}
-
-	if (options.migrationCategory) {
-		editor.showCustomizationMigrationPage(options.migrationCategory);
 	}
 
 	if (options.openFirstItem) {
@@ -1678,14 +1695,7 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() {
 				override async request(): Promise<IRequestContext> { throw new Error('Fixture request unavailable'); }
 			}());
-			reg.defineInstance(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
-				override render(markdown: IMarkdownString | string) {
-					return {
-						element: renderFixtureMarkdown(typeof markdown === 'string' ? markdown : markdown.value),
-						dispose() { },
-					};
-				}
-			}());
+			reg.define(IMarkdownRendererService, MarkdownRendererService);
 		},
 	});
 
@@ -1738,6 +1748,60 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 
 const localSessionResource = LocalChatSessionUri.getNewSessionUri();
 const agentHostCopilotSessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/fixture-session' });
+
+async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureContext, isSessionsWindow: boolean): Promise<void> {
+	const skill: IFixtureFile = {
+		uri: URI.file('/workspace/.codex/skills/dreaming/SKILL.md'),
+		storage: PromptsStorage.local,
+		type: PromptsType.skill,
+		name: 'dreaming',
+	};
+	await renderEditor(ctx, {
+		sessionResource: URI.from({ scheme: 'agent-host-codex', path: '/fixture-session' }),
+		isSessionsWindow,
+		selectedSection: AICustomizationManagementSection.Skills,
+		files: [skill],
+		enableHovers: true,
+		availableHarnesses: [
+			createVSCodeHarnessDescriptor(),
+			{
+				id: 'agent-host-codex',
+				label: 'Codex',
+				icon: Codicon.openai,
+				hiddenSections: [AICustomizationManagementSection.Prompts],
+				hideGenerateButton: true,
+				itemProvider: {
+					onDidChange: Event.None,
+					async provideChatSessionCustomizations() {
+						return [{
+							uri: skill.uri,
+							type: PromptsType.skill,
+							name: 'dreaming',
+							source: PromptsStorage.local,
+							extensionId: undefined,
+							pluginUri: undefined,
+							enabled: false,
+							status: 'error',
+							statusMessage: 'missing field `description`',
+						}];
+					},
+				},
+			},
+		],
+	});
+	await timeout(50);
+
+	const row = ctx.container.querySelector<HTMLElement>('.ai-customization-list-item');
+	assert(row?.querySelector('.item-name')?.textContent === 'dreaming' && row.classList.contains('disabled'), 'The invalid Codex skill must remain visible and disabled.');
+	assert(row.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
+	const statusIcon = row.querySelector<HTMLElement>('.item-status-icon');
+	assert(statusIcon !== null && statusIcon.classList.contains('codicon-error'), 'The invalid Codex skill must show an error status icon.');
+	statusIcon.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+	await timeout(50);
+
+	const hover = ctx.container.querySelector<HTMLElement>('.monaco-hover');
+	assert(hover !== null && hover.textContent?.includes('missing field `description`') === true && hover.getBoundingClientRect().height > 0, 'Hovering the error icon must show the missing-description diagnostic.');
+}
 
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
@@ -1867,8 +1931,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			activeSessionMcpServers,
-			mcpSearchQuery: 'Remote Browser',
 			openFirstItem: true,
+			openItemLabel: 'Remote Browser',
 		}),
 	}),
 
@@ -1906,6 +1970,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
 		}),
+	}),
+
+	CodexSkillMissingDescriptionHover: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The editor-window Customizations Skills view shows one disabled dreaming skill under Workspace. An error icon appears beside the skill name, and its visible hover reads "missing field `description`".'],
+		render: ctx => renderCodexSkillMissingDescriptionHover(ctx, false),
+	}),
+
+	SessionsCodexSkillMissingDescriptionHover: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Agents-window Customizations Skills view shows one disabled dreaming skill under Workspace. An error icon appears beside the skill name, and its visible hover reads "missing field `description`".'],
+		render: ctx => renderCodexSkillMissingDescriptionHover(ctx, true),
 	}),
 
 	RemoteSkillsTab: defineComponentFixture({
@@ -2062,6 +2138,36 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.UserData,
+		}),
+	}),
+
+	McpMigration: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Migrate MCP Servers page shows Remote Browser moving from the workspace .vscode/mcp.json file to the root .mcp.json file, with no file open or more-actions controls.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.McpServers,
+		}),
+	}),
+
+	ConfiguredLocationsMigration: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			files: [{
+				uri: URI.file('/workspace/.custom/agents/super.agent.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.agent,
+				source: PromptFileSource.ConfigWorkspace,
+				name: 'SuperAgent',
+			}],
+			configuration: {
+				[PromptsConfig.AGENTS_LOCATION_KEY]: {
+					'.custom/agents': true,
+				},
+			},
+			migrationCategory: CustomizationMigrationCategoryId.ConfiguredLocations,
 		}),
 	}),
 

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IReader } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableMemento, ObservableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import type { ChatPullRequestState } from '../../../common/chatPullRequest.js';
 
 /** The kinds of pill shown above an agent chat input, each independently hideable. */
 export const enum SessionChatPillKind {
@@ -125,10 +126,22 @@ const hiddenSessionChatPills = observableMemento<readonly string[]>({
 	},
 });
 
+const showAllSessionPullRequests = observableMemento<boolean>({
+	defaultValue: true,
+	key: 'sessions.chatPills.pullRequests.showAll',
+	toStorage: value => String(value),
+	fromStorage: value => value !== 'false',
+});
+
 export const ISessionChatPillVisibilityService = createDecorator<ISessionChatPillVisibilityService>('sessionChatPillVisibilityService');
 
 export interface ISessionChatPillVisibilityService {
 	readonly _serviceBrand: undefined;
+	readonly pullRequests: {
+		readonly showAll: IObservable<boolean>;
+		isVisible(state: ChatPullRequestState | undefined, reader: IReader | undefined): boolean;
+		setShowAll(showAll: boolean): void;
+	};
 	readHiddenKinds(reader: IReader | undefined): ReadonlySet<SessionChatPillKind>;
 	isVisible(kind: SessionChatPillKind, reader: IReader | undefined): boolean;
 	hide(kind: SessionChatPillKind): void;
@@ -140,6 +153,8 @@ export class SessionChatPillVisibility extends Disposable implements ISessionCha
 
 	declare readonly _serviceBrand: undefined;
 
+	readonly pullRequests: ISessionChatPillVisibilityService['pullRequests'];
+
 	private readonly _hiddenKinds: ObservableMemento<readonly string[]>;
 
 	constructor(
@@ -147,6 +162,12 @@ export class SessionChatPillVisibility extends Disposable implements ISessionCha
 	) {
 		super();
 		this._hiddenKinds = this._register(hiddenSessionChatPills(StorageScope.APPLICATION, StorageTarget.USER, storageService));
+		const showAll = this._register(showAllSessionPullRequests(StorageScope.APPLICATION, StorageTarget.USER, storageService));
+		this.pullRequests = {
+			showAll,
+			isVisible: (state, reader) => showAll.read(reader) || (state !== 'closed' && state !== 'merged'),
+			setShowAll: value => showAll.set(value, undefined),
+		};
 	}
 
 	readHiddenKinds(reader: IReader | undefined): ReadonlySet<SessionChatPillKind> {

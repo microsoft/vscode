@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench {
+	--chat-input-control-height: 22px;
+}
+
 .interactive-session {
 	display: flex;
 	flex-direction: column;
@@ -1400,8 +1404,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
 	box-sizing: border-box;
-	width: 22px;
-	height: 22px;
+	width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
 	justify-content: center;
 	font-size: var(--vscode-codiconFontSize-compact);
 	/* Keep the fully-rounded shape in both states — the enabled rule below only
@@ -1901,6 +1905,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+.interactive-session .chat-secondary-toolbar .action-label,
+.interactive-session .chat-secondary-toolbar .chat-context-usage-widget {
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	align-items: center;
+}
+
 .interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
@@ -1948,7 +1959,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label {
 	box-sizing: border-box;
-	height: 22px;
+	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-small);
 	display: flex;
@@ -2054,7 +2065,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	box-sizing: border-box;
-	height: 22px;
+	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size60);
 	display: flex;
 	align-items: center;
@@ -2063,7 +2074,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
 	box-sizing: border-box;
-	height: 22px;
+	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-small);
 	display: flex;
@@ -2082,9 +2093,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-secondary-input-toolbar .chat-input-picker-item .action-label.icon-only,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.icon-only,
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.icon-only {
-	width: 22px;
-	min-width: 22px;
-	height: 22px;
+	width: var(--chat-input-control-height);
+	min-width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
 	padding: 0;
 	box-sizing: border-box;
 	display: flex;
@@ -2330,13 +2341,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Separate floating controls from transcript content without masking the list,
-	so the treatment remains stable while content streams or scrolls. */
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	so the treatment remains stable while content streams or scrolls. During the
+	pet's run cycle, the overlay paints the same fade beneath the pet. */
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
 	content: '';
 	position: absolute;
 	inset-inline: 0;
-	top: calc(-1 * var(--vscode-spacing-size160));
-	bottom: 0;
 	z-index: 0;
 	pointer-events: none;
 	background: linear-gradient(
@@ -2346,13 +2357,29 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	);
 }
 
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	top: calc(-1 * var(--vscode-spacing-size160));
+	bottom: 0;
+}
+
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
+	bottom: calc(100% - var(--vscode-spacing-size40));
+	height: calc(var(--vscode-chat-persistent-content-height, 0px) + var(--vscode-spacing-size160));
+}
+
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer ~ .chat-input-persistent-content.chat-persistent-content-visible::before {
+	content: none;
+}
+
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > * {
 	position: relative;
 	z-index: 1;
 }
 
 .hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
+.hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before,
+.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
 	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 	box-sizing: border-box;
@@ -4334,6 +4361,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.monaco-toolbar .action-label.chat-fork-action-label {
 			padding: 0 var(--vscode-spacing-size60);
+
+			.chat-fork-action-icon {
+				justify-content: center;
+			}
 		}
 
 		.monaco-toolbar .actions-container > .action-item:last-child .action-label {

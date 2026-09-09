@@ -63,6 +63,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]>;
 	prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<ISessionWorktree | undefined>;
 	removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void>;
+	discardSessionWorktree(sessionUri: URI, sessionId: string, worktree: ISessionWorktree | undefined): Promise<void>;
 	cleanupWorktreeOnArchive(sessionUri: URI, sessionId: string): Promise<void>;
 	recreateWorktreeOnUnarchive(sessionUri: URI, sessionId: string): Promise<void>;
 	readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined>;
@@ -70,7 +71,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void>;
 	recordExternalWorktreeProject(sessionUri: URI, workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined>;
 	resolveWorktreeProject(sessionUri: URI): Promise<IAgentSessionProjectInfo | undefined>;
-	sessionWorktreeProject(sessionId: string): IAgentSessionProjectInfo | undefined;
+	sessionWorktreeInfo(sessionId: string): IAgentHostSessionWorktreeInfo | undefined;
 }
 
 /**
@@ -118,6 +119,12 @@ const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 export interface ISessionWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
+}
+
+export interface IAgentHostSessionWorktreeInfo {
+	readonly project: IAgentSessionProjectInfo;
+	readonly workingDirectory: URI;
+	readonly branchName: string;
 }
 
 export interface IWorktreeMetadata {
@@ -393,7 +400,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	readonly supported: boolean = true;
 
 	/** Worktrees materialized during this host process, keyed by sessionId. */
-	private readonly _materializedWorktrees = new Map<string, ISessionWorktree>();
+	private readonly _materializedWorktrees = new Map<string, ISessionWorktree & { readonly branchName: string }>();
 	private readonly _worktreeDeletionRetries = new Map<string, ISessionWorktree>();
 
 	/**
@@ -723,8 +730,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			sessionMutable: false,
 		});
 
-		// Resolve isolation first — downstream schema shapes (branch's
-		// read-only mode + enum restriction) depend on the effective value.
+		// Resolve isolation first because the branch default depends on the effective value.
 		const isolationDefault: 'folder' | 'worktree' = gitInfo ? 'worktree' : 'folder';
 		const isolationValue = isolationProperty.validate(request.config?.[SessionConfigKey.Isolation])
 			? request.config![SessionConfigKey.Isolation] as 'folder' | 'worktree'
@@ -738,9 +744,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		let worktreeBranchTrackProperty: ISchemaProperty<boolean> | undefined;
 		let worktreeCreateNewBranchProperty: ISchemaProperty<boolean> | undefined;
 		if (gitInfo) {
-			const branchReadOnly = isolationValue === 'folder';
 			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch.name : gitInfo.currentBranch;
-			branchValue = isolationValue === 'worktree' && typeof request.config?.[SessionConfigKey.Branch] === 'string'
+			branchValue = typeof request.config?.[SessionConfigKey.Branch] === 'string'
 				? request.config[SessionConfigKey.Branch] as string
 				: branchDefault;
 			branchProperty = schemaProperty<string>({
@@ -750,8 +755,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				enum: [branchDefault],
 				enumLabels: [branchDefault],
 				default: branchDefault,
-				enumDynamic: !branchReadOnly,
-				readOnly: branchReadOnly,
+				enumDynamic: true,
+				readOnly: false,
 				sessionMutable: false,
 			});
 
@@ -907,9 +912,9 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			// first percentage arrives.
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
 
-			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 			const worktreePath = URI.joinPath(worktreesRoot, getWorktreeName(newBranchName ?? selectedBranch, worktreeBranchPrefix));
 			await request.onWillCreate?.({ repositoryRoot, worktreePath, baseBranch, branchName: newBranchName ?? selectedBranch });
+			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 
 			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
 				this._gitService.addWorktree(repositoryRoot, {
@@ -940,7 +945,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			}
 		}
 
-		this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
+		this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath, branchName });
 
 		// Queue the worktree announcement so the first turn (live) and any
 		// subsequent restore (history) both surface the message in the chat.
@@ -1074,6 +1079,23 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return this._sequencer.queue(sessionId, () => this._removeSessionWorktree(sessionId, worktree));
 	}
 
+	async discardSessionWorktree(sessionUri: URI, sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
+		await this.removeSessionWorktree(sessionId, worktree);
+		const dbRef = this._sessionDataService.openDatabase(sessionUri);
+		try {
+			await dbRef.object.deleteMetadata([
+				WORKTREE_META_BRANCH,
+				WORKTREE_META_PATH,
+				WORKTREE_META_REPOSITORY_ROOT,
+				WORKTREE_META_CREATION_FAILURE,
+				LEGACY_WORKTREE_META_WORKING_DIRECTORY,
+				META_DIFF_BASE_BRANCH,
+			]);
+		} finally {
+			dbRef.dispose();
+		}
+	}
+
 	private async _removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
 		this.clearPending(sessionId);
 		if (!worktree) {
@@ -1180,7 +1202,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		try {
 			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
 			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
-			this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
+			this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath, branchName });
 			this._logService.info(`[${this._logLabel}:${sessionId}] Recreated worktree '${worktreePath.fsPath}'`);
 			return { ok: true };
 		} catch (error) {
@@ -1301,9 +1323,13 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * metadata read so a fresh worktree groups under the repository the moment it
 	 * materializes.
 	 */
-	sessionWorktreeProject(sessionId: string): IAgentSessionProjectInfo | undefined {
+	sessionWorktreeInfo(sessionId: string): IAgentHostSessionWorktreeInfo | undefined {
 		const worktree = this._materializedWorktrees.get(sessionId);
-		return worktree ? projectFromRepositoryRoot(worktree.repositoryRoot) : undefined;
+		return worktree ? {
+			project: projectFromRepositoryRoot(worktree.repositoryRoot),
+			workingDirectory: worktree.worktree,
+			branchName: worktree.branchName,
+		} : undefined;
 	}
 
 	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: IDefaultBranch } | undefined> {
@@ -1470,6 +1496,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async applyRestoreAnnouncement(_sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]> { return turns; }
 	async prepareSessionDeletion(_sessionUri: URI, _sessionId: string): Promise<ISessionWorktree | undefined> { return undefined; }
 	async removeSessionWorktree(_sessionId: string, _worktree: ISessionWorktree | undefined): Promise<void> { }
+	async discardSessionWorktree(_sessionUri: URI, _sessionId: string, _worktree: ISessionWorktree | undefined): Promise<void> { }
 	async cleanupWorktreeOnArchive(_sessionUri: URI, _sessionId: string): Promise<void> { }
 	async recreateWorktreeOnUnarchive(_sessionUri: URI, _sessionId: string): Promise<void> { }
 	async readWorktreeMetadata(_sessionUri: URI): Promise<IWorktreeMetadata | undefined> { return undefined; }
@@ -1477,7 +1504,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async recordAdoptedWorktreeMetadata(_sessionUri: URI, _metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void> { }
 	async recordExternalWorktreeProject(_sessionUri: URI, _workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined> { return undefined; }
 	async resolveWorktreeProject(_sessionUri: URI): Promise<IAgentSessionProjectInfo | undefined> { return undefined; }
-	sessionWorktreeProject(_sessionId: string): IAgentSessionProjectInfo | undefined { return undefined; }
+	sessionWorktreeInfo(_sessionId: string): IAgentHostSessionWorktreeInfo | undefined { return undefined; }
 }
 
 /**

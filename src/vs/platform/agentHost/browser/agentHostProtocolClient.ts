@@ -13,12 +13,13 @@ import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -36,6 +37,7 @@ import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/error
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
+import { getExpirationTime, getRemainingTimeInSeconds, isExpired } from '../../../base/common/date.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
@@ -52,6 +54,8 @@ import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
+import { isWorktreeUnderRepository } from '../common/worktreePaths.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 // AHP 0.9 changed the automation catalog wire shape, so VS Code cannot safely negotiate 0.8.
@@ -272,7 +276,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	/** Pending JSON-RPC requests keyed by request id. */
 	private readonly _pendingRequests = new Map<number, IPendingRequest>();
-	private readonly _authentication = new Map<string, AuthenticateParams>();
+	private readonly _authentication = new Map<string, { readonly params: AuthenticateParams; readonly expiresAt: number | undefined }>();
 	private _nextRequestId = 1;
 
 	/**
@@ -400,6 +404,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		@IAgentHostResourceService private readonly _resourceService: IAgentHostResourceService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._resourceIdentity = identity;
@@ -1003,7 +1009,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (initialAuthentication) {
 					const normalizedParams = this._normalizeAuthenticationParams(initialAuthentication);
 					initialAuthenticationKey = this._authenticationKey(normalizedParams);
-					this._authentication.set(initialAuthenticationKey, normalizedParams);
+					const expiresAt = getExpirationTime(normalizedParams.expiresIn);
+					this._authentication.set(initialAuthenticationKey, { params: normalizedParams, expiresAt });
 				}
 			} catch (error) {
 				throw new InitialAuthenticationError(error);
@@ -1012,12 +1019,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				return;
 			}
 		}
-		await Promise.all([...this._authentication.entries()].map(async ([key, params]) => {
+		await Promise.all([...this._authentication.entries()].map(async ([key, authentication]) => {
+			const now = Date.now();
+			if (isExpired(authentication.expiresAt, now)) {
+				this._authentication.delete(key);
+				return;
+			}
+			const expiresIn = getRemainingTimeInSeconds(authentication.expiresAt, now);
+			const params = authentication.params;
 			try {
 				await this._dispatchRequest<CommandMap['authenticate']['result']>('authenticate', {
 					channel: ROOT_STATE_URI,
 					...params,
 					scopes: params.scopes ? [...params.scopes] : undefined,
+					...(expiresIn === undefined ? {} : { expiresIn }),
 				}, this._state.kind === AgentHostClientState.Connecting
 					? { bypassInitializeQueue: true, bypassReconnectGate: true }
 					: { bypassReconnectGate: true });
@@ -1406,6 +1421,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		const normalizedParams = this._normalizeAuthenticationParams(params);
+		const expiresAt = getExpirationTime(params.expiresIn);
 		await this._sendRequest('authenticate', {
 			channel: ROOT_STATE_URI,
 			...normalizedParams,
@@ -1413,7 +1429,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		});
 		const key = this._authenticationKey(normalizedParams);
 		if (params.token) {
-			this._authentication.set(key, normalizedParams);
+			this._authentication.set(key, { params: normalizedParams, expiresAt });
 		} else {
 			this._authentication.delete(key);
 		}
@@ -1951,6 +1967,44 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		void (async () => {
 			try {
 				switch (method) {
+					case RequestAgentHostWorkspaceTrustExtensionMethod: {
+						if (typeof p.workspace !== 'string') {
+							throw new Error('Missing workspace');
+						}
+						const hostWorkspace = URI.parse(p.workspace, true);
+						if (hostWorkspace.scheme !== Schemas.file || !hostWorkspace.path.startsWith('/')) {
+							throw new Error('Workspace must be an absolute file URI');
+						}
+						const workspace = this.resourceUris.fromAgentHost(hostWorkspace);
+						if (p.trustedParent !== undefined) {
+							if (typeof p.trustedParent !== 'string') {
+								throw new Error('Invalid trustedParent');
+							}
+							const hostParent = URI.parse(p.trustedParent, true);
+							if (hostParent.scheme !== Schemas.file || !hostParent.path.startsWith('/')) {
+								throw new Error('Trusted parent must be an absolute file URI');
+							}
+							if (!isWorktreeUnderRepository(hostWorkspace, hostParent)) {
+								throw new Error('Workspace is not a managed worktree under the trusted parent');
+							}
+							const parent = this.resourceUris.fromAgentHost(hostParent);
+							const parentTrust = await this._workspaceTrustManagementService.getUriTrustInfo(parent);
+							if (parentTrust.trusted) {
+								const workspaceTrust = await this._workspaceTrustManagementService.getUriTrustInfo(workspace);
+								if (!workspaceTrust.trusted) {
+									await this._workspaceTrustManagementService.setUrisTrust([workspace], true);
+								}
+								sendResult({ trusted: true } satisfies IAgentHostExtensionServerCommandMap[typeof RequestAgentHostWorkspaceTrustExtensionMethod]['result']);
+								return;
+							}
+						}
+						const trusted = await this._workspaceTrustRequestService.requestResourcesTrust({
+							uri: workspace,
+							message: localize('agentHost.trustWorkspaceMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+						});
+						sendResult({ trusted: trusted === true } satisfies IAgentHostExtensionServerCommandMap[typeof RequestAgentHostWorkspaceTrustExtensionMethod]['result']);
+						return;
+					}
 					case 'resourceList': {
 						if (!p.uri) { throw new Error('Missing uri'); }
 						const result = await this._resourceService.list(identity, URI.parse(p.uri as string));

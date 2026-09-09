@@ -62,14 +62,16 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 		this._debugData.set(data, undefined);
 	}
 
-	/** Returns direct subagents of `parentChat` in every status. */
+	/** Returns direct subagents of `parentChat` in every status, most recent first. */
 	private _collectSubagents(session: IActiveSession, parentChat: IChat, reader: IReader): IChatPillEntry[] {
 		return session.chats.read(reader)
 			.filter(chat =>
 				chat.origin?.kind === ChatOriginKind.Tool &&
 				!!chat.origin.parentChat &&
 				isEqual(chat.origin.parentChat, parentChat.resource))
-			.map(chat => this._entry(chat.title.read(reader), chat, session));
+			.map(chat => this._entry(chat.title.read(reader), chat, session))
+			// Chats are appended as subagents start, so the newest is listed first.
+			.reverse();
 	}
 
 	private _entry(title: string, chat: IChat | undefined, session: IActiveSession | undefined): IChatPillEntry {

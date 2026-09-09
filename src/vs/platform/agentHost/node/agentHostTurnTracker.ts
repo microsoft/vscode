@@ -10,7 +10,7 @@ import { Disposable, DisposableMap, toDisposable } from '../../../base/common/li
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgent, IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
+import type { AgentSubagentTaskModelSource, IAgent, IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
@@ -69,6 +69,7 @@ interface ITurnTiming {
 	readonly interactionMode: SessionMode | undefined;
 	/** Who produced the message that started the turn, when known. */
 	readonly messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
+	readonly subagentTaskModelSource: AgentSubagentTaskModelSource | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	readonly initiatorClientId: string | undefined;
 	readonly completedModelCallIds: Set<string>;
@@ -166,7 +167,7 @@ export class AgentHostTurnTracker extends Disposable {
 		}));
 	}
 
-	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind): void {
+	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -181,6 +182,7 @@ export class AgentHostTurnTracker extends Disposable {
 			permissionLevel,
 			interactionMode,
 			messageOriginKind,
+			subagentTaskModelSource,
 			clientContext,
 			initiatorClientId,
 			completedModelCallIds: new Set(),
@@ -370,6 +372,10 @@ export class AgentHostTurnTracker extends Disposable {
 		return this._turnTimings.get(this._key(session, turnId))?.clientContext;
 	}
 
+	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.messageOriginKind;
+	}
+
 	getInitiatorClientId(session: string, turnId: string): string | undefined {
 		return this._turnTimings.get(this._key(session, turnId))?.initiatorClientId;
 	}
@@ -405,6 +411,7 @@ export class AgentHostTurnTracker extends Disposable {
 			permissionLevel: timing.permissionLevel,
 			interactionMode: timing.interactionMode,
 			messageOriginKind: timing.messageOriginKind,
+			subagentTaskModelSource: timing.subagentTaskModelSource,
 			failure,
 			isMultiRoot: workspace?.isMultiRoot ?? false,
 			folderCount: workspace?.folderCount ?? 0,
@@ -424,6 +431,7 @@ export class AgentHostTurnTracker extends Disposable {
 				provider: timing.agent.id,
 				session: timing.session,
 				turnId,
+				messageOriginKind: timing.messageOriginKind,
 				hangReason: timing.lastHangReason,
 				result,
 				hangReportCount: timing.hangReportCount,
@@ -505,6 +513,7 @@ export class AgentHostTurnTracker extends Disposable {
 				provider: timing.agent.id,
 				session: timing.session,
 				turnId: timing.turnId,
+				messageOriginKind: timing.messageOriginKind,
 				hangReason,
 				hadAnyProgress: timing.lastActivityKind !== TURN_ACTIVITY_NONE,
 				lastActivityKind: timing.lastActivityKind,

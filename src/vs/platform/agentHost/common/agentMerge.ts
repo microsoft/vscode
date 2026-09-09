@@ -292,8 +292,12 @@ export const agentMergeDisableReasons = {
 		notice: localize('agentMerge.disabled.indeterminate', "Agent Merge was disabled because its pull request state could not be evaluated for {0} minutes.", minutes),
 	}),
 	pullRequestClosed: (): AgentMergeDisableReason => ({
-		log: 'the pull request is closed or merged',
-		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was disabled because its pull request is closed or merged."),
+		log: 'the pull request was closed without merging',
+		notice: localize('agentMerge.disabled.pullRequestClosed', "Agent Merge was disabled because its pull request was closed without merging."),
+	}),
+	pullRequestAlreadyMerged: (pullRequestNumber: number, pullRequestUrl: string): AgentMergeDisableReason => ({
+		log: 'the pull request was already merged',
+		notice: localize('agentMerge.disabled.pullRequestAlreadyMerged', "Pull request [#{0}]({1}) was merged. Agent Merge is now disabled.", pullRequestNumber, pullRequestUrl),
 	}),
 	repairBudgetExhausted: (): AgentMergeDisableReason => ({
 		log: 'the same pull request blockers remained after repeated repair attempts',
@@ -629,7 +633,7 @@ class FeedbackBudget {
 	}
 }
 
-export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, commentWatermark: string): AgentMergeGateResult {
+export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration: AgentMergeConfiguration, commentWatermark: string, deferredCheckIds?: ReadonlySet<string>): AgentMergeGateResult {
 	const core = snapshot.core;
 	if (core.status !== 'ready' || !core.complete || !core.value) {
 		return { kind: 'indeterminate', reason: 'Pull request core state is incomplete', cause: 'core:incomplete' };
@@ -651,11 +655,12 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 	const mergeability = snapshot.mergeability.value!;
 	const behind = mergeability.mergeStateStatus?.toUpperCase() === 'BEHIND';
 	const conflicting = mergeability.mergeable === 'CONFLICTING';
+	const actionableFailedChecks = checks.failed.filter(check => !deferredCheckIds?.has(check.id));
 	const actions: AgentMergeRepairAction[] = [];
 	if (configuration.addressReviews && (reviewThreads.length > 0 || changesRequested.length > 0 || newComments.length > 0)) {
 		actions.push('addressReviews');
 	}
-	if (configuration.fixCI && checks.failed.length > 0) {
+	if (configuration.fixCI && actionableFailedChecks.length > 0) {
 		actions.push('fixCI');
 	}
 	if (configuration.resolveConflicts && (behind || conflicting)) {
@@ -684,12 +689,16 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 		newComments: newComments
 			.slice(-maximumNewComments)
 			.map(comment => budget.take(comment.author?.login, comment.body)),
-		failedChecks: checks.failed.slice(0, maximumFailedChecks).map(check => check.name),
+		failedChecks: actionableFailedChecks.slice(0, maximumFailedChecks).map(check => check.name),
 		behind,
 		conflicting,
 		commentWatermark: newComments.reduce((latest, comment) => comment.createdAt && comment.createdAt > latest ? comment.createdAt : latest, commentWatermark),
 	};
-	const fingerprint = JSON.stringify({ actions, context });
+	const fingerprint = JSON.stringify({
+		actions,
+		context,
+		...(actionableFailedChecks.length > 0 ? { failedCheckIds: actionableFailedChecks.map(check => check.id) } : {}),
+	});
 	if (actions.length > 0) {
 		return { kind: 'prompt', actions, fingerprint, context };
 	}
@@ -707,7 +716,7 @@ export function evaluateAgentMerge(snapshot: PullRequestSnapshot, configuration:
 	if (configuration.mergePullRequest !== 'never' && mergeReady) {
 		return { kind: 'merge', fingerprint };
 	}
-	return { kind: 'noWork', waitingOnChecks: checks.pending, fingerprint };
+	return { kind: 'noWork', waitingOnChecks: checks.pending || checks.failed.length > actionableFailedChecks.length, fingerprint };
 }
 
 function isCompleteFragment(snapshot: PullRequestSnapshot, fragment: 'topLevelComments' | 'submittedReviews' | 'reviewThreads'): boolean {
