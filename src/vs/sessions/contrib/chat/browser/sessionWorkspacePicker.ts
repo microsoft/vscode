@@ -1466,15 +1466,27 @@ export class WorkspacePicker extends Disposable {
 				continue;
 			}
 			const item: IWorkspacePickerItem = { folderUri, providerId, checked: selected || attached || undefined };
+			const usingDevContainer = !!this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, folderUri);
 			const submenuActions = workspace.group === SESSION_WORKSPACE_GROUP_LOCAL && this._isDevContainerWorkspaceAvailable(folderUri, providerId)
 				? [new SubmenuAction(
 					`workspacePicker.devContainer.${providerId}.${devContainerActionIndex}`,
 					'',
-					[toAction({
-						id: `workspacePicker.devContainer.use.${providerId}.${devContainerActionIndex++}`,
-						label: localize('workspacePicker.devContainer.use', "Use Dev Container"),
-						run: () => item.preferDevContainer = true,
-					})],
+					[
+						toAction({
+							id: `workspacePicker.devContainer.local.${providerId}.${devContainerActionIndex}`,
+							label: localize('workspacePicker.devContainer.local', "Use Local"),
+							tooltip: '',
+							checked: !usingDevContainer,
+							run: () => item.preferDevContainer = false,
+						}),
+						toAction({
+							id: `workspacePicker.devContainer.use.${providerId}.${devContainerActionIndex++}`,
+							label: localize('workspacePicker.devContainer.use', "Use Dev Container"),
+							tooltip: '',
+							checked: usingDevContainer,
+							run: () => item.preferDevContainer = true,
+						}),
+					],
 				)]
 				: undefined;
 			const workspaceItem: IActionListItem<IWorkspacePickerItem> = {

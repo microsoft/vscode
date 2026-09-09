@@ -546,22 +546,50 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		picker.getItems();
 		await timeout(0);
+		const initialFolderItem = picker.getItems().find(item => item.label === 'agent-host/project');
+		const initialSubmenu = initialFolderItem?.submenuActions?.[0];
 		await picker.selectSubmenu('agent-host/project', 'Use Dev Container');
 
-		const folderItem = picker.getItems().find(item => item.label === 'agent-host/project');
-		const submenu = folderItem?.submenuActions?.[0];
+		const devContainerFolderItem = picker.getItems().find(item => item.label === 'agent-host/project');
+		const devContainerSubmenu = devContainerFolderItem?.submenuActions?.[0];
+		const devContainerLabel = container.querySelector('.sessions-chat-dropdown-label')?.textContent;
+		const devContainerAriaLabel = container.querySelector('.action-label')?.getAttribute('aria-label');
+		await picker.selectSubmenu('agent-host/project', 'Use Local');
+
 		assert.deepStrictEqual({
-			submenuLabels: submenu instanceof SubmenuAction ? submenu.actions.map(action => action.label) : undefined,
+			initialSubmenu: initialSubmenu instanceof SubmenuAction ? initialSubmenu.actions.map(action => ({
+				label: action.label,
+				tooltip: action.tooltip,
+				checked: action.checked,
+			})) : undefined,
+			devContainerSubmenu: devContainerSubmenu instanceof SubmenuAction ? devContainerSubmenu.actions.map(action => ({
+				label: action.label,
+				checked: action.checked,
+			})) : undefined,
 			unavailableFolderHasSubmenu: picker.getItems().find(item => item.label === 'agent-host/without-config')?.submenuActions !== undefined,
 			selectedModes,
+			devContainerLabel,
+			devContainerAriaLabel,
 			triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
 			triggerAriaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
 		}, {
-			submenuLabels: ['Use Dev Container'],
+			initialSubmenu: [
+				{ label: 'Use Local', tooltip: '', checked: true },
+				{ label: 'Use Dev Container', tooltip: '', checked: false },
+			],
+			devContainerSubmenu: [
+				{ label: 'Use Local', checked: false },
+				{ label: 'Use Dev Container', checked: true },
+			],
 			unavailableFolderHasSubmenu: false,
-			selectedModes: [{ folderUri: folderUri.toString(), preferDevContainer: true }],
-			triggerLabel: 'agent-host/project - Dev Container',
-			triggerAriaLabel: 'New session in agent-host/project - Dev Container',
+			selectedModes: [
+				{ folderUri: folderUri.toString(), preferDevContainer: true },
+				{ folderUri: folderUri.toString(), preferDevContainer: false },
+			],
+			devContainerLabel: 'agent-host/project - Dev Container',
+			devContainerAriaLabel: 'New session in agent-host/project - Dev Container',
+			triggerLabel: 'agent-host/project',
+			triggerAriaLabel: 'New session in agent-host/project',
 		});
 	});
 
