@@ -12,7 +12,7 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../..
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
-import { ModelPickerAutoRow } from '../../../../../browser/widget/input/modelPicker/modelPickerAutoRow.js';
+import { IAutoRowOptions, ModelPickerAutoRow } from '../../../../../browser/widget/input/modelPicker/modelPickerAutoRow.js';
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
@@ -65,6 +65,7 @@ suite('ModelPickerAutoRow', () => {
 		onToggle?: (enabled: boolean) => void;
 	} = {}) {
 		const toggles: boolean[] = [];
+		const configurationChanges: Parameters<NonNullable<IAutoRowOptions['onDidChangeConfiguration']>>[] = [];
 		let enabled = initiallyEnabled;
 		const configurationAccess = options.configurationAccess ?? createConfigurationAccess();
 		const row: ModelPickerAutoRow = disposables.add(new ModelPickerAutoRow({
@@ -77,6 +78,7 @@ suite('ModelPickerAutoRow', () => {
 				options.onToggle?.(next);
 				row.render();
 			},
+			onDidChangeConfiguration: (...change) => configurationChanges.push(change),
 		}));
 		const element = row.element;
 		mainWindow.document.body.appendChild(element);
@@ -104,6 +106,7 @@ suite('ModelPickerAutoRow', () => {
 		return {
 			row,
 			toggles,
+			configurationChanges,
 			configurationAccess,
 			get tiers() { return Array.from(element.querySelectorAll<HTMLElement>('[role="radio"]')); },
 			main: element.querySelector('.chat-model-picker-auto-main') as HTMLElement,
@@ -361,7 +364,7 @@ suite('ModelPickerAutoRow', () => {
 		});
 		result.tiers[2].focus();
 		result.tiers[2].click();
-		const beforeSave = { toggles: [...result.toggles], savedTier: access.getModelConfiguration('copilot/auto')?.tier };
+		const beforeSave = { toggles: [...result.toggles], configurationChanges: [...result.configurationChanges], savedTier: access.getModelConfiguration('copilot/auto')?.tier };
 		result.toggle.focus();
 		await saved.complete();
 		await timeout(0);
@@ -369,11 +372,13 @@ suite('ModelPickerAutoRow', () => {
 		assert.deepStrictEqual({
 			beforeSave,
 			toggles: result.toggles,
+			configurationChanges: result.configurationChanges,
 			savedTier: access.getModelConfiguration('copilot/auto')?.tier,
 			toggleFocused: mainWindow.document.activeElement === result.toggle,
 		}, {
-			beforeSave: { toggles: [], savedTier: 'balanced' },
+			beforeSave: { toggles: [], configurationChanges: [], savedTier: 'balanced' },
 			toggles: [true],
+			configurationChanges: [['navigation', 'tier', 'balanced', 'max']],
 			savedTier: 'max',
 			toggleFocused: true,
 		});
@@ -402,12 +407,14 @@ suite('ModelPickerAutoRow', () => {
 		assert.deepStrictEqual({
 			reported,
 			toggles: result.toggles,
+			configurationChanges: result.configurationChanges,
 			checked: result.tiers.map(element => element.getAttribute('aria-checked')),
 			description: result.description.textContent,
 			focused: mainWindow.document.activeElement === result.tiers[0],
 		}, {
 			reported: [failure],
 			toggles: [],
+			configurationChanges: [],
 			checked: ['false', 'true', 'false'],
 			description: 'Automatic model selection · Balances capability and cost',
 			focused: true,
@@ -442,6 +449,7 @@ suite('ModelPickerAutoRow', () => {
 			pendingWrites,
 			writes,
 			toggles: result.toggles,
+			configurationChanges: result.configurationChanges,
 			savedTier: access.getModelConfiguration('copilot/auto')?.tier,
 			checked: result.tiers.map(element => element.getAttribute('aria-checked')),
 			description: result.description.textContent,
@@ -449,6 +457,7 @@ suite('ModelPickerAutoRow', () => {
 			pendingWrites: ['eco'],
 			writes: ['eco', 'max'],
 			toggles: [true],
+			configurationChanges: [['navigation', 'tier', 'balanced', 'eco'], ['navigation', 'tier', 'eco', 'max']],
 			savedTier: 'max',
 			checked: ['false', 'false', 'true'],
 			description: 'Automatic model selection · Most capable models',
