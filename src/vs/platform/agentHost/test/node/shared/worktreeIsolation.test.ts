@@ -510,20 +510,22 @@ suite('WorktreeIsolation', () => {
 			},
 		});
 		const meta = await isolation.readWorktreeMetadata(sessionUri);
-		const project = isolation.sessionWorktreeProject(sessionId);
+		const worktreeInfo = isolation.sessionWorktreeInfo(sessionId);
 
 		assert.deepStrictEqual({
 			worktree: worktree?.toString(),
 			addWorktreeRoot: addWorktreeRoot?.toString(),
 			includeFileRoot: copyIncludeCalls[0]?.repositoryRoot.toString(),
 			metaRepositoryRoot: meta?.repositoryRoot?.toString(),
-			project: project && { uri: project.uri.toString(), displayName: project.displayName },
+			project: worktreeInfo && { uri: worktreeInfo.project.uri.toString(), displayName: worktreeInfo.project.displayName },
+			branchName: worktreeInfo?.branchName,
 		}, {
 			worktree: URI.joinPath(worktreesRoot, getWorktreeName(branchName)).toString(),
 			addWorktreeRoot: repoRoot.toString(),
 			includeFileRoot: checkoutRoot.toString(),
 			metaRepositoryRoot: repoRoot.toString(),
 			project: { uri: repoRoot.toString(), displayName: basename(repoRoot) },
+			branchName,
 		});
 	});
 
@@ -878,7 +880,7 @@ suite('WorktreeIsolation', () => {
 		);
 	});
 
-	test('resolveWorktreeProject / sessionWorktreeProject expose the repository as the session project', async () => {
+	test('resolveWorktreeProject / sessionWorktreeInfo expose the repository as the session project', async () => {
 		// The worktree lives at `<repo>.worktrees/<name>`, but a worktree session
 		// must group under the repository in the sessions UI. Both accessors return
 		// the repo root as the project so agents can merge it into the reported
@@ -888,19 +890,19 @@ suite('WorktreeIsolation', () => {
 		const expectedDisplayName = basename(repoRoot);
 
 		const beforeAsync = await isolation.resolveWorktreeProject(sessionUri);
-		const beforeSync = isolation.sessionWorktreeProject(sessionId);
+		const beforeSync = isolation.sessionWorktreeInfo(sessionId)?.project;
 
 		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
 		const afterAsync = await isolation.resolveWorktreeProject(sessionUri);
-		const afterSync = isolation.sessionWorktreeProject(sessionId);
+		const afterSync = isolation.sessionWorktreeInfo(sessionId)?.project;
 
 		assert.deepStrictEqual({
 			beforeAsync,
 			beforeSync,
 			afterAsync: { uri: afterAsync?.uri.toString(), displayName: afterAsync?.displayName },
 			afterSync: { uri: afterSync?.uri.toString(), displayName: afterSync?.displayName },
-			unknownSession: isolation.sessionWorktreeProject('does-not-exist'),
+			unknownSession: isolation.sessionWorktreeInfo('does-not-exist'),
 		}, {
 			beforeAsync: undefined,
 			beforeSync: undefined,

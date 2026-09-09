@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -17,6 +18,7 @@ import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../servi
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
+import { IChatListItemRendererOptions } from '../../../browser/chat.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
@@ -75,6 +77,49 @@ suite('ChatWidget', () => {
 			result: () => ({ confirmationCount, finishedCount, focusCount }),
 		};
 	}
+
+	test('does not send a picker fallback over an existing agent host conversation model', () => {
+		const savedModelId = 'agent-host-codex:@provider=openai:future-model';
+		const fallbackModelId = 'agent-host-codex:@provider=vscode-proxy:default-model';
+		const configuration = { thinkingLevel: 'medium' };
+		const scenarios = [
+			{ provider: 'codex', hasRequests: true, intendedModelId: savedModelId },
+			{ provider: 'codex', hasRequests: true, intendedModelId: fallbackModelId },
+			{ provider: 'codex', hasRequests: false, intendedModelId: savedModelId },
+			{ provider: undefined, hasRequests: true, intendedModelId: savedModelId },
+			{ provider: 'codex', hasRequests: true, intendedModelId: undefined },
+		];
+		const selections = scenarios.map(scenario => {
+			const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+			Object.defineProperties(widget, {
+				_lockedAgent: { value: { agentHostProviderId: scenario.provider } },
+				viewModel: {
+					value: {
+						model: {
+							inputModel: { intendedModel: scenario.intendedModelId ? { modelId: scenario.intendedModelId } : undefined },
+							getRequests: () => scenario.hasRequests ? [{}] : [],
+						},
+					},
+				},
+				input: {
+					value: {
+						currentLanguageModel: fallbackModelId,
+						getModelConfiguration: () => configuration,
+					},
+				},
+			});
+			return widget.getSelectedModelRequestOptions();
+		});
+
+		const selectedFallback = { userSelectedModelId: fallbackModelId, userSelectedModelConfiguration: configuration };
+		assert.deepStrictEqual(selections, [
+			{ userSelectedModelId: undefined, userSelectedModelConfiguration: undefined },
+			selectedFallback,
+			selectedFallback,
+			selectedFallback,
+			selectedFallback,
+		]);
+	});
 
 	test('saves non-untitled editors before sending by default', async () => {
 		const configurationService = new TestConfigurationService();
@@ -317,6 +362,51 @@ suite('ChatWidget', () => {
 			['setInputPartMaxHeightOverride', 600],
 			['layoutForInputHeight', 420, 720],
 		]);
+	});
+
+	test('passes read-only transitions to the renderer independently of request editing', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let rerenders = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_visible: observableValue('visible', true),
+			_readOnlyContextKey: { set: () => { } },
+			chatSuggestNextWidget: { hide: () => { } },
+			hasInputFocus: () => false,
+			setInputVisible: () => { },
+			renderChatSuggestNextWidget: () => { },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				rerender: () => rerenders++,
+			},
+		});
+
+		widget.setReadOnly(true);
+		widget.setReadOnly(false);
+
+		assert.deepStrictEqual({ rendererOptions, rerenders }, {
+			rendererOptions: [{ editable: false, readOnly: true }, { editable: true, readOnly: false }],
+			rerenders: 2,
+		});
+	});
+
+	test('re-lays out embedded editors when chat item padding changes', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let layouts = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			bodyDimension: { width: 800, height: 600 },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+			},
+			_layoutListForInputHeight: () => layouts++,
+		});
+
+		widget.setContentHorizontalPadding(88);
+
+		assert.deepStrictEqual({ rendererOptions, layouts }, {
+			rendererOptions: [{ contentHorizontalPadding: 88 }],
+			layouts: 1,
+		});
 	});
 
 	test('captures and restores transcript scroll state', () => {

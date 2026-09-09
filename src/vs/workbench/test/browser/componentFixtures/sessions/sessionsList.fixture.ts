@@ -230,6 +230,7 @@ interface IRenderOptions {
 	readonly newSessionButtonStyle?: NewSessionButtonStyle;
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly showFocusedToolbar?: boolean;
+	readonly focusSelectedSession?: boolean;
 }
 
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
@@ -260,7 +261,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IProductService, TestProductService);
-			if (options.showFocusedToolbar) {
+			if (options.showFocusedToolbar || options.focusSelectedSession) {
 				const archiveAction = new class extends mock<MenuItemAction>() {
 					override readonly id = 'sessions.fixture.archive';
 					override readonly label = 'Archive';
@@ -317,13 +318,16 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override isSessionPinned(): boolean { return false; }
 				override migrateLegacyReadState(): void { }
 				override getSortKey(session: ISession): number { return session.createdAt.getTime(); }
-				override getStatusIcon(status: SessionStatus): ThemeIcon {
+				override getStatusIcon(status: SessionStatus, isRead: boolean): ThemeIcon {
 					switch (status) {
 						case SessionStatus.InProgress:
 							return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 						case SessionStatus.NeedsInput:
 							return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
 						default:
+							if (!isRead) {
+								return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
+							}
 							return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 					}
 				}
@@ -488,6 +492,13 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		throw new Error('Expected the rendered New Session action to react to the lightweight keybinding-background style setting.');
 	}
 
+	if (options.focusSelectedSession) {
+		if (!sessions[0] || !list.reveal(sessions[0].resource)) {
+			throw new Error('Expected a session to select for keyboard navigation.');
+		}
+		list.focus();
+	}
+
 	if (options.showFocusedToolbar) {
 		return Promise.resolve().then(() => {
 			const sessionRow = listHost.querySelector<HTMLElement>('.session-item')?.closest('.monaco-list-row');
@@ -540,6 +551,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			],
 			groups: [GROUP],
 			showFocusedToolbar: true,
+			width: 260,
+		}),
+	}),
+	SessionsList_SelectedKeyboardFocus: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The selected session row has keyboard focus and a visible Archive action without hover; its long title truncates before the action.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ id: 'a', title: 'Fix keyboard navigation in the selected session', workspace: 'vscode', minutesAgo: 12 }],
+			focusSelectedSession: true,
 			width: 260,
 		}),
 	}),
@@ -624,6 +645,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			sessions: [],
 			showAutomations: true,
 			automationBadgeStyle: 'soft',
+		}),
+	}),
+	SessionsList_AutomationsNewBadge_Unread: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Automations row uses the standard filled blue unread indicator in its leading icon slot to signal the new feature and does not show a trailing NEW capsule, while the Sessions header retains its outlined New button.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			showAutomations: true,
+			automationBadgeStyle: 'unread',
 		}),
 	}),
 	SessionsList_AutomationsNewBadge_Narrow: defineComponentFixture({

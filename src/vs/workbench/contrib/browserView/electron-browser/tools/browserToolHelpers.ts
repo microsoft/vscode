@@ -10,6 +10,7 @@ import { isBrowserViewAssociatedResourceNavigation } from '../../../../../platfo
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { isLocalhostAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IToolInvocation, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -220,6 +221,24 @@ export function errorResult(message: string): IToolResult {
 		toolResultError: error,
 		toolResultMessage: failedMessage,
 	};
+}
+
+export function getBrowserNetworkPolicyError(url: string, agentNetworkFilterService: IAgentNetworkFilterService): string | undefined {
+	const uri = URI.parse(url);
+	return agentNetworkFilterService.isUriAllowed(uri) ? undefined : agentNetworkFilterService.formatError(uri);
+}
+
+export function getExternalTunnelNetworkPolicyError(
+	rewrite: { url: string; rewritten: boolean },
+	agentNetworkFilterService: IAgentNetworkFilterService,
+): string | undefined {
+	if (!rewrite.rewritten) {
+		return undefined;
+	}
+	const uri = URI.parse(rewrite.url);
+	return isLocalhostAuthority(uri.authority)
+		? undefined
+		: getBrowserNetworkPolicyError(rewrite.url, agentNetworkFilterService);
 }
 
 /**

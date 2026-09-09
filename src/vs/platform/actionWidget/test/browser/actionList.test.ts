@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
+import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -93,6 +95,12 @@ function typeFilter(widget: ActionListWidget<ITestActionItem>, value: string): v
 	widget.filterInput.dispatchEvent(new Event('input'));
 }
 
+function dispatchKeyDown(target: HTMLElement, init: KeyboardEventInit): KeyboardEvent {
+	const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+	target.dispatchEvent(event);
+	return event;
+}
+
 function getVisibleRowText(widget: ActionListWidget<ITestActionItem>): string[] {
 	return Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'))
 		.map(row => row.textContent ?? '')
@@ -166,6 +174,117 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('opening under a stationary pointer preserves keyboard focus and selection', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('second'), action('third')],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		widget.focus();
+		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[2].dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'first');
+
+		widget.focusNext();
+		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[2].dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		widget.acceptSelected();
+		assert.deepStrictEqual(selected, ['second']);
+	});
+
+	test('pointer movement enables hover on the initial row and subsequent rows', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('second'), action('third')],
+			listOptions: { showFilter: false },
+		});
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		widget.focus();
+		rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'second');
+
+		rows[2].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'third');
+	});
+
+	test('the first click selects its row without prior pointer movement', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('second')],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+		row.click();
+		assert.deepStrictEqual(selected, ['second']);
+	});
+
+	for (const activation of ['mousemove', 'mousedown'] as const) {
+		test(`stops mapping mouse moves after ${activation} enables hover`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), action('second')],
+				listOptions: { showFilter: false },
+			});
+			const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+			const getAttribute = spy(row, 'getAttribute');
+			disposables.add({ dispose: () => getAttribute.restore() });
+
+			row.dispatchEvent(new MouseEvent(activation, { bubbles: true, movementX: 1 }));
+			const mappedActivation = getAttribute.calledWith('data-index');
+			getAttribute.resetHistory();
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
+			assert.deepStrictEqual({
+				mappedActivation,
+				mappedSubsequentMovement: getAttribute.calledWith('data-index'),
+			}, {
+				mappedActivation: true,
+				mappedSubsequentMovement: false,
+			});
+		});
+	}
+
+	test('initial pointer movement and clicks do not select disabled items', () => {
+		const selected: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), { ...action('disabled'), disabled: true }],
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+		row.click();
+		assert.deepStrictEqual(selected, []);
+	});
+
+	test('initial hover does not open a submenu until the pointer moves', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), { ...action('second'), hover: { content: 'Details' } }],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+		await timeout(500);
+		assert.strictEqual(panel.style.display, 'none');
+
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
+		await timeout(500);
+		assert.notStrictEqual(panel.style.display, 'none');
+	}));
+
 	function createPersistentPreview(side: 'left' | 'right' = 'right') {
 		const selected: string[] = [];
 		const contents = ['first', 'second', 'third'].map(label => {
@@ -198,6 +317,7 @@ suite('ActionListWidget', () => {
 			const bounds = row.getBoundingClientRect();
 			const point = { x: clientX ?? bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 };
 			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, clientX: point.x, clientY: point.y }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: point.x, clientY: point.y, movementX: 1 }));
 			return point;
 		};
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
@@ -371,6 +491,230 @@ suite('ActionListWidget', () => {
 		assert.ok(!widget.domNode.textContent?.includes('stale-result'));
 	});
 
+	suite('combobox filtering', () => {
+		test('initializes the query and exposes the active result to assistive technology', () => {
+			const widget = createActionListWidget(disposables, {
+				items: [action('alpha'), action('beta'), action('alpine')],
+				listOptions: {
+					initialFilterValue: 'al',
+					filterPlaceholder: 'Search models',
+					filterAsCombobox: true,
+					focusFilterOnOpen: true,
+				},
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			assert.ok(input);
+			const activeResult = document.getElementById(input.getAttribute('aria-activedescendant') ?? '');
+			const controlledList = document.getElementById(input.getAttribute('aria-controls') ?? '');
+
+			assert.deepStrictEqual({
+				value: input.value,
+				rows: getVisibleRowText(widget),
+				inputFocused: document.activeElement === input,
+				role: input.getAttribute('role'),
+				label: input.getAttribute('aria-label'),
+				autocomplete: input.getAttribute('aria-autocomplete'),
+				expanded: input.getAttribute('aria-expanded'),
+				listRole: controlledList?.getAttribute('role'),
+				activeResult: activeResult?.textContent,
+			}, {
+				value: 'al',
+				rows: ['alpha', 'alpine'],
+				inputFocused: true,
+				role: 'combobox',
+				label: 'Search models',
+				autocomplete: 'list',
+				expanded: 'true',
+				listRole: 'listbox',
+				activeResult: 'alpha',
+			});
+		});
+
+		test('arrow navigation skips disabled rows and separators without leaving the input', () => {
+			const widget = createActionListWidget(disposables, {
+				items: [action('alpha'), separator('Models'), { ...action('beta'), disabled: true }, action('gamma')],
+				listOptions: { filterAsCombobox: true, focusFilterOnOpen: true, initialFilterValue: 'a' },
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			assert.ok(input);
+			input.setSelectionRange(0, 1);
+
+			const states = [
+				{ key: 'ArrowDown', keyCode: 40 },
+				{ key: 'ArrowUp', keyCode: 38 },
+				{ key: 'ArrowUp', keyCode: 38 },
+				{ key: 'ArrowDown', keyCode: 40 },
+			].map(key => {
+				const event = dispatchKeyDown(input, key);
+				const activeResult = document.getElementById(input.getAttribute('aria-activedescendant') ?? '');
+				return {
+					result: widget.getFocusedElement()?.label,
+					inputFocused: document.activeElement === input,
+					selection: [input.selectionStart, input.selectionEnd],
+					activeResult: activeResult?.textContent,
+					defaultPrevented: event.defaultPrevented,
+				};
+			});
+
+			assert.deepStrictEqual(states, ['gamma', 'alpha', 'gamma', 'alpha'].map(result => ({
+				result,
+				inputFocused: true,
+				selection: [0, 1],
+				activeResult: result,
+				defaultPrevented: true,
+			})));
+		});
+
+		test('typing can refine the query after navigation and Enter accepts the new result', () => {
+			const selected: string[] = [];
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), action('second'), action('third')],
+				listOptions: { filterAsCombobox: true, focusFilterOnOpen: true },
+				onSelect: item => selected.push(item.id),
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			assert.ok(input);
+			dispatchKeyDown(input, { key: 'ArrowDown', keyCode: 40 });
+			typeFilter(widget, 'thi');
+			dispatchKeyDown(input, { key: 'Enter', keyCode: 13 });
+
+			assert.deepStrictEqual({
+				value: input.value,
+				inputFocused: document.activeElement === input,
+				rows: getVisibleRowText(widget),
+				selected,
+			}, { value: 'thi', inputFocused: true, rows: ['third'], selected: ['third'] });
+		});
+
+		test('empty and disabled results cannot accept a stale selection', () => {
+			const selected: string[] = [];
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), { ...action('disabled'), disabled: true }],
+				listOptions: { filterAsCombobox: true, focusFilterOnOpen: true },
+				onSelect: item => selected.push(item.id),
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			assert.ok(input);
+			const states = ['missing', 'disabled'].map(query => {
+				typeFilter(widget, query);
+				dispatchKeyDown(input, { key: 'ArrowDown', keyCode: 40 });
+				dispatchKeyDown(input, { key: 'ArrowUp', keyCode: 38 });
+				dispatchKeyDown(input, { key: 'Enter', keyCode: 13 });
+				return {
+					inputFocused: document.activeElement === input,
+					activeResult: input.getAttribute('aria-activedescendant'),
+					focused: widget.getFocusedElement(),
+					selected: [...selected],
+				};
+			});
+
+			assert.deepStrictEqual(states, ['missing', 'disabled'].map(() => ({
+				inputFocused: true, activeResult: null, focused: undefined, selected: [],
+			})));
+		});
+
+		test('unrelated shortcuts still reach the workbench keybinding handler', () => {
+			const widget = createActionListWidget(disposables, {
+				listOptions: { filterAsCombobox: true, focusFilterOnOpen: true },
+			});
+			widget.focus();
+			const input = widget.filterInput;
+			const filterContainer = widget.filterContainer;
+			assert.ok(input && filterContainer);
+			const received: string[] = [];
+			disposables.add(addDisposableListener(filterContainer, 'keydown', (event: KeyboardEvent) => received.push(event.key)));
+			const events = [
+				{ key: 'P', keyCode: 80, ctrlKey: true, shiftKey: true },
+				{ key: 'P', keyCode: 80, metaKey: true, shiftKey: true },
+				{ key: 'Enter', keyCode: 13, ctrlKey: true },
+			].map(init => dispatchKeyDown(input, init));
+
+			assert.deepStrictEqual({
+				received,
+				prevented: events.filter(event => event.defaultPrevented).map(event => event.key),
+			}, { received: ['P', 'P', 'Enter'], prevented: [] });
+		});
+
+		for (const filterAsCombobox of [undefined, true]) {
+			test(`retaining filter focus is opt-in: ${filterAsCombobox}`, () => {
+				const widget = createActionListWidget(disposables, {
+					items: [action('first'), action('second')],
+					listOptions: { filterAsCombobox, focusFilterOnOpen: true },
+				});
+				widget.focus();
+				widget.focusNext();
+
+				assert.deepStrictEqual({
+					focused: widget.getFocusedElement()?.label,
+					inputFocused: document.activeElement === widget.filterInput,
+					role: widget.filterInput?.getAttribute('role'),
+				}, {
+					focused: 'second',
+					inputFocused: !!filterAsCombobox,
+					role: filterAsCombobox ? 'combobox' : null,
+				});
+			});
+		}
+	});
+
+	test('typing requests a filter instead of performing list type navigation when opted in', () => {
+		const typed: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [action('alpha'), action('beta')],
+			listOptions: { showFilter: false, onType: text => typed.push(text) },
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list');
+		assert.ok(list);
+		const event = dispatchKeyDown(list, { key: 'b', keyCode: 66 });
+
+		assert.deepStrictEqual({
+			typed,
+			focused: widget.getFocusedElement()?.label,
+			defaultPrevented: event.defaultPrevented,
+		}, { typed: ['b'], focused: 'alpha', defaultPrevented: true });
+	});
+
+	test('type-to-filter leaves shortcuts, composition, and embedded controls alone', () => {
+		const typed: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			listOptions: { showFilter: false, onType: text => typed.push(text) },
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list');
+		assert.ok(list);
+		const events = [
+			{ key: ' ', keyCode: 32 },
+			{ key: 'b', keyCode: 66, ctrlKey: true },
+			{ key: 'b', keyCode: 66, metaKey: true },
+			{ key: 'b', keyCode: 66, altKey: true },
+			{ key: 'b', keyCode: 66, isComposing: true },
+		].map(init => dispatchKeyDown(list, init));
+
+		for (const tag of ['input', 'textarea', 'button', 'a']) {
+			const control = document.createElement(tag);
+			widget.domNode.appendChild(control);
+			events.push(dispatchKeyDown(control, { key: 'b', keyCode: 66 }));
+		}
+		const editable = document.createElement('div');
+		editable.contentEditable = 'true';
+		widget.domNode.appendChild(editable);
+		const text = editable.appendChild(document.createElement('span'));
+		events.push(dispatchKeyDown(text, { key: 'b', keyCode: 66 }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
+		assert.ok(panel);
+		events.push(dispatchKeyDown(panel, { key: 'b', keyCode: 66 }));
+
+		assert.deepStrictEqual({
+			typed,
+			prevented: events.filter(event => event.defaultPrevented).map(event => event.key),
+		}, { typed: [], prevented: [] });
+	});
+
 	test('batches row width writes before reading layout', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
@@ -396,7 +740,7 @@ suite('ActionListWidget', () => {
 			allRowsAutoAtRead,
 			restoredWidths: rows.map(row => row.style.width),
 		}, {
-			width: 268,
+			width: 278,
 			allRowsAutoAtRead: [true, true, true],
 			restoredWidths: ['', '', ''],
 		});
@@ -733,7 +1077,7 @@ suite('ActionListWidget', () => {
 		});
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		await timeout(1000);
 
 		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: '', text: 'Auto routes based on your task' });
@@ -911,7 +1255,7 @@ suite('ActionListWidget', () => {
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 
 		// The banner is a sibling of the list, so reaching it drags the pointer across a row.
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
 		await timeout(1000);
 
@@ -926,7 +1270,7 @@ suite('ActionListWidget', () => {
 		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
 
 		// Dwelling on the row long enough for the panel to open, then continuing to the banner.
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		await timeout(600);
 		const openedWhileOnRow = panel.textContent;
 

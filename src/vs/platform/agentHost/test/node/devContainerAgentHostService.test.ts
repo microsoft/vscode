@@ -11,8 +11,10 @@ import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
+import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -40,9 +42,13 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly relay = new TestRelay();
 	readonly execCommands: string[] = [];
 	relayCommand: string | undefined;
+	endpointPollsBeforeAvailable = 0;
+	endpointPolls = 0;
 	loadedCertificates = 0;
 	writtenCertificates: readonly string[] | undefined;
 	forceConcurrentRenameCollision = false;
+	inheritedEnvironment: typeof process.env = process.env;
+	platform: NodeJS.Platform = process.platform;
 	private _renameCalls = 0;
 	private readonly _firstRenameStarted = new DeferredPromise<void>();
 	private readonly _secondRenameFinished = new DeferredPromise<void>();
@@ -85,6 +91,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.reject(this._shellEnvironmentError);
 		}
 		return Promise.resolve(this._testShellEnvironment);
+	}
+
+	protected override _doResolveShellEnvironment(): Promise<typeof process.env> {
+		return super._doResolveShellEnvironment(this.inheritedEnvironment, this.platform);
 	}
 
 	resolveShellEnvironment(): Promise<typeof process.env> {
@@ -159,10 +169,11 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 				return { stdout: '', stderr: '', code: 1 };
 			}
 			if (command.includes('agent endpoints')) {
+				this.endpointPolls++;
 				return {
 					stdout: JSON.stringify({
 						userDataPath: '/home/vscode/.config/Code',
-						endpoints: [{
+						endpoints: this.endpointPolls <= this.endpointPollsBeforeAvailable ? [] : [{
 							schemaVersion: 2,
 							type: 'standalone',
 							pid: 42,
@@ -300,9 +311,80 @@ suite('Dev Container Agent Host Main Service', () => {
 
 	test('uses the inherited environment when shell environment resolution fails', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService('', false, new Error('shell environment timeout')));
+		service.platform = 'linux';
+		service.inheritedEnvironment = { PATH: '/inherited/bin', VSCODE_TEST_VALUE: 'inherited' };
 
-		assert.strictEqual(await service.resolveShellEnvironment(), process.env);
+		assert.deepStrictEqual(await service.resolveShellEnvironment(), service.inheritedEnvironment);
 	});
+
+	test('merges the resolved shell environment with the inherited environment', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, { VSCODE_TEST_VALUE: 'resolved' }));
+		service.platform = 'linux';
+
+		const environment = await service.resolveShellEnvironment();
+
+		assert.deepStrictEqual({
+			path: getCaseInsensitive(environment, 'PATH'),
+			testValue: environment.VSCODE_TEST_VALUE,
+		}, {
+			path: getCaseInsensitive(process.env, 'PATH'),
+			testValue: 'resolved',
+		});
+	});
+
+	test('adds the macOS Docker PATH fallback after a shell timeout without mutating the inherited environment', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, new Error('shell environment timeout')));
+		service.platform = 'darwin';
+		service.inheritedEnvironment = { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', VSCODE_TEST_VALUE: 'inherited' };
+
+		const environment = await service.resolveShellEnvironment();
+		const launchEnvironment = await service.resolveDevContainerEnvironment();
+
+		assert.deepStrictEqual({
+			environment,
+			launchPath: launchEnvironment.PATH,
+			inheritedPath: service.inheritedEnvironment.PATH,
+			cached: await service.resolveShellEnvironment() === environment,
+		}, {
+			environment: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin', VSCODE_TEST_VALUE: 'inherited' },
+			launchPath: '/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin',
+			inheritedPath: '/usr/bin:/bin:/usr/sbin:/sbin',
+			cached: true,
+		});
+	});
+
+	const pathCases: { name: string; platform: NodeJS.Platform; path: string | undefined; expectedPath: string | undefined }[] = [
+		{ name: 'appends the macOS fallback after existing entries', platform: 'darwin', path: '/custom/bin:/usr/bin', expectedPath: '/custom/bin:/usr/bin:/usr/local/bin' },
+		{ name: 'handles an empty macOS PATH without adding the current directory', platform: 'darwin', path: '', expectedPath: '/usr/local/bin' },
+		{ name: 'handles a missing macOS PATH', platform: 'darwin', path: undefined, expectedPath: '/usr/local/bin' },
+		{ name: 'preserves a leading macOS fallback entry', platform: 'darwin', path: '/usr/local/bin:/usr/bin', expectedPath: '/usr/local/bin:/usr/bin' },
+		{ name: 'preserves a middle macOS fallback entry ignoring case', platform: 'darwin', path: '/custom/bin:/USR/LOCAL/BIN:/usr/bin', expectedPath: '/custom/bin:/USR/LOCAL/BIN:/usr/bin' },
+		{ name: 'preserves a trailing macOS fallback entry', platform: 'darwin', path: '/usr/bin:/usr/local/bin', expectedPath: '/usr/bin:/usr/local/bin' },
+		{ name: 'does not mistake a partial directory name for the macOS fallback', platform: 'darwin', path: '/usr/local/bin-extra:/custom/usr/local/bin', expectedPath: '/usr/local/bin-extra:/custom/usr/local/bin:/usr/local/bin' },
+		{ name: 'leaves Linux PATH unchanged', platform: 'linux', path: '/usr/bin:/bin', expectedPath: '/usr/bin:/bin' },
+		{ name: 'leaves Windows PATH unchanged', platform: 'win32', path: 'C:\\Windows\\System32', expectedPath: 'C:\\Windows\\System32' },
+	];
+
+	for (const { name, platform, path, expectedPath } of pathCases) {
+		test(name, async () => {
+			const shellEnvironment = { PATH: path };
+			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, shellEnvironment));
+			service.platform = platform;
+			service.inheritedEnvironment = { PATH: '/inherited/bin' };
+
+			assert.deepStrictEqual({
+				path: (await service.resolveShellEnvironment()).PATH,
+				launchPath: (await service.resolveDevContainerEnvironment()).PATH,
+				inheritedPath: service.inheritedEnvironment.PATH,
+				shellPath: shellEnvironment.PATH,
+			}, {
+				path: expectedPath,
+				launchPath: expectedPath,
+				inheritedPath: '/inherited/bin',
+				shellPath: path,
+			});
+		});
+	}
 
 	test('reuses a standalone endpoint and exposes its relay', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
@@ -335,6 +417,26 @@ suite('Dev Container Agent Host Main Service', () => {
 			output: ['connection:Starting Dev Container\n'],
 		});
 	});
+
+	test('allows a cold Agent Host to register after the short default deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpointPollsBeforeAvailable = 21;
+
+		const result = await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+		await service.disconnect('connection');
+
+		assert.deepStrictEqual({
+			address: result.address,
+			polledPastShortDeadline: service.endpointPolls > 20,
+		}, {
+			address: 'devcontainer:container-id',
+			polledPastShortDeadline: true,
+		});
+	}));
 
 	test('installs the Alpine CLI artifact in a musl container', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService('musl', true));

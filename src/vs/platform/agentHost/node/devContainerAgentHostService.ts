@@ -32,8 +32,8 @@ import { getAppNodeModulesPath } from './appNodeModules.js';
 import {
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
+	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 	filterLiveAgentHostEndpoints,
-	getNewAgentHostRegistrationTimeoutMs,
 	getRemoteCLIDataDir,
 	ISshExec,
 	resolveRemotePlatform,
@@ -184,7 +184,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 					initial.userDataPath,
 					live,
 					{
-						timeoutMs: getNewAgentHostRegistrationTimeoutMs(cliInstallation.installed),
+						timeoutMs: COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 						token: tokenSource.token,
 						progress: elapsedMs => this._logService.info(`${LOG_PREFIX} Waiting for the new agent host to register... (${Math.floor(elapsedMs / 1000)} seconds elapsed)`),
 					},
@@ -387,11 +387,25 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	protected _resolveShellEnvironment(): Promise<typeof process.env> {
-		this._shellEnvironment ??= this._resolveUserShellEnvironment().catch(error => {
-			this._logService.error(`${LOG_PREFIX} Unable to resolve shell environment; using inherited environment`, error);
-			return process.env;
-		});
+		this._shellEnvironment ??= this._doResolveShellEnvironment();
 		return this._shellEnvironment;
+	}
+
+	protected async _doResolveShellEnvironment(inheritedEnvironment = process.env, platform = process.platform): Promise<typeof process.env> {
+		let shellEnvironment: typeof process.env = {};
+		try {
+			shellEnvironment = await this._resolveUserShellEnvironment();
+		} catch (error) {
+			this._logService.error(`${LOG_PREFIX} Unable to resolve shell environment; using inherited environment`, error);
+		}
+		const environment = { ...inheritedEnvironment, ...shellEnvironment };
+		const path = environment.PATH || '';
+		// Match Remote Containers' macOS fallback when shell resolution leaves Docker off PATH.
+		if (platform === 'darwin' && !/(^|:)\/usr\/local\/bin(:|$)/i.test(path)) {
+			environment.PATH = path ? `${path}:/usr/local/bin` : '/usr/local/bin';
+			this._logService.trace(`${LOG_PREFIX} Adding /usr/local/bin to PATH for macOS Docker discovery`);
+		}
+		return environment;
 	}
 
 	protected _resolveDevContainerEnvironment(): Promise<typeof process.env> {
