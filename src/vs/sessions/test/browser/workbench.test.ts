@@ -1753,10 +1753,13 @@ suite('Sessions - Workbench', () => {
 			}) as ITabsOverrideLifecycleHarness;
 
 			editorVisible = restoredEditorVisible;
-			assert.throws(
-				() => createContentArea.call(editorPart, mainWindow.document.createElement('div')),
-				error => error === stopBeforeContentCreation
-			);
+			let thrown: unknown;
+			try {
+				createContentArea.call(editorPart, mainWindow.document.createElement('div'));
+			} catch (error) {
+				thrown = error;
+			}
+			assert.strictEqual(thrown, stopBeforeContentCreation);
 			return enforcedShowTabs ?? 'single';
 		};
 
