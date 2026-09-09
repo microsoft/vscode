@@ -26,6 +26,9 @@ import { IChatOutputRendererService } from '../../../browser/chatOutputItemRende
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
+import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
@@ -1137,6 +1140,260 @@ suite('ChatListRenderer', () => {
 		const afterStarting = isWaitingForMcpServers([part]);
 
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
+	});
+
+	for (const configuredMode of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.FixedScrolling]) {
+		test(`read-only thinking overrides ${configuredMode} for rendering, grouping and completion`, () => {
+			const disposables = store.add(new DisposableStore());
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, configuredMode);
+			configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+			configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, new MockChatService());
+			instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+			instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const request = model.addRequest({
+				text: 'test',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+			}, { variables: [] }, 0);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer,
+				{} as ChatEditorOptions,
+				{ progressMessageAtBottomOfResponse: true, editable: false },
+				{
+					getListLength: () => 1,
+					onDidScroll: () => toDisposable(() => { }),
+					container,
+					currentChatMode: () => ChatModeKind.Agent,
+					isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { },
+					stickyScrollTopPadding: 0,
+				},
+				undefined,
+				viewModel,
+			));
+			const template = renderer.renderTemplate(container);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+			const snapshot = () => [...new Set(template.renderedParts)].flatMap(part => part instanceof ChatThinkingContentPart ? [{
+				collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+				fixedScrolling: part.domNode.classList.contains('chat-thinking-fixed-mode'),
+			}] : []);
+
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'reasoning-1', value: '**Reviewing**\nChecking the changes' });
+			renderer.renderElement(node, 0, template);
+			const editable = snapshot();
+			renderer.updateOptions({ readOnly: true });
+			renderer.renderElement(node, 0, template);
+			const readOnly = snapshot();
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.FixedScrolling);
+			renderer.renderElement(node, 0, template);
+			const afterSettingChange = snapshot();
+			model.acceptResponseProgress(request, new ChatToolInvocation(
+				{ invocationMessage: 'Search the codebase' },
+				{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+				'search-1', undefined, {},
+			));
+			renderer.renderElement(node, 0, template);
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'reasoning-2', value: '**Checking results**' });
+			renderer.renderElement(node, 0, template);
+			const grouped = snapshot();
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Review complete') });
+			renderer.renderElement(node, 0, template);
+			const completed = snapshot();
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, configuredMode);
+			renderer.updateOptions({ readOnly: false });
+			renderer.renderElement(node, 0, template);
+			const restored = snapshot();
+
+			assert.deepStrictEqual({ editable, readOnly, afterSettingChange, grouped, completed, restored }, {
+				editable: [{ collapsed: true, fixedScrolling: configuredMode === ThinkingDisplayMode.FixedScrolling }],
+				readOnly: [{ collapsed: false, fixedScrolling: false }],
+				afterSettingChange: [{ collapsed: false, fixedScrolling: false }],
+				grouped: [{ collapsed: false, fixedScrolling: false }],
+				completed: [{ collapsed: true, fixedScrolling: false }],
+				restored: configuredMode === ThinkingDisplayMode.Collapsed
+					? [{ collapsed: true, fixedScrolling: false }, { collapsed: true, fixedScrolling: false }, { collapsed: true, fixedScrolling: false }]
+					: [{ collapsed: true, fixedScrolling: true }],
+			});
+		});
+	}
+
+	for (const incremental of [false, true]) {
+		for (const options of [
+			{ style: ThinkingDisplayMode.Collapsed, readOnly: false },
+			{ style: ThinkingDisplayMode.CollapsedPreview, readOnly: false },
+			{ style: ThinkingDisplayMode.FixedScrolling, readOnly: false },
+			{ style: ThinkingDisplayMode.FixedScrolling, readOnly: true },
+		]) {
+			test(`completion notifications separate thinking groups (${options.style}, readOnly=${options.readOnly}, incremental=${incremental})`, () => {
+				const disposables = store.add(new DisposableStore());
+				const instantiationService = workbenchInstantiationService(undefined, disposables);
+				const configurationService = new TestConfigurationService();
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, options.style);
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+				configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+				configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+				instantiationService.stub(IConfigurationService, configurationService);
+				instantiationService.stub(IChatService, new MockChatService());
+				instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+				instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+				const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const request = model.addRequest({
+					text: 'Review',
+					parts: [new ChatRequestTextPart(new OffsetRange(0, 6), new Range(1, 1, 1, 7), 'Review')],
+				}, { variables: [] }, 0);
+				const response = viewModel.getItems().find(isResponseVM);
+				assert.ok(response);
+				const container = dom.append(mainWindow.document.body, dom.$('div'));
+				disposables.add(toDisposable(() => container.remove()));
+				const renderer = disposables.add(instantiationService.createInstance(
+					ChatListItemRenderer, {} as ChatEditorOptions, { readOnly: options.readOnly },
+					{
+						getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+						currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+						refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+					},
+					undefined, viewModel,
+				));
+				let template = renderer.renderTemplate(container);
+				disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+				const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+				const snapshot = () => {
+					const parts = [...new Set(template.renderedParts)];
+					const thinking = parts.filter(part => part instanceof ChatThinkingContentPart);
+					const notifications = parts.filter(part => part instanceof ChatSystemNotificationContentPart);
+					const lastNotification = notifications.at(-1);
+					return {
+						notifications: notifications.length,
+						firstThinkingActive: thinking[0]?.getIsActive(),
+						laterThinkingBelowNotice: thinking.length > 1 && thinking.slice(1).every(part =>
+							lastNotification?.domNode.isConnected && part.domNode.isConnected
+							&& (lastNotification.domNode.compareDocumentPosition(part.domNode) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0),
+					};
+				};
+
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'before', value: '**Processing notifications**\nBefore completion' });
+				renderer.renderElement(node, 0, template);
+				const initialThinking = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+				for (const name of ['First reviewer', 'Second reviewer']) {
+					model.acceptResponseProgress(request, { kind: 'systemNotification', content: new MarkdownString(`Background agent \`${name}\` is complete`) });
+					renderer.renderElement(node, 0, template);
+				}
+				const closedAtNotice = initialThinking?.getIsActive() === false;
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'after', value: '**Reading completed reviews**\nAfter completion' });
+				renderer.renderElement(node, 0, template);
+				const afterReasoning = snapshot();
+				model.acceptResponseProgress(request, new ChatToolInvocation(
+					{ invocationMessage: 'Read remaining agent' },
+					{ id: 'read-agent', displayName: 'Read agent', modelDescription: 'Read agent', source: ToolDataSource.Internal },
+					'read-agent', undefined, {},
+				));
+				renderer.renderElement(node, 0, template);
+				const afterTool = snapshot();
+				renderer.renderElement(node, 0, template);
+				const afterRerender = snapshot();
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const completed = snapshot();
+				renderer.disposeTemplate(template);
+				dom.clearNode(container);
+				template = renderer.renderTemplate(container);
+				renderer.renderElement(node, 0, template);
+				const restored = snapshot();
+				const expected = { notifications: 2, firstThinkingActive: false, laterThinkingBelowNotice: true };
+
+				assert.deepStrictEqual({ closedAtNotice, afterReasoning, afterTool, afterRerender, completed, restored }, {
+					closedAtNotice: true, afterReasoning: expected, afterTool: expected, afterRerender: expected, completed: expected, restored: expected,
+				});
+			});
+		}
+	}
+
+	test('keeps deferred edit markdown inside its collapsed thinking group', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.Collapsed);
+		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+		configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+		configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IChatOutputRendererService, { hasCodeBlockRenderer: () => false });
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const request = model.addRequest({
+			text: 'Edit',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'Edit')],
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer, {} as ChatEditorOptions, { noHeader: true, noFooter: true },
+			{
+				getListLength: () => 1, onDidScroll: () => Disposable.None, container,
+				currentChatMode: () => ChatModeKind.Agent, isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { }, stickyScrollTopPadding: 0,
+			}, undefined, viewModel,
+		));
+		renderer.layout(700);
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		const render = () => {
+			renderer.disposeElement(node, 0, template);
+			renderer.renderElement(node, 0, template);
+		};
+		model.acceptResponseProgress(request, new ChatToolInvocation(
+			{ invocationMessage: 'Search code' },
+			{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+			'search', undefined, {},
+		));
+		render();
+		model.acceptResponseProgress(request, {
+			kind: 'markdownContent',
+			content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit>file:///review-example.ts</vscode_codeblock_uri>\nconst answer = 42;\n```'),
+		});
+		render();
+		await timeout(0);
+		const thinking = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+		const markdown = template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
+		assert.ok(thinking && markdown);
+		const snapshot = () => ({
+			collapsed: thinking.domNode.classList.contains('chat-used-context-collapsed'),
+			connected: markdown.domNode.isConnected,
+			atResponseRoot: markdown.domNode.parentElement === template.value,
+			insideThinking: thinking.domNode.contains(markdown.domNode),
+		});
+		const beforeExpand = snapshot();
+		const button = thinking.domNode.querySelector<HTMLElement>('.monaco-button');
+		assert.ok(button);
+		button.click();
+		const expanded = snapshot();
+		button.click();
+		assert.deepStrictEqual({ beforeExpand, expanded, collapsedAgain: snapshot() }, {
+			beforeExpand: { collapsed: true, connected: false, atResponseRoot: false, insideThinking: false },
+			expanded: { collapsed: false, connected: true, atResponseRoot: false, insideThinking: true },
+			collapsedAgain: { collapsed: true, connected: true, atResponseRoot: false, insideThinking: true },
+		});
 	});
 
 	test('final markdown remains mounted after thinking and tool progress completes with reduced motion', async () => {

@@ -30,11 +30,10 @@ export interface ISinglePaneLayoutContext {
 /**
  * Base class for a single-pane layout behaviour, owning its own disposables.
  *
- * Exactly three concrete strategies extend this — one per session lifecycle stage:
- * {@link import('./singlePaneNewSessionStrategy.js').SinglePaneNewSessionStrategy} (an
- * uncreated, workspace-backed draft), {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}
- * (a created, workspace-backed session), and {@link import('./singlePaneQuickChatStrategy.js').SinglePaneQuickChatStrategy}
- * (a workspace-less quick chat). Each owns the full vertical slice of behaviour for its stage:
+ * Exactly two concrete strategies extend this — one per session lifecycle stage:
+ * {@link import('./singlePaneDraftSessionStrategy.js').SinglePaneDraftSessionStrategy} (workspace-backed
+ * and workspace-less drafts) and {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}
+ * (a created, workspace-backed session). Each owns the full vertical slice of behaviour for its stage:
  * side-pane visibility, the detail-panel (Changes/Files) mapping, and — for the two workspace
  * stages — the managed docked tabs and detail-only editor-area collapse.
  *

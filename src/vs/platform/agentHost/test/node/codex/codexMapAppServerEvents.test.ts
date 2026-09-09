@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
-import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
+import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus, type ICodexSessionMapState } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../../common/state/sessionActions.js';
 import { chatReducer } from '../../../common/state/protocol/reducers.js';
 import { ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ChatState } from '../../../common/state/sessionState.js';
@@ -18,6 +18,23 @@ function markdownPartContent(action: SessionAction | ChatAction | undefined): st
 	return action?.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
 		? action.part.content
 		: undefined;
+}
+
+/** Starts an in-progress `github.search` mcpToolCall item and returns its tool call id. */
+function startMcpToolCall(state: ICodexSessionMapState, itemId: string): string {
+	mapItemStarted(state, {
+		item: { type: 'mcpToolCall', id: itemId, server: 'github', tool: 'search', status: 'inProgress', arguments: { query: 'vscode' }, mcpAppResourceUri: undefined, pluginId: null, result: null, error: null, durationMs: null } as never,
+		threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+	});
+	return state.itemToToolCall.get(itemId)!.toolCallId;
+}
+
+/** Completes a started mcpToolCall item with the given MCP result. */
+function completeMcpToolCall(state: ICodexSessionMapState, itemId: string, result: { content: unknown[]; structuredContent: unknown }): (SessionAction | ChatAction)[] {
+	return mapItemCompleted(state, {
+		item: { type: 'mcpToolCall', id: itemId, server: 'github', tool: 'search', status: 'completed', arguments: { query: 'vscode' }, mcpAppResourceUri: undefined, pluginId: null, result: { ...result, _meta: null }, error: null, durationMs: 5 } as never,
+		threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+	});
 }
 
 suite('codexMapAppServerEvents', () => {
@@ -769,10 +786,79 @@ suite('codexMapAppServerEvents', () => {
 			startTypes: [ActionType.ChatToolCallStart, ActionType.ChatToolCallDelta, ActionType.ChatToolCallReady],
 			delta: { type: ActionType.ChatToolCallDelta, turnId: 'turn_a', toolCallId, content: '{\n  "query": "vscode"\n}' },
 			ready: { type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'Calling github.search', toolInput: '{\n  "query": "vscode"\n}', confirmed: ToolCallConfirmationReason.NotNeeded },
-			progressActions: [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'Searching' }] }],
+			progressActions: [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [], _meta: { progressMessage: 'Searching' } }],
 			completeActions: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Called github.search', content: [{ type: ToolResultContentType.Text, text: 'done\n{\n  "count": 1\n}' }] } }],
 			remainingToolCalls: 0,
 		});
+	});
+
+	test('mcpToolCall progress is not persisted as the result when the MCP result is empty', () => {
+		const state = createCodexSessionMapState();
+		const toolCallId = startMcpToolCall(state, 'mcp_1');
+		mapMcpToolCallProgress(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'mcp_1', message: 'Searching' });
+		assert.deepStrictEqual(completeMcpToolCall(state, 'mcp_1', { content: [], structuredContent: null }), [{
+			type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+			result: { success: true, pastTenseMessage: 'Called github.search', content: undefined },
+		}]);
+	});
+
+	test('mcpToolCall progress is not carried into an orphaned completion', () => {
+		const state = createCodexSessionMapState();
+		const toolCallId = startMcpToolCall(state, 'mcp_1');
+		mapMcpToolCallProgress(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'mcp_1', message: 'Searching' });
+		assert.deepStrictEqual(finalizeCodexTurnMapState(state, 'Turn interrupted before the tool completed'), [{
+			type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+			result: { success: false, pastTenseMessage: 'Stopped github.search', content: undefined, error: { message: 'Turn interrupted before the tool completed' } },
+		}]);
+	});
+
+	test('mcpToolCall progress after item/completed is dropped', () => {
+		const state = createCodexSessionMapState();
+		startMcpToolCall(state, 'mcp_1');
+		completeMcpToolCall(state, 'mcp_1', { content: ['done'], structuredContent: null });
+		assert.deepStrictEqual(mapMcpToolCallProgress(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'mcp_1', message: 'Late' }), []);
+	});
+
+	test('identical consecutive mcpToolCall progress messages are coalesced', () => {
+		const state = createCodexSessionMapState();
+		const toolCallId = startMcpToolCall(state, 'mcp_1');
+		const progress = (message: string) => mapMcpToolCallProgress(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'mcp_1', message });
+		assert.deepStrictEqual([progress('Searching'), progress('Searching'), progress('Ranking')], [
+			[{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [], _meta: { progressMessage: 'Searching' } }],
+			[],
+			[{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [], _meta: { progressMessage: 'Ranking' } }],
+		]);
+	});
+
+	test('an empty mcpToolCall progress message clears the previous one', () => {
+		const state = createCodexSessionMapState();
+		const toolCallId = startMcpToolCall(state, 'mcp_1');
+		const progress = (message: string) => mapMcpToolCallProgress(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'mcp_1', message });
+		const emitted = (progressMessage: string) => [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [], _meta: { progressMessage } }];
+		assert.deepStrictEqual([progress(''), progress('Searching'), progress(''), progress('')], [emitted(''), emitted('Searching'), emitted(''), []]);
+	});
+
+	test('mcpToolCall progress does not clobber start-time _meta', () => {
+		const state = createCodexSessionMapState();
+		state.itemToToolCall.set('mcp_1', { toolCallId: 'tc_1', turnId: 'turn_a', toolName: 'github.search', output: '', meta: { ui: { resourceUri: 'ui://github/app' } } });
+		assert.deepStrictEqual(mapMcpToolCallProgress(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'mcp_1', message: 'Searching' }), [{
+			type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId: 'tc_1', content: [],
+			_meta: { ui: { resourceUri: 'ui://github/app' }, progressMessage: 'Searching' },
+		}]);
+	});
+
+	test('tool call entries record the _meta emitted at start', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: { type: 'commandExecution', id: 'cmd_1', command: 'ls', cwd: '/tmp', processId: null, source: 'agent', status: 'inProgress', commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		mapItemStarted(state, {
+			item: { type: 'webSearch', id: 'web_1', query: 'vscode tests', action: { type: 'search', query: 'vscode tests', queries: null } } as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		startMcpToolCall(state, 'mcp_1');
+		assert.deepStrictEqual([...state.itemToToolCall.values()].map(entry => entry.meta), [{ toolKind: 'terminal' }, { toolKind: 'search' }, undefined]);
 	});
 
 	test('mcpToolCall start carries an MCP contributor when the server has a customization', () => {

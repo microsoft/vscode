@@ -15,7 +15,18 @@ import { CustomizationEnablementKind, type AgentSelection } from '../../common/s
 import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../shared/fileLinkInstructions.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
+
+export const CODEX_FILE_LINK_INSTRUCTIONS = [
+	AGENT_HOST_FILE_LINK_INSTRUCTIONS,
+	'',
+	'<file_link_path_format>',
+	'- Use the actual filesystem path. Example prefixes such as `/path/to` or `/abs/path` are placeholders, not text to prepend to a path.',
+	'- On Windows, drive-letter paths are already absolute: [foo.ts](C:/project/foo.ts). Do not add a leading `/` or prepend the working directory.',
+	'- For UNC paths, preserve the server and share: [foo.ts](//server/share/foo.ts).',
+	'</file_link_path_format>',
+].join('\n');
 
 /**
  * Codex ingests **client-pushed** plugin customizations (the "Open Plugins"
@@ -53,7 +64,7 @@ export interface ICodexAgentRoleSource {
 
 export interface ICodexCustomizationConfig {
 	readonly agentRoles: readonly ICodexAgentRoleSource[];
-	readonly developerInstructions?: string;
+	readonly developerInstructions: string;
 }
 
 /**
@@ -302,11 +313,12 @@ export async function codexCustomizationConfig(
 	const developerInstructions = [
 		...pluginInstructions,
 		...(selectedAgentInstructions ? [selectedAgentInstructions.trim()] : []),
+		CODEX_FILE_LINK_INSTRUCTIONS,
 	].filter(Boolean).join('\n\n');
 
 	return {
 		agentRoles: [...agentRoles.values()],
-		...(developerInstructions ? { developerInstructions } : {}),
+		developerInstructions,
 	};
 }
 

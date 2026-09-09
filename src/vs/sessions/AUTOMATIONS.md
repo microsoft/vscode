@@ -88,6 +88,14 @@ Legacy `modelId`, `mode`, and `permissionLevel` fields remain decode and input a
 
 At most one non-terminal run may occupy an Automation's active-run slot within one authority.
 
+### Catalogue availability
+
+Every Automation store exposes whether its complete catalogue is `loading`, `ready`, `unavailable`, or in `error`. An empty catalogue is authoritative only in the `ready` state. `loading` is reserved for initial provider discovery and authoritative snapshots that are still in flight. `unavailable` means a known provider catalogue cannot currently be reached without treating that condition as storage or migration failure.
+
+Provider stores map their connection and persistence lifecycle into this provider-neutral state. Agent Host stores become ready when an authoritative catalogue snapshot and every source still participating in the projection are readable, independently of migration authority. Known disconnect, disabled capability, and unsupported capability are unavailable rather than perpetually loading.
+
+`ProviderAutomationService` keeps the initial aggregate loading until all AfterRestored workbench contributions have completed provider registration. A provider-less window then settles to its legacy-store state, so a legacy-only empty catalogue can be authoritative. After provider settlement, the aggregate reports `error` when any current store fails, otherwise `loading` while any store is loading, `unavailable` while any store is unavailable, and `ready` only when all current stores are ready.
+
 ## Multi-host routing
 
 VS Code may register one local Agent Host provider and multiple remote Agent Host providers at the same time. A remote connection has its own provider identity, Automation store, AHP catalogue, and migration state.
@@ -326,6 +334,7 @@ Updates that do not change the target remain allowed while an active run delays 
 11. Same-target edits preserve unknown template values unless the user explicitly changes them.
 12. Retargeting does not carry a previous provider's template into the new authority.
 13. Runtime policy and provider schema are revalidated for every run without treating saved configuration as a grant.
+14. Consumers distinguish a confirmed empty catalogue from loading, unavailability, and failure through the provider-neutral catalogue state.
 
 ## Concrete behavior
 
