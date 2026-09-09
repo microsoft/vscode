@@ -13338,6 +13338,136 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('annotations subscriptions neither suppress reconciliation nor cancel the root release retry', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const agent = new DeferringReleaseMockAgent('copilot');
+				registerTestAgentProvider(service, agent);
+				const { session } = await createAgentSession(agent);
+				const annotationsResource = URI.parse(buildAnnotationsUri(session.toString()));
+				agent.sessionMessages = [
+					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+					{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+				];
+				await service.restoreSession(session);
+				service.addSubscriber(session, 'client-session');
+				await service.subscribe(annotationsResource, 'client-annotations-1');
+				service.unsubscribe(session, 'client-session');
+
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				assert.strictEqual(agent.releaseAttempts, 1);
+				await service.subscribe(annotationsResource, 'client-annotations-2');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+
+				assert.deepStrictEqual({
+					releaseAttempts: agent.releaseAttempts,
+					hasCachedState: getStateManager(service).getSessionState(session.toString()) !== undefined,
+				}, {
+					releaseAttempts: 2,
+					hasCachedState: false,
+				});
+			});
+		});
+
+		for (const subagent of [false, true]) {
+			test(`cold ${subagent ? 'subagent' : 'session'} annotations can be read and edited without restoring the conversation`, async () => {
+				const sessionData = createPerSessionDataService();
+				const { service: localService, agent } = createResidencyTestService(1, 30_000, true, new MockAgent('copilot'), sessionData.service);
+				const older = await createUsedSession(localService, agent);
+				const recent = await createUsedSession(localService, agent);
+				await waitForResidency(
+					() => getStateManager(localService).getSessionState(older.toString()) === undefined,
+					'older session was not initially evicted',
+				);
+				const owner = subagent ? buildSubagentSessionUri(older, 'tool-call') : older.toString();
+				const annotationsUri = buildAnnotationsUri(owner);
+				const metadataKey = subagent ? `annotations:${owner}` : 'annotations';
+				const annotation = {
+					id: 'feedback-1',
+					origin: { session: owner },
+					resource: URI.file('/workspace/reviewed.ts').toString(),
+					resolved: false,
+					entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+				};
+				await sessionData.database(older).setMetadata(metadataKey, JSON.stringify({ annotations: [annotation] }));
+				agent.chatContexts.length = 0;
+
+				const initial = await localService.subscribe(URI.parse(annotationsUri), 'client-annotations-1');
+				const resolvedAnnotation = { ...annotation, resolved: true };
+				const actions: ActionEnvelope[] = [];
+				disposables.add(localService.onDidAction(envelope => {
+					if (envelope.channel === annotationsUri) {
+						actions.push(envelope);
+					}
+				}));
+				localService.dispatchAction(annotationsUri, {
+					type: ActionType.AnnotationsSet,
+					annotation: resolvedAnnotation,
+				}, 'client-annotations-1', 1);
+				const updated = await localService.subscribe(URI.parse(annotationsUri), 'client-annotations-2');
+
+				assert.deepStrictEqual({
+					initial: initial.state,
+					updated: updated.state,
+					persisted: await sessionData.database(older).getMetadata(metadataKey),
+					actions: actions.map(envelope => envelope.action),
+					older: getStateManager(localService).getSessionState(older.toString()) !== undefined,
+					recent: getStateManager(localService).getSessionState(recent.toString()) !== undefined,
+					providerOperations: agent.chatContexts.map(call => call.boundary),
+				}, {
+					initial: { annotations: [annotation] },
+					updated: { annotations: [resolvedAnnotation] },
+					persisted: JSON.stringify({ annotations: [resolvedAnnotation] }),
+					actions: [{ type: ActionType.AnnotationsSet, annotation: resolvedAnnotation }],
+					older: false,
+					recent: true,
+					providerOperations: [],
+				});
+			});
+		}
+
+		test('annotations remain usable while the provider release is still in flight', async () => {
+			const sessionData = createPerSessionDataService();
+			const agent = new DelayedReleaseMockAgent('copilot');
+			const { service: localService } = createResidencyTestService(1, 30_000, true, agent, sessionData.service);
+			const session = await createUsedSession(localService, agent);
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			const annotation = {
+				id: 'feedback-1',
+				origin: { session: session.toString() },
+				resource: URI.file('/workspace/reviewed.ts').toString(),
+				resolved: false,
+				entries: [{ id: 'feedback-1:0', text: 'Please revisit this.' }],
+			};
+			await sessionData.database(session).setMetadata('annotations', JSON.stringify({ annotations: [annotation] }));
+			await localService.subscribe(URI.parse(annotationsUri), 'client-before-eviction');
+			await createUsedSession(localService, agent);
+
+			let readBeforeRelease = false;
+			try {
+				await waitForResidency(() => agent.events.includes('release:start'), 'provider release did not start');
+				const read = localService.subscribe(URI.parse(annotationsUri), 'client-during-release').then(snapshot => {
+					readBeforeRelease = !agent.events.includes('release:end');
+					return snapshot;
+				});
+				await timeout(0);
+				await agent.release.complete();
+				const snapshot = await read;
+				await waitForResidency(() => !getStateManager(localService).getSessionState(session.toString()), 'session was not evicted');
+
+				assert.deepStrictEqual({
+					readBeforeRelease,
+					snapshot: snapshot.state,
+					annotationsAfterEviction: getStateManager(localService).getAnnotationsState(annotationsUri),
+				}, {
+					readBeforeRelease: true,
+					snapshot: { annotations: [annotation] },
+					annotationsAfterEviction: { annotations: [annotation] },
+				});
+			} finally {
+				await agent.release.complete();
+			}
+		});
+
 		test('overlapping residency reconciliations preserve the original in-flight release', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const agent = new DelayedReleaseMockAgent('copilot');
@@ -13867,6 +13997,33 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- empty-session GC ----------------------------------------------
 
 	suite('empty-session GC', () => {
+
+		test('annotations subscribers still protect an unused draft from destructive GC', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const annotations = URI.parse(buildAnnotationsUri(session.toString()));
+				service.addSubscriber(session, 'session-client');
+				await service.subscribe(annotations, 'annotations-client');
+				service.unsubscribe(session, 'session-client');
+				await timeout(30_000);
+				const beforeUnsubscribe = {
+					resident: !!getStateManager(service).getSessionState(session.toString()),
+					disposals: copilotAgent.disposeSessionCalls.length,
+				};
+
+				service.unsubscribe(annotations, 'annotations-client');
+				await timeout(30_000);
+
+				assert.deepStrictEqual({
+					beforeUnsubscribe,
+					disposals: copilotAgent.disposeSessionCalls.map(call => call.toString()),
+				}, {
+					beforeUnsubscribe: { resident: true, disposals: 0 },
+					disposals: [session.toString()],
+				});
+			});
+		});
 
 		test('a default-chat subscriber pins an empty session after the root unsubscribes', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {

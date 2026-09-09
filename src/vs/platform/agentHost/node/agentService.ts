@@ -4299,7 +4299,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	addSubscriber(resource: URI, clientId: string): void {
 		// A new subscriber means the session is being observed again; cancel
-		// any pending GC or idle-release armed while it had no subscribers.
+		// any pending GC armed while it had no subscribers.
 		this._cancelPendingSessionGc(resource);
 		this._cancelPendingEphemeralSessionGc(resource);
 		// 0→1 transition — covers both the full subscribe path AND the
@@ -4324,16 +4324,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._maybeScheduleEphemeralSessionGc(resource)) {
 			return;
 		}
-		// An empty session whose last subscriber dropped is a candidate for
-		// full GC (provider session, worktree, on-disk state). Sessions with
-		// at least one turn participate in residency reconciliation, which only
-		// drops the in-memory cache and lets the session be restored from disk
-		// later. Skipping eviction here for empty
-		// sessions ensures their state stays observable so a re-subscribe
-		// can re-arm GC.
-		if (this._maybeScheduleSessionGc(resource)) {
-			return;
-		}
+		// Annotation subscribers block destructive GC, but must not suppress residency reconciliation.
+		this._maybeScheduleSessionGc(resource);
 		void this._sessionResidency.reconcile();
 	}
 
@@ -4376,30 +4368,27 @@ export class AgentService extends Disposable implements IAgentService {
 	 * to reconnect or a workspace switch to settle. Any subsequent subscribe
 	 * (or createSession on the same URI) cancels the timer via
 	 * {@link _cancelPendingSessionGc}.
-	 *
-	 * Returns `true` if a GC timer was armed (existing or newly scheduled),
-	 * so callers can skip alternative cleanup paths.
 	 */
-	private _maybeScheduleSessionGc(resource: URI): boolean {
+	private _maybeScheduleSessionGc(resource: URI): void {
 		const session = resolveAgentHostSession(resource);
 		if (this._subscriptions.hasSessionSubscribers(session)) {
-			return true;
+			return;
 		}
 		const key = session.toString();
 		const state = this._stateManager.getSessionState(key);
 		if (!state) {
-			return false;
+			return;
 		}
 		if (state.turns.length > 0 || state.activeTurn !== undefined) {
-			return false;
+			return;
 		}
 		if (this._stateManager.isUnusedDraft(key) !== true) {
 			this._logService.trace(`[AgentService] Skipping GC for session that is not an unused draft: ${key}`);
-			return false;
+			return;
 		}
 		// Never tear down a session Agent Merge is holding.
 		if (this._agentMergeController.holdsSession(key)) {
-			return false;
+			return;
 		}
 		this._pendingSessionGc.set(session, disposableTimeout(() => {
 			this._pendingSessionGc.deleteAndDispose(session);
@@ -4407,7 +4396,6 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(err, `[AgentService] GC failed for ${key}`);
 			});
 		}, SESSION_GC_GRACE_MS));
-		return true;
 	}
 
 	private _cancelPendingSessionGc(resource: URI): void {
@@ -5345,14 +5333,7 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._restoreSessionInFlight.get(sessionUri);
 		await this._restoreSubagentInFlight.get(sessionUri);
 		const session = URI.parse(sessionUri);
-		if (!this._stateManager.getSessionState(sessionUri)) {
-			const parsedSubagent = parseSubagentSessionUri(session);
-			if (parsedSubagent) {
-				await this._restoreSubagentSession(sessionUri, parsedSubagent.parentSession);
-			} else {
-				await this.restoreSession(session);
-			}
-		}
+		// Read the independent annotations store without restoring provider history or affecting session recency.
 		await this._restoreAnnotations(session);
 	}
 
