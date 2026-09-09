@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostClientConnectionKind, AgentHostTransportKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { ActionType, type ActionEnvelope, type StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationEnablementKind, CustomizationType, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, type ChatSummary, type ClientPluginCustomization, type SessionSummary, type Snapshot } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, type ChatSummary, type ClientPluginCustomization, type SessionActiveClient, type SessionSummary, type Snapshot } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isJsonRpcNotification, ReconnectResultType, type AhpRequest, type AhpServerNotification, type AhpSuccessResponse, type ProtocolMessage } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SESSION_META_FOLDER_PICKER_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -92,13 +92,22 @@ function pluginCustomization(uri: string, workspace: string): ClientPluginCustom
 	};
 }
 
-function snapshots(workingDirectories: string[], customization?: ClientPluginCustomization): Snapshot[] {
+function activeClient(customization?: ClientPluginCustomization): SessionActiveClient {
+	return {
+		clientId: 'client',
+		displayName: 'VS Code',
+		tools: [],
+		...(customization ? { customizations: [customization] } : {}),
+	};
+}
+
+function snapshots(workingDirectories: string[], customization?: ClientPluginCustomization, clientCustomization?: ClientPluginCustomization): Snapshot[] {
 	return [
 		{
 			resource: session, fromSeq: 10,
 			state: {
 				provider: 'copilot', title: opaqueText, status: SessionStatus.Idle,
-				lifecycle: SessionLifecycle.Ready, activeClients: [], workingDirectories,
+				lifecycle: SessionLifecycle.Ready, activeClients: clientCustomization ? [activeClient(clientCustomization)] : [], workingDirectories,
 				chats: [chatSummary(workingDirectories)],
 				config: { schema: { type: 'object', properties: {} }, values: { workingDirectory: fileDirectory, text: opaqueText } },
 				_meta: folderPickerMeta(workingDirectories[0]),
@@ -177,14 +186,16 @@ suite('EditorRemoteAgentHostTransport', () => {
 		assert.deepStrictEqual({ received, secondReceived }, { received: expected, secondReceived: expected });
 	});
 
-	test('maps createSession roots and folder picker metadata without mutating the request', () => {
+	test('maps createSession roots, active-client customizations, and folder picker metadata without mutating the request', () => {
 		const { underlying, transport } = createTransport();
+		const clientCustomization = pluginCustomization(remoteCustomization, remoteDirectory);
 		const request: AhpRequest<'createSession'> = {
 			jsonrpc: '2.0', id: 1, method: 'createSession',
 			params: {
 				channel: session, provider: 'copilot',
 				workingDirectories: [remoteDirectory, 'vscode-remote://wsl%2Bubuntu/home/user/second', otherRemoteDirectory, 'file:///local'],
 				config: { workingDirectory: remoteDirectory, text: opaqueText },
+				activeClient: activeClient(clientCustomization),
 				_meta: folderPickerMeta(remoteDirectory),
 			},
 		};
@@ -198,6 +209,7 @@ suite('EditorRemoteAgentHostTransport', () => {
 				params: {
 					...original.params,
 					workingDirectories: [fileDirectory, 'file:///home/user/second', otherRemoteDirectory, 'file:///local'],
+					activeClient: activeClient(pluginCustomization(fileCustomization, fileDirectory)),
 					_meta: folderPickerMeta(fileDirectory),
 				},
 			}],
@@ -322,12 +334,18 @@ suite('EditorRemoteAgentHostTransport', () => {
 		});
 	});
 
-	test('maps customization URIs in session snapshots without mutating host messages', () => {
+	test('maps server and active-client customization URIs in session snapshots without mutating host messages', () => {
 		const { underlying, transport, received } = createTransport();
 		const response: AhpSuccessResponse<'subscribe'> = {
 			jsonrpc: '2.0',
 			id: 1,
-			result: { snapshot: snapshots([fileDirectory], pluginCustomization(fileCustomization, fileDirectory))[0] },
+			result: {
+				snapshot: snapshots(
+					[fileDirectory],
+					pluginCustomization(fileCustomization, fileDirectory),
+					pluginCustomization(fileCustomization, fileDirectory),
+				)[0]
+			},
 		};
 		const original = structuredClone(response);
 
@@ -337,17 +355,24 @@ suite('EditorRemoteAgentHostTransport', () => {
 		assert.deepStrictEqual({ received, original: response }, {
 			received: [{
 				...original,
-				result: { snapshot: snapshots([remoteDirectory], pluginCustomization(remoteCustomization, remoteDirectory))[0] },
+				result: {
+					snapshot: snapshots(
+						[remoteDirectory],
+						pluginCustomization(remoteCustomization, remoteDirectory),
+						pluginCustomization(remoteCustomization, remoteDirectory),
+					)[0]
+				},
 			}],
 			original,
 		});
 	});
 
-	test('round-trips customization action URIs without changing opaque ids', () => {
+	test('round-trips active-client and server customization action URIs without changing opaque ids', () => {
 		const { underlying, transport, received } = createTransport();
 		const hostCustomization = pluginCustomization(fileCustomization, fileDirectory);
 		const clientCustomization = pluginCustomization(remoteCustomization, remoteDirectory);
 		const hostActions: StateAction[] = [
+			{ type: ActionType.SessionActiveClientSet, activeClient: activeClient(hostCustomization) },
 			{ type: ActionType.SessionCustomizationsChanged, customizations: [hostCustomization] },
 			{ type: ActionType.SessionCustomizationUpdated, customization: hostCustomization },
 			{
@@ -357,6 +382,7 @@ suite('EditorRemoteAgentHostTransport', () => {
 			},
 		];
 		const clientActions: StateAction[] = [
+			{ type: ActionType.SessionActiveClientSet, activeClient: activeClient(clientCustomization) },
 			{ type: ActionType.SessionCustomizationsChanged, customizations: [clientCustomization] },
 			{ type: ActionType.SessionCustomizationUpdated, customization: clientCustomization },
 			{

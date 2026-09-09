@@ -11,7 +11,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createURITransformer } from '../../../../base/common/uriTransformer.js';
 import { ActionType, type StateAction } from '../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type Snapshot } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type SessionActiveClient, type Snapshot } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ReconnectResultType, type CommandMap, type ProtocolMessage } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { readSessionFolderPickerDecision, withSessionFolderPickerDecision } from '../../../../platform/agentHost/common/state/sessionState.js';
 import type { IClientTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -66,7 +66,13 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 					this._requests.set(message.id, message.method);
 					break;
 				case 'createSession':
-					message = { ...message, params: this._mapDirectories(message.params, value => this._toHostDirectory(value)) };
+					message = {
+						...message,
+						params: {
+							...this._mapDirectories(message.params, value => this._toHostDirectory(value)),
+							...(message.params.activeClient ? { activeClient: this._mapActiveClient(message.params.activeClient, value => this._toHostDirectory(value)) } : {}),
+						}
+					};
 					break;
 				case 'createChat':
 					message = { ...message, params: this._mapDirectories(message.params, value => this._toHostDirectory(value)) };
@@ -135,6 +141,8 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 				return { ...action, changes: this._mapDirectories(action.changes, map) };
 			case ActionType.SessionMetaChanged:
 				return this._mapDirectories(action, map);
+			case ActionType.SessionActiveClientSet:
+				return { ...action, activeClient: this._mapActiveClient(action.activeClient, map) };
 			case ActionType.SessionCustomizationsChanged:
 				return { ...action, customizations: action.customizations.map(customization => this._mapCustomization(customization, map)) };
 			case ActionType.SessionCustomizationUpdated:
@@ -144,6 +152,15 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 			default:
 				return action;
 		}
+	}
+
+	private _mapActiveClient(activeClient: SessionActiveClient, map: (uri: string) => string): SessionActiveClient {
+		return {
+			...activeClient,
+			...(activeClient.customizations
+				? { customizations: activeClient.customizations.map(customization => this._mapCustomization(customization, map)) }
+				: {}),
+		};
 	}
 
 	private _mapCustomizationEnablement(enablement: readonly CustomizationEnablement[], map: (uri: string) => string): CustomizationEnablement[] {
@@ -186,6 +203,7 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 				state: {
 					...this._mapDirectories(state, map),
 					chats: state.chats.map(chat => this._mapDirectories(chat, map)),
+					activeClients: state.activeClients.map(activeClient => this._mapActiveClient(activeClient, map)),
 					...(state.customizations ? { customizations: state.customizations.map(customization => this._mapCustomization(customization, map)) } : {}),
 				}
 			};
