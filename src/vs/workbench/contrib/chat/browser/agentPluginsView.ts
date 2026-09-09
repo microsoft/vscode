@@ -459,8 +459,14 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				});
 			} else {
 				const lowerText = text.toLowerCase();
-				filteredMp = filteredMp.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText) || p.marketplace.toLowerCase().includes(lowerText) || (p.keywords ?? []).some(k => k.toLowerCase().includes(lowerText)));
+				filteredMp = filteredMp.filter(p =>
+					p.name.toLowerCase().includes(lowerText) ||
+					p.description.toLowerCase().includes(lowerText) ||
+					p.marketplace.toLowerCase().includes(lowerText) ||
+					(p.keywords ?? []).some(k => k.toLowerCase().includes(lowerText))
+				);
 			}
+
 
 			const marketplace = filteredMp.map(marketplacePluginToItem);
 
