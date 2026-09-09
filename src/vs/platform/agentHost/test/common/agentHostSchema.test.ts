@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -45,6 +45,12 @@ suite('agentHostSchema', () => {
 
 	test('GitHub MCP is an additive enabled-by-default root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostGitHubMcpServerEnabledConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, true);
+	});
+
+	test('automatic pull request attachment is an additive enabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostAutoAttachPullRequestsConfigKey];
 		assert.strictEqual(property.type, 'boolean');
 		assert.strictEqual(property.default, true);
 	});

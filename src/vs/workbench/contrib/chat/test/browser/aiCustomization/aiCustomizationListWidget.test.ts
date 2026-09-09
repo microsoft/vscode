@@ -26,7 +26,7 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -248,6 +248,16 @@ suite('aiCustomizationListWidget', () => {
 		assert.deepStrictEqual({ expanded, redistributed }, {
 			expanded: [110, 110],
 			redistributed: [0, 220],
+		});
+	});
+
+	test('virtualized sections show up to four rows by default', () => {
+		assert.deepStrictEqual({
+			fourOfFive: getVirtualizedSectionMinimumHeight([44, 44, 44, 44, 44], height => height),
+			allOfThree: getVirtualizedSectionMinimumHeight([44, 66, 44], height => height),
+		}, {
+			fourOfFive: 176,
+			allOfThree: 154,
 		});
 	});
 

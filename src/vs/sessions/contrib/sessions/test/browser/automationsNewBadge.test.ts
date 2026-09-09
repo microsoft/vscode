@@ -138,9 +138,9 @@ suite('AutomationsNewBadgeState', () => {
 		});
 	});
 
-	test('resolves accent, soft, and outline for eligible returning users', async () => {
+	test('resolves every supported style for eligible returning users', async () => {
 		const snapshots = [];
-		for (const style of ['accent', 'soft', 'outline'] as const) {
+		for (const style of ['accent', 'soft', 'outline', 'unread'] as const) {
 			const fixture = createState({ style });
 			await fixture.state.initialize();
 			snapshots.push({
@@ -153,6 +153,7 @@ suite('AutomationsNewBadgeState', () => {
 			{ style: 'accent', treatments: [AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT] },
 			{ style: 'soft', treatments: [AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT] },
 			{ style: 'outline', treatments: [AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT] },
+			{ style: 'unread', treatments: [AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT] },
 		]);
 	});
 
@@ -271,7 +272,7 @@ suite('AutomationsNewBadgeState', () => {
 		await fixture.state.initialize();
 		const initial = fixture.state.presentation.get();
 
-		await fixture.configurationService.setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'accent');
+		await fixture.configurationService.setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'unread');
 		fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 			affectsConfiguration: key => key === AUTOMATIONS_NEW_BADGE_STYLE_SETTING,
 		}));
@@ -282,7 +283,7 @@ suite('AutomationsNewBadgeState', () => {
 			treatments: fixture.assignmentService.treatments,
 		}, {
 			initial: 'soft',
-			updated: 'accent',
+			updated: 'unread',
 			treatments: [],
 		});
 	});
@@ -305,7 +306,7 @@ suite('AutomationsNewBadgeState', () => {
 		const fixture = createState({
 			hadPriorWindowOpen: false,
 			automations: [upcastPartial<IAutomationDescriptor>({ id: 'existing-automation' })],
-			style: 'accent',
+			style: 'unread',
 		});
 		await fixture.state.initialize();
 
@@ -325,7 +326,7 @@ suite('AutomationsNewBadgeState', () => {
 			},
 		}, {
 			preview: {
-				style: 'accent',
+				style: 'unread',
 				stored: undefined,
 			},
 			afterActivation: {

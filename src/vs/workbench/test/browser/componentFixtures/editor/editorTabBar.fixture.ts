@@ -556,6 +556,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		model,
 		options.headerMenuIds,
 		options.showHeader ?? false,
+		undefined,
 	));
 
 	const layout = () => {

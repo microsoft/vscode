@@ -13,6 +13,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -25,7 +26,8 @@ import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tun
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -376,6 +378,8 @@ export class WorkspacePicker extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IFileService private readonly fileService: IFileService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -1231,6 +1235,21 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private async _canSelectWorkspace(folderUri: URI, providerId: string | undefined): Promise<boolean> {
+		if (folderUri.scheme === Schemas.file && this.fileService.hasProvider(folderUri)) {
+			const generation = this._selectionGeneration;
+			const exists = await this.fileService.exists(folderUri);
+			if (generation !== this._selectionGeneration) {
+				return false;
+			}
+			if (!exists) {
+				this._removeRecentWorkspace(folderUri);
+				await this.dialogService.info(
+					localize('pathNotExistTitle', "Path does not exist"),
+					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", folderUri.fsPath),
+				);
+				return false;
+			}
+		}
 		return !this.options.canSelectWorkspace
 			|| await this.options.canSelectWorkspace(folderUri, providerId);
 	}

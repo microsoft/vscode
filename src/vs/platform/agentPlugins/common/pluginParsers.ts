@@ -916,7 +916,7 @@ export async function readSkills(
 	pluginRoot: URI,
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI },
+	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI; readonly deduplicateByName?: boolean },
 ): Promise<readonly ISkillPluginResource[]> {
 	const seen = new Set<string>();
 	const skills: ISkillPluginResource[] = [];
@@ -935,7 +935,7 @@ export async function readSkills(
 		} catch {
 			// Keep the existing best-effort discovery behavior for malformed skills.
 		}
-		if (seen.has(name)) {
+		if (options?.deduplicateByName !== false && seen.has(name)) {
 			return;
 		}
 		seen.add(name);
