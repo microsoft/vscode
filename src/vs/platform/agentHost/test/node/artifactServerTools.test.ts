@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { getErrorMessage } from '../../../../base/common/errors.js';
-import type { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
+import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ARTIFACT_TOOLS_INSTRUCTION, artifactServerToolDefinitions, createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
@@ -24,11 +24,13 @@ suite('Artifact Server Tools', () => {
 		assert.deepStrictEqual({
 			artifact: display(ArtifactServerToolName.AddArtifactOrReference, { label: 'Fix login', isArtifact: true }),
 			reference: display(ArtifactServerToolName.AddArtifactOrReference, { label: 'Broken commit', isArtifact: false }),
+			batch: display(ArtifactServerToolName.AddArtifactOrReference, { items: [{ label: 'Fix login', isArtifact: true }, { label: 'Docs', isArtifact: false }] }),
 			unlabelled: display(ArtifactServerToolName.AddArtifactOrReference, { isArtifact: false }),
 			malformed: display(ArtifactServerToolName.AddArtifactOrReference, undefined),
 		}, {
 			artifact: { displayName: 'Add Artifact', invocationMessage: 'Add artifact "Fix login"', pastTenseMessage: 'Added artifact "Fix login"' },
 			reference: { displayName: 'Add Reference', invocationMessage: 'Add reference "Broken commit"', pastTenseMessage: 'Added reference "Broken commit"' },
+			batch: { displayName: 'Add Artifacts or References', invocationMessage: 'Add 2 artifacts or references', pastTenseMessage: 'Added 2 artifacts or references' },
 			unlabelled: { displayName: 'Add Reference', invocationMessage: 'Add reference', pastTenseMessage: 'Added reference' },
 			malformed: { displayName: 'Add Artifact or Reference', invocationMessage: 'Add artifact or reference', pastTenseMessage: 'Added artifact or reference' },
 		});
@@ -36,10 +38,30 @@ suite('Artifact Server Tools', () => {
 
 	test('requires model-provided file paths to be absolute URIs', () => {
 		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+		const items = addDefinition?.inputSchema?.properties?.items as {
+			readonly type?: string;
+			readonly minItems?: number;
+			readonly description?: string;
+			readonly items?: { readonly properties?: Record<string, object>; readonly required?: readonly string[] };
+		} | undefined;
 
-		assert.deepStrictEqual(addDefinition?.inputSchema?.properties?.uri, {
-			type: 'string',
-			description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.',
+		assert.deepStrictEqual({
+			required: addDefinition?.inputSchema?.required,
+			type: items?.type,
+			minItems: items?.minItems,
+			description: items?.description,
+			itemRequired: items?.items?.required,
+			uri: items?.items?.properties?.uri,
+		}, {
+			required: ['items'],
+			type: 'array',
+			minItems: 1,
+			description: 'Artifacts and references to record in this call. Batch related entries when practical.',
+			itemRequired: ['type', 'label', 'isArtifact'],
+			uri: {
+				type: 'string',
+				description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.',
+			},
 		});
 	});
 
@@ -57,7 +79,10 @@ suite('Artifact Server Tools', () => {
 
 	test('distinguishes attempted pull request work from inspection or review', () => {
 		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
-		const classificationInput: IJSONSchema | undefined = addDefinition?.inputSchema?.properties?.isArtifact;
+		const items = addDefinition?.inputSchema?.properties?.items as {
+			readonly items?: { readonly properties?: Record<string, { readonly type?: string; readonly description?: string }> };
+		} | undefined;
+		const classificationInput = items?.items?.properties?.isArtifact;
 		const descriptions = [
 			addDefinition?.description,
 			classificationInput?.description,
@@ -70,12 +95,60 @@ suite('Artifact Server Tools', () => {
 				artifact: description?.includes('you create or attempt to fix, change, or unblock is an artifact'),
 				reference: description?.includes('inspection or review alone makes it a reference'),
 			})),
+			reference: ARTIFACT_TOOLS_INSTRUCTION.includes('references are existing resources the user will likely want to view'),
+			batch: ARTIFACT_TOOLS_INSTRUCTION.includes('Batch related entries in one call when practical'),
+			midChat: ARTIFACT_TOOLS_INSTRUCTION.includes('whenever appropriate during the chat'),
+			endOnly: ARTIFACT_TOOLS_INSTRUCTION.includes('at the end'),
 		}, {
 			inputType: 'boolean',
 			classifications: [
 				{ artifact: true, reference: true },
 				{ artifact: true, reference: true },
 				{ artifact: true, reference: true },
+			],
+			reference: true,
+			batch: true,
+			midChat: false,
+			endOnly: false,
+		});
+	});
+
+	test('adds a batch atomically and persists it once', async () => {
+		const sessionUri = 'copilot:/batch';
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: sessionUri,
+			provider: 'copilot',
+			title: 'Batch',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		let persistCalls = 0;
+		const group = createArtifactServerToolGroup({
+			isEnabled: () => true,
+			persist: () => persistCalls++,
+		});
+
+		const result = await group.execute(stateManager, { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' }, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [
+				{ type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' },
+				{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' },
+				{ type: 'website', label: 'Docs again', isArtifact: false, link: 'https://example.com/docs' },
+			],
+		});
+		const artifacts = readSessionArtifacts(stateManager.getSessionState(sessionUri)?._meta);
+
+		assert.deepStrictEqual({
+			messages: result.split('\n').map(message => message.slice(0, message.indexOf(':'))),
+			persistCalls,
+			artifacts: artifacts.map(({ id: _id, ...artifact }) => artifact),
+		}, {
+			messages: ['Added reference', 'Added artifact', 'Already recorded'],
+			persistCalls: 1,
+			artifacts: [
+				{ type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' },
+				{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' },
 			],
 		});
 	});

@@ -1,0 +1,104 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: runtime-probe-runtime_probe
+          input:
+            tag: before
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: MCP_PROBE:before
+    response:
+      content: MCP_PROBE:before
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: MCP_PROBE:before
+        - role: assistant
+          content: MCP_PROBE:before
+        - role: user
+          content: Call runtime_probe exactly once with tag "after", then reply with its exact result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: runtime-probe-runtime_probe
+          input:
+            tag: after
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: MCP_PROBE:before
+        - role: assistant
+          content: MCP_PROBE:before
+        - role: user
+          content: Call runtime_probe exactly once with tag "after", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: after
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: MCP_PROBE:after
+    response:
+      content: MCP_PROBE:after
+      stopReason: end_turn

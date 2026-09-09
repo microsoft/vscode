@@ -598,7 +598,8 @@ suite('Agent Host Session Config Picker', () => {
 		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
 			.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		await new Promise(resolve => setTimeout(resolve));
-		const cleanToolbarActions = services.actionWidget.items.find(item => item.label === 'dev')?.toolbarActions;
+		const cleanToolbarActions = services.actionWidget.items
+			.find(item => item.label === 'dev')?.toolbarActions?.map(action => ({ id: action.id, label: action.label }));
 
 		services.provider.completions = [{ value: 'main', label: 'main' }];
 		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!
@@ -643,7 +644,10 @@ suite('Agent Host Session Config Picker', () => {
 				detail: '1 uncommitted file',
 				ariaDescription: '1 uncommitted file',
 			},
-			cleanToolbarActions: undefined,
+			cleanToolbarActions: [{
+				id: 'sessions.agentHost.showBranchChanges',
+				label: 'Show Changes',
+			}],
 			singleResultKinds: [ActionListItemKind.Action],
 		});
 	});
@@ -1009,29 +1013,31 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('dirty branch action selects the Changes tab before focusing the Changes view', async () => {
-		const services = setupServices(store);
-		services.provider.config = makeDynamicBranchConfig('main');
-		services.provider.completions = [
-			{ value: 'main', label: 'main' },
-			{ value: 'dev', label: 'dev' },
-		];
-		services.workspaceObs.set(makeWorkspace(1, 'dev'), undefined);
-		const { container } = renderPicker(store, services);
+	for (const uncommittedChanges of [undefined, 0, 1]) {
+		test(`current branch action selects the Changes tab before focusing the Changes view with ${uncommittedChanges} uncommitted files`, async () => {
+			const services = setupServices(store);
+			services.provider.config = makeDynamicBranchConfig('main');
+			services.provider.completions = [
+				{ value: 'main', label: 'main' },
+				{ value: 'dev', label: 'dev' },
+			];
+			services.workspaceObs.set(makeWorkspace(uncommittedChanges, 'dev'), undefined);
+			const { container } = renderPicker(store, services);
 
-		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
-		await new Promise(resolve => setTimeout(resolve));
-		const action = services.actionWidget.items.find(item => item.label === 'dev')?.toolbarActions?.[0];
-		await action?.run();
+			branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+			await new Promise(resolve => setTimeout(resolve));
+			const action = services.actionWidget.items.find(item => item.label === 'dev')?.toolbarActions?.[0];
+			await action?.run();
 
-		assert.deepStrictEqual(services.actionWidget.events, [
-			'hide',
-			'suppressEditorPartAutoVisibility',
-			`openChangesEditor:${SESSION_RESOURCE.toString()}`,
-			'releaseEditorPartAutoVisibility',
-			`openView:${CHANGES_VIEW_ID}:true`,
-		]);
-	});
+			assert.deepStrictEqual(services.actionWidget.events, [
+				'hide',
+				'suppressEditorPartAutoVisibility',
+				`openChangesEditor:${SESSION_RESOURCE.toString()}`,
+				'releaseEditorPartAutoVisibility',
+				`openView:${CHANGES_VIEW_ID}:true`,
+			]);
+		});
+	}
 
 	test('a picker recreated on a session switch still renders the provider-seeded chips (disabled) while resolving', () => {
 		const services = setupServices(store);

@@ -1189,6 +1189,8 @@ export interface IChatPullRequestContent {
 
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
+	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
+	hasStarted?: boolean;
 	isActive?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
@@ -1205,13 +1207,15 @@ export interface IChatSubagentToolInvocationData {
 	/** Final elapsed duration in milliseconds. Set when the subagent stops. */
 	duration?: number;
 	/**
-	 * Resource (URI string) of the subagent's own chat, when the subagent runs as
-	 * a distinct chat (e.g. an agent host worker chat). Used to offer an "Open
-	 * chat" link that reveals the subagent's read-only chat. Undefined when the
-	 * subagent has no separately-openable chat. A string (not a `URI`) so it stays
-	 * serializable across the extension host protocol.
+	 * Serializable URI of a distinct subagent chat, including a prospective URI; undefined when no target is known.
+	 * Presence does not imply readiness: use {@link isChatAvailable} to gate navigation.
 	 */
 	chatResource?: string;
+	/**
+	 * `true` means the provider reports the chat available; `false` means it is not yet or no longer available.
+	 * `undefined` preserves legacy navigation behavior based on the resource and opener.
+	 */
+	isChatAvailable?: boolean;
 }
 
 /**

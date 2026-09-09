@@ -773,8 +773,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		const repoConfigContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-repo-config-container'));
 		if (this.options.renderRepositoryControls !== false) {
+			const session = this.options.session;
 			this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				menuOptions: {
+					// Capture the originating session before command activation can yield.
+					get arg() { return { session: session.get() }; },
+				},
 			}));
 		}
 
