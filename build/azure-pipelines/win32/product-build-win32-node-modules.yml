@@ -71,10 +71,9 @@ jobs:
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: prepare
-          onlyOnNodeModulesCacheMiss: true
+      - task: NuGetAuthenticate@1
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Setup NuGet Authentication
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -86,14 +85,11 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
+          FOUNDRY_LOCAL_NUGET_MODE: dotnet
+          FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
         retryCountOnTaskFailure: 5
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: install
-          onlyOnNodeModulesCacheMiss: true
 
       - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

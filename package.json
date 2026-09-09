@@ -146,7 +146,7 @@
     "@xterm/xterm": "^6.1.0-beta.303",
     "chrome-remote-interface": "^0.33.0",
     "detect-libc": "^2.1.2",
-    "foundry-local-sdk": "1.2.3",
+    "foundry-local-sdk": "2.0.1",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
@@ -299,7 +299,7 @@
   "allowScripts": {
     "bufferutil@4.1.0": true,
     "cpu-features": false,
-    "foundry-local-sdk@1.2.3": true,
+    "foundry-local-sdk@2.0.1": true,
     "kerberos@2.1.1": true,
     "koffi@3.1.2": false,
     "native-keymap@3.3.9": true,
