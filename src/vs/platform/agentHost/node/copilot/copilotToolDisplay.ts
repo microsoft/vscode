@@ -1196,10 +1196,11 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 					permissionPath: path,
 				};
 			}
+			const serverDisplay = sdkToolName ? getServerToolDisplay(sdkToolName, args) : undefined;
 			return {
-				confirmationTitle: localize('copilot.permission.default.title', "Allow tool call?"),
-				invocationMessage: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
-				toolInput: args ? tryStringify(args) : tryStringify(request),
+				confirmationTitle: serverDisplay?.confirmationTitle ?? localize('copilot.permission.default.title', "Allow tool call?"),
+				invocationMessage: serverDisplay?.confirmationMessage ?? md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
+				toolInput: serverDisplay?.hideConfirmationInput ? undefined : args ? tryStringify(args) : tryStringify(request),
 				permissionKind: request.kind,
 				permissionPath: path,
 			};

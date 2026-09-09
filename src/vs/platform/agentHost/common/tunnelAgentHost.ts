@@ -534,14 +534,6 @@ export interface ITunnelAgentHostService {
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
 }
 
-// ---- Tunnel hosting (exposing the local agent host to remote clients) --------
-
-/** IPC channel name for the tunnel host service. */
-export const TUNNEL_HOST_CHANNEL = 'tunnelHost';
-
-/** Output channel ID for the tunnel host logs. */
-export const TUNNEL_HOST_LOG_ID = 'tunnelHostService';
-
 /** Information about an actively hosted tunnel. */
 export interface ITunnelHostInfo {
 	readonly tunnelName: string;
@@ -559,35 +551,4 @@ export function isTunnelHosted(sharingInfo: ITunnelHostInfo | undefined, tunnel:
 	return sharingInfo.tunnelId !== undefined
 		? sharingInfo.tunnelId === tunnel.tunnelId
 		: sharingInfo.tunnelName === tunnel.name;
-}
-
-/** Status of the tunnel host. */
-export type TunnelHostStatus =
-	| { readonly active: false }
-	| { readonly active: true; readonly info: ITunnelHostInfo };
-
-/**
- * Shared-process service that hosts a dev tunnel using the code CLI.
- */
-export const ITunnelAgentHostHostingService = createDecorator<ITunnelAgentHostHostingService>('tunnelAgentHostHostingService');
-
-export interface ITunnelAgentHostHostingService {
-	readonly _serviceBrand: undefined;
-
-	/** Fires when the hosting status changes. */
-	readonly onDidChangeStatus: Event<TunnelHostStatus>;
-
-	/**
-	 * Start hosting a dev tunnel that exposes the local agent host.
-	 *
-	 * @param token The user's access token.
-	 * @param authProvider The auth provider that issued the token.
-	 */
-	startHosting(token: string, authProvider: 'github' | 'microsoft'): Promise<ITunnelHostInfo>;
-
-	/** Stop hosting and clean up the tunnel. */
-	stopHosting(): Promise<void>;
-
-	/** Get the current hosting status. */
-	getStatus(): Promise<TunnelHostStatus>;
 }

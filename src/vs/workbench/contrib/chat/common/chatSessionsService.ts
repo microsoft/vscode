@@ -313,6 +313,7 @@ export type IChatSessionHistoryItem = {
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
 	isHidden?: boolean;
+	isRequestHidden?: boolean;
 	systemInitiatedLabel?: string;
 	isTerminalRequest?: boolean;
 	origin?: IChatRequestOrigin;
@@ -343,6 +344,7 @@ export interface IChatSessionServerRequest {
 	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
 	readonly isHidden?: boolean;
+	readonly isRequestHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
 	/** Reopen the existing request with this id instead of adding another request. */

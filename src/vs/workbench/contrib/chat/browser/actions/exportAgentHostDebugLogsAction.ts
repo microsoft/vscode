@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Action } from '../../../../../base/common/actions.js';
 import { VSBuffer, newWriteableBufferStream, streamToBuffer, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
@@ -16,11 +17,12 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHos
 import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ByteSize, IFileService } from '../../../../../platform/files/common/files.js';
-import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
@@ -62,7 +64,6 @@ export type IAgentHostDebugLogFile =
 
 export interface IAgentHostDebugLogsExport {
 	readonly files: IAgentHostDebugLogFile[];
-	readonly exportName: string;
 	readonly hostArtifact: IAgentHostDebugLogsHostArtifact | undefined;
 }
 
@@ -82,7 +83,8 @@ export const IAgentHostDebugLogsExportService = createDecorator<IAgentHostDebugL
 export interface IAgentHostDebugLogsExportService {
 	readonly _serviceBrand: undefined;
 	readonly hostArtifactKind: AgentHostDebugLogsArtifactKind;
-	save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean>;
+	selectDestination(exportName: string): Promise<URI | undefined>;
+	save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<void>;
 }
 
 export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
@@ -90,11 +92,24 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 	readonly hostArtifactKind = 'directory';
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean> {
-		return this.instantiationService.invokeFunction(accessor => exportFilesToLocalFolder(accessor, exportName, files, hostArtifact));
+	async selectDestination(exportName: string): Promise<URI | undefined> {
+		const folders = await this.fileDialogService.showOpenDialog({
+			title: localize('exportDebugLogs.folderDialogTitle', "Select Folder for Agent Host Debug Logs"),
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			availableFileSystems: [Schemas.file],
+		});
+		return folders?.[0] ? joinPath(folders[0], exportName) : undefined;
+	}
+
+	async save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<void> {
+		await exportFilesToLocalFolder(destination, files, hostArtifact, this.fileService, this.logService);
 	}
 }
 
@@ -183,7 +198,6 @@ export async function collectAgentHostDebugLogs(
 	let connection: IAgentConnection | undefined;
 	let backendSession: URI | undefined;
 	let backendChat: URI | undefined;
-	let sessionTitle = activeSession?.sessionTitle;
 	if (activeSession) {
 		const sessionResolution = agentHostConnectionsService.resolveSessionResource(activeSession.resource);
 		if (!sessionResolution) {
@@ -192,7 +206,7 @@ export async function collectAgentHostDebugLogs(
 			connection = sessionResolution.connection;
 			backendSession = sessionResolution.backendSession;
 			const state = connection.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
-			({ backendChat, sessionTitle } = resolveAgentHostDebugLogsChat(activeSession, state));
+			backendChat = resolveAgentHostDebugLogsChat(activeSession, state).backendChat;
 			if (!backendChat) {
 				const reason = !state || state instanceof Error
 					? 'session state is unavailable'
@@ -320,7 +334,6 @@ export async function collectAgentHostDebugLogs(
 
 	return {
 		files,
-		exportName: getAgentHostDebugLogsExportName(sessionTitle, activeSession?.chatTitle, activeSession?.chatId === DEFAULT_CHAT_ID),
 		hostArtifact: hostArtifact && connection ? { artifact: hostArtifact, readChunk: createChunkReader(connection) } : undefined,
 	};
 }
@@ -331,6 +344,15 @@ export function getAgentHostDebugLogsExportName(sessionTitle: string | undefined
 		...(!isPrimaryChat ? [toDebugLogsTitleSlug(chatTitle)] : []),
 	].filter(title => title.length > 0);
 	return namespace.length > 0 ? `ah-logs-${namespace.join('--')}` : 'ah-logs';
+}
+
+export function prepareAgentHostDebugLogsExport(
+	selectDestination: () => Promise<URI | undefined>,
+	collectLogs: () => Promise<IAgentHostDebugLogsExport>,
+): Promise<[PromiseSettledResult<IAgentHostDebugLogsExport>, PromiseSettledResult<URI | undefined>]> {
+	const destinationPromise = selectDestination();
+	const collectionPromise = collectLogs();
+	return Promise.allSettled([collectionPromise, destinationPromise]);
 }
 
 function toDebugLogsTitleSlug(title: string | undefined): string {
@@ -349,34 +371,48 @@ export async function exportAgentHostDebugLogs(
 	const exportService = accessor.get(IAgentHostDebugLogsExportService);
 	const notificationService = accessor.get(INotificationService);
 	const chatEntitlementService = accessor.get(IChatEntitlementService);
+	const clipboardService = accessor.get(IClipboardService);
 	const fileService = accessor.get(IFileService);
 	const logService = accessor.get(ILogService);
 	const progressService = accessor.get(IProgressService);
 	let hostArtifact: IAgentHostDebugLogsArtifact | undefined;
 	try {
-		const logs = await progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: localize('exportDebugLogs.collectProgress', "Collecting Agent Host debug logs..."),
-			delay: 500,
-		}, () => collectAgentHostDebugLogs(accessor, activeSession, artifact => hostArtifact = artifact));
+		const exportName = resolveAgentHostDebugLogsExportName(accessor, activeSession);
+		const [collectionResult, destinationResult] = await prepareAgentHostDebugLogsExport(
+			() => exportService.selectDestination(exportName),
+			() => progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('exportDebugLogs.collectProgress', "Collecting Agent Host debug logs..."),
+				delay: 500,
+			}, () => collectAgentHostDebugLogs(accessor, activeSession, artifact => hostArtifact = artifact)),
+		);
+		if (collectionResult.status === 'rejected') {
+			notificationService.notify({
+				severity: Severity.Error,
+				message: localize('exportDebugLogs.collectError', "Failed to collect debug logs: {0}", collectionResult.reason instanceof Error ? collectionResult.reason.message : String(collectionResult.reason)),
+			});
+			return;
+		}
+		if (destinationResult.status === 'rejected') {
+			notificationService.notify({
+				severity: Severity.Error,
+				message: localize('exportDebugLogs.saveError', "Failed to save debug logs: {0}", destinationResult.reason instanceof Error ? destinationResult.reason.message : String(destinationResult.reason)),
+			});
+			return;
+		}
+		const destination = destinationResult.value;
+		if (!destination) {
+			return;
+		}
 		try {
-			const saved = await exportService.save(logs.exportName, logs.files, logs.hostArtifact);
-			if (saved) {
-				notificationService.warn(chatEntitlementService.isInternal
-					? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
-					: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."));
-			}
+			await exportService.save(destination, collectionResult.value.files, collectionResult.value.hostArtifact);
+			notifyAgentHostDebugLogsExported(notificationService, clipboardService, chatEntitlementService.isInternal, destination);
 		} catch (error) {
 			notificationService.notify({
 				severity: Severity.Error,
 				message: localize('exportDebugLogs.saveError', "Failed to save debug logs: {0}", error instanceof Error ? error.message : String(error)),
 			});
 		}
-	} catch (error) {
-		notificationService.notify({
-			severity: Severity.Error,
-			message: localize('exportDebugLogs.collectError', "Failed to collect debug logs: {0}", error instanceof Error ? error.message : String(error)),
-		});
 	} finally {
 		if (hostArtifact) {
 			try {
@@ -386,6 +422,38 @@ export async function exportAgentHostDebugLogs(
 			}
 		}
 	}
+}
+
+function resolveAgentHostDebugLogsExportName(accessor: ServicesAccessor, activeSession: IActiveAgentHostSessionForExport | undefined): string {
+	let sessionTitle = activeSession?.sessionTitle;
+	if (activeSession && !sessionTitle) {
+		const sessionResolution = accessor.get(IAgentHostConnectionsService).resolveSessionResource(activeSession.resource);
+		if (sessionResolution) {
+			const state = sessionResolution.connection.getSubscriptionUnmanaged(StateComponents.Session, sessionResolution.backendSession)?.value;
+			sessionTitle = resolveAgentHostDebugLogsChat(activeSession, state).sessionTitle;
+		}
+	}
+	return getAgentHostDebugLogsExportName(sessionTitle, activeSession?.chatTitle, activeSession?.chatId === DEFAULT_CHAT_ID);
+}
+
+export function notifyAgentHostDebugLogsExported(
+	notificationService: INotificationService,
+	clipboardService: IClipboardService,
+	isInternal: boolean,
+	savedResource: URI,
+): void {
+	const savedPath = savedResource.scheme === Schemas.file ? savedResource.fsPath : savedResource.toString(true);
+	notificationService.notify({
+		severity: Severity.Warning,
+		message: isInternal
+			? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
+			: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."),
+		actions: {
+			primary: [
+				new Action('copyAgentHostDebugLogsPath', localize('exportDebugLogs.copyPath', "Copy Path"), undefined, true, () => clipboardService.writeText(savedPath)),
+			],
+		},
+	});
 }
 
 /**
@@ -437,28 +505,12 @@ export function toActiveAgentHostSession(resource: URI, chatTitle: string | unde
 }
 
 async function exportFilesToLocalFolder(
-	accessor: ServicesAccessor,
-	exportName: string,
+	exportFolder: URI,
 	files: readonly IAgentHostDebugLogFile[],
 	hostArtifact: IAgentHostDebugLogsHostArtifact | undefined,
-): Promise<boolean> {
-	const fileDialogService = accessor.get(IFileDialogService);
-	const fileService = accessor.get(IFileService);
-	const logService = accessor.get(ILogService);
-	const folders = await fileDialogService.showOpenDialog({
-		title: localize('exportDebugLogs.folderDialogTitle', "Select Folder for Agent Host Debug Logs"),
-		canSelectFiles: false,
-		canSelectFolders: true,
-		canSelectMany: false,
-		availableFileSystems: [Schemas.file],
-	});
-
-	const parentFolder = folders?.[0];
-	if (!parentFolder) {
-		return false;
-	}
-
-	const exportFolder = joinPath(parentFolder, exportName);
+	fileService: IFileService,
+	logService: ILogService,
+): Promise<void> {
 	await fileService.createFolder(exportFolder);
 	if (hostArtifact) {
 		try {
@@ -489,7 +541,6 @@ async function exportFilesToLocalFolder(
 			await fileService.writeFile(target, source.value);
 		}
 	}
-	return true;
 }
 
 async function copyHostArtifactDirectory(

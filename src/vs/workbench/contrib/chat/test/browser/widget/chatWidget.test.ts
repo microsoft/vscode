@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -15,8 +16,9 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
+import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
+import { IChatListItemRendererOptions } from '../../../browser/chat.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
@@ -145,6 +147,44 @@ suite('ChatWidget', () => {
 			shouldShowChatTip(0, false, false),
 			shouldShowChatTip(0, false, true),
 		], [true, false]);
+	});
+
+	test('tracks unvisited completions and needs-input precedence', () => {
+		const active = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			requestInProgress: true,
+			containsFocus: false,
+			requestWasActive: false,
+			hasUnvisitedCompletion: false,
+		});
+		const completed = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			requestInProgress: false,
+			containsFocus: false,
+			requestWasActive: active.requestActive,
+			hasUnvisitedCompletion: active.hasUnvisitedCompletion,
+		});
+		const visited = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			requestInProgress: false,
+			containsFocus: true,
+			requestWasActive: completed.requestActive,
+			hasUnvisitedCompletion: completed.hasUnvisitedCompletion,
+		});
+		const needsInput = computeChatSessionStateIndicatorState({
+			requestNeedsInput: true,
+			requestInProgress: true,
+			containsFocus: true,
+			requestWasActive: visited.requestActive,
+			hasUnvisitedCompletion: visited.hasUnvisitedCompletion,
+		});
+
+		assert.deepStrictEqual({ active, completed, visited, needsInput }, {
+			active: { state: 'inProgress', requestActive: true, hasUnvisitedCompletion: false },
+			completed: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+			visited: { state: 'idle', requestActive: false, hasUnvisitedCompletion: false },
+			needsInput: { state: 'needsInput', requestActive: true, hasUnvisitedCompletion: false },
+		});
 	});
 
 	test('sticky request click survives synchronous template disposal during reveal', () => {
@@ -279,6 +319,51 @@ suite('ChatWidget', () => {
 			['setInputPartMaxHeightOverride', 600],
 			['layoutForInputHeight', 420, 720],
 		]);
+	});
+
+	test('passes read-only transitions to the renderer independently of request editing', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let rerenders = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_visible: observableValue('visible', true),
+			_readOnlyContextKey: { set: () => { } },
+			chatSuggestNextWidget: { hide: () => { } },
+			hasInputFocus: () => false,
+			setInputVisible: () => { },
+			renderChatSuggestNextWidget: () => { },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				rerender: () => rerenders++,
+			},
+		});
+
+		widget.setReadOnly(true);
+		widget.setReadOnly(false);
+
+		assert.deepStrictEqual({ rendererOptions, rerenders }, {
+			rendererOptions: [{ editable: false, readOnly: true }, { editable: true, readOnly: false }],
+			rerenders: 2,
+		});
+	});
+
+	test('re-lays out embedded editors when chat item padding changes', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let layouts = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			bodyDimension: { width: 800, height: 600 },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+			},
+			_layoutListForInputHeight: () => layouts++,
+		});
+
+		widget.setContentHorizontalPadding(88);
+
+		assert.deepStrictEqual({ rendererOptions, layouts }, {
+			rendererOptions: [{ contentHorizontalPadding: 88 }],
+			layouts: 1,
+		});
 	});
 
 	test('captures and restores transcript scroll state', () => {

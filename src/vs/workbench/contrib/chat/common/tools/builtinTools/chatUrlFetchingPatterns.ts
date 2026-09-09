@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { normalizeURL } from '../../../../../../platform/url/common/trustedDomains.js';
+import { isURLSafeForTrust, normalizeURL } from '../../../../../../platform/url/common/trustedDomains.js';
 import { testUrlMatchesGlob } from '../../../../../../platform/url/common/urlGlob.js';
 
 /**
@@ -15,12 +15,23 @@ export interface IUrlApprovalSettings {
 	approveResponse?: boolean;
 }
 
+function getUrlApprovalValue(settings: boolean | IUrlApprovalSettings, checkRequest: boolean): boolean | undefined {
+	if (typeof settings === 'boolean') {
+		return settings;
+	}
+	return checkRequest ? settings.approveRequest : settings.approveResponse;
+}
+
 /**
  * Extracts domain patterns from a URL for use in approval actions
  * @param url The URL to extract patterns from
  * @returns An array of patterns in order of specificity (most specific first)
  */
 export function extractUrlPatterns(url: URI): string[] {
+	if (!isURLSafeForTrust(url)) {
+		return [];
+	}
+
 	const normalizedStr = normalizeURL(url);
 	const normalized = URI.parse(normalizedStr);
 	const patterns = new Set<string>();
@@ -107,24 +118,20 @@ export function isUrlApproved(
 	approvedUrls: Record<string, boolean | IUrlApprovalSettings>,
 	checkRequest: boolean
 ): boolean {
+	if (!isURLSafeForTrust(url)) {
+		const settings = approvedUrls['*'];
+		return settings === undefined ? false : getUrlApprovalValue(settings, checkRequest) ?? false;
+	}
+
 	const normalizedUrlStr = normalizeURL(url);
 	const normalizedUrl = URI.parse(normalizedUrlStr);
 
 	for (const [pattern, settings] of Object.entries(approvedUrls)) {
 		// Check if URL matches this pattern
 		if (testUrlMatchesGlob(normalizedUrl, pattern)) {
-			// Handle boolean settings
-			if (typeof settings === 'boolean') {
-				return settings;
-			}
-
-			// Handle granular settings
-			if (checkRequest && settings.approveRequest !== undefined) {
-				return settings.approveRequest;
-			}
-
-			if (!checkRequest && settings.approveResponse !== undefined) {
-				return settings.approveResponse;
+			const value = getUrlApprovalValue(settings, checkRequest);
+			if (value !== undefined) {
+				return value;
 			}
 		}
 	}
@@ -142,6 +149,10 @@ export function getMatchingPattern(
 	url: URI,
 	approvedUrls: Record<string, boolean | IUrlApprovalSettings>
 ): string | undefined {
+	if (!isURLSafeForTrust(url)) {
+		return Object.keys(approvedUrls).includes('*') ? '*' : undefined;
+	}
+
 	const normalizedUrlStr = normalizeURL(url);
 	const normalizedUrl = URI.parse(normalizedUrlStr);
 	const patterns = extractUrlPatterns(url);

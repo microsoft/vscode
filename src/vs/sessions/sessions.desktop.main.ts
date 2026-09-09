@@ -69,6 +69,7 @@ import '../workbench/services/localization/electron-browser/localeService.js';
 import '../workbench/services/extensions/electron-browser/extensionsScannerService.js';
 import '../workbench/services/extensionManagement/electron-browser/extensionManagementServerService.js';
 import '../workbench/services/extensionManagement/electron-browser/extensionGalleryManifestService.js';
+import '../workbench/services/extensionManagement/electron-browser/extensionGalleryAccountService.js';
 import '../workbench/services/extensionManagement/electron-browser/extensionTipsService.js';
 import '../workbench/services/userDataSync/electron-browser/userDataSyncService.js';
 import '../workbench/services/userDataSync/electron-browser/userDataAutoSyncService.js';
