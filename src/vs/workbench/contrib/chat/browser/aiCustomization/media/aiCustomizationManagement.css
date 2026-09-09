@@ -3010,7 +3010,6 @@ per-word capitalization does not survive translation. */
 	margin-bottom: 0;
 }
 
-.plugin-list-widget.wide-layout .plugin-discovery-section .plugin-card-grid,
 .plugin-list-widget.wide-layout .plugin-marketplace-recommended-section .plugin-card-grid {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -3061,14 +3060,6 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-card:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.plugin-list-widget .plugin-discovery-section .plugin-card {
-	background: transparent;
-}
-
-.plugin-list-widget .plugin-discovery-section .plugin-card:hover {
 	background: var(--vscode-list-hoverBackground);
 }
 
