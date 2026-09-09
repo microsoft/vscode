@@ -379,6 +379,50 @@ suite('ChatModelsViewModel', () => {
 		});
 	});
 
+	for (const modelGroup of [undefined, { id: 'chatgpt', sourceId: 'chatgptSubscription' }]) {
+		test(`keeps local and remote agent-host models distinguishable (modelGroup: ${!!modelGroup})`, async () => {
+			const service = new MockLanguageModelsService();
+			const local = 'agent-host-codex';
+			const remote = 'remote-hex-77736c3a5562756e7475-codex';
+			for (const [vendor, displayName] of [[local, 'Codex'], [remote, 'Codex [WSL: Ubuntu]']]) {
+				service.addVendor({ vendor, displayName, managementCommand: undefined, when: undefined, configuration: undefined });
+				store.add(languageModelSourcePresentationRegistry.register({ ownerVendor: vendor, sourceId: 'chatgptSubscription', label: 'ChatGPT', icon: Codicon.account, description: 'Subscription models' }));
+				for (const id of ['gpt-5.5', 'gpt-5.6']) {
+					service.addModel(vendor, `${vendor}:${id}`, {
+						extension: new ExtensionIdentifier('vscode.agent-host'),
+						id, name: id, family: id, version: '1.0', vendor,
+						maxInputTokens: 8192, maxOutputTokens: 4096, isDefaultForLocation: {},
+						targetChatSessionType: vendor, modelGroup,
+					});
+				}
+			}
+			const model = store.add(new ChatModelsViewModel(service));
+			await model.refresh();
+			const groups = model.filter('').filter(isLanguageModelProviderEntry);
+			const localGroup = groups.find(group => group.vendorEntry.vendor.vendor === local)!;
+			const remoteGroup = groups.find(group => group.vendorEntry.vendor.vendor === remote)!;
+			model.toggleGroupHidden(localGroup);
+			model.toggleCollapsed(localGroup);
+			assert.deepStrictEqual({
+				labels: [localGroup.label, remoteGroup.label],
+				groupCount: groups.length,
+				localIds: model.getModelsForGroup(localGroup).map(model => model.identifier),
+				remoteIds: model.getModelsForGroup(remoteGroup).map(model => model.identifier),
+				hidden: service.getHiddenModelIds(),
+				visibleAfterCollapse: model.filter('').filter(entry => entry.type === 'model').map(entry => entry.model.identifier),
+				filteredIds: model.filter('@provider:"Codex [WSL: Ubuntu]"').filter(entry => entry.type === 'model').map(entry => entry.model.identifier),
+			}, {
+				labels: modelGroup ? ['ChatGPT — Codex [Local]', 'ChatGPT — Codex [WSL: Ubuntu]'] : ['Codex [Local]', 'Codex [WSL: Ubuntu]'],
+				groupCount: 2,
+				localIds: [`${local}:gpt-5.5`, `${local}:gpt-5.6`],
+				remoteIds: [`${remote}:gpt-5.5`, `${remote}:gpt-5.6`],
+				hidden: [`${local}:gpt-5.5`, `${local}:gpt-5.6`],
+				visibleAfterCollapse: [`${remote}:gpt-5.5`, `${remote}:gpt-5.6`],
+				filteredIds: [`${remote}:gpt-5.5`, `${remote}:gpt-5.6`],
+			});
+		});
+	}
+
 	test('shows the first-party ChatGPT subscription header even when it is the only group', async () => {
 		const service = new MockLanguageModelsService();
 		service.addVendor({ vendor: 'codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
+import { isAgentHostTarget, isLocalAgentHostTarget } from '../../common/chatSessionsService.js';
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -33,6 +35,7 @@ export const SEARCH_SUGGESTIONS = {
 };
 
 export interface ILanguageModelProvider {
+	sessionType?: string;
 	vendor: ILanguageModelProviderDescriptor;
 	group: ILanguageModelsProviderGroup;
 	sourceId?: string;
@@ -490,7 +493,7 @@ export class ChatModelsViewModel extends Disposable {
 				const sourcePresentation = metadata.modelGroup?.sourceId
 					? languageModelSourcePresentationRegistry.get(metadata.vendor, metadata.modelGroup.sourceId)
 					: undefined;
-				const provider = metadata.modelGroup ? {
+				const provider: ILanguageModelProvider = metadata.modelGroup ? {
 					vendor,
 					group: {
 						vendor: metadata.modelGroup.id,
@@ -498,7 +501,21 @@ export class ChatModelsViewModel extends Disposable {
 					},
 					sourceId: metadata.modelGroup.sourceId,
 					sourcePresentation,
-				} satisfies ILanguageModelProvider : defaultProvider;
+				} satisfies ILanguageModelProvider : { ...defaultProvider };
+				const sessionType = metadata.targetChatSessionType;
+				if (sessionType && isAgentHostTarget(sessionType)) {
+					// Preserve the host identity when grouping by the underlying model provider.
+					const agentLabel = isLocalAgentHostTarget(sessionType)
+						? localize('manageModels.localAgentHost', "{0} [Local]", vendor.displayName)
+						: vendor.displayName;
+					provider.group = {
+						...provider.group,
+						name: metadata.modelGroup
+							? localize('manageModels.agentHostGroup', "{0} — {1}", provider.group.name, agentLabel)
+							: agentLabel,
+					};
+					provider.sessionType = sessionType;
+				}
 				models.push({
 					identifier,
 					metadata,
@@ -547,7 +564,7 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	private getProviderGroupId(provider: ILanguageModelProvider): string {
-		return `${provider.group.vendor}-${provider.group.name}-${provider.sourceId ?? 'configured'}`;
+		return `${provider.group.vendor}-${provider.group.name}-${provider.sourceId ?? 'configured'}${provider.sessionType ? `-${provider.sessionType}` : ''}`;
 	}
 
 	toggleCollapsed(viewModelEntry: IViewModelEntry): void {
