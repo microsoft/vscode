@@ -35,7 +35,7 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -387,9 +387,33 @@ function getSubagentAgentName(tc: ToolCallState): string | undefined {
 	return v && v.length > 0 ? v : undefined;
 }
 
+/** Surfaces `_meta.progressMessage` of a running tool call as the invocation's progress step. */
+function applyToolCallProgress(invocation: ChatToolInvocation, tc: ToolCallState): void {
+	const progressMessage = tc.status === ToolCallStatus.Running ? readToolCallMeta(tc).progressMessage : undefined;
+	if (progressMessage !== undefined) {
+		invocation.acceptProgress({ message: progressMessage });
+	}
+}
+
 /** The subagent chat resource for a subagent-spawning tool call: prefer the host-stamped `_meta.subagentChatUri`, then a discovery block, then a derived fallback. */
 function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultSubagentContent | undefined, sessionResource: URI): string {
 	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource ?? buildSubagentChatUri(sessionResource.toString(), tc.toolCallId);
+}
+
+function getSubagentToolSpecificData(tc: ToolCallState, sessionResource: URI): IChatSubagentToolInvocationData | undefined {
+	const subagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) ? getToolSubagentContent(tc) : undefined;
+	if (!isSubagentTool(tc) && !subagentContent) {
+		return undefined;
+	}
+	return {
+		kind: 'subagent',
+		hasStarted: false,
+		description: getSubagentTaskDescription(tc),
+		...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
+		agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
+		chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
+		isChatAvailable: false,
+	};
 }
 
 /**
@@ -533,7 +557,10 @@ export function isSubagentTool(tc: ToolCallState): boolean {
 }
 
 /** Returns whether the tool call can have a child chat worth observing. */
-export function shouldObserveSubagentChat(tc: ToolCallState): boolean {
+export function shouldObserveSubagentChat(tc: ToolCallState, hasCatalogChild = false): boolean {
+	if (hasCatalogChild) {
+		return true;
+	}
 	const hasSubagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
 		&& getToolSubagentContent(tc) !== undefined;
 	if (tc.status === ToolCallStatus.Running) {
@@ -1371,7 +1398,7 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
 	if (usage) {
@@ -1396,7 +1423,13 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 					&& toolInvocationOptions
 					&& tc.contributor.clientId !== toolInvocationOptions.currentClientId;
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
-					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority, resourceUris));
+					if (shouldObserveSubagentChat(tc, subagentToolCallIds?.has(tc.toolCallId))) {
+						const invocation = toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, toolInvocationOptions, resourceUris);
+						finalizeToolInvocation(invocation, tc, sessionResource, connectionAuthority, resourceUris);
+						parts.push(invocation);
+					} else {
+						parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority, resourceUris));
+					}
 				} else if (tc.status === ToolCallStatus.Streaming && !isOtherClientToolCall) {
 					parts.push(toolCallStateToStreamingInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
 				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.AuthRequired || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
@@ -1859,11 +1892,13 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			subAgentInvocationId: subAgentInvocationId,
 			toolSpecificData: {
 				kind: 'subagent',
+				hasStarted: false,
 				description: getSubagentTaskDescription(tc) ?? tc.displayName,
 				...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 				result: resultText,
 				chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
+				isChatAvailable: false,
 			},
 		};
 	}
@@ -2315,10 +2350,12 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		displayName: tc.displayName,
 		modelDescription: tc.toolName,
 	};
+	const subagentData = getSubagentToolSpecificData(tc, sessionResource);
 
 	if (tc.contributor?.kind === ToolCallContributorKind.Client && options && tc.contributor.clientId !== options.currentClientId) {
 		const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 		invocation.invocationMessage = localize('agentHost.otherClientTool.running', "Running {0} on another client...", tc.displayName);
+		invocation.toolSpecificData = subagentData;
 		invocation.otherClientToolCall = {
 			cancel: () => options.cancelOtherClientToolCall(tc),
 		};
@@ -2410,6 +2447,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	if (tc.status === ToolCallStatus.AuthRequired) {
 		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority));
 	}
+	applyToolCallProgress(invocation, tc);
 
 	// Tools that render a bespoke, client-authored invocation message override
 	// the server text here. Add new per-tool cases alongside this branch.
@@ -2428,22 +2466,13 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		// `terminalCommandUri`) stay undefined — the renderer treats this
 		// as a display-only terminal that still surfaces command + output.
 		invocation.toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
-	} else if (isSubagentTool(tc)) {
+	} else if (subagentData) {
 		// Subagent-spawning tool: set subagent toolSpecificData eagerly so the
 		// renderer groups it correctly from the start (before child content
 		// arrives). Agent metadata comes from `_meta` (set by the event
 		// mapper from the tool's arguments) and is later refined by the
 		// Subagent content block via `updateRunningToolSpecificData`.
-		const subagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
-			? getToolSubagentContent(tc)
-			: undefined;
-		invocation.toolSpecificData = {
-			kind: 'subagent',
-			description: getSubagentTaskDescription(tc),
-			...(subagentContent?.title ? { agentDisplayName: subagentContent.title } : {}),
-			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
-			chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
-		};
+		invocation.toolSpecificData = subagentData;
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
 	} else if (tc.status !== ToolCallStatus.Streaming) {
@@ -2591,13 +2620,15 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	if (isAddCommentTool(tc.toolName)) {
 		existing.invocationMessage = addCommentReference(tc, resourceUris) ?? existing.invocationMessage;
 	}
-
+	applyToolCallProgress(existing, tc);
 
 	const subagentContent = getToolSubagentContent(tc);
 	if (subagentContent) {
 		existing.toolSpecificData = {
 			kind: 'subagent',
+			hasStarted: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.hasStarted : false,
 			isActive: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isActive : undefined,
+			isChatAvailable: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isChatAvailable : false,
 			description: getSubagentTaskDescription(tc),
 			agentDisplayName: subagentContent.title,
 			agentName: subagentContent.agentName,
@@ -2715,7 +2746,9 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			const resultText = getToolOutputText(tc);
 			invocation.toolSpecificData = {
 				kind: 'subagent',
+				hasStarted: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.hasStarted : false,
 				isActive: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isActive : undefined,
+				isChatAvailable: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isChatAvailable : false,
 				description: getSubagentTaskDescription(tc),
 				agentDisplayName: subagentContent.title,
 				agentName: subagentContent.agentName,
@@ -2731,7 +2764,9 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			// block. Refresh metadata + carry the tool's output as the result.
 			invocation.toolSpecificData = {
 				kind: 'subagent',
+				hasStarted: invocation.toolSpecificData.hasStarted,
 				isActive: invocation.toolSpecificData.isActive,
+				isChatAvailable: invocation.toolSpecificData.isChatAvailable,
 				description: getSubagentTaskDescription(tc) ?? invocation.toolSpecificData.description,
 				...(invocation.toolSpecificData.agentDisplayName ? { agentDisplayName: invocation.toolSpecificData.agentDisplayName } : {}),
 				agentName: getSubagentAgentName(tc) ?? invocation.toolSpecificData.agentName,
@@ -2820,6 +2855,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const result: IToolResult | undefined = isFailure || resultDetails
 		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }
 		: undefined;
+	// Clear transient progress so didExecuteTool does not promote it to the past-tense message.
+	invocation.acceptProgress({ message: undefined });
 	const cancelledFromStreaming = isCancelled && invocation.cancelFromStreaming(
 		tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied,
 		tc.reasonMessage ? stringOrMarkdownToString(tc.reasonMessage, connectionAuthority) : undefined,

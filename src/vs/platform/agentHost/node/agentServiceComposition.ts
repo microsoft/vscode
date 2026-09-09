@@ -20,7 +20,6 @@ import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
-import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
@@ -29,11 +28,11 @@ import { AgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { AgentMergeController } from './agentMergeController.js';
-import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
 import { AgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
+import { AgentMergeController } from './agentMergeController.js';
+import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentServerToolHost, IAgentHostServerToolService } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
@@ -101,14 +100,13 @@ export function createAgentServiceComposition(
 			configurationService,
 			callbackBinder: callbackAdapter,
 		};
-		// AgentService subscribes after this graph is complete, so collaborator constructors must not emit state-manager events.
+		// Composition-owned collaborators are constructed before AgentService subscribes, so their constructors must not emit state-manager events.
 		const customizationEnablementService = accessor.get(IAgentHostCustomizationEnablementService);
 		const gitStateService = accessor.get(IAgentHostGitStateService);
 		const agentMergeController = owned.add(instantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt),
 			cancelTurn: (session, turnId) => callbackAdapter.value.cancelAgentMergeTurn(session, turnId),
 			postNotice: (session, kind, content) => callbackAdapter.value.postAgentMergeNotice(session, kind, content),
-			getAutonomousSessionConfig: (session, config) => callbackAdapter.value.getAutonomousSessionConfig(session, config),
 		}));
 		// Resolve this even before first use so its session-data deletion listener
 		// always removes checkpoint refs before the database disappears.
@@ -166,7 +164,6 @@ export function createAgentServiceComposition(
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 
-		const automationService = owned.add(instantiationService.createInstance(AgentHostAutomationService, callbackAdapter.automationExecution));
 		const collaborators: IAgentServiceCollaborators = {
 			gitHubEndpointService,
 			gitStateService,
@@ -181,7 +178,6 @@ export function createAgentServiceComposition(
 			localTurns,
 			sideEffects,
 			serverToolHost,
-			automationService,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
 		for (const disposable of additionalDisposables) {

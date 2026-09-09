@@ -139,7 +139,7 @@ export class TabbedModelPicker extends Disposable {
 		this._showCurrent();
 	}
 
-	private _showCurrent(): void {
+	private _showCurrent(initialFilterValue?: string): void {
 		const context = this._context;
 		const anchor = this._anchor;
 		if (!context || !anchor) {
@@ -193,6 +193,12 @@ export class TabbedModelPicker extends Disposable {
 						showFilter: this._searchVisible,
 						filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 						focusFilterOnOpen: this._searchVisible,
+						initialFilterValue,
+						filterAsCombobox: true,
+						onType: text => {
+							this._searchVisible = true;
+							this._showCurrent(text);
+						},
 						headerText: current.cacheBreakHint?.text,
 						headerIcon: current.cacheBreakHint ? Codicon.info : undefined,
 						headerLink: current.cacheBreakHint?.link,
@@ -223,7 +229,7 @@ export class TabbedModelPicker extends Disposable {
 				},
 				onHide: () => { },
 			},
-			accessibilityProvider: getModelPickerAccessibilityProvider(),
+			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible),
 		});
 	}
 

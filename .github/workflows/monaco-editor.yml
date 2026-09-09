@@ -68,6 +68,9 @@ jobs:
       - name: Run Monaco Editor Checks
         run: npm run monaco-compile-check
 
+      - name: Check generated Monaco declarations
+        run: npm run gulp monacodts-check
+
       - name: Editor Distro & ESM
         run: npm run gulp editor-distro
 

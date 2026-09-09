@@ -162,7 +162,10 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		const uncommittedChanges = property === SessionConfigKey.Branch
 			? getBranchUncommittedChanges(item.value, repositoryBranchName, repositoryUncommittedChanges)
 			: undefined;
-		const uncommittedChangesDescription = uncommittedChanges !== undefined ? formatUncommittedChanges(uncommittedChanges) : undefined;
+		const uncommittedChangesDescription = uncommittedChanges !== undefined
+			? formatUncommittedChanges(uncommittedChanges)
+			: undefined;
+
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
@@ -173,7 +176,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			ariaDescription: uncommittedChangesDescription,
 			disabled,
 			item: { ...item, checked },
-			toolbarActions: uncommittedChanges !== undefined && onShowChanges
+			toolbarActions: property === SessionConfigKey.Branch && item.value === repositoryBranchName && onShowChanges
 				? [toAction({
 					id: 'sessions.agentHost.showBranchChanges',
 					label: localize('agentHostSessionConfig.branchItemShowChanges', "Show Changes"),

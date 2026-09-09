@@ -30,6 +30,7 @@ import { IActiveSession, ISendRequestSentEvent, ISessionsManagementService } fro
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.contribution.js';
 
 interface IRequestSentTelemetry {
@@ -213,6 +214,10 @@ suite('SessionsTelemetryContribution', () => {
 			providersService,
 			tasksService,
 			modelService,
+			new class extends mock<ISessionsWindowUsageService>() {
+				override readonly hadPriorWindowOpen = false;
+				override readonly windowOpenCount = 1;
+			}(),
 		));
 
 		return { telemetryService, storageService, onDidSendRequest, onDidArchiveSession, onModelAdded };

@@ -30,7 +30,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidgetService } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { SessionType } from '../../common/chatSessionsService.js';
+import { isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
@@ -115,6 +115,20 @@ export class OpenWorkspaceInAgentsWindowTitleBarAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
+		if (configurationService.getValue<boolean>(ChatConfiguration.OpenInAgentsWindowRevealCurrentSession) === true
+			&& sessionResource
+			&& !isUntitledChatSession(sessionResource)
+			&& isLocalAgentHostTarget(getChatSessionType(sessionResource))) {
+			await accessor.get(ICommandService).executeCommand(
+				OpenChatSessionInAgentsWindowAction.ID,
+				{ agentsWindowOpenSource: AgentsWindowOpenSource.TitleBar },
+				sessionResource,
+			);
+			return;
+		}
+
 		await accessor.get(ICommandService).executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.TitleBar });
 	}
 }

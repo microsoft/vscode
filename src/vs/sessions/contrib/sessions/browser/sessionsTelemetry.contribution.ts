@@ -26,6 +26,7 @@ import { ISendRequestOptions, ISessionsProvider } from '../../../services/sessio
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsWindowUsageService } from '../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { ISessionLifecycleSummary, SessionDoneReason, SessionsLifecycleTracker } from './sessionsLifecycleTracker.js';
 import { ITypedCharactersEntry, SessionsTypedCharactersTracker } from './sessionsTypedCharactersTracker.js';
 
@@ -66,10 +67,11 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
 		@IModelService modelService: IModelService,
+		@ISessionsWindowUsageService sessionsWindowUsageService: ISessionsWindowUsageService,
 	) {
 		super();
 
-		this._lifecycleTracker = new SessionsLifecycleTracker(this._storageService);
+		this._lifecycleTracker = new SessionsLifecycleTracker(this._storageService, sessionsWindowUsageService.windowOpenCount);
 		// Registered after the lifecycle tracker is created but before it is
 		// registered: disposing flushes buffered typing, which needs a live
 		// lifecycle tracker to attribute it to.
@@ -1547,6 +1549,14 @@ type SessionSummaryClassification = {
 	linesDeleted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total lines deleted across all changed files in the session at the moment the summary was emitted.' };
 	pullRequestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of pull requests associated with the session as last observed in this client; 0 when the session never had one.' };
 	pullRequestStatus: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'State of the session\'s most recent pull request as last observed in this client (open, closed, merged or draft); undefined when the session has no pull request or its state was never resolved.' };
+	pullRequestArtifactMergedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded pull request artifacts whose latest known state was merged when the summary was emitted; excludes references and artifacts with unresolved state.' };
+	pullRequestArtifactOpenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded pull request artifacts whose latest known state was open when the summary was emitted; excludes references and artifacts with unresolved state.' };
+	pullRequestArtifactDraftCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded pull request artifacts whose latest known state was draft when the summary was emitted; excludes references and artifacts with unresolved state.' };
+	pullRequestArtifactClosedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded pull request artifacts whose latest known state was closed when the summary was emitted; excludes references and artifacts with unresolved state.' };
+	issueArtifactCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded issue artifacts when the summary was emitted; excludes issue references.' };
+	otherArtifactCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of recorded artifacts other than pull requests and issues when the summary was emitted.' };
+	artifactCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of recorded artifacts of all kinds, including pull requests and issues, when the summary was emitted.' };
+	referenceCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of recorded references of all kinds when the summary was emitted.' };
 	userSessionsTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started from the Agents window across all workspaces and providers at the moment the summary was emitted.' };
 	userSessionsInWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started in the current workspace at the moment the summary was emitted.' };
 	userSessionsForProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cumulative number of new sessions the user has started for this sessions provider across all workspaces at the moment the summary was emitted.' };
