@@ -2283,7 +2283,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
 				nls.localize('chat.agent.thinkingMode.fixedScrolling', "Show thinking in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
 			],
-			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
+			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered. Read-only chats always use the collapsed preview style."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.ThinkingGenerateTitles]: {

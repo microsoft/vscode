@@ -113,6 +113,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('chat.systemNotificationDisclosure', 'Some session status messages have additional details. Use Tab to focus the status message and press Enter or Space to show or hide its details.'));
 		}
 		content.push(localize('chat.subagentPill', 'When a subagent pill appears in a response, use Tab to focus it and press Enter or Space to open that subagent chat.'));
+		content.push(localize('chat.readOnlyThinking', "In read-only chats, thinking details preview while streaming and collapse when finished, regardless of your thinking-style setting. Focus a thinking header and press Enter or Space to expand or collapse its details."));
 		content.push(localize('workbench.action.chat.focus', 'To focus the chat request and response list, invoke the Focus Chat command{0}. This will move focus to the most recent response, which you can then navigate using the up and down arrow keys.', getChatFocusKeybindingLabel(keybindingService, type, 'last')));
 		content.push(localize('workbench.action.chat.focusLastFocusedItem', 'To return to the last chat response you focused, invoke the Focus Last Focused Chat Response command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'lastFocused')));
 		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', getChatFocusKeybindingLabel(keybindingService, type, 'input')));

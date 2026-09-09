@@ -2038,7 +2038,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * editing on a read-only chat.
 	 */
 	private _applyRendererEditable(editable: boolean): void {
-		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly });
+		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly, readOnly: this._readOnly });
 	}
 
 	/**
@@ -2101,7 +2101,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatListWidget,
 			listContainer,
 			{
-				rendererOptions: options,
+				rendererOptions: { ...options, readOnly: this._readOnly },
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
