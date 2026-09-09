@@ -163,7 +163,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		const shared = {
 			client, sessionId: 'sess-1', workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined, snapshot: { tools: [], plugins: [], mcpServers: {} },
-			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined, githubToken: undefined,
+			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined, githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
 			? { ...shared, kind, model: undefined }
