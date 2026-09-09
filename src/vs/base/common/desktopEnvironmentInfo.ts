@@ -9,6 +9,7 @@ import { env } from './process.js';
 enum DesktopEnvironment {
 	UNKNOWN = 'UNKNOWN',
 	CINNAMON = 'CINNAMON',
+	COSMIC = 'COSMIC',
 	DEEPIN = 'DEEPIN',
 	GNOME = 'GNOME',
 	KDE3 = 'KDE3',
@@ -59,6 +60,8 @@ export function getDesktopEnvironment(): DesktopEnvironment {
 					return DesktopEnvironment.UKUI;
 				case 'LXQt':
 					return DesktopEnvironment.LXQT;
+				case 'COSMIC':
+					return DesktopEnvironment.COSMIC;
 			}
 		}
 	}
