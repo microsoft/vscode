@@ -60,6 +60,7 @@ const codiconChoices = [
 	Codicon.server,
 	Codicon.graphLine,
 	Codicon.searchFuzzy,
+	Codicon.squirrel,
 ];
 
 function hashCodiconCell(row: number, column: number, salt: number): number {
