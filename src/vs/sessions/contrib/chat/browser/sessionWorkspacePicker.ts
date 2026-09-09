@@ -1332,6 +1332,17 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
+	 * Whether the picker is currently scoped to the Remote group, either through
+	 * a direct picker scope or the active tab. Remote targets cannot host a
+	 * workspace-less session, so the no-workspace option must be suppressed.
+	 */
+	private _isScopedToRemoteGroup(): boolean {
+		const availableTabs = this._getAvailableTabs();
+		const activeGroup = this._directPickerGroup ?? this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
+		return activeGroup === SESSION_WORKSPACE_GROUP_REMOTE;
+	}
+
+	/**
 	 * Builds the picker items list from recent workspaces.
 	 *
 	 * Items are shown in a flat recency-sorted list (most recently used first)
@@ -1625,7 +1636,7 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		const noWorkspaceOption = this._getNoWorkspaceOption();
-		if (!noWorkspaceOption || this._directPickerAttachesContext === true) {
+		if (!noWorkspaceOption || this._directPickerAttachesContext === true || this._isScopedToRemoteGroup()) {
 			return items;
 		}
 
