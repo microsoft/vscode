@@ -8,6 +8,7 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import Severity from '../../../../../../base/common/severity.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
@@ -412,13 +413,56 @@ suite('ChatModelsViewModel', () => {
 				visibleAfterCollapse: model.filter('').filter(entry => entry.type === 'model').map(entry => entry.model.identifier),
 				filteredIds: model.filter('@provider:"Codex [WSL: Ubuntu]"').filter(entry => entry.type === 'model').map(entry => entry.model.identifier),
 			}, {
-				labels: modelGroup ? ['ChatGPT — Codex [Local]', 'ChatGPT — Codex [WSL: Ubuntu]'] : ['Codex [Local]', 'Codex [WSL: Ubuntu]'],
+				labels: modelGroup ? ['ChatGPT: Codex [Local]', 'ChatGPT: Codex [WSL: Ubuntu]'] : ['Codex [Local]', 'Codex [WSL: Ubuntu]'],
 				groupCount: 2,
 				localIds: [`${local}:gpt-5.5`, `${local}:gpt-5.6`],
 				remoteIds: [`${remote}:gpt-5.5`, `${remote}:gpt-5.6`],
 				hidden: [`${local}:gpt-5.5`, `${local}:gpt-5.6`],
 				visibleAfterCollapse: [`${remote}:gpt-5.5`, `${remote}:gpt-5.6`],
 				filteredIds: [`${remote}:gpt-5.5`, `${remote}:gpt-5.6`],
+			});
+		});
+	}
+
+	for (const withModels of [false, true]) {
+		test(`preserves host identity in provider error groups (with models: ${withModels})`, async () => {
+			const service = new MockLanguageModelsService();
+			const local = 'agent-host-codex';
+			const remote = 'remote-hex-77736c3a5562756e7475-codex';
+			const vendors = [[local, 'Codex'], [remote, 'Codex [WSL: Ubuntu]'], ['custom', 'Custom']];
+			for (const [vendor, displayName] of vendors) {
+				service.addVendor({ vendor, displayName, managementCommand: undefined, when: undefined, configuration: undefined });
+				const group = Object.freeze({ vendor, name: displayName });
+				service.getLanguageModelGroups(vendor).push({
+					group, modelIdentifiers: [], status: { message: `${vendor} failed`, severity: Severity.Error },
+				});
+				if (withModels) {
+					service.addModel(vendor, `${vendor}:model`, {
+						extension: new ExtensionIdentifier('test'), id: 'model', name: 'Model', family: 'test', version: '1', vendor,
+						maxInputTokens: 8192, maxOutputTokens: 4096, isDefaultForLocation: {}, targetChatSessionType: vendor,
+					});
+				}
+			}
+			const model = store.add(new ChatModelsViewModel(service));
+			await model.refresh();
+			const entries = [...model.filter('')];
+			const groups = entries.filter(isLanguageModelProviderEntry);
+			const localGroup = groups.find(group => group.vendorEntry.vendor.vendor === local)!;
+			model.toggleCollapsed(localGroup);
+			assert.deepStrictEqual({
+				groups: groups.map(group => ({ label: group.label, sessionType: group.vendorEntry.sessionType, models: model.getModelsForGroup(group).length })),
+				statuses: entries.filter(entry => entry.type === 'status').map(entry => entry.message).sort(),
+				collapsed: model.filter('').filter(isLanguageModelProviderEntry).filter(group => group.collapsed).map(group => group.label),
+				originalLabels: vendors.map(([vendor]) => service.getLanguageModelGroups(vendor)[0].group?.name),
+			}, {
+				groups: [
+					{ label: 'Codex [Local]', sessionType: local, models: withModels ? 1 : 0 },
+					{ label: 'Codex [WSL: Ubuntu]', sessionType: remote, models: withModels ? 1 : 0 },
+					{ label: 'Custom', sessionType: undefined, models: withModels ? 1 : 0 },
+				],
+				statuses: vendors.map(([vendor]) => `${vendor} failed`).sort(),
+				collapsed: ['Codex [Local]'],
+				originalLabels: vendors.map(([, displayName]) => displayName),
 			});
 		});
 	}

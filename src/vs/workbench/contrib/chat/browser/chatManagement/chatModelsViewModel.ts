@@ -464,13 +464,13 @@ export class ChatModelsViewModel extends Disposable {
 		const models: ILanguageModel[] = [];
 		const languageModelsGroups = this.languageModelsService.getLanguageModelGroups(vendor.vendor);
 		for (const group of languageModelsGroups) {
-			const defaultProvider: ILanguageModelProvider = {
+			const defaultProvider = this.withAgentHostIdentity({
 				group: group.group ?? {
 					vendor: vendor.vendor,
 					name: vendor.displayName
 				},
 				vendor
-			};
+			}, vendor.vendor);
 			if (group.status) {
 				this.languageModelGroupStatuses.push({
 					provider: defaultProvider,
@@ -502,29 +502,34 @@ export class ChatModelsViewModel extends Disposable {
 					sourceId: metadata.modelGroup.sourceId,
 					sourcePresentation,
 				} satisfies ILanguageModelProvider : { ...defaultProvider };
-				const sessionType = metadata.targetChatSessionType;
-				if (sessionType && isAgentHostTarget(sessionType)) {
-					// Preserve the host identity when grouping by the underlying model provider.
-					const agentLabel = isLocalAgentHostTarget(sessionType)
-						? localize('manageModels.localAgentHost', "{0} [Local]", vendor.displayName)
-						: vendor.displayName;
-					provider.group = {
-						...provider.group,
-						name: metadata.modelGroup
-							? localize('manageModels.agentHostGroup', "{0} — {1}", provider.group.name, agentLabel)
-							: agentLabel,
-					};
-					provider.sessionType = sessionType;
-				}
 				models.push({
 					identifier,
 					metadata,
-					provider,
+					provider: this.withAgentHostIdentity(provider, metadata.targetChatSessionType, !!metadata.modelGroup),
 					hidden: this.languageModelsService.isModelHidden(identifier),
 				});
 			}
 		}
 		this.languageModels.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
+	}
+
+	private withAgentHostIdentity(provider: ILanguageModelProvider, sessionType: string | undefined, hasModelGroup = false): ILanguageModelProvider {
+		if (!sessionType || !isAgentHostTarget(sessionType)) {
+			return provider;
+		}
+		const agentLabel = isLocalAgentHostTarget(sessionType)
+			? localize('manageModels.localAgentHost', "{0} [Local]", provider.vendor.displayName)
+			: provider.vendor.displayName;
+		return {
+			...provider,
+			group: {
+				...provider.group,
+				name: hasModelGroup
+					? localize('manageModels.agentHostGroup', "{0}: {1}", provider.group.name, agentLabel)
+					: agentLabel,
+			},
+			sessionType,
+		};
 	}
 
 	getModelsForGroup(group: ILanguageModelProviderEntry | ILanguageModelGroupEntry): ILanguageModel[] {
