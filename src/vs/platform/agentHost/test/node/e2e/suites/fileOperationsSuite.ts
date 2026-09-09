@@ -11,10 +11,10 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
-import { buildDefaultChatUri, getInlineToolInput, ROOT_STATE_URI, ToolCallCancellationReason, ToolResultContentType, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
+import { buildDefaultChatUri, getInlineToolInput, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, type ChatState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
-import type { ResourceReadResult } from '../../../../common/state/protocol/commands.js';
+import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
@@ -587,13 +587,14 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 					: 'Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".',
 				1,
 			);
-			const edit = context.client.receivedNotifications(n =>
-				isActionNotification(n, 'chat/toolCallComplete')
-				&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
-				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
-			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
+			const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			const state = subscribed.snapshot!.state as ChatState;
+			const turn = state.turns.find(turn => turn.id === turnId);
+			assert.ok(turn, 'The completed turn should be retained in chat state');
+			const edit = turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content ?? [] : [])
 				.find((content): content is ToolResultFileEditContent => content.type === ToolResultContentType.FileEdit);
-			assert.ok(edit?.before?.content.uri);
+			assert.ok(edit?.before?.content.uri, 'The completed tool result should retain its before-content reference');
 			assert.ok(edit.after?.content.uri);
 
 			const [before, after] = await Promise.all([

@@ -22,23 +22,32 @@
 	background-color: transparent;
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	content: none;
+}
+
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response {
-	/* Match the response padding so wide content remains fully backed before the fade. */
-	background: linear-gradient(
-		to right,
-		transparent,
-		color-mix(in srgb, var(--session-view-background) 88%, transparent) var(--vscode-spacing-size320),
-		color-mix(in srgb, var(--session-view-background) 88%, transparent) calc(100% - var(--vscode-spacing-size320)),
-		transparent
-	);
-	border: 0;
+	padding: var(--vscode-spacing-size80) calc(var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)) + var(--vscode-spacing-size120));
+	isolation: isolate;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before {
+	content: '';
+	position: absolute;
+	inset: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	z-index: -1;
+	background-color: var(--vscode-editorWidget-background, var(--session-view-background));
 	border-radius: var(--vscode-cornerRadius-medium);
-	box-shadow: none;
-	padding-bottom: var(--vscode-spacing-size160);
-	overflow: hidden;
+}
+
+.monaco-workbench.agent-sessions-workbench.hc-black .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before,
+.monaco-workbench.agent-sessions-workbench.hc-light .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before {
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget {
 	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
@@ -48,6 +57,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:hover,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget:hover {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
@@ -67,6 +77,18 @@
 .agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-request.editing .interactive-input-part .chat-input-container {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleBackground), var(--vscode-chat-requestBubbleBackground));
+}
+
+/* The checkpoint and fork rows sit straight on the wallpaper: their controls are
+ * transparent at rest and only :hover supplies a fill. Back each row's toolbar and
+ * its sibling text with one opaque plate — the move the editor-instance restore row
+ * already makes in chat.css — so the controls stay transparent and their existing
+ * hover fill composites over it. */
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-container .monaco-toolbar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .monaco-toolbar,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-label-text,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .checkpoint-restore-container .checkpoint-dot-separator {
+	background-color: var(--session-view-background);
 }
 
 .agent-sessions-workbench .interactive-session {
@@ -108,8 +130,8 @@
 
 .agent-sessions-workbench .interactive-session .chat-scroll-down {
 	right: max(
-		var(--vscode-spacing-size320),
-		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2 + var(--vscode-spacing-size320))
+		var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)),
+		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2 + var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)))
 	);
 }
 
@@ -128,7 +150,7 @@
 	justify-content: flex-end;
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding: 0 var(--vscode-spacing-size320);
+	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 	box-sizing: border-box;
 	pointer-events: none;
 }
@@ -159,10 +181,10 @@
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container,
 .agent-sessions-workbench .part.sessionspart .interactive-session > .chat-suggest-next-widget,
 .agent-sessions-workbench .chat-editor-relative .interactive-session > .chat-suggest-next-widget {
-	max-width: 950px;
+	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding-left: 32px;
-	padding-right: 32px;
+	padding-left: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 	box-sizing: border-box;
 }
 
@@ -230,10 +252,10 @@
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-input-part,
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-input-part {
 	width: 100%;
-	max-width: 950px;
+	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
 	display: inherit;
-	padding: 4px 32px;
+	padding: var(--vscode-spacing-size40) var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 	box-sizing: border-box;
 }
 

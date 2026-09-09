@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -14,7 +15,8 @@ import { AGENT_HOST_LABEL_FORMATTER, agentHostAuthority, agentHostLabelFormatter
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
+import { allowedChatMarkdownHtmlTags, ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatMarkdownRenderer', () => {
@@ -226,6 +228,19 @@ suite('ChatMarkdownRenderer', () => {
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);
+	});
+
+	test('raw style elements are not allowed by the math sanitizer', () => {
+		const md = new MarkdownString('<style>.example { background-image: none; }</style><div class="example">content</div>');
+		md.supportHtml = true;
+		const result = store.add(testRenderer.render(md, {
+			sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
+				allowedTags: allowedChatMarkdownHtmlTags,
+				allowedAttributes: allowedMarkdownHtmlAttributes,
+			}),
+		}));
+
+		assert.strictEqual(result.element.querySelector('style'), null);
 	});
 
 	test('code block ending at end of content does not leak body tag', async () => {

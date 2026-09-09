@@ -72,7 +72,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: {
 			type: 'string',
-			enum: ['accent', 'soft', 'outline'],
+			enum: ['accent', 'soft', 'outline', 'unread'],
 			default: 'outline',
 			scope: ConfigurationScope.APPLICATION,
 			included: false,

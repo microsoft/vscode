@@ -83,6 +83,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly openWorkspacePicker?: boolean;
 	readonly openGitHubContextPicker?: boolean;
 	readonly withAttachedContext?: boolean;
+	readonly withControlPickers?: boolean;
 	readonly withAutoModel?: boolean;
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
@@ -168,6 +169,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		openWorkspacePicker = false,
 		openGitHubContextPicker = false,
 		withAttachedContext = false,
+		withControlPickers = false,
 		withAutoModel = false,
 		primaryToolbarWidth,
 		phoneLayout = false,
@@ -363,6 +365,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	sessionViewContent.style.width = '100%';
 	sessionViewContent.style.height = '100%';
 
+	if (withControlPickers) {
+		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
+		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.plan', title: 'Plan' }, group: 'navigation', order: 0 });
+		menuService.addItem(Menus.NewSessionControl, { command: { id: 'fixture.allowAll', title: 'Allow All' }, group: 'navigation', order: 10 });
+	}
+
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
 	}));
@@ -440,9 +448,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		expectedVisualDescriptions: ['The new-session composer sits directly on the codicon wallpaper with no card behind it. The workspace pills, the input area and the bottom-row controls each carry their own opaque surface and a thin border, and the wallpaper shows through the gaps between them.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, withChatBackground: true }),
 	}),
+	NewSessionBackgroundControls: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withChatBackground: true, withControlPickers: true }),
+	}),
 	NewSessionAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows optically tuned compact rocket, warning, and connection status icons centered in matching controls, followed by the full Status text action without clipping.'],
+		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows optically tuned compact rocket, warning, and connection status icons centered in matching controls, followed by the full Status text action vertically centered without clipping.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true }),
 	}),
 	NewSessionCompactAutoModel: defineComponentFixture({

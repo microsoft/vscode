@@ -24,9 +24,19 @@ exchanges:
       system: ${system}
       messages:
         - role: user
+          content: Return the custom child sentinel.
+    response:
+      content: CUSTOM_AGENT_CHILD_OK
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
           content: Use the task tool exactly once with agent_type "e2e-display-name-child". Wait for it, then reply exactly "SETUP_DONE".
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: task
               input:
@@ -39,9 +49,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: |-
-                failed to assemble custom-agent system prompt: displayName: Required
-                tools: Expected array
+              content: CUSTOM_AGENT_CHILD_OK
     response:
       content: SETUP_DONE
       stopReason: end_turn
@@ -65,9 +73,7 @@ exchanges:
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: |-
-                failed to assemble custom-agent system prompt: displayName: Required
-                tools: Expected array
+              content: CUSTOM_AGENT_CHILD_OK
         - role: assistant
           content: SETUP_DONE
         - role: user

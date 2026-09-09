@@ -852,13 +852,13 @@ suite('AutomationsCardsWidget', () => {
 			descriptions: widget.element.querySelectorAll('.automations-cards-empty-description').length,
 			buttons: widget.element.querySelectorAll('.automations-cards-create-button').length,
 			templateSections: widget.element.querySelectorAll('.automations-templates').length,
-			templateCards: widget.element.querySelectorAll('.automations-template-card').length,
+			templateNames: Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent),
 		}, {
 			titles: 1,
 			descriptions: 1,
 			buttons: 1,
 			templateSections: 1,
-			templateCards: 4,
+			templateNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
 		});
 	});
 
@@ -895,10 +895,10 @@ suite('AutomationsCardsWidget', () => {
 		};
 
 		assert.deepStrictEqual({ loadingState, errorState, unavailableState, readyState }, {
-			loadingState: { loading: '', error: 'none', createButton: 'Create Automation', templates: 4 },
-			errorState: { loading: 'none', error: '', createButton: 'Create Automation', description: 'The complete automation catalogue could not be read.', templates: 4 },
-			unavailableState: { loading: 'none', unavailable: '', error: 'none', createButton: 'Create Automation', templates: 4 },
-			readyState: { loading: 'none', error: 'none', templates: 4 },
+			loadingState: { loading: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
+			errorState: { loading: 'none', error: '', createButton: 'Create Automation', description: 'The complete automation catalogue could not be read.', templates: AUTOMATION_TEMPLATES.length },
+			unavailableState: { loading: 'none', unavailable: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
+			readyState: { loading: 'none', error: 'none', templates: AUTOMATION_TEMPLATES.length },
 		});
 	});
 
@@ -950,29 +950,33 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('template opens create dialog with target-less initial values', async () => {
-		const { automationDialogService, automationService, widget } = setup();
-		automationService.setCatalogueState('ready');
+	for (const [index, template] of AUTOMATION_TEMPLATES.entries()) {
+		test(`template '${template.name}' opens create dialog with target-less initial values`, async () => {
+			const { automationDialogService, automationService, widget } = setup();
+			automationService.setCatalogueState('ready');
 
-		const templateCard = widget.element.querySelector<HTMLButtonElement>('.automations-template-card');
-		const describedBy = templateCard?.getAttribute('aria-describedby');
-		templateCard?.click();
-		await Promise.resolve();
+			const templateCard = widget.element.querySelectorAll<HTMLButtonElement>('.automations-template-card')[index];
+			const describedBy = templateCard?.getAttribute('aria-describedby');
+			templateCard?.click();
+			await Promise.resolve();
 
-		assert.deepStrictEqual({
-			dialogOptions: automationDialogService.lastOptions,
-			accessibleDescription: describedBy ? widget.element.querySelector(`#${describedBy}`)?.textContent : undefined,
-		}, {
-			dialogOptions: {
-				initialValues: {
-					name: 'Issue triage',
-					prompt: 'Review new issues, group duplicates, and suggest labels.',
-					schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+			assert.deepStrictEqual({
+				dialogOptions: automationDialogService.lastOptions,
+				visibleDescription: templateCard?.querySelector('.automations-template-card-prompt')?.textContent,
+				accessibleDescription: describedBy ? widget.element.querySelector(`#${describedBy}`)?.textContent : undefined,
+			}, {
+				dialogOptions: {
+					initialValues: {
+						name: template.name,
+						prompt: template.prompt,
+						schedule: template.schedule,
+					},
 				},
-			},
-			accessibleDescription: 'Review new issues, group duplicates, and suggest labels.',
+				visibleDescription: template.description,
+				accessibleDescription: template.description,
+			});
 		});
-	});
+	}
 
 	test('template hovers expose full text once and are disposed with the widget', () => {
 		const hovers: { target: HTMLElement; content: IDelayedHoverOptions['content']; disposed: boolean }[] = [];
@@ -998,7 +1002,7 @@ suite('AutomationsCardsWidget', () => {
 			contents,
 			allDisposed: hovers.every(hover => hover.disposed),
 		}, {
-			beforeReady: 8,
+			beforeReady: AUTOMATION_TEMPLATES.length * 2,
 			contents: AUTOMATION_TEMPLATES.flatMap(template => [
 				{ target: 'automations-template-card-name-text', content: template.name },
 				{ target: 'automations-template-card-prompt', content: template.prompt },
@@ -2217,11 +2221,16 @@ suite('AutomationsCardsWidget', () => {
 		);
 	});
 
-	test('accessible view includes templates when there are no automations', () => {
-		assert.strictEqual(
-			buildAutomationsAccessibleContent([], [], 'ready').includes('Issue triage, Daily at 9:00 AM. Review new issues, group duplicates, and suggest labels.'),
-			true,
-		);
+	test('accessible view summarizes templates without reading full prompts', () => {
+		const template = AUTOMATION_TEMPLATES[0];
+		const content = buildAutomationsAccessibleContent([], [], 'ready');
+		assert.deepStrictEqual({
+			includesTemplateSummary: content.includes(`${template.name}, Daily at 9:00 AM. ${template.description}`),
+			includesFullPrompts: AUTOMATION_TEMPLATES.some(template => content.includes(template.prompt)),
+		}, {
+			includesTemplateSummary: true,
+			includesFullPrompts: false,
+		});
 	});
 
 	test('accessibility help describes visible templates independently of catalogue completeness', () => {
@@ -2270,7 +2279,7 @@ suite('AutomationsCardsWidget', () => {
 			return {
 				state,
 				claimsEmpty: content.includes('No automations.'),
-				templatesIncluded: AUTOMATION_TEMPLATES.every(template => content.includes(template.name)),
+				templatesIncluded: AUTOMATION_TEMPLATES.every(template => content.includes(template.name) && content.includes(template.description)),
 			};
 		});
 

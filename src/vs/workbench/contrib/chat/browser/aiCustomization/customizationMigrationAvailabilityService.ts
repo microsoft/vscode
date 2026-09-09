@@ -8,14 +8,17 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IMcpService, IMcpWorkbenchService } from '../../../mcp/common/mcpTypes.js';
+import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { ICustomizationMigrationService } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, ICustomizationMigrationService } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES } from './customizationMigrationCategories.js';
 
@@ -39,6 +42,9 @@ class CustomizationMigrationAvailabilityService extends Disposable implements IC
 		@ICustomizationMigrationService private readonly migrationService: ICustomizationMigrationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@IMcpService private readonly mcpService: IMcpService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -58,6 +64,16 @@ class CustomizationMigrationAvailabilityService extends Disposable implements IC
 				this.scheduleRefresh();
 			}
 		}));
+		this._register(autorun(reader => {
+			for (const server of this.mcpService.servers.read(reader)) {
+				server.readDefinitions().read(reader);
+				server.enablement.read(reader);
+			}
+			this.scheduleMcpRefresh();
+		}));
+		this._register(this.mcpWorkbenchService.onChange(() => this.scheduleMcpRefresh()));
+		this._register(this.mcpWorkbenchService.onReset(() => this.scheduleMcpRefresh()));
+		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.scheduleMcpRefresh()));
 		this._register(Event.any(
 			this.harnessService.onDidChangeSlashCommands,
 			this.harnessService.onDidChangeCustomAgents,
@@ -71,6 +87,19 @@ class CustomizationMigrationAvailabilityService extends Disposable implements IC
 	private scheduleRefresh(): void {
 		this.refreshSequence++;
 		this.refreshScheduler.schedule();
+	}
+
+	private scheduleMcpRefresh(): void {
+		if (this.isMcpMigrationRefreshEnabled()) {
+			this.scheduleRefresh();
+		}
+	}
+
+	private isMcpMigrationRefreshEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.CustomizationEntryPoints)
+			&& this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)
+			&& isAgentHostTarget(this.harnessService.activeHarness.get())
+			&& !!this.harnessService.activeSessionResource.get();
 	}
 
 	private async refresh(): Promise<void> {
@@ -91,20 +120,30 @@ class CustomizationMigrationAvailabilityService extends Disposable implements IC
 		}
 
 		try {
-			const migrations = await Promise.all(categories.map(category => this.migrationService.computeMigration(
-				activeSessionResource,
-				category.migrationType,
-			)));
+			const migrations = await Promise.all(categories.map(category => this.computeMigration(activeSessionResource, category.migrationType)));
 			if (refreshSequence !== this.refreshSequence || activeHarness !== this.harnessService.activeHarness.get() || !isEqual(activeSessionResource, this.harnessService.activeSessionResource.get())) {
 				return;
 			}
-			const count = migrations.reduce((total, migration) => total + migration.files.length, 0);
+			const count = migrations.reduce((total, migration) => total + migration.candidates.length, 0);
 			this.candidateCountValue.set(count, undefined);
 		} catch (error) {
 			if (refreshSequence === this.refreshSequence) {
 				this.candidateCountValue.set(0, undefined);
 			}
 			this.logService.error('Failed to assess customization migrations', error);
+		}
+	}
+
+	private computeMigration(sessionResource: URI, migrationType: CustomizationMigrationType): Promise<CustomizationMigration> {
+		switch (migrationType) {
+			case CustomizationMigrationType.McpServers:
+				return this.migrationService.computeMigration(sessionResource, CustomizationMigrationType.McpServers);
+			case CustomizationMigrationType.UserData:
+				return this.migrationService.computeMigration(sessionResource, CustomizationMigrationType.UserData);
+			case CustomizationMigrationType.PromptFiles:
+				return this.migrationService.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles);
+			case CustomizationMigrationType.ConfiguredLocations:
+				return this.migrationService.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations);
 		}
 	}
 }

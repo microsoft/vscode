@@ -472,10 +472,10 @@ export class VisibleSessions extends Disposable {
 	 * "open at position" entry points.
 	 *
 	 * - If the slot is not yet visible, a new non-sticky entry is created
-	 *   at the computed position. For an `undefined` session (empty slot),
-	 *   this is a no-op when an empty slot already exists in the grid.
+	 *   at the computed position.
 	 * - If the slot is already visible, it is moved to the computed
-	 *   position; its sticky / non-sticky state is preserved.
+	 *   position; its sticky / non-sticky state is preserved. This also
+	 *   moves the single empty slot when `session` is `undefined`.
 	 *
 	 * When `activate` is `true` (default), the inserted slot also becomes
 	 * the active session. When `false`, the active session is left
@@ -488,12 +488,6 @@ export class VisibleSessions extends Disposable {
 		const id: string | undefined = session?.sessionId;
 		const targetIdx = this._visibleList.indexOf(targetSessionId);
 		if (targetIdx < 0) {
-			return;
-		}
-
-		// Invariant: at most one empty slot. If inserting the empty slot and
-		// one already exists, do not add or move another.
-		if (id === undefined && this._visibleList.includes(undefined)) {
 			return;
 		}
 
