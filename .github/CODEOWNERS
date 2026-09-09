@@ -35,7 +35,12 @@ extensions/copilot/src/extension/typescriptContext/**/nes* @ulugbekna
 extensions/copilot/src/lib/vscode-node/test/getInlineCompletions.* @ulugbekna
 extensions/copilot/src/lib/vscode-node/test/nesProvider.* @ulugbekna
 extensions/copilot/test/**/inlineEdit* @ulugbekna
-extensions/copilot/test/**/nes* @ulugbekna
+extensions/copilot/test/simulation/nesCoffeTests.ts @ulugbekna
+extensions/copilot/test/simulation/nesCoffeTestsTypes.ts @ulugbekna
+extensions/copilot/test/simulation/nesExternalTests.ts @ulugbekna
+extensions/copilot/test/simulation/nesOptionsToConfigurations.ts @ulugbekna
+extensions/copilot/test/simulation/workbench/components/nesExternalModeToolbar.tsx @ulugbekna
+extensions/copilot/test/simulation/workbench/stores/nesExternalOptions.ts @ulugbekna
 extensions/copilot/docs/NES_EXPECTED_EDIT_CAPTURE.md @ulugbekna
 
 # Automations
