@@ -22,19 +22,11 @@ See the agent host protocol documentation for more details.
 
 ## Service Construction
 
-Read `src/vs/platform/agentHost/node/serviceBootstrapping.md` before adding or
-moving a node Agent Host service. It is the canonical guide for service
-placement, static constructor arguments, activation, test overrides, and
-disposal ownership.
+Read `src/vs/platform/agentHost/node/serviceBootstrapping.md` before adding or moving a node Agent Host service. It is the canonical guide for service placement, static constructor arguments, activation, test overrides, and disposal ownership.
 
 ## Protocol Metadata
 
-Put new readers for namespaced protocol `_meta` slots under `common/meta`.
-Readers must validate every value they return and expose typed data; callers
-should pass the parent protocol object rather than inspecting `_meta` fields
-directly. Existing unnamespaced and legacy readers live elsewhere and should be
-migrated separately when touched. Use type guards for dynamic properties; do
-not bypass type narrowing or lint rules with `Reflect.get`.
+Put new readers for namespaced protocol `_meta` slots under `common/meta`. Readers must validate every value they return and expose typed data; callers should pass the parent protocol object rather than inspecting `_meta` fields directly. Existing unnamespaced and legacy readers live elsewhere and should be migrated separately when touched. Use type guards for dynamic properties; do not bypass type narrowing or lint rules with `Reflect.get`.
 
 ## End to End Testing
 
