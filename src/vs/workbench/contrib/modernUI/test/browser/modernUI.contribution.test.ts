@@ -28,7 +28,7 @@ import { foreground } from '../../../../../platform/theme/common/colors/baseColo
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
 import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_PANEL_BORDER, MODERN_SASH_GRIP_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, PANEL_SECTION_BORDER, PANEL_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_BORDER, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
-import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/browser/layoutService.js';
+import { LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -328,6 +328,61 @@ suite('ModernUIContribution', () => {
 			paneHeaderLineHeightAfterToggle: '22px',
 			paneHeaderInlineLineHeightAfterToggle: '',
 			layoutCountAfterToggle: 2,
+		});
+	});
+
+	test('switches connected editor tabs across windows and cleans up on disable and disposal', async () => {
+		const configurationService = new TestConfigurationService({
+			[LayoutSettings.MODERN_UI]: true,
+			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: ModernUIEditorTabStyle.Connected,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const layoutService = new ModernUITestLayoutService();
+		store.add(layoutService.onDidAddContainerEmitter);
+		const contribution = store.add(new ModernUIContribution(configurationService, layoutService));
+		const auxiliaryContainer = document.createElement('div');
+		const getState = () => ({
+			connected: layoutService.containers.map(container => container.classList.contains('modern-ui-connected-editor-tabs')),
+			modernTabs: layoutService.containers.map(container => container.classList.contains('modern-ui-tabs')),
+			layoutCount: layoutService.layoutCount,
+		});
+		const update = async (key: string, value: boolean | ModernUIEditorTabStyle) => {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: setting => setting === key,
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+			});
+		};
+
+		const startup = getState();
+		layoutService.addContainer(auxiliaryContainer, store.add(new DisposableStore()));
+		const auxiliaryStartup = getState();
+		await update(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
+		const pill = getState();
+		await update(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected);
+		const connected = getState();
+		await update(LayoutSettings.MODERN_UI, false);
+		const disabled = getState();
+		await update(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
+		const changedWhileDisabled = getState();
+		await update(LayoutSettings.MODERN_UI, true);
+		const reenabled = getState();
+		await update(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected);
+		contribution.dispose();
+
+		assert.deepStrictEqual({
+			startup, auxiliaryStartup, pill, connected, disabled, changedWhileDisabled, reenabled, disposed: getState(),
+		}, {
+			startup: { connected: [true], modernTabs: [true], layoutCount: 0 },
+			auxiliaryStartup: { connected: [true, true], modernTabs: [true, true], layoutCount: 0 },
+			pill: { connected: [false, false], modernTabs: [true, true], layoutCount: 1 },
+			connected: { connected: [true, true], modernTabs: [true, true], layoutCount: 2 },
+			disabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3 },
+			changedWhileDisabled: { connected: [false, false], modernTabs: [false, false], layoutCount: 3 },
+			reenabled: { connected: [false, false], modernTabs: [true, true], layoutCount: 4 },
+			disposed: { connected: [false, false], modernTabs: [false, false], layoutCount: 5 },
 		});
 	});
 
@@ -1732,6 +1787,49 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual(strokes, ['#333333', '#e5e5e5', 'rgba(0, 0, 0, 0)']);
 	});
 
+	test('customizes the connected tab stroke without changing editor split borders', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const style = document.createElement('style');
+		root.appendChild(style);
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(row, 'tabs-container');
+		appendElement(tabs, 'tab');
+		const tab = appendElement(tabs, 'tab active');
+		const fill = appendElement(tab, 'tab-fill');
+		const targetWindow = getWindow(root);
+		const results = ['#2468ac', '#ff000080', '#00000000'].map(color => {
+			const theme = ColorThemeData.createUnloadedTheme('vs', {
+				[editorBackground]: '#ffffff',
+				'editorGroup.border': '#123456',
+				'modernEditorTab.connectedBorder': '#abcdef',
+			});
+			theme.setCustomColors({ 'modernEditorTab.connectedBorder': color });
+			style.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			return {
+				strokes: [
+					targetWindow.getComputedStyle(fill).borderTopColor,
+					targetWindow.getComputedStyle(fill, '::before').borderRightColor,
+					targetWindow.getComputedStyle(fill, '::after').borderLeftColor,
+					targetWindow.getComputedStyle(row, '::after').backgroundColor,
+				],
+				editorSplitBorder: theme.getColor('editorGroup.border')?.toString(),
+			};
+		});
+
+		assert.deepStrictEqual(results, [
+			{ strokes: Array(4).fill('rgb(36, 104, 172)'), editorSplitBorder: '#123456' },
+			{ strokes: Array(4).fill('rgb(255, 126, 126)'), editorSplitBorder: '#123456' },
+			{ strokes: Array(4).fill('rgba(0, 0, 0, 0)'), editorSplitBorder: '#123456' },
+		]);
+	});
+
 	test('paints connected tab strokes outside the fill without moving tab content', () => {
 		const root = document.createElement('div');
 		root.style.setProperty('--vscode-spacing-size20', '2px');
@@ -1757,10 +1855,10 @@ suite('ModernUIContribution', () => {
 		name.textContent = 'main.ts';
 		const targetWindow = getWindow(root);
 
-		for (const modernUI of [true, false]) {
+		for (const classes of ['', 'modern-ui', 'modern-ui modern-ui-connected-editor-tabs', 'modern-ui-connected-editor-tabs']) {
 			for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
-				root.className = `monaco-workbench modern-ui-tabs ${modernUI ? 'modern-ui' : ''} ${theme}`;
-				const connected = modernUI && !theme.startsWith('hc-');
+				root.className = `monaco-workbench modern-ui-tabs ${classes} ${theme}`;
+				const connected = classes === 'modern-ui modern-ui-connected-editor-tabs' && !theme.startsWith('hc-');
 				for (const activeGroup of [true, false]) {
 					group.classList.toggle('active', activeGroup);
 					for (const compact of [true, false]) {
@@ -1787,7 +1885,7 @@ suite('ModernUIContribution', () => {
 							labelBounds: labelBounds.toJSON(),
 							fillExpansion: connected ? [1, 1, 1] : [0, 0, 0],
 							topRadius: connected ? '5px' : '4px',
-						}, JSON.stringify({ modernUI, theme, activeGroup, compact }));
+						}, JSON.stringify({ classes, theme, activeGroup, compact }));
 					}
 				}
 			}
@@ -1796,7 +1894,7 @@ suite('ModernUIContribution', () => {
 
 	test('adjusts connected shoulder radii for the outside stroke and omits the first outer shoulder', () => {
 		const root = document.createElement('div');
-		root.className = 'monaco-workbench modern-ui modern-ui-tabs';
+		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-spacing-size40', '4px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
 		root.style.setProperty('--vscode-strokeThickness', '1px');

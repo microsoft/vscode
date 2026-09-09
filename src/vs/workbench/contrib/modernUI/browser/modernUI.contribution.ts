@@ -9,7 +9,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../services/layout/browser/layoutService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { COMPACT_NOTIFICATION_ROW_HEIGHT, DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
@@ -56,6 +56,7 @@ interface IModernUIModule {
 const MODERN_UI_CLASS = 'modern-ui';
 const MODERN_UI_COMPACT_CLASS = 'modern-ui-compact';
 const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
+const MODERN_UI_CONNECTED_EDITOR_TABS_CLASS = 'modern-ui-connected-editor-tabs';
 const MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS = 'modern-ui-notifications-dialogs';
 const MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS = 'modern-ui-uppercase-view-headers';
 
@@ -143,7 +144,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		// A config change re-applies to every container (the global `update()`
 		// covers all windows, including auxiliary ones).
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY) || e.affectsConfiguration(LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS)) {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI) || e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY) || e.affectsConfiguration(LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS) || e.affectsConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE)) {
 				this.update();
 				// Some modules change layout metrics, so a relayout is required once
 				// their classes and corresponding layout values are updated.
@@ -177,12 +178,16 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		return this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact;
 	}
 
+	private useConnectedEditorTabs(): boolean {
+		return this.configurationService.getValue<ModernUIEditorTabStyle>(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE) === ModernUIEditorTabStyle.Connected;
+	}
+
 	private getLayoutAffectingState(): string {
 		if (!this.isEnabled() || !this.hasLayoutAffectingModule) {
 			return 'disabled';
 		}
 
-		return this.isCompact() ? ModernUIDensity.Compact : ModernUIDensity.Default;
+		return `${this.isCompact() ? ModernUIDensity.Compact : ModernUIDensity.Default}/${this.useConnectedEditorTabs() ? ModernUIEditorTabStyle.Connected : ModernUIEditorTabStyle.Pill}`;
 	}
 
 	private update(): void {
@@ -201,6 +206,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 		container.classList.toggle(MODERN_UI_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_COMPACT_CLASS, compact);
 		container.classList.toggle(MODERN_UI_TABS_CLASS, enabled);
+		container.classList.toggle(MODERN_UI_CONNECTED_EDITOR_TABS_CLASS, enabled && this.useConnectedEditorTabs());
 		container.classList.toggle(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS, enabled);
 		container.classList.toggle(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS, useUppercaseViewHeaders);
 	}
@@ -227,6 +233,7 @@ export class ModernUIContribution extends Disposable implements IWorkbenchContri
 			container.classList.remove(MODERN_UI_CLASS);
 			container.classList.remove(MODERN_UI_COMPACT_CLASS);
 			container.classList.remove(MODERN_UI_TABS_CLASS);
+			container.classList.remove(MODERN_UI_CONNECTED_EDITOR_TABS_CLASS);
 			container.classList.remove(MODERN_UI_NOTIFICATIONS_DIALOGS_CLASS);
 			container.classList.remove(MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS);
 		}

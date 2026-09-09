@@ -54,7 +54,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../.
 import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
-import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { LayoutSettings, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -348,6 +348,7 @@ function createFixtureEditorTitleActions(store: DisposableStore, menuId: MenuId)
 export interface IEditorTabBarFixtureOptions {
 	readonly modernUI: boolean;
 	readonly partOptions?: Partial<IEditorPartOptions>;
+	readonly editorTabStyle?: ModernUIEditorTabStyle;
 	readonly editors?: IEditorSpec[];
 	readonly breadcrumbs?: {
 		readonly filePath?: 'on' | 'off' | 'last';
@@ -419,6 +420,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		icons: options.breadcrumbs?.icons ?? true,
 	});
 	configurationService.setUserConfiguration(LayoutSettings.MODERN_UI, options.modernUI);
+	configurationService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, options.editorTabStyle ?? ModernUIEditorTabStyle.Connected);
 
 	const instantiationService = workbenchInstantiationService({
 		configurationService: () => configurationService,
@@ -509,6 +511,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	const groupContainer = $(isGroupActive ? '.editor-group-container.active' : '.editor-group-container');
 	const titleContainer = $('.title');
 	container.classList.toggle('modern-ui-tabs', options.modernUI);
+	container.classList.toggle('modern-ui-connected-editor-tabs', options.modernUI && (options.editorTabStyle ?? ModernUIEditorTabStyle.Connected) === ModernUIEditorTabStyle.Connected);
 	titleContainer.classList.toggle('tabs', partOptions.showTabs === 'multiple');
 	titleContainer.classList.toggle('show-file-icons', partOptions.showIcons);
 
@@ -781,6 +784,13 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 	ModernUIOff: defineThemedFixtureGroup(createFixtures(false, ['darkHighContrast'])),
 	ModernUIOn: defineThemedFixtureGroup({
 		...createFixtures(true, ['darkHighContrast']),
+		Pill: defineComponentFixture({
+			render: render(true, { editorTabStyle: ModernUIEditorTabStyle.Pill }),
+			additionalThemes: ['darkHighContrast'],
+			expectedVisualDescriptions: [
+				'Editor tabs remain separate rounded pills with no connecting shoulders or connected strip border. High contrast retains explicit selection and focus borders.',
+			],
+		}),
 		ThemeColors: defineThemedFixtureGroup(createThemeColorFixtures()),
 	}),
 	ConnectedSurface: defineThemedFixtureGroup({
