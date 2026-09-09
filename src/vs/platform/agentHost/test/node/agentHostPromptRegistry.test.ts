@@ -216,13 +216,21 @@ suite('AgentHostPromptRegistry', () => {
 	suite('workspace-less scratch/repoless wiring', () => {
 		test('prefers attaching a workspace over creating a replacement session', () => {
 			assert.deepStrictEqual({
-				usesSetWorkspace: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`set_workspace` is available, prefer attaching that workspace and continuing this same conversation'),
+				usesSetWorkspace: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('project changes MUST first attach that repository with `set_workspace`'),
 				avoidsReplacementSession: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not create another session solely to move the work'),
-				requiresConfirmation: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Immediately before every `set_workspace` call, always use `ask_user` to confirm both the workspace and whether the work should be isolated'),
+				blocksScratchMutation: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('MUST NOT create, edit, or delete files'),
+				requiresConfirmation: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('follow this exact sequence before using any shell or file-mutation tool'),
+				namesProviderTools: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`request_user_input` in Codex or `ask_user` in Copilot'),
+				batchesQuestions: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('exactly two questions together'),
+				forbidsSplitQuestions: COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not split workspace and isolation into separate user-input calls'),
 			}, {
 				usesSetWorkspace: true,
 				avoidsReplacementSession: true,
+				blocksScratchMutation: true,
 				requiresConfirmation: true,
+				namesProviderTools: true,
+				batchesQuestions: true,
+				forbidsSplitQuestions: true,
 			});
 		});
 

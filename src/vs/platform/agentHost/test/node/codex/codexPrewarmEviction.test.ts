@@ -50,6 +50,7 @@ import { codexSkillsToContainers } from '../../../node/codex/codexCustomizations
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
+import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
@@ -77,6 +78,8 @@ interface ITestWireRequest {
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
 		readonly extraRoots?: readonly string[];
 		readonly sandboxPolicy?: SandboxPolicy;
+		readonly sandbox?: string;
+		readonly approvalPolicy?: string;
 		readonly config?: Record<string, unknown>;
 		readonly developerInstructions?: string;
 		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
@@ -2665,8 +2668,25 @@ suite('CodexAgent prewarm eviction', () => {
 		// the managed temp folder Codex creates for it.
 		const sending = agent.chats.sendMessage(sourceChat, 'hello', undefined, undefined, 'turn-1');
 		const start = await readNextRequest(peer.outbound);
+		assert.strictEqual(start.params.config?.['features.default_mode_request_user_input'], true);
+		assert.ok(start.params.developerInstructions?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+		assert.deepStrictEqual({
+			approvalPolicy: start.params.approvalPolicy,
+			sandbox: start.params.sandbox,
+		}, {
+			approvalPolicy: 'never',
+			sandbox: 'read-only',
+		});
 		peer.push({ id: start.id, result: { thread: { id: 'managed-source', cwd: start.params.cwd } } });
 		const sourceTurn = await readNextRequest(peer.outbound);
+		assert.ok(sourceTurn.params.collaborationMode?.settings.developer_instructions?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+		assert.deepStrictEqual({
+			approvalPolicy: sourceTurn.params.approvalPolicy,
+			sandboxPolicy: sourceTurn.params.sandboxPolicy,
+		}, {
+			approvalPolicy: 'never',
+			sandboxPolicy: { type: 'readOnly', networkAccess: false },
+		});
 		peer.push({ id: sourceTurn.id, result: {} });
 		await sending;
 		const sourceDirectory = sourceEntry.managedWorkingDirectory;

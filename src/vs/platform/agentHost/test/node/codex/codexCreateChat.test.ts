@@ -339,17 +339,103 @@ suite('CodexAgent createChat', () => {
 			agentHostCapabilities: agent.agentHostCapabilities,
 		}, {
 			multipleChats: { fork: true, sideChat: true },
-			agentHostCapabilities: { workspaceConversion: false },
+			agentHostCapabilities: { workspaceConversion: true },
 		});
 	});
 
-	test('setWorkingDirectory rejects because Codex does not advertise workspace conversion', async () => {
+	test('setWorkingDirectory updates the live Codex thread and persisted session root', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'cwd-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const initialFolder = URI.file('/workspace/initial');
+		const replacementFolder = URI.file('/workspace/replacement');
+		await agent['_fileService'].createFolder(replacementFolder);
+		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			workingDirectories: [initialFolder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const live = agent['_sessions'].get('cwd-session')!;
+		live.threadId = 'codex-thread';
+		live.firstTurnSent = true;
+		live.needsResume = false;
+
+		const update = agent.setWorkingDirectory(chat, session, replacementFolder);
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: {} });
+		await update;
+
+		assert.deepStrictEqual({
+			request: { method: request.method, params: request.params },
+			workingDirectory: live.workingDirectory?.toString(),
+			needsResume: live.needsResume,
+			persistedCwd: await sessionStore.databaseFor(session).getMetadata('codex.cwd'),
+		}, {
+			request: {
+				method: 'thread/settings/update',
+				params: { threadId: 'codex-thread', cwd: replacementFolder.fsPath },
+			},
+			workingDirectory: replacementFolder.toString(),
+			needsResume: true,
+			persistedCwd: replacementFolder.toString(),
+		});
+	});
+
+	test('setWorkingDirectory rejects peer chats and busy sessions before changing Codex', async () => {
 		const agent = await createAgent(disposables);
+		const session = AgentSession.uri('codex', 'cwd-guard-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const peerChat = URI.parse(buildChatUri(session, 'peer'));
+		const replacementFolder = URI.file('/workspace/replacement');
+		await agent['_fileService'].createFolder(replacementFolder);
+		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			workingDirectories: [URI.file('/workspace/initial')],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		agent['_sessions'].get('cwd-guard-session')!.currentTurnId = 'active-turn';
 
 		await assert.rejects(
-			() => agent.setWorkingDirectory(URI.parse('codex:/chat'), URI.parse('codex:/session'), URI.file('/workspace')),
-			/Codex does not support changing the working directory/,
+			() => agent.setWorkingDirectory(peerChat, session, replacementFolder),
+			/live working-directory changes are only supported for the owning default chat/,
 		);
+		await assert.rejects(
+			() => agent.setWorkingDirectory(chat, session, replacementFolder),
+			/while its Codex session is busy/,
+		);
+	});
+
+	test('setWorkingDirectory preserves the existing root when Codex rejects the update', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'cwd-rejected-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const initialFolder = URI.file('/workspace/initial');
+		const replacementFolder = URI.file('/workspace/replacement');
+		await agent['_fileService'].createFolder(replacementFolder);
+		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			workingDirectories: [initialFolder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const live = agent['_sessions'].get('cwd-rejected-session')!;
+		live.threadId = 'codex-thread';
+		live.firstTurnSent = true;
+		live.needsResume = false;
+
+		const update = agent.setWorkingDirectory(chat, session, replacementFolder);
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, error: { code: -32603, message: 'update rejected' } });
+		await assert.rejects(update, /update rejected/);
+
+		assert.deepStrictEqual({
+			workingDirectory: live.workingDirectory?.toString(),
+			needsResume: live.needsResume,
+		}, {
+			workingDirectory: initialFolder.toString(),
+			needsResume: false,
+		});
 	});
 
 	test('fresh: binds the exact target chat during creation, never leaving the runtime unbound', async () => {
