@@ -668,56 +668,108 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('applies a borderless translucent side fade to the complete assistant response', () => {
+	test('uses a distinct padded assistant bubble over the chat background', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
+		workbench.style.setProperty('--vscode-editorWidget-background', '#f8f8f8');
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
-		workbench.style.setProperty('--vscode-spacing-size160', '16px');
+		workbench.style.setProperty('--vscode-spacing-size80', '8px');
+		workbench.style.setProperty('--vscode-spacing-size120', '12px');
 		workbench.style.setProperty('--vscode-spacing-size320', '32px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
 		const chatView = dom.append(part, dom.$('.chat-view'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
+		response.style.width = '600px';
 		const value = dom.append(response, dom.$('.value'));
+		const markdown = dom.append(value, dom.$('.rendered-markdown'));
+		const codeBlock = dom.append(markdown, dom.$('.interactive-result-code-block'));
+		const monacoEditor = dom.append(codeBlock, dom.$('.monaco-editor'));
+		monacoEditor.style.width = '700px';
+		const overflowGuard = dom.append(monacoEditor, dom.$('.overflow-guard'));
+		overflowGuard.style.width = '700px';
+		const scrollableElement = dom.append(overflowGuard, dom.$('.monaco-scrollable-element'));
+		scrollableElement.style.width = '700px';
 		const footer = dom.append(response, dom.$('.chat-footer-toolbar'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
 		const plainResponse = dom.append(plainSession, dom.$('.interactive-item-container.interactive-response'));
+		const createHighContrastResponse = (themeClass: 'hc-black' | 'hc-light') => {
+			const highContrastWorkbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${themeClass}`);
+			highContrastWorkbench.style.setProperty('--session-view-background', '#ffffff');
+			highContrastWorkbench.style.setProperty('--vscode-editorWidget-background', '#f8f8f8');
+			highContrastWorkbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
+			highContrastWorkbench.style.setProperty('--vscode-spacing-size80', '8px');
+			highContrastWorkbench.style.setProperty('--vscode-spacing-size120', '12px');
+			highContrastWorkbench.style.setProperty('--vscode-spacing-size320', '32px');
+			highContrastWorkbench.style.setProperty('--vscode-strokeThickness', '1px');
+			highContrastWorkbench.style.setProperty('--vscode-contrastBorder', '#ff0000');
+			const highContrastPart = dom.append(highContrastWorkbench, dom.$('.part.sessionspart.has-chat-background'));
+			const highContrastChatView = dom.append(highContrastPart, dom.$('.chat-view'));
+			const highContrastResponse = dom.append(highContrastChatView, dom.$('.interactive-item-container.interactive-response'));
+			dom.getWindow(highContrastWorkbench).document.body.appendChild(highContrastWorkbench);
+			return { highContrastWorkbench, highContrastResponse };
+		};
+		const highContrastDark = createHighContrastResponse('hc-black');
+		const highContrastLight = createHighContrastResponse('hc-light');
 		dom.getWindow(workbench).document.body.appendChild(workbench);
-		disposables.add(toDisposable(() => workbench.remove()));
+		disposables.add(toDisposable(() => {
+			workbench.remove();
+			highContrastDark.highContrastWorkbench.remove();
+			highContrastLight.highContrastWorkbench.remove();
+		}));
 
 		const responseStyle = dom.getWindow(response).getComputedStyle(response);
+		const bubbleStyle = dom.getWindow(response).getComputedStyle(response, '::before');
+		const highContrastDarkBubbleStyle = dom.getWindow(highContrastDark.highContrastResponse).getComputedStyle(highContrastDark.highContrastResponse, '::before');
+		const highContrastLightBubbleStyle = dom.getWindow(highContrastLight.highContrastResponse).getComputedStyle(highContrastLight.highContrastResponse, '::before');
 		assert.deepStrictEqual({
 			responseBackgroundColor: responseStyle.backgroundColor,
 			responseBackgroundImage: responseStyle.backgroundImage,
-			responseBackdropFilter: responseStyle.getPropertyValue('backdrop-filter'),
-			responseWebkitBackdropFilter: responseStyle.getPropertyValue('-webkit-backdrop-filter') || 'none',
 			responseBorderStyle: responseStyle.borderStyle,
-			responseBorderRadius: responseStyle.borderRadius,
 			responseBoxShadow: responseStyle.boxShadow,
 			responseOverflow: responseStyle.overflow,
-			responsePaddingBottom: responseStyle.paddingBottom,
+			responsePadding: responseStyle.padding,
+			bubbleBackgroundColor: bubbleStyle.backgroundColor,
+			bubbleBackgroundImage: bubbleStyle.backgroundImage,
+			bubbleBorderRadius: bubbleStyle.borderRadius,
+			bubbleInset: bubbleStyle.inset,
+			codeBlockWidth: dom.getWindow(codeBlock).getComputedStyle(codeBlock).width,
+			monacoEditorWidth: dom.getWindow(monacoEditor).getComputedStyle(monacoEditor).width,
+			overflowGuardWidth: dom.getWindow(overflowGuard).getComputedStyle(overflowGuard).width,
+			scrollableElementWidth: dom.getWindow(scrollableElement).getComputedStyle(scrollableElement).width,
 			valueBackgroundColor: dom.getWindow(value).getComputedStyle(value).backgroundColor,
 			footerBackgroundColor: dom.getWindow(footer).getComputedStyle(footer).backgroundColor,
 			plainResponseBackgroundColor: dom.getWindow(plainResponse).getComputedStyle(plainResponse).backgroundColor,
+			plainResponseBackgroundImage: dom.getWindow(plainResponse).getComputedStyle(plainResponse).backgroundImage,
 			plainResponseBorderStyle: dom.getWindow(plainResponse).getComputedStyle(plainResponse).borderStyle,
-			plainResponsePaddingBottom: dom.getWindow(plainResponse).getComputedStyle(plainResponse).paddingBottom,
+			plainResponsePadding: dom.getWindow(plainResponse).getComputedStyle(plainResponse).padding,
+			highContrastDarkBubbleBorder: highContrastDarkBubbleStyle.border,
+			highContrastLightBubbleBorder: highContrastLightBubbleStyle.border,
 		}, {
 			responseBackgroundColor: 'rgba(0, 0, 0, 0)',
-			responseBackgroundImage: 'linear-gradient(to right, rgba(0, 0, 0, 0), color(srgb 1 1 1 / 0.88) 32px, color(srgb 1 1 1 / 0.88) calc(100% - 32px), rgba(0, 0, 0, 0))',
-			responseBackdropFilter: 'none',
-			responseWebkitBackdropFilter: 'none',
+			responseBackgroundImage: 'none',
 			responseBorderStyle: 'none',
-			responseBorderRadius: '6px',
 			responseBoxShadow: 'none',
-			responseOverflow: 'hidden',
-			responsePaddingBottom: '16px',
+			responseOverflow: 'visible',
+			responsePadding: '8px 44px',
+			bubbleBackgroundColor: 'rgb(248, 248, 248)',
+			bubbleBackgroundImage: 'none',
+			bubbleBorderRadius: '6px',
+			bubbleInset: '0px 32px',
+			codeBlockWidth: '510px',
+			monacoEditorWidth: '510px',
+			overflowGuardWidth: '510px',
+			scrollableElementWidth: '510px',
 			valueBackgroundColor: 'rgba(0, 0, 0, 0)',
 			footerBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainResponseBackgroundColor: 'rgba(0, 0, 0, 0)',
+			plainResponseBackgroundImage: 'none',
 			plainResponseBorderStyle: 'none',
-			plainResponsePaddingBottom: '0px',
+			plainResponsePadding: '0px 32px',
+			highContrastDarkBubbleBorder: '1px solid rgb(255, 0, 0)',
+			highContrastLightBubbleBorder: '1px solid rgb(255, 0, 0)',
 		});
 	});
 
