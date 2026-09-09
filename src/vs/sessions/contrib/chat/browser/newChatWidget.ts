@@ -294,6 +294,9 @@ export class NewChatWidget extends Disposable {
 			await this._onWorkspaceSelected(folderUri);
 			this._newChatInput.focus();
 		}));
+		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
+			this._preferredDevContainerFolderUri = preferDevContainer ? folderUri : undefined;
+		}));
 		this._register(this._workspacePicker.onDidSelectContext(context => {
 			const contextUri = context.uri.toString();
 			this._newChatInput.attachTextContext(
@@ -602,7 +605,9 @@ export class NewChatWidget extends Disposable {
 		const sessionWorkspace = activeSession.workspace.get();
 		const folderUri = sessionWorkspace?.folders[0]?.root;
 		if (folderUri) {
-			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
+			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+			const preferDevContainer = !!provider && isAgentHostProvider(provider) && provider.isDevContainerEnabled?.(activeSession.sessionId) === true;
+			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, preferDevContainer });
 			this._replaceDraftOnUnservableHarness(folderUri, activeSession);
 		}
 
@@ -1166,7 +1171,7 @@ export class NewChatWidget extends Disposable {
 
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
 		this._preferredDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
-		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId });
+		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId, preferDevContainer: options?.preferDevContainer });
 	}
 }
 

@@ -331,6 +331,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		return this._devContainerAvailableDrafts.has(sessionId);
 	}
 
+	isDevContainerWorkspaceAvailable(workspaceUri: URI): Promise<boolean> {
+		return this._devContainerAgentHostService.isAvailable(workspaceUri);
+	}
+
 	isDevContainerEnabled(sessionId: string): boolean {
 		return this._devContainerDrafts.has(sessionId);
 	}

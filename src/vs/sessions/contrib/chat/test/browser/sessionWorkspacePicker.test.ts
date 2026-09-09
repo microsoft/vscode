@@ -88,6 +88,8 @@ function createMockProvider(id: string, opts?: {
 	remoteAddress?: string;
 	getSessions?: () => ISession[];
 	onDidChangeSessions?: Event<ISessionChangeEvent>;
+	group?: string;
+	isDevContainerWorkspaceAvailable?: (workspaceUri: URI) => Promise<boolean>;
 }): ISessionsProvider {
 	const pathPrefix = MOCK_PROVIDER_PATH_PREFIXES[id];
 	const canResolve = (uri: URI) => !pathPrefix || uri.path === pathPrefix || uri.path.startsWith(`${pathPrefix}/`);
@@ -107,6 +109,7 @@ function createMockProvider(id: string, opts?: {
 				uri,
 				label: uri.path.substring(1) || uri.path,
 				icon: Codicon.folder,
+				group: opts?.group,
 				folders: [{
 					root: uri,
 					workingDirectory: uri,
@@ -141,7 +144,7 @@ function createMockProvider(id: string, opts?: {
 		createSideChat: async () => { throw new Error('Not implemented'); },
 		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },
 	};
-	if (opts?.connectionStatus) {
+	if (opts?.connectionStatus || opts?.isDevContainerWorkspaceAvailable) {
 		return {
 			...base,
 			canConnectOnDemand: opts.canConnectOnDemand,
@@ -149,6 +152,7 @@ function createMockProvider(id: string, opts?: {
 			connectionStatus: opts.connectionStatus,
 			onDidReportConnectProgress: opts.onDidReportConnectProgress,
 			remoteAddress: opts.remoteAddress,
+			isDevContainerWorkspaceAvailable: opts.isDevContainerWorkspaceAvailable,
 			onDidChangeSessionConfig: Event.None,
 			getSessionConfig: () => undefined,
 			setSessionConfigValue: async () => { },
@@ -501,6 +505,63 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ label: 'Provider agenthost-ssh', icon: Codicon.remote.id },
 				{ label: 'Provider agenthost-wsl', icon: Codicon.remote.id },
 			],
+		});
+	});
+
+	test('offers Dev Container execution from a local folder submenu and updates the trigger label', async () => {
+		const folderUri = URI.file('/agent-host/project');
+		const unavailableFolderUri = URI.file('/agent-host/without-config');
+		const provider = createMockProvider('local-agent-host', {
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			isDevContainerWorkspaceAvailable: async workspaceUri => extUri.isEqual(workspaceUri, folderUri),
+		});
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [
+			{ uri: folderUri, providerId: provider.id, checked: false },
+			{ uri: unavailableFolderUri, providerId: provider.id, checked: false },
+		]);
+		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, {
+			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+		} as unknown as IWorkspacesService);
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			storage,
+			undefined,
+			TestablePicker,
+			undefined,
+			undefined,
+			recentWorkspacesService,
+			{ restoreFromSessions: false },
+		) as TestablePicker;
+		const container = document.createElement('div');
+		picker.render(container);
+		const selectedModes: Array<{ readonly folderUri: string; readonly preferDevContainer: boolean }> = [];
+		disposables.add(picker.onDidSelectWorkspaceMode(mode => selectedModes.push({
+			folderUri: mode.folderUri.toString(),
+			preferDevContainer: mode.preferDevContainer,
+		})));
+
+		picker.getItems();
+		await timeout(0);
+		await picker.selectSubmenu('agent-host/project', 'Use Dev Container');
+
+		const folderItem = picker.getItems().find(item => item.label === 'agent-host/project');
+		const submenu = folderItem?.submenuActions?.[0];
+		assert.deepStrictEqual({
+			submenuLabels: submenu instanceof SubmenuAction ? submenu.actions.map(action => action.label) : undefined,
+			unavailableFolderHasSubmenu: picker.getItems().find(item => item.label === 'agent-host/without-config')?.submenuActions !== undefined,
+			selectedModes,
+			triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			triggerAriaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
+		}, {
+			submenuLabels: ['Use Dev Container'],
+			unavailableFolderHasSubmenu: false,
+			selectedModes: [{ folderUri: folderUri.toString(), preferDevContainer: true }],
+			triggerLabel: 'agent-host/project - Dev Container',
+			triggerAriaLabel: 'New session in agent-host/project - Dev Container',
 		});
 	});
 
