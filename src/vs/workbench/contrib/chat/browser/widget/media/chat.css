@@ -30,7 +30,7 @@
 	--vscode-chat-font-size-body-xxl: 1.538em;
 }
 
-.monaco-workbench .interactive-session.chat-session-state-indicator:is(.chat-state-idle-unvisited, .chat-state-needs-input)::before {
+.monaco-workbench .interactive-session.chat-session-state-indicator:is(.chat-state-in-progress, .chat-state-idle-unvisited, .chat-state-needs-input)::before {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -40,6 +40,10 @@
 	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-medium);
 	transition: border-color 350ms ease, box-shadow 350ms ease;
+}
+
+.monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-in-progress::before {
+	border-color: var(--vscode-chat-sessionStateIndicator-inProgressBorder);
 }
 
 .monaco-workbench .interactive-session.chat-session-state-indicator.chat-state-idle-unvisited::before {

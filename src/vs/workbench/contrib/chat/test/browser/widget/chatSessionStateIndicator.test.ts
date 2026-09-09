@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { asCssVariableName } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ColorScheme, isHighContrast } from '../../../../../../platform/theme/common/theme.js';
 import { ColorThemeData } from '../../../../../services/themes/common/colorThemeData.js';
-import { chatSessionNeedsInputBorder, chatSessionUnvisitedBorder } from '../../../common/widget/chatColors.js';
+import { chatSessionInProgressBorder, chatSessionNeedsInputBorder, chatSessionUnvisitedBorder } from '../../../common/widget/chatColors.js';
 
 suite('Chat session state indicator theming', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,6 +20,7 @@ suite('Chat session state indicator theming', () => {
 	for (const scheme of Object.values(ColorScheme)) {
 		test(`updates custom border colors without changing state behavior in ${scheme}`, () => {
 			const theme = ColorThemeData.createUnloadedThemeForThemeType(scheme, {
+				[chatSessionInProgressBorder]: '#123456',
 				[chatSessionUnvisitedBorder]: '#112233',
 				[chatSessionNeedsInputBorder]: '#445566',
 			});
@@ -35,7 +36,7 @@ suite('Chat session state indicator theming', () => {
 			mainWindow.document.body.appendChild(workbench);
 
 			const applyColors = () => {
-				for (const colorId of [chatSessionUnvisitedBorder, chatSessionNeedsInputBorder]) {
+				for (const colorId of [chatSessionInProgressBorder, chatSessionUnvisitedBorder, chatSessionNeedsInputBorder]) {
 					const color = theme.getColor(colorId);
 					assert.ok(color);
 					workbench.style.setProperty(asCssVariableName(colorId), color.toString());
@@ -53,28 +54,38 @@ suite('Chat session state indicator theming', () => {
 			};
 
 			applyColors();
+			const inProgress = readState('chat-session-state-indicator chat-state-in-progress');
 			const unvisited = readState('chat-session-state-indicator chat-state-idle chat-state-idle-unvisited');
 			const blocked = readState('chat-session-state-indicator chat-state-needs-input');
 			theme.setCustomColors({
+				[chatSessionInProgressBorder]: '#fedcba',
 				[chatSessionUnvisitedBorder]: '#778899',
 				[chatSessionNeedsInputBorder]: '#aabbcc',
 			});
 			applyColors();
+			const updatedInProgress = readState('chat-session-state-indicator chat-state-in-progress');
 			const updatedUnvisited = readState('chat-session-state-indicator chat-state-idle chat-state-idle-unvisited');
 			const updatedBlocked = readState('chat-session-state-indicator chat-state-needs-input');
 			const hiddenStates = [
+				'chat-state-in-progress',
 				'chat-state-idle-unvisited',
 				'chat-state-needs-input',
 				'chat-session-state-indicator chat-state-idle',
-				'chat-session-state-indicator chat-state-in-progress',
 			].map(state => readState(state).content);
+			workbench.classList.remove('monaco-reduce-motion');
+			const inProgressWithoutReducedMotion = readState('chat-session-state-indicator chat-state-in-progress');
+			const inProgressAnimation = targetWindow.getComputedStyle(session, '::before').animationName;
 
-			assert.deepStrictEqual({ unvisited, blocked, updatedUnvisited, updatedBlocked, hiddenStates }, {
+			assert.deepStrictEqual({ inProgress, unvisited, blocked, updatedInProgress, updatedUnvisited, updatedBlocked, hiddenStates, inProgressWithoutReducedMotion, inProgressAnimation }, {
+				inProgress: { content: '""', color: 'rgb(18, 52, 86)', width: '1px', stroke: 'solid', shadow: 'none' },
 				unvisited: { content: '""', color: 'rgb(17, 34, 51)', width: '1px', stroke: 'dotted', shadow: 'none' },
 				blocked: { content: '""', color: 'rgb(68, 85, 102)', width: '1px', stroke: 'dashed', shadow: expectedShadow('#445566') },
+				updatedInProgress: { content: '""', color: 'rgb(254, 220, 186)', width: '1px', stroke: 'solid', shadow: 'none' },
 				updatedUnvisited: { content: '""', color: 'rgb(119, 136, 153)', width: '1px', stroke: 'dotted', shadow: 'none' },
 				updatedBlocked: { content: '""', color: 'rgb(170, 187, 204)', width: '1px', stroke: 'dashed', shadow: expectedShadow('#aabbcc') },
 				hiddenStates: ['none', 'none', 'none', 'none'],
+				inProgressWithoutReducedMotion: { content: '""', color: 'rgb(254, 220, 186)', width: '1px', stroke: 'solid', shadow: 'none' },
+				inProgressAnimation: 'none',
 			});
 		});
 	}

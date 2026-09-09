@@ -82,6 +82,7 @@
 		"--vscode-chat-requestBubbleBackground",
 		"--vscode-chat-requestBubbleHoverBackground",
 		"--vscode-chat-requestCodeBorder",
+		"--vscode-chat-sessionStateIndicator-inProgressBorder",
 		"--vscode-chat-sessionStateIndicator-needsInputBorder",
 		"--vscode-chat-sessionStateIndicator-unvisitedBorder",
 		"--vscode-chat-slashCommandBackground",
