@@ -31,6 +31,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
+		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
 		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
 		getModels: () => this.value.sessionServerToolAccessor.getModels(),
 		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),

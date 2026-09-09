@@ -16,7 +16,7 @@ exchanges:
             name: e2e-display-name-child
             prompt: Return the custom child sentinel.
             agent_type: e2e-display-name-child
-            description: Invoke custom child agent
+            description: Run child sentinel task
             mode: sync
       stopReason: tool_use
   - request:
@@ -43,7 +43,7 @@ exchanges:
                 name: e2e-display-name-child
                 prompt: Return the custom child sentinel.
                 agent_type: e2e-display-name-child
-                description: Invoke custom child agent
+                description: Run child sentinel task
                 mode: sync
         - role: user
           content:
@@ -67,7 +67,7 @@ exchanges:
                 name: e2e-display-name-child
                 prompt: Return the custom child sentinel.
                 agent_type: e2e-display-name-child
-                description: Invoke custom child agent
+                description: Run child sentinel task
                 mode: sync
         - role: user
           content:

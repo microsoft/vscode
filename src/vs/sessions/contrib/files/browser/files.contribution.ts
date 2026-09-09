@@ -19,7 +19,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 
 export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
@@ -46,7 +46,7 @@ const filesViewContainer = viewContainerRegistry.registerViewContainer({
 	windowEnablement: WindowEnablement.Sessions,
 }, ViewContainerLocation.AuxiliaryBar, { isDefault: true });
 
-class RegisterFilesViewContribution implements IWorkbenchContribution {
+export class RegisterFilesViewContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.registerFilesView';
 
@@ -73,7 +73,13 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerEmptyView),
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(WorkspaceFolderCountContext.isEqualTo('0'), IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
+			when: ContextKeyExpr.and(
+				IsPhoneLayoutContext.negate(),
+				ContextKeyExpr.or(
+					ContextKeyExpr.and(WorkspaceFolderCountContext.isEqualTo('0'), SessionHasWorkspaceContext),
+					ContextKeyExpr.and(SinglePaneLayoutEnabledContext, IsQuickChatSessionContext),
+				),
+			),
 			windowEnablement: WindowEnablement.Sessions,
 		}], filesViewContainer);
 	}

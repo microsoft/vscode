@@ -40,7 +40,7 @@ import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentTurnProviderCallState, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
+import { AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
@@ -112,6 +112,20 @@ const CLIENT_TOOL_SDK_POLICIES: ReadonlyMap<string, IClientToolSdkPolicy> = new 
 	[SEMANTIC_SEARCH_TOOL_NAME, { overridesBuiltInTool: true, skipPermission: true }],
 ]);
 
+function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource | undefined {
+	// Runtime 1.0.84-2 emits taskModelSource before SDK 1.0.13 declares it; remove this cast once the generated SDK type includes it.
+	const source = (data as { taskModelSource?: unknown }).taskModelSource;
+	switch (source) {
+		case 'task_argument':
+		case 'subagent_configuration':
+		case 'custom_agent_definition':
+		case 'unset':
+			return source;
+		default:
+			return undefined;
+	}
+}
+
 function getClientToolSdkPolicy(toolName: string): IClientToolSdkPolicy {
 	return CLIENT_TOOL_SDK_POLICIES.get(toolName) ?? DEFAULT_CLIENT_TOOL_SDK_POLICY;
 }
@@ -138,6 +152,7 @@ interface IMcpAuthToolCall {
 }
 
 interface ICopilotActiveToolCall {
+	readonly turnId: string;
 	readonly toolName: string;
 	readonly displayName: string;
 	readonly parameters: Record<string, unknown> | undefined;
@@ -466,8 +481,6 @@ export interface ICopilotAgentSessionOptions {
 	 * the future) and exposes SDK tool handlers that execute them in-process.
 	 */
 	readonly serverToolHost?: IAgentServerToolHost;
-	/** Returns whether the token that launched this session is still the active account token. */
-	readonly isLaunchTokenCurrent?: () => boolean;
 	/** Overrides source-launch detection for deterministic tests. */
 	readonly enableDevelopmentErrorInjection?: boolean;
 
@@ -595,6 +608,7 @@ class CopilotTurn extends Disposable {
 	private _providerCallState: AgentTurnProviderCallState = 'notStarted';
 	private _providerTurnStarted = false;
 	private readonly _stopWatch = StopWatch.create(false);
+	private readonly _pendingToolCompletions = new Set<Promise<void>>();
 
 	/**
 	 * This turn's own Copilot cost in nano-AIU, summed from the `copilotUsage`
@@ -745,6 +759,20 @@ class CopilotTurn extends Disposable {
 
 	markCompleted(): void { this._state = 'completed'; }
 	markAborted(): void { this._state = 'aborted'; }
+
+	get hasPendingToolCompletions(): boolean { return this._pendingToolCompletions.size > 0; }
+
+	trackToolCompletion(completion: Promise<void>): void {
+		this._pendingToolCompletions.add(completion);
+		const remove = () => this._pendingToolCompletions.delete(completion);
+		void completion.then(remove, remove);
+	}
+
+	async drainToolCompletions(): Promise<void> {
+		while (this.hasPendingToolCompletions && !this._store.isDisposed) {
+			await Promise.allSettled(this._pendingToolCompletions);
+		}
+	}
 
 	/**
 	 * Rejects {@link eventId} before disposal so pending fork-boundary checks do not hang.
@@ -907,8 +935,11 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn.value !== undefined; }
+	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.usesStaticToken; }
 	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
+
+	get isDisposed(): boolean { return this._store.isDisposed; }
 
 	getTurnDiagnosticSnapshot(turnId: string): IAgentTurnDiagnosticSnapshot | undefined {
 		const currentTurn = this._currentTurn.value;
@@ -1069,7 +1100,6 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private _detectInterruptedTurnOnRestore: boolean;
-	private readonly _isLaunchTokenStillCurrent: () => boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
 	private readonly _shellManager: ShellManager | undefined;
@@ -1125,6 +1155,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _repoInfoTelemetry: AgentHostRepoInfoTelemetry;
 	private _activeRepoInfoTurn: {
 		readonly telemetryMessageId: string;
+		readonly githubToken: string | undefined;
 		cancelled: boolean;
 		begin: Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined>;
 	} | undefined;
@@ -1157,7 +1188,6 @@ export class CopilotAgentSession extends Disposable {
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
-		this._isLaunchTokenStillCurrent = options.isLaunchTokenCurrent ?? (() => true);
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, options.chatChannelUri));
@@ -2269,9 +2299,13 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Updates the GitHub credentials used by this live SDK session. */
 	async updateGitHubCredentials(host: string, token: string): Promise<GitHubCredentialsUpdateResult> {
-		return this._wrapper.session.rpc.gitHubAuth.setCredentials({
+		const result = await this._wrapper.session.rpc.gitHubAuth.setCredentials({
 			credentials: { type: 'token', host, token },
 		});
+		if (result.success) {
+			this._launchPlan.githubCredentials.updateStaticToken(token);
+		}
+		return result;
 	}
 
 	private _setPromptCacheState(promptCache: ISessionPromptCacheState | undefined): void {
@@ -2392,7 +2426,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _initialGitHubMcpToken(request: McpAuthRequest): Promise<string | undefined> {
-		const githubToken = this._launchPlan.githubToken;
+		const githubToken = this._currentGitHubToken;
 		const requestUrl = normalizeMcpServerUrl(request.serverUrl);
 		if (!githubToken || requestUrl === undefined) {
 			return undefined;
@@ -3357,18 +3391,14 @@ export class CopilotAgentSession extends Disposable {
 		await this._disposeShellInitScript();
 	}
 
-	/**
-	 * The Auto routing profile this session launched with, which the runtime fixes for the session's
-	 * lifetime. Read from the frozen plan so a later gate flip cannot change what it reports.
-	 */
-	get launchAutoTier(): AutoModeTier | undefined {
-		return this._launchPlan.kind === 'create' ? this._launchPlan.autoTier : this._launchPlan.fallback.autoTier;
-	}
-
-	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
+	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: AutoModeTier | null): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
+		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
+			reasoningEffort,
+			contextTier,
+			...(autoTier !== undefined ? { autoTier } : {}),
+		}));
 		this._lastSeenModelId = model;
-		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, { reasoningEffort, contextTier }));
 	}
 
 	/**
@@ -4718,10 +4748,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _beginRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
+	private async _beginRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, githubToken: string | undefined, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
 		let resolved: { readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined;
 		try {
-			resolved = await this._resolveRepoInfoTelemetryContext();
+			resolved = await this._resolveRepoInfoTelemetryContext(githubToken);
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to resolve repository info telemetry context: ${getErrorMessage(error)}`);
 			return undefined;
@@ -4746,8 +4776,16 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._activeRepoInfoTurn = undefined;
-		const isCurrent = () => !turn.cancelled && this._isLaunchTokenCurrent();
+		const isCurrent = () => !turn.cancelled && turn.githubToken !== undefined && this._isGitHubTokenCurrent(turn.githubToken);
 		void turn.begin.then(resolved => this._endRepoInfoTelemetry(turn.telemetryMessageId, resolved, isCurrent));
+	}
+
+	private _isGitHubTokenCurrent(token: string): boolean {
+		return this._launchPlan.githubCredentials.isCurrentToken(token);
+	}
+
+	private get _currentGitHubToken(): string | undefined {
+		return this._launchPlan.githubCredentials.token;
 	}
 
 	private _cancelActiveRepoInfoTelemetry(): void {
@@ -4760,11 +4798,10 @@ export class CopilotAgentSession extends Disposable {
 		void turn.begin.finally(() => this._repoInfoTelemetry.clearTurn(turn.telemetryMessageId));
 	}
 
-	private async _resolveRepoInfoTelemetryContext(): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
+	private async _resolveRepoInfoTelemetryContext(githubToken: string | undefined): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostDisableRepoInfoTelemetryConfigKey) === true) {
 			return undefined;
 		}
-		const githubToken = this._launchPlan.githubToken;
 		if (!githubToken) {
 			return undefined;
 		}
@@ -4776,10 +4813,6 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 		return { context: this._toRepoInfoTelemetryContext(rawContext), baseBranch };
-	}
-
-	private _isLaunchTokenCurrent(): boolean {
-		return this._launchPlan.githubToken !== undefined && this._isLaunchTokenStillCurrent();
 	}
 
 	private _toRepoInfoTelemetryContext(context: IRestrictedTelemetryContext): IAgentHostRestrictedTelemetryContext {
@@ -4809,6 +4842,8 @@ export class CopilotAgentSession extends Disposable {
 
 			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
 			if (this._turnId) {
+				// Later parent reasoning belongs after this notice; child reasoning keeps its own stream.
+				this._currentTurn.value?.reasoningPartIds.delete('');
 				this._emitAction({
 					type: ActionType.ChatResponsePart,
 					turnId: this._turnId,
@@ -5117,6 +5152,7 @@ export class CopilotAgentSession extends Disposable {
 			const contributor = this._getToolCallContributor(e.data.toolName, e.data.mcpServerName);
 			const intention = getShellIntention(e.data.toolName, parameters);
 			this._activeToolCalls.set(e.data.toolCallId, {
+				turnId: this._turnId,
 				toolName: e.data.toolName,
 				displayName,
 				parameters,
@@ -5249,7 +5285,7 @@ export class CopilotAgentSession extends Disposable {
 			}, parentToolCallId);
 		}));
 
-		this._register(wrapper.onToolComplete(async e => {
+		this._register(wrapper.onToolComplete(e => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
@@ -5338,37 +5374,55 @@ export class CopilotAgentSession extends Disposable {
 
 			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
-			for (const filePath of filePaths) {
-				try {
-					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, this._lastSeenModelId, this._currentTurn.value?.clientContext);
-					if (fileEdit) {
-						content.push(fileEdit);
-					}
-				} catch (err) {
-					this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
+			const turn = this._currentTurn.value;
+			const turnId = tracked.turnId;
+			const modelId = this._lastSeenModelId;
+			const abortToken = this._abortToken;
+			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
+			const complete = () => {
+				this._emitAction({
+					type: ActionType.ChatToolCallComplete,
+					turnId,
+					toolCallId: e.data.toolCallId,
+					result: {
+						success: e.data.success,
+						pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path)),
+						content: content.length > 0 ? content : undefined,
+						error: e.data.error,
+					},
+					_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,
+				}, parentToolCallId);
+				if (retireNonPtyShellTracking) {
+					// Preserve the result in chat state before removing its live output resource.
+					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
+			};
+			if (filePaths.length === 0) {
+				complete();
+				return;
 			}
-
-			this._emitAction({
-				type: ActionType.ChatToolCallComplete,
-				turnId: this._turnId,
-				toolCallId: e.data.toolCallId,
-				result: {
-					success: e.data.success,
-					pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path)),
-					content: content.length > 0 ? content : undefined,
-					error: e.data.error,
-				},
-				_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,
-			}, parentToolCallId);
-			if (retireNonPtyShellTracking) {
-				// Preserve the terminal result in chat state before removing its
-				// now-redundant live output resource from the host.
-				this._nonPtyShellTerminals.retire(e.data.toolCallId);
-			}
+			const completion = (async () => {
+				for (const filePath of filePaths) {
+					if (!isCurrent()) {
+						return;
+					}
+					try {
+						const fileEdit = await this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, turn?.clientContext);
+						if (fileEdit) {
+							content.push(fileEdit);
+						}
+					} catch (err) {
+						this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
+					}
+				}
+				if (isCurrent()) {
+					complete();
+				}
+			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err));
+			turn?.trackToolCompletion(completion);
 		}));
 
-		this._register(wrapper.onIdle(e => {
+		this._register(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;
@@ -5425,6 +5479,13 @@ export class CopilotAgentSession extends Disposable {
 			// turn here means the SDK went idle before emitting any event for it
 			// (a degenerate no-op send); complete it defensively so the session
 			// does not hang.
+			if (turn.hasPendingToolCompletions) {
+				const abortToken = this._abortToken;
+				await turn.drainToolCompletions();
+				if (this._store.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn) {
+					return;
+				}
+			}
 			this._completeActiveRepoInfoTelemetry();
 			this._completeActiveTurn();
 		}));
@@ -5499,6 +5560,7 @@ export class CopilotAgentSession extends Disposable {
 				agentName: e.data.agentName,
 				agentDisplayName: e.data.agentDisplayName,
 				agentDescription: e.data.agentDescription,
+				taskModelSource: readSubagentTaskModelSource(e.data),
 				// Use the spawning Task tool's short description as the subagent chat title.
 				taskDescription: tracked?.meta?.subagentDescription,
 				// Seed the subagent chat with the spawning tool's full delegated prompt.
@@ -6532,11 +6594,12 @@ export class CopilotAgentSession extends Disposable {
 				this._cancelActiveRepoInfoTelemetry();
 				const turn: NonNullable<CopilotAgentSession['_activeRepoInfoTurn']> = {
 					telemetryMessageId,
+					githubToken: this._currentGitHubToken,
 					cancelled: false,
 					begin: Promise.resolve(undefined),
 				};
-				const isCurrent = () => !turn.cancelled && this._isLaunchTokenCurrent();
-				turn.begin = this._beginRepoInfoTelemetry(telemetryMessageId, this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown, isCurrent);
+				const isCurrent = () => !turn.cancelled && turn.githubToken !== undefined && this._isGitHubTokenCurrent(turn.githubToken);
+				turn.begin = this._beginRepoInfoTelemetry(telemetryMessageId, this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown, turn.githubToken, isCurrent);
 				this._activeRepoInfoTurn = turn;
 			}
 		}));

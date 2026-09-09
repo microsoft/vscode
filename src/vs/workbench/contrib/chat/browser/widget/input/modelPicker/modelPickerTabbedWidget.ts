@@ -64,7 +64,8 @@ export interface ITabbedModelPickerContext {
 	readonly onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 	readonly onTogglePin: ((modelIdentifier: string, pinned: boolean) => void) | undefined;
 	readonly onManageModels: () => void;
-	/** Reports a configuration change made from a model's detail card. */
+	readonly onDidToggleOtherModels: (collapsed: boolean) => void;
+	/** Reports a configuration change made from the Auto row or a model's detail card. */
 	readonly onConfigurationChanged: (model: ILanguageModelChatMetadataAndIdentifier, group: string, key: string, fromValue: unknown, toValue: unknown) => void;
 	/** Warning banner shown when switching options mid-session would reset the prompt cache. */
 	readonly cacheBreakHint: { readonly text: string; readonly link: IActionListHeaderLink | undefined; readonly dismiss: () => void } | undefined;
@@ -205,6 +206,11 @@ export class TabbedModelPicker extends Disposable {
 						headerDismiss: current.cacheBreakHint?.dismiss,
 						// A tab with nothing promoted would open on an empty list, so leave it expanded.
 						collapsedByDefault: hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
+						onDidToggleSection: (section, collapsed) => {
+							if (section === OTHER_MODELS_SECTION) {
+								current.onDidToggleOtherModels(collapsed);
+							}
+						},
 						linkHandler: uri => current.onUnavailableLinkClick(uri),
 						maxWidth: PICKER_WIDTH,
 						hideDefaultKeybindingTooltip: true,
@@ -388,8 +394,9 @@ export class TabbedModelPicker extends Disposable {
 			speedVariants: this._speedVariants.get(model.identifier),
 			onSelectVariant: next => {
 				context.onSelect(next);
-				this._widget.hide();
+				this._context = { ...(this._context ?? context), selectedModelId: next.identifier };
 			},
+			onDidAccept: () => this._widget.hide(),
 			onTogglePin: context.onTogglePin
 				? pinned => {
 					context.onTogglePin?.(model.identifier, pinned);
@@ -403,10 +410,10 @@ export class TabbedModelPicker extends Disposable {
 				// Configuring a model is a choice of it: the settings only take effect on the
 				// model they belong to, so tuning one and leaving another selected would
 				// discard the change the user just made.
-				if (model.identifier !== context.selectedModelId) {
+				if (model.identifier !== (this._context ?? context).selectedModelId) {
 					context.onSelect(model);
+					this._context = { ...(this._context ?? context), selectedModelId: model.identifier };
 				}
-				this._widget.hide();
 			},
 		}))).element;
 		return {
@@ -420,7 +427,7 @@ export class TabbedModelPicker extends Disposable {
 			hideIcon: false,
 			section,
 			className: badge ? `chat-model-picker-badge-${badge.tone}` : undefined,
-			hover: autoEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true },
+			hover: autoEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true, preserveVerticalPosition: true },
 			tooltip: action.tooltip,
 		};
 	}
@@ -431,6 +438,7 @@ export class TabbedModelPicker extends Disposable {
 			configurationAccess: context.configurationAccess,
 			isEnabled: () => this._isAutoSelected(this._context ?? context),
 			onToggle: enabled => this._toggleAuto(enabled, autoModel),
+			onDidChangeConfiguration: (group, key, fromValue, toValue) => context.onConfigurationChanged(autoModel, group, key, fromValue, toValue),
 		});
 		this._autoRow.value = row;
 		container.appendChild(row.element);

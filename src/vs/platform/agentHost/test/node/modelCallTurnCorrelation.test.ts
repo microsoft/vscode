@@ -29,11 +29,16 @@ suite('ModelCallTurnCorrelation', () => {
 
 		correlation.record('model-call-1', 'turn-1');
 
+		const result = await pending;
 		assert.deepStrictEqual({
-			correlation: await pending,
+			correlation: result.turnId,
+			outcome: result.outcome,
+			measuredWait: typeof result.waitMs === 'number' && result.waitMs >= 0,
 			remaining: correlation.take('model-call-1'),
 		}, {
 			correlation: 'turn-1',
+			outcome: 'mappingWaited',
+			measuredWait: true,
 			remaining: undefined,
 		});
 	});
@@ -48,13 +53,27 @@ suite('ModelCallTurnCorrelation', () => {
 
 		assert.deepStrictEqual({
 			immediate: correlation.take('immediate-model-call'),
-			timedOut,
+			timedOut: { turnId: timedOut.turnId, outcome: timedOut.outcome, measuredWait: typeof timedOut.waitMs === 'number' },
 			late: correlation.take('timed-out-model-call'),
 		}, {
 			immediate: undefined,
-			timedOut: undefined,
+			timedOut: { turnId: undefined, outcome: 'waitExpired', measuredWait: true },
 			late: undefined,
 		});
+	});
+
+	test('distinguishes cached mappings and already-forwarded responses from waits', async () => {
+		const correlation = new ModelCallTurnCorrelation();
+		correlation.record('cached', 'turn-cached');
+		correlation.markResponseForwarded('forwarded');
+
+		assert.deepStrictEqual([
+			await correlation.wait('cached'),
+			await correlation.wait('forwarded'),
+		], [
+			{ turnId: 'turn-cached', outcome: 'mappingAvailable' },
+			{ turnId: undefined, outcome: 'responseAlreadyForwarded' },
+		]);
 	});
 
 	test('bounds unmatched correlations and forwarded-response markers', () => {

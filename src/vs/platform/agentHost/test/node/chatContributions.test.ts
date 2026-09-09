@@ -109,6 +109,7 @@ class RecordingGitStateService implements IAgentHostGitStateService {
 	constructor(private readonly _observed: string[] | undefined) { }
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
+	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
 	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
@@ -1308,6 +1309,21 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.turnEnd(turnEnd('built-in-order'));
 
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
+	});
+
+	test('reconciles GitHub references after every started turn outcome', () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+
+		contributions.service.turnEnd(turnEnd('success'));
+		contributions.service.turnEnd(turnEnd('cancelled', { kind: 'cancelled' }));
+		contributions.service.turnEnd(turnEnd('error', {
+			kind: 'error',
+			error: { errorType: 'requestFailed', message: 'failed' },
+			resumable: false,
+		}));
+
+		assert.strictEqual(observed.filter(entry => entry === 'githubReferences').length, 3);
 	});
 
 	test('resumable errors defer checkpoint capture until the logical turn ends', () => {

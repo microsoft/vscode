@@ -143,6 +143,8 @@ export class SessionTypePicker extends Disposable {
 	/** Folder that drives the available session types when set via {@link setFolderSource}; `undefined` keeps session-driven behavior. */
 	private _folderSource: IObservable<URI | undefined> | undefined;
 	private readonly _folderSourceWatch = this._register(new MutableDisposable());
+	private _sessionWorkspaceFolderSource: IObservable<URI | undefined> | undefined;
+	private readonly _sessionWorkspaceFolderSourceWatch = this._register(new MutableDisposable());
 	private _quickChatSource: IObservable<boolean> | undefined;
 	private readonly _quickChatSourceWatch = this._register(new MutableDisposable());
 	private _pendingInitialPick: IPreferredSessionType | undefined;
@@ -224,6 +226,10 @@ export class SessionTypePicker extends Disposable {
 			const folderUri = this._folderSource.get();
 			return folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
 		}
+		const selectedFolderUri = this._sessionWorkspaceFolderSource?.get();
+		if (selectedFolderUri) {
+			return this.sessionsManagementService.getSessionTypesForFolder(selectedFolderUri);
+		}
 		const session = this._session.get();
 		return session ? this._sessionTypesForSession(session) : [];
 	}
@@ -301,6 +307,15 @@ export class SessionTypePicker extends Disposable {
 			if (!isEqual(folder, initialFolder)) {
 				this._pendingInitialPick = undefined;
 			}
+			this._recompute();
+		});
+	}
+
+	/** Source session-type availability from the selected workspace while displaying the active draft's type. */
+	setSessionWorkspaceFolderSource(source: IObservable<URI | undefined>): void {
+		this._sessionWorkspaceFolderSource = source;
+		this._sessionWorkspaceFolderSourceWatch.value = autorun(reader => {
+			source.read(reader);
 			this._recompute();
 		});
 	}

@@ -6,6 +6,8 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { assert } from '../../../../../base/common/assert.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -20,6 +22,9 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -704,6 +709,7 @@ interface IRenderEditorOptions {
 	readonly activeSessionMcpServers?: readonly FixtureAgentHostMcpServer[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
+	readonly enableHovers?: boolean;
 	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
@@ -792,6 +798,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			});
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
+			if (options.enableHovers) {
+				reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+					override getContainer() { return ctx.container; }
+				}());
+				reg.define(IHoverService, class extends HoverService {
+					override setupManagedHover(...[, targetElement, content, hoverOptions]: Parameters<IHoverService['setupManagedHover']>) {
+						return super.setupManagedHover({
+							delay: 0,
+							placement: 'element',
+							showHover: options => this.showInstantHover({ ...options, container: ctx.container }),
+						}, targetElement, content, hoverOptions);
+					}
+				});
+			}
 			// Enable the structured customization preview setting so the
 			// editor exercises the preview-first behavior in fixtures.
 			// Also enable customization migration so migration affordances render in
@@ -1446,6 +1466,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 	ctx.container.appendChild(widget.element);
 	widget.layout(height, width);
 
+	widget.setVisible(true);
 	if (browse) {
 		widget.showBrowseMarketplace();
 	}
@@ -1729,6 +1750,60 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 const localSessionResource = LocalChatSessionUri.getNewSessionUri();
 const agentHostCopilotSessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/fixture-session' });
 
+async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureContext, isSessionsWindow: boolean): Promise<void> {
+	const skill: IFixtureFile = {
+		uri: URI.file('/workspace/.codex/skills/dreaming/SKILL.md'),
+		storage: PromptsStorage.local,
+		type: PromptsType.skill,
+		name: 'dreaming',
+	};
+	await renderEditor(ctx, {
+		sessionResource: URI.from({ scheme: 'agent-host-codex', path: '/fixture-session' }),
+		isSessionsWindow,
+		selectedSection: AICustomizationManagementSection.Skills,
+		files: [skill],
+		enableHovers: true,
+		availableHarnesses: [
+			createVSCodeHarnessDescriptor(),
+			{
+				id: 'agent-host-codex',
+				label: 'Codex',
+				icon: Codicon.openai,
+				hiddenSections: [AICustomizationManagementSection.Prompts],
+				hideGenerateButton: true,
+				itemProvider: {
+					onDidChange: Event.None,
+					async provideChatSessionCustomizations() {
+						return [{
+							uri: skill.uri,
+							type: PromptsType.skill,
+							name: 'dreaming',
+							source: PromptsStorage.local,
+							extensionId: undefined,
+							pluginUri: undefined,
+							enabled: false,
+							status: 'error',
+							statusMessage: 'missing field `description`',
+						}];
+					},
+				},
+			},
+		],
+	});
+	await timeout(50);
+
+	const row = ctx.container.querySelector<HTMLElement>('.ai-customization-list-item');
+	assert(row?.querySelector('.item-name')?.textContent === 'dreaming' && row.classList.contains('disabled'), 'The invalid Codex skill must remain visible and disabled.');
+	assert(row.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
+	const statusIcon = row.querySelector<HTMLElement>('.item-status-icon');
+	assert(statusIcon !== null && statusIcon.classList.contains('codicon-error'), 'The invalid Codex skill must show an error status icon.');
+	statusIcon.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+	await timeout(50);
+
+	const hover = ctx.container.querySelector<HTMLElement>('.monaco-hover');
+	assert(hover !== null && hover.textContent?.includes('missing field `description`') === true && hover.getBoundingClientRect().height > 0, 'Hovering the error icon must show the missing-description diagnostic.');
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 
@@ -1814,6 +1889,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with no Featured section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -1896,6 +1972,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Skills,
 		}),
+	}),
+
+	CodexSkillMissingDescriptionHover: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The editor-window Customizations Skills view shows one disabled dreaming skill under Workspace. An error icon appears beside the skill name, and its visible hover reads "missing field `description`".'],
+		render: ctx => renderCodexSkillMissingDescriptionHover(ctx, false),
+	}),
+
+	SessionsCodexSkillMissingDescriptionHover: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Agents-window Customizations Skills view shows one disabled dreaming skill under Workspace. An error icon appears beside the skill name, and its visible hover reads "missing field `description`".'],
+		render: ctx => renderCodexSkillMissingDescriptionHover(ctx, true),
 	}),
 
 	RemoteSkillsTab: defineComponentFixture({
@@ -2088,6 +2176,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -2121,6 +2210,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginCatalogHome: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
 		render: renderPluginHomeMode,
 	}),
 

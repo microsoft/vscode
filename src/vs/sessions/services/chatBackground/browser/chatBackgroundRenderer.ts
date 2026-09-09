@@ -49,6 +49,18 @@ const codiconChoices = [
 	Codicon.tools,
 	Codicon.wand,
 	Codicon.zap,
+	Codicon.agent,
+	Codicon.robot,
+	Codicon.bug,
+	Codicon.circuitBoard,
+	Codicon.telescope,
+	Codicon.compass,
+	Codicon.layers,
+	Codicon.package,
+	Codicon.server,
+	Codicon.graphLine,
+	Codicon.searchFuzzy,
+	Codicon.squirrel,
 ];
 
 function hashCodiconCell(row: number, column: number, salt: number): number {
