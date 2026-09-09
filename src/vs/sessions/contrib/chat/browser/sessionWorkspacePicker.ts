@@ -1429,14 +1429,26 @@ export class WorkspacePicker extends Disposable {
 				.filter(repositoryId => repositoryId !== undefined))
 			: undefined;
 
-		// Build flat list in recency order (no source grouping)
-		for (const { workspace, providerId } of recentWorkspaces) {
+		const recentWorkspaceEntries = recentWorkspaces
+			.map(resolved => ({
+				...resolved,
+				repositoryId: this._getRepositoryIdForResolvedWorkspace(resolved),
+			}))
+			.filter(({ workspace, repositoryId }) =>
+				workspace.group !== SESSION_WORKSPACE_GROUP_GITHUB
+				|| !repositoryId
+				|| !localRepositoryIds?.has(repositoryId));
+		const orderedRecentWorkspaceEntries = this._useConsolidatedRemoteWorkspaces()
+			? [
+				...recentWorkspaceEntries.filter(({ workspace }) => !ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
+				...recentWorkspaceEntries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
+			]
+			: recentWorkspaceEntries;
+
+		let previousRecentWorkspaceIsRepository: boolean | undefined;
+		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
-				continue;
-			}
-			const repositoryId = this._getRepositoryIdForResolvedWorkspace({ workspace, providerId });
-			if (workspace.group === SESSION_WORKSPACE_GROUP_GITHUB && repositoryId && localRepositoryIds?.has(repositoryId)) {
 				continue;
 			}
 			const icon = this._getWorkspaceIcon(workspace);
@@ -1460,6 +1472,11 @@ export class WorkspacePicker extends Disposable {
 				remoteSubmenuActions.push(submenuAction);
 				continue;
 			}
+			const recentWorkspaceIsRepository = ThemeIcon.isEqual(icon, Codicon.repo);
+			if (previousRecentWorkspaceIsRepository !== undefined && previousRecentWorkspaceIsRepository !== recentWorkspaceIsRepository) {
+				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			previousRecentWorkspaceIsRepository = recentWorkspaceIsRepository;
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: workspace.label,
@@ -1507,7 +1524,7 @@ export class WorkspacePicker extends Disposable {
 			const actionLabel = action === this._localBrowseAction
 				&& this._useConsolidatedRemoteWorkspaces()
 				&& this._directPickerAttachesContext !== true
-				? localize('workspacePicker.openFolder', "Open Folder")
+				? localize('workspacePicker.chooseFolder', "Choose Folder")
 				: this._useConsolidatedRemoteWorkspaces()
 					? action.label.replace(/(?:\.\.\.|…)$/, '')
 					: action.label;

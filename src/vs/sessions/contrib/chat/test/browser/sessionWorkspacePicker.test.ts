@@ -3504,7 +3504,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}, {
 			usesTabs: false,
 			tabs: [SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE],
-			items: ['Open Folder', 'Repository', 'Remote'],
+			items: ['Choose Folder', 'Repository', 'Remote'],
 			itemIcons: ['folder', 'folder', 'remote'],
 			showsFilter: true,
 			focusesFilter: true,
@@ -3663,7 +3663,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			items: picker.getItemLabels(),
 			selectedActions,
 		}, {
-			items: ['Sign in to GitHub', 'Open Folder', 'Remote'],
+			items: ['Sign in to GitHub', 'Choose Folder', 'Remote'],
 			selectedActions: ['remote'],
 		});
 	});
@@ -3675,7 +3675,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		]);
 		const picker = createTestablePicker(disposables, providersService, false, {}, undefined, undefined, true);
 
-		assert.deepStrictEqual(picker.getItemLabels(), ['Open Folder']);
+		assert.deepStrictEqual(picker.getItemLabels(), ['Choose Folder']);
 	});
 
 	test('does not offer Attach Folder in the consolidated execution workspace picker', () => {
@@ -3687,7 +3687,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 
 		picker.selectWorkspaceActions();
 
-		assert.deepStrictEqual(picker.getItemLabels(), ['Open Folder']);
+		assert.deepStrictEqual(picker.getItemLabels(), ['Choose Folder']);
 	});
 
 	test('selects Start from Scratch through the consolidated picker', async () => {
@@ -3785,6 +3785,52 @@ suite('WorkspacePicker - Tab discovery', () => {
 			afterWorkspaceSelection: false,
 			selectedFolder: '/local/project',
 		});
+	});
+
+	test('groups recent repositories below recent folders', () => {
+		const storage = disposables.add(new TestStorageService());
+		const folderUri = URI.file('/local/folder');
+		const localRepositoryUri = URI.file('/local/repository');
+		const repositoryUri = URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/microsoft/vscode/HEAD`);
+		seedStorage(storage, [
+			{ uri: repositoryUri, providerId: 'github', checked: false },
+			{ uri: folderUri, providerId: 'github', checked: false },
+			{ uri: localRepositoryUri, providerId: 'github', checked: false },
+		]);
+		const provider = createMockProvider('github');
+		providersService.setProviders([{
+			...provider,
+			resolveWorkspace: uri => {
+				const workspace = provider.resolveWorkspace(uri);
+				return workspace ? {
+					...workspace,
+					group: uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: uri.toString() === localRepositoryUri.toString()
+							? {
+								uri,
+								workTreeUri: uri,
+								baseBranchName: 'main',
+								gitHubInfo: constObservable({ owner: 'microsoft', repo: 'local-repository' }),
+							}
+							: undefined,
+					})),
+				} : undefined;
+			},
+		}]);
+		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, storage, true);
+
+		const recents = picker.getItems()
+			.filter(item => item.kind === ActionListItemKind.Separator || item.item?.folderUri)
+			.map(item => ({ kind: item.kind, label: item.label }));
+
+		assert.deepStrictEqual(recents, [
+			{ kind: ActionListItemKind.Action, label: 'local/folder' },
+			{ kind: ActionListItemKind.Action, label: 'local/repository' },
+			{ kind: ActionListItemKind.Separator, label: '' },
+			{ kind: ActionListItemKind.Action, label: 'microsoft/vscode/HEAD' },
+		]);
 	});
 
 	test('keeps GitHub context actions separate when groups are combined', () => {
@@ -3902,7 +3948,6 @@ suite('WorkspacePicker - Tab discovery', () => {
 						return { ...provider.resolveWorkspace(URI.file('/github/local'))!, group: SESSION_WORKSPACE_GROUP_LOCAL };
 					},
 				},
-				{ ...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Clone Repository...'), attachesContext: false },
 				{
 					...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Repository...'),
 					attachesContext: false,
@@ -3926,7 +3971,6 @@ suite('WorkspacePicker - Tab discovery', () => {
 		assert.deepStrictEqual({ items, actionRuns }, {
 			items: [
 				'Add GitHub Repository',
-				'Clone Repository',
 				'Repository',
 				'Attach Repository',
 			],
