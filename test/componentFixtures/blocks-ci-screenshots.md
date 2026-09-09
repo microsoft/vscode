@@ -318,6 +318,18 @@
 #### sessions/chat/newWidget/newChatWidget/NewSessionWorkspacePicker/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/980fa555083b7c0fdaed41b0d1ec2e0d8bb805578280a8932006e8b95cfa7ded)
 
+#### sessions/chat/view/chatView/AssistantResponseBackground/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8b97009bea4df7c4c7254a3bf73c0da96e8d60f32b5e4f9785eb7fe474835e57)
+
+#### sessions/chat/view/chatView/AssistantResponseBackground/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/46ba46511bc6dbb5013493406d07adfba4ac4fcac3d3c18133864f0177495412)
+
+#### sessions/chat/view/chatView/AssistantResponsePlain/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/5eb7b4e06f315e6df2a4332e2a36d40f920d1bd6cc7af344ea812c0b6ffb841f)
+
+#### sessions/chat/view/chatView/AssistantResponsePlain/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e87028098c1d79be990b4acc88b3564bd516562e293737ebb9dfd191dea8c2d1)
+
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Accent/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/75cb51ad8b1f6ecb8c3891c2ee1d260a45d293c502bef1c33ce0df915c543aa0)
 
