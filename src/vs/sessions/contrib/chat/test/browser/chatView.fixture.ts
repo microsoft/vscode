@@ -9,8 +9,13 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
+import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../../workbench/browser/chatPills.js';
+import { systemNotificationToChatPart } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
@@ -57,11 +62,11 @@ const assistantResponse = [
 	'The wallpaper remains visible around the response.',
 ].join('\n');
 
-async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
+async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions): Promise<void> {
 	const { container, disposableStore } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
 	container.style.width = `${fixtureWidth}px`;
-	container.style.height = `${fixtureHeight}px`;
+	container.style.height = `${options.height ?? fixtureHeight}px`;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 
 	const part = withBackground
@@ -83,6 +88,17 @@ async function renderAssistantResponse(context: ComponentFixtureContext, withBac
 		hostLayoutMode: 'listOnly',
 		persistentContentHeight: CHAT_INPUT_PILLS_ROW_HEIGHT,
 		responseFooterAction: true,
+		...options,
+	});
+
+	chatView.style.backgroundColor = 'transparent';
+	const auxiliaryBar = chatView.querySelector<HTMLElement>('.part.auxiliarybar');
+	auxiliaryBar?.classList.remove('auxiliarybar');
+}
+
+async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
+	const { disposableStore } = context;
+	await renderChatView(context, withBackground, {
 		messages: [{
 			user: 'Show how assistant responses read over a custom background.',
 			assistant: [{ kind: 'markdown', text: assistantResponse }],
@@ -106,13 +122,62 @@ async function renderAssistantResponse(context: ComponentFixtureContext, withBac
 			row.observe(pills.element);
 		},
 	});
+}
 
-	chatView.style.backgroundColor = 'transparent';
-	const auxiliaryBar = chatView.querySelector<HTMLElement>('.part.auxiliarybar');
-	auxiliaryBar?.classList.remove('auxiliarybar');
+async function renderAgentMergeBackground(context: ComponentFixtureContext): Promise<void> {
+	const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/333964';
+	const branchName = 'agent-merge-background';
+	const notification = systemNotificationToChatPart(
+		agentMergeEnabledNotice({ branchName, pullRequestUrl }, defaultAgentMergeConfiguration),
+		'fixture',
+		toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.AgentMergeEnabled }),
+	);
+	if (notification?.kind !== 'systemNotification') {
+		throw new Error('Expected an Agent Merge enablement notification');
+	}
+
+	await renderChatView(context, true, {
+		height: 520,
+		listHeight: 500,
+		inputVisible: false,
+		messages: [
+			{
+				user: 'Enable Agent Merge for this pull request.',
+				assistant: [{ kind: 'markdown', text: 'I will monitor the checks.' }],
+			},
+			{
+				user: 'Agent Merge enabled',
+				requestHidden: true,
+				assistant: [{ kind: 'systemNotification', notification }],
+			},
+			{
+				user: buildAgentMergePrompt(['fixCI'], {
+					pullRequestUrl,
+					title: 'Keep Agent Merge messages opaque',
+					headSha: '9665aca22f3e3147ee87449bf3cb0592a7345847',
+					headRef: branchName,
+					baseRef: 'main',
+					reviewThreads: [],
+					reviewSummaries: [],
+					newComments: [],
+					failedChecks: ['Linux Unit Tests'],
+					behind: false,
+					conflicting: false,
+					commentWatermark: '2026-09-09T10:00:00.000Z',
+				}),
+				isSystemInitiated: true,
+				assistant: [{ kind: 'markdown', text: 'Fixed the failing test.' }],
+			},
+		],
+	});
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
+	AgentMergeBackground: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A compact conversation on the built-in Codicons wallpaper shows an opaque user message, a short assistant reply, the Agent Merge enablement notice, an opaque Agent Merge request card, and a short final reply. All messages are visible together without scrolling, and the wallpaper remains visible around their surfaces.'],
+		render: renderAgentMergeBackground,
+	}),
 	AssistantResponseBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The Agents chat shows a tinted user request above a distinct neutral assistant bubble on a Codicons wallpaper. The assistant heading, Markdown table, code editor, response footer, and persistent status controls are contained and aligned; the wallpaper remains visible around the response and behind the transparent status-row parent.'],
