@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext } from '../../common/diffEditorOptionsService.js';
+import { SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext } from '../../common/diffEditorOptionsService.js';
 import { DiffEditorOptionsService } from '../../browser/diffEditorOptionsService.js';
 
 suite('DiffEditorOptionsService', () => {
@@ -19,6 +19,7 @@ suite('DiffEditorOptionsService', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const configurationService = new TestConfigurationService({
+			[SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING]: 'inherit',
 			[SESSIONS_EDITOR_WORD_WRAP_SETTING]: 'inherit',
 		});
 		const service = disposables.add(new DiffEditorOptionsService(storageService, contextKeyService, configurationService));
@@ -26,7 +27,8 @@ suite('DiffEditorOptionsService', () => {
 		const initial = {
 			viewMode: service.viewMode.get(),
 			renderSideBySide: service.renderSideBySide.get(),
-			wordWrap: service.wordWrap.get(),
+			diffEditorWordWrap: service.diffEditorWordWrap.get(),
+			editorWordWrap: service.editorWordWrap.get(),
 			contextValue: contextKeyService.getContextKeyValue(SessionsDiffViewModeContext.key),
 			storedValue: storageService.get('sessions.diffEditor.viewMode', StorageScope.PROFILE),
 		};
@@ -42,7 +44,8 @@ suite('DiffEditorOptionsService', () => {
 			initial: {
 				viewMode: 'automatic',
 				renderSideBySide: true,
-				wordWrap: 'inherit',
+				diffEditorWordWrap: 'inherit',
+				editorWordWrap: 'inherit',
 				contextValue: 'automatic',
 				storedValue: undefined,
 			},
@@ -73,7 +76,7 @@ suite('DiffEditorOptionsService', () => {
 		});
 	});
 
-	test('uses and updates the experiment-controlled word wrap setting', async () => {
+	test('uses and updates independent experiment-controlled word wrap settings', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const contextKeyService = disposables.add(new MockContextKeyService());
 		const updates: Array<{ key: string; value: unknown }> = [];
@@ -83,21 +86,31 @@ suite('DiffEditorOptionsService', () => {
 				return Promise.resolve();
 			}
 		}({
+			[SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING]: 'off',
 			[SESSIONS_EDITOR_WORD_WRAP_SETTING]: 'on',
 		});
 		const service = disposables.add(new DiffEditorOptionsService(storageService, contextKeyService, configurationService));
 
-		await service.setWordWrap('off');
+		await service.setEditorWordWrap('off');
+		await service.setDiffEditorWordWrap('on');
 
 		assert.deepStrictEqual({
-			wordWrap: service.wordWrap.get(),
+			editorWordWrap: service.editorWordWrap.get(),
+			diffEditorWordWrap: service.diffEditorWordWrap.get(),
 			updates,
 		}, {
-			wordWrap: 'on',
-			updates: [{
-				key: SESSIONS_EDITOR_WORD_WRAP_SETTING,
-				value: 'off',
-			}],
+			editorWordWrap: 'on',
+			diffEditorWordWrap: 'off',
+			updates: [
+				{
+					key: SESSIONS_EDITOR_WORD_WRAP_SETTING,
+					value: 'off',
+				},
+				{
+					key: SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING,
+					value: 'on',
+				},
+			],
 		});
 	});
 });
