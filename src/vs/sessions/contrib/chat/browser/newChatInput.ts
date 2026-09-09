@@ -507,6 +507,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			minEditorHeight?: number;
 			placeholder?: string;
 			renderSendButton?: boolean;
+			renderRepositoryControls?: boolean;
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			deferredNotificationsEnabled?: IObservable<boolean>;
@@ -771,9 +772,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register({ dispose: () => sessionControlsContainer.remove() });
 
 		const repoConfigContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-repo-config-container'));
-		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-		}));
+		if (this.options.renderRepositoryControls !== false) {
+			const session = this.options.session;
+			this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				menuOptions: {
+					// Capture the originating session before command activation can yield.
+					get arg() { return { session: session.get() }; },
+				},
+			}));
+		}
 
 		// On phone, the chip lane is horizontally scrollable when its
 		// content overflows the viewport. Native touch scroll is blocked

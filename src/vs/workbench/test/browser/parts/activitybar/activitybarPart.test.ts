@@ -457,9 +457,16 @@ suite('ActivitybarPart', () => {
 		});
 		const el = document.createElement('div');
 		fixture.appendChild(el);
+		hostService.setActiveWindow(mainWindow.vscodeWindowId);
 		part.create(el);
 
 		const activeModernBackground = el.style.backgroundColor;
+		hostService.setActiveWindow(mainWindow.vscodeWindowId + 1);
+		const inactiveAuxiliaryModernBackground = el.style.backgroundColor;
+		hostService.setFocus(false);
+		hostService.setFocus(true);
+		const refocusedAuxiliaryModernBackground = el.style.backgroundColor;
+		hostService.setActiveWindow(mainWindow.vscodeWindowId);
 		hostService.setFocus(false);
 		const inactiveModernBackground = el.style.backgroundColor;
 		configService.setUserConfiguration(LayoutSettings.MODERN_UI, false);
@@ -467,10 +474,14 @@ suite('ActivitybarPart', () => {
 
 		assert.deepStrictEqual({
 			activeModernBackground,
+			inactiveAuxiliaryModernBackground,
+			refocusedAuxiliaryModernBackground,
 			inactiveModernBackground,
 			inactiveClassicBackground: el.style.backgroundColor,
 		}, {
 			activeModernBackground: 'rgb(171, 205, 239)',
+			inactiveAuxiliaryModernBackground: 'rgb(101, 67, 33)',
+			refocusedAuxiliaryModernBackground: 'rgb(101, 67, 33)',
 			inactiveModernBackground: 'rgb(101, 67, 33)',
 			inactiveClassicBackground: 'rgb(18, 52, 86)',
 		});

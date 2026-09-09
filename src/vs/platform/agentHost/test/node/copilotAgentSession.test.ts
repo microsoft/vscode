@@ -121,6 +121,7 @@ class MockCopilotSession {
 	abortCalls = 0;
 	abortGate: Promise<void> | undefined;
 	modelGate: Promise<void> | undefined;
+	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
 	agentSelectGate: Promise<void> | undefined;
 	agentDeselectGate: Promise<void> | undefined;
 	readonly compactCalls: unknown[] = [];
@@ -281,7 +282,10 @@ class MockCopilotSession {
 		this.abortCalls++;
 		await this.abortGate;
 	}
-	async setModel() { await this.modelGate; }
+	async setModel(...args: Parameters<CopilotSession['setModel']>) {
+		this.setModelCalls.push(args);
+		await this.modelGate;
+	}
 	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
 	async disconnect() {
 		this.disconnectCalls++;
@@ -1224,6 +1228,22 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('forwards Auto routing preferences and explicit resets with the model configuration', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.setModel('auto', 'high', 'long_context', 'intelligence');
+		await session.setModel('auto', undefined, undefined, null);
+		await session.setModel('gpt-5', 'low', 'default');
+		await session.setModel('auto');
+
+		assert.deepStrictEqual(mockSession.setModelCalls, [
+			['auto', { reasoningEffort: 'high', contextTier: 'long_context', autoTier: 'intelligence' }],
+			['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: null }],
+			['gpt-5', { reasoningEffort: 'low', contextTier: 'default' }],
+			['auto', { reasoningEffort: undefined, contextTier: undefined }],
+		]);
+	});
+
 	test('times out non-settling SDK control-plane RPCs', async () => {
 		const neverSettles = new Promise<void>(() => { });
 		const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 1 });
@@ -1636,10 +1656,10 @@ suite('CopilotAgentSession', () => {
 			included: [false, false],
 			calls: [{
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: true, processLogs: true, shellLogs: true },
+				include: { events: true, processLogs: true, previousProcessLogLimit: 1, shellLogs: true },
 			}, {
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: false, processLogs: true, shellLogs: false },
+				include: { events: false, processLogs: true, previousProcessLogLimit: 1, shellLogs: false },
 			}],
 		});
 	});
@@ -3881,6 +3901,26 @@ suite('CopilotAgentSession', () => {
 			// ...while the subagent's own component carries the routing.
 			{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
 		]);
+	});
+
+	test('forwards only known subagent task model sources on the started signal', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		for (const [index, taskModelSource] of ['task_argument', 'subagent_configuration', 'custom_agent_definition', 'unset', 'user', undefined].entries()) {
+			mockSession.fire('subagent.started', {
+				toolCallId: `tc-subagent-${index}`,
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+				taskModelSource,
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: `agent-${index}` });
+		}
+
+		assert.deepStrictEqual(
+			signals.flatMap(signal => signal.kind === 'subagent_started' ? [signal.taskModelSource] : []),
+			['task_argument', 'subagent_configuration', 'custom_agent_definition', 'unset', undefined, undefined],
+		);
 	});
 
 	test('keeps a subagent Auto resolution when the root turn moves on beneath it', async () => {
@@ -6786,6 +6826,36 @@ Use the attached image as context.
 			});
 		});
 
+		test('traces dropped in-flight tool completions after cancellation without reporting an error', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'late-tool',
+				toolName: 'bash',
+				arguments: { command: 'echo late' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			await session.abort();
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'late-tool',
+				success: true,
+				result: { content: 'late result' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const lateCompletionPattern = /tool\.execution_complete emitted after cancellation/i;
+			assert.deepStrictEqual({
+				actions: getActions(signals).map(action => action.type),
+				errorCount: logService.errors.filter(error => lateCompletionPattern.test(String(error.first))).length,
+				traceCount: logService.traces.filter(trace => lateCompletionPattern.test(trace.message)).length,
+			}, {
+				actions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady],
+				errorCount: 0,
+				traceCount: 1,
+			});
+		});
+
 		test('inline commands complete while cancelled provider events remain quarantined', async () => {
 			const logService = new CapturingLogService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
@@ -8262,6 +8332,160 @@ Use the attached image as context.
 			await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
 
 			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
+		});
+
+		suite('asynchronous edit completion', () => {
+			async function startEdits(count = 1) {
+				const sessionDatabase = new TestSessionDatabase();
+				const writes = Array.from({ length: count }, () => ({
+					started: new DeferredPromise<void>(),
+					release: new DeferredPromise<void>(),
+				}));
+				sessionDatabase.storeFileEdit = async edit => {
+					const write = writes[Number(edit.toolCallId)];
+					await write.started.complete();
+					await write.release.p;
+					sessionDatabase.addEdit(edit);
+				};
+				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+				const result = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime });
+				result.session.resetTurnState('turn-edit');
+				result.mockSession.fire('user.message', { content: 'Edit the files' });
+				for (let index = 0; index < count; index++) {
+					const toolCallId = String(index);
+					const hook = {
+						sessionId: 'test-session-1',
+						timestamp: new Date(0),
+						workingDirectory: '/repo',
+						toolName: 'edit',
+						toolArgs: { path: `/repo/file-${index}.txt`, old_str: 'before', new_str: 'after' },
+					};
+					await capturedRuntime.current!.handlePreToolUse(hook);
+					await capturedRuntime.current!.handlePostToolUse({
+						...hook,
+						toolResult: { textResultForLlm: '', resultType: 'success' },
+					});
+					result.mockSession.fire('tool.execution_start', {
+						toolCallId,
+						toolName: hook.toolName,
+						arguments: hook.toolArgs,
+					});
+					result.mockSession.fire('tool.execution_complete', { toolCallId, success: true });
+					await writes[index].started.p;
+				}
+				return { ...result, sessionDatabase, writes };
+			}
+
+			test('idle drains every pending edit before completing the original turn', async () => {
+				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startEdits(2);
+				mockSession.fire('session.idle', {});
+				assert.deepStrictEqual({
+					turnId: session.currentTurnId,
+					completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
+				}, { turnId: 'turn-edit', completions: [] });
+
+				await writes[1].release.complete();
+				await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+				assert.strictEqual(session.currentTurnId, 'turn-edit', 'The other pending edit must still keep the turn open');
+
+				await writes[0].release.complete();
+				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+				mockSession.fire('session.idle', {});
+				assert.deepStrictEqual({
+					completions: getActions(signals)
+						.filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
+						.map(action => ({ type: action.type, turnId: action.turnId, ...(action.type === ActionType.ChatToolCallComplete ? { toolCallId: action.toolCallId } : {}) })),
+					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => ({ turnId: edit.turnId, toolCallId: edit.toolCallId })),
+					activeTurn: session.currentTurnId,
+				}, {
+					completions: [
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '1' },
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '0' },
+						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
+					],
+					persisted: [{ turnId: 'turn-edit', toolCallId: '1' }, { turnId: 'turn-edit', toolCallId: '0' }],
+					activeTurn: undefined,
+				});
+			});
+
+			test('failed edit persistence still lets the tool and turn complete', async () => {
+				const { mockSession, signals, waitForSignal, writes } = await startEdits();
+				mockSession.fire('session.idle', {});
+				await writes[0].release.error(new Error('Persistence failed'));
+				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+				assert.deepStrictEqual(
+					getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
+						.map(action => ({ type: action.type, turnId: action.turnId })),
+					[
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit' },
+						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
+					],
+				);
+			});
+
+			for (const ending of ['abort', 'error', 'dispose', 'replace'] as const) {
+				test(`${ending} does not wait for edit persistence or complete a replacement turn`, async () => {
+					const { session, mockSession, signals, writes } = await startEdits();
+					mockSession.fire('session.idle', {});
+					switch (ending) {
+						case 'abort':
+							await session.abort();
+							mockSession.fire('session.idle', { aborted: true });
+							break;
+						case 'error':
+							mockSession.fire('session.error', { errorType: 'test', message: 'Failed' });
+							break;
+						case 'dispose':
+							session.dispose();
+							break;
+						case 'replace':
+							session.discardActiveTurn();
+							break;
+					}
+					assert.strictEqual(session.hasActiveTurn, false, 'Ending the turn must not wait for edit persistence');
+					if (ending !== 'dispose') {
+						session.resetTurnState('replacement');
+					}
+					await writes[0].release.complete();
+					await timeout(0);
+					assert.deepStrictEqual({
+						completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
+						activeTurn: session.currentTurnId,
+					}, {
+						completions: [],
+						activeTurn: ending === 'dispose' ? undefined : 'replacement',
+					});
+				});
+			}
+		});
+
+		test('tool_complete preserves its turn ID when edit persistence finishes after idle', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const releaseEdit = new DeferredPromise<void>();
+			sessionInternals._editTracker.takeCompletedEdit = async () => {
+				await releaseEdit.p;
+				return undefined;
+			};
+			session.resetTurnState('turn-edit');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-edit',
+				toolName: 'edit',
+				arguments: { path: '/tmp/file.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-edit',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+			releaseEdit.complete();
+
+			const completion = await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
+			assert.strictEqual(
+				isAction(completion, ActionType.ChatToolCallComplete) ? (completion.action as ChatToolCallCompleteAction).turnId : undefined,
+				'turn-edit',
+			);
 		});
 
 		test('hidden tools are not emitted as tool_start', async () => {
