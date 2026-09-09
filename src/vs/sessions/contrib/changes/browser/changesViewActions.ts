@@ -26,6 +26,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
 import { EDITOR_WORD_WRAP, readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
+import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -152,15 +153,21 @@ const agentsMultiDiffEditorActive = ContextKeyExpr.and(
 	ActiveEditorContext.isEqualTo(MultiDiffEditor.ID)
 );
 
+const agentsTextEditorActive = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+);
+
 const agentsDiffEditorActive = ContextKeyExpr.or(
 	agentsChangesEditorActive,
 	agentsTextDiffEditorActive,
 	agentsMultiDiffEditorActive
 );
 
-const agentsMultiDiffEditorsActive = ContextKeyExpr.or(
+const agentsWordWrapEditorsActive = ContextKeyExpr.or(
 	agentsChangesEditorActive,
-	agentsMultiDiffEditorActive
+	agentsMultiDiffEditorActive,
+	agentsTextEditorActive
 );
 
 const singlePaneChangesEditorActive = ContextKeyExpr.and(agentsChangesEditorActive, SinglePaneLayoutEnabledContext);
@@ -208,6 +215,13 @@ const singlePaneMultiDiffEditorTitle = ContextKeyExpr.and(
 	IsTopRightEditorGroupContext
 );
 
+const singlePaneTextEditorTitle = ContextKeyExpr.and(
+	agentsTextEditorActive,
+	SinglePaneLayoutEnabledContext,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext
+);
+
 const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
 	ContextKeyExpr.or(
 		singlePaneChangesEditorTitle,
@@ -217,32 +231,33 @@ const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
 	MainEditorAreaVisibleContext
 );
 
-const singlePaneMultiDiffEditorTitleVisible = ContextKeyExpr.and(
+const singlePaneWordWrapEditorTitleVisible = ContextKeyExpr.and(
 	ContextKeyExpr.or(
 		singlePaneChangesEditorTitle,
 		singlePaneMultiDiffEditorTitle,
+		singlePaneTextEditorTitle,
 	),
 	MainEditorAreaVisibleContext
 );
 
-class ToggleSessionsDiffWordWrapAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.toggleDiffWordWrap';
+class ToggleSessionsEditorWordWrapAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.toggleEditorWordWrap';
 
 	constructor() {
 		super({
-			id: ToggleSessionsDiffWordWrapAction.ID,
-			title: localize2('agentSessions.diffWordWrap', "Word Wrap"),
+			id: ToggleSessionsEditorWordWrapAction.ID,
+			title: localize2('agentSessions.editorWordWrap', "Word Wrap"),
 			f1: false,
 			menu: [{
 				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: singlePaneMultiDiffEditorTitleVisible,
+				when: singlePaneWordWrapEditorTitleVisible,
 			}, {
 				id: MenuId.EditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: ContextKeyExpr.and(agentsMultiDiffEditorsActive, SinglePaneLayoutEnabledContext.negate()),
+				when: ContextKeyExpr.and(agentsWordWrapEditorsActive, SinglePaneLayoutEnabledContext.negate()),
 			}],
 			toggled: ContextKeyExpr.or(
 				ContextKeyExpr.equals(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'on'),
@@ -284,7 +299,7 @@ class ToggleSessionsDiffWordWrapAction extends Action2 {
 	}
 }
 
-registerAction2(ToggleSessionsDiffWordWrapAction);
+registerAction2(ToggleSessionsEditorWordWrapAction);
 
 /** Anchor action hosting the Create Pull Request button bar in the title bar. */
 class ChangesHeaderActionsAction extends Action2 {

@@ -22,6 +22,7 @@ import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowConte
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { EDITOR_WORD_WRAP } from '../../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
+import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -264,10 +265,10 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Word Wrap is an always-visible toggle only for multi-diff editors in both Agents layouts', () => {
+	test('Word Wrap is an always-visible toggle for code and multi-diff editors in both Agents layouts', () => {
 		const getItem = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === 'workbench.action.agentSessions.toggleDiffWordWrap');
+			.find(item => item.command.id === 'workbench.action.agentSessions.toggleEditorWordWrap');
 		const singlePane = getItem(Menus.SessionsEditorTitle);
 		const classic = getItem(MenuId.EditorTitle);
 
@@ -295,6 +296,7 @@ suite('Changes View Actions', () => {
 			singlePaneHasTextDiffGate: singlePaneWhen.includes(TextCompareEditorActiveContext.key),
 			singlePaneHasChangesGate: singlePaneWhen.includes(SessionChangesEditor.ID),
 			singlePaneHasMultiDiffGate: singlePaneWhen.includes(MultiDiffEditor.ID),
+			singlePaneHasTextEditorGate: singlePaneWhen.includes(TEXT_FILE_EDITOR_ID),
 			singlePaneHasLayoutGate: singlePaneWhen.includes(SinglePaneLayoutEnabledContext.key),
 			singlePaneHasExperimentGate: singlePaneWhen.includes(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`),
 			classicTitle: typeof classic.command.title === 'string' ? classic.command.title : classic.command.title.value,
@@ -302,6 +304,7 @@ suite('Changes View Actions', () => {
 			classicHasTextDiffGate: classicWhen.includes(TextCompareEditorActiveContext.key),
 			classicHasChangesGate: classicWhen.includes(SessionChangesEditor.ID),
 			classicHasMultiDiffGate: classicWhen.includes(MultiDiffEditor.ID),
+			classicHasTextEditorGate: classicWhen.includes(TEXT_FILE_EDITOR_ID),
 			classicHasLayoutGate: classicWhen.includes(SinglePaneLayoutEnabledContext.key),
 			classicHasExperimentGate: classicWhen.includes(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`),
 			checkedWhenOn: toggled?.evaluate(onContext),
@@ -315,6 +318,7 @@ suite('Changes View Actions', () => {
 			singlePaneHasTextDiffGate: false,
 			singlePaneHasChangesGate: true,
 			singlePaneHasMultiDiffGate: true,
+			singlePaneHasTextEditorGate: true,
 			singlePaneHasLayoutGate: true,
 			singlePaneHasExperimentGate: false,
 			classicTitle: 'Word Wrap',
@@ -322,6 +326,7 @@ suite('Changes View Actions', () => {
 			classicHasTextDiffGate: false,
 			classicHasChangesGate: true,
 			classicHasMultiDiffGate: true,
+			classicHasTextEditorGate: true,
 			classicHasLayoutGate: true,
 			classicHasExperimentGate: false,
 			checkedWhenOn: true,
