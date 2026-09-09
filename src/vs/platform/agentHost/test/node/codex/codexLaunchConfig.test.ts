@@ -106,38 +106,43 @@ suite('CodexLaunchConfig', () => {
 		});
 	});
 
-	test('resume explicitly binds each session provider', () => {
-		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-a', {}, undefined, {}, undefined, true), {
+	test('resume explicitly binds each session model and provider', () => {
+		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-a', {}, undefined, {}, undefined, true), {
 			threadId: 'thread-a',
+			model: 'native-model',
 			modelProvider: 'openai',
 			config: { 'features.image_generation': true },
 		});
-		assert.deepStrictEqual(buildCodexResumeParams('vscode-proxy', 'thread-b', { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } }), {
+		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'vscode-proxy', modelId: 'copilot-model' }, 'thread-b', { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } }), {
 			threadId: 'thread-b',
+			model: 'copilot-model',
 			modelProvider: 'vscode-proxy',
 			config: { 'features.image_generation': false, mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
 		});
-		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-c', {}, undefined, {
+		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-c', {}, undefined, {
 			agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } },
 		}, 'Use the selected reviewer instructions.'), {
 			threadId: 'thread-c',
+			model: 'native-model',
 			modelProvider: 'openai',
 			config: { agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } }, 'features.image_generation': false },
 			developerInstructions: 'Use the selected reviewer instructions.',
 		});
-		assert.deepStrictEqual(buildCodexResumeParams('custom-provider', 'thread-c', {}, ['/repo-a', '/repo-b']), {
+		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'custom-provider', modelId: 'custom-model' }, 'thread-c', {}, ['/repo-a', '/repo-b']), {
 			threadId: 'thread-c',
+			model: 'custom-model',
 			modelProvider: 'custom-provider',
 			cwd: '/repo-a',
 			runtimeWorkspaceRoots: ['/repo-a', '/repo-b'],
 			config: { 'features.image_generation': false },
 		});
-		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-d', {}, ['/repo'], {}, undefined, false, {
+		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-d', {}, ['/repo'], {}, undefined, false, {
 			approvalPolicy: 'on-request',
 			approvalsReviewer: 'auto_review',
 			permissions: 'vscode-workspace',
 		}), {
 			threadId: 'thread-d',
+			model: 'native-model',
 			modelProvider: 'openai',
 			cwd: '/repo',
 			runtimeWorkspaceRoots: ['/repo'],

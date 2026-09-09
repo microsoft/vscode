@@ -54,7 +54,7 @@ export interface ICodexLaunchConfig {
 }
 
 export function buildCodexResumeParams(
-	modelProvider: string,
+	model: { readonly modelProvider: string; readonly modelId: string },
 	threadId: string,
 	mcpServers: Readonly<Record<string, unknown>>,
 	workingDirectories?: readonly string[],
@@ -70,7 +70,8 @@ export function buildCodexResumeParams(
 	};
 	return {
 		threadId,
-		modelProvider,
+		model: model.modelId,
+		modelProvider: model.modelProvider,
 		...(workingDirectories?.length ? {
 			cwd: workingDirectories[0],
 			runtimeWorkspaceRoots: [...workingDirectories],
