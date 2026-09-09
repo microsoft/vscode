@@ -530,6 +530,33 @@ suite('SessionDatabase', () => {
 			assert.strictEqual(await db.getNextTurnEventId('turn-1'), 'evt-2');
 		});
 
+		test('getNextTurnEventId waits for a preceding event id write', async () => {
+			const testDb = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = testDb;
+			await testDb.createTurn('turn-1');
+			await testDb.setTurnEventId('turn-1', 'evt-1');
+			await testDb.createTurn('turn-2');
+
+			const gate = testDb.blockNextMutation();
+			const write = testDb.setTurnEventId('turn-2', 'evt-2');
+			await gate.started.p;
+			const read = testDb.getNextTurnEventId('turn-1');
+			let readSettled = false;
+			void read.then(() => readSettled = true, () => readSettled = true);
+			await Promise.resolve();
+			await testDb.waitForRaw();
+			await Promise.resolve();
+			const readSettledBeforeWrite = readSettled;
+
+			gate.release.complete();
+			const [, eventId] = await Promise.all([write, read]);
+
+			assert.deepStrictEqual({ readSettledBeforeWrite, eventId }, {
+				readSettledBeforeWrite: false,
+				eventId: 'evt-2',
+			});
+		});
+
 		test('getNextTurnEventId falls back to `event_id` when the key is the SDK event id', async () => {
 			// Sessions restored from disk surface SDK envelope ids as the
 			// protocol turn id (see mapSessionEvents.ts), but `turns.id`

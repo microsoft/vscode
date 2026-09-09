@@ -45,6 +45,7 @@ import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAtt
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -121,6 +122,7 @@ class MockCopilotSession {
 	abortCalls = 0;
 	abortGate: Promise<void> | undefined;
 	modelGate: Promise<void> | undefined;
+	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
 	agentSelectGate: Promise<void> | undefined;
 	agentDeselectGate: Promise<void> | undefined;
 	readonly compactCalls: unknown[] = [];
@@ -281,7 +283,10 @@ class MockCopilotSession {
 		this.abortCalls++;
 		await this.abortGate;
 	}
-	async setModel() { await this.modelGate; }
+	async setModel(...args: Parameters<CopilotSession['setModel']>) {
+		this.setModelCalls.push(args);
+		await this.modelGate;
+	}
 	async getEvents(): Promise<SessionEvent[]> { return this.messages; }
 	async disconnect() {
 		this.disconnectCalls++;
@@ -803,12 +808,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
 	platform?: NodeJS.Platform;
 	githubToken?: string;
+	githubCredentials?: CopilotGitHubSessionCredentials;
 	copilotApiEndpoint?: string;
 	gitService?: IAgentHostGitService;
 	gitHubEndpointService?: IAgentHostGitHubEndpointService;
 	restrictedTelemetryContext?: IRestrictedTelemetryContext;
 	restrictedTelemetryContextError?: Error;
-	isLaunchTokenCurrent?: () => boolean;
 	onTurnEnded?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
@@ -875,7 +880,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		resolvedAgentName: undefined,
 		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager: options?.shellManager,
-		githubToken: options?.githubToken,
+		githubCredentials: options?.githubCredentials ?? CopilotGitHubSessionCredentials.fromToken(options?.githubToken),
 		isEphemeral: options?.isEphemeral,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
 	};
@@ -1100,7 +1105,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			customizationDirectory: options?.customizationDirectory,
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
-			isLaunchTokenCurrent: options?.isLaunchTokenCurrent,
 			onTurnEnded: options?.onTurnEnded,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
@@ -1222,6 +1226,22 @@ suite('CopilotAgentSession', () => {
 			firstHook: { additionalContext: 'Rename before working' },
 			secondHook: undefined,
 		});
+	});
+
+	test('forwards Auto routing preferences and explicit resets with the model configuration', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.setModel('auto', 'high', 'long_context', 'intelligence');
+		await session.setModel('auto', undefined, undefined, null);
+		await session.setModel('gpt-5', 'low', 'default');
+		await session.setModel('auto');
+
+		assert.deepStrictEqual(mockSession.setModelCalls, [
+			['auto', { reasoningEffort: 'high', contextTier: 'long_context', autoTier: 'intelligence' }],
+			['auto', { reasoningEffort: undefined, contextTier: undefined, autoTier: null }],
+			['gpt-5', { reasoningEffort: 'low', contextTier: 'default' }],
+			['auto', { reasoningEffort: undefined, contextTier: undefined }],
+		]);
 	});
 
 	test('times out non-settling SDK control-plane RPCs', async () => {
@@ -1636,10 +1656,10 @@ suite('CopilotAgentSession', () => {
 			included: [false, false],
 			calls: [{
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: true, processLogs: true, shellLogs: true },
+				include: { events: true, processLogs: true, previousProcessLogLimit: 1, shellLogs: true },
 			}, {
 				destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
-				include: { events: false, processLogs: true, shellLogs: false },
+				include: { events: false, processLogs: true, previousProcessLogLimit: 1, shellLogs: false },
 			}],
 		});
 	});
@@ -3881,6 +3901,26 @@ suite('CopilotAgentSession', () => {
 			// ...while the subagent's own component carries the routing.
 			{ parentToolCallId: 'tc-subagent', chosenModel: 'gpt-5.5' },
 		]);
+	});
+
+	test('forwards only known subagent task model sources on the started signal', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		for (const [index, taskModelSource] of ['task_argument', 'subagent_configuration', 'custom_agent_definition', 'unset', 'user', undefined].entries()) {
+			mockSession.fire('subagent.started', {
+				toolCallId: `tc-subagent-${index}`,
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+				taskModelSource,
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: `agent-${index}` });
+		}
+
+		assert.deepStrictEqual(
+			signals.flatMap(signal => signal.kind === 'subagent_started' ? [signal.taskModelSource] : []),
+			['task_argument', 'subagent_configuration', 'custom_agent_definition', 'unset', undefined, undefined],
+		);
 	});
 
 	test('keeps a subagent Auto resolution when the root turn moves on beneath it', async () => {
@@ -6786,6 +6826,36 @@ Use the attached image as context.
 			});
 		});
 
+		test('traces dropped in-flight tool completions after cancellation without reporting an error', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+			await session.resume('turn-1');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'late-tool',
+				toolName: 'bash',
+				arguments: { command: 'echo late' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			await session.abort();
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'late-tool',
+				success: true,
+				result: { content: 'late result' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const lateCompletionPattern = /tool\.execution_complete emitted after cancellation/i;
+			assert.deepStrictEqual({
+				actions: getActions(signals).map(action => action.type),
+				errorCount: logService.errors.filter(error => lateCompletionPattern.test(String(error.first))).length,
+				traceCount: logService.traces.filter(trace => lateCompletionPattern.test(trace.message)).length,
+			}, {
+				actions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady],
+				errorCount: 0,
+				traceCount: 1,
+			});
+		});
+
 		test('inline commands complete while cancelled provider events remain quarantined', async () => {
 			const logService = new CapturingLogService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
@@ -6917,10 +6987,10 @@ Use the attached image as context.
 				...base,
 				data: {
 					content: 'Agent done',
-					kind: { type: 'agent_completed', agentId: 'agent-a', agentType: 'task', status: 'completed' },
+					kind: { type: 'agent_completed', agentId: 'agent-a', agentType: 'task', displayName: 'Lifecycle reviewer', description: 'Review lifecycle', status: 'completed' },
 				},
 			}), {
-				messageText: 'Background agent agent-a completed',
+				messageText: 'Background agent `Lifecycle reviewer` completed',
 				startsTurn: true,
 			});
 
@@ -6928,10 +6998,10 @@ Use the attached image as context.
 				...base,
 				data: {
 					content: 'Agent failed',
-					kind: { type: 'agent_completed', agentId: 'agent-b', agentType: 'task', status: 'failed' },
+					kind: { type: 'agent_completed', agentId: 'agent-b', agentType: 'task', displayName: ' ', description: 'Review rendering', status: 'failed' },
 				},
 			}), {
-				messageText: 'Background agent agent-b failed',
+				messageText: 'Background agent `Review rendering` failed',
 				startsTurn: true,
 			});
 
@@ -6942,7 +7012,7 @@ Use the attached image as context.
 					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'task' },
 				},
 			}), {
-				messageText: 'Background agent agent-a is complete',
+				messageText: 'Background agent `task` is complete',
 				startsTurn: true,
 			});
 
@@ -7003,6 +7073,35 @@ Use the attached image as context.
 			assert.deepStrictEqual(turnStarted.message, { text: '`sleep 6` completed', origin: { kind: MessageKind.SystemNotification } });
 		});
 
+		test('agent notifications trim names and never fall back to an opaque identifier', () => {
+			const metadata = { agentId: '28e28166-68dd-4b3b-9bcd-acfed635c4b0', agentType: ' ', description: ' ', displayName: ' ' };
+			const kinds: SessionEventPayload<'system.notification'>['data']['kind'][] = [
+				{ ...metadata, type: 'agent_idle', displayName: ' Astra picker review ', description: 'Review the picker' },
+				{ ...metadata, type: 'agent_idle', description: ' Review the picker ' },
+				{ ...metadata, type: 'agent_idle', agentType: ' code-review ' },
+				{ ...metadata, type: 'agent_idle', displayName: 'Review `permissions`' },
+				{ ...metadata, type: 'agent_idle' },
+				{ ...metadata, type: 'agent_completed', status: 'completed' },
+				{ ...metadata, type: 'agent_completed', status: 'failed' },
+			];
+
+			assert.deepStrictEqual(kinds.map(kind => buildCopilotSystemNotification({
+				id: 'evt-system',
+				parentId: null,
+				timestamp: '2026-09-08T00:00:00.000Z',
+				type: 'system.notification',
+				data: { content: 'Agent finished', kind },
+			})), [
+				{ messageText: 'Background agent `Astra picker review` is complete', startsTurn: true },
+				{ messageText: 'Background agent `Review the picker` is complete', startsTurn: true },
+				{ messageText: 'Background agent `code-review` is complete', startsTurn: true },
+				{ messageText: 'Background agent `` Review `permissions` `` is complete', startsTurn: true },
+				{ messageText: 'Background agent is complete', startsTurn: true },
+				{ messageText: 'Background agent completed', startsTurn: true },
+				{ messageText: 'Background agent failed', startsTurn: true },
+			]);
+		});
+
 		test('agent idle notification routes resumed SDK events into a generated system turn', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 
@@ -7022,7 +7121,7 @@ Use the attached image as context.
 				responseTurnId: (getActions(signals).find(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown) as ChatResponsePartAction | undefined)?.turnId,
 				completedTurnId: (getActions(signals).find(a => a.type === ActionType.ChatTurnComplete) as ChatTurnCompleteAction | undefined)?.turnId,
 			}, {
-				message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
+				message: { text: 'Background agent `Investigate the issue` is complete', origin: { kind: MessageKind.SystemNotification } },
 				responseTurnId: turnStarted.turnId,
 				completedTurnId: turnStarted.turnId,
 			});
@@ -7034,7 +7133,7 @@ Use the attached image as context.
 
 			mockSession.fire('system.notification', {
 				content: 'Agent "agent-a" has finished processing and is now idle.',
-				kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
+				kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', displayName: 'Renderer reviewer' },
 			} as SessionEventPayload<'system.notification'>['data']);
 
 			const actions = getActions(signals);
@@ -7048,7 +7147,7 @@ Use the attached image as context.
 				turnId: 'turn-active',
 				part: {
 					kind: ResponsePartKind.SystemNotification,
-					content: 'Background agent agent-a is complete',
+					content: 'Background agent `Renderer reviewer` is complete',
 				},
 			});
 		});
@@ -7078,6 +7177,55 @@ Use the attached image as context.
 				{ kind: ResponsePartKind.SystemNotification, content: 'New inbox message from sidekick' },
 				{ kind: ResponsePartKind.SystemNotification, content: 'Instruction discovered: AGENTS.md from packages/billing/' },
 			]);
+		});
+
+		test('completion notifications split parent reasoning without splitting running subagent reasoning', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-active');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task-running',
+				agentName: 'explore',
+				agentDisplayName: 'Running reviewer',
+				agentDescription: 'Continue reviewing',
+			}, { agentId: 'agent-running' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'parent-reasoning', deltaContent: 'Before notification' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'child-reasoning', deltaContent: 'Child reasoning' }, { agentId: 'agent-running' });
+			mockSession.fire('system.notification', {
+				content: 'Agent completed',
+				kind: { type: 'agent_idle', agentId: 'agent-completed', agentType: 'code-review', displayName: 'Completed reviewer' },
+			});
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'parent-reasoning', deltaContent: 'After notification' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'parent-reasoning', deltaContent: ' continued' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'child-reasoning', deltaContent: ' still running' }, { agentId: 'agent-running' });
+
+			const reasoningIds = new Set<string>();
+			const updates = signals.map(signal => {
+				if (signal.kind !== 'action') {
+					return undefined;
+				}
+				const action = signal.action;
+				if (action.type === ActionType.ChatResponsePart && (action.part.kind === ResponsePartKind.Reasoning || action.part.kind === ResponsePartKind.SystemNotification)) {
+					if (action.part.kind === ResponsePartKind.Reasoning && !signal.parentToolCallId) {
+						reasoningIds.add(action.part.id);
+					}
+					return { kind: action.part.kind, scope: signal.parentToolCallId ?? 'parent', content: action.part.content };
+				}
+				return action.type === ActionType.ChatReasoning
+					? { kind: 'delta', scope: signal.parentToolCallId ?? 'parent', content: action.content }
+					: undefined;
+			}).filter(update => update !== undefined);
+
+			assert.deepStrictEqual({ updates, parentReasoningParts: reasoningIds.size }, {
+				updates: [
+					{ kind: ResponsePartKind.Reasoning, scope: 'parent', content: 'Before notification' },
+					{ kind: ResponsePartKind.Reasoning, scope: 'task-running', content: 'Child reasoning' },
+					{ kind: ResponsePartKind.SystemNotification, scope: 'parent', content: 'Background agent `Completed reviewer` is complete' },
+					{ kind: ResponsePartKind.Reasoning, scope: 'parent', content: 'After notification' },
+					{ kind: 'delta', scope: 'parent', content: ' continued' },
+					{ kind: 'delta', scope: 'task-running', content: ' still running' },
+				],
+				parentReasoningParts: 2,
+			});
 		});
 
 		test('generated system turn completes on session.idle', async () => {
@@ -8262,6 +8410,160 @@ Use the attached image as context.
 			await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
 
 			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
+		});
+
+		suite('asynchronous edit completion', () => {
+			async function startEdits(count = 1) {
+				const sessionDatabase = new TestSessionDatabase();
+				const writes = Array.from({ length: count }, () => ({
+					started: new DeferredPromise<void>(),
+					release: new DeferredPromise<void>(),
+				}));
+				sessionDatabase.storeFileEdit = async edit => {
+					const write = writes[Number(edit.toolCallId)];
+					await write.started.complete();
+					await write.release.p;
+					sessionDatabase.addEdit(edit);
+				};
+				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+				const result = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime });
+				result.session.resetTurnState('turn-edit');
+				result.mockSession.fire('user.message', { content: 'Edit the files' });
+				for (let index = 0; index < count; index++) {
+					const toolCallId = String(index);
+					const hook = {
+						sessionId: 'test-session-1',
+						timestamp: new Date(0),
+						workingDirectory: '/repo',
+						toolName: 'edit',
+						toolArgs: { path: `/repo/file-${index}.txt`, old_str: 'before', new_str: 'after' },
+					};
+					await capturedRuntime.current!.handlePreToolUse(hook);
+					await capturedRuntime.current!.handlePostToolUse({
+						...hook,
+						toolResult: { textResultForLlm: '', resultType: 'success' },
+					});
+					result.mockSession.fire('tool.execution_start', {
+						toolCallId,
+						toolName: hook.toolName,
+						arguments: hook.toolArgs,
+					});
+					result.mockSession.fire('tool.execution_complete', { toolCallId, success: true });
+					await writes[index].started.p;
+				}
+				return { ...result, sessionDatabase, writes };
+			}
+
+			test('idle drains every pending edit before completing the original turn', async () => {
+				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startEdits(2);
+				mockSession.fire('session.idle', {});
+				assert.deepStrictEqual({
+					turnId: session.currentTurnId,
+					completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
+				}, { turnId: 'turn-edit', completions: [] });
+
+				await writes[1].release.complete();
+				await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+				assert.strictEqual(session.currentTurnId, 'turn-edit', 'The other pending edit must still keep the turn open');
+
+				await writes[0].release.complete();
+				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+				mockSession.fire('session.idle', {});
+				assert.deepStrictEqual({
+					completions: getActions(signals)
+						.filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
+						.map(action => ({ type: action.type, turnId: action.turnId, ...(action.type === ActionType.ChatToolCallComplete ? { toolCallId: action.toolCallId } : {}) })),
+					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => ({ turnId: edit.turnId, toolCallId: edit.toolCallId })),
+					activeTurn: session.currentTurnId,
+				}, {
+					completions: [
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '1' },
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '0' },
+						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
+					],
+					persisted: [{ turnId: 'turn-edit', toolCallId: '1' }, { turnId: 'turn-edit', toolCallId: '0' }],
+					activeTurn: undefined,
+				});
+			});
+
+			test('failed edit persistence still lets the tool and turn complete', async () => {
+				const { mockSession, signals, waitForSignal, writes } = await startEdits();
+				mockSession.fire('session.idle', {});
+				await writes[0].release.error(new Error('Persistence failed'));
+				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+				assert.deepStrictEqual(
+					getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
+						.map(action => ({ type: action.type, turnId: action.turnId })),
+					[
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit' },
+						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
+					],
+				);
+			});
+
+			for (const ending of ['abort', 'error', 'dispose', 'replace'] as const) {
+				test(`${ending} does not wait for edit persistence or complete a replacement turn`, async () => {
+					const { session, mockSession, signals, writes } = await startEdits();
+					mockSession.fire('session.idle', {});
+					switch (ending) {
+						case 'abort':
+							await session.abort();
+							mockSession.fire('session.idle', { aborted: true });
+							break;
+						case 'error':
+							mockSession.fire('session.error', { errorType: 'test', message: 'Failed' });
+							break;
+						case 'dispose':
+							session.dispose();
+							break;
+						case 'replace':
+							session.discardActiveTurn();
+							break;
+					}
+					assert.strictEqual(session.hasActiveTurn, false, 'Ending the turn must not wait for edit persistence');
+					if (ending !== 'dispose') {
+						session.resetTurnState('replacement');
+					}
+					await writes[0].release.complete();
+					await timeout(0);
+					assert.deepStrictEqual({
+						completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
+						activeTurn: session.currentTurnId,
+					}, {
+						completions: [],
+						activeTurn: ending === 'dispose' ? undefined : 'replacement',
+					});
+				});
+			}
+		});
+
+		test('tool_complete preserves its turn ID when edit persistence finishes after idle', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const releaseEdit = new DeferredPromise<void>();
+			sessionInternals._editTracker.takeCompletedEdit = async () => {
+				await releaseEdit.p;
+				return undefined;
+			};
+			session.resetTurnState('turn-edit');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-edit',
+				toolName: 'edit',
+				arguments: { path: '/tmp/file.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-edit',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+			releaseEdit.complete();
+
+			const completion = await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
+			assert.strictEqual(
+				isAction(completion, ActionType.ChatToolCallComplete) ? (completion.action as ChatToolCallCompleteAction).turnId : undefined,
+				'turn-edit',
+			);
 		});
 
 		test('hidden tools are not emitted as tool_start', async () => {
@@ -12981,9 +13283,10 @@ Use the attached image as context.
 		});
 
 		test('drops an in-flight capture when the launch token is no longer current', async () => {
-			let tokenCurrent = true;
 			const workingDirectory = URI.file('/repo');
 			const telemetryService = new CapturingRestrictedTelemetryService();
+			const githubCredentials = disposables.add(new CopilotGitHubCredentials());
+			githubCredentials.update('github-token', 7200);
 			const gitService: IAgentHostGitService = {
 				...createNoopGitService(),
 				getRepositoryRoot: async () => workingDirectory,
@@ -12998,8 +13301,7 @@ Use the attached image as context.
 				workingDirectory,
 				gitService,
 				telemetryService,
-				githubToken: 'github-token',
-				isLaunchTokenCurrent: () => tokenCurrent,
+				githubCredentials: githubCredentials.forSession(),
 				restrictedTelemetryContext: {
 					restrictedTelemetryEnabled: true,
 					trackingId: 'tracking-id',
@@ -13011,7 +13313,7 @@ Use the attached image as context.
 				},
 			});
 			mockSession.fire('assistant.turn_start', { turnId: 'root-turn' });
-			tokenCurrent = false;
+			githubCredentials.update('replacement-token', 7200);
 			await timeout(0);
 
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'request.repoInfo'), []);

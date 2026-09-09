@@ -502,11 +502,12 @@ export class NewChatWidget extends Disposable {
 			this._register(autorun(reader => {
 				const isQuickChat = this._isQuickChatComposer.read(reader);
 				const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
-				const target = isQuickChat && !isWorkspacePickerQuickChat ? this._quickChatHeaderPickerHost : this._workspacePickerRow;
+				const useHeaderHost = isQuickChat && !isWorkspacePickerQuickChat;
+				const target = useHeaderHost ? this._quickChatHeaderPickerHost : this._workspacePickerRow;
 				if (!target) {
 					return;
 				}
-				this._renderSessionTypePicker(target, isQuickChat);
+				this._renderSessionTypePicker(target, useHeaderHost);
 			}));
 		}
 
@@ -846,12 +847,12 @@ export class NewChatWidget extends Disposable {
 		return store;
 	}
 
-	private _renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void {
+	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
 		this._newChatInput.sessionTypePicker.render(container, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
 		});
 		const sessionTypePicker = container.lastElementChild;
-		if (isQuickChat && sessionTypePicker) {
+		if (prependBeforeSiblings && sessionTypePicker) {
 			container.prepend(sessionTypePicker);
 		} else if (sessionTypePicker) {
 			const workspaceTrigger = container.firstElementChild;

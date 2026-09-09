@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -17,6 +18,7 @@ import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../servi
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
+import { IChatListItemRendererOptions } from '../../../browser/chat.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
@@ -317,6 +319,32 @@ suite('ChatWidget', () => {
 			['setInputPartMaxHeightOverride', 600],
 			['layoutForInputHeight', 420, 720],
 		]);
+	});
+
+	test('passes read-only transitions to the renderer independently of request editing', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let rerenders = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_visible: observableValue('visible', true),
+			_readOnlyContextKey: { set: () => { } },
+			chatSuggestNextWidget: { hide: () => { } },
+			hasInputFocus: () => false,
+			setInputVisible: () => { },
+			renderChatSuggestNextWidget: () => { },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				rerender: () => rerenders++,
+			},
+		});
+
+		widget.setReadOnly(true);
+		widget.setReadOnly(false);
+
+		assert.deepStrictEqual({ rendererOptions, rerenders }, {
+			rendererOptions: [{ editable: false, readOnly: true }, { editable: true, readOnly: false }],
+			rerenders: 2,
+		});
 	});
 
 	test('captures and restores transcript scroll state', () => {

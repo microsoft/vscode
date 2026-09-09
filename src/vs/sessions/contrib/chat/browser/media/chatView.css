@@ -22,6 +22,10 @@
 	background-color: transparent;
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	content: none;
+}
+
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response {
 	/* Match the response padding so wide content remains fully backed before the fade. */
 	background: linear-gradient(
@@ -39,6 +43,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget {
 	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
@@ -48,6 +53,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:hover,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:hover,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget:hover {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
@@ -120,8 +126,8 @@
 
 .agent-sessions-workbench .interactive-session .chat-scroll-down {
 	right: max(
-		var(--vscode-spacing-size320),
-		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2 + var(--vscode-spacing-size320))
+		var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)),
+		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2 + var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)))
 	);
 }
 
@@ -140,7 +146,7 @@
 	justify-content: flex-end;
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding: 0 var(--vscode-spacing-size320);
+	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 	box-sizing: border-box;
 	pointer-events: none;
 }
@@ -171,10 +177,10 @@
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container,
 .agent-sessions-workbench .part.sessionspart .interactive-session > .chat-suggest-next-widget,
 .agent-sessions-workbench .chat-editor-relative .interactive-session > .chat-suggest-next-widget {
-	max-width: 950px;
+	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding-left: 32px;
-	padding-right: 32px;
+	padding-left: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 	box-sizing: border-box;
 }
 
@@ -242,10 +248,10 @@
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-input-part,
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-input-part {
 	width: 100%;
-	max-width: 950px;
+	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
 	display: inherit;
-	padding: 4px 32px;
+	padding: var(--vscode-spacing-size40) var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 	box-sizing: border-box;
 }
 
