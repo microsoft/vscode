@@ -9,7 +9,6 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult } from '../../../services/sessions/common/sessionsProvider.js';
 import {
 	AutomationRunTrigger,
@@ -22,6 +21,7 @@ import {
 	isAutomationModelConfiguration,
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import {
+	AutomationCatalogueState,
 	type AutomationMutationGuard,
 	assertAutomationSessionTemplateAuthority,
 	IAutomationRunClaim,
@@ -33,7 +33,6 @@ import {
 	IAutomationStore,
 	IUpdateAutomationRunOptions,
 } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { computeNextRunAt } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AUTOMATION_STORAGE_KEY, IAutomationStorageService } from '../common/automationStorageService.js';
@@ -122,20 +121,20 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 	private readonly _automations: ISettableObservable<readonly IAutomationDescriptor[]>;
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
+	private readonly _catalogueState: ISettableObservable<AutomationCatalogueState>;
 	private _now: () => Date;
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 
 	private _lastSeenRevision = 0;
-	private _canCompleteMigration = true;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	constructor(
 		private readonly storageKey: string,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAutomationStorageService private readonly automationStorageService: IAutomationStorageService,
 	) {
 		super();
@@ -144,14 +143,15 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 
 		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
 		const initial = result.kind === 'unsupportedSchema' ? EMPTY_LEDGER : result.ledger;
-		this._canCompleteMigration = result.kind === 'ledger';
 		if (result.kind !== 'unsupportedSchema') {
 			this._lastSeenRevision = result.revision;
 		}
 		this._automations = observableValue<readonly IAutomationDescriptor[]>(this, initial.automations);
 		this._runs = observableValue<readonly IAutomationRun[]>(this, initial.runs);
+		this._catalogueState = observableValue(this, result.kind === 'ledger' ? 'ready' : 'error');
 		this.automations = this._automations;
 		this.runs = this._runs;
+		this.catalogueState = this._catalogueState;
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._store)(() => {
 			this.refreshFromStorage();
@@ -168,7 +168,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 	}
 
 	canCompleteMigration(): boolean {
-		return this._canCompleteMigration;
+		return this._catalogueState.get() === 'ready';
 	}
 
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
@@ -208,7 +208,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			ledger: { automations: [automation, ...ledger.automations], runs: ledger.runs },
 			result: undefined,
 		}), mutationGuard);
-		publishAutomationCreated(this.telemetryService, automation);
 		return automation;
 	}
 
@@ -226,16 +225,14 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 					automations: ledger.automations.map(automation => automation.id === id ? updated : automation),
 					runs: ledger.runs,
 				},
-				result: { current, updated },
+				result: updated,
 			};
 		});
-		publishAutomationUpdated(this.telemetryService, result.current, result.updated);
-		return result.updated;
+		return result;
 	}
 
 	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 		const now = this._now();
-		let previous: IAutomationDescriptor | undefined;
 		const result = await this.mutateLedger<IGuardedAutomationUpdateResult>(ledger => {
 			const current = ledger.automations.find(automation => automation.id === id);
 			if (!current || serializeAutomationEditableState(current) !== serializeAutomationEditableState(expected)) {
@@ -246,7 +243,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			}
 
 			const updated = updateAutomation(current, patch, now);
-			previous = current;
 			return {
 				kind: 'commit',
 				ledger: {
@@ -256,11 +252,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 				result: { kind: 'updated', automation: updated } as const,
 			};
 		}, mutationGuard);
-		if (result.kind === 'conflict' || !previous) {
-			return result;
-		}
-
-		publishAutomationUpdated(this.telemetryService, previous, result.automation);
 		return result;
 	}
 
@@ -284,7 +275,6 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		}
 
 		this._runsForCache.delete(id);
-		publishAutomationDeleted(this.telemetryService, existing);
 	}
 
 	async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
@@ -475,9 +465,11 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		while (true) {
 			const readResult = this.readLedger(raw);
 			if (readResult.kind === 'unsupportedSchema') {
+				this._catalogueState.set('error', undefined);
 				throw new Error('Cannot modify automations: storage was written by a newer version');
 			}
 			if (readResult.kind === 'invalid') {
+				this._catalogueState.set('error', undefined);
 				throw new Error('Cannot modify automations: persisted storage contains data this version cannot safely interpret');
 			}
 
@@ -512,30 +504,33 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 		}
 	}
 
-	private acceptLedger(ledger: ILedger, revision: number): void {
+	private acceptLedger(ledger: ILedger, revision: number, catalogueState: AutomationCatalogueState = 'ready'): void {
 		if (revision < this._lastSeenRevision) {
+			if (catalogueState === 'error') {
+				this._catalogueState.set(catalogueState, undefined);
+			}
 			return;
 		}
-		this.setLedger(ledger, revision);
+		this.setLedger(ledger, revision, catalogueState);
 	}
 
-	private setLedger(ledger: ILedger, revision: number): void {
+	private setLedger(ledger: ILedger, revision: number, catalogueState: AutomationCatalogueState = 'ready'): void {
 		this._lastSeenRevision = revision;
 		transaction(tx => {
 			this._automations.set(ledger.automations, tx);
 			this._runs.set(ledger.runs, tx);
+			this._catalogueState.set(catalogueState, tx);
 		});
 	}
 
 	private refreshFromStorage(): void {
 		const result = this.readLedger(this.storageService.get(this.storageKey, StorageScope.APPLICATION));
 		if (result.kind === 'unsupportedSchema') {
-			this._canCompleteMigration = false;
+			this._catalogueState.set('error', undefined);
 			return;
 		}
 
-		this._canCompleteMigration = result.kind === 'ledger';
-		this.acceptLedger(result.ledger, result.revision);
+		this.acceptLedger(result.ledger, result.revision, result.kind === 'ledger' ? 'ready' : 'error');
 	}
 
 	private readLedger(raw: string | undefined): ReadLedgerResult {
@@ -607,10 +602,9 @@ export class AutomationService extends AutomationStore implements IAutomationSer
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IAutomationStorageService automationStorageService: IAutomationStorageService,
 	) {
-		super(AUTOMATION_STORAGE_KEY, storageService, logService, telemetryService, automationStorageService);
+		super(AUTOMATION_STORAGE_KEY, storageService, logService, automationStorageService);
 	}
 
 	startStaleRunRecovery(reason: string): Promise<void> {

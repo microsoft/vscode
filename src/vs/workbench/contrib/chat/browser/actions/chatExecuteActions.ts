@@ -24,7 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
 import { reportChatModeChange } from '../../common/chatModeTelemetry.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
@@ -568,7 +568,14 @@ export class OpenDelegationPickerAction extends Action2 {
 			tooltip: localize('delegateSession', "Delegate Session"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty.negate(), ChatContextKeys.currentlyEditingInput.negate(), ChatContextKeys.currentlyEditing.negate()),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ChatContextKeys.chatSessionIsEmpty.negate(),
+				ChatContextKeys.currentlyEditingInput.negate(),
+				ChatContextKeys.currentlyEditing.negate(),
+				ChatContextKeys.chatSessionSupportsDelegation,
+				ChatContextKeyExprs.isAgentHostSessionItem?.negate(),
+			),
 			menu: [
 				{
 					id: MenuId.ChatInputSecondary,
@@ -577,9 +584,14 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionSupportsDelegation,
 						ChatContextKeys.chatSessionIsEmpty.negate(),
-						IsSessionsWindowContext.negate()
+						ContextKeyExpr.or(
+							ChatContextKeyExprs.isAgentHostSessionItem,
+							ContextKeyExpr.and(
+								ChatContextKeys.chatSessionSupportsDelegation,
+								IsSessionsWindowContext.negate(),
+							),
+						),
 					),
 					group: 'navigation',
 				},

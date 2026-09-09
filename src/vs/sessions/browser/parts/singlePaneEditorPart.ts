@@ -17,6 +17,7 @@ import { GroupIdentifier } from '../../../workbench/common/editor.js';
 import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTargetDelegate } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
+import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
@@ -39,6 +40,8 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	private _auxiliaryBar: SinglePaneAuxiliaryBarPart | undefined;
 	private _dockedAuxBar: DockedAuxiliaryBarController | undefined;
 	private readonly _groupRelayoutListeners = this._register(new DisposableMap<EditorGroupView>());
+	private readonly _tabsOverride = this._register(new MutableDisposable());
+	private _enforcedShowTabs: 'multiple' | 'single' | undefined;
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
 		return {
@@ -49,7 +52,8 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,
 				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
 			},
-			showHeader: true
+			showHeader: true,
+			reserveHeaderSpace: editor => editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow)
 		};
 	}
 
@@ -83,31 +87,29 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	) {
 		super(editorPartsView, _instantiationService, themeService, configurationService, storageService, agentWorkbenchLayoutService, hostService, contextKeyService);
 
-		const tabsOverride = this._register(new MutableDisposable());
-		let enforcedShowTabs: 'multiple' | 'single' | undefined;
-		const updateTabsOverride = () => {
-			const nextShowTabs = this._getShowTabsOverride(
-				configurationService.getValue('workbench.editor.showTabs'),
-				agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow),
-				agentWorkbenchLayoutService.isVisible(Parts.AUXILIARYBAR_PART, mainWindow)
-			);
-			if (nextShowTabs === enforcedShowTabs) {
-				return;
-			}
-			enforcedShowTabs = nextShowTabs;
-			tabsOverride.value = nextShowTabs ? this.enforcePartOptions({ showTabs: nextShowTabs }) : undefined;
-		};
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration('workbench.editor.showTabs')) {
-				updateTabsOverride();
+				this._updateTabsOverride();
 			}
 		}));
 		this._register(agentWorkbenchLayoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.EDITOR_PART || event.partId === Parts.AUXILIARYBAR_PART) {
-				updateTabsOverride();
+				this._updateTabsOverride();
 			}
 		}));
-		updateTabsOverride();
+	}
+
+	private _updateTabsOverride(): void {
+		const nextShowTabs = this._getShowTabsOverride(
+			this.configurationService.getValue('workbench.editor.showTabs'),
+			this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			this.agentWorkbenchLayoutService.isVisible(Parts.AUXILIARYBAR_PART, mainWindow)
+		);
+		if (nextShowTabs === this._enforcedShowTabs) {
+			return;
+		}
+		this._enforcedShowTabs = nextShowTabs;
+		this._tabsOverride.value = nextShowTabs ? this.enforcePartOptions({ showTabs: nextShowTabs }) : undefined;
 	}
 
 	private _getShowTabsOverride(configuredShowTabs: 'multiple' | 'single' | 'none', editorVisible: boolean, auxiliaryBarVisible: boolean): 'multiple' | 'single' | undefined {
@@ -134,6 +136,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	 * creates its content — and enables the header separator border on every group.
 	 */
 	protected override createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
+		this._updateTabsOverride();
 		const container = super.createContentArea(parent, options);
 
 		this._registerGroupRelayoutListeners();
