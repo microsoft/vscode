@@ -9,6 +9,7 @@ import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { findDiffEditorContainingCodeEditor } from '../../../../editor/browser/widget/diffEditor/commands.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -24,7 +25,7 @@ import { DIFF_VIEW_MODE_INLINE_TEMPORARY, SET_DIFF_VIEW_MODE_AUTOMATIC, SET_DIFF
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
-import { EDITOR_WORD_WRAP } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
+import { EDITOR_WORD_WRAP, readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -254,14 +255,32 @@ class ToggleSessionsDiffWordWrapAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const codeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor()
-			?? accessor.get(ICodeEditorService).getActiveCodeEditor();
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const codeEditor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
 		const wordWrap = accessor.get(IDiffEditorOptionsService).wordWrap.get();
 		const inheritedWordWrap = accessor.get(IConfigurationService).getValue<'off' | 'on' | 'wordWrapColumn' | 'bounded'>('editor.wordWrap');
 		const isWordWrapEnabled = codeEditor
 			? codeEditor.getOption(EditorOption.wrappingInfo).wrappingColumn !== -1
 			: wordWrap === 'on' || wordWrap === 'inherit' && inheritedWordWrap !== 'off';
+		const diffEditor = codeEditor ? findDiffEditorContainingCodeEditor(accessor, codeEditor) : null;
+		const editors = codeEditor
+			? diffEditor
+				? [diffEditor.getOriginalEditor(), diffEditor.getModifiedEditor()]
+				: [codeEditor]
+			: [];
 		await accessor.get(IDiffEditorOptionsService).setWordWrap(isWordWrapEnabled ? 'off' : 'on');
+
+		let didClearTransientState = false;
+		for (const editor of editors) {
+			const model = editor.getModel();
+			if (model && readTransientState(model, codeEditorService)) {
+				writeTransientState(model, null, codeEditorService);
+				didClearTransientState = true;
+			}
+		}
+		if (didClearTransientState) {
+			diffEditor?.updateOptions({});
+		}
 	}
 }
 
