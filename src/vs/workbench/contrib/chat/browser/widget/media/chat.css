@@ -4794,10 +4794,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-shrink: 0;
 }
 
-.interactive-item-container.chat-request-collapsed .value > :not(.chat-request-collapse-control) {
-	display: none !important;
-}
-
 /* Drag handle for reordering pending messages */
 .interactive-item-container .chat-pending-drag-handle {
 	position: absolute;

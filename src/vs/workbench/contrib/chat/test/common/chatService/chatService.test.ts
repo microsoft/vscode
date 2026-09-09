@@ -57,7 +57,7 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IMod
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { ChatViewModel, isPendingDividerVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -907,14 +907,135 @@ suite('ChatService', () => {
 		await response.data.responseCompletePromise;
 	});
 
-	test('multiple steering messages are combined into a single request', async () => {
+	for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+		test(`${kind} requests retain their identity after the active turn completes`, async () => {
+			const requestStarted = new DeferredPromise<void>();
+			const completeRequest = new DeferredPromise<void>();
+			const invokedRequestIds: string[] = [];
+			testDisposables.add(chatAgentService.registerAgent('queueIdentityAgent', getAgentData('queueIdentityAgent')));
+			testDisposables.add(chatAgentService.registerAgentImplementation('queueIdentityAgent', {
+				async invoke(request) {
+					invokedRequestIds.push(request.requestId);
+					if (invokedRequestIds.length === 1) {
+						requestStarted.complete();
+						await completeRequest.p;
+					}
+					return {};
+				},
+			}));
+			const testService = createChatService();
+			const model = startSessionModel(testService).object;
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const active = await testService.sendRequest(model.sessionResource, 'active request', { agentId: 'queueIdentityAgent' });
+			ChatSendResult.assertSent(active);
+			await requestStarted.p;
+			const queued = await testService.sendRequest(model.sessionResource, 'follow-up request', { agentId: 'queueIdentityAgent', queue: kind });
+			assert.ok(ChatSendResult.isQueued(queued));
+			const pendingId = model.getPendingRequests()[0].request.id;
+
+			completeRequest.complete();
+			await active.data.responseCompletePromise;
+			const sent = await queued.deferred;
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+			const request = model.getRequests()[1];
+
+			assert.deepStrictEqual({
+				requestId: request.id,
+				responseRequestId: request.response?.requestId,
+				invokedRequestId: invokedRequestIds[1],
+				viewModelRequestId: viewModel.getItems().filter(isRequestVM)[1]?.id,
+				pendingRequestIds: request.pendingRequestIds,
+				pendingCount: model.getPendingRequests().length,
+			}, {
+				requestId: pendingId,
+				responseRequestId: pendingId,
+				invokedRequestId: pendingId,
+				viewModelRequestId: pendingId,
+				pendingRequestIds: undefined,
+				pendingCount: 0,
+			});
+		});
+	}
+
+	test('queued slash commands retain their identity through processing and retry', async () => {
+		const slashCommandService = instantiationService.get(IChatSlashCommandService);
+		let executions = 0;
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'queued-command',
+			detail: 'Queued command',
+			locations: [ChatAgentLocation.Chat],
+		}, async () => {
+			executions++;
+		}));
+		const testService = createChatService();
+		const model = startSessionModel(testService).object;
+		const queued = await testService.sendRequest(model.sessionResource, '/queued-command', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		assert.ok(ChatSendResult.isQueued(queued));
+		const pendingId = model.getPendingRequests()[0].request.id;
+
+		testService.processPendingRequests(model.sessionResource);
+		const sent = await queued.deferred;
+		ChatSendResult.assertSent(sent);
+		await sent.data.responseCompletePromise;
+		const request = model.getRequests()[0];
+		await testService.resendRequest(request, undefined, true);
+
+		assert.deepStrictEqual({
+			executions,
+			requestIds: model.getRequests().map(request => request.id),
+			sameRequest: model.getRequests()[0] === request,
+			isComplete: request.response?.isComplete,
+			pendingCount: model.getPendingRequests().length,
+		}, {
+			executions: 2,
+			requestIds: [pendingId],
+			sameRequest: true,
+			isComplete: true,
+			pendingCount: 0,
+		});
+	});
+
+	test('blocked queued troubleshoot requests retain their identity', async () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, false);
+		const testService = createChatService();
+		const model = startSessionModel(testService).object;
+		const queued = await testService.sendRequest(model.sessionResource, 'investigate this issue', {
+			queue: ChatRequestQueueKind.Queued,
+			pauseQueue: true,
+			attachedContext: [{ id: 'troubleshoot-skill', name: 'troubleshoot', kind: 'generic', value: URI.from({ scheme: COPILOT_SKILL_URI_SCHEME, path: TROUBLESHOOT_SKILL_PATH }) }],
+		});
+		assert.ok(ChatSendResult.isQueued(queued));
+		const pendingId = model.getPendingRequests()[0].request.id;
+
+		testService.processPendingRequests(model.sessionResource);
+		const sent = await queued.deferred;
+		ChatSendResult.assertSent(sent);
+		await sent.data.responseCompletePromise;
+		const request = model.getRequests()[0];
+
+		assert.deepStrictEqual({
+			requestId: request.id,
+			blocked: request.response?.response.toString().includes(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING),
+			pendingCount: model.getPendingRequests().length,
+		}, {
+			requestId: pendingId,
+			blocked: true,
+			pendingCount: 0,
+		});
+	});
+
+	test('multiple steering messages are combined into a single request with their pending identities', async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
 		const invokedRequests: string[] = [];
+		const invokedRequestIds: string[] = [];
 
 		const slowAgent: IChatAgentImplementation = {
 			async invoke(request, progress, history, token) {
 				invokedRequests.push(request.message);
+				invokedRequestIds.push(request.requestId);
 				if (invokedRequests.length === 1) {
 					requestStarted.complete();
 					await completeRequest.p;
@@ -929,6 +1050,7 @@ suite('ChatService', () => {
 		const testService = createChatService();
 		const modelRef = testDisposables.add(startSessionModel(testService));
 		const model = modelRef.object;
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
 
 		// Start a request that will wait
 		const response = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'slowAgent' });
@@ -944,15 +1066,16 @@ suite('ChatService', () => {
 		assert.ok(ChatSendResult.isQueued(steering1));
 		assert.ok(ChatSendResult.isQueued(steering2));
 		assert.ok(ChatSendResult.isQueued(steering3));
+		const pendingRequestIds = model.getPendingRequests().map(pending => pending.request.id);
 
 		// Complete the first request - should trigger processing of combined steering requests
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
 
 		// Wait for all deferred promises to resolve
-		await steering1.deferred;
-		await steering2.deferred;
-		await steering3.deferred;
+		const results = await Promise.all([steering1.deferred, steering2.deferred, steering3.deferred]);
+		ChatSendResult.assertSent(results[0]);
+		await results[0].data.responseCompletePromise;
 
 		// Should have only invoked 2 requests: the initial and the combined steering
 		assert.strictEqual(invokedRequests.length, 2, 'Should have only 2 invocations (initial + combined steering)');
@@ -961,6 +1084,24 @@ suite('ChatService', () => {
 		assert.ok(invokedRequests[1].includes('steering2'), 'Combined message should include steering2');
 		assert.ok(invokedRequests[1].includes('steering3'), 'Combined message should include steering3');
 		assert.ok(invokedRequests[1].includes('\n\n'), 'Combined message should use \\n\\n as separator');
+		const merged = model.getRequests()[1];
+		assert.deepStrictEqual({
+			requestId: merged.id,
+			responseRequestId: merged.response?.requestId,
+			invokedRequestId: invokedRequestIds[1],
+			pendingRequestIds: merged.pendingRequestIds,
+			viewModelPendingRequestIds: viewModel.getItems().filter(isRequestVM)[1]?.pendingRequestIds,
+			sameResult: results.every(result => result === results[0]),
+			pendingCount: model.getPendingRequests().length,
+		}, {
+			requestId: pendingRequestIds[0],
+			responseRequestId: pendingRequestIds[0],
+			invokedRequestId: pendingRequestIds[0],
+			pendingRequestIds,
+			viewModelPendingRequestIds: pendingRequestIds,
+			sameResult: true,
+			pendingCount: 0,
+		});
 	});
 
 	test('steering message on a streamed (activeResponseCallback) session dispatches immediately, mid-turn', async () => {

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { IManagedHoverContentOrFactory } from '../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -33,7 +34,7 @@ import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentP
 import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
-import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -714,9 +715,12 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('pending request collapse', () => {
-		function createRenderer(renderStyle?: 'minimal') {
+		function createRenderer(renderStyle?: 'minimal', hoverService?: IHoverService) {
 			const disposables = store.add(new DisposableStore());
 			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			if (hoverService) {
+				instantiationService.stub(IHoverService, hoverService);
+			}
 			const configurationService = new TestConfigurationService();
 			configurationService.setUserConfiguration('chat.editRequests', 'hover');
 			configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
@@ -754,12 +758,12 @@ suite('ChatListRenderer', () => {
 			const template = renderer.renderTemplate(container);
 			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
 
-			function addPending(text: string, kind = ChatRequestQueueKind.Queued) {
+			function addPending(text: string, kind = ChatRequestQueueKind.Queued, variableData: IChatRequestVariableData = { variables: [] }) {
 				const lines = text.split('\n');
 				const request = new ChatRequestModel({
 					session: model,
 					message: { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, lines.length, lines[lines.length - 1].length + 1), text)] },
-					variableData: { variables: [] },
+					variableData,
 					timestamp: 0,
 				});
 				model.addPendingRequest(request, kind, {});
@@ -862,7 +866,7 @@ suite('ChatListRenderer', () => {
 			});
 		}
 
-		test('retains the collapsed state and expansion control when the request starts processing', () => {
+		test('retains renderer state for a processing request with the same identity', () => {
 			const fixture = createRenderer();
 			const pending = fixture.addPending('Queued message to process');
 			fixture.renderRequest(pending);
@@ -889,6 +893,90 @@ suite('ChatListRenderer', () => {
 				expandedStickySource: { ...defaultRange, estimated: true },
 				requestText: ['Queued message to process'],
 				pendingCount: 0,
+			});
+			fixture.disposables.dispose();
+		});
+
+		for (const collapsedIndex of [0, 1]) {
+			test(`inherits a collapse choice from merged steering message ${collapsedIndex + 1} and allows later expansion`, () => {
+				const fixture = createRenderer();
+				const pending = [fixture.addPending('First steering message', ChatRequestQueueKind.Steering), fixture.addPending('Second steering message', ChatRequestQueueKind.Steering)];
+				fixture.renderRequest(pending[1 - collapsedIndex]);
+				getCollapseButton(fixture.template).click();
+				getCollapseButton(fixture.template).click();
+				fixture.renderRequest(pending[collapsedIndex]);
+				getCollapseButton(fixture.template).click();
+				fixture.model.dequeueAllSteeringRequests();
+				const combinedText = pending.map(request => request.message.text).join('\n\n');
+				const sent = fixture.model.addRequest(
+					{ text: combinedText, parts: [new ChatRequestTextPart(new OffsetRange(0, combinedText.length), new Range(1, 1, 3, pending[1].message.text.length + 1), combinedText)] },
+					{ variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+					pending[0].id, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pending.map(request => request.id),
+				);
+				const sentViewModel = fixture.renderRequest(sent);
+				const collapsed = renderedState(fixture.template);
+				const collapsedStickySource = fixture.renderer.getStickyScrollSourceRange(sentViewModel, { start: 0, end: 100 });
+				getCollapseButton(fixture.template).click();
+				fixture.renderRequest(sent);
+				fixture.renderRequest(sent);
+
+				assert.deepStrictEqual({
+					collapsed,
+					collapsedStickySource,
+					afterExpansionAndRerender: renderedState(fixture.template),
+					requestText: sentViewModel.messageText,
+				}, {
+					collapsed: { collapsed: true, expanded: 'false', label: 'First steering message Second steering message', controls: 1, pending: false },
+					collapsedStickySource: undefined,
+					afterExpansionAndRerender: { collapsed: false, expanded: 'true', label: 'Message', controls: 1, pending: false },
+					requestText: combinedText,
+				});
+				fixture.disposables.dispose();
+			});
+		}
+
+		test('hides file attachments on collapse and restores their original layout on expansion', () => {
+			const fixture = createRenderer();
+			const pending = fixture.addPending('Review the attached file', ChatRequestQueueKind.Queued, {
+				variables: [{ kind: 'file', id: 'queued-file', name: 'example.ts', value: URI.file('/workspace/example.ts') }],
+			});
+			fixture.renderRequest(pending);
+			const attachments = fixture.template.value.querySelector<HTMLElement>('.chat-request-file-attachments');
+			assert.ok(attachments);
+			const originalDisplay = mainWindow.getComputedStyle(attachments).display;
+			getCollapseButton(fixture.template).click();
+			const collapsedDisplay = mainWindow.getComputedStyle(attachments).display;
+			getCollapseButton(fixture.template).click();
+
+			assert.deepStrictEqual({
+				originalDisplay,
+				collapsedDisplay,
+				restoredDisplay: mainWindow.getComputedStyle(attachments).display,
+				attachmentStillPresent: attachments.textContent?.includes('example.ts'),
+			}, { originalDisplay: 'flex', collapsedDisplay: 'none', restoredDisplay: 'flex', attachmentStillPresent: true });
+			fixture.disposables.dispose();
+		});
+
+		test('exposes the complete collapsed preview through its managed hover', () => {
+			const hoverContents: IManagedHoverContentOrFactory[] = [];
+			const fixture = createRenderer(undefined, {
+				...NullHoverService,
+				setupManagedHover: (delegate, target, content, options) => {
+					if (target.closest('.chat-request-collapse-control')) {
+						hoverContents.push(content);
+					}
+					return NullHoverService.setupManagedHover(delegate, target, content, options);
+				},
+			});
+			fixture.renderRequest(fixture.addPending('A long queued message\nwith the rest of the preview available on hover'));
+			const content = hoverContents[0];
+			assert.ok(typeof content === 'function');
+			const expandedHover = content();
+			getCollapseButton(fixture.template).click();
+
+			assert.deepStrictEqual({ expandedHover, collapsedHover: content() }, {
+				expandedHover: 'Collapse Message',
+				collapsedHover: 'Expand Message: A long queued message with the rest of the preview available on hover',
 			});
 			fixture.disposables.dispose();
 		});

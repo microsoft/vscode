@@ -915,7 +915,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!isRequestVM(element)
 			|| element.isSystemInitiated
 			|| !!element.confirmation
-			|| (this.requestExpansionState.get(element.id) === false && element.id !== this.viewModel?.editing?.id)
+			|| (this.getRequestExpansionState(element) === false && element.id !== this.viewModel?.editing?.id)
 			|| !this.requestHasStickyScrollContent(element)) {
 			return undefined;
 		}
@@ -955,7 +955,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
-		if (this.viewModel?.sessionResource.toString() !== viewModel?.sessionResource.toString()) {
+		if (!isEqual(this.viewModel?.sessionResource, viewModel?.sessionResource)) {
 			this.requestExpansionState.clear();
 		}
 		this.viewModel = viewModel;
@@ -2343,7 +2343,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			stickyScrollSourcePart.addDisposable(this.registerSynchronizedRequestBubbleHover(element.id, templateData, templateData.stickyScrollSource));
 		}
 
-		if (!isStickyScrollRow && !element.confirmation && element.id !== this.viewModel?.editing?.id && (element.pendingKind || this.requestExpansionState.has(element.id))) {
+		if (!isStickyScrollRow && !element.confirmation && element.id !== this.viewModel?.editing?.id && (element.pendingKind || this.getRequestExpansionState(element) !== undefined)) {
 			this.renderRequestCollapseControl(element, templateData);
 		}
 
@@ -2385,15 +2385,39 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	private getRequestExpansionState(element: IChatRequestViewModel): boolean | undefined {
+		let expanded = this.requestExpansionState.get(element.id);
+		// A combined steering request inherits any explicit collapse choice from
+		// its pending messages. Consume those choices so later toggles take effect.
+		for (const pendingId of element.pendingRequestIds ?? []) {
+			if (pendingId === element.id) {
+				continue;
+			}
+			const pendingExpanded = this.requestExpansionState.get(pendingId);
+			if (pendingExpanded !== undefined) {
+				expanded = expanded === undefined ? pendingExpanded : expanded && pendingExpanded;
+				this.requestExpansionState.delete(pendingId);
+			}
+		}
+		if (expanded !== undefined) {
+			this.requestExpansionState.set(element.id, expanded);
+		}
+		return expanded;
+	}
+
 	private renderRequestCollapseControl(element: IChatRequestViewModel, templateData: IChatListItemTemplate): void {
+		const contentElements = Array.from(templateData.value.children).filter(dom.isHTMLElement).map(element => ({ element, display: element.style.display }));
 		const control = dom.$('.chat-request-collapse-control.chat-used-context-label');
 		templateData.value.prepend(control);
 		const button = templateData.elementDisposables.add(new ButtonWithIcon(control, {}));
 		button.iconElement.setAttribute('aria-hidden', 'true');
 		const preview = element.messageText.replace(/\s+/g, ' ').trim() || localize('requestCollapseMessage', "Message");
-		let expanded = this.requestExpansionState.get(element.id) ?? true;
+		let expanded = this.getRequestExpansionState(element) ?? true;
 		const update = () => {
 			templateData.rowContainer.classList.toggle('chat-request-collapsed', !expanded);
+			for (const content of contentElements) {
+				content.element.style.display = expanded ? content.display : 'none';
+			}
 			button.label = expanded ? localize('requestCollapseMessage', "Message") : preview;
 			button.icon = expanded ? Codicon.chevronDownCompact : Codicon.chevronRightCompact;
 			button.element.ariaExpanded = String(expanded);
@@ -2404,7 +2428,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		update();
 		templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button.element, () => expanded
 			? localize('collapseRequest', "Collapse Message")
-			: localize('expandRequestTooltip', "Expand Message")));
+			: localize('expandRequestTooltip', "Expand Message: {0}", preview)));
 		templateData.elementDisposables.add(button.onDidClick(e => {
 			dom.EventHelper.stop(e, true);
 			control.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
