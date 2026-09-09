@@ -717,7 +717,7 @@ export class AgentSideEffects extends Disposable {
 				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, sessionKey, this._chatContext(sessionChannel, sessionKey), state, action.message.model?.id);
 				const clientContext = {
 					...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
-					hostLaunchKind: this._options.hostLaunchKind,
+					hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				};
 				this._turnTracker.turnStarted(agent, sessionKey, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(sessionChannel)));
 				this._turnTracker.setCurrentStage(sessionKey, action.turnId, 'provider');

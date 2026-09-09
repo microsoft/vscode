@@ -442,6 +442,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				return {
 					turnId: data.turnId,
 					timeToFirstEdit: data.timeToFirstEdit,
+					hostLaunchKind: data.hostLaunchKind,
 					permissionLevel: data.permissionLevel,
 					interactionMode: data.interactionMode,
 					messageOriginKind: data.messageOriginKind,
@@ -452,6 +453,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			completed: ['turn-original', 'turn-steering-1', 'turn-steering-2'].map(turnId => ({
 				turnId,
 				timeToFirstEdit: turnId === 'turn-original' ? undefined : 250,
+				hostLaunchKind: undefined,
 				permissionLevel: 'autopilot',
 				interactionMode: 'interactive',
 				messageOriginKind: 'user',
