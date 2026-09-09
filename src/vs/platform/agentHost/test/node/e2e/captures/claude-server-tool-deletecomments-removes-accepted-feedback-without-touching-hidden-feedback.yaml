@@ -9,8 +9,6 @@ exchanges:
           content: Call deleteComments exactly once with commentIds ["delete-me"], then reply exactly "deleted".
     response:
       content:
-        - type: text
-          text: I'll delete that comment.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__deleteComments
@@ -26,8 +24,6 @@ exchanges:
           content: Call deleteComments exactly once with commentIds ["delete-me"], then reply exactly "deleted".
         - role: assistant
           content:
-            - type: text
-              text: I'll delete that comment.
             - type: tool_use
               name: mcp__host__deleteComments
               input:

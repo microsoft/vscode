@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
-import { AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, isAgentHostByokModelsEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -76,8 +76,9 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('always surfaces Claude and uses window-specific Codex settings', () => {
+	test('surfaces enabled providers and uses window-specific Codex settings', () => {
 		const configurationService = new TestConfigurationService({
+			[AgentHostClaudeAgentEnabledSettingId]: true,
 			[AgentHostCodexAgentEnabledSettingId]: true,
 			[CodexPreferAgentHostEditorSettingId]: true,
 		});
@@ -97,16 +98,33 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 		});
 	});
 
-	test('hides Codex from the Agents window when the provider is disabled', () => {
+	test('surfaces Claude when the setting is absent, matching its default', () => {
+		const configurationService = new TestConfigurationService();
+
+		assert.deepStrictEqual({
+			agentsClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, true),
+			editorClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, false),
+		}, {
+			agentsClaude: true,
+			editorClaude: true,
+		});
+	});
+
+	test('hides disabled providers in their governed windows', () => {
 		const configurationService = new TestConfigurationService({
+			[AgentHostClaudeAgentEnabledSettingId]: false,
 			[AgentHostCodexAgentEnabledSettingId]: false,
 			[CodexPreferAgentHostEditorSettingId]: true,
 		});
 
 		assert.deepStrictEqual({
+			agentsClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, true),
+			editorClaude: shouldSurfaceLocalAgentHostProvider('claude', configurationService, false),
 			agentsCodex: shouldSurfaceLocalAgentHostProvider('codex', configurationService, true),
 			editorCodex: shouldSurfaceLocalAgentHostProvider('codex', configurationService, false),
 		}, {
+			agentsClaude: false,
+			editorClaude: false,
 			agentsCodex: false,
 			editorCodex: true,
 		});
@@ -300,27 +318,6 @@ suite('resolveChatUri', () => {
 	test('peer chat is addressed by its own URI', () => {
 		const peer = URI.parse(buildChatUri(session, 'peer-42'));
 		assert.strictEqual(resolveChatUri(session, peer).toString(), peer.toString());
-	});
-});
-
-suite('isAgentHostByokModelsEnabled', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('uses an explicit environment override before synchronized root config', () => {
-		assert.deepStrictEqual({
-			envFalseRootTrue: isAgentHostByokModelsEnabled('false', true),
-			envTrueRootFalse: isAgentHostByokModelsEnabled('true', false),
-			noEnvRootFalse: isAgentHostByokModelsEnabled(undefined, false),
-			noEnvRootTrue: isAgentHostByokModelsEnabled(undefined, true),
-			noSources: isAgentHostByokModelsEnabled(undefined, undefined),
-		}, {
-			envFalseRootTrue: false,
-			envTrueRootFalse: true,
-			noEnvRootFalse: false,
-			noEnvRootTrue: true,
-			noSources: false,
-		});
 	});
 });
 

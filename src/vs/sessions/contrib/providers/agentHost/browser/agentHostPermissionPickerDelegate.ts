@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../base/common/event.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, getAgentHostCopilotSandboxSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -22,7 +23,6 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
-import { getAgentHostCopilotManagedSandboxEnabled } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
 
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
@@ -71,13 +71,12 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	/** Fires every time any agent-host provider's session config changes. */
 	private readonly _configChangedSignal = observableSignal('agentHostPermissionPicker.configChanged');
 	private readonly _providerSubscriptions = this._register(new DisposableMap<string>());
-	private readonly _onDidChangeSandboxToggle = this._register(new Emitter<void>());
-	readonly onDidChangeSandboxToggle = this._onDidChangeSandboxToggle.event;
 
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
 	readonly isResolving: IObservable<boolean>;
 	readonly sandboxTogglePresentation = 'standalone' as const;
+	readonly managedSandboxEnforced: IObservable<boolean>;
 	readonly sandboxToggleConfigurationKeys = [
 		AgentHostCustomTerminalToolEnabledSettingId,
 		AgentHostSdkSandboxEnabledSettingId,
@@ -94,14 +93,6 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		}
 		const customTerminalToolEnabled = this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true;
 		return getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled);
-	};
-
-	readonly getManagedSandboxEnabled = (): boolean | undefined => {
-		const session = this._session.get();
-		if (!session || !this.isSandboxToggleApplicable()) {
-			return undefined;
-		}
-		return getAgentHostCopilotManagedSandboxEnabled(this._getProvider(session.providerId)?.getRootConfig());
 	};
 
 	get availableLevels(): readonly ChatPermissionLevel[] {
@@ -130,6 +121,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 					...meta,
 					label: localize('agentHostPermissionPicker.manual.label', "Manual permissions"),
 					detail: localize('agentHostPermissionPicker.askWhenNeeded.detail', "Asks when approval settings don't apply"),
+					icon: Codicon.key,
 				};
 			case ChatPermissionLevel.Assisted:
 				return { ...meta, detail: localize('agentHostPermissionPicker.approveWhenSafe.detail', "Evaluates risk before running tools") };
@@ -144,8 +136,10 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
+		this.managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced;
 
 		this._watchProviders(this._sessionsProvidersService.getProviders());
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
@@ -154,7 +148,6 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			}
 			this._watchProviders(e.added);
 			this._configChangedSignal.trigger(undefined);
-			this._onDidChangeSandboxToggle.fire();
 		}));
 
 		this.currentPermissionLevel = derived(this, reader => this._readLevel(reader));
@@ -255,10 +248,6 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const subscriptions = new DisposableStore();
 			subscriptions.add(provider.onDidChangeSessionConfig(() => {
 				this._configChangedSignal.trigger(undefined);
-			}));
-			subscriptions.add(provider.onDidChangeRootConfig(() => {
-				this._configChangedSignal.trigger(undefined);
-				this._onDidChangeSandboxToggle.fire();
 			}));
 			this._providerSubscriptions.set(provider.id, subscriptions);
 		}

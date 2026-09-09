@@ -33,7 +33,7 @@ suite('GitHubTransport', () => {
 		}
 	}
 
-	test('always reaches the injected fetch with explicit no-store behavior', async () => {
+	test('uses fetch cache mode without a Cache-Control request header', async () => {
 		await withServer(async server => {
 			server.enqueue(
 				gitHubRestStep({ method: 'GET', path: '/repos/o/r/issues/1', response: gitHubJsonResponse({ value: 1 }) }),
@@ -60,8 +60,8 @@ suite('GitHubTransport', () => {
 				values: [1, 2],
 				serverRequests: 2,
 				fetchOptions: [
-					{ cache: 'no-store', cacheControl: 'no-store' },
-					{ cache: 'no-store', cacheControl: 'no-store' },
+					{ cache: 'no-store', cacheControl: undefined },
+					{ cache: 'no-store', cacheControl: undefined },
 				],
 			});
 			server.assertSatisfied();
@@ -245,7 +245,7 @@ suite('GitHubTransport', () => {
 				errors: [{ message: 'field denied', type: 'FORBIDDEN', path: ['repository', 'viewerPermission'] }],
 				rateLimit: { limit: 5000, remaining: 7, used: 3, resetAt: Date.parse('2030-01-01T00:00:00.000Z') },
 				authorizationIsExpected: true,
-				requestHeaders: { cacheControl: 'no-store', authorization: '******' },
+				requestHeaders: { cacheControl: undefined, authorization: '******' },
 			});
 			server.assertSatisfied();
 		});
@@ -476,6 +476,122 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	test('parks the account when a secondary rate limit gives no usable retry hint', async () => {
+		await withServer(async server => {
+			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/unhinted',
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core' }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterUnhinted', response: gitHubJsonResponse({ ok: true }) }),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/stale',
+					// A secondary limit often reports the primary quota window,
+					// which can already have elapsed.
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core', resetAt: 1_000 }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterStale', response: gitHubJsonResponse({ ok: true }) }),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/primaryWindow',
+					// A secondary limit reports the primary quota window, which
+					// is far in the future while that quota is still unspent.
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core', resetAt: 4_600_000, remaining: 4_000 }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterPrimaryWindow', response: gitHubJsonResponse({ ok: true }) }),
+			);
+
+			const observed: number[] = [];
+			for (const [limited, after] of [['unhinted', 'afterUnhinted'], ['stale', 'afterStale'], ['primaryWindow', 'afterPrimaryWindow']]) {
+				await assert.rejects(
+					() => transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${limited}` }, signal()),
+					error => error instanceof GitHubRequestError && error.kind === 'rateLimit',
+				);
+				const startedAt = scheduler.now();
+				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
+				await Promise.resolve();
+				scheduler.flushAll();
+				await pending;
+				observed.push(scheduler.now() - startedAt);
+			}
+
+			assert.deepStrictEqual(observed, [60_000, 60_000, 60_000]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('parks a primary rate limit that GitHub reports as 403 rather than 429', async () => {
+		await withServer(async server => {
+			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/spentNoReset',
+					// Primary exhaustion carries no `retry-after`, and a proxy can
+					// strip the reset, leaving nothing to wait on but the floor.
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core', remaining: 0, message: 'API rate limit exceeded for user ID 1.' }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterSpentNoReset', response: gitHubJsonResponse({ ok: true }) }),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/spentWithReset',
+					response: gitHubRateLimitResponse({ status: 403, resource: 'core', remaining: 0, resetAt: 1_180_000, message: 'API rate limit exceeded for user ID 1.' }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterSpentWithReset', response: gitHubJsonResponse({ ok: true }) }),
+			);
+
+			const observed: number[] = [];
+			for (const [limited, after] of [['spentNoReset', 'afterSpentNoReset'], ['spentWithReset', 'afterSpentWithReset']]) {
+				await assert.rejects(
+					() => transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${limited}` }, signal()),
+					error => error instanceof GitHubRequestError && error.kind === 'rateLimit',
+				);
+				const startedAt = scheduler.now();
+				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
+				await Promise.resolve();
+				scheduler.flushAll();
+				await pending;
+				observed.push(scheduler.now() - startedAt);
+			}
+
+			// The floor when nothing usable was given, then the remainder of the
+			// absolute reset window (1_180_000) from where the first park left off.
+			assert.deepStrictEqual(observed, [60_000, 120_000]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('does not park an authorization failure that merely shares the 403 status', async () => {
+		await withServer(async server => {
+			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/forbidden',
+					response: gitHubJsonResponse({ message: 'Resource not accessible by integration' }, { status: 403 }),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/afterForbidden', response: gitHubJsonResponse({ ok: true }) }),
+			);
+
+			await assert.rejects(
+				() => transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/forbidden` }, signal()),
+				error => error instanceof GitHubRequestError && error.kind === 'authorization',
+			);
+			const startedAt = scheduler.now();
+			await transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/afterForbidden` }, signal());
+
+			// A credential problem must surface at once rather than being parked.
+			assert.deepStrictEqual({ waited: scheduler.now() - startedAt, pending: scheduler.pendingCount }, { waited: 0, pending: 0 });
+			server.assertSatisfied();
+		});
+	});
+
 	test('GraphQL RATE_LIMITED errors establish shared account backoff', async () => {
 		await withServer(async server => {
 			const scheduler = new FakeGitHubScheduler({ now: 1_000 });
@@ -595,6 +711,78 @@ suite('GitHubTransport', () => {
 			});
 			server.assertSatisfied();
 		});
+	});
+
+	test('reports the failing download hop and nested network codes without signed URLs or credentials', async () => {
+		const requests: { host: string; authorization: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			requests.push({ host: new URL(String(input)).host, authorization: new Headers(init?.headers).get('Authorization') });
+			if (requests.length === 1) {
+				return new Response(null, { status: 302, headers: { location: 'https://storage.example.test/private-log?sig=secret-signature' } });
+			}
+			throw new TypeError('fetch failed for secret-signature', {
+				cause: new AggregateError([
+					Object.assign(new Error('private-address'), { code: 'UND_ERR_CONNECT_TIMEOUT' }),
+					Object.assign(new Error('secret-token'), { code: 'ETIMEDOUT' }),
+					{ code: 'https://storage.example.test/private-log?sig=secret-signature' },
+				]),
+			});
+		}));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError',
+			kind: 'network',
+			message: 'GitHub download network request failed (host: storage.example.test, redirect: 1, codes: UND_ERR_CONNECT_TIMEOUT, ETIMEDOUT)',
+		});
+		assert.deepStrictEqual(requests, [
+			{ host: 'api.example.test', authorization: 'Bearer token-a' },
+			{ host: 'storage.example.test', authorization: null },
+		]);
+	});
+
+	test('reports initial download failures with a bounded cyclic cause chain', async () => {
+		const error = Object.assign(new Error('private details'), { code: 'ENOTFOUND' });
+		error.cause = error;
+		const transport = disposables.add(new GitHubTransport(async () => { throw error; }));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError',
+			kind: 'network',
+			message: 'GitHub download network request failed (host: api.example.test, redirect: 0, codes: ENOTFOUND)',
+		});
+	});
+
+	test('reports unknown download network codes without exposing thrown content', async () => {
+		const transport = disposables.add(new GitHubTransport(async () => { throw new Error('secret-token'); }));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError',
+			kind: 'network',
+			message: 'GitHub download network request failed (host: api.example.test, redirect: 0, codes: unknown)',
+		});
+	});
+
+	test('preserves download cancellation instead of reporting a network failure', async () => {
+		const controller = new AbortController();
+		const reason = new Error('cancelled download');
+		const transport = disposables.add(new GitHubTransport(async () => {
+			controller.abort(reason);
+			throw new TypeError('fetch failed');
+		}));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, controller.signal), error => error === reason);
 	});
 
 	test('runs higher-priority queued work before older background work', async () => {

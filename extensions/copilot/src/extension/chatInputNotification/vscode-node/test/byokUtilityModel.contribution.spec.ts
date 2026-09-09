@@ -182,6 +182,30 @@ describe('ByokUtilityModelNotificationContribution', () => {
 		expect(mockNotification.show).not.toHaveBeenCalled();
 	});
 
+	test('does not warn when querying models is canceled', async () => {
+		const cancellationError = new Error('Canceled');
+		cancellationError.name = 'Canceled';
+		selectChatModelsMock.mockRejectedValue(cancellationError);
+		const { authService } = createAuthService({ anyGitHubSession: undefined });
+		const { configService } = createConfigService();
+		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
+
+		await flushAsync();
+
+		expect(noopLog.warn).not.toHaveBeenCalled();
+	});
+
+	test('warns when querying models fails unexpectedly', async () => {
+		selectChatModelsMock.mockRejectedValue(new Error('model query failed'));
+		const { authService } = createAuthService({ anyGitHubSession: undefined });
+		const { configService } = createConfigService();
+		contribution = new ByokUtilityModelNotificationContribution(authService, configService, noopLog);
+
+		await flushAsync();
+
+		expect(noopLog.warn).toHaveBeenCalledWith('[ByokUtilityModelNotification] Failed to query language models: Error: model query failed');
+	});
+
 	test('does not show notification when both utility settings are configured', async () => {
 		const { authService } = createAuthService({ anyGitHubSession: undefined });
 		const { configService } = createConfigService({

@@ -14,8 +14,9 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ActionType } from '../../../common/state/sessionActions.js';
+import { ActionType, type RootAgentsChangedAction } from '../../../common/state/sessionActions.js';
 import { AgentHostCodexEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../common/agent.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
@@ -104,6 +105,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 	});
 
 	suiteTeardown(async function () {
+		this.timeout(60_000);
 		await stopServer(server);
 		await rm(userHomeDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	});
@@ -356,7 +358,6 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		try {
 			await runtimeClient.connect();
 			await runtimeClient.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'codex-runtime-enablement-client' }, 30_000);
-			await runtimeClient.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
 			await runtimeClient.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 			runtimeClient.clearReceived();
 			runtimeClient.dispatch({
@@ -369,6 +370,12 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 				&& (getActionEnvelope(notification).action as { readonly config?: Readonly<Record<string, boolean>> }).config?.[AgentHostCodexEnabledConfigKey] === true,
 				30_000,
 			);
+			await runtimeClient.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.RootAgentsChanged)
+				&& (getActionEnvelope(notification).action as RootAgentsChangedAction).agents.some(agent => agent.provider === 'codex'),
+				30_000,
+			);
+			await runtimeClient.call('authenticate', { channel: ROOT_STATE_URI, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'not-a-real-token' }, 30_000);
 
 			const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
 			await runtimeClient.call('createSession', {

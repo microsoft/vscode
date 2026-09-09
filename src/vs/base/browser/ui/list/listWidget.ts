@@ -2038,6 +2038,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.elementTop(index);
 	}
 
+	getElementHeight(index: number): number {
+		return this.view.elementHeight(index);
+	}
+
 	style(styles: IListStyles): void {
 		this.styleController.style(styles);
 	}

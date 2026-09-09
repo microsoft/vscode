@@ -41,6 +41,21 @@
 	margin-right: var(--vscode-spacing-size40);
 }
 
+.modern-ui.modern-ui-compact .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+	margin-left: var(--vscode-spacing-size20);
+	margin-right: var(--vscode-spacing-size20);
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
+}
+
+.modern-ui.modern-ui-compact .part.statusbar > .left-items > .statusbar-item.visible-background-color-neighbor {
+	margin-left: var(--vscode-spacing-size20);
+}
+
+.modern-ui.modern-ui-compact .part.statusbar > .right-items > .statusbar-item.visible-background-color-neighbor {
+	margin-right: var(--vscode-spacing-size20);
+}
+
 /*
  * Compact combo controls — a left/right pair that merges into one pill — give
  * the whole combo a single hover tint (painted inline on every sub-item's label
@@ -60,10 +75,18 @@
 	background-image: linear-gradient(var(--vscode-statusBarItem-compactHoverBackground), var(--vscode-statusBarItem-compactHoverBackground));
 }
 
+/*
+ * The items at either end of the status bar attach to the corner in the base
+ * styles, which pads them asymmetrically. As pills they need even padding on
+ * both sides, so give both end items the same symmetric inset.
+ */
+.modern-ui .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label,
 .modern-ui .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
 	padding: 0 var(--vscode-spacing-size60);
 }
 
-.modern-ui .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+.modern-ui.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label,
+.modern-ui.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
 }

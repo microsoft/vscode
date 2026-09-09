@@ -31,9 +31,14 @@ export const enum AgentHostAccessMode {
 
 /**
  * Persisted shape of {@link AgentHostLocalFilePermissionsSettingId}:
- * `{ [normalizedAddress]: { [uriString]: 'r' | 'rw' } }`.
+ * `{ [normalizedAddress]: { [canonicalUriString]: 'r' | 'rw' | { mode, lexicalUri } } }`.
  */
-export type AgentHostPermissionsSetting = Record<string, Record<string, AgentHostAccessMode>>;
+export type AgentHostPermissionGrant = AgentHostAccessMode | {
+	readonly mode: AgentHostAccessMode;
+	readonly lexicalUri: string;
+};
+
+export type AgentHostPermissionsSetting = Record<string, Record<string, AgentHostPermissionGrant>>;
 
 /**
  * Capability a request needs from the user. The protocol-level `read` and

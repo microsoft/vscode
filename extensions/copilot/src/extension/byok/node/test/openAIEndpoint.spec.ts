@@ -548,14 +548,15 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(response.type === ChatFetchResponseType.Failed && response.reason).toBe('{"code":0,"message":"something broke","metadata":{"code":"server_error"}}');
 		});
 
-		it('disables marker reuse and store for ZDR Responses requests', () => {
+		it('keeps store and marker reuse disabled for ordinary OpenAI BYOK ZDR Responses requests', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
 					...modelMetadata,
+					vendor: 'OpenAI',
 					zeroDataRetentionEnabled: true,
 				},
 				'test-api-key',
-				'https://api.openai.com/v1/chat/completions');
+				'https://api.openai.com/v1/responses');
 			const messages: Raw.ChatMessage[] = [
 				{
 					role: Raw.ChatRole.User,

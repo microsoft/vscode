@@ -25,6 +25,7 @@ import {
 	PullRequestMergeResult,
 	PullRequestMutationApi,
 	PullRequestMutationResult,
+	PullRequestNodeOptions,
 	PullRequestReplyAndResolveOptions,
 	PullRequestReplyAndResolveResult,
 	PullRequestReplyOptions,
@@ -67,32 +68,42 @@ const maximumWorkflowLogBytes = 2 * 1024 * 1024;
 const workflowLogTimeout = 30_000;
 const mergePreparationLifetime = 5 * 60_000;
 
+// GitHub exposes `rateLimit` on the `Query` root only, so mutations must not select it. Mutation rate
+// limits are still tracked from the `x-ratelimit-*` response headers by the transport.
 const addReviewThreadReplyMutation = `mutation AgentHostAddPullRequestReviewThreadReply($threadId: ID!, $body: String!) {
 	addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $threadId, body: $body }) {
 		comment { id databaseId body url createdAt updatedAt author { login ... on User { databaseId } } }
 	}
-	rateLimit { limit remaining used resetAt }
 }`;
 
 const resolveReviewThreadMutation = `mutation AgentHostResolvePullRequestReviewThread($threadId: ID!) {
 	resolveReviewThread(input: { threadId: $threadId }) {
 		thread { id isResolved }
 	}
-	rateLimit { limit remaining used resetAt }
 }`;
 
 const enqueuePullRequestMutation = `mutation AgentHostEnqueuePullRequest($pullRequestId: ID!, $expectedHeadOid: GitObjectID!) {
 	enqueuePullRequest(input: { pullRequestId: $pullRequestId, expectedHeadOid: $expectedHeadOid }) {
 		mergeQueueEntry { id }
 	}
-	rateLimit { limit remaining used resetAt }
 }`;
 
 const enableAutoMergeMutation = `mutation AgentHostEnablePullRequestAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
 	enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
 		pullRequest { id }
 	}
-	rateLimit { limit remaining used resetAt }
+}`;
+
+const disableAutoMergeMutation = `mutation AgentHostDisablePullRequestAutoMerge($pullRequestId: ID!) {
+	disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
+		pullRequest { id }
+	}
+}`;
+
+const markReadyForReviewMutation = `mutation AgentHostMarkPullRequestReadyForReview($pullRequestId: ID!) {
+	markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
+		pullRequest { id isDraft }
+	}
 }`;
 
 export class PullRequestMutationService extends Disposable implements IPullRequestMutations {
@@ -168,6 +179,28 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				);
 				throwGraphQLErrors(response.errors);
 			});
+		});
+	}
+
+	disableAutoMerge(
+		ref: PullRequestRef,
+		options: PullRequestNodeOptions,
+		signal: AbortSignal,
+	): Promise<void> {
+		return this._serialize(ref, 'disableAutoMerge', async () => {
+			await this._pullRequestNodeMutation(ref, options, disableAutoMergeMutation, signal);
+			this._resources.invalidatePullRequest(ref, ['mergeability']);
+		});
+	}
+
+	markReadyForReview(
+		ref: PullRequestRef,
+		options: PullRequestNodeOptions,
+		signal: AbortSignal,
+	): Promise<void> {
+		return this._serialize(ref, 'markReadyForReview', async () => {
+			await this._pullRequestNodeMutation(ref, options, markReadyForReviewMutation, signal);
+			this._resources.invalidatePullRequest(ref, ['core', 'mergeability']);
 		});
 	}
 
@@ -751,6 +784,29 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			throw new GitHubRequestError('GitHub pagination exceeded its page limit', 'malformedResponse');
 		}
 		return values;
+	}
+
+	private async _pullRequestNodeMutation(
+		ref: PullRequestRef,
+		options: PullRequestNodeOptions,
+		mutation: string,
+		signal: AbortSignal,
+	): Promise<void> {
+		if (!options.pullRequestId) {
+			throw new GitHubRequestError('Pull request node ID is required for this mutation', 'validation');
+		}
+		await this._withCredential(ref, signal, async (credential, combinedSignal) => {
+			const response = await this._transport.graphql(
+				credential.account,
+				credential.token,
+				this._endpoint.getGraphQlUri(),
+				mutation,
+				{ pullRequestId: options.pullRequestId },
+				combinedSignal,
+				'mutation',
+			);
+			throwGraphQLErrors(response.errors);
+		});
 	}
 
 	private async _withCredential<T>(

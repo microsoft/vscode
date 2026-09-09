@@ -8,7 +8,7 @@ import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabe
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -29,6 +29,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -69,6 +70,7 @@ export interface IPermissionPickerDelegate {
 	readonly sandboxTogglePresentation?: 'inline' | 'standalone';
 	readonly getSandboxToggleSettingId?: () => string | undefined;
 	readonly sandboxToggleConfigurationKeys?: readonly string[];
+	readonly managedSandboxEnforced?: IObservable<boolean>;
 }
 
 /** Default level set offered when a delegate does not specify {@link IPermissionPickerDelegate.availableLevels}. */
@@ -199,16 +201,23 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				const sandboxToggleEnabled = this.isSandboxToggleAvailable();
 				const sandboxTogglePresentation = delegate.sandboxTogglePresentation ?? 'inline';
 				const setSandboxEnabled = async (enableSandbox: boolean) => {
+					if (this.isSandboxManaged()) {
+						return;
+					}
 					const target: AgentSandboxEnabledValue = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 					const settingId = this.getSandboxToggleSettingId();
 					if (settingId && this.isSandboxingEnabled() !== enableSandbox) {
 						await configurationService.updateValue(settingId, target);
 					}
 				};
+				const sandboxManaged = this.isSandboxManaged();
 				const sandboxToggle = sandboxToggleEnabled ? {
 					label: localize('permissions.default.sandbox.toggle', "Sandboxing for terminal"),
-					title: localize('permissions.default.sandbox.toggle.title', "Run terminal commands inside a sandbox that restricts file system and network access"),
+					title: sandboxManaged
+						? localize('permissions.default.sandbox.toggle.managedTitle', "Sandboxing is managed by your organization")
+						: localize('permissions.default.sandbox.toggle.title', "Run terminal commands inside a sandbox that restricts file system and network access"),
 					checked: this.isSandboxingEnabled(),
+					disabled: sandboxManaged,
 					onChange: (checked: boolean) => { void setSandboxEnabled(checked); },
 				} : undefined;
 				const levels = delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
@@ -301,15 +310,30 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				this.renderLabel(this.element);
 			}
 		}));
+		if (delegate.managedSandboxEnforced) {
+			this._register(autorun(reader => {
+				delegate.managedSandboxEnforced?.read(reader);
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
+			}));
+		}
 	}
 
 	private isSandboxingEnabled(): boolean {
+		if (this.isSandboxManaged()) {
+			return true;
+		}
 		const settingId = this.getSandboxToggleSettingId();
 		if (!settingId) {
 			return false;
 		}
 		const value = this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId);
 		return isAgentSandboxEnabledValue(value);
+	}
+
+	private isSandboxManaged(): boolean {
+		return this.delegate.managedSandboxEnforced?.get() === true;
 	}
 
 	private getSandboxToggleSettingId(): string | undefined {
@@ -362,8 +386,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		const labelElements = [];
-		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
+		const compact = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', compact);
+		if (!compact) {
+			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		}
 
 		dom.reset(element, ...labelElements);
 		element.classList.toggle('warning', !ext && (level === ChatPermissionLevel.Autopilot || level === ChatPermissionLevel.Assisted));

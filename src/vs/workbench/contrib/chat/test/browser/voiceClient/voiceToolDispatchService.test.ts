@@ -76,21 +76,14 @@ suite('VoiceToolDispatchService - session actions', () => {
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
 			override get model(): IAgentSessionsModel {
 				return {
-					sessions: (options.agentSessionResources ?? []).map(resource => ({
-						isArchived: () => false,
-						resource,
-						label: 'Agent session',
-						status: AgentSessionStatus.NeedsInput,
-						timing: {},
-						changes: undefined,
-					})),
+					sessions: (options.agentSessionResources ?? []).map(resource => ({ isArchived: () => false, resource, status: AgentSessionStatus.InProgress, timing: {} })),
 				} as IAgentSessionsModel;
 			}
 		};
 		const chatService = new class extends mock<IChatService>() {
 			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', options.chatModels ?? []);
 			override getSession(resource: URI): IChatModel | undefined {
-				return this.chatModels.get().find(model => model.sessionResource.toString() === resource.toString());
+				return options.chatModels?.find(model => model.sessionResource.toString() === resource.toString());
 			}
 		};
 		const service = new VoiceToolDispatchService(
@@ -137,6 +130,40 @@ suite('VoiceToolDispatchService - session actions', () => {
 		assert.deepStrictEqual(result, { ok: true, session_id: resource.toString() });
 		assert.strictEqual(calls.switchedTo[0]?.toString(), resource.toString());
 		assert.strictEqual(calls.targeted[0]?.toString(), resource.toString());
+	});
+
+	test('focuses a session by its human-readable label', async () => {
+		const resource = URI.parse('agent-session://test/alpha');
+		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
+			override get model(): IAgentSessionsModel {
+				return {
+					sessions: [{ isArchived: () => false, label: 'Alpha', resource, timing: {} }],
+				} as IAgentSessionsModel;
+			}
+		};
+		const chatService = new class extends mock<IChatService>() {
+			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+		};
+		const service = new VoiceToolDispatchService(
+			agentSessionsService,
+			chatService,
+			new class extends mock<ILanguageModelToolsService>() { },
+		);
+		const calls: URI[] = [];
+		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
+			override async switchToSession(target: URI): Promise<boolean> {
+				calls.push(target);
+				return true;
+			}
+			override setTargetSession(_resource: URI): void { }
+			override async getCurrentSessionResource(): Promise<URI | undefined> { return undefined; }
+		}());
+
+		assert.deepStrictEqual(
+			await dispatch(service, 'focus_session', { coding_session_id: 'alpha' }),
+			{ ok: true, session_id: resource.toString() },
+		);
+		assert.deepStrictEqual(calls, [resource]);
 	});
 
 	test('sets a model on the current session without changing the voice target', async () => {
@@ -217,21 +244,23 @@ suite('VoiceToolDispatchService - session actions', () => {
 		});
 	});
 
-	test('reports Agent Host sessions using the backend session id', async () => {
-		const resource = URI.parse('agent-host-copilotcli:/waiting-session');
-		const { service } = createActionHarness({ currentResource: resource, agentSessionResources: [resource] });
+	test('reports the loaded model state instead of a stale session status', async () => {
+		const resource = URI.parse('agent-session://test/completed');
+		const model = {
+			sessionResource: resource,
+			requestNeedsInput: observableValue('requestNeedsInput', undefined),
+			hasActiveRequest: observableValue('hasActiveRequest', false),
+			getRequests: () => [],
+		} as unknown as IChatModel;
+		const { service } = createActionHarness({
+			agentSessionResources: [resource],
+			chatModels: [model],
+		});
 
 		const result = await dispatch(service, 'get_session_info');
 
-		assert.deepStrictEqual(result.sessions[0], {
-			id: 'copilotcli:/waiting-session',
-			label: 'Agent session',
-			session_type: 'agent',
-			state: 'waiting_for_input',
-			is_active: true,
-			insertions: 0,
-			deletions: 0,
-		});
+		assert.deepStrictEqual(result.counts, { working: 0, waiting_for_input: 0, idle: 1 });
+		assert.strictEqual(result.sessions[0].state, 'idle');
 	});
 });
 

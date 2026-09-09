@@ -7,9 +7,10 @@ import { createHash } from 'crypto';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, normalize } from '../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
-import { readAgentComponents, toParsedAgent, type IParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
+import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type RuleCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type IParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import type { HookMetadata } from './protocol/generated/v2/HookMetadata.js';
 import type { HooksListResponse } from './protocol/generated/v2/HooksListResponse.js';
@@ -107,6 +108,114 @@ export async function discoverCodexWorkspaceAgents(
 	}
 
 	return { agents, containers };
+}
+
+export async function discoverCodexWorkspaceSkills(
+	workingDirectories: readonly URI[],
+	fileService: IFileService,
+): Promise<readonly DirectoryCustomization[]> {
+	const containers: DirectoryCustomization[] = [];
+	const seenDirectories = new Set<string>();
+	const seenNames = new Set<string>();
+	for (const workingDirectory of workingDirectories) {
+		const directory = URI.joinPath(workingDirectory, '.github', 'skills');
+		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(directory);
+		if (seenDirectories.has(directoryKey)) {
+			continue;
+		}
+		seenDirectories.add(directoryKey);
+		const skills = [...await readSkills(workingDirectory, [directory], fileService, { childDirectoriesOnly: true, deduplicateByName: false })]
+			.sort((left, right) => left.name.localeCompare(right.name) || compare(left.uri.toString(), right.uri.toString()))
+			.filter(skill => {
+				if (seenNames.has(skill.name)) {
+					return false;
+				}
+				seenNames.add(skill.name);
+				return true;
+			});
+		if (skills.length === 0) {
+			continue;
+		}
+		const uri = directory.toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(uri),
+			uri,
+			name: '.github',
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: true,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: skills.map(skill => toParsedSkill(skill).customization),
+		});
+	}
+	return containers;
+}
+
+export function excludeCodexWorkspaceSkillDuplicates(
+	nativeContainers: readonly DirectoryCustomization[],
+	workspaceSkills: readonly DirectoryCustomization[],
+): DirectoryCustomization[] {
+	const workspaceSkillIds = new Set(workspaceSkills.flatMap(container => container.children?.map(child => child.id) ?? []));
+	return nativeContainers.flatMap(container => {
+		if (container.contents !== CustomizationType.Skill) {
+			return [container];
+		}
+		const children = container.children?.filter(child => !workspaceSkillIds.has(child.id));
+		if (!children || children.length === container.children?.length) {
+			return [container];
+		}
+		return children.length > 0 ? [{ ...container, children }] : [];
+	});
+}
+
+/**
+ * Surfaces the root `AGENTS.md` file that Codex natively loads for each
+ * workspace. The transport/provider owns applying the instruction; this scan
+ * only projects that effective workspace customization into AHP state.
+ */
+export async function discoverCodexWorkspaceInstructions(
+	workingDirectories: readonly URI[],
+	fileService: IFileService,
+): Promise<readonly DirectoryCustomization[]> {
+	const containers: DirectoryCustomization[] = [];
+	const seenDirectories = new Set<string>();
+	for (const workingDirectory of workingDirectories) {
+		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
+		if (seenDirectories.has(directoryKey)) {
+			continue;
+		}
+		seenDirectories.add(directoryKey);
+		const resource = URI.joinPath(workingDirectory, 'AGENTS.md');
+		try {
+			if (!(await fileService.stat(resource)).isFile) {
+				continue;
+			}
+		} catch {
+			continue;
+		}
+		const ruleUri = resource.toString();
+		const rule: RuleCustomization = {
+			type: CustomizationType.Rule,
+			id: customizationId(ruleUri),
+			uri: ruleUri,
+			name: 'AGENTS.md',
+			alwaysApply: true,
+		};
+		const directoryUri = workingDirectory.toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(directoryUri),
+			uri: directoryUri,
+			name: basename(workingDirectory),
+			enabled: true,
+			contents: CustomizationType.Rule,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [rule],
+		});
+	}
+	return containers;
 }
 
 function localFileComparisonKey(resource: URI): { readonly key: string; readonly resource: URI } | undefined {

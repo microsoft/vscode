@@ -39,6 +39,7 @@ import {
 } from '../../common/voiceClient/voiceClientService.js';
 import { isTerminalCloseCode, voiceCloseCodeInfo } from '../../common/voiceClient/voiceCloseCodes.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { getVoiceWebSocketUrl } from './voiceEndpoint.js';
 
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
@@ -306,9 +307,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _getWsUrl(): string {
-		const configured = this._configurationService.getValue<string>('agents.voice.backendUrl');
-		const url = typeof configured === 'string' ? configured.trim() : '';
-		return url || this._productService.voiceWsUrl || '';
+		return getVoiceWebSocketUrl(this._configurationService, this._productService);
 	}
 
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {
@@ -798,14 +797,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	sendToolResult(callId: string, result: string | IVoiceDispatchResult, codingSessionId?: string): void {
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({
-				type: 'tool_result',
-				call_id: callId,
-				result,
-				...(codingSessionId ? { coding_session_id: codingSessionId } : {}),
-			}));
+			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
 	}
 
@@ -820,13 +814,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }, prepareToReceiveAudio?: () => void): string | undefined {
+	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
 		// a retry that onSessionInit replays once the session exists.
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
-			prepareToReceiveAudio?.();
 			// Reuse a caller-supplied id (a `busy` retry) so the backend dedups; else mint one.
 			const id = narrationId ?? generateUuid();
 			this._ws.send(JSON.stringify({

@@ -73,7 +73,8 @@ export const enum AccessibilityVerbositySettingId {
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
 	Automations = 'accessibility.verbosity.automations',
-	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting'
+	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
+	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -233,6 +234,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.BrowserElementCommenting]: {
 			description: localize('verbosity.browserElementCommenting', 'Provide information about how to access element commenting accessibility help in the Integrated Browser.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ChatPetAchievements]: {
+			description: localize('verbosity.chatPetAchievements', 'Provide information about how to access chat pet achievements accessibility help when the Achievements modal is focused.'),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {

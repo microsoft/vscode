@@ -50,7 +50,7 @@ import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
-import { isChatInputWindow, isQuickChat } from '../widget/chatWidget.js';
+import { isQuickChat } from '../widget/chatWidget.js';
 import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -557,8 +557,7 @@ export class AttachContextAction extends Action2 {
 			});
 		}
 
-		const quickInputService = await (context?.contextPicker ?? widget.contextPicker)?.prepare();
-		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder, quickInputService);
+		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder);
 	}
 
 	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string, quickInputServiceOverride?: IQuickInputService) {
@@ -596,7 +595,7 @@ export class AttachContextAction extends Action2 {
 				} else {
 					instantiationService.invokeFunction(this._handleQPPick.bind(this), widget, isBackgroundAccept, item);
 				}
-				if (isQuickChat(widget) && !isChatInputWindow(widget)) {
+				if (isQuickChat(widget)) {
 					quickChatService.open();
 				}
 			}

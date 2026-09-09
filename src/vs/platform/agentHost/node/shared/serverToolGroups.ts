@@ -7,6 +7,7 @@ import { feedbackServerToolGroup } from './agentFeedbackServerTools.js';
 import { createSessionServerToolGroup, type ISessionServerToolAccessor } from './sessionServerTools.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 import { createAgentMergeServerToolGroup, type IAgentMergeToolAccessor } from './agentMergeServerTools.js';
+import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from './artifactServerTools.js';
 
 /**
  * Builds the server-tool groups contributed to every agent host session, in
@@ -24,11 +25,12 @@ import { createAgentMergeServerToolGroup, type IAgentMergeToolAccessor } from '.
  * When omitted (the pure display path) the session group's `execute` is inert,
  * but its definitions and display remain available.
  */
-export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor): readonly IServerToolGroup[] {
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor): readonly IServerToolGroup[] {
 	return [
 		feedbackServerToolGroup,
 		createSessionServerToolGroup(sessionAccessor),
 		createAgentMergeServerToolGroup(agentMergeAccessor),
+		createArtifactServerToolGroup(artifactAccessor),
 	];
 }
 
@@ -70,6 +72,18 @@ export function getServerToolDisplay(toolName: string, args: unknown, result?: I
 		for (const def of group.definitions) {
 			if (matchesServerToolName(toolName, def.name)) {
 				return group.getDisplay(def.name, args, result);
+			}
+		}
+	}
+	// Only once no advertised tool matched: a restored call made under a name
+	// that has since been renamed still gets the display of its replacement.
+	for (const group of serverToolGroupsForDisplay) {
+		if (!group.getDisplay) {
+			continue;
+		}
+		for (const [legacyName, currentName] of group.legacyToolNames ?? []) {
+			if (matchesServerToolName(toolName, legacyName)) {
+				return group.getDisplay(currentName, args, result);
 			}
 		}
 	}

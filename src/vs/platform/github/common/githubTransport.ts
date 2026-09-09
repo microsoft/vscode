@@ -211,8 +211,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				let authenticated = true;
 				for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
 					const headers: Record<string, string> = {
-						'Accept': 'text/plain, application/octet-stream',
-						'Cache-Control': 'no-store',
+						'Accept': authenticated ? 'application/vnd.github+json' : 'text/plain, application/octet-stream',
 						'X-GitHub-Api-Version': defaultApiVersion,
 					};
 					if (authenticated) {
@@ -231,7 +230,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						if (combinedSignal.aborted) {
 							throw combinedSignal.reason ?? error;
 						}
-						throw new GitHubRequestError(`GitHub download network request failed: ${String(error)}`, 'network');
+						throw new GitHubRequestError(`GitHub download network request failed (host: ${formatDownloadUrl(url)}, redirect: ${redirectCount}, codes: ${formatNetworkErrorCodes(error)})`, 'network');
 					}
 					this._logService?.trace(`[GitHubTransport] Download request returned HTTP ${response.status}`);
 					if (authenticated) {
@@ -322,7 +321,6 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				headers: {
 					'Accept': 'application/json',
 					'Authorization': `Bearer ${token}`,
-					'Cache-Control': 'no-store',
 					'Content-Type': 'application/json',
 					'X-GitHub-Api-Version': defaultApiVersion,
 				},
@@ -415,7 +413,6 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			const headers: Record<string, string> = {
 				'Accept': request.accept ?? 'application/vnd.github+json',
 				'Authorization': `Bearer ${token}`,
-				'Cache-Control': 'no-store',
 				'X-GitHub-Api-Version': request.apiVersion ?? defaultApiVersion,
 			};
 			if (cached) {
@@ -767,6 +764,30 @@ function formatDownloadUrl(value: string): string {
 	} catch {
 		return '<invalid-url>';
 	}
+}
+
+function formatNetworkErrorCodes(error: unknown): string {
+	const pending: unknown[] = [error];
+	const codes = new Set<string>();
+	for (let index = 0; index < pending.length && index < 16; index++) {
+		const current = pending[index];
+		if (!current || typeof current !== 'object') {
+			continue;
+		}
+		const code = readString(current, 'code');
+		if (code && /^[A-Z][A-Z0-9_]{0,63}$/.test(code)) {
+			codes.add(code);
+		}
+		const cause = Reflect.get(current, 'cause');
+		if (cause !== undefined) {
+			pending.push(cause);
+		}
+		const errors = Reflect.get(current, 'errors');
+		if (Array.isArray(errors)) {
+			pending.push(...errors.slice(0, 16));
+		}
+	}
+	return codes.size > 0 ? [...codes].join(', ') : 'unknown';
 }
 
 function graphQLOperationName(query: string): string {

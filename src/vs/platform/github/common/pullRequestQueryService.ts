@@ -23,6 +23,7 @@ import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.j
 import { GitHubCredential } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
+import { ILogService } from '../../log/common/log.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
 
 export type PullRequestFragmentResult =
@@ -79,7 +80,7 @@ const reviewThreadCommentsQuery = `query AgentHostPullRequestReviewThreadComment
 	rateLimit { limit remaining used resetAt }
 }`;
 
-const checksQuery = (includeRequiredness: boolean) => `query AgentHostPullRequestChecks($owner: String!, $repo: String!, $number: Int!, $after: String) {
+const checksQuery = (includeRequiredness: boolean, includeWorkflowNames: boolean) => `query AgentHostPullRequestChecks($owner: String!, $repo: String!, $number: Int!, $after: String) {
 	repository(owner: $owner, name: $repo) {
 		pullRequest(number: $number) {
 			headRefOid
@@ -92,7 +93,7 @@ const checksQuery = (includeRequiredness: boolean) => `query AgentHostPullReques
 									__typename
 									... on CheckRun {
 										databaseId name status conclusion detailsUrl
-										checkSuite { workflowRun { workflow { name } } }
+										${includeWorkflowNames ? 'checkSuite { workflowRun { workflow { name } } }' : ''}
 										${includeRequiredness ? 'isRequired(pullRequestNumber: $number)' : ''}
 									}
 									... on StatusContext {
@@ -128,11 +129,11 @@ const expectedCheckSuitesQuery = `query AgentHostPullRequestExpectedCheckSuites(
 
 const mergeabilityQuery = (includeMergeQueue: boolean) => `query AgentHostPullRequestMergeability($owner: String!, $repo: String!, $number: Int!${includeMergeQueue ? ', $baseBranch: String!' : ''}) {
 	repository(owner: $owner, name: $repo) {
-		id nameWithOwner mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed
+		id nameWithOwner mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed viewerPermission
 		${includeMergeQueue ? 'mergeQueue(branch: $baseBranch) { id }' : ''}
 		pullRequest(number: $number) {
 			id headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
-			viewerCanUpdateBranch viewerCanMerge viewerCanEnableAutoMerge
+			viewerCanUpdateBranch viewerCanEnableAutoMerge
 			autoMergeRequest { enabledAt }
 			mergeQueueEntry { id }
 		}
@@ -144,10 +145,14 @@ export class PullRequestQueryService implements IPullRequestQuery {
 
 	private readonly _planner = new PullRequestRequestPlanner();
 
+	/** Repositories whose host refused the workflow-name subselection, keyed by `owner/repo`. */
+	private readonly _workflowNamesUnavailable = new Set<string>();
+
 	constructor(
 		private readonly _transport: IGitHubTransport,
 		private readonly _capabilities: IGitHubCapabilities,
 		private readonly _endpoint: IGitHubEndpointProvider,
+		private readonly _logService?: ILogService,
 	) { }
 
 	async fetch(
@@ -387,22 +392,90 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		loadExpectedSuites: boolean,
 		includeOptional: boolean,
 	): Promise<PullRequestChecks> {
+		const rollup = await this._fetchCheckRollupWithWorkflowNames(ref, core, credential, signal, priority, includeRequiredness, includeOptional);
+		const expected = loadExpectedSuites
+			? await this._fetchExpectedCheckSuitesWhenPermitted(ref, core.headSha, credential, signal, priority)
+			: { suites: [], complete: false };
+		return {
+			headSha: rollup.headSha,
+			checks: rollup.checks,
+			requirednessComplete: includeRequiredness,
+			expectedSuites: expected.suites,
+			expectedSuitesComplete: expected.complete,
+		};
+	}
+
+	/**
+	 * Loads the check rollup, dropping the workflow-name subselection for a
+	 * repository whose host refuses it so the rest of the checks stay readable.
+	 */
+	private async _fetchCheckRollupWithWorkflowNames(
+		ref: PullRequestRef,
+		core: PullRequestCore,
+		credential: GitHubCredential,
+		signal: AbortSignal,
+		priority: import('./githubTypes.js').GitHubRequestPriority,
+		includeRequiredness: boolean,
+		includeOptional: boolean,
+	): Promise<{ readonly headSha: string; readonly checks: readonly PullRequestCheck[] }> {
+		const repositoryKey = `${ref.owner}/${ref.repo}`.toLowerCase();
+		const includeWorkflowNames = !this._workflowNamesUnavailable.has(repositoryKey);
+		try {
+			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, includeOptional, includeWorkflowNames);
+		} catch (error) {
+			if (!includeWorkflowNames || !(error instanceof GitHubRequestError) || error.kind !== 'authorization') {
+				throw error;
+			}
+			this._workflowNamesUnavailable.add(repositoryKey);
+			this._logService?.warn(`[PullRequestQueryService] Retrying checks for ${ref.owner}/${ref.repo}#${ref.number} without workflow names because GitHub refused them: ${error.message}`);
+			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, includeOptional, false);
+		}
+	}
+
+	/** Loads the expected check suites, reporting them absent and incomplete when the host refuses them. */
+	private async _fetchExpectedCheckSuitesWhenPermitted(
+		ref: PullRequestRef,
+		headSha: string,
+		credential: GitHubCredential,
+		signal: AbortSignal,
+		priority: import('./githubTypes.js').GitHubRequestPriority,
+	): Promise<{ readonly suites: readonly PullRequestCheckSuite[]; readonly complete: boolean }> {
+		try {
+			return { suites: await this._fetchExpectedCheckSuites(ref, headSha, credential, signal, priority), complete: true };
+		} catch (error) {
+			if (!(error instanceof GitHubRequestError) || error.kind !== 'authorization') {
+				throw error;
+			}
+			this._logService?.warn(`[PullRequestQueryService] Reporting expected check suites for ${ref.owner}/${ref.repo}#${ref.number} as unavailable because GitHub refused them: ${error.message}`);
+			return { suites: [], complete: false };
+		}
+	}
+
+	private async _fetchCheckRollup(
+		ref: PullRequestRef,
+		core: PullRequestCore,
+		credential: GitHubCredential,
+		signal: AbortSignal,
+		priority: import('./githubTypes.js').GitHubRequestPriority,
+		includeRequiredness: boolean,
+		includeOptional: boolean,
+		includeWorkflowNames: boolean,
+	): Promise<{ readonly headSha: string; readonly checks: readonly PullRequestCheck[] }> {
 		const checks: PullRequestCheck[] = [];
 		let after: string | undefined;
-		let observedHead: string | undefined;
 		for (let page = 0; page < maximumPaginationPages; page++) {
 			const response = await this._transport.graphql<unknown>(
 				credential.account,
 				credential.token,
 				this._endpoint.getGraphQlUri(),
-				checksQuery(includeRequiredness),
+				checksQuery(includeRequiredness, includeWorkflowNames),
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
 				signal,
 				priority,
 			);
 			throwGraphQLErrors(response.errors);
 			const pullRequest = objectAt(response.data, 'repository', 'pullRequest');
-			observedHead = requiredString(pullRequest, 'headRefOid');
+			const observedHead = requiredString(pullRequest, 'headRefOid');
 			if (observedHead !== core.headSha) {
 				throw new GitHubRequestError('GitHub checks response was for an old pull request head', 'unknown');
 			}
@@ -411,31 +484,13 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			const commit = objectProperty(commitNode, 'commit');
 			const rollup = optionalObjectProperty(commit, 'statusCheckRollup');
 			if (!rollup) {
-				const expectedSuites = loadExpectedSuites
-					? await this._fetchExpectedCheckSuites(ref, core.headSha, credential, signal, priority)
-					: [];
-				return {
-					headSha: observedHead,
-					checks: [],
-					requirednessComplete: includeRequiredness,
-					expectedSuites,
-					expectedSuitesComplete: loadExpectedSuites,
-				};
+				return { headSha: observedHead, checks: [] };
 			}
 			const contexts = objectProperty(rollup, 'contexts');
 			checks.push(...arrayProperty(contexts, 'nodes').map(toCheck));
 			const pageInfo = pageInfoFrom(contexts);
 			if (!pageInfo.hasNextPage) {
-				const expectedSuites = loadExpectedSuites
-					? await this._fetchExpectedCheckSuites(ref, core.headSha, credential, signal, priority)
-					: [];
-				return {
-					headSha: observedHead,
-					checks: filterChecks(checks, includeRequiredness, includeOptional),
-					requirednessComplete: includeRequiredness,
-					expectedSuites,
-					expectedSuitesComplete: loadExpectedSuites,
-				};
+				return { headSha: observedHead, checks: filterChecks(checks, includeRequiredness, includeOptional) };
 			}
 			after = requiredCursor(pageInfo.endCursor);
 		}
@@ -558,7 +613,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			mergeStateStatus: stringProperty(pullRequest, 'mergeStateStatus'),
 			reviewDecision: stringProperty(pullRequest, 'reviewDecision'),
 			viewerCanUpdate: booleanProperty(pullRequest, 'viewerCanUpdateBranch') ?? false,
-			viewerCanMerge: booleanProperty(pullRequest, 'viewerCanMerge') ?? false,
+			viewerCanMerge: canViewerMerge(repository),
 			viewerCanEnableAutoMerge: booleanProperty(pullRequest, 'viewerCanEnableAutoMerge') ?? false,
 			allowedMergeMethods,
 			autoMergeEnabled: optionalObjectProperty(pullRequest, 'autoMergeRequest') !== undefined,
@@ -643,6 +698,19 @@ const restCapabilities: GitHubHostCapabilities = {
 
 function needsCapabilities(fragment: PullRequestFragment): boolean {
 	return fragment === 'reviewThreads' || fragment === 'checks' || fragment === 'mergeability';
+}
+
+/** `RepositoryPermission` values that grant push access, and therefore permission to merge a pull request. */
+const mergePermissions: ReadonlySet<string> = new Set(['ADMIN', 'MAINTAIN', 'WRITE']);
+
+/**
+ * GitHub's GraphQL schema has no `PullRequest.viewerCanMerge`, so merge permission is derived from the
+ * viewer's permission on the base repository. `Repository.viewerPermission` is null when the request is
+ * authenticated as a GitHub App, which fails closed the same way the REST fallback does.
+ */
+function canViewerMerge(repository: object): boolean {
+	const permission = normalizedEnumProperty(repository, 'viewerPermission');
+	return permission !== undefined && mergePermissions.has(permission);
 }
 
 function toCore(value: unknown, ref: PullRequestRef): PullRequestCore {

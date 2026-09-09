@@ -274,12 +274,12 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 			this._readIndicator.classList.remove('partial', 'unread');
 			this._readIndicator.title = nls.localize('markAsUnread', "Mark as unread");
 		} else if (someRead) {
-			this._readIndicator.appendChild(renderIcon(Codicon.circleFilled));
+			this._readIndicator.appendChild(renderIcon(Codicon.circleFilledCompact));
 			this._readIndicator.classList.remove('read', 'unread');
 			this._readIndicator.classList.add('partial');
 			this._readIndicator.title = nls.localize('markAllAsRead', "Mark all as read");
 		} else {
-			this._readIndicator.appendChild(renderIcon(Codicon.circleFilled));
+			this._readIndicator.appendChild(renderIcon(Codicon.circleFilledCompact));
 			this._readIndicator.classList.remove('read', 'partial');
 			this._readIndicator.classList.add('unread');
 			this._readIndicator.title = nls.localize('markAsRead', "Mark as read");
@@ -450,7 +450,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 			element.classList.add('read');
 			element.classList.remove('unread');
 		} else {
-			element.appendChild(renderIcon(Codicon.circleFilled));
+			element.appendChild(renderIcon(Codicon.circleFilledCompact));
 			element.classList.remove('read');
 			element.classList.add('unread');
 		}

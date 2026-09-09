@@ -75,10 +75,12 @@ export interface IClaudeAgentSdkService {
 	 */
 	canLoadWithoutDownload(): Promise<boolean>;
 	/**
-	 * Ensures the SDK is available for native chat discovery without loading
-	 * the module.
+	 * Downloads the SDK if it isn't local yet, without loading the module. This
+	 * is reserved for user-initiated activation, such as an explicit download
+	 * or restoring chat history. Background callers gate on
+	 * {@link canLoadWithoutDownload} instead.
 	 */
-	ensureAvailableForDiscovery(): Promise<void>;
+	ensureAvailable(): Promise<void>;
 
 	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
 	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
@@ -178,7 +180,7 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return this._downloader.isSdkResolvableWithoutDownload(ClaudeSdkPackage);
 	}
 
-	async ensureAvailableForDiscovery(): Promise<void> {
+	async ensureAvailable(): Promise<void> {
 		if (!(await this.canLoadWithoutDownload())) {
 			await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
 		}

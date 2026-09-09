@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
@@ -63,6 +64,25 @@ class TestContribution implements IChangesetOperationContribution {
 	dispose(): void { }
 }
 
+class FailingRegistrationContribution implements IChangesetOperationContribution {
+	disposed = false;
+
+	constructor(private readonly handler: IChangesetOperationHandler) { }
+
+	registerHandlers(registry: IChangesetOperationRegistry): IDisposable {
+		registry.registerChangesetOperationHandler(testOperationId, this.handler);
+		throw new Error('Registration failed');
+	}
+
+	getOperations(): undefined {
+		return undefined;
+	}
+
+	dispose(): void {
+		this.disposed = true;
+	}
+}
+
 class TestGitStateService implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
 
@@ -81,7 +101,6 @@ class TestGitStateService implements IAgentHostGitStateService {
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
-	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 }
 
 /**
@@ -166,10 +185,22 @@ suite('AgentHostChangesetOperationService', () => {
 		return disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
 			new TestGitStateService(),
-			new AgentHostChangesetSubscriptionService(),
+			disposables.add(new AgentHostChangesetSubscriptionService()),
 			configurationService,
 		));
 	}
+
+	test('disposes partial handler registrations when contribution registration fails', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const service = createService(stateManager);
+		const handler = new TestHandler();
+		const failingContribution = new FailingRegistrationContribution(handler);
+
+		assert.throws(() => service.registerContribution(failingContribution), /Registration failed/);
+		assert.strictEqual(failingContribution.disposed, true);
+
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+	});
 
 	test('multi-folder session advertises no operations for a turn changeset', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -421,6 +452,49 @@ suite('AgentHostChangesetOperationService', () => {
 			calls: 1,
 			firstResult: { message: { markdown: 'Committed' } },
 			secondResult: { message: { markdown: 'Committed' } },
+		});
+	});
+
+	test('serializes in-flight invocations with different metadata', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildUncommittedChangesetUri(sessionKey);
+		stateManager.registerChangeset(changesetUri);
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Checkout', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+
+		const pending: DeferredPromise<InvokeChangesetOperationResult>[] = [];
+		const metadata: (Record<string, unknown> | undefined)[] = [];
+		const handler: IChangesetOperationHandler = {
+			invoke: params => {
+				metadata.push(params._meta);
+				const result = new DeferredPromise<InvokeChangesetOperationResult>();
+				pending.push(result);
+				return result.p;
+			},
+		};
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		const first = service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId, _meta: { treeish: 'main' } });
+		const second = service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId, _meta: { treeish: 'featureA' } });
+		const metadataWhileFirstRunning = [...metadata];
+		pending[0].complete({});
+		await first;
+		const metadataAfterFirstCompleted = [...metadata];
+		pending[1].complete({});
+		await second;
+
+		assert.deepStrictEqual({
+			metadataWhileFirstRunning,
+			metadataAfterFirstCompleted,
+			metadata,
+		}, {
+			metadataWhileFirstRunning: [{ treeish: 'main' }],
+			metadataAfterFirstCompleted: [{ treeish: 'main' }, { treeish: 'featureA' }],
+			metadata: [{ treeish: 'main' }, { treeish: 'featureA' }],
 		});
 	});
 

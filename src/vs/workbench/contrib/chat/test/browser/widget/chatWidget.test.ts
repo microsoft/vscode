@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -13,10 +16,12 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
-import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
-import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
+import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
+import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
+import { IChatListItemRendererOptions } from '../../../browser/chat.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
+import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 
@@ -121,57 +126,6 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	test('reasserts custom submit pending after the dictation finalization boundary', async () => {
-		const events: string[] = [];
-		const widget = {
-			_readOnly: false,
-			input: {
-				hasPendingProgrammaticModelSelection: false,
-				setSubmitPending: (pending: boolean, routing?: boolean) => events.push(`pending:${pending}:${routing ?? pending}`),
-			},
-			viewOptions: { submitHandler: () => true },
-			inputEditor: {},
-			viewModel: undefined,
-			_acceptInput: async () => {
-				events.push('accept');
-				return undefined;
-			},
-		};
-		const acceptInput = ChatWidget.prototype.acceptInput as unknown as (this: typeof widget) => Promise<undefined>;
-
-		await acceptInput.call(widget);
-
-		assert.deepStrictEqual(events, [
-			'pending:true:true',
-			'pending:true:true',
-			'accept',
-		]);
-	});
-
-	test('refreshes the execute toolbar only when submit pending state changes', () => {
-		const contextKey = (initialValue: boolean) => {
-			let value = initialValue;
-			return {
-				get: () => value,
-				set: (newValue: boolean) => value = newValue,
-			};
-		};
-		let refreshes = 0;
-		const inputPart = {
-			inputSubmitPending: contextKey(false),
-			inputRouting: contextKey(false),
-			executeToolbar: { refresh: () => refreshes++ },
-		};
-		const setSubmitPending = ChatInputPart.prototype.setSubmitPending as unknown as (this: typeof inputPart, pending: boolean, routing?: boolean) => void;
-
-		setSubmitPending.call(inputPart, false);
-		setSubmitPending.call(inputPart, true, true);
-		setSubmitPending.call(inputPart, true, true);
-		setSubmitPending.call(inputPart, false);
-
-		assert.strictEqual(refreshes, 2);
-	});
-
 	test('transcript overlays suppress the welcome state', () => {
 		assert.deepStrictEqual({
 			unavailable: shouldShowChatWelcome(undefined, false),
@@ -193,6 +147,109 @@ suite('ChatWidget', () => {
 			shouldShowChatTip(0, false, false),
 			shouldShowChatTip(0, false, true),
 		], [true, false]);
+	});
+
+	test('tracks unvisited completions and needs-input precedence', () => {
+		const active = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			requestInProgress: true,
+			containsFocus: false,
+			requestWasActive: false,
+			hasUnvisitedCompletion: false,
+		});
+		const completed = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			requestInProgress: false,
+			containsFocus: false,
+			requestWasActive: active.requestActive,
+			hasUnvisitedCompletion: active.hasUnvisitedCompletion,
+		});
+		const visited = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			requestInProgress: false,
+			containsFocus: true,
+			requestWasActive: completed.requestActive,
+			hasUnvisitedCompletion: completed.hasUnvisitedCompletion,
+		});
+		const needsInput = computeChatSessionStateIndicatorState({
+			requestNeedsInput: true,
+			requestInProgress: true,
+			containsFocus: true,
+			requestWasActive: visited.requestActive,
+			hasUnvisitedCompletion: visited.hasUnvisitedCompletion,
+		});
+
+		assert.deepStrictEqual({ active, completed, visited, needsInput }, {
+			active: { state: 'inProgress', requestActive: true, hasUnvisitedCompletion: false },
+			completed: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+			visited: { state: 'idle', requestActive: false, hasUnvisitedCompletion: false },
+			needsInput: { state: 'needsInput', requestActive: true, hasUnvisitedCompletion: false },
+		});
+	});
+
+	test('sticky request click survives synchronous template disposal during reveal', () => {
+		const request = upcastPartial<IChatRequestViewModel>({
+			id: 'request',
+			message: upcastPartial<IParsedChatRequest>({}),
+		});
+		const stickyRow = mainWindow.document.createElement('div');
+		stickyRow.classList.add('monaco-tree-sticky-row');
+		const rowContainer = mainWindow.document.createElement('div');
+		stickyRow.appendChild(rowContainer);
+		const stickyTemplate = upcastPartial<IChatListItemTemplate>({ currentElement: request, rowContainer });
+		const realTemplate = upcastPartial<IChatListItemTemplate>({});
+		let revealedRequest: IChatRequestViewModel | undefined;
+		let requestedTemplateId: string | undefined;
+		let clickedTemplate: IChatListItemTemplate | undefined;
+		const widget = Object.create(ChatWidget.prototype) as unknown as {
+			handleRequestClick(item: IChatListItemTemplate): void;
+		};
+		Object.defineProperties(widget, {
+			listWidget: {
+				value: {
+					reveal: (element: IChatRequestViewModel) => {
+						revealedRequest = element;
+						stickyTemplate.currentElement = undefined;
+					},
+					getTemplateDataForRequestId: (requestId: string) => {
+						requestedTemplateId = requestId;
+						return realTemplate;
+					},
+				},
+			},
+			clickedRequest: { value: (item: IChatListItemTemplate) => clickedTemplate = item },
+		});
+
+		widget.handleRequestClick(stickyTemplate);
+
+		assert.deepStrictEqual({
+			revealedRequest,
+			requestedTemplateId,
+			clickedTemplate,
+		}, {
+			revealedRequest: request,
+			requestedTemplateId: request.id,
+			clickedTemplate: realTemplate,
+		});
+	});
+
+	test('only unlocks request revision for edited user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetRequestRevision(false, false),
+			shouldUnlockChatPetRequestRevision(false, true),
+			shouldUnlockChatPetRequestRevision(true, false),
+			shouldUnlockChatPetRequestRevision(true, true),
+		], [false, false, false, true]);
+	});
+
+	test('only unlocks queue or steering for queued user submissions', () => {
+		assert.deepStrictEqual([
+			shouldUnlockChatPetQueueOrSteeringMessage(false, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, undefined),
+			shouldUnlockChatPetQueueOrSteeringMessage(false, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Queued),
+			shouldUnlockChatPetQueueOrSteeringMessage(true, ChatRequestQueueKind.Steering),
+		], [false, false, false, true, true]);
 	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {
@@ -262,6 +319,32 @@ suite('ChatWidget', () => {
 			['setInputPartMaxHeightOverride', 600],
 			['layoutForInputHeight', 420, 720],
 		]);
+	});
+
+	test('passes read-only transitions to the renderer independently of request editing', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let rerenders = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_visible: observableValue('visible', true),
+			_readOnlyContextKey: { set: () => { } },
+			chatSuggestNextWidget: { hide: () => { } },
+			hasInputFocus: () => false,
+			setInputVisible: () => { },
+			renderChatSuggestNextWidget: () => { },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				rerender: () => rerenders++,
+			},
+		});
+
+		widget.setReadOnly(true);
+		widget.setReadOnly(false);
+
+		assert.deepStrictEqual({ rendererOptions, rerenders }, {
+			rendererOptions: [{ editable: false, readOnly: true }, { editable: true, readOnly: false }],
+			rerenders: 2,
+		});
 	});
 
 	test('captures and restores transcript scroll state', () => {
@@ -334,7 +417,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued-request', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
 		// The queued request has not run yet, so `pending` is still unresolved here.
 		const acceptedWhileQueued = accepted === 1;
 
@@ -360,7 +443,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued-request', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
 		await deferred.complete({ kind: 'rejected', reason: 'Session is read-only' });
 
 		assert.deepStrictEqual({ accepted, sent: await pending }, { accepted: 1, sent: undefined });

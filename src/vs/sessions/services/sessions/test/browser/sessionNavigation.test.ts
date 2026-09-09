@@ -155,11 +155,16 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
+	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 
 	getRecentlyOpenedSessions(): IRecentlyOpenedSessions { return { recent: [...this._sessions.values()], other: [] }; }
 
 	getSession(resource: URI): ISession | undefined {
 		return this._sessions.get(resource.toString());
+	}
+
+	async resolveSessionResource(resource: URI): Promise<URI> {
+		return resource;
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
@@ -211,6 +216,9 @@ class MockSessionStore implements ISessionsManagementService {
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createAutomationSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createAutomationQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	getAutomationSessionConfiguration(): Promise<undefined> { return Promise.resolve(undefined); }
+	supportsAutomationSessionConfiguration(): boolean { return false; }
+	usesCombinedNewSessionConfigPicker(): boolean { return false; }
 	createQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }
 	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
