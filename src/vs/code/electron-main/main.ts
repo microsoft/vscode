@@ -533,10 +533,8 @@ class CodeMain {
 				// it on shutdown: named pipes on Windows are cleaned up by
 				// the OS automatically, socket files on macOS and Linux are
 				// removed explicitly (stale files are also handled below)
-				Event.once(lifecycleMainService.onWillShutdown)(evt => {
-					lockServer.dispose();
-					evt.join('sessionDataLock', promises.unlink(handle).catch(() => { /* ignored */ }));
-				});
+				// Keep the lock until process exit, after Chromium has finished using session data.
+				process.once('exit', () => lockServer.dispose());
 
 				return;
 			} catch (error) {
