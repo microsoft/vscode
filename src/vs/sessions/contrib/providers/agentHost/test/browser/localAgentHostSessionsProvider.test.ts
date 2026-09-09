@@ -1223,6 +1223,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('session metadata marks a folder workspace as a repository', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('git-folder-meta', {
+			summary: 'Git Folder Session',
+			workingDirectory: URI.parse('file:///Users/me/project'),
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0]!;
+		const before = session.workspace.get()!.folders[0].gitRepository?.isRepository?.get();
+
+		fireSessionMetaChanged(agentHost, 'git-folder-meta', {
+			git: {
+				branchName: 'feature/worktree',
+			},
+		});
+
+		assert.deepStrictEqual({
+			before,
+			after: session.workspace.get()!.folders[0].gitRepository?.isRepository?.get(),
+		}, {
+			before: false,
+			after: true,
+		});
+	}));
+
 	test('session metadata exposes its creation reference', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('created'));
 

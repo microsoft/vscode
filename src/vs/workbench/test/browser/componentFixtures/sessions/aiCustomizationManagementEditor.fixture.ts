@@ -1466,6 +1466,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 	ctx.container.appendChild(widget.element);
 	widget.layout(height, width);
 
+	widget.setVisible(true);
 	if (browse) {
 		widget.showBrowseMarketplace();
 	}
@@ -1888,6 +1889,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The MCP Servers page shows Installed and Available sections, with no Featured section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2174,6 +2176,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -2207,6 +2210,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginCatalogHome: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Plugins page shows Installed and Available sections, with no Featured section.'],
 		render: renderPluginHomeMode,
 	}),
 
