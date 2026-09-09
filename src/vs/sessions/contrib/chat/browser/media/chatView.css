@@ -22,6 +22,10 @@
 	background-color: transparent;
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	content: none;
+}
+
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response {
 	/* Match the response padding so wide content remains fully backed before the fade. */
 	background: linear-gradient(
