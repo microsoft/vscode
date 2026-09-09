@@ -380,6 +380,9 @@ suite('NewChatInputWidget', () => {
 		const picks = getStaticContextPicks([{
 			label: 'Issue...',
 			icon: Codicon.issues,
+		}, {
+			label: 'Pull Request...',
+			icon: Codicon.gitPullRequest,
 		}]);
 
 		assert.deepStrictEqual(picks.map(pick => pick.label ?? pick.type), [
@@ -387,6 +390,7 @@ suite('NewChatInputWidget', () => {
 			'Image from Clipboard',
 			'separator',
 			'Issue...',
+			'Pull Request...',
 		]);
 	});
 

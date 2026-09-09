@@ -543,6 +543,9 @@ export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichL
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
+/** Root config key controlling automatic pull request association for the checked-out branch. */
+export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
+
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
@@ -847,6 +850,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
+	}),
+	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
+		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
+		default: true,
 	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

@@ -269,7 +269,7 @@ suite('mapSessionEvents — history replay', () => {
 			parts: [{ kind: ResponsePartKind.Error }],
 		}, {
 			id: 'notification-turn',
-			message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
+			message: { text: 'Background agent `general-purpose` is complete', origin: { kind: MessageKind.SystemNotification } },
 			state: TurnState.Complete,
 			parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent finished.' }],
 		}]);
@@ -731,7 +731,7 @@ suite('mapSessionEvents — history replay', () => {
 				id: 'notification-event',
 				data: {
 					content: '<system_notification>\nAgent completed\n</system_notification>',
-					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
+					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', displayName: 'Renderer reviewer', description: 'Review the renderer' },
 				},
 			},
 			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-2' } },
@@ -752,10 +752,38 @@ suite('mapSessionEvents — history replay', () => {
 			state: TurnState.Complete,
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' },
-				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent agent-a is complete' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent `Renderer reviewer` is complete' },
 				{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' },
 			],
 		}]);
+	});
+
+	test('restores reasoning on either side of a completion notification in order', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Review the results' } },
+			{ type: 'assistant.turn_start', data: { turnId: '0' } },
+			{ type: 'assistant.message', data: { messageId: 'before', content: '', reasoningText: 'Before notification' } },
+			{
+				type: 'system.notification',
+				data: {
+					content: 'Agent completed',
+					kind: { type: 'agent_idle', agentId: 'agent-completed', agentType: 'code-review', displayName: 'Completed reviewer' },
+				},
+			},
+			{ type: 'assistant.message', data: { messageId: 'after', content: '', reasoningText: 'After notification' } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		assert.deepStrictEqual(turns.map(turn => turn.responseParts.map(part =>
+			part.kind === ResponsePartKind.Reasoning || part.kind === ResponsePartKind.SystemNotification
+				? { kind: part.kind, content: part.content }
+				: { kind: part.kind }
+		)), [[
+			{ kind: ResponsePartKind.Reasoning, content: 'Before notification' },
+			{ kind: ResponsePartKind.SystemNotification, content: 'Background agent `Completed reviewer` is complete' },
+			{ kind: ResponsePartKind.Reasoning, content: 'After notification' },
+		]]);
 	});
 
 	test('does not restore a passive notification outside an assistant turn', async () => {

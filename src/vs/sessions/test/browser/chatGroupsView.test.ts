@@ -126,9 +126,9 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly isCreated: IObservable<boolean>;
 	override readonly isNewSessionRequestInProgress = observableValue(this, false);
 	override readonly isArchived = observableValue(this, false);
-	override readonly loading: IObservable<boolean> = constObservable(false);
+	override readonly loading: ISettableObservable<boolean>;
 
-	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true, providerId = 'test', remoteConnectionStatus?: SessionRemoteConnectionStatus) {
+	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true, providerId = 'test', remoteConnectionStatus?: SessionRemoteConnectionStatus, loading = false) {
 		super();
 		this.providerId = providerId;
 		this.remoteConnectionStatus = remoteConnectionStatus && observableValue(this, remoteConnectionStatus);
@@ -148,6 +148,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 		this.shouldShowChatTabs = derived(reader => this.visibleChatTabs.read(reader).length > 1);
 		this.mainChat = constObservable(mainChat);
 		this.isCreated = constObservable(isCreated);
+		this.loading = observableValue(this, loading);
 	}
 }
 
@@ -445,6 +446,75 @@ suite('Sessions - ChatGroupsView', () => {
 		}, {
 			groupCount: 1,
 			groups: 1,
+		});
+	});
+
+	test('restores subagent groups, tab order, and active chat', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const firstSubagent = createChat('subagent-1', SessionStatus.Completed, main.resource);
+		const secondSubagent = createChat('subagent-2', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, peer, firstSubagent, secondSubagent]);
+		view.setSession(session, options);
+		view.splitChatToSide(peer.resource);
+		await view.openChatInNewGroup(firstSubagent.resource);
+		await view.openChatInNewGroup(secondSubagent.resource);
+		view['_openChat'](view['_groups'][2], firstSubagent.resource);
+		const beforeReload = Array.from(view.element.querySelectorAll('.chat-group-view')).map(group =>
+			Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource));
+		view.setSession(undefined, options);
+
+		const restored = new TestActiveSession([main, peer, firstSubagent, secondSubagent]);
+		restored.activeChat.set(firstSubagent, undefined);
+		view.setSession(restored, options);
+
+		const groups = Array.from(view.element.querySelectorAll('.chat-group-view'));
+		assert.deepStrictEqual({
+			beforeReload,
+			groupTabs: groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeGroupTab: view.element.querySelector<HTMLElement>('.chat-group-view.active-group .chat-composite-bar-tab.active')?.dataset.chatResource,
+		}, {
+			beforeReload: [
+				[main.resource.toString()],
+				[secondSubagent.resource.toString()],
+				[firstSubagent.resource.toString()],
+				[peer.resource.toString()],
+			],
+			groupTabs: beforeReload,
+			activeGroupTab: firstSubagent.resource.toString(),
+		});
+	});
+
+	test('keeps saved subagent groups until delayed chat discovery completes', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const subagent = createChat('subagent', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, subagent]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(subagent.resource);
+		view.setSession(undefined, options);
+
+		const restored = new TestActiveSession([main], [main], true, 'test', undefined, true);
+		view.setSession(restored, options);
+		const beforeDiscovery = view.groupCount.get();
+
+		transaction(tx => {
+			restored.allChats.set([main, subagent], tx);
+			restored.visibleChatTabs.set([main, subagent], tx);
+			restored.activeChat.set(subagent, tx);
+			restored.loading.set(false, tx);
+		});
+
+		assert.deepStrictEqual({
+			beforeDiscovery,
+			groupTabs: Array.from(view.element.querySelectorAll('.chat-group-view')).map(group =>
+				Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeChat: restored.activeChat.get().resource.toString(),
+		}, {
+			beforeDiscovery: 2,
+			groupTabs: [[main.resource.toString()], [subagent.resource.toString()]],
+			activeChat: subagent.resource.toString(),
 		});
 	});
 

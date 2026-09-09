@@ -171,7 +171,6 @@ suite('Sessions list context menus', () => {
 	});
 
 	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {
-		assert.strictEqual(MenuRegistry.getMenuItems(Menus.SessionChatItemContext).length, 3);
 		const createChat = (title: string, canRename: boolean, canDelete: boolean): IChat => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
 			title: constObservable(title),
@@ -223,7 +222,10 @@ suite('Sessions list context menus', () => {
 				}
 			});
 		});
-		const menuItems = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem);
+		const coreActionIds = new Set(['sessions.list.renameChat', 'sessions.list.openChatToSide', 'sessions.list.deleteChat']);
+		const menuItems = MenuRegistry.getMenuItems(Menus.SessionChatItemContext)
+			.filter(isIMenuItem)
+			.filter(item => coreActionIds.has(item.command.id));
 		assert.deepStrictEqual(menuItems.map(item => ({
 			id: item.command.id,
 			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,

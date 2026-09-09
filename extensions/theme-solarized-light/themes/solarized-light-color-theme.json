@@ -426,7 +426,7 @@
 		// Workbench: Title
 		"titleBar.activeBackground": "#EEE8D5",
 		// "titleBar.activeForeground": "",
-		// "titleBar.inactiveBackground": "",
+		"titleBar.inactiveBackground": "#F0ECE1",
 		// "titleBar.inactiveForeground": "",
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
@@ -451,6 +451,8 @@
 		// Workbench: Panel
 		// "panel.background": "",
 		"panel.border": "#DDD6C1",
+		"panelSection.border": "#DDD6C1",
+		"panelSectionHeader.border": "#DDD6C1",
 		// "panelTitle.activeBorder": "",
 		// "panelTitle.activeForeground": "",
 		// "panelTitle.inactiveForeground": "",
@@ -458,9 +460,11 @@
 		"sideBar.background": "#EEE8D5",
 		"sideBarTitle.foreground": "#586E75",
 		// "sideBarSectionHeader.background": "",
+		"sideBarSectionHeader.border": "#DDD6C1",
 		// Workbench: Status Bar
 		"statusBar.foreground": "#586E75",
 		"statusBar.background": "#EEE8D5",
+		"statusBar.inactiveBackground": "#F0ECE1",
 		"statusBar.debuggingBackground": "#EEE8D5",
 		"statusBar.noFolderBackground": "#EEE8D5",
 		// "statusBar.foreground": "",

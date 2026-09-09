@@ -19,7 +19,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
@@ -30,6 +30,7 @@ import type { ICustomizationMigrationCategorySummary } from '../../../browser/ai
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { defaultCheckboxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,10 +65,11 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingPromptType: PromptsType | undefined;
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
-		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>;
+		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>;
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
 		customizationMigrationInProgress: boolean;
 		customizationMigrationWritesInProgress: boolean;
+		customizationMigrationLoading: boolean;
 		activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
@@ -90,13 +92,18 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationBannerContainer: HTMLElement | undefined;
 		migrationLinkElement: HTMLAnchorElement | undefined;
 		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
+		selectedMcpServerMigrationItems: Set<string>;
+		knownMcpServerMigrationItems: Set<string>;
+		migrationSelectionContextKey: string;
 		migrationPageDisposables: DisposableStore;
 		migrationBannerDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
+		customizationMigrationService: Pick<ICustomizationMigrationService, 'migrateMcpServers'>;
+		dialogService: { confirm(): Promise<{ confirmed: boolean }> };
 		quickInputService: {
 			pick(items: readonly { folder: ICustomizationSourceFolder }[]): Promise<{ folder: ICustomizationSourceFolder } | undefined>;
 		};
-		notificationService: { error(message: string): void };
+		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
 		showEmbeddedEditor(...args: unknown[]): Promise<void>;
 		getActiveHarnessLabel(): string;
 		welcomePage: { setMigrationCategories(categories: readonly unknown[]): void } | undefined;
@@ -114,9 +121,10 @@ suite('aiCustomizationManagementEditor', () => {
 		updateCustomizationMigrationActionState(): void;
 		getConfiguredLocationSettingsToClear(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[]): readonly string[];
 		clearConfiguredLocationSettings(settingIds: readonly string[]): Promise<void>;
-		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly MigratableConfiguration[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
-		isCustomizationSelectedForMigration(customization: MigratableConfiguration): boolean;
-		setCustomizationSelectedForMigration(customization: MigratableConfiguration, selected: boolean): void;
+		migrateSelectedCustomizations(category: ICustomizationMigrationCategory, customizations: readonly CustomizationMigrationCandidate[]): Promise<void>;
+		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>): void;
+		isCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate): boolean;
+		setCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate, selected: boolean): void;
 		resolveCustomizationMigrationTargetFolders(
 			customizations: readonly MigratableConfiguration[],
 			availableSourceFolders: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
@@ -154,6 +162,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.customizationMigrationTargetFoldersByType = new Map();
 		editor.customizationMigrationInProgress = false;
 		editor.customizationMigrationWritesInProgress = false;
+		editor.customizationMigrationLoading = false;
 		editor.activeMigrationCategoryId = undefined;
 		editor.editorDisplayMode = 'preview';
 		editor.editorPreviewFrontMatterContainer = document.createElement('div');
@@ -182,16 +191,27 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationBannerContainer = undefined;
 		editor.migrationLinkElement = undefined;
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
+		editor.selectedMcpServerMigrationItems = new Set();
+		editor.knownMcpServerMigrationItems = new Set();
+		editor.migrationSelectionContextKey = '';
 		editor.migrationPageDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.migrationBannerDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.labelService = {
 			getUriLabel: uri => uri.path,
+		};
+		editor.customizationMigrationService = {
+			migrateMcpServers: async () => ({ migratedCount: 0, failures: [] }),
+		};
+		editor.dialogService = {
+			confirm: async () => ({ confirmed: false }),
 		};
 		editor.quickInputService = {
 			pick: async items => items[0],
 		};
 		editor.notificationService = {
 			error: () => { },
+			info: () => { },
+			warn: () => { },
 		};
 		editor.getActiveHarnessLabel = () => 'Copilot';
 		editor.welcomePage = undefined;
@@ -421,6 +441,56 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
+	test('does not preserve MCP selection when a positional ID moves to another source', () => {
+		const editor = createTestEditor();
+		const serverA: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			sourceUri: URI.file('/workspace-a/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace-a/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+		const serverB: IMcpServerCustomizationMigrationCandidate = {
+			...serverA,
+			sourceUri: URI.file('/workspace-b/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace-b/.mcp.json'),
+		};
+
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [serverA]]]), new Map());
+		editor.setCustomizationSelectedForMigration(serverA, false);
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [serverB]]]), new Map());
+
+		assert.deepStrictEqual({
+			oldSourceSelected: editor.isCustomizationSelectedForMigration(serverA),
+			newSourceSelected: editor.isCustomizationSelectedForMigration(serverB),
+		}, {
+			oldSourceSelected: false,
+			newSourceSelected: true,
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('preserves MCP deselection across a transient discovery gap', () => {
+		const editor = createTestEditor();
+		const server: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [server]]]), new Map());
+		editor.setCustomizationSelectedForMigration(server, false);
+		editor.setCustomizationsToMigrate(new Map(), new Map());
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [server]]]), new Map());
+
+		assert.strictEqual(editor.isCustomizationSelectedForMigration(server), false);
+		editor.editorPreviewDisposables.dispose();
+	});
+
 	test('refreshes migration state when the active session changes within one harness', () => {
 		const editor = createTestEditor();
 		const sessionA = URI.parse('agent-host-test:/session-a');
@@ -454,7 +524,9 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.deepStrictEqual({
 			refreshedSessions,
-			candidatePaths: [...editor.customizationsByMigrationCategory.values()].flat().map(candidate => candidate.uri.path),
+			candidatePaths: [...editor.customizationsByMigrationCategory.values()].flat()
+				.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate))
+				.map(candidate => candidate.uri.path),
 			destinationPaths: [...editor.customizationMigrationTargetFoldersByType.values()].flat().map(folder => folder.uri.path),
 		}, {
 			refreshedSessions: ['/session-a', '/session-b'],
@@ -787,6 +859,112 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.migrationPageDisposables.dispose();
 			editor.editorPreviewDisposables.dispose();
 		}
+	});
+
+	test('renders MCP migration candidates without file actions', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+		}));
+		const server: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.McpServers, [server]]]);
+		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.McpServers;
+		editor.setCustomizationSelectedForMigration(server, true);
+		editor.migrationListContainer = document.createElement('div');
+		Object.defineProperty(editor.migrationListContainer, 'clientHeight', { configurable: true, value: 500 });
+		editor.migrationMigrateButton = { enabled: false, label: '' };
+		document.body.appendChild(editor.migrationListContainer);
+
+		try {
+			editor.renderCustomizationMigrationPage();
+			editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]')?.focus();
+			editor.customizationMigrationLoading = true;
+			editor.renderCustomizationMigrationPage();
+			editor.customizationMigrationLoading = false;
+			editor.renderCustomizationMigrationPage();
+			const checkbox = editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]');
+			const focusRestored = document.activeElement === checkbox;
+			checkbox?.click();
+			const externalButton = document.body.appendChild(document.createElement('button'));
+			externalButton.focus();
+			editor.renderCustomizationMigrationPage();
+			const externalFocusRetained = document.activeElement === externalButton;
+			externalButton.remove();
+
+			assert.deepStrictEqual({
+				checkboxLabel: checkbox?.getAttribute('aria-label'),
+				focusRestored,
+				externalFocusRetained,
+				staticText: editor.migrationListContainer.querySelector('.prompt-migration-static-text')?.textContent,
+				openButtonDisplay: editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-open-button')?.style.display,
+				moreButtonDisplay: editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-more-action')?.style.display,
+				selected: editor.isCustomizationSelectedForMigration(server),
+				migrateButton: { ...editor.migrationMigrateButton },
+			}, {
+				checkboxLabel: 'Select server from /workspace/.vscode/mcp.json',
+				focusRestored: true,
+				externalFocusRetained: true,
+				staticText: 'server/workspace/.vscode/mcp.json to /workspace/.mcp.json',
+				openButtonDisplay: 'none',
+				moreButtonDisplay: 'none',
+				selected: false,
+				migrateButton: { enabled: false, label: 'Migrate' },
+			});
+		} finally {
+			editor.migrationListContainer.remove();
+			editor.migrationPageDisposables.dispose();
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
+	test('confirms and executes selected MCP migration candidates', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+		}));
+		const server: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+		const migrated: IMcpServerCustomizationMigrationCandidate[][] = [];
+		const notifications: string[] = [];
+		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
+		editor.customizationMigrationService = {
+			migrateMcpServers: async (_sessionResource, candidates) => {
+				migrated.push([...candidates]);
+				return { migratedCount: candidates.length, failures: [] };
+			},
+		};
+		editor.notificationService = {
+			error: message => notifications.push(`error:${message}`),
+			info: message => notifications.push(`info:${message}`),
+			warn: message => notifications.push(`warn:${message}`),
+		};
+		editor.refreshCustomizationMigrationInfo = async () => { };
+
+		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), [server]);
+
+		assert.deepStrictEqual({
+			migrated,
+			notifications,
+			inProgress: editor.customizationMigrationInProgress,
+			writesInProgress: editor.customizationMigrationWritesInProgress,
+		}, {
+			migrated: [[server]],
+			notifications: ['info:Migrated 1 MCP server.'],
+			inProgress: false,
+			writesInProgress: false,
+		});
+		editor.editorPreviewDisposables.dispose();
 	});
 
 	test('group migration selection retains keyboard focus', () => {
