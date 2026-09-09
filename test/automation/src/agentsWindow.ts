@@ -133,7 +133,7 @@ export class AgentsWindow {
 			try {
 				await picker.click();
 				await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
-				await workspaceRow.locator('.action-list-submenu-indicator').click();
+				await workspaceRow.hover();
 				await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
 				await devContainerRow.click();
 				await page.waitForFunction(
