@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
@@ -22,6 +23,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -38,7 +40,7 @@ import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatMode, CustomChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { IGitRepository, IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
+import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -202,8 +204,27 @@ interface ICreateProviderOptions {
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
 	readonly gitHubService?: IGitHubService;
 	readonly gitService?: IGitService;
+	readonly fileService?: IFileService;
 	readonly pullRequestIconCache?: IPullRequestIconCache;
 	readonly pathService?: IPathService;
+}
+
+function createGitConfigFileService(repositoryRoot: URI, config: string, onRead?: () => void): IFileService {
+	return upcastPartial<IFileService>({
+		stat: async (resource): Promise<IFileStatWithPartialMetadata> => {
+			if (resource.toString() === URI.joinPath(repositoryRoot, '.git').toString()) {
+				return upcastPartial<IFileStatWithPartialMetadata>({ isDirectory: true });
+			}
+			throw new FileOperationError('Not found', FileOperationResult.FILE_NOT_FOUND);
+		},
+		readFile: async (resource): Promise<IFileContent> => {
+			if (resource.toString() === URI.joinPath(repositoryRoot, '.git', 'config').toString()) {
+				onRead?.();
+				return upcastPartial<IFileContent>({ value: VSBuffer.fromString(config) });
+			}
+			throw new FileOperationError('Not found', FileOperationResult.FILE_NOT_FOUND);
+		},
+	});
 }
 
 function isCommandSessionItem(item: unknown): item is { readonly resource: URI; readonly label?: string } {
@@ -362,6 +383,7 @@ function createProviderWithConfig(
 	instantiationService.stub(IPathService, opts?.pathService ?? new TestPathService(URI.file('/home/test')));
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(IGitService, opts?.gitService ?? { repositories: [], openRepository: async () => undefined });
+	instantiationService.stub(IFileService, opts?.fileService ?? createGitConfigFileService(URI.file('/missing'), ''));
 	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
 	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
@@ -936,23 +958,11 @@ suite('CopilotChatSessionsProvider', () => {
 	});
 
 	test('getSessionTypes offers Cloud for a local workspace with a GitHub remote', async () => {
-		const repositoryState = observableValue('repositoryState', {
-			HEAD: undefined,
-			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
-			mergeChanges: [],
-			indexChanges: [],
-			workingTreeChanges: [],
-			untrackedChanges: [],
-		});
-		const gitService = upcastPartial<IGitService>({
-			repositories: [],
-			openRepository: async () => upcastPartial<IGitRepository>({ state: repositoryState }),
-		});
+		const folder = URI.file('/test/vscode');
 		const provider = createProvider(disposables, model, {
 			consolidatedRemoteWorkspaces: true,
-			gitService,
+			fileService: createGitConfigFileService(folder, '[remote "origin"]\n\turl = https://github.com/microsoft/vscode.git'),
 		});
-		const folder = URI.file('/test/vscode');
 		const changes: string[][] = [];
 		disposables.add(provider.onDidChangeSessionTypes(() => {
 			changes.push(provider.getSessionTypes(folder).map(type => type.label));
@@ -979,23 +989,11 @@ suite('CopilotChatSessionsProvider', () => {
 	});
 
 	test('getSessionTypes hides Cloud for a local workspace without a GitHub remote', async () => {
-		const repositoryState = observableValue('repositoryState', {
-			HEAD: undefined,
-			remotes: [],
-			mergeChanges: [],
-			indexChanges: [],
-			workingTreeChanges: [],
-			untrackedChanges: [],
-		});
-		const gitService = upcastPartial<IGitService>({
-			repositories: [],
-			openRepository: async () => upcastPartial<IGitRepository>({ state: repositoryState }),
-		});
+		const folder = URI.file('/test/local-only');
 		const provider = createProvider(disposables, model, {
 			consolidatedRemoteWorkspaces: true,
-			gitService,
+			fileService: createGitConfigFileService(folder, '[core]\n\trepositoryformatversion = 0'),
 		});
-		const folder = URI.file('/test/local-only');
 
 		const beforeResolve = provider.getSessionTypes(folder).map(type => type.label);
 		await timeout(0);
@@ -2112,28 +2110,19 @@ suite('CopilotChatSessionsProvider', () => {
 	});
 
 	test('resolveWorkspace resolves local GitHub metadata only when requested', async () => {
-		let openRepositoryCalls = 0;
-		const repositoryState = observableValue('repositoryState', {
-			HEAD: undefined,
-			remotes: [{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: undefined, isReadOnly: false }],
-			mergeChanges: [],
-			indexChanges: [],
-			workingTreeChanges: [],
-			untrackedChanges: [],
-		});
-		const gitService = upcastPartial<IGitService>({
-			repositories: [],
-			openRepository: async () => {
-				openRepositoryCalls++;
-				return upcastPartial<IGitRepository>({ state: repositoryState });
-			},
-		});
-		const provider = createProvider(disposables, model, { gitService });
-		const workspace = provider.resolveWorkspace(URI.file('/test/vscode'));
+		let readConfigCalls = 0;
+		const folder = URI.file('/test/vscode');
+		const fileService = createGitConfigFileService(
+			folder,
+			'[remote "origin"]\n\turl = https://github.com/microsoft/vscode.git',
+			() => readConfigCalls++,
+		);
+		const provider = createProvider(disposables, model, { fileService });
+		const workspace = provider.resolveWorkspace(folder);
 		const gitRepository = workspace?.folders[0].gitRepository;
 
 		const beforeResolve = {
-			openRepositoryCalls,
+			readConfigCalls,
 			gitHubInfo: gitRepository?.gitHubInfo.get(),
 		};
 		gitRepository?.resolveGitHubInfo?.();
@@ -2142,14 +2131,14 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			beforeResolve,
-			openRepositoryCalls,
+			readConfigCalls,
 			gitHubInfo: gitRepository?.gitHubInfo.get(),
 		}, {
 			beforeResolve: {
-				openRepositoryCalls: 0,
+				readConfigCalls: 0,
 				gitHubInfo: undefined,
 			},
-			openRepositoryCalls: 1,
+			readConfigCalls: 1,
 			gitHubInfo: { owner: 'microsoft', repo: 'vscode' },
 		});
 	});

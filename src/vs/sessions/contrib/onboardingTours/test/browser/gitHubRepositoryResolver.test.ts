@@ -12,7 +12,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../../../workbench/contrib/git/common/utils.js';
-import { parseGitHubRepositoryFromGitConfig, resolveGitHubRepositoryFromGitConfig } from '../../browser/gitHubRepositoryResolver.js';
+import { parseGitHubRepositoryFromGitConfig, resolveGitHubRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
 
 const ROOT = URI.from({ scheme: 'vscode-tests', path: '/workspace' });
 

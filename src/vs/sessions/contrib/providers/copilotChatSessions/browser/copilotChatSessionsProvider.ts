@@ -40,7 +40,6 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IGitService, IGitRepository } from '../../../../../workbench/contrib/git/common/gitService.js';
-import { getGitHubRemoteInfo } from '../../../../../workbench/contrib/git/common/utils.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -64,6 +63,8 @@ import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { resolveGitHubRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -1525,7 +1526,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _multiChatEnabled: boolean;
 	private readonly _localGitHubInfo = new Map<string, ISettableObservable<IGitHubInfo | undefined>>();
-	private readonly _localGitHubInfoDisposables = this._register(new DisposableMap<string>());
 	private readonly _localGitHubInfoResolutionStarted = new Set<string>();
 
 	private _isCopilotCliAvailable(): boolean {
@@ -1552,7 +1552,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IGitService private readonly gitService: IGitService,
+		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
@@ -3087,7 +3087,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const oldestKey = this._localGitHubInfo.keys().next().value;
 			if (oldestKey !== undefined) {
 				this._localGitHubInfo.delete(oldestKey);
-				this._localGitHubInfoDisposables.deleteAndDispose(oldestKey);
 				this._localGitHubInfoResolutionStarted.delete(oldestKey);
 			}
 		}
@@ -3102,19 +3101,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return;
 		}
 		this._localGitHubInfoResolutionStarted.add(key);
-		void this.gitService.openRepository(uri).then(repository => {
-			if (!repository || this._localGitHubInfo.get(key) !== gitHubInfo) {
+		void resolveGitHubRepositoryFromGitConfig(this.fileService, uri).then(repositoryInfo => {
+			if (this._localGitHubInfo.get(key) !== gitHubInfo) {
 				this._localGitHubInfoResolutionStarted.delete(key);
 				return;
 			}
-			this._localGitHubInfoDisposables.set(key, autorun(reader => {
-				const repositoryInfo = getGitHubRemoteInfo(repository.state.read(reader));
-				const nextGitHubInfo = repositoryInfo ? { owner: repositoryInfo.owner, repo: repositoryInfo.repo } : undefined;
-				if (!gitHubInfoEqual(gitHubInfo.read(reader), nextGitHubInfo)) {
-					gitHubInfo.set(nextGitHubInfo, undefined);
-					this._onDidChangeSessionTypes.fire();
-				}
-			}));
+			if (!repositoryInfo) {
+				this._localGitHubInfoResolutionStarted.delete(key);
+				return;
+			}
+			const nextGitHubInfo = { owner: repositoryInfo.owner, repo: repositoryInfo.repo };
+			if (!gitHubInfoEqual(gitHubInfo.get(), nextGitHubInfo)) {
+				gitHubInfo.set(nextGitHubInfo, undefined);
+				this._onDidChangeSessionTypes.fire();
+			}
 		}, error => {
 			this._localGitHubInfoResolutionStarted.delete(key);
 			this.logService.warn(`Failed to resolve GitHub repository metadata for '${uri.toString()}'.`, error);
