@@ -16,10 +16,10 @@ parameters:
 #     real publish runs (VSCODE_PUBLISH=true). darwin-x64 stamps but uploads
 #     nothing (the darwin-arm64 job publishes the shared Apple Silicon payload).
 #
-# The core libraries are fetched from NuGet for the target's explicit RID (see
+# The ONNX libraries are fetched from NuGet for the target's explicit RID (see
 # build/dictation-runtime/nuget.ts), so ARM64 targets build fine on x64 pools;
-# the prebuilt addon is copied from the already-restored node_modules. No npm
-# registry auth is needed.
+# both addons and the Foundry Local library are copied from the already-restored
+# node_modules. No npm registry auth is needed.
 #
 # Steps:
 #   1. AzureCLI@2 to fetch the SPN credentials for the CDN storage account —
