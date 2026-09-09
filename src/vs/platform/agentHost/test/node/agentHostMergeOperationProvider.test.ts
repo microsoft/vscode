@@ -30,7 +30,7 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 	async refreshSessionGitState(): Promise<void> { }
-	seedMaterializedWorktreeBranch(): void { }
+	getMaterializedWorktreeMeta(): undefined { return undefined; }
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return 'main'; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(): Promise<void> { }

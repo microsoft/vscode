@@ -311,9 +311,9 @@ suite('AgentHostGitStateService', () => {
 			},
 		});
 
-		h.service.seedMaterializedWorktreeBranch(SESSION, 'agents/feature');
+		const materializedMeta = h.service.getMaterializedWorktreeMeta(SESSION, 'agents/feature');
 
-		assert.deepStrictEqual(readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta), {
+		assert.deepStrictEqual(readSessionGitState(materializedMeta), {
 			branchName: 'agents/feature',
 			baseBranchName: 'main',
 			hasGitHubRemote: true,

@@ -862,16 +862,7 @@ export class AgentHostStateManager extends Disposable {
 		// summary see the resolved working directory. We don't need to schedule a
 		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
 		// notification carries the complete summary already.
-		const currentPrimary = entry.state.workingDirectories?.[0];
-		const resolvedPrimary = summary.workingDirectories?.[0];
-		if (currentPrimary && resolvedPrimary && currentPrimary !== resolvedPrimary) {
-			this.dispatchServerAction(key, {
-				type: ActionType.SessionWorkingDirectoryReplaced,
-				directory: currentPrimary,
-				replacement: resolvedPrimary,
-			});
-		}
-		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories };
+		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories, _meta: summary._meta };
 		entry.project = summary.project;
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;

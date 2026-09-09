@@ -296,16 +296,16 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		});
 	}
 
-	seedMaterializedWorktreeBranch(sessionKey: string, branchName: string): void {
+	getMaterializedWorktreeMeta(sessionKey: string, branchName: string): SessionSummaryMeta | undefined {
 		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const currentGitState = readSessionGitState(currentMeta);
 		if (currentGitState?.branchName === branchName) {
-			return;
+			return currentMeta;
 		}
-		this._stateManager.setSessionMeta(sessionKey, withSessionGitState(currentMeta, {
+		return withSessionGitState(currentMeta, {
 			...currentGitState,
 			branchName,
-		}));
+		});
 	}
 
 	async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
