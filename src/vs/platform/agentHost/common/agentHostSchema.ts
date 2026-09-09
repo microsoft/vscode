@@ -543,6 +543,9 @@ export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichL
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
+/** Root config key controlling automatic pull request association for the checked-out branch. */
+export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
+
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
@@ -568,7 +571,7 @@ export function isAgentHostWorktreeCleanupEnabled(autoRemoveWorktreesAfterMerge:
 }
 
 function isAgentHostSessionLifecycleThresholdEnabled(value: unknown): boolean {
-	return value === 1 || value === 7 || value === 15 || value === 30;
+	return typeof value === 'number' && Number.isInteger(value) && value > 0;
 }
 
 /**
@@ -867,6 +870,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
 	}),
+	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
+		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
+		default: true,
+	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
@@ -891,14 +900,12 @@ export const platformRootSchema = createSchema({
 		type: 'number',
 		title: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.title', "Auto-Archive Merged Sessions"),
 		description: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.description', "Number of inactive days after which a session with a merged pull request is automatically archived. Zero disables automatic archival."),
-		enum: [0, 1, 7, 15, 30],
 		default: 0,
 	}),
 	[AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
 		type: 'number',
 		title: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.title', "Auto-Delete Archived Merged Sessions"),
 		description: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.description', "Number of days after automatic archival before a session with a merged pull request is permanently deleted. Zero disables permanent deletion."),
-		enum: [0, 1, 7, 15, 30],
 		default: 0,
 	}),
 	[AgentHostAutoRemoveWorktreesAfterMergeConfigKey]: schemaProperty<boolean>({

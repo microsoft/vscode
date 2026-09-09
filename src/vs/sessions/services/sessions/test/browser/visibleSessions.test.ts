@@ -70,6 +70,7 @@ suite('VisibleSessions', () => {
 		const model = disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
 			() => [],
+			() => [],
 			onSlotReplaced,
 			uriIdentity,
 		));
@@ -1192,10 +1193,10 @@ suite('VisibleSession - visibleChatTabs', () => {
 		};
 	}
 
-	function createSession(chats: IChat[]) {
+	function createSession(chats: IChat[], initialShownRelatedChatUris?: Iterable<string>) {
 		const base = stubSession('S');
 		const session: ISession = { ...base, chats: constObservable(chats), mainChat: constObservable(chats[0]) };
-		return disposables.add(new VisibleSession(session, chats[0]));
+		return disposables.add(new VisibleSession(session, chats[0], undefined, initialShownRelatedChatUris));
 	}
 
 	test('keeps provider order and hides tool-origin (subagent) chats by default', () => {
@@ -1227,6 +1228,17 @@ suite('VisibleSession - visibleChatTabs', () => {
 			afterOpen: ['main', 'tool'],
 			afterClose: ['main'],
 		});
+	});
+
+	test('restores an explicitly opened subagent tab', () => {
+		const chats = [
+			makeChat('main'),
+			makeChat('tool', SessionStatus.Completed, ChatOriginKind.Tool),
+		];
+
+		const visible = createSession(chats, [chats[1].resource.toString()]);
+
+		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'tool']);
 	});
 
 	test('a closed subagent tab is not added to the reopenable closed chats', () => {
@@ -1413,6 +1425,7 @@ suite('VisibleSessions - active chat removal fallback', () => {
 		};
 		return disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
+			() => [],
 			() => [],
 			() => { },
 			uriIdentity,

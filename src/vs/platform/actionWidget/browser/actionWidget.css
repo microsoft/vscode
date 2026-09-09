@@ -403,10 +403,13 @@
 	display: none;
 }
 
+.action-widget .monaco-list-row.action.has-toolbar .action-list-item-toolbar {
+	margin-right: var(--vscode-spacing-size100, 10px);
+}
+
 .action-widget .monaco-list-row.action.has-detail.has-toolbar .action-list-item-toolbar {
 	display: flex;
 	visibility: hidden;
-	margin-right: 10px;
 }
 
 .action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,

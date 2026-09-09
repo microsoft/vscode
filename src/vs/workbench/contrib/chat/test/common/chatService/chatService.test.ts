@@ -57,7 +57,7 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IMod
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { ChatViewModel, isPendingDividerVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -3129,6 +3129,73 @@ suite('ChatService', () => {
 			}, {
 				requestTimestamp: undefined,
 				serializedTimestamp: undefined,
+			});
+		});
+
+		test('preserves explicit Agent Merge identity in history and live server requests', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'user', type: 'request', prompt: 'user request', participant: remoteScheme },
+					{ id: 'history', type: 'request', prompt: 'merge history', participant: remoteScheme, isSystemInitiated: true, requestSource: 'agentMerge' },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt: 'merge live', isSystemInitiated: true, requestSource: 'agentMerge' });
+
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => ({ id: request.id, requestSource: request.requestSource })),
+				viewModels: viewModel.getItems().filter(isRequestVM).map(request => ({ id: request.id, requestSource: request.requestSource })),
+				serialized: ref.object.toJSON().requests.map(request => ({ id: request.requestId, requestSource: request.requestSource })),
+			}, {
+				requests: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+				viewModels: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+				serialized: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+			});
+		});
+
+		test('backfills legacy Agent Merge history but not live requests or user prompts', async () => {
+			const prompt = '<agent_merge_state>\nAuthorized actions this run: fix failed required CI checks\n</agent_merge_state>';
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'user', type: 'request', prompt, participant: remoteScheme },
+					{ id: 'labelled', type: 'request', prompt, participant: remoteScheme, isSystemInitiated: true, systemInitiatedLabel: 'Terminal needs input' },
+					{ id: 'legacy', type: 'request', prompt, participant: remoteScheme, isSystemInitiated: true },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', false),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt, isSystemInitiated: true });
+
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			const expected = [
+				{ id: 'user', requestSource: undefined },
+				{ id: 'labelled', requestSource: undefined },
+				{ id: 'legacy', requestSource: 'agentMerge' },
+				{ id: 'live', requestSource: undefined },
+			];
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => ({ id: request.id, requestSource: request.requestSource })),
+				viewModels: viewModel.getItems().filter(isRequestVM).map(request => ({ id: request.id, requestSource: request.requestSource })),
+				serialized: ref.object.toJSON().requests.map(request => ({ id: request.requestId, requestSource: request.requestSource })),
+			}, {
+				requests: expected,
+				viewModels: expected,
+				serialized: expected,
 			});
 		});
 

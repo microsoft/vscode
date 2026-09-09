@@ -740,7 +740,7 @@ suite('ActionListWidget', () => {
 			allRowsAutoAtRead,
 			restoredWidths: rows.map(row => row.style.width),
 		}, {
-			width: 268,
+			width: 278,
 			allRowsAutoAtRead: [true, true, true],
 			restoredWidths: ['', '', ''],
 		});

@@ -2026,9 +2026,9 @@ export class ActionListWidget<T> extends Disposable {
 		if (actionCount === 0) {
 			return 0;
 		}
-		// Each toolbar action button is ~22px (16px icon + padding) plus 6px row gap
+		// Each toolbar action button is ~22px (16px icon + padding), plus a 6px row gap and 10px trailing margin.
 		const actionButtonWidth = 22;
-		return actionCount * actionButtonWidth + 6;
+		return actionCount * actionButtonWidth + 6 + 10;
 	}
 
 	private _getRowElement(index: number): HTMLElement | null {

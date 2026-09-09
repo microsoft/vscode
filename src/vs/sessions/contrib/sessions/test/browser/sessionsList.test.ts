@@ -2259,7 +2259,7 @@ suite('Sessions - SessionsList', () => {
 
 		suite('hierarchy indent/connector guides', () => {
 
-			function twoSessionContainer(): { readonly container: HTMLElement; readonly session: ISession; readonly other: ISession } {
+			function twoSessionContainer(activePeer = false): { readonly container: HTMLElement; readonly session: ISession; readonly other: ISession } {
 				const main = createChat('Main chat');
 				const peer = createChat('Peer chat', ChatOriginKind.User);
 				const base = createTestSession('Session').session;
@@ -2276,7 +2276,21 @@ suite('Sessions - SessionsList', () => {
 					mainChat: constObservable(createChat('Other main chat')),
 					capabilities: constObservable({ supportsMultipleChats: true }),
 				};
-				const harness = createListHarness(disposables, [session, other]);
+				const activeSession = upcastPartial<IActiveSession>({
+					...session,
+					activeChat: constObservable(peer),
+					sticky: constObservable(false),
+					isCreated: constObservable(true),
+					visibleChatTabs: constObservable([main, peer]),
+				});
+				const harness = createListHarness(disposables, [session, other], instantiationService => {
+					if (activePeer) {
+						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+							override readonly activeSession = constObservable(activeSession);
+							override readonly visibleSessions = constObservable([activeSession]);
+						});
+					}
+				});
 				const container = harness.createContainer();
 				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 					grouping: () => SessionsGrouping.Date,
@@ -2383,6 +2397,34 @@ suite('Sessions - SessionsList', () => {
 
 				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: true, chats: [true] });
 				assert.deepStrictEqual(guidesVisible(container, 'Other session'), { session: false, chats: [false] });
+			});
+
+			test('active chat synchronization focuses and selects the child row', () => {
+				const { container } = twoSessionContainer(true);
+				const sessionItem = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === 'Session');
+				const chatItem = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+					.find(item => item.textContent === 'Peer chat');
+				assert.ok(sessionItem);
+				assert.ok(chatItem);
+				const sessionRow = sessionItem.closest<HTMLElement>('.monaco-list-row');
+				const chatRow = chatItem.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(sessionRow);
+				assert.ok(chatRow);
+
+				assert.deepStrictEqual({
+					parentFocused: sessionRow.classList.contains('focused'),
+					parentSelected: sessionRow.classList.contains('selected'),
+					childFocused: chatRow.classList.contains('focused'),
+					childSelected: chatRow.classList.contains('selected'),
+					guides: guidesVisible(container, 'Session'),
+				}, {
+					parentFocused: false,
+					parentSelected: false,
+					childFocused: true,
+					childSelected: true,
+					guides: { session: true, chats: [true] },
+				});
 			});
 
 			/** Moves tree focus without changing selection, matching keyboard navigation. */

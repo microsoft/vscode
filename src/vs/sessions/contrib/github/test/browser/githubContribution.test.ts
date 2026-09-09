@@ -415,7 +415,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 	});
 
 	test('does not prompt when either cleanup setting is enabled', async () => {
-		await configurationService.setUserConfiguration(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, 15);
+		await configurationService.setUserConfiguration(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, 13);
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
 		session.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
 		store.add(createContribution());

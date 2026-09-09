@@ -23,6 +23,8 @@ import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js'
 import { Menus } from '../../browser/menus.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../../workbench/browser/parts/notifications/notificationsViewer.js';
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { IEditorGroupViewOptions } from '../../../workbench/browser/parts/editor/editor.js';
+import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
 
 interface IViewSize { width: number; height: number }
 
@@ -1658,6 +1660,39 @@ suite('Sessions - Workbench', () => {
 			headerSecondary: undefined,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
 		});
+	});
+
+	test('single-pane reserves an empty header only for docked inputs with editor content visible', () => {
+		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
+		let editorVisible = true;
+		const options = getOptions.call({ agentWorkbenchLayoutService: { isVisible: () => editorVisible } });
+		const store = new DisposableStore();
+		try {
+			const dockedEditor = store.add(new TestDockedEditorInput());
+			const ordinaryEditor = store.add(new class extends EditorInput {
+				override get typeId(): string { return 'test.ordinaryEditor'; }
+				override get resource(): undefined { return undefined; }
+			}());
+			const visibleState = {
+				docked: options.reserveHeaderSpace?.(dockedEditor),
+				ordinary: options.reserveHeaderSpace?.(ordinaryEditor),
+				empty: options.reserveHeaderSpace?.(undefined),
+			};
+			editorVisible = false;
+			const hiddenState = options.reserveHeaderSpace?.(dockedEditor);
+			editorVisible = true;
+			assert.deepStrictEqual({
+				visibleState,
+				hiddenState,
+				reopened: options.reserveHeaderSpace?.(dockedEditor),
+			}, {
+				visibleState: { docked: true, ordinary: false, empty: false },
+				hiddenState: false,
+				reopened: true,
+			});
+		} finally {
+			store.dispose();
+		}
 	});
 
 	test('single-pane editor part chooses the tab override from the visible composition', () => {

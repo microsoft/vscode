@@ -8,7 +8,6 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { PolicyCategory } from '../../../../base/common/policy.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -48,56 +47,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING]: {
 			type: 'integer',
-			enum: [0, 1, 7, 15, 30],
-			enumItemLabels: [
-				localize('autoArchiveMergedSessions.disabled', "Disabled"),
-				localize('autoArchiveMergedSessions.oneDay', "1 day"),
-				localize('autoArchiveMergedSessions.sevenDays', "7 days"),
-				localize('autoArchiveMergedSessions.fifteenDays', "15 days"),
-				localize('autoArchiveMergedSessions.thirtyDays', "30 days"),
-			],
+			minimum: 0,
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
-			markdownDescription: localize('autoArchiveMergedSessions.description', "Controls when inactive agent sessions with a merged pull request are automatically archived. Enabling this setting also enables safe worktree removal, regardless of {1}. Permanent deletion is controlled separately by {0}. Set to 0 to disable automatic archival.", '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`', '`#chat.agentSessions.autoRemoveWorktreesAfterMerge#`'),
-			policy: {
-				name: 'ChatAgentSessionsAutoArchiveMergedSessionsAfterDays',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.137',
-				localization: {
-					description: {
-						key: 'autoArchiveMergedSessions.policy',
-						value: localize('autoArchiveMergedSessions.policy', "Configure when inactive agent sessions with a merged pull request are automatically archived."),
-					},
-				},
-			},
+			markdownDescription: localize('autoArchiveMergedSessions.description', "Controls the number of inactive days before agent sessions with a merged pull request are automatically archived. Enabling this setting also enables safe worktree removal, regardless of {1}. Permanent deletion is controlled separately by {0}. Set to 0 to disable automatic archival. The recommended value is 15.", '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`', '`#chat.agentSessions.autoRemoveWorktreesAfterMerge#`'),
 			agentHost: { key: AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey },
 		},
 		[AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING]: {
 			type: 'integer',
-			enum: [0, 1, 7, 15, 30],
-			enumItemLabels: [
-				localize('autoDeleteArchivedMergedSessions.disabled', "Disabled"),
-				localize('autoDeleteArchivedMergedSessions.oneDay', "1 day"),
-				localize('autoDeleteArchivedMergedSessions.sevenDays', "7 days"),
-				localize('autoDeleteArchivedMergedSessions.fifteenDays', "15 days"),
-				localize('autoDeleteArchivedMergedSessions.thirtyDays', "30 days"),
-			],
+			minimum: 0,
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
-			markdownDescription: localize('autoDeleteArchivedMergedSessions.description', "Controls when automatically archived agent sessions with a merged pull request are permanently deleted. Enabling this setting also enables safe worktree removal, regardless of {1}, so retained worktrees do not block deletion. The period starts when the session is automatically archived. Automatic archival is controlled separately by {0}. Set to 0 to disable permanent deletion.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`', '`#chat.agentSessions.autoRemoveWorktreesAfterMerge#`'),
-			policy: {
-				name: 'ChatAgentSessionsAutoDeleteArchivedMergedSessionsAfterDays',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.137',
-				localization: {
-					description: {
-						key: 'autoDeleteArchivedMergedSessions.policy',
-						value: localize('autoDeleteArchivedMergedSessions.policy', "Configure when automatically archived agent sessions with a merged pull request are permanently deleted."),
-					},
-				},
-			},
+			markdownDescription: localize('autoDeleteArchivedMergedSessions.description', "Controls the number of days after automatic archival before agent sessions with a merged pull request are permanently deleted. Enabling this setting also enables safe worktree removal, regardless of {1}, so retained worktrees do not block deletion. Automatic archival is controlled separately by {0}. Set to 0 to disable permanent deletion. The recommended value is 15.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`', '`#chat.agentSessions.autoRemoveWorktreesAfterMerge#`'),
 			agentHost: { key: AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey },
 		},
 		[AUTO_REMOVE_WORKTREES_AFTER_MERGE_SETTING]: {
@@ -106,17 +69,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
 			markdownDescription: localize('autoRemoveWorktreesAfterMerge.description', "Controls standalone worktree cleanup for inactive agent sessions after their pull request is merged. Enabling {0} or {1} overrides this setting because those lifecycles require eligible worktrees to be removed. A worktree is only removed when its branch tracks an upstream, has no unpushed commits, and has no uncommitted changes; the session remains available.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`', '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`'),
-			policy: {
-				name: 'ChatAgentSessionsAutoRemoveWorktreesAfterMerge',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.137',
-				localization: {
-					description: {
-						key: 'autoRemoveWorktreesAfterMerge.policy',
-						value: localize('autoRemoveWorktreesAfterMerge.policy', "Configure standalone worktree cleanup for inactive agent sessions after their pull request is merged. Automatic archive or deletion settings override this policy."),
-					},
-				},
-			},
 			agentHost: { key: AgentHostAutoRemoveWorktreesAfterMergeConfigKey },
 		},
 	},
@@ -423,12 +375,12 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 	private _getArchiveAfterDays(): number {
 		const value = this._configurationService.getValue<number>(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING);
-		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
+		return Number.isInteger(value) && value > 0 ? value : 0;
 	}
 
 	private _getDeleteAfterDays(): number {
 		const value = this._configurationService.getValue<number>(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING);
-		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
+		return Number.isInteger(value) && value > 0 ? value : 0;
 	}
 
 	private _isInactiveForDays(updatedAt: Date, days: number): boolean {

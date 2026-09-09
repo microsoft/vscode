@@ -212,7 +212,7 @@ suite('AgentHostSessionLifecycle', () => {
 	});
 
 	test('cleans up an inactive merged session worktree without restoring when record cleanup is disabled', async () => {
-		const { lifecycle, session, restored, cleanedWorktrees } = createHarness({
+		const { lifecycle, session, restored, resolved, cleanedWorktrees } = createHarness({
 			enabled: false,
 			status: mergedPullRequestStatus(),
 		});
@@ -221,9 +221,11 @@ suite('AgentHostSessionLifecycle', () => {
 
 		assert.deepStrictEqual({
 			restored,
+			resolved,
 			cleanedWorktrees,
 		}, {
 			restored: [],
+			resolved: [session.toString()],
 			cleanedWorktrees: [session.toString()],
 		});
 	});
@@ -678,7 +680,13 @@ suite('AgentHostSessionLifecycle', () => {
 		};
 		const harnesses = [
 			createHarness({ pullRequestUrls, resolveStatus: reopeningStatus() }),
-			createHarness({ enabled: false, pullRequestUrls, resolveStatus: reopeningStatus() }),
+			createHarness({
+				enabled: false,
+				pullRequestUrls,
+				resolveStatus: pullRequestUrl => pullRequestUrl === PULL_REQUEST_URL
+					? mergedPullRequestStatus()
+					: { ...mergedPullRequestStatus(SECOND_PULL_REQUEST_URL, 2), state: 'open' },
+			}),
 			createHarness({
 				sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
 				autoArchivedAt: NOW - 2 * DAY_MS,
@@ -698,7 +706,7 @@ suite('AgentHostSessionLifecycle', () => {
 			archived: isSessionStatusArchived(harness.stateManager.getSessionSummary(harness.session.toString())?.status),
 		})), [
 			{ restored: [harnesses[0].session.toString()], resolvedPullRequestUrls: [...pullRequestUrls, ...pullRequestUrls], cleanedWorktrees: [], deleted: [], archived: false },
-			{ restored: [], resolvedPullRequestUrls: [...pullRequestUrls, ...pullRequestUrls], cleanedWorktrees: [], deleted: [], archived: false },
+			{ restored: [], resolvedPullRequestUrls: pullRequestUrls, cleanedWorktrees: [], deleted: [], archived: false },
 			{ restored: [harnesses[2].session.toString()], resolvedPullRequestUrls: [...pullRequestUrls, ...pullRequestUrls], cleanedWorktrees: [], deleted: [], archived: true },
 		]);
 	});
@@ -767,11 +775,11 @@ suite('AgentHostSessionLifecycle', () => {
 	test('runs immediately when a lifecycle threshold changes', async () => {
 		const { configurationService, listed } = createHarness({ enabled: false, status: mergedPullRequestStatus() });
 
-		configurationService.updateRootConfig({ [AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 7 });
+		configurationService.updateRootConfig({ [AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 13 });
 		await timeout(10);
 
 		assert.deepStrictEqual(listed, [{
-			archiveCutoff: NOW - 7 * DAY_MS,
+			archiveCutoff: NOW - 13 * DAY_MS,
 			deleteCutoff: undefined,
 			cleanupWorktrees: true,
 		}]);

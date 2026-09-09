@@ -137,16 +137,12 @@ export class AgentHostSessionLifecycle extends Disposable {
 
 	private _readThreshold(key: typeof AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey | typeof AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey): number {
 		const value = this._configurationService.getRootValue(platformRootSchema, key);
-		return value === 1 || value === 7 || value === 15 || value === 30 ? value : 0;
+		return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 0;
 	}
 
 	private async _evaluateCandidate(candidate: IAgentHostSessionLifecycleCandidate): Promise<void> {
 		const { session } = candidate;
 		const sessionKey = session.toString();
-		if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
-			return;
-		}
-
 		if (candidate.action === 'cleanupWorktree') {
 			const currentArchiveAfterDays = this._settings.archiveAfterDays;
 			const currentDeleteAfterDays = this._settings.deleteAfterDays;
@@ -171,6 +167,10 @@ export class AgentHostSessionLifecycle extends Disposable {
 				return;
 			}
 			await this._accessor.cleanupWorktree(session, sessionKey);
+			return;
+		}
+
+		if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
 			return;
 		}
 

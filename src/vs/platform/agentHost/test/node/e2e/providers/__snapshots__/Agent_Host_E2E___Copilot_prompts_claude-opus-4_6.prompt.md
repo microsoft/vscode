@@ -16,10 +16,6 @@
       "cache_control": {
         "type": "ephemeral"
       }
-    },
-    {
-      "type": "text",
-      "text": "You have access to an `advisor` tool backed by a stronger reviewer model. It takes NO parameters — when you call advisor(), your entire conversation history is automatically forwarded. They see the task, every tool call you've made, every result you've seen.\n\nCall advisor BEFORE substantive work — before writing, before committing to an interpretation, before building on an assumption. If the task requires orientation first (finding files, fetching a source, seeing what's there), do that, then call advisor. Orientation is not substantive work. Writing, editing, and declaring an answer are.\n\nAlso call advisor:\n- When you believe the task is complete. BEFORE this call, make your deliverable durable: write the file, save the result, commit the change. The advisor call takes time; if the session ends during it, a durable result persists and an unwritten one doesn't.\n- When stuck — errors recurring, approach not converging, results that don't fit.\n- When considering a change of approach.\n\nOn tasks longer than a few steps, call advisor at least once before committing to an approach and once before declaring done. On short reactive tasks where the next action is dictated by tool output you just read, you don't need to keep calling — the advisor adds most of its value on the first call, before the approach crystallizes.\n\nGive the advice serious weight. If you follow a step and it fails empirically, or you have primary-source evidence that contradicts a specific claim (the file says X, the paper states Y), adapt. A passing self-test is not evidence the advice is wrong — it's evidence your test doesn't check what the advice is checking.\n\nIf you've already retrieved data pointing one way and the advisor points another: don't silently switch. Surface the conflict in one more advisor call — \"I found X, you suggest Y, which constraint breaks the tie?\" The advisor saw your evidence but may have underweighted it; a reconcile call is cheaper than committing to the wrong branch.\n\nThe advisor should respond in under 100 words and use enumerated steps, not explanations."
     }
   ],
   "messages": [
@@ -761,7 +757,7 @@
     },
     {
       "name": "create_session",
-      "description": "Create delegated work and start it with an initial prompt. Set `relationship` to `currentSession` when the task belongs to the current plan or deliverable; this creates a new chat that shares the current session's workspace, lifecycle, and aggregate diff. Set it to `independent` only for a separate deliverable that needs its own workspace, provider, or top-level lifecycle.",
+      "description": "Create delegated work and start it with an initial prompt, either in a new chat sharing the current session's workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -771,7 +767,7 @@
               "currentSession",
               "independent"
             ],
-            "description": "Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks. Use `independent` only for a separate deliverable that needs its own workspace and top-level lifecycle."
+            "description": "Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks, unless the user explicitly requests a worktree. Use `independent` for a separate deliverable that needs its own workspace, provider, or top-level lifecycle, or for an explicitly requested worktree."
           },
           "prompt": {
             "type": "string",
@@ -780,6 +776,10 @@
           "workspace": {
             "type": "string",
             "description": "For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Required for `independent` and invalid for `currentSession`."
+          },
+          "worktree": {
+            "type": "boolean",
+            "description": "Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session's isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`."
           },
           "title": {
             "type": "string",
@@ -861,12 +861,7 @@
         "required": [
           "session"
         ]
-      }
-    },
-    {
-      "type": "advisor_20260301",
-      "name": "advisor",
-      "model": "claude-opus-4-7",
+      },
       "cache_control": {
         "type": "ephemeral"
       }

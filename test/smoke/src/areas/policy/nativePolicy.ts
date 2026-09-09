@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ApplicationOptions, getBuildElectronPath } from '../../../../automation';
+import { ApplicationOptions, getBuildProductPath } from '../../../../automation';
 
 const POLICY_NAME = 'ExtensionsAutoUpdate';
 const LINUX_POLICY_PATH = '/etc/vscode/policy.json';
@@ -32,9 +32,7 @@ export function nativePolicyFixture(options: ApplicationOptions): NativePolicyFi
 	}
 
 	const productPath = options.codePath
-		? process.platform === 'darwin'
-			? path.join(options.codePath, 'Contents', 'Resources', 'app', 'product.json')
-			: path.join(path.dirname(getBuildElectronPath(options.codePath)), 'resources', 'app', 'product.json')
+		? getBuildProductPath(options.codePath)
 		: path.join(__dirname, '../../../../../product.json');
 	const product: {
 		win32RegValueName?: string;

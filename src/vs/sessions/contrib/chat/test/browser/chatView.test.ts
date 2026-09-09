@@ -22,11 +22,12 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
+import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -585,6 +586,42 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+		test(`keeps the agent merge card opaque over the chat background (${theme})`, () => {
+			const workbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`);
+			workbench.style.setProperty('--session-view-background', '#202020');
+			workbench.style.setProperty('--vscode-chat-statusBackground', 'rgba(255, 255, 255, 0.3)');
+			const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
+			const merge = dom.append(request, dom.$('.chat-agent-merge'));
+			const card = dom.append(merge, dom.$('.chat-agent-merge-card'));
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+
+			const background = () => {
+				const style = dom.getWindow(card).getComputedStyle(card);
+				return { color: style.backgroundColor, image: style.backgroundImage };
+			};
+			const expanded = background();
+			merge.classList.add('collapsed');
+			const collapsed = background();
+			part.classList.remove('has-chat-background');
+			const plain = background();
+
+			const opaqueBackground = {
+				color: 'rgb(32, 32, 32)',
+				image: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			};
+			assert.deepStrictEqual({ expanded, collapsed, plain }, {
+				expanded: opaqueBackground,
+				collapsed: opaqueBackground,
+				plain: { color: 'rgba(255, 255, 255, 0.3)', image: 'none' },
+			});
+		});
+	}
+
 	test('keeps the request edit input opaque over the chat background', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
@@ -668,56 +705,96 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('applies a borderless translucent side fade to the complete assistant response', () => {
+	test('uses a distinct padded assistant bubble over the chat background', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
+		workbench.style.setProperty('--vscode-editorWidget-background', '#f8f8f8');
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
-		workbench.style.setProperty('--vscode-spacing-size160', '16px');
+		workbench.style.setProperty('--vscode-spacing-size80', '8px');
+		workbench.style.setProperty('--vscode-spacing-size120', '12px');
 		workbench.style.setProperty('--vscode-spacing-size320', '32px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
 		const chatView = dom.append(part, dom.$('.chat-view'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
+		response.style.width = '600px';
 		const value = dom.append(response, dom.$('.value'));
 		const footer = dom.append(response, dom.$('.chat-footer-toolbar'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
 		const plainResponse = dom.append(plainSession, dom.$('.interactive-item-container.interactive-response'));
+		const createHighContrastResponse = (themeClass: 'hc-black' | 'hc-light') => {
+			const highContrastWorkbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${themeClass}`);
+			highContrastWorkbench.style.setProperty('--session-view-background', '#ffffff');
+			highContrastWorkbench.style.setProperty('--vscode-editorWidget-background', '#f8f8f8');
+			highContrastWorkbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
+			highContrastWorkbench.style.setProperty('--vscode-spacing-size80', '8px');
+			highContrastWorkbench.style.setProperty('--vscode-spacing-size120', '12px');
+			highContrastWorkbench.style.setProperty('--vscode-spacing-size320', '32px');
+			highContrastWorkbench.style.setProperty('--vscode-strokeThickness', '1px');
+			highContrastWorkbench.style.setProperty('--vscode-contrastBorder', '#ff0000');
+			const highContrastPart = dom.append(highContrastWorkbench, dom.$('.part.sessionspart.has-chat-background'));
+			const highContrastChatView = dom.append(highContrastPart, dom.$('.chat-view'));
+			const highContrastResponse = dom.append(highContrastChatView, dom.$('.interactive-item-container.interactive-response'));
+			dom.getWindow(highContrastWorkbench).document.body.appendChild(highContrastWorkbench);
+			return { highContrastWorkbench, highContrastResponse };
+		};
+		const highContrastDark = createHighContrastResponse('hc-black');
+		const highContrastLight = createHighContrastResponse('hc-light');
 		dom.getWindow(workbench).document.body.appendChild(workbench);
-		disposables.add(toDisposable(() => workbench.remove()));
+		disposables.add(toDisposable(() => {
+			workbench.remove();
+			highContrastDark.highContrastWorkbench.remove();
+			highContrastLight.highContrastWorkbench.remove();
+		}));
 
 		const responseStyle = dom.getWindow(response).getComputedStyle(response);
+		const bubbleStyle = dom.getWindow(response).getComputedStyle(response, '::before');
+		const highContrastDarkBubbleStyle = dom.getWindow(highContrastDark.highContrastResponse).getComputedStyle(highContrastDark.highContrastResponse, '::before');
+		const highContrastLightBubbleStyle = dom.getWindow(highContrastLight.highContrastResponse).getComputedStyle(highContrastLight.highContrastResponse, '::before');
 		assert.deepStrictEqual({
 			responseBackgroundColor: responseStyle.backgroundColor,
 			responseBackgroundImage: responseStyle.backgroundImage,
-			responseBackdropFilter: responseStyle.getPropertyValue('backdrop-filter'),
-			responseWebkitBackdropFilter: responseStyle.getPropertyValue('-webkit-backdrop-filter') || 'none',
 			responseBorderStyle: responseStyle.borderStyle,
-			responseBorderRadius: responseStyle.borderRadius,
 			responseBoxShadow: responseStyle.boxShadow,
 			responseOverflow: responseStyle.overflow,
-			responsePaddingBottom: responseStyle.paddingBottom,
+			responsePadding: responseStyle.padding,
+			bubbleBackgroundColor: bubbleStyle.backgroundColor,
+			bubbleBackgroundImage: bubbleStyle.backgroundImage,
+			bubbleBorderRadius: bubbleStyle.borderRadius,
+			bubbleInset: bubbleStyle.inset,
+			backgroundContentHorizontalPadding: getSessionChatItemHorizontalPadding(true),
+			plainContentHorizontalPadding: getSessionChatItemHorizontalPadding(false),
 			valueBackgroundColor: dom.getWindow(value).getComputedStyle(value).backgroundColor,
 			footerBackgroundColor: dom.getWindow(footer).getComputedStyle(footer).backgroundColor,
 			plainResponseBackgroundColor: dom.getWindow(plainResponse).getComputedStyle(plainResponse).backgroundColor,
+			plainResponseBackgroundImage: dom.getWindow(plainResponse).getComputedStyle(plainResponse).backgroundImage,
 			plainResponseBorderStyle: dom.getWindow(plainResponse).getComputedStyle(plainResponse).borderStyle,
-			plainResponsePaddingBottom: dom.getWindow(plainResponse).getComputedStyle(plainResponse).paddingBottom,
+			plainResponsePadding: dom.getWindow(plainResponse).getComputedStyle(plainResponse).padding,
+			highContrastDarkBubbleBorder: highContrastDarkBubbleStyle.border,
+			highContrastLightBubbleBorder: highContrastLightBubbleStyle.border,
 		}, {
 			responseBackgroundColor: 'rgba(0, 0, 0, 0)',
-			responseBackgroundImage: 'linear-gradient(to right, rgba(0, 0, 0, 0), color(srgb 1 1 1 / 0.88) 32px, color(srgb 1 1 1 / 0.88) calc(100% - 32px), rgba(0, 0, 0, 0))',
-			responseBackdropFilter: 'none',
-			responseWebkitBackdropFilter: 'none',
+			responseBackgroundImage: 'none',
 			responseBorderStyle: 'none',
-			responseBorderRadius: '6px',
 			responseBoxShadow: 'none',
-			responseOverflow: 'hidden',
-			responsePaddingBottom: '16px',
+			responseOverflow: 'visible',
+			responsePadding: '8px 44px',
+			bubbleBackgroundColor: 'rgb(248, 248, 248)',
+			bubbleBackgroundImage: 'none',
+			bubbleBorderRadius: '6px',
+			bubbleInset: '0px 32px',
+			backgroundContentHorizontalPadding: 88,
+			plainContentHorizontalPadding: 64,
 			valueBackgroundColor: 'rgba(0, 0, 0, 0)',
 			footerBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainResponseBackgroundColor: 'rgba(0, 0, 0, 0)',
+			plainResponseBackgroundImage: 'none',
 			plainResponseBorderStyle: 'none',
-			plainResponsePaddingBottom: '0px',
+			plainResponsePadding: '0px 32px',
+			highContrastDarkBubbleBorder: '1px solid rgb(255, 0, 0)',
+			highContrastLightBubbleBorder: '1px solid rgb(255, 0, 0)',
 		});
 	});
 
@@ -846,6 +923,29 @@ suite('Sessions - Chat View', () => {
 			selectedResponse: 'rgba(0, 0, 0, 0)',
 			selectedPendingDivider: 'rgb(255, 0, 0)',
 			highContrastSelectedResponse: 'rgb(255, 0, 0)',
+		});
+	});
+
+	test('keeps the floating persistent content transparent only over chat backgrounds', () => {
+		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
+		const createPersistentContent = (hasBackground: boolean) => {
+			const part = dom.append(workbench, dom.$(`.part.sessionspart${hasBackground ? '.has-chat-background' : ''}`));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			return dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+		};
+		const background = createPersistentContent(true);
+		const plain = createPersistentContent(false);
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		assert.deepStrictEqual({
+			background: dom.getWindow(background).getComputedStyle(background, '::before').content,
+			plain: dom.getWindow(plain).getComputedStyle(plain, '::before').content,
+		}, {
+			background: 'none',
+			plain: '""',
 		});
 	});
 

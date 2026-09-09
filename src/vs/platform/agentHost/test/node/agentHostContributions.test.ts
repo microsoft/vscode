@@ -45,6 +45,7 @@ const nullGitStateService: IAgentHostGitStateService = {
 	onDidRefreshSessionGitState: Event.None,
 	onDidChangeSessionGitHubState: Event.None,
 	async refreshSessionGitState() { },
+	getMaterializedWorktreeMeta() { return undefined; },
 	async resolveSessionBaseBranchName() { return undefined; },
 	async setSessionGitHubState() { },
 	async recordSessionMerge() { },

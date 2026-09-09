@@ -255,6 +255,7 @@ export interface IExtensionCapabilities {
 	readonly agentsWindow?: { readonly supported: boolean };
 }
 
+export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experimental.enableAgentsWindowCapability';
 
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 
