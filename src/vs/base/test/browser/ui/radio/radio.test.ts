@@ -7,6 +7,7 @@ import assert from 'assert';
 import { getWindow } from '../../../../browser/dom.js';
 import { Radio, IRadioOptions } from '../../../../browser/ui/radio/radio.js';
 import { mainWindow } from '../../../../browser/window.js';
+import { timeout } from '../../../../common/async.js';
 import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
@@ -15,8 +16,10 @@ suite('Radio', () => {
 
 	function createRadio(options: IRadioOptions): Radio {
 		const radio = disposables.add(new Radio(options));
-		mainWindow.document.body.appendChild(radio.domNode);
-		disposables.add(toDisposable(() => radio.domNode.remove()));
+		const container = mainWindow.document.createElement('div');
+		container.appendChild(radio.domNode);
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
 		radio.domNode.style.cssText = `
 			position: absolute;
 			top: 0;
@@ -31,6 +34,86 @@ suite('Radio', () => {
 			--vscode-fontWeight-semiBold: 600;
 		`;
 		return radio;
+	}
+
+	async function nextFrame(radio: Radio): Promise<void> {
+		const targetWindow = getWindow(radio.domNode);
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+	}
+
+	test('the decorative selection indicator follows unequal options and resizes without moving buttons', async () => {
+		const radio = createRadio({
+			className: 'segmented',
+			items: ['None', 'Low', 'Medium', 'High', 'Extra High', 'Max'].map(text => ({ text })),
+		});
+		radio.domNode.style.width = '276px';
+		radio.domNode.parentElement!.classList.add('monaco-reduce-motion');
+		await nextFrame(radio);
+		const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+		const aligned = (index: number) => {
+			const option = radio.optionElements[index];
+			return indicator.style.transform === `translate(${option.offsetLeft}px, ${option.offsetTop}px)`
+				&& indicator.style.width === `${option.offsetWidth}px`
+				&& indicator.style.height === `${option.offsetHeight}px`;
+		};
+		const selections = radio.optionElements.map((_, index) => {
+			radio.setActiveItem(index);
+			return aligned(index);
+		});
+		radio.domNode.style.width = '360px';
+		await nextFrame(radio);
+		assert.deepStrictEqual({ selections, resized: aligned(5), hidden: indicator.getAttribute('aria-hidden'), options: radio.optionElements.length }, {
+			selections: [true, true, true, true, true, true], resized: true, hidden: 'true', options: 6,
+		});
+	});
+
+	test('segmented motion uses a short slide and respects reduced motion', async () => {
+		const radio = createRadio({ className: 'segmented', items: [{ text: 'One' }, { text: 'Two' }, { text: 'Six' }] });
+		radio.domNode.style.width = '200px';
+		await nextFrame(radio);
+		radio.setActiveItem(1);
+		const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+		const targetWindow = getWindow(indicator);
+		const normalDuration = targetWindow.getComputedStyle(indicator).transitionDuration;
+		radio.domNode.parentElement!.classList.add('monaco-reduce-motion');
+		radio.setActiveItem(2);
+		await radio.whenSelectionAnimationSettles();
+		assert.deepStrictEqual({
+			normalDuration,
+			reducedDuration: targetWindow.getComputedStyle(indicator).transitionDuration,
+			animations: indicator.getAnimations().length,
+		}, {
+			normalDuration: targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? '0s' : '0.16s, 0.16s, 0.1s',
+			reducedDuration: '0s',
+			animations: 0,
+		});
+	});
+
+	for (const dispose of [false, true]) {
+		test(`selection waiting follows interruptions and settles on ${dispose ? 'disposal' : 'completion'}`, async () => {
+			const radio = createRadio({ className: 'segmented', items: [{ text: 'One' }, { text: 'Two' }] });
+			const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+			const animate = () => {
+				const animation = indicator.animate([{ opacity: 1 }, { opacity: 0.9 }], { duration: 160 });
+				disposables.add(toDisposable(() => animation.cancel()));
+				animation.pause();
+				return animation;
+			};
+			const first = animate();
+			let settled = false;
+			const pending = radio.whenSelectionAnimationSettles().then(() => { settled = true; });
+			const second = animate();
+			first.cancel();
+			await timeout(0);
+			const before = settled;
+			if (dispose) {
+				radio.dispose();
+			} else {
+				second.finish();
+			}
+			await pending;
+			assert.deepStrictEqual({ before, settled }, { before: false, settled: true });
+		});
 	}
 
 	for (const labels of [

@@ -388,8 +388,9 @@ export class TabbedModelPicker extends Disposable {
 			speedVariants: this._speedVariants.get(model.identifier),
 			onSelectVariant: next => {
 				context.onSelect(next);
-				this._widget.hide();
+				this._context = { ...(this._context ?? context), selectedModelId: next.identifier };
 			},
+			onDidAccept: () => this._widget.hide(),
 			onTogglePin: context.onTogglePin
 				? pinned => {
 					context.onTogglePin?.(model.identifier, pinned);
@@ -403,10 +404,10 @@ export class TabbedModelPicker extends Disposable {
 				// Configuring a model is a choice of it: the settings only take effect on the
 				// model they belong to, so tuning one and leaving another selected would
 				// discard the change the user just made.
-				if (model.identifier !== context.selectedModelId) {
+				if (model.identifier !== (this._context ?? context).selectedModelId) {
 					context.onSelect(model);
+					this._context = { ...(this._context ?? context), selectedModelId: model.identifier };
 				}
-				this._widget.hide();
 			},
 		}))).element;
 		return {
@@ -420,7 +421,7 @@ export class TabbedModelPicker extends Disposable {
 			hideIcon: false,
 			section,
 			className: badge ? `chat-model-picker-badge-${badge.tone}` : undefined,
-			hover: autoEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true },
+			hover: autoEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true, preserveVerticalPosition: true },
 			tooltip: action.tooltip,
 		};
 	}

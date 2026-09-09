@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Switch } from '../../../base/browser/ui/toggle/switch.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
@@ -21,6 +23,7 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import './actionWidget.css';
@@ -72,6 +75,8 @@ export interface IActionListItemHover {
 	readonly panelClassName?: string;
 	/** Align the panel's adjoining edge with the outer action widget rather than its inset list. */
 	readonly alignToParent?: boolean;
+	/** Keep the initial top edge as content resizes, scrolling when it reaches the viewport edge. */
+	readonly preserveVerticalPosition?: boolean;
 }
 
 /**
@@ -2087,6 +2092,29 @@ export class ActionListWidget<T> extends Disposable {
 			this._submenuContainer.classList.add(this._submenuPanelClassName);
 		}
 
+		const preserveVerticalPosition = element.hover?.preserveVerticalPosition;
+		const content = preserveVerticalPosition ? dom.$('.action-list-submenu-content') : this._submenuContainer;
+		const viewport = preserveVerticalPosition ? dom.$('.action-list-submenu-viewport', undefined, content) : undefined;
+		const scrollbar = viewport ? this._submenuDisposables.add(new DomScrollableElement(viewport, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+			useShadows: false,
+		})) : undefined;
+		if (scrollbar && viewport) {
+			this._submenuContainer.appendChild(scrollbar.getDomNode());
+			this._submenuDisposables.add(dom.addDisposableListener(viewport, dom.EventType.SCROLL, () => scrollbar.scanDomNode()));
+			this._submenuDisposables.add(dom.addDisposableListener(this._submenuContainer, dom.EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.PageDown) || event.equals(KeyCode.PageUp)) {
+					dom.EventHelper.stop(e, true);
+					scrollbar.setScrollPosition({
+						scrollTop: scrollbar.getScrollPosition().scrollTop + (event.equals(KeyCode.PageDown) ? 1 : -1) * viewport.clientHeight,
+					});
+				}
+			}));
+		}
+
 		// When the item has hover content, render it as a header
 		let hoverHeader: HTMLElement | undefined;
 		const hoverContent = typeof element.hover?.content === 'function' ? element.hover.content() : element.hover?.content;
@@ -2122,7 +2150,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (element.submenuActions?.length) {
 				hoverHeader.classList.add('has-submenu');
 			}
-			this._submenuContainer.appendChild(hoverHeader);
+			content.appendChild(hoverHeader);
 		}
 
 		const hasSubmenuActions = !!element.submenuActions?.length;
@@ -2220,7 +2248,7 @@ export class ActionListWidget<T> extends Disposable {
 				undefined,
 				undefined,
 			));
-			this._submenuContainer.appendChild(submenuWidget.domNode);
+			content.appendChild(submenuWidget.domNode);
 			this._currentSubmenuWidget = submenuWidget;
 
 			// The submenu widget's constructor focuses its first item by
@@ -2268,6 +2296,7 @@ export class ActionListWidget<T> extends Disposable {
 			}));
 		}
 
+		let openingPanelHeight: number | undefined;
 		const layout = () => {
 			if (this._currentSubmenuElement !== element) {
 				return;
@@ -2293,7 +2322,7 @@ export class ActionListWidget<T> extends Disposable {
 				? this.domNode.parentElement?.closest('.action-widget')?.getBoundingClientRect() ?? parentRect
 				: parentRect;
 			const anchorRect = row?.getBoundingClientRect() ?? edgeRect;
-			const zoom = alignToParent ? dom.getDomNodeZoomLevel(this.domNode) : 1;
+			const zoom = alignToParent || preserveVerticalPosition ? dom.getDomNodeZoomLevel(this.domNode) : 1;
 			if (persistent) {
 				this._submenuContainer.style.width = `${edgeRect.width / zoom}px`;
 			}
@@ -2314,25 +2343,35 @@ export class ActionListWidget<T> extends Disposable {
 				: edgeRect.left - parentRect.left - panelWidth - gap;
 			this._submenuContainer.style.left = `${left / zoom}px`;
 
-			const panelHeight = alignToParent ? panelRect.height : totalHeight + (hoverHeader?.offsetHeight ?? 0);
+			const panelHeight = alignToParent || preserveVerticalPosition ? panelRect.height : totalHeight + (hoverHeader?.offsetHeight ?? 0);
+			if (preserveVerticalPosition) {
+				openingPanelHeight ??= panelHeight / zoom;
+			}
+			const anchorHeight = openingPanelHeight !== undefined ? openingPanelHeight * zoom : panelHeight;
 			let top = row
-				? anchorRect.top - parentRect.top + (anchorRect.height - panelHeight) / 2
+				? anchorRect.top - parentRect.top + (anchorRect.height - anchorHeight) / 2
 				: panelRect.top - parentRect.top;
-			const panelBottom = parentRect.top + top + panelHeight;
+			const panelBottom = parentRect.top + top + anchorHeight;
 			if (panelBottom > targetWindow.innerHeight) {
 				top -= panelBottom - targetWindow.innerHeight + 8;
 			}
 			if (parentRect.top + top < 0) {
 				top = -parentRect.top;
 			}
+			if (viewport && scrollbar) {
+				const chromeHeight = (panelRect.height - scrollbar.getDomNode().getBoundingClientRect().height) / zoom;
+				const availableHeight = Math.max(0, (targetWindow.innerHeight - parentRect.top - top - 8) / zoom - chromeHeight);
+				viewport.style.height = `${Math.min(content.getBoundingClientRect().height / zoom, availableHeight)}px`;
+				scrollbar.scanDomNode();
+			}
 			this._submenuContainer.style.top = `${top / zoom}px`;
 		};
 		this._layoutSubmenu = layout;
 		layout();
-		if ((this._options?.persistentHover || element.hover?.alignToParent) && this._currentSubmenuElement === element) {
+		if ((this._options?.persistentHover || element.hover?.alignToParent || preserveVerticalPosition) && this._currentSubmenuElement === element) {
 			const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', layout, targetWindow));
-			this._submenuDisposables.add(observer.observe(this._submenuContainer, { box: 'border-box' }));
-			if (this._options?.persistentHover) {
+			this._submenuDisposables.add(observer.observe(preserveVerticalPosition ? content : this._submenuContainer, { box: 'border-box' }));
+			if (this._options?.persistentHover || preserveVerticalPosition) {
 				this._submenuDisposables.add(dom.addDisposableListener(targetWindow, dom.EventType.RESIZE, () => {
 					this._cancelSubmenuShow();
 					this._resetSubmenuPointer();

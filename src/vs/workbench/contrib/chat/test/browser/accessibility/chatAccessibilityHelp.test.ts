@@ -33,6 +33,24 @@ suite('Chat Accessibility Help', () => {
 		}, { typing: true, navigation: true, selection: true, editing: true });
 	});
 
+	test('documents restoring model defaults without changing pinning or requiring another dismissal', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			discovery: help.includes('Reset to Default appears beside Pin Model when thinking effort or context has been changed'),
+			reset: help.includes('restores both settings to the model\'s defaults without changing its pinned state'),
+			dismissal: help.includes('resetting the settings selects that model and closes the picker'),
+		}, { discovery: true, reset: true, dismissal: true });
+	});
+
+	test('documents stable pricing expansion and keyboard scrolling', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			expansion: help.includes('Pricing Details expands in place without moving the model\'s controls'),
+			scrolling: help.includes('use Page Up or Page Down while the model details have focus to scroll'),
+			reducedMotion: help.includes('Expansion and collapse are immediate when reduced motion is enabled'),
+		}, { expansion: true, scrolling: true, reducedMotion: true });
+	});
+
 	test('documents the archive suggestion only while it is shown', () => {
 		const keybindingService = new MockKeybindingService();
 		const shown = getAccessibilityHelpText('agentView', keybindingService, true, false, false, true, true);
