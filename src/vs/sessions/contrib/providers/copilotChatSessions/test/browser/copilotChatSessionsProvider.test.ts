@@ -209,7 +209,7 @@ interface ICreateProviderOptions {
 	readonly pathService?: IPathService;
 }
 
-function createGitConfigFileService(repositoryRoot: URI, config: string, onRead?: () => void): IFileService {
+function createGitConfigFileService(repositoryRoot: URI, config: string | (() => string), onRead?: () => void): IFileService {
 	return upcastPartial<IFileService>({
 		stat: async (resource): Promise<IFileStatWithPartialMetadata> => {
 			if (resource.toString() === URI.joinPath(repositoryRoot, '.git').toString()) {
@@ -220,7 +220,7 @@ function createGitConfigFileService(repositoryRoot: URI, config: string, onRead?
 		readFile: async (resource): Promise<IFileContent> => {
 			if (resource.toString() === URI.joinPath(repositoryRoot, '.git', 'config').toString()) {
 				onRead?.();
-				return upcastPartial<IFileContent>({ value: VSBuffer.fromString(config) });
+				return upcastPartial<IFileContent>({ value: VSBuffer.fromString(typeof config === 'string' ? config : config()) });
 			}
 			throw new FileOperationError('Not found', FileOperationResult.FILE_NOT_FOUND);
 		},
@@ -2181,6 +2181,42 @@ suite('CopilotChatSessionsProvider', () => {
 				gitHubInfo: undefined,
 			},
 			readConfigCalls: 1,
+			gitHubInfo: { owner: 'microsoft', repo: 'vscode' },
+		});
+	});
+
+	test('resolveWorkspace retries unresolved GitHub metadata', async () => {
+		let readConfigCalls = 0;
+		let config = '[core]\n\trepositoryformatversion = 0';
+		const folder = URI.file('/test/vscode');
+		const provider = createProvider(disposables, model, {
+			fileService: createGitConfigFileService(folder, () => config, () => readConfigCalls++),
+		});
+		const gitRepository = provider.resolveWorkspace(folder)?.folders[0].gitRepository;
+
+		gitRepository?.resolveGitHubInfo?.();
+		await timeout(0);
+		const beforeRemote = {
+			readConfigCalls,
+			isRepository: gitRepository?.isRepository?.get(),
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		};
+
+		config = '[remote "origin"]\n\turl = https://github.com/microsoft/vscode.git';
+		gitRepository?.resolveGitHubInfo?.();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeRemote,
+			readConfigCalls,
+			gitHubInfo: gitRepository?.gitHubInfo.get(),
+		}, {
+			beforeRemote: {
+				readConfigCalls: 1,
+				isRepository: true,
+				gitHubInfo: undefined,
+			},
+			readConfigCalls: 2,
 			gitHubInfo: { owner: 'microsoft', repo: 'vscode' },
 		});
 	});

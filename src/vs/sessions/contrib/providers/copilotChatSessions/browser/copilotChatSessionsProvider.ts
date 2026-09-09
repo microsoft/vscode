@@ -3132,6 +3132,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				return;
 			}
 			if (!repositoryInfo) {
+				this._localGitRepositoryResolutionStarted.delete(key);
 				return;
 			}
 			const nextGitHubInfo = repositoryInfo.gitHub
@@ -3143,6 +3144,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					state.gitHubInfo.set(nextGitHubInfo, tx);
 				});
 				this._onDidChangeSessionTypes.fire();
+			}
+			if (!repositoryInfo.gitHub) {
+				this._localGitRepositoryResolutionStarted.delete(key);
 			}
 		}, error => {
 			this._localGitRepositoryResolutionStarted.delete(key);
