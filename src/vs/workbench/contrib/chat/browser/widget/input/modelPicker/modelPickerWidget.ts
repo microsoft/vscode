@@ -503,9 +503,8 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const previousModel = this._selectedModel;
-
 		const onSelect = (model: ILanguageModelChatMetadataAndIdentifier) => {
+			const previousModel = this._selectedModel;
 			this._telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
 				fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
 				toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown',
@@ -533,6 +532,9 @@ export class ModelPickerWidget extends Disposable {
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
+		};
+		const onDidToggleOtherModels = (collapsed: boolean) => {
+			logModelPickerInteraction(collapsed ? 'otherModelsCollapsed' : 'otherModelsExpanded');
 		};
 		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
 		const onTogglePin = (modelIdentifier: string, pinned: boolean) => {
@@ -578,6 +580,7 @@ export class ModelPickerWidget extends Disposable {
 				onSelect,
 				onTogglePin,
 				onManageModels: () => manageModelsAction?.run(),
+				onDidToggleOtherModels,
 				onConfigurationChanged: (model, group, key, fromValue, toValue) => logModelConfigurationChange(this._telemetryService, model, group, key, fromValue, toValue),
 				cacheBreakHint: showCacheBreakHint ? {
 					text: localize('chat.modelPicker.cacheBreakHint', "Switching models mid-session resets the prompt cache and may increase cost."),
@@ -647,7 +650,7 @@ export class ModelPickerWidget extends Disposable {
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
 				if (section === ModelPickerSection.Other) {
-					logModelPickerInteraction(collapsed ? 'otherModelsCollapsed' : 'otherModelsExpanded');
+					onDidToggleOtherModels(collapsed);
 				}
 			},
 			linkHandler: onLinkClick,

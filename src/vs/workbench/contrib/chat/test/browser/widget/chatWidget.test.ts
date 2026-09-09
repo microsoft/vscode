@@ -78,6 +78,49 @@ suite('ChatWidget', () => {
 		};
 	}
 
+	test('does not send a picker fallback over an existing agent host conversation model', () => {
+		const savedModelId = 'agent-host-codex:@provider=openai:future-model';
+		const fallbackModelId = 'agent-host-codex:@provider=vscode-proxy:default-model';
+		const configuration = { thinkingLevel: 'medium' };
+		const scenarios = [
+			{ provider: 'codex', hasRequests: true, intendedModelId: savedModelId },
+			{ provider: 'codex', hasRequests: true, intendedModelId: fallbackModelId },
+			{ provider: 'codex', hasRequests: false, intendedModelId: savedModelId },
+			{ provider: undefined, hasRequests: true, intendedModelId: savedModelId },
+			{ provider: 'codex', hasRequests: true, intendedModelId: undefined },
+		];
+		const selections = scenarios.map(scenario => {
+			const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+			Object.defineProperties(widget, {
+				_lockedAgent: { value: { agentHostProviderId: scenario.provider } },
+				viewModel: {
+					value: {
+						model: {
+							inputModel: { intendedModel: scenario.intendedModelId ? { modelId: scenario.intendedModelId } : undefined },
+							getRequests: () => scenario.hasRequests ? [{}] : [],
+						},
+					},
+				},
+				input: {
+					value: {
+						currentLanguageModel: fallbackModelId,
+						getModelConfiguration: () => configuration,
+					},
+				},
+			});
+			return widget.getSelectedModelRequestOptions();
+		});
+
+		const selectedFallback = { userSelectedModelId: fallbackModelId, userSelectedModelConfiguration: configuration };
+		assert.deepStrictEqual(selections, [
+			{ userSelectedModelId: undefined, userSelectedModelConfiguration: undefined },
+			selectedFallback,
+			selectedFallback,
+			selectedFallback,
+			selectedFallback,
+		]);
+	});
+
 	test('saves non-untitled editors before sending by default', async () => {
 		const configurationService = new TestConfigurationService();
 		const editorService = store.add(new RecordingEditorService());

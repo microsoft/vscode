@@ -215,7 +215,7 @@ suite('Changes View Actions', () => {
 		const getSubmenu = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isISubmenuItem)
 			.find(item => item.submenu === Menus.SessionsDiffEditorView);
-		const singlePane = getSubmenu(Menus.SessionsEditorTitle);
+		const singlePane = getSubmenu(Menus.SessionsEditorHeaderLayout);
 		const classic = getSubmenu(MenuId.EditorTitle);
 
 		assert.ok(singlePane);
@@ -225,6 +225,7 @@ suite('Changes View Actions', () => {
 		assert.deepStrictEqual({
 			singlePaneTitle: typeof singlePane.title === 'string' ? singlePane.title : singlePane.title.value,
 			singlePaneGroup: singlePane.group,
+			singlePaneOrder: singlePane.order,
 			singlePaneHasTextDiffGate: singlePaneWhen.includes(TextCompareEditorActiveContext.key),
 			singlePaneHasChangesGate: singlePaneWhen.includes(SessionChangesEditor.ID),
 			singlePaneHasMultiDiffGate: singlePaneWhen.includes(MultiDiffEditor.ID),
@@ -237,7 +238,8 @@ suite('Changes View Actions', () => {
 			classicHasLayoutGate: classicWhen.includes(SinglePaneLayoutEnabledContext.key),
 		}, {
 			singlePaneTitle: 'Diff View',
-			singlePaneGroup: '1_diff',
+			singlePaneGroup: 'secondary/1_diff',
+			singlePaneOrder: 20,
 			singlePaneHasTextDiffGate: true,
 			singlePaneHasChangesGate: true,
 			singlePaneHasMultiDiffGate: true,

@@ -532,9 +532,20 @@ export class AgentMergeController extends Disposable {
 				}
 				runtime.backstopScheduler.schedule();
 				return;
-			case 'terminal':
-				this._disable(session, agentMerge, agentMergeDisableReasons.pullRequestClosed());
+			case 'terminal': {
+				const pullRequest = snapshot.core.value!;
+				if (pullRequest.state === 'merged') {
+					this._disable(
+						session,
+						agentMerge,
+						agentMergeDisableReasons.pullRequestAlreadyMerged(pullRequest.number, pullRequest.url),
+						AgentSystemNotificationKind.AgentMergePullRequestMerged,
+					);
+				} else {
+					this._disable(session, agentMerge, agentMergeDisableReasons.pullRequestClosed());
+				}
 				return;
+			}
 			case 'noWork':
 				await this._processDeferredWorkflowReruns(session, runtime, ref, target, snapshot.core.value!.headSha);
 				if (this._isCurrentRuntime(session, runtime)) {

@@ -686,7 +686,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 			menu: [{
 				id: SessionGroupToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: SessionGroupHasVisibleSessionsContext,
 			}]
 		});
@@ -749,7 +749,7 @@ registerAction2(class DeleteEmptySessionGroupAction extends Action2 {
 			menu: [{
 				id: SessionGroupToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: SessionGroupIsEmptyContext,
 			}]
 		});

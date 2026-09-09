@@ -12,6 +12,7 @@ import {
 	observableFromEvent,
 	observableSignalFromEvent,
 } from '../../../../../base/common/observable.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -34,19 +35,25 @@ import {
 	ISinglePaneLayoutContext,
 	SinglePaneLayoutStrategy,
 } from './singlePaneLayoutStrategy.js';
+import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './singlePaneVisibilityProfileStore.js';
 
 /**
- * Owns the independent entry, side-pane-toggle, last-editor-close, and detail transitions for New Sessions.
+ * Owns workspace-backed and workspace-less draft layout behavior.
  */
-export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
+export class SinglePaneDraftSessionStrategy extends SinglePaneLayoutStrategy {
 	private _pendingEntryHideSessionKey: string | undefined;
+	private _replacementDraftKey: string | undefined;
 	private _pendingSidePaneOpenHideSessionKey: string | undefined;
 	private _detailHiddenTransiently = false;
 	private _detailHiddenByEditor = false;
+	private _activeQuickChatKey: string | undefined;
+	private _pendingEditorRestoreKey: string | undefined;
+	private _changingVisibility = false;
 
 	constructor(
 		ctx: ISinglePaneLayoutContext,
 		private readonly _detailPanel: SinglePaneDetailPanelCoordinator,
+		private readonly _visibilityStore: SinglePaneVisibilityProfileStore,
 		@IAgentWorkbenchLayoutService
 		private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
@@ -55,9 +62,11 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 		private readonly _editorGroupsService: IEditorGroupsService,
 		@ISessionChangesService
 		private readonly _sessionChangesService: ISessionChangesService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(ctx);
 
+		this._registerQuickChatVisibility();
 		this._registerEntryEditorHide();
 		this._registerSidePaneOpenEditorHide();
 		this._registerLastEditorClose();
@@ -77,9 +86,13 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 			),
 		);
 		let activeNewSessionKey: string | undefined;
+		let previousDraftKey: string | undefined;
 
 		this._register(
 			this._editorService.onWillOpenEditor((event) => {
+				if (!this._ctx.isRestoringSessionLayout && !this._layoutService.isEditorPartAutoVisibilitySuppressed()) {
+					this._replacementDraftKey = undefined;
+				}
 				if (!this._getActiveNewSessionKey()) {
 					return;
 				}
@@ -107,8 +120,11 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 				return;
 			}
 			const hasEmptyFiles = editors.some(editor => editor instanceof EmptyFileEditorInput);
-
 			this._pendingEntryHideSessionKey = undefined;
+			if (this._replacementDraftKey === pendingSessionKey) {
+				return;
+			}
+
 			if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				return;
 			}
@@ -128,6 +144,15 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 		this._register(
 			autorun((reader) => {
 				editorSetChanged.read(reader);
+				const session = this._sessionsService.activeSession.read(reader);
+				const draftKey = session && !session.isCreated.read(reader) ? session.resource.toString() : undefined;
+				if (draftKey !== previousDraftKey) {
+					this._replacementDraftKey = previousDraftKey ? draftKey : undefined;
+					previousDraftKey = draftKey;
+					if (this._replacementDraftKey) {
+						this._logService.trace(`[SinglePaneLayout] Preserving draft composition: session=${this._replacementDraftKey} editor=${this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)} details=${this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)}`);
+					}
+				}
 				const sessionKey = this._readActiveNewSessionKey(reader);
 				if (!sessionKey) {
 					activeNewSessionKey = undefined;
@@ -143,6 +168,110 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 				applyPendingEntry();
 			}),
 		);
+	}
+
+	private _registerQuickChatVisibility(): void {
+		this._register(autorun(reader => {
+			const activeSession = this._sessionsService.activeSession.read(reader);
+			if (!activeSession || !(activeSession.isQuickChat?.read(reader) ?? false)) {
+				this._activeQuickChatKey = undefined;
+				this._pendingEditorRestoreKey = undefined;
+				return;
+			}
+
+			const sessionKey = activeSession.resource.toString();
+			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
+			if (this._activeQuickChatKey !== sessionKey) {
+				this._activeQuickChatKey = sessionKey;
+				const hasSavedWorkingSet = this._ctx.hasSavedWorkingSet(activeSession.resource);
+				this._pendingEditorRestoreKey = !multipleSessionsVisible && hasSavedWorkingSet
+					? sessionKey
+					: undefined;
+				if (!multipleSessionsVisible && hasSavedWorkingSet) {
+					this._applyQuickChatSharedVisibility();
+				}
+				this._detailPanel.sync(DetailPanelTarget.Files);
+			}
+		}));
+
+		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
+			const activeSession = this._sessionsService.activeSession.get();
+			const sessionKey = activeSession?.resource.toString();
+			if (!activeSession
+				|| !(activeSession.isQuickChat?.get() ?? false)
+				|| this._ctx.multipleSessionsVisibleObs.get()) {
+				return;
+			}
+			this._logService.trace(`[SinglePaneLayout] No workspace layout restore settled: session=${sessionKey} width=${this._layoutService.getSize(Parts.EDITOR_PART).width} editor=${this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)} details=${this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)}`);
+			if (this._pendingEditorRestoreKey !== sessionKey) {
+				return;
+			}
+
+			this._pendingEditorRestoreKey = undefined;
+			if (isMainPartEmpty(this._editorGroupsService)) {
+				this._hideQuickChatSidePaneTransiently();
+				return;
+			}
+
+			this._applyQuickChatSharedVisibility();
+		}));
+
+		this._register(this._layoutService.onDidChangePartVisibility(event => {
+			if (event.partId !== Parts.EDITOR_PART && event.partId !== Parts.AUXILIARYBAR_PART) {
+				return;
+			}
+
+			this._captureQuickChatSharedVisibility();
+		}));
+		this._register(this._editorService.onDidEditorsChange(() => this._captureQuickChatSharedVisibility()));
+	}
+
+	private _captureQuickChatSharedVisibility(): void {
+		if (this._changingVisibility
+			|| this._ctx.isRestoringSessionLayout
+			|| this._ctx.multipleSessionsVisibleObs.get()
+			|| this._layoutService.isEditorMaximized()
+			|| this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)
+			|| isMainPartEmpty(this._editorGroupsService)) {
+			return;
+		}
+
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || !(activeSession.isQuickChat?.get() ?? false)) {
+			return;
+		}
+
+		this._visibilityStore.set(SessionVisibilityProfile.Existing, {
+			editorVisible: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			auxiliaryBarVisible: false,
+		});
+	}
+
+	private _hideQuickChatSidePaneTransiently(): void {
+		this._changingVisibility = true;
+		try {
+			this._layoutService.hideSidePane();
+		} finally {
+			this._changingVisibility = false;
+		}
+	}
+
+	private _applyQuickChatSharedVisibility(): void {
+		const sharedState = this._visibilityStore.get(SessionVisibilityProfile.Existing);
+		const sidePaneVisible = sharedState.editorVisible || sharedState.auxiliaryBarVisible;
+		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+		this._changingVisibility = true;
+		try {
+			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			}
+			if (sidePaneVisible !== this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._layoutService.setPartHidden(!sidePaneVisible, Parts.EDITOR_PART);
+			}
+		} finally {
+			this._changingVisibility = false;
+			suppression.dispose();
+		}
 	}
 
 	private _registerSidePaneOpenEditorHide(): void {
@@ -328,6 +457,8 @@ export class SinglePaneNewSessionStrategy extends SinglePaneLayoutStrategy {
 				const sessionKey = activeSession.resource.toString();
 				const emptyFilesShown = activeEditor instanceof EmptyFileEditorInput
 					&& editorPartVisible
+					&& this._replacementDraftKey !== sessionKey
+					&& !this._ctx.isRestoringSessionLayout
 					&& (activeEditor !== previousActiveEditor || !previousEditorPartVisible || sessionKey !== previousEditorSessionKey);
 				previousActiveEditor = activeEditor;
 				previousEditorPartVisible = editorPartVisible;

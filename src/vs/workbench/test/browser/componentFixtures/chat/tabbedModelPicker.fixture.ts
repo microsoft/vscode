@@ -278,6 +278,7 @@ interface IPickerFixtureOptions {
 	readonly pinnedModelIds?: readonly string[];
 	/** Opens the detail card for the model whose row label matches, as hovering the row would. */
 	readonly openCardFor?: string;
+	readonly pricingExpanded?: boolean;
 	/** Providers with no models, which show a welcome body instead of a list. */
 	readonly providerPlaceholders?: readonly IModelPickerProviderPlaceholder[];
 	/** Starts on this destination, matched against the tab label. */
@@ -365,6 +366,7 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		onSelect: () => { },
 		onTogglePin: () => { },
 		onManageModels: () => { },
+		onDidToggleOtherModels: () => { },
 		onConfigurationChanged: () => { },
 		unavailableContext: {
 			show: true,
@@ -415,6 +417,13 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
 		await new Promise(resolve => setTimeout(resolve, 50));
+	}
+	if (options.pricingExpanded) {
+		const toggle = container.querySelector<HTMLElement>('.chat-model-card-pricing-toggle');
+		if (!toggle) {
+			throw new Error('Model pricing disclosure not found');
+		}
+		toggle.click();
 	}
 }
 
@@ -470,6 +479,13 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerAnchoredRight: defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
 		render: context => renderPicker(context, { anchored: true, anchorRight: true }),
+	}),
+	PickerAnchoredPricingExpanded: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { anchored: true, pricingExpanded: true }),
+	}),
+	PickerAnchoredRightPricingExpanded: defineComponentFixture({
+		render: context => renderPicker(context, { anchored: true, anchorRight: true, pricingExpanded: true }),
 	}),
 	PickerAnchoredWithCollapsedModels: defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
@@ -543,6 +559,25 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	PickerSearch: defineComponentFixture({ render: context => renderPicker(context, { search: true }) }),
 	PickerWithCard: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openCardFor: 'GPT-5.5' }) }),
+	PickerConfiguredModelCard: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, {
+			models: COPILOT_ONLY_MODELS,
+			pinnedModelIds: ['copilot/gpt-5-5'],
+			configured: { 'copilot/gpt-5-5': { reasoningEffort: 'xhigh', contextSize: 1000000 } },
+			openCardFor: 'GPT-5.5',
+		}),
+	}),
+	PickerReducedMotion: defineComponentFixture({
+		render: context => {
+			context.container.classList.add('monaco-reduce-motion');
+			return renderPicker(context, {
+				models: COPILOT_ONLY_MODELS,
+				configured: { 'copilot/gpt-5-5': { reasoningEffort: 'xhigh', contextSize: 1000000 } },
+				openCardFor: 'GPT-5.5',
+			});
+		},
+	}),
 	PickerWelcome: defineComponentFixture({
 		render: context => renderPicker(context, {
 			models: [],

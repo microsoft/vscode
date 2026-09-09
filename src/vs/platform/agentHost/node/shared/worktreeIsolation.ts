@@ -71,7 +71,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void>;
 	recordExternalWorktreeProject(sessionUri: URI, workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined>;
 	resolveWorktreeProject(sessionUri: URI): Promise<IAgentSessionProjectInfo | undefined>;
-	sessionWorktreeProject(sessionId: string): IAgentSessionProjectInfo | undefined;
+	sessionWorktreeInfo(sessionId: string): IAgentHostSessionWorktreeInfo | undefined;
 }
 
 /**
@@ -119,6 +119,12 @@ const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 export interface ISessionWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
+}
+
+export interface IAgentHostSessionWorktreeInfo {
+	readonly project: IAgentSessionProjectInfo;
+	readonly workingDirectory: URI;
+	readonly branchName: string;
 }
 
 export interface IWorktreeMetadata {
@@ -394,7 +400,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	readonly supported: boolean = true;
 
 	/** Worktrees materialized during this host process, keyed by sessionId. */
-	private readonly _materializedWorktrees = new Map<string, ISessionWorktree>();
+	private readonly _materializedWorktrees = new Map<string, ISessionWorktree & { readonly branchName: string }>();
 	private readonly _worktreeDeletionRetries = new Map<string, ISessionWorktree>();
 
 	/**
@@ -939,7 +945,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			}
 		}
 
-		this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
+		this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath, branchName });
 
 		// Queue the worktree announcement so the first turn (live) and any
 		// subsequent restore (history) both surface the message in the chat.
@@ -1196,7 +1202,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		try {
 			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
 			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
-			this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
+			this._materializedWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath, branchName });
 			this._logService.info(`[${this._logLabel}:${sessionId}] Recreated worktree '${worktreePath.fsPath}'`);
 			return { ok: true };
 		} catch (error) {
@@ -1317,9 +1323,13 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * metadata read so a fresh worktree groups under the repository the moment it
 	 * materializes.
 	 */
-	sessionWorktreeProject(sessionId: string): IAgentSessionProjectInfo | undefined {
+	sessionWorktreeInfo(sessionId: string): IAgentHostSessionWorktreeInfo | undefined {
 		const worktree = this._materializedWorktrees.get(sessionId);
-		return worktree ? projectFromRepositoryRoot(worktree.repositoryRoot) : undefined;
+		return worktree ? {
+			project: projectFromRepositoryRoot(worktree.repositoryRoot),
+			workingDirectory: worktree.worktree,
+			branchName: worktree.branchName,
+		} : undefined;
 	}
 
 	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: IDefaultBranch } | undefined> {
@@ -1494,7 +1504,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async recordAdoptedWorktreeMetadata(_sessionUri: URI, _metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void> { }
 	async recordExternalWorktreeProject(_sessionUri: URI, _workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined> { return undefined; }
 	async resolveWorktreeProject(_sessionUri: URI): Promise<IAgentSessionProjectInfo | undefined> { return undefined; }
-	sessionWorktreeProject(_sessionId: string): IAgentSessionProjectInfo | undefined { return undefined; }
+	sessionWorktreeInfo(_sessionId: string): IAgentHostSessionWorktreeInfo | undefined { return undefined; }
 }
 
 /**
