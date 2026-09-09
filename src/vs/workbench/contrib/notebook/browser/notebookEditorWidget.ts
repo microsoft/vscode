@@ -2769,6 +2769,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			offset: cellTop + top,
 			visible: true,
 			metadata: cell.metadata,
+			forceRefresh: true,
 		});
 	}
 
