@@ -21,6 +21,8 @@ import '../../browser/media/chatView.css';
 
 const fixtureWidth = 800;
 const fixtureHeight = 720;
+const plainContentHorizontalPadding = 64;
+const backgroundContentHorizontalPadding = 88;
 
 const assistantResponse = [
 	'## Background-aware response',
@@ -65,6 +67,7 @@ async function renderAssistantResponse(context: ComponentFixtureContext, withBac
 		width: fixtureWidth,
 		height: fixtureHeight,
 		listHeight: 430,
+		contentHorizontalPadding: withBackground ? backgroundContentHorizontalPadding : plainContentHorizontalPadding,
 		hostLayoutMode: 'listOnly',
 		persistentContentHeight: CHAT_INPUT_PILLS_ROW_HEIGHT,
 		responseFooterAction: true,

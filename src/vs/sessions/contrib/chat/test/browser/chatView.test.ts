@@ -22,7 +22,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -682,14 +682,6 @@ suite('Sessions - Chat View', () => {
 		const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
 		response.style.width = '600px';
 		const value = dom.append(response, dom.$('.value'));
-		const markdown = dom.append(value, dom.$('.rendered-markdown'));
-		const codeBlock = dom.append(markdown, dom.$('.interactive-result-code-block'));
-		const monacoEditor = dom.append(codeBlock, dom.$('.monaco-editor'));
-		monacoEditor.style.width = '700px';
-		const overflowGuard = dom.append(monacoEditor, dom.$('.overflow-guard'));
-		overflowGuard.style.width = '700px';
-		const scrollableElement = dom.append(overflowGuard, dom.$('.monaco-scrollable-element'));
-		scrollableElement.style.width = '700px';
 		const footer = dom.append(response, dom.$('.chat-footer-toolbar'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
@@ -735,10 +727,8 @@ suite('Sessions - Chat View', () => {
 			bubbleBackgroundImage: bubbleStyle.backgroundImage,
 			bubbleBorderRadius: bubbleStyle.borderRadius,
 			bubbleInset: bubbleStyle.inset,
-			codeBlockWidth: dom.getWindow(codeBlock).getComputedStyle(codeBlock).width,
-			monacoEditorWidth: dom.getWindow(monacoEditor).getComputedStyle(monacoEditor).width,
-			overflowGuardWidth: dom.getWindow(overflowGuard).getComputedStyle(overflowGuard).width,
-			scrollableElementWidth: dom.getWindow(scrollableElement).getComputedStyle(scrollableElement).width,
+			backgroundContentHorizontalPadding: getSessionChatItemHorizontalPadding(true),
+			plainContentHorizontalPadding: getSessionChatItemHorizontalPadding(false),
 			valueBackgroundColor: dom.getWindow(value).getComputedStyle(value).backgroundColor,
 			footerBackgroundColor: dom.getWindow(footer).getComputedStyle(footer).backgroundColor,
 			plainResponseBackgroundColor: dom.getWindow(plainResponse).getComputedStyle(plainResponse).backgroundColor,
@@ -758,10 +748,8 @@ suite('Sessions - Chat View', () => {
 			bubbleBackgroundImage: 'none',
 			bubbleBorderRadius: '6px',
 			bubbleInset: '0px 32px',
-			codeBlockWidth: '510px',
-			monacoEditorWidth: '510px',
-			overflowGuardWidth: '510px',
-			scrollableElementWidth: '510px',
+			backgroundContentHorizontalPadding: 88,
+			plainContentHorizontalPadding: 64,
 			valueBackgroundColor: 'rgba(0, 0, 0, 0)',
 			footerBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainResponseBackgroundColor: 'rgba(0, 0, 0, 0)',

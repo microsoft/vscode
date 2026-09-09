@@ -40,12 +40,6 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
-.agent-sessions-workbench .interactive-session .interactive-response .interactive-result-code-block .monaco-editor,
-.agent-sessions-workbench .interactive-session .interactive-response .interactive-result-code-block .overflow-guard,
-.agent-sessions-workbench .interactive-session .interactive-response .interactive-result-code-block .monaco-scrollable-element {
-	max-width: 100%;
-}
-
 .monaco-workbench.agent-sessions-workbench.hc-black .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before,
 .monaco-workbench.agent-sessions-workbench.hc-light .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before {
 	box-sizing: border-box;

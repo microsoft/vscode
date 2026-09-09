@@ -113,11 +113,11 @@ import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 const $ = dom.$;
 
 /**
- * Total horizontal padding of a chat item in the agents window (`.interactive-item-container`,
- * `padding: 0 32px` in sessions `style.css`). Reserved when laying out embedded editors so code
+ * Baseline total horizontal padding of a chat item in the Agents window (`.interactive-item-container`,
+ * `padding: 0 32px` in Sessions `chatView.css`). Reserved when laying out embedded editors so code
  * blocks match the rendered content width. See {@link IChatListItemRendererOptions.contentHorizontalPadding}.
  */
-const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
+export const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
 
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;
@@ -2052,6 +2052,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Re-applied in `createInput` so a rebuilt input part keeps the correct visibility.
 		this._applyInputVisibility();
 		if (changed && this.bodyDimension) {
+			this._layoutListForInputHeight();
+		}
+	}
+
+	/**
+	 * Updates the horizontal space reserved for chat item content and re-lays out embedded editors.
+	 */
+	setContentHorizontalPadding(contentHorizontalPadding: number): void {
+		this.listWidget.updateRendererOptions({ contentHorizontalPadding });
+		if (this.bodyDimension) {
 			this._layoutListForInputHeight();
 		}
 	}

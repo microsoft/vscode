@@ -347,6 +347,25 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	test('re-lays out embedded editors when chat item padding changes', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let layouts = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			bodyDimension: { width: 800, height: 600 },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+			},
+			_layoutListForInputHeight: () => layouts++,
+		});
+
+		widget.setContentHorizontalPadding(88);
+
+		assert.deepStrictEqual({ rendererOptions, layouts }, {
+			rendererOptions: [{ contentHorizontalPadding: 88 }],
+			layouts: 1,
+		});
+	});
+
 	test('captures and restores transcript scroll state', () => {
 		const listWidget = {
 			scrollTop: 200,
