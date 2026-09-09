@@ -398,14 +398,14 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.signals.positionHasError': {
 			...signalFeatureBase,
-			'description': localize('accessibility.signals.positionHasError', "Plays a signal - sound (audio cue) and/or announcement (alert) - when the active line has a warning."),
+			'description': localize('accessibility.signals.positionHasError', "Plays a signal - sound (audio cue) and/or announcement (alert) - when the active line has an error."),
 			'properties': {
 				'sound': {
-					'description': localize('accessibility.signals.positionHasError.sound', "Plays a sound when the active line has a warning."),
+					'description': localize('accessibility.signals.positionHasError.sound', "Plays a sound when the active line has an error."),
 					...soundFeatureBase
 				},
 				'announcement': {
-					'description': localize('accessibility.signals.positionHasError.announcement', "Announces when the active line has a warning."),
+					'description': localize('accessibility.signals.positionHasError.announcement', "Announces when the active line has an error."),
 					...announcementFeatureBase,
 					default: 'on'
 				},
