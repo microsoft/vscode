@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceGroup, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -20,7 +20,7 @@ import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './typings/git-base';
 import { CloneManager } from './cloneManager';
-import { composeCommits } from './commitComposer';
+import { AgenticCommitPlanner } from './agenticCommitPlanner';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -783,6 +783,7 @@ export class CommandCenter {
 
 	private disposables: Disposable[];
 	private commandErrors = new CommandErrorOutputTextDocumentContentProvider();
+	private agenticCommitPlanner = new AgenticCommitPlanner();
 
 	constructor(
 		private git: Git,
@@ -798,6 +799,7 @@ export class CommandCenter {
 		});
 
 		this.disposables.push(workspace.registerTextDocumentContentProvider('git-output', this.commandErrors));
+		this.disposables.push(this.agenticCommitPlanner);
 	}
 
 	@command('git.showOutput')
@@ -2609,9 +2611,59 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
-	@command('git.composeCommits', { repository: true })
-	async composeCommits(repository: Repository): Promise<void> {
-		await composeCommits(repository);
+	@command('git.agenticCommitPlannerGenerate', { repository: true })
+	async agenticCommitPlannerGenerate(repository: Repository): Promise<void> {
+		await this.agenticCommitPlanner.generate(repository);
+	}
+
+	@command('git.agenticCommitPlannerAgentCommits', { repository: true })
+	async agenticCommitPlannerAgentCommits(repository: Repository): Promise<void> {
+		await this.agenticCommitPlanner.agentCommits(repository);
+	}
+
+	@command('git.agenticCommitPlannerCreateAll')
+	async agenticCommitPlannerCreateAll(sourceControl?: SourceControl): Promise<void> {
+		await this.agenticCommitPlanner.createAllCommits(sourceControl);
+	}
+
+	@command('git.agenticCommitPlannerRegenerate')
+	async agenticCommitPlannerRegenerate(sourceControl?: SourceControl): Promise<void> {
+		await this.agenticCommitPlanner.regenerate(sourceControl);
+	}
+
+	@command('git.agenticCommitPlannerDiscard')
+	agenticCommitPlannerDiscard(sourceControl?: SourceControl): void {
+		this.agenticCommitPlanner.discard(sourceControl);
+	}
+
+	@command('git.agenticCommitPlannerCreateCommit')
+	async agenticCommitPlannerCreateCommit(resourceGroup?: SourceControlResourceGroup): Promise<void> {
+		await this.agenticCommitPlanner.createCommit(resourceGroup);
+	}
+
+	@command('git.agenticCommitPlannerEditMessage')
+	async agenticCommitPlannerEditMessage(resourceGroup?: SourceControlResourceGroup): Promise<void> {
+		await this.agenticCommitPlanner.editMessage(resourceGroup);
+	}
+
+	@command('git.agenticCommitPlannerRemoveCommit')
+	agenticCommitPlannerRemoveCommit(resourceGroup?: SourceControlResourceGroup): void {
+		this.agenticCommitPlanner.removeCommit(resourceGroup);
+	}
+
+	@command('git.agenticCommitPlannerViewChanges')
+	async agenticCommitPlannerViewChanges(resourceGroup?: SourceControlResourceGroup): Promise<void> {
+		await this.agenticCommitPlanner.viewChanges(resourceGroup);
+	}
+
+	@command('git.agenticCommitPlannerMoveResources')
+	async agenticCommitPlannerMoveResources(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		await this.agenticCommitPlanner.moveResources(...resourceStates);
+	}
+
+	@command('git.agenticCommitPlannerRemoveResources')
+	agenticCommitPlannerRemoveResources(...resourceStates: SourceControlResourceState[]): void {
+		this.agenticCommitPlanner.removeResources(...resourceStates);
 	}
 
 	@command('git.commitAmend', { repository: true })
