@@ -10,6 +10,7 @@ import { Emitter, Event as CommonEvent } from '../../../base/common/event.js';
 import { normalizeDriveLetter, splitRecentLabel } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, originalFSPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -384,6 +385,15 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					program: process.execPath,
 					args: '-n', // force new window
 					iconPath: process.execPath,
+					iconIndex: 0
+				},
+				{
+					type: 'task',
+					title: localize('agentsWindow', "Agents Window"),
+					description: localize('openAgentsWindowDesc', "Opens the Agents Window"),
+					program: process.execPath,
+					args: '--agents',
+					iconPath: join(this.environmentMainService.appRoot, 'resources/win32/agents.ico'),
 					iconIndex: 0
 				}
 			]
