@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry, isConfigurationDefaultSourceEquals } from '../../common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry, isConfigurationDefaultSourceEquals, LANGUAGE_OVERRIDE_PROPERTY_PATTERN } from '../../common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 
@@ -38,6 +38,26 @@ suite('ConfigurationRegistry', () => {
 
 		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 1, b: 2 });
 		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['[lang]'].default, { a: 2, c: 3 });
+	});
+
+	test('platform overrides are not matched as language overrides', () => {
+		const languageOverrideRegex = new RegExp(LANGUAGE_OVERRIDE_PROPERTY_PATTERN);
+
+		assert.deepStrictEqual({
+			language: languageOverrideRegex.test('[typescript]'),
+			multipleLanguages: languageOverrideRegex.test('[typescript][javascript]'),
+			windows: languageOverrideRegex.test('[windows]'),
+			mac: languageOverrideRegex.test('[osx]'),
+			linux: languageOverrideRegex.test('[linux]'),
+			combined: languageOverrideRegex.test('[osx][typescript]')
+		}, {
+			language: true,
+			multipleLanguages: true,
+			windows: false,
+			mac: false,
+			linux: false,
+			combined: false
+		});
 	});
 
 	test('configuration override defaults - prevent overriding default value', async () => {
