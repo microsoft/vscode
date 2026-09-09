@@ -3793,7 +3793,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._persistWorkspaceless(session, readSessionWorkspaceless(summary._meta));
 		this._persistMultiRoot(session, readSessionMultiRootMetadata(summary._meta));
 		this._persistFolderPickerDecision(session, readSessionFolderPickerDecision(summary._meta));
-		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 		// `markSessionPersisted` writes the summary into state and fires
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.
@@ -3803,6 +3802,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? { directory: previousWorkingDirectory, replacement: materializedWorkingDirectory }
 			: undefined;
 		this._stateManager.markSessionPersisted(sessionKey, summary);
+		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 		if (workingDirectoryReplacement) {
 			this._pendingMaterializationWorkingDirectoryReplacements.set(sessionKey, workingDirectoryReplacement);
 		}

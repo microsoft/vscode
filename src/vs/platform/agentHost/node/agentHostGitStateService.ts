@@ -230,6 +230,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
+		const initialPrimaryWorkingDirectory = sessionState?.workingDirectories?.[0];
 
 		if (!workingDirectory) {
 			const workingDirectoryStr = sessionState?.workingDirectories?.[0];
@@ -251,10 +252,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				if (gitState) {
 					const currentState = this._stateManager.getSessionState(sessionKey);
 					const currentWorkingDirectory = currentState?.workingDirectories?.[0];
-					if (!currentWorkingDirectory || !isEqual(URI.parse(currentWorkingDirectory), workingDirectory)) {
+					const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
+						? currentWorkingDirectory !== undefined
+						: currentWorkingDirectory === undefined || !isEqual(URI.parse(initialPrimaryWorkingDirectory), URI.parse(currentWorkingDirectory));
+					if (primaryWorkingDirectoryChanged) {
 						return;
 					}
-					const currentMeta = currentState._meta;
+					const currentMeta = currentState?._meta;
 					const previousGitState = readSessionGitState(currentMeta);
 					const gitStateChanged = !objectEquals(previousGitState, gitState);
 					if (gitStateChanged) {
