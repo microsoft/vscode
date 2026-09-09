@@ -141,8 +141,7 @@ export class SessionsDiffEditorLayoutContribution extends Disposable implements 
 					});
 				}
 			} else if (pane instanceof MultiDiffEditor) {
-				pane.setDiffEditorViewMode(viewMode);
-				pane.setDiffEditorWordWrap(wordWrap);
+				pane.setDiffEditorLayoutOptions(viewMode, wordWrap);
 			} else {
 				const control = pane?.getControl();
 				if (isCodeEditor(control)) {

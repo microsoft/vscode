@@ -7,6 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -15,6 +16,7 @@ import { Context } from '../../../../../platform/contextkey/browser/contextKeySe
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext } from '../../../editor/common/diffEditorOptionsService.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
@@ -33,6 +35,10 @@ import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEdito
 import { CHANGES_HEADER_ACTIONS_ID, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+
+function getToggledExpression(toggled: ContextKeyExpression | ICommandActionToggleInfo | undefined): ContextKeyExpression | undefined {
+	return toggled && hasKey(toggled, { condition: true }) ? toggled.condition : toggled;
+}
 
 suite('Changes View Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -281,6 +287,7 @@ suite('Changes View Actions', () => {
 		const inheritedOffContext = new Context(1, null);
 		inheritedOffContext.setValue(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`, 'inherit');
 		inheritedOffContext.setValue(EDITOR_WORD_WRAP.key, false);
+		const toggled = getToggledExpression(singlePane.command.toggled);
 		assert.deepStrictEqual({
 			singlePaneTitle: typeof singlePane.command.title === 'string' ? singlePane.command.title : singlePane.command.title.value,
 			singlePaneGroup: singlePane.group,
@@ -297,10 +304,10 @@ suite('Changes View Actions', () => {
 			classicHasMultiDiffGate: classicWhen.includes(MultiDiffEditor.ID),
 			classicHasLayoutGate: classicWhen.includes(SinglePaneLayoutEnabledContext.key),
 			classicHasExperimentGate: classicWhen.includes(`config.${SESSIONS_EDITOR_WORD_WRAP_SETTING}`),
-			checkedWhenOn: singlePane.command.toggled?.evaluate(onContext),
-			checkedWhenOff: singlePane.command.toggled?.evaluate(offContext),
-			checkedWhenInheritedOn: singlePane.command.toggled?.evaluate(inheritedOnContext),
-			checkedWhenInheritedOff: singlePane.command.toggled?.evaluate(inheritedOffContext),
+			checkedWhenOn: toggled?.evaluate(onContext),
+			checkedWhenOff: toggled?.evaluate(offContext),
+			checkedWhenInheritedOn: toggled?.evaluate(inheritedOnContext),
+			checkedWhenInheritedOff: toggled?.evaluate(inheritedOffContext),
 		}, {
 			singlePaneTitle: 'Word Wrap',
 			singlePaneGroup: '1_diff',

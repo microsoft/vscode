@@ -210,11 +210,11 @@ suite('SessionsDiffEditorCommandsService', () => {
 		const textEditor = createTextDiffEditor(URI.file('/workspace/active.ts'), true, textControlUpdates);
 		const codeControlUpdates: Array<{ wordWrapOverride2?: 'off' | 'on' | 'inherit' }> = [];
 		const codeEditor = createCodeEditor(codeControlUpdates);
-		const multiDiffViewModes: DiffEditorViewMode[] = [];
-		const multiDiffWordWrap: SessionsEditorWordWrap[] = [];
+		const multiDiffLayoutOptions: Array<{ viewMode: DiffEditorViewMode; wordWrap: SessionsEditorWordWrap }> = [];
 		const multiDiffEditor = Object.create(MultiDiffEditor.prototype) as MultiDiffEditor;
-		Object.defineProperty(multiDiffEditor, 'setDiffEditorViewMode', { value: (mode: DiffEditorViewMode) => multiDiffViewModes.push(mode) });
-		Object.defineProperty(multiDiffEditor, 'setDiffEditorWordWrap', { value: (wordWrap: SessionsEditorWordWrap) => multiDiffWordWrap.push(wordWrap) });
+		Object.defineProperty(multiDiffEditor, 'setDiffEditorLayoutOptions', {
+			value: (viewMode: DiffEditorViewMode, wordWrap: SessionsEditorWordWrap) => multiDiffLayoutOptions.push({ viewMode, wordWrap })
+		});
 		const editorService = new class extends mock<IEditorService>() {
 			override readonly onDidActiveEditorChange = Event.None;
 			override readonly onDidVisibleEditorsChange = Event.None;
@@ -236,8 +236,7 @@ suite('SessionsDiffEditorCommandsService', () => {
 		assert.deepStrictEqual({
 			textControlUpdates,
 			codeControlUpdates,
-			multiDiffViewModes,
-			multiDiffWordWrap,
+			multiDiffLayoutOptions,
 		}, {
 			textControlUpdates: [
 				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true, diffWordWrap: 'inherit' },
@@ -249,8 +248,11 @@ suite('SessionsDiffEditorCommandsService', () => {
 				{ wordWrapOverride2: 'on' },
 				{ wordWrapOverride2: 'off' },
 			],
-			multiDiffViewModes: ['automatic', 'automatic', 'automatic'],
-			multiDiffWordWrap: ['inherit', 'on', 'off'],
+			multiDiffLayoutOptions: [
+				{ viewMode: 'automatic', wordWrap: 'inherit' },
+				{ viewMode: 'automatic', wordWrap: 'on' },
+				{ viewMode: 'automatic', wordWrap: 'off' },
+			],
 		});
 	});
 });
