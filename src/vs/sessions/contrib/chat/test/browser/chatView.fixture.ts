@@ -166,10 +166,14 @@ async function renderAgentMergeBackground(context: ComponentFixtureContext): Pro
 					commentWatermark: '2026-09-09T10:00:00.000Z',
 				}),
 				isSystemInitiated: true,
+				requestSource: 'agentMerge',
 				assistant: [{ kind: 'markdown', text: 'Fixed the failing test.' }],
 			},
 		],
 	});
+	if (!context.container.querySelector('.chat-agent-merge')) {
+		throw new Error('Expected the Agent Merge request to render as a card');
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
