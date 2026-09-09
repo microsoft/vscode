@@ -100,7 +100,7 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
-	ChatClosedSaleNotification = 'chat.closedSaleNotification',
+	ChatClosedPromoNotification = 'chat.closedPromoNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
@@ -139,7 +139,7 @@ export enum ChatConfiguration {
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
 
-export const enum ChatClosedSaleNotification {
+export const enum ChatClosedPromoNotification {
 	None = 'none',
 	CopilotIconPopup = 'copilotIconPopup',
 }

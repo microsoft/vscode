@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { EventType as GestureEventType, Gesture } from '../../../../base/browser/touch.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -15,17 +16,18 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import './media/salePromoWidget.css';
+import './media/chatPromoWidget.css';
 
-export const ARM_SALE_PROMO_COMMAND_ID = '_chat.armSalePromo';
-export const DISARM_SALE_PROMO_COMMAND_ID = '_chat.disarmSalePromo';
+export const ARM_CHAT_PROMO_COMMAND_ID = '_chat.armChatPromo';
+export const DISARM_CHAT_PROMO_COMMAND_ID = '_chat.disarmChatPromo';
 export const CHAT_PROMO_TRY_MODEL_COMMAND_ID = '_chat.tryPromoModel';
 export const CHAT_PROMO_DISMISS_COMMAND_ID = '_chat.dismissPromo';
 
-interface ISalePromoCardInput {
+export interface IChatPromoCardInput {
 	readonly title: string;
 	readonly subtitle?: string;
 	readonly promoId: string;
@@ -34,15 +36,15 @@ interface ISalePromoCardInput {
 }
 
 /**
- * Collapsed-chat Copilot-icon pip and sale card.
+ * Collapsed-chat Copilot-icon pip and promo card.
  */
-export class SalePromoWidgetContribution extends Disposable implements IWorkbenchContribution {
+export class ChatPromoWidgetContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.salePromoWidget';
+	static readonly ID = 'workbench.contrib.chatPromoWidget';
 
 	private static idCounter = 0;
 
-	private pendingPayload: string | undefined;
+	private pendingPayload: IChatPromoCardInput | undefined;
 	private pipAnchor: HTMLElement | undefined;
 	private readonly iconHoverBlock = this._register(new MutableDisposable());
 	private readonly pipRetry = this._register(new MutableDisposable());
@@ -57,23 +59,20 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 	) {
 		super();
 
-		this._register(CommandsRegistry.registerCommand(ARM_SALE_PROMO_COMMAND_ID, (_accessor, payload?: string) => this.armSalePromo(payload)));
-		this._register(CommandsRegistry.registerCommand(DISARM_SALE_PROMO_COMMAND_ID, () => this.disarmSalePromo()));
+		this._register(CommandsRegistry.registerCommand(ARM_CHAT_PROMO_COMMAND_ID, (_accessor, payload: IChatPromoCardInput) => this.armChatPromo(payload)));
+		this._register(CommandsRegistry.registerCommand(DISARM_CHAT_PROMO_COMMAND_ID, () => this.disarmChatPromo()));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'click', e => this.onWorkbenchClick(e), true));
 		this._register(dom.addDisposableListener(this.layoutService.mainContainer, 'keydown', e => this.onWorkbenchKeyDown(e), true));
 	}
 
-	private armSalePromo(payload?: string): void {
-		if (typeof payload !== 'string' || !parseSalePromoPayload(payload)) {
-			return;
-		}
+	private armChatPromo(payload: IChatPromoCardInput): void {
 		this.pendingPayload = payload;
 		this.hoverService.hideHover(true);
 		this.blockIconHover();
 		this.renderPip();
 	}
 
-	private disarmSalePromo(): void {
+	private disarmChatPromo(): void {
 		this.pendingPayload = undefined;
 		this.iconHoverBlock.clear();
 		this.pipRetry.clear();
@@ -121,7 +120,7 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 		this.pipAnchor = anchor;
 		this.applyPipIcon(anchor);
 
-		const observer = new MutationObserver(() => {
+		const observer = new (dom.getWindow(anchor).MutationObserver)(() => {
 			if (!this.pendingPayload) {
 				return;
 			}
@@ -131,7 +130,7 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 			}
 			this.applyPipIcon(this.pipAnchor);
 		});
-		observer.observe(anchor, { childList: true, subtree: true });
+		observer.observe(anchor.parentElement!, { childList: true, subtree: true });
 		this.pipObserver.value = toDisposable(() => observer.disconnect());
 
 		const input = new DisposableStore();
@@ -145,8 +144,8 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 		if (!(icon instanceof HTMLElement) || icon.classList.contains('codicon-copilot-dot')) {
 			return;
 		}
-		if (!icon.dataset['salePromoBaseClass']) {
-			icon.dataset['salePromoBaseClass'] = icon.className;
+		if (!icon.dataset['chatPromoBaseClass']) {
+			icon.dataset['chatPromoBaseClass'] = icon.className;
 		}
 		icon.classList.remove('codicon-copilot', 'codicon-copilot-warning', 'codicon-copilot-unavailable', 'codicon-copilot-snooze');
 		for (const cls of ThemeIcon.asClassNameArray(Codicon.copilotDot)) {
@@ -159,10 +158,10 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 		if (this.pipAnchor) {
 			const icon = findCopilotIcon(this.pipAnchor);
 			if (icon instanceof HTMLElement) {
-				const base = icon.dataset['salePromoBaseClass'];
+				const base = icon.dataset['chatPromoBaseClass'];
 				if (base) {
 					icon.className = base;
-					delete icon.dataset['salePromoBaseClass'];
+					delete icon.dataset['chatPromoBaseClass'];
 				} else {
 					icon.classList.remove(...ThemeIcon.asClassNameArray(Codicon.copilotDot));
 				}
@@ -196,15 +195,10 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 			return;
 		}
 		dom.EventHelper.stop(e, true);
-		this.showSalePromo(this.pendingPayload);
+		this.showChatPromo(this.pendingPayload);
 	}
 
-	private showSalePromo(payload?: string): void {
-		const info = parseSalePromoPayload(payload);
-		if (!info) {
-			return;
-		}
-		this.clearPip();
+	private showChatPromo(info: IChatPromoCardInput): void {
 		this.persistOnIconClick(info);
 
 		const contentDisposables = new DisposableStore();
@@ -212,28 +206,31 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 		const anchor = findChatIconAnchor(this.layoutService.mainContainer);
 		const inStatusbar = !!anchor?.closest('.part.statusbar');
 
-		this.hoverService.showInstantHover({
+		const hover = this.hoverService.showInstantHover({
 			content,
 			target: {
 				targetElements: [anchor ?? this.layoutService.mainContainer],
 				dispose: () => contentDisposables.dispose()
 			},
-			additionalClasses: ['sale-promo-widget-hover'],
+			additionalClasses: ['chat-promo-widget-hover'],
 			persistence: { sticky: true },
 			appearance: { showPointer: !!anchor, compact: true, maxHeightRatio: 1 },
 			position: { hoverPosition: inStatusbar ? HoverPosition.ABOVE : HoverPosition.BELOW },
 			trapFocus: true,
 		}, true);
+		if (!hover) {
+			contentDisposables.dispose();
+		}
 	}
 
-	private persistOnIconClick(info: ISalePromoCardInput): void {
-		this.disarmSalePromo();
+	private persistOnIconClick(info: IChatPromoCardInput): void {
+		this.disarmChatPromo();
 		void this.commandService.executeCommand(CHAT_PROMO_DISMISS_COMMAND_ID, info.promoId);
 	}
 
-	private buildContent(info: ISalePromoCardInput, disposables: DisposableStore): HTMLElement {
-		const container = dom.$('.sale-promo-widget');
-		const titleId = `sale-promo-widget-title-${SalePromoWidgetContribution.idCounter++}`;
+	private buildContent(info: IChatPromoCardInput, disposables: DisposableStore): HTMLElement {
+		const container = dom.$('.chat-promo-widget');
+		const titleId = `chat-promo-widget-title-${ChatPromoWidgetContribution.idCounter++}`;
 		container.setAttribute('role', 'dialog');
 		container.setAttribute('aria-labelledby', titleId);
 
@@ -250,7 +247,7 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 		titleEl.textContent = info.title;
 
 		const closeButton = dom.append(titleRow, dom.$('button.close')) as HTMLButtonElement;
-		closeButton.setAttribute('aria-label', localize('salePromo.close', "Close"));
+		closeButton.setAttribute('aria-label', localize('chatPromo.close', "Close"));
 		const closeIcon = dom.append(closeButton, dom.$(ThemeIcon.asCSSSelector(Codicon.close)));
 		closeIcon.setAttribute('aria-hidden', 'true');
 		disposables.add(dom.addDisposableListener(closeButton, 'click', () => {
@@ -263,18 +260,23 @@ export class SalePromoWidgetContribution extends Disposable implements IWorkbenc
 		}
 
 		const buttonBar = dom.append(body, dom.$('.button-bar'));
-		const button = dom.append(buttonBar, dom.$('button.primary')) as HTMLButtonElement;
-		button.textContent = info.tryLabel;
-		disposables.add(dom.addDisposableListener(button, 'click', () => {
+		const button = disposables.add(new Button(buttonBar, { ...defaultButtonStyles }));
+		button.label = info.tryLabel;
+		disposables.add(button.onDidClick(() => {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
 				'workbenchActionExecuted',
-				{ id: CHAT_PROMO_TRY_MODEL_COMMAND_ID, from: 'salePromoWidget' }
+				{ id: CHAT_PROMO_TRY_MODEL_COMMAND_ID, from: 'chatPromoWidget' }
 			);
 			this.hoverService.hideHover(true);
 			void this.commandService.executeCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID, info.modelIdentifier);
 		}));
 
 		return container;
+	}
+
+	override dispose(): void {
+		this.disarmChatPromo();
+		super.dispose();
 	}
 }
 
@@ -299,23 +301,3 @@ function findChatIconAnchor(container: HTMLElement): HTMLElement | undefined {
 	return undefined;
 }
 
-function parseSalePromoPayload(payload?: string): ISalePromoCardInput | undefined {
-	if (!payload) {
-		return undefined;
-	}
-
-	try {
-		const parsed = JSON.parse(payload) as ISalePromoCardInput;
-		if (parsed
-			&& typeof parsed.title === 'string' && parsed.title
-			&& typeof parsed.promoId === 'string' && parsed.promoId
-			&& typeof parsed.tryLabel === 'string' && parsed.tryLabel
-			&& typeof parsed.modelIdentifier === 'string' && parsed.modelIdentifier) {
-			return parsed;
-		}
-	} catch {
-		return undefined;
-	}
-
-	return undefined;
-}

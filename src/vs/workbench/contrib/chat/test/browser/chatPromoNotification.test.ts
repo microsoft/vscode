@@ -4,16 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
-import { ARM_SALE_PROMO_COMMAND_ID, DISARM_SALE_PROMO_COMMAND_ID } from '../../browser/salePromoWidget.js';
-import { ChatClosedSaleNotification, ChatConfiguration } from '../../common/constants.js';
+import { ARM_CHAT_PROMO_COMMAND_ID, ChatPromoWidgetContribution, DISARM_CHAT_PROMO_COMMAND_ID, IChatPromoCardInput } from '../../browser/chatPromoWidget.js';
+import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../../browser/chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { CHAT_OPEN_ACTION_ID } from '../../browser/actions/chatActions.js';
@@ -198,12 +205,12 @@ function createContribution(
 	notifService: IChatInputNotificationService,
 	storageService: InMemoryStorageService,
 	commandService: ICommandService = createMockCommandService().service,
-	closedSaleNotification: ChatClosedSaleNotification = ChatClosedSaleNotification.None,
+	closedPromoNotification: ChatClosedPromoNotification = ChatClosedPromoNotification.None,
 	viewsService?: IViewsService,
 	widgetService?: IChatWidgetService,
 ) {
 	const configurationService = new TestConfigurationService({
-		[ChatConfiguration.ChatClosedSaleNotification]: closedSaleNotification,
+		[ChatConfiguration.ChatClosedPromoNotification]: closedPromoNotification,
 	});
 	return new ChatPromoNotificationContribution(
 		lmService,
@@ -267,7 +274,7 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 		));
 
 		assert.strictEqual(notifService.getNotification(), undefined);
@@ -288,11 +295,11 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 		));
 
-		assert.strictEqual(notifService.getNotification(), undefined, 'The closed-chat sale uses the card, not the banner');
-		assert.strictEqual(commands.executed[0]?.id, ARM_SALE_PROMO_COMMAND_ID);
+		assert.strictEqual(notifService.getNotification(), undefined, 'The closed-chat promo uses the card, not the banner');
+		assert.strictEqual(commands.executed[0]?.id, ARM_CHAT_PROMO_COMMAND_ID);
 	});
 
 	test('shows the Copilot-icon popup for a discounted promo when the setting is popup', () => {
@@ -309,14 +316,14 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 		));
 		assert.ok(contribution);
 
-		assert.strictEqual(notifService.getNotification(), undefined, 'A sale must not render the chat-input banner');
+		assert.strictEqual(notifService.getNotification(), undefined, 'A promo must not render the chat-input banner');
 		assert.strictEqual(commands.executed.length, 1);
-		assert.strictEqual(commands.executed[0].id, ARM_SALE_PROMO_COMMAND_ID);
-		const payload = JSON.parse(String(commands.executed[0].args[0]));
+		assert.strictEqual(commands.executed[0].id, ARM_CHAT_PROMO_COMMAND_ID);
+		const payload = commands.executed[0].args[0] as IChatPromoCardInput;
 		assert.deepStrictEqual(payload, {
 			title: 'Get 20% off',
 			subtitle: ILanguageModelChatMetadata.getPromoEndsAtLabel('2026-07-20T23:59:59Z')?.replace(/\.+$/, ''),
@@ -362,12 +369,12 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 		));
 
-		assert.strictEqual(notifService.getNotification(), undefined, 'The preferred sale uses the card, not the banner');
-		assert.strictEqual(commands.executed[0]?.id, ARM_SALE_PROMO_COMMAND_ID);
-		const payload = JSON.parse(String(commands.executed[0].args[0]));
+		assert.strictEqual(notifService.getNotification(), undefined, 'The preferred promo uses the card, not the banner');
+		assert.strictEqual(commands.executed[0]?.id, ARM_CHAT_PROMO_COMMAND_ID);
+		const payload = commands.executed[0].args[0] as IChatPromoCardInput;
 		assert.strictEqual(payload.title, 'Get 20% off');
 	});
 
@@ -444,7 +451,7 @@ suite('ChatPromoNotificationContribution', () => {
 		);
 	});
 
-	test('does not show a sale card for an already-dismissed promo', () => {
+	test('does not show a promo card for an already-dismissed promo', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
@@ -533,7 +540,7 @@ suite('ChatPromoNotificationContribution', () => {
 	test('removes notification when promo model disappears', () => {
 		const models = [{
 			identifier: 'copilot:gpt-5.5',
-			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-4', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Flash sale', showBanner: true } },
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-4', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Flash promo', showBanner: true } },
 		}];
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService, onDidChangeLanguageModels } = createMockLanguageModelsService(models, disposables);
@@ -552,7 +559,7 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.strictEqual(notifService.getNotification(), undefined, 'Notification should be removed when promo model is gone');
 	});
 
-	test('shows one sale card when two discounted promos share a harness', () => {
+	test('shows one promo card when two discounted promos share a harness', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([
 			{ identifier: 'copilot:gpt-5.5', metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-a', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'First promo', showBanner: true } } },
@@ -566,12 +573,12 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 		));
 
 		assert.strictEqual(notifService.getNotification(), undefined);
 		assert.strictEqual(commands.executed.length, 1);
-		const payload = JSON.parse(String(commands.executed[0].args[0]));
+		const payload = commands.executed[0].args[0] as IChatPromoCardInput;
 		assert.strictEqual(payload.title, 'First promo');
 	});
 
@@ -670,22 +677,22 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.strictEqual(windowB.getNotification(), undefined, 'Other windows should hide the promo too');
 	});
 
-	test('sale card close and try commands persist the same dismissed promo store', async () => {
+	test('opening the promo card persists its dismissal', async () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
-			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-sale', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-promo', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commands = createMockCommandService();
 		disposables.add(createContribution(lmService, notifService.service, storageService, commands.service));
 
-		await CommandsRegistry.getCommand(CHAT_PROMO_DISMISS_COMMAND_ID)?.handler(undefined!, 'promo-sale');
+		await CommandsRegistry.getCommand(CHAT_PROMO_DISMISS_COMMAND_ID)?.handler(undefined!, 'promo-promo');
 		const stored = JSON.parse(storageService.get('chat.dismissedPromoIds', StorageScope.APPLICATION) ?? '[]');
-		assert.deepStrictEqual(stored, ['promo-sale']);
+		assert.deepStrictEqual(stored, ['promo-promo']);
 	});
 
-	test('does not reopen the sale card when models refresh mid-session', () => {
+	test('does not reopen the promo card when models refresh mid-session', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService, onDidChangeLanguageModels } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
@@ -699,19 +706,76 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 		));
 
-		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_SALE_PROMO_COMMAND_ID]);
+		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_CHAT_PROMO_COMMAND_ID]);
 		onDidChangeLanguageModels.fire('copilot');
-		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_SALE_PROMO_COMMAND_ID]);
+		assert.deepStrictEqual(commands.executed.map(command => command.id), [ARM_CHAT_PROMO_COMMAND_ID]);
 	});
 
-	test('keeps a Codex sale on the input banner when the Copilot-icon popup is on', () => {
+	test('updates an armed popup when the promoted model or message changes', () => {
+		const models = [{
+			identifier: 'copilot:first',
+			metadata: { name: 'First', id: 'first', promo: { id: 'promo-first', discountPercent: 20, message: 'First promo' } },
+		}];
+		const notifications = createMockNotificationService(disposables);
+		const { service, onDidChangeLanguageModels } = createMockLanguageModelsService(models, disposables);
+		const storage = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+		disposables.add(createContribution(service, notifications.service, storage, commands.service, ChatClosedPromoNotification.CopilotIconPopup));
+
+		models[0] = {
+			identifier: 'copilot:second',
+			metadata: { name: 'Second', id: 'second', promo: { id: 'promo-second', discountPercent: 10, message: 'Second promo' } },
+		};
+		onDidChangeLanguageModels.fire('copilot');
+		models[0].metadata.promo.message = 'Updated promo';
+		onDidChangeLanguageModels.fire('copilot');
+		onDidChangeLanguageModels.fire('copilot');
+
+		assert.deepStrictEqual(commands.executed.map(command => {
+			const payload = command.args[0] as IChatPromoCardInput;
+			return { command: command.id, model: payload.modelIdentifier, promo: payload.promoId, title: payload.title };
+		}), [
+			{ command: ARM_CHAT_PROMO_COMMAND_ID, model: 'copilot:first', promo: 'promo-first', title: 'First promo' },
+			{ command: ARM_CHAT_PROMO_COMMAND_ID, model: 'copilot:second', promo: 'promo-second', title: 'Second promo' },
+			{ command: ARM_CHAT_PROMO_COMMAND_ID, model: 'copilot:second', promo: 'promo-second', title: 'Updated promo' },
+		]);
+	});
+
+	test('does not rearm an opened promo after model refresh or chat visibility changes', async () => {
+		const models = [{
+			identifier: 'copilot:first',
+			metadata: { name: 'First', id: 'first', promo: { id: 'promo-first', discountPercent: 20, message: 'First promo' } },
+		}];
+		const notifications = createMockNotificationService(disposables);
+		const { service, onDidChangeLanguageModels } = createMockLanguageModelsService(models, disposables);
+		const storage = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+		const views = createMockViewsService(disposables);
+		disposables.add(createContribution(service, notifications.service, storage, commands.service, ChatClosedPromoNotification.CopilotIconPopup, views.service));
+
+		await CommandsRegistry.getCommand(CHAT_PROMO_DISMISS_COMMAND_ID)!.handler(undefined!, 'promo-first');
+		onDidChangeLanguageModels.fire('copilot');
+		views.setVisible(true);
+		views.setVisible(false);
+		assert.deepStrictEqual({
+			commands: commands.executed.map(command => command.id),
+			banner: notifications.getNotification(),
+			dismissed: JSON.parse(storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION) ?? '[]'),
+		}, {
+			commands: [ARM_CHAT_PROMO_COMMAND_ID],
+			banner: undefined,
+			dismissed: ['promo-first'],
+		});
+	});
+
+	test('keeps a Codex promo on the input banner when the Copilot-icon popup is on', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'codex:o4',
-			metadata: { name: 'o4', id: 'o4', targetChatSessionType: 'openai-codex', promo: { id: 'promo-codex', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Codex sale', showBanner: true } },
+			metadata: { name: 'o4', id: 'o4', targetChatSessionType: 'openai-codex', promo: { id: 'promo-codex', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Codex promo', showBanner: true } },
 		}], disposables);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commands = createMockCommandService();
@@ -721,14 +785,14 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 		));
 
 		assert.deepStrictEqual({
 			banner: notifService.getNotificationForSession('openai-codex')?.message,
 			commands: commands.executed.map(command => command.id),
 		}, {
-			banner: 'Codex sale',
+			banner: 'Codex promo',
 			commands: [],
 		});
 	});
@@ -748,7 +812,7 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 			views.service,
 		));
 
@@ -761,7 +825,7 @@ suite('ChatPromoNotificationContribution', () => {
 		});
 	});
 
-	test('hides the sale pip when the chat bar expands and restores it when the bar collapses', () => {
+	test('hides the promo pip when the chat bar expands and restores it when the bar collapses', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
@@ -776,20 +840,20 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 			views.service,
 		));
 		views.setVisible(true);
 		views.setVisible(false);
 
 		assert.deepStrictEqual(commands.executed.map(command => command.id), [
-			ARM_SALE_PROMO_COMMAND_ID,
-			DISARM_SALE_PROMO_COMMAND_ID,
-			ARM_SALE_PROMO_COMMAND_ID,
+			ARM_CHAT_PROMO_COMMAND_ID,
+			DISARM_CHAT_PROMO_COMMAND_ID,
+			ARM_CHAT_PROMO_COMMAND_ID,
 		]);
 	});
 
-	test('disarms the sale pip when the sale model leaves the list', () => {
+	test('disarms the promo pip when the promo model leaves the list', () => {
 		const models = [{
 			identifier: 'copilot:gpt-5.5',
 			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-4', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
@@ -804,18 +868,18 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 		));
 		models.length = 0;
 		onDidChangeLanguageModels.fire(undefined);
 
 		assert.deepStrictEqual(commands.executed.map(command => command.id), [
-			ARM_SALE_PROMO_COMMAND_ID,
-			DISARM_SALE_PROMO_COMMAND_ID,
+			ARM_CHAT_PROMO_COMMAND_ID,
+			DISARM_CHAT_PROMO_COMMAND_ID,
 		]);
 	});
 
-	test('try-model switches the Copilot harness then the sale model', async () => {
+	test('try-model switches the Copilot harness then the promo model', async () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{
 			identifier: 'copilot:gpt-5.5',
@@ -830,7 +894,7 @@ suite('ChatPromoNotificationContribution', () => {
 			notifService.service,
 			storageService,
 			commands.service,
-			ChatClosedSaleNotification.CopilotIconPopup,
+			ChatClosedPromoNotification.CopilotIconPopup,
 			undefined,
 			widget.service,
 		));
@@ -842,11 +906,47 @@ suite('ChatPromoNotificationContribution', () => {
 			switched: widget.switched,
 		}, {
 			commands: [
-				{ id: ARM_SALE_PROMO_COMMAND_ID, args: [commands.executed[0].args[0]] },
+				{ id: ARM_CHAT_PROMO_COMMAND_ID, args: [commands.executed[0].args[0]] },
 				{ id: CHAT_OPEN_ACTION_ID, args: [] },
 				{ id: 'workbench.action.chat.openNewChatSessionInPlace.local', args: ['sidebar'] },
 			],
 			switched: ['copilot:gpt-5.5'],
+		});
+	});
+
+	test('popup pip follows a replaced status entry and restores its icon on disposal', async () => {
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		disposables.add(toDisposable(() => container.remove()));
+		const statusbar = dom.append(container, dom.$('.part.statusbar'));
+		const entry = dom.append(statusbar, dom.$('div', { id: 'chat.statusBarEntry' }));
+		dom.append(entry, dom.$('.codicon.codicon-copilot'));
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(ILayoutService, { mainContainer: container });
+		instantiation.stub(ICommandService, createMockCommandService().service);
+		instantiation.stub(IHoverService, { hideHover() { } });
+		instantiation.stub(ITelemetryService, NullTelemetryService);
+		const widget = disposables.add(instantiation.createInstance(ChatPromoWidgetContribution));
+		const payload: IChatPromoCardInput = {
+			title: 'Model promo', promoId: 'promo', tryLabel: 'Try Model', modelIdentifier: 'copilot:model',
+		};
+		await CommandsRegistry.getCommand(ARM_CHAT_PROMO_COMMAND_ID)!.handler(undefined!, payload);
+		const initiallyArmed = !!entry.querySelector('.codicon-copilot-dot');
+
+		const replacement = dom.$('div', { id: 'chat.statusBarEntry' });
+		const replacementIcon = dom.append(replacement, dom.$('.codicon.codicon-copilot-warning'));
+		entry.replaceWith(replacement);
+		await timeout(0);
+		const replacementArmed = replacementIcon.classList.contains('codicon-copilot-dot');
+		widget.dispose();
+
+		assert.deepStrictEqual({
+			initiallyArmed,
+			replacementArmed,
+			restored: replacementIcon.className,
+		}, {
+			initiallyArmed: true,
+			replacementArmed: true,
+			restored: 'codicon codicon-copilot-warning',
 		});
 	});
 });

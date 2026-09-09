@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -11,12 +12,12 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
-import { ChatClosedSaleNotification, ChatConfiguration } from '../common/constants.js';
+import { ChatClosedPromoNotification, ChatConfiguration } from '../common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { getChatSessionType } from '../common/model/chatUri.js';
 import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from './chat.js';
-import { ARM_SALE_PROMO_COMMAND_ID, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, DISARM_SALE_PROMO_COMMAND_ID } from './salePromoWidget.js';
+import { ARM_CHAT_PROMO_COMMAND_ID, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, DISARM_CHAT_PROMO_COMMAND_ID, IChatPromoCardInput } from './chatPromoWidget.js';
 import { addDismissedNotificationId, ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationContext, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, matchesModelIdentifier, readDismissedNotificationIds } from './widget/input/chatInputNotificationService.js';
 
 const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
@@ -52,9 +53,9 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		super();
 
 		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_DISMISS_COMMAND_ID, (_accessor, promoId?: string) => {
-			this._salePipActive = false;
+			this._promoPipPayload = undefined;
 			if (typeof promoId === 'string') {
-				this._persistDismissedPromo(promoId);
+				addDismissedNotificationId(this._storageService, DISMISSED_PROMOS_STORAGE_KEY, promoId);
 			}
 		}));
 		this._register(CommandsRegistry.registerCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID, async (_accessor, modelIdentifier?: string) => {
@@ -63,14 +64,14 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._update()));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ChatClosedSaleNotification)) {
+			if (e.affectsConfiguration(ChatConfiguration.ChatClosedPromoNotification)) {
 				this._update();
 			}
 		}));
 		this._register(this._chatInputNotificationService.onDidDismiss(id => {
 			const promoId = this._shownNotifications.get(id)?.promoId;
 			if (promoId) {
-				this._persistDismissedPromo(promoId);
+				addDismissedNotificationId(this._storageService, DISMISSED_PROMOS_STORAGE_KEY, promoId);
 				this._update();
 			}
 		}));
@@ -88,22 +89,14 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		this._update();
 	}
 
-	private readonly _shownNotifications = new Map<string, { promoId: string; modelIdentifier: string; kind: ChatClosedSaleNotification }>();
-	private _salePipActive = false;
-
-	private _isChatBarExpanded(): boolean {
-		return this._viewsService.isViewVisible(ChatViewId);
-	}
-
-	private _shouldArmSalePip(): boolean {
-		return !this._isChatBarExpanded();
-	}
+	private readonly _shownNotifications = new Map<string, { promoId: string; modelIdentifier: string; kind: ChatClosedPromoNotification }>();
+	private _promoPipPayload: IChatPromoCardInput | undefined;
 
 	/**
-	 * GitHub Copilot chat (local harness). Codex and Claude CLI sales stay on the
+	 * GitHub Copilot chat (local harness). Codex and Claude CLI promos stay on the
 	 * input banner for their own session type and never drive the status-bar pip.
 	 */
-	private _isGitHubCopilotSale(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	private _isGitHubCopilotPromo(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		const harness = model.metadata.targetChatSessionType ?? localChatSessionType;
 		if (harness !== localChatSessionType) {
 			return false;
@@ -113,7 +106,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 	}
 
 	private _update(): void {
-		const dismissed = this._getDismissedPromoIds();
+		const dismissed = readDismissedNotificationIds(this._storageService, DISMISSED_PROMOS_STORAGE_KEY);
 		const modelIds = this._languageModelsService.getLanguageModelIds();
 
 		// Bucket one non-dismissed promo per harness (a model's `targetChatSessionType`,
@@ -134,8 +127,8 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		// Refresh the notification for every harness that has an eligible promo,
 		// scoping each one to its harness so it only renders in matching sessions.
 		const desired = new Set<string>();
-		let pendingPopupPayload: string | undefined;
-		const popupSetting = this._configurationService.getValue(ChatConfiguration.ChatClosedSaleNotification) === ChatClosedSaleNotification.CopilotIconPopup;
+		let pendingPopupPayload: IChatPromoCardInput | undefined;
+		const popupSetting = this._configurationService.getValue(ChatConfiguration.ChatClosedPromoNotification) === ChatClosedPromoNotification.CopilotIconPopup;
 		for (const [harness, model] of promoByHarness) {
 			const promo = model.metadata.promo!;
 			const notificationId = `${PROMO_NOTIFICATION_ID}.${harness}`;
@@ -145,13 +138,13 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 			// pending user dismissal in the notification service.
 			const showPip = popupSetting
 				&& ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)
-				&& this._isGitHubCopilotSale(model)
-				&& this._shouldArmSalePip();
-			const kind = showPip ? ChatClosedSaleNotification.CopilotIconPopup : ChatClosedSaleNotification.None;
+				&& this._isGitHubCopilotPromo(model)
+				&& !this._viewsService.isViewVisible(ChatViewId);
+			const kind = showPip ? ChatClosedPromoNotification.CopilotIconPopup : ChatClosedPromoNotification.None;
 			const shownNotification = this._shownNotifications.get(notificationId);
 			if (shownNotification?.modelIdentifier === model.identifier && shownNotification.promoId === promo.id && shownNotification.kind === kind) {
 				if (showPip) {
-					pendingPopupPayload = this._saleCardPayload(model);
+					pendingPopupPayload = this._promoCardPayload(model);
 				}
 				continue;
 			}
@@ -159,7 +152,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 
 			if (showPip) {
 				this._chatInputNotificationService.deleteNotification(notificationId);
-				pendingPopupPayload = this._saleCardPayload(model);
+				pendingPopupPayload = this._promoCardPayload(model);
 				continue;
 			}
 
@@ -193,28 +186,28 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		}
 
 		if (pendingPopupPayload) {
-			if (!this._salePipActive) {
-				this._salePipActive = true;
-				void this._commandService.executeCommand(ARM_SALE_PROMO_COMMAND_ID, pendingPopupPayload);
+			if (!equals(this._promoPipPayload, pendingPopupPayload)) {
+				this._promoPipPayload = pendingPopupPayload;
+				void this._commandService.executeCommand(ARM_CHAT_PROMO_COMMAND_ID, pendingPopupPayload);
 			}
-		} else if (this._salePipActive) {
-			this._salePipActive = false;
-			void this._commandService.executeCommand(DISARM_SALE_PROMO_COMMAND_ID);
+		} else if (this._promoPipPayload) {
+			this._promoPipPayload = undefined;
+			void this._commandService.executeCommand(DISARM_CHAT_PROMO_COMMAND_ID);
 		}
 	}
 
-	private _saleCardPayload(model: ILanguageModelChatMetadataAndIdentifier): string | undefined {
+	private _promoCardPayload(model: ILanguageModelChatMetadataAndIdentifier): IChatPromoCardInput | undefined {
 		const promo = model.metadata.promo;
 		if (!promo) {
 			return undefined;
 		}
-		return JSON.stringify({
-			title: stripTrailingPeriod(promo.message),
-			subtitle: stripTrailingPeriod(ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt)),
+		return {
+			title: promo.message.replace(/\.+$/, ''),
+			subtitle: ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt)?.replace(/\.+$/, ''),
 			promoId: promo.id,
 			tryLabel: localize('chat.promo.tryModel', "Try {0}", model.metadata.name),
 			modelIdentifier: model.identifier,
-		});
+		};
 	}
 
 	private async _openChatAndSwitchModel(modelIdentifier: string | undefined): Promise<void> {
@@ -246,16 +239,4 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		const meta = this._languageModelsService.lookupLanguageModel(modelIdentifier);
 		return meta?.targetChatSessionType ?? localChatSessionType;
 	}
-
-	private _persistDismissedPromo(promoId: string): void {
-		addDismissedNotificationId(this._storageService, DISMISSED_PROMOS_STORAGE_KEY, promoId);
-	}
-
-	private _getDismissedPromoIds(): Set<string> {
-		return readDismissedNotificationIds(this._storageService, DISMISSED_PROMOS_STORAGE_KEY);
-	}
-}
-
-function stripTrailingPeriod(value: string | undefined): string | undefined {
-	return value?.replace(/\.+$/, '');
 }

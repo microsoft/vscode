@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-hover.workbench-hover.sale-promo-widget-hover,
-.monaco-hover.workbench-hover.sale-promo-widget-hover.with-pointer {
+.monaco-hover.workbench-hover.chat-promo-widget-hover,
+.monaco-hover.workbench-hover.chat-promo-widget-hover.with-pointer {
 	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-background);
 }
 
-.monaco-hover.workbench-hover.sale-promo-widget-hover .hover-contents {
+.monaco-hover.workbench-hover.chat-promo-widget-hover .hover-contents {
 	padding: 0;
 	border-radius: inherit;
 	overflow: hidden;
 }
 
-.sale-promo-widget {
+.chat-promo-widget {
 	position: relative;
 	display: flex;
 	flex-direction: column;
@@ -28,7 +28,7 @@
 	overflow: hidden;
 }
 
-.sale-promo-widget::before {
+.chat-promo-widget::before {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -37,7 +37,7 @@
 	z-index: 0;
 }
 
-.sale-promo-widget .body {
+.chat-promo-widget .body {
 	position: relative;
 	z-index: 1;
 	display: flex;
@@ -46,7 +46,7 @@
 	padding: 16px;
 }
 
-.sale-promo-widget .header {
+.chat-promo-widget .header {
 	display: grid;
 	grid-template-columns: 24px minmax(0, 1fr);
 	column-gap: 12px;
@@ -54,12 +54,12 @@
 	min-width: 0;
 }
 
-.sale-promo-widget .hero {
+.chat-promo-widget .hero {
 	display: contents;
 }
 
-.sale-promo-widget .provider-icon,
-.sale-promo-widget .provider-icon.codicon {
+.chat-promo-widget .provider-icon,
+.chat-promo-widget .provider-icon.codicon {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -71,14 +71,14 @@
 	color: var(--vscode-foreground);
 }
 
-.sale-promo-widget .title-row {
+.chat-promo-widget .title-row {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	min-width: 0;
 }
 
-.sale-promo-widget .close {
+.chat-promo-widget .close {
 	position: static;
 	width: 20px;
 	height: 20px;
@@ -97,11 +97,11 @@
 	z-index: 1;
 }
 
-.sale-promo-widget .close:hover {
+.chat-promo-widget .close:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sale-promo-widget .copy {
+.chat-promo-widget .copy {
 	display: flex;
 	flex: 1;
 	flex-direction: column;
@@ -109,7 +109,7 @@
 	min-width: 0;
 }
 
-.sale-promo-widget .title {
+.chat-promo-widget .title {
 	flex: 1;
 	min-width: 0;
 	font-weight: 600;
@@ -118,14 +118,14 @@
 	color: var(--vscode-foreground);
 }
 
-.sale-promo-widget .subtitle {
+.chat-promo-widget .subtitle {
 	font-weight: 400;
 	font-size: var(--vscode-bodyFontSize-small);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
 }
 
-.sale-promo-widget .button-bar {
+.chat-promo-widget .button-bar {
 	display: flex;
 	flex-wrap: wrap;
 	justify-content: flex-end;
@@ -134,21 +134,11 @@
 	margin-top: 0;
 }
 
-.sale-promo-widget .button-bar button {
+.chat-promo-widget .button-bar .monaco-button {
+	width: auto;
 	padding: 8px 16px;
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--vscode-cornerRadius-small);
 	font-size: var(--vscode-bodyFontSize-small);
 	font-weight: 600;
-	cursor: pointer;
 	white-space: nowrap;
-}
-
-.sale-promo-widget .primary {
-	background-color: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	border: var(--vscode-strokeThickness) solid var(--vscode-button-border, transparent);
-}
-
-.sale-promo-widget .primary:hover {
-	background-color: var(--vscode-button-hoverBackground);
 }
