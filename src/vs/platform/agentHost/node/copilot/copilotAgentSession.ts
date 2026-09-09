@@ -934,6 +934,8 @@ export class CopilotAgentSession extends Disposable {
 	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
 
+	get isDisposed(): boolean { return this._store.isDisposed; }
+
 	getTurnDiagnosticSnapshot(turnId: string): IAgentTurnDiagnosticSnapshot | undefined {
 		const currentTurn = this._currentTurn.value;
 		const turn = currentTurn?.id === turnId ? currentTurn : undefined;
