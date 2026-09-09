@@ -111,7 +111,7 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 	async archive(state: ISessionArchiveNudgeState): Promise<void> {
 		await this._sessionsManagementService.archiveSession(state.session);
 		if (!state.session.isArchived.get()) {
-			throw new Error(localize('sessionArchiveNudge.archiveFailed', "The session could not be archived. Check its connection and try again."));
+			throw new Error(localize('sessionArchiveNudge.updateFailed', "The session could not be updated. Check its connection and try again."));
 		}
 		this._log(state, 'archived');
 	}
@@ -234,7 +234,7 @@ export class SessionArchiveNudge extends Disposable {
 			onArchive: async () => {
 				const current = this._state.get();
 				if (!current || current.session !== state.session) {
-					throw new Error(localize('sessionArchiveNudge.noLongerAvailable', "This archive suggestion is no longer available. Review the session before archiving it."));
+					throw new Error(localize('sessionArchiveNudge.noLongerAvailable', "This suggestion is no longer available. Review the session before trying again."));
 				}
 				await this._nudgeService.archive(current);
 			},
