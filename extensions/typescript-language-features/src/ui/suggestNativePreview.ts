@@ -8,6 +8,7 @@ import { getTsNativeExtension, tsNativeExtensionOldId } from '../commands/useTsg
 import { ExperimentationService } from '../experimentationService';
 import type { PluginManager } from '../tsServer/plugins.js';
 import { copilotChatExtensionId } from '../typescriptServiceClient.js';
+import { hasModifiedUnifiedConfig } from '../utils/configuration';
 
 const suggestTS7NoPluginsStorageKey = 'typescript.suggestTS7NoPlugins.dismissed';
 
@@ -17,7 +18,7 @@ export async function suggestNativePreview(
 	pluginManager: PluginManager
 ): Promise<void> {
 	if (context.globalState.get<boolean>(suggestTS7NoPluginsStorageKey)) {
-		return;
+		// return;
 	}
 
 	// Only show when the window is active
@@ -25,9 +26,10 @@ export async function suggestNativePreview(
 		return;
 	}
 
-	// Don't show if the TypeScript 7 extension is already installed
-	if (getTsNativeExtension()) {
-		// Also don't prompt in the future
+	// Don't show if the TypeScript 7 extension is already installed,
+	// or if we have any settings indicating it was installed previously.
+	if (getTsNativeExtension() || hasModifiedUnifiedConfig('experimental.useTsgo', { fallbackSection: 'typescript' })) {
+		// Also don't prompt in the future.
 		await context.globalState.update(suggestTS7NoPluginsStorageKey, true);
 		return;
 	}
