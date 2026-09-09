@@ -14,7 +14,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 	ButtonBar: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A Changes view action row shows a primary button with a leading commit icon and the label "Commit", followed by an inline check icon and "Ready". An icon-only secondary action and a compact added/removed line-count button follow it. Spacing between the leading icon and label is wider than spacing around the inline check icon.'],
+		expectedVisualDescriptions: ['A production-style Changes view outside-card action row shows one full-width primary "Commit" button with a leading commit icon and one compact icon-only secondary action. Both controls are 26px tall and aligned in a single row.'],
 		render: renderChangesButtonBar,
 	}),
 });
@@ -32,10 +32,9 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 	});
 
 	const changesView = dom.append(container, dom.$('.changes-view-body'));
-	const actions = dom.append(changesView, dom.$('.chat-editing-session-actions'));
+	const actions = dom.append(changesView, dom.$('.chat-editing-session-actions.outside-card'));
 	const commit = action('fixture.commit', 'Commit', Codicon.gitCommit);
 	const viewChanges = action('fixture.viewChanges', 'View All Changes', Codicon.diffMultiple);
-	const lineCounts = action('fixture.lineCounts', 'Line counts');
 
 	const bar = disposableStore.add(instantiationService.createInstance(
 		WorkbenchButtonBar,
@@ -47,25 +46,17 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 						return {
 							showIcon: true,
 							showLabel: true,
-							customLabel: 'Commit $(check) Ready',
 							iconLabelSpacing: 'default',
 						};
 					case viewChanges.id:
 						return { showIcon: true, showLabel: false, isSecondary: true };
-					case lineCounts.id:
-						return {
-							showLabel: true,
-							customLabel: '$(add) 2 $(remove) 1',
-							customClass: 'working-set-diff-stats',
-							isSecondary: true,
-						};
 				}
 				return undefined;
 			},
 		},
 	));
 
-	bar.update([commit, viewChanges, lineCounts], []);
+	bar.update([commit, viewChanges], []);
 }
 
 function action(id: string, label: string, icon?: ThemeIcon): IAction {

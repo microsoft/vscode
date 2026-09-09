@@ -12,7 +12,7 @@
 
 /* The button owns this pair-specific relationship. Applying the spacing to its
  * leading slot avoids changing gaps between segments inside an icon-rich label. */
-.monaco-button.monaco-text-button.monaco-button-with-leading-icon > .monaco-button-leading-icon {
+.monaco-button.monaco-text-button.monaco-button-with-leading-icon.monaco-button-icon-label-spacing-compact > .monaco-button-leading-icon {
 	margin-inline-end: var(--vscode-spacing-size40);
 }
 
