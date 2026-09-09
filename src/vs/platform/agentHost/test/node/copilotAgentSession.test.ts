@@ -46,7 +46,6 @@ import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCa
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
-import { getCopilotModelCallKey } from '../../node/copilot/copilotModelCallCorrelationTelemetry.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -8803,32 +8802,6 @@ Use the attached image as context.
 					{ turnId: 'turn-tool-details', modelCallId: 'api-tools' },
 					{ turnId: 'turn-tool-details', modelCallId: 'api-final' },
 				],
-			});
-		});
-
-		test('reports cancelled and unmapped completions using the selected native call identifier', async () => {
-			const telemetryService = new CapturingTelemetryService();
-			const { session, mockSession, signals } = await createAgentSession(disposables, { telemetryService });
-			await session.resume('old-turn');
-			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn' } as SessionEventPayload<'assistant.turn_start'>['data']);
-			await session.abort();
-			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
-			mockSession.fire('assistant.message', {
-				messageId: 'different-message', apiCallId: 'late-api', clientRequestId: 'different-client', content: '',
-			} as SessionEventPayload<'assistant.message'>['data']);
-			mockSession.fire('assistant.message', {
-				messageId: 'child-message', clientRequestId: 'child-client', content: '',
-			} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'unknown-child' });
-
-			assert.deepStrictEqual({
-				events: telemetryService.events.filter(event => event.eventName === 'agentHost.copilotModelCallCorrelation').map(event => event.data),
-				completions: signals.filter(signal => signal.kind === 'model_call_completed'),
-			}, {
-				events: [
-					{ ahModelCallKey: getCopilotModelCallKey(telemetryService.sessionId, session.sessionId, 'late-api'), outcome: 'cancelledRoot', responseOutcome: undefined, timeSinceResponseMs: undefined },
-					{ ahModelCallKey: getCopilotModelCallKey(telemetryService.sessionId, session.sessionId, 'child-client'), outcome: 'unmappedSubagent', responseOutcome: undefined, timeSinceResponseMs: undefined },
-				],
-				completions: [],
 			});
 		});
 

@@ -77,7 +77,6 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
-import { CopilotModelCallCorrelationTelemetry, getCopilotModelCallKey } from '../../node/copilot/copilotModelCallCorrelationTelemetry.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
@@ -1772,11 +1771,11 @@ suite('CopilotAgent', () => {
 
 			const subagentCorrelation = new DeferredPromise<IModelCallTurnCorrelationResult>();
 			const forwardedModelCallIds: string[] = [];
-			const activeSession: Pick<CopilotAgentSession, 'currentTurnId' | 'modelCallCorrelationTelemetry'> & {
+			const activeSession: Pick<CopilotAgentSession, 'currentTurnId' | 'isDisposed'> & {
 				modelCallTurnCorrelation: Pick<CopilotAgentSession['modelCallTurnCorrelation'], 'take' | 'wait' | 'markResponseForwarded'>;
 			} = {
 				currentTurnId: 'turn-1',
-				modelCallCorrelationTelemetry: disposables.add(new CopilotModelCallCorrelationTelemetry('active-session', telemetryService)),
+				isDisposed: false,
 				modelCallTurnCorrelation: {
 					take: () => undefined,
 					wait: modelCallId => modelCallId === 'unresolved-model-call' ? Promise.resolve({ turnId: undefined, outcome: 'waitExpired', waitMs: 100 }) : subagentCorrelation.p,
@@ -1816,19 +1815,19 @@ suite('CopilotAgent', () => {
 					const data = event.data as Record<string, unknown>;
 					return event.eventName === 'agentHost.copilotClientStartup'
 						? { eventName: event.eventName, outcome: data.outcome, durationMs: typeof data.durationMs, attemptNumber: data.attemptNumber }
-						: { eventName: event.eventName, sessionId: data.sdk_session_id, turnId: data.turnId, outcome: data.ahCorrelationOutcome, waitMs: data.ahCorrelationWaitMs };
+						: { eventName: event.eventName, sessionId: data.sdk_session_id, turnId: data.turnId, diagnostics: Object.fromEntries(Object.entries(data).filter(([key]) => key.startsWith('ah'))) };
 				}),
 				forwardedModelCallIds,
 			}, {
 				events: [
 					{ eventName: 'agentHost.copilotClientStartup', outcome: 'success', durationMs: 'number', attemptNumber: 1 },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1', outcome: 'activeTurnFallback', waitMs: undefined },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'subagent-turn', outcome: 'mappingWaited', waitMs: 4 },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: undefined, outcome: 'waitExpired', waitMs: 100 },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2', outcome: 'activeTurnFallback', waitMs: undefined },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1', outcome: 'activeTurnFallback', waitMs: undefined },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined, outcome: 'noActiveTurn', waitMs: undefined },
-					{ eventName: 'copilotSdk/response.success', sessionId: 'unknown-session', turnId: undefined, outcome: 'sessionNotFound', waitMs: undefined },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1', diagnostics: { ahCorrelationOutcome: 'activeTurnFallback' } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'subagent-turn', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: 4 } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: undefined, diagnostics: { ahCorrelationOutcome: 'waitExpired', ahCorrelationWaitMs: 100, ahActiveRootTurnIdAtResponse: 'turn-1', ahSessionDisposedDuringWait: false } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'second-active-session', turnId: 'turn-2', diagnostics: { ahCorrelationOutcome: 'activeTurnFallback' } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'active-session', turnId: 'turn-1', diagnostics: { ahCorrelationOutcome: 'activeTurnFallback' } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'idle-session', turnId: undefined, diagnostics: { ahCorrelationOutcome: 'noActiveTurn' } },
+					{ eventName: 'copilotSdk/response.success', sessionId: 'unknown-session', turnId: undefined, diagnostics: { ahCorrelationOutcome: 'sessionNotFound' } },
 				],
 				forwardedModelCallIds: ['root-model-call'],
 			});
@@ -1837,55 +1836,57 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('reports session disposal during a real correlation wait without using a new active turn', async () => {
-		const response = new DeferredPromise<ITelemetryData>();
-		const telemetryService = new class extends RecordingTelemetryService {
-			override publicLog(eventName?: string, data?: ITelemetryData): void {
-				if (eventName === 'copilotSdk/response.success' && data) {
-					response.complete(data);
+	for (const disposeDuringWait of [false, true]) {
+		test(`captures the original root during an expired correlation wait (disposed: ${disposeDuringWait})`, async () => {
+			const response = new DeferredPromise<ITelemetryData>();
+			const telemetryService = new class extends RecordingTelemetryService {
+				override publicLog(eventName?: string, data?: ITelemetryData): void {
+					if (eventName === 'copilotSdk/response.error' && data) {
+						response.complete(data);
+					}
 				}
-			}
-		}();
-		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService });
-		try {
-			await agent.listChatsToMigrate();
-			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
-			assert.ok(forward);
-			let activeTurn = 'original-turn';
-			const diagnostics = disposables.add(new CopilotModelCallCorrelationTelemetry('sdk-session', telemetryService));
-			setLiveChatStub(agent, 'sdk-session', {
-				get currentTurnId() { return activeTurn; },
-				modelCallTurnCorrelation: new ModelCallTurnCorrelation(),
-				modelCallCorrelationTelemetry: diagnostics,
-			});
+			}();
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), telemetryService, sessionDataService });
+			try {
+				await agent.listChatsToMigrate();
+				const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+				assert.ok(forward);
+				const { session } = createAgentSessionThroughAgent(agent, instantiationService);
+				setLiveChatStub(agent, session.sessionId, session);
+				await session.initializeSession();
+				session.resetTurnState('original-turn');
 
-			await forward({
-				sessionId: 'sdk-session',
-				restricted: false,
-				event: { kind: 'response.success', properties: { modelCallId: 'call', initiatorType: 'agent' }, metrics: {} },
-			});
-			activeTurn = 'replacement-turn';
-			diagnostics.dispose();
-			const data = await response.p;
-			assert.deepStrictEqual({
-				turn: data.turnId,
-				outcome: data.ahCorrelationOutcome,
-				activeAtCallback: data.ahActiveTurnPresent,
-				disposedDuringWait: data.ahSessionDisposedDuringWait,
-				measuredWait: typeof data.ahCorrelationWaitMs === 'number' && data.ahCorrelationWaitMs > 0,
-				key: data.ahModelCallKey,
-			}, {
-				turn: undefined,
-				outcome: 'waitExpired',
-				activeAtCallback: true,
-				disposedDuringWait: true,
-				measuredWait: true,
-				key: getCopilotModelCallKey(telemetryService.sessionId, 'sdk-session', 'call'),
-			});
-		} finally {
-			await disposeAgent(agent);
-		}
-	});
+				await forward({
+					sessionId: session.sessionId,
+					restricted: false,
+					event: { kind: 'response.error', properties: { modelCallId: 'call', initiatorType: 'agent', turnId: 'sdk-turn' }, metrics: {} },
+				});
+				session.resetTurnState('replacement-turn');
+				if (disposeDuringWait) {
+					session.dispose();
+				}
+				const data = await response.p;
+				assert.deepStrictEqual({
+					turn: data.turnId,
+					outcome: data.ahCorrelationOutcome,
+					activeRootAtCallback: data.ahActiveRootTurnIdAtResponse,
+					disposedDuringWait: data.ahSessionDisposedDuringWait,
+					measuredWait: typeof data.ahCorrelationWaitMs === 'number' && data.ahCorrelationWaitMs > 0,
+					sessionDisposed: session.isDisposed,
+				}, {
+					turn: undefined,
+					outcome: 'waitExpired',
+					activeRootAtCallback: 'original-turn',
+					disposedDuringWait: disposeDuringWait,
+					measuredWait: true,
+					sessionDisposed: disposeDuringWait,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	}
 
 	test('keeps host-remapped correlation for both event orders when the active turn changes', async () => {
 		const events: ITelemetryData[] = [];
@@ -1908,7 +1909,7 @@ suite('CopilotAgent', () => {
 			setLiveChatStub(agent, 'sdk-session', {
 				get currentTurnId() { return activeTurn; },
 				modelCallTurnCorrelation: new ModelCallTurnCorrelation(),
-				modelCallCorrelationTelemetry: disposables.add(new CopilotModelCallCorrelationTelemetry('sdk-session', telemetryService)),
+				isDisposed: false,
 			}, chat);
 			const notification = (call: string): GitHubTelemetryNotification => ({
 				sessionId: 'sdk-session', restricted: false,
@@ -1925,12 +1926,10 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(events.map(data => ({
 				turn: data.turnId,
-				outcome: data.ahCorrelationOutcome,
-				activeAtCallback: data.ahActiveTurnPresent,
-				disposed: data.ahSessionDisposedDuringWait,
+				diagnostics: Object.fromEntries(Object.entries(data).filter(([key]) => key.startsWith('ah')).map(([key, value]) => [key, key === 'ahCorrelationWaitMs' ? typeof value === 'number' && value >= 0 : value])),
 			})), [
-				{ turn: 'subagent-turn', outcome: 'mappingAvailable', activeAtCallback: true, disposed: undefined },
-				{ turn: 'original-logical-turn', outcome: 'mappingWaited', activeAtCallback: true, disposed: false },
+				{ turn: 'subagent-turn', diagnostics: { ahCorrelationOutcome: 'mappingAvailable' } },
+				{ turn: 'original-logical-turn', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: true } },
 			]);
 		} finally {
 			await disposeAgent(agent);

@@ -5,7 +5,14 @@
 
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import type { ICopilotModelCallCorrelationTelemetry } from './copilotModelCallCorrelationTelemetry.js';
+import type { ModelCallTurnCorrelationOutcome } from './modelCallTurnCorrelation.js';
+
+export interface ICopilotModelCallCorrelationTelemetry {
+	readonly ahCorrelationOutcome: ModelCallTurnCorrelationOutcome | 'sessionNotFound' | 'activeTurnFallback' | 'noActiveTurn';
+	readonly ahCorrelationWaitMs?: number;
+	readonly ahActiveRootTurnIdAtResponse?: string;
+	readonly ahSessionDisposedDuringWait?: boolean;
+}
 
 /* __GDPR__FRAGMENT__
 	"CopilotSdkForwardedTelemetry": {
@@ -39,9 +46,8 @@ import type { ICopilotModelCallCorrelationTelemetry } from './copilotModelCallCo
 	"CopilotModelCallCorrelation": {
 		"ahCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, responseAlreadyForwarded, sessionNotFound, activeTurnFallback, or noActiveTurn. A wait expiry does not establish that a completion was produced." },
 		"ahCorrelationWaitMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Actual elapsed correlation wait in milliseconds; absent when no wait occurred." },
-		"ahActiveTurnPresent": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether the SDK session had an active host turn at response callback entry, encoded as 1 or 0. Absent when the session was not found." },
-		"ahSessionDisposedDuringWait": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether the session was disposed by the end of the correlation wait, encoded as 1 or 0. Absent when no wait occurred." },
-		"ahModelCallKey": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "SHA-256 hex join key scoped to the telemetry process, SDK session, and native model-call identifier, computed before telemetry scrubbing. Not a turn identifier." }
+		"ahActiveRootTurnIdAtResponse": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Active root turn identifier captured at response callback entry before any wait, only when no authoritative turnId was resolved. A contextual root candidate, not an attribution repair; it may not own this model call." },
+		"ahSessionDisposedDuringWait": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether the session was disposed by the end of the correlation wait, encoded as 1 or 0. Present only when a wait occurred and no authoritative turnId was resolved." }
 	}
 */
 
@@ -240,16 +246,22 @@ export class CopilotGitHubTelemetryForwarder {
 		delete data.secondary_assignment_context;
 		delete data.ahCorrelationOutcome;
 		delete data.ahCorrelationWaitMs;
-		delete data.ahActiveTurnPresent;
+		delete data.ahActiveRootTurnIdAtResponse;
 		delete data.ahSessionDisposedDuringWait;
-		delete data.ahModelCallKey;
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (correlation) {
 				data.ahCorrelationOutcome = correlation.ahCorrelationOutcome;
-				data.ahCorrelationWaitMs = correlation.ahCorrelationWaitMs;
-				data.ahActiveTurnPresent = correlation.ahActiveTurnPresent;
-				data.ahSessionDisposedDuringWait = correlation.ahSessionDisposedDuringWait;
-				data.ahModelCallKey = correlation.ahModelCallKey;
+				if (correlation.ahCorrelationWaitMs !== undefined) {
+					data.ahCorrelationWaitMs = correlation.ahCorrelationWaitMs;
+				}
+				if (!agentHostTurnId) {
+					if (correlation.ahActiveRootTurnIdAtResponse !== undefined) {
+						data.ahActiveRootTurnIdAtResponse = correlation.ahActiveRootTurnIdAtResponse;
+					}
+					if (correlation.ahCorrelationWaitMs !== undefined && correlation.ahSessionDisposedDuringWait !== undefined) {
+						data.ahSessionDisposedDuringWait = correlation.ahSessionDisposedDuringWait;
+					}
+				}
 			}
 			if (agentHostTurnId) {
 				data.turnId = agentHostTurnId;

@@ -44,11 +44,10 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type AgentModelCallCorrelationIssue } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { getCopilotModelCallKey, type CopilotModelCallCorrelationOutcome } from './copilotModelCallCorrelationTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -83,7 +82,7 @@ import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } f
 import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
+import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
@@ -1932,16 +1931,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const nativeModelCallId = event.properties.modelCallId ?? event.model_call_id;
 		const modelCallId = typeof nativeModelCallId === 'string' ? nativeModelCallId : undefined;
-		const forward = (turnId: string | undefined, outcome: CopilotModelCallCorrelationOutcome, waitMs?: number): void => {
-			if (!turnId && modelCallId !== undefined && !notification.restricted) {
-				session?.modelCallCorrelationTelemetry.recordUncorrelatedResponse(modelCallId, outcome);
-			}
+		const forward = (turnId: string | undefined, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
 			this._gitHubTelemetryForwarder.forward(notification, turnId, {
 				ahCorrelationOutcome: outcome,
 				ahCorrelationWaitMs: waitMs,
-				ahActiveTurnPresent: session ? !!fallbackTurnId : undefined,
-				ahSessionDisposedDuringWait: waitMs !== undefined ? session?.modelCallCorrelationTelemetry.isDisposed : undefined,
-				ahModelCallKey: getCopilotModelCallKey(this._telemetryService.sessionId, notification.sessionId, modelCallId),
+				ahActiveRootTurnIdAtResponse: !turnId ? fallbackTurnId : undefined,
+				ahSessionDisposedDuringWait: !turnId && waitMs !== undefined ? session?.isDisposed : undefined,
 			});
 		};
 		if (!session) {
@@ -3300,13 +3295,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
-		const session = this._findChatByUri(chat);
-		session?.modelCallTurnCorrelation.record(modelCallId, turnId);
-		session?.modelCallCorrelationTelemetry.recordMapping(modelCallId);
-	}
-
-	reportModelCallTurnCorrelationIssue(chat: URI, modelCallId: string, issue: AgentModelCallCorrelationIssue): void {
-		this._findChatByUri(chat)?.modelCallCorrelationTelemetry.reportCompletionIssue(modelCallId, issue);
+		this._findChatByUri(chat)?.modelCallTurnCorrelation.record(modelCallId, turnId);
 	}
 
 	/** Creates one exact chat backing: fresh, deferred, imported, or forked. */
