@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKControlGetContextUsageResponse, SDKMessage, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -16,7 +16,9 @@ import { AgentSignal } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { toClaudeContextAttribution } from './claudeContextUsage.js';
+import { buildClaudeUsageInfo } from './claudeMapSessionEvents.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -178,6 +180,59 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	/**
+	 * Re-emit the turn's `ChatUsage` enriched with the SDK's context-window
+	 * breakdown (`_meta.contextAttribution`) so the context-usage widget can
+	 * show what occupies the window, not just the last call's token counts.
+	 *
+	 * `inputTokens` on the enriched emission is the SDK's estimate of the
+	 * tokens currently in the window. The base emission's `input_tokens` is
+	 * the Anthropic API's *uncached* input count, which excludes the cache
+	 * reads that make up most of a long conversation — so it undercounts the
+	 * window badly. The widget reads `inputTokens` as the prompt size, and the
+	 * `cacheReadTokens` field still carries the raw value.
+	 *
+	 * Bounded by {@link ClaudeSdkPipeline._contextUsageTimeoutMs}: the report
+	 * is a control round-trip to the subprocess, and turn completion must not
+	 * hang on it. Any failure or timeout logs at trace and leaves the base
+	 * `ChatUsage` as the turn's final word. Skipped when the query was swapped
+	 * or aborted while awaiting, so a stale report never lands on a new turn.
+	 */
+	private async _emitContextUsage(query: Query, message: Extract<SDKMessage, { type: 'result'; subtype: 'success' }>, turnId: string): Promise<void> {
+		let contextUsage: SDKControlGetContextUsageResponse | undefined;
+		try {
+			contextUsage = await raceTimeout(query.getContextUsage({ detail: 'summary' }), this._contextUsageTimeoutMs);
+		} catch (err) {
+			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage failed: ${err}`);
+			return;
+		}
+		if (!contextUsage) {
+			this._logService.trace(`[Claude:${this.sessionId}] getContextUsage timed out after ${this._contextUsageTimeoutMs}ms`);
+			return;
+		}
+		if (this._query !== query || this._abortController.signal.aborted) {
+			return;
+		}
+		const contextAttribution = toClaudeContextAttribution(contextUsage);
+		if (!contextAttribution) {
+			return;
+		}
+		const usage = buildClaudeUsageInfo(message);
+		this._onDidProduceSignal.fire({
+			kind: 'action',
+			resource: this.chatChannelUri,
+			action: {
+				type: ActionType.ChatUsage,
+				turnId,
+				usage: {
+					...usage,
+					inputTokens: contextAttribution.totalTokens,
+					_meta: { ...usage._meta, contextAttribution },
+				},
+			},
+		});
+	}
+
+	/**
 	 * Bind a fresh SDK stream off the current warm subprocess. The stream is
 	 * long-lived: it spans every turn until a rebind swaps the subprocess (the
 	 * prompt iterable parks between turns rather than ending), so {@link _query}
@@ -197,6 +252,9 @@ export class ClaudeSdkPipeline extends Disposable {
 	 */
 	private _query: Query | undefined;
 	private _warm: WarmQuery;
+
+	/** Upper bound on the post-result `getContextUsage` control round-trip. Overridable by tests. */
+	protected _contextUsageTimeoutMs = 2000;
 	private _abortController: AbortController;
 
 	private readonly _queue: ClaudePromptQueue;
@@ -690,6 +748,11 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
 				if (message.type === 'result') {
+					if (message.subtype === 'success' && turnId !== undefined) {
+						// Must land before `ChatTurnComplete`: the chat reducer
+						// only applies `ChatUsage` to the active turn.
+						await this._emitContextUsage(query, message, turnId);
+					}
 					const completed = this._queue.settleHead();
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Query, SDKControlInterruptResponse, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { Query, SDKControlGetContextUsageResponse, SDKControlInterruptResponse, SDKMessage, SDKResultSuccess, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -18,21 +18,26 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import type { AgentSignal } from '../../common/agent.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ActionType, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { makeContextUsageResponse } from './claudeContextUsage.test.js';
+import { makeResultSuccess } from './claudeMapSessionEventsTestUtils.js';
 
 // ===== Test doubles =====
 
 /**
  * `WarmQuery` stub that records `query()` calls and async-dispose count.
- * Tests in this file deliberately do NOT drive the consumer loop — they
+ * Most tests in this file deliberately do NOT drive the consumer loop — they
  * exercise the synchronous lifecycle surface (abort, dispose, rebind
- * gating). Driving the SDK message stream end-to-end is covered by
- * `claudeAgent.test.ts`.
+ * gating). The exceptions script a single turn through {@link ScriptedWarmQuery}
+ * to observe the post-`result` signal order. Driving the SDK message stream
+ * end-to-end is covered by `claudeAgent.test.ts`.
  *
  * `query()` returns a stub `Query` whose async iterator immediately
  * resolves done. That keeps the pipeline's consumer loop from hanging
@@ -53,8 +58,8 @@ class FakeWarmQuery implements WarmQuery {
 
 class ImmediatelyDoneQuery implements Query {
 	[Symbol.asyncIterator](): this { return this; }
-	async next(): Promise<IteratorResult<never, void>> { return { done: true, value: undefined }; }
-	async return(): Promise<IteratorResult<never, void>> { return { done: true, value: undefined }; }
+	async next(): Promise<IteratorResult<SDKMessage, void>> { return { done: true, value: undefined }; }
+	async return(): Promise<IteratorResult<SDKMessage, void>> { return { done: true, value: undefined }; }
 	async throw(err: unknown): Promise<IteratorResult<never, void>> { throw err; }
 	async setModel(): Promise<void> { /* not exercised here */ }
 	async applyFlagSettings(_settings: Parameters<Query['applyFlagSettings']>[0]): Promise<void> { /* not exercised here */ }
@@ -75,7 +80,7 @@ class ImmediatelyDoneQuery implements Query {
 	supportedModels(): never { throw new Error('not modeled'); }
 	supportedAgents(): never { throw new Error('not modeled'); }
 	mcpServerStatus(): never { throw new Error('not modeled'); }
-	getContextUsage(): never { throw new Error('not modeled'); }
+	getContextUsage(): Promise<SDKControlGetContextUsageResponse> { throw new Error('not modeled'); }
 	usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET(): never { throw new Error('not modeled'); }
 	reloadPlugins(): never { throw new Error('not modeled'); }
 	accountInfo(): never { throw new Error('not modeled'); }
@@ -175,6 +180,68 @@ class ControllableWarmQuery extends FakeWarmQuery {
 	override query(_prompt: string | AsyncIterable<SDKUserMessage>): Query {
 		this.queryCallCount++;
 		const q = makeControllableQuery();
+		this.queries.push(q);
+		return q;
+	}
+}
+
+/**
+ * A {@link Query} that behaves like a live SDK turn: it pulls one prompt off
+ * the pipeline's prompt iterable (so the queue marks it in-flight), yields the
+ * scripted messages, then parks until abort. `getContextUsage` is scripted
+ * and every call is recorded.
+ */
+class ScriptedQuery extends ImmediatelyDoneQuery {
+	readonly contextUsageCalls: Array<Parameters<Query['getContextUsage']>[0]> = [];
+	private _index = 0;
+	private _pulledPrompt = false;
+
+	constructor(
+		private readonly _prompt: AsyncIterable<SDKUserMessage>,
+		private readonly _messages: readonly SDKMessage[],
+		private readonly _contextUsage: () => Promise<SDKControlGetContextUsageResponse>,
+		private readonly _signal: AbortSignal,
+	) { super(); }
+
+	override async next(): Promise<IteratorResult<SDKMessage, void>> {
+		if (!this._pulledPrompt) {
+			this._pulledPrompt = true;
+			await this._prompt[Symbol.asyncIterator]().next();
+		}
+		if (this._index < this._messages.length) {
+			return { done: false, value: this._messages[this._index++] };
+		}
+		if (this._signal.aborted) {
+			return { done: true, value: undefined };
+		}
+		return new Promise<IteratorResult<SDKMessage, void>>(resolve => {
+			this._signal.addEventListener('abort', () => resolve({ done: true, value: undefined }), { once: true });
+		});
+	}
+
+	override getContextUsage(opts?: Parameters<Query['getContextUsage']>[0]): Promise<SDKControlGetContextUsageResponse> {
+		this.contextUsageCalls.push(opts);
+		return this._contextUsage();
+	}
+}
+
+/** {@link WarmQuery} that hands out {@link ScriptedQuery} instances bound to the pipeline's abort signal. */
+class ScriptedWarmQuery extends FakeWarmQuery {
+	readonly queries: ScriptedQuery[] = [];
+	/** Set by the {@link createPipeline} factory callback before the first `query()`. */
+	signal: AbortSignal = new AbortController().signal;
+
+	constructor(
+		private readonly _messages: readonly SDKMessage[],
+		private readonly _contextUsage: () => Promise<SDKControlGetContextUsageResponse>,
+	) { super(); }
+
+	override query(prompt: string | AsyncIterable<SDKUserMessage>): Query {
+		this.queryCallCount++;
+		if (typeof prompt === 'string') {
+			throw new Error('ScriptedWarmQuery expects the pipeline prompt iterable');
+		}
+		const q = new ScriptedQuery(prompt, this._messages, this._contextUsage, this.signal);
 		this.queries.push(q);
 		return q;
 	}
@@ -559,6 +626,86 @@ suite('ClaudeSdkPipeline', () => {
 			assert.strictEqual(controller.signal.aborted, true);
 			assert.strictEqual(warm.asyncDisposeCount, 1);
 			store.dispose();
+		});
+	});
+
+	suite('context usage enrichment', () => {
+
+		function makeResultWithUsage(): SDKResultSuccess {
+			const result = makeResultSuccess('sess-1');
+			result.usage.input_tokens = 12;
+			result.usage.output_tokens = 34;
+			result.usage.cache_read_input_tokens = 5;
+			result.modelUsage = {
+				'claude-test': { inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 5, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 8192 },
+			};
+			return result;
+		}
+
+		function usageActionsOf(signals: AgentSignal[]): ChatUsageAction[] {
+			return signals.flatMap(s => s.kind === 'action' && s.action.type === ActionType.ChatUsage ? [s.action] : []);
+		}
+
+		function actionTypesOf(signals: AgentSignal[]): string[] {
+			return signals.flatMap(s => s.kind === 'action' ? [s.action.type] : []);
+		}
+
+		test('re-emits ChatUsage with _meta.contextAttribution before ChatTurnComplete', async () => {
+			const contextUsage = makeContextUsageResponse({
+				totalTokens: 5_000,
+				systemPromptSections: [{ name: 'Identity', tokens: 1_000 }],
+				systemTools: [{ name: 'Read', tokens: 400 }],
+			});
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => contextUsage);
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(actionTypesOf(signals), [ActionType.ChatUsage, ActionType.ChatUsage, ActionType.ChatTurnComplete]);
+			assert.deepStrictEqual(warm.queries[0].contextUsageCalls, [{ detail: 'summary' }]);
+			const [base, enriched] = usageActionsOf(signals);
+			assert.deepStrictEqual(base.usage, { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' });
+			assert.deepStrictEqual(enriched.usage, {
+				inputTokens: 5_000,
+				outputTokens: 34,
+				cacheReadTokens: 5,
+				model: 'claude-test',
+				_meta: {
+					contextAttribution: {
+						totalTokens: 5_000,
+						compactions: { count: 0 },
+						entries: [
+							{ kind: 'system', id: 'system-prompt', label: 'System Prompt', tokens: 1_000 },
+							{ kind: 'toolDefinition', id: 'tool:Read', label: 'Read', tokens: 400 },
+						],
+					},
+				},
+			});
+		});
+
+		test('a failing getContextUsage leaves the base ChatUsage and still completes the turn', async () => {
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], async () => { throw new Error('control request failed'); });
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(actionTypesOf(signals), [ActionType.ChatUsage, ActionType.ChatTurnComplete]);
+		});
+
+		test('a getContextUsage that never answers is bounded by the timeout and does not hang the turn', async () => {
+			const warm = new ScriptedWarmQuery([makeResultWithUsage()], () => new Promise<SDKControlGetContextUsageResponse>(() => { /* never resolves */ }));
+			const { pipeline } = createPipeline(disposables, signal => { warm.signal = signal; return warm; });
+			(pipeline as unknown as { _contextUsageTimeoutMs: number })._contextUsageTimeoutMs = 5;
+			const signals: AgentSignal[] = [];
+			disposables.add(pipeline.onDidProduceSignal(s => signals.push(s)));
+
+			await pipeline.send(makePrompt('p1'), 'turn-1');
+
+			assert.deepStrictEqual(actionTypesOf(signals), [ActionType.ChatUsage, ActionType.ChatTurnComplete]);
 		});
 	});
 

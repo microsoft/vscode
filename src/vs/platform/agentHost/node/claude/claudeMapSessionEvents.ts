@@ -8,7 +8,7 @@ import type { URI } from '../../../../base/common/uri.js';
 import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { createErrorResponsePart, ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent, type UsageInfo } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -446,6 +446,32 @@ function isToolResultTextBlock(block: unknown): block is { type: 'text'; text: s
 	return candidate.type === 'text' && typeof candidate.text === 'string';
 }
 
+/**
+ * The protocol {@link UsageInfo} for a successful SDK `result` message.
+ * Shared by the synchronous mapper (base `ChatUsage`) and the pipeline's
+ * post-result context-usage enrichment, so both emissions describe the turn
+ * identically apart from what the enrichment adds.
+ *
+ * `modelUsage` is keyed by model name; the first key is reported as the
+ * model. Turns are single-model today; multi-model attribution is a later
+ * concern.
+ *
+ * Per-turn credits are deliberately NOT derived from `total_cost_usd`: that
+ * is the SDK's Anthropic-list-price USD estimate, not what CAPI actually
+ * bills. Real Copilot credits come from CAPI's `copilot_usage.total_nano_aiu`,
+ * which the proxy captures and `ClaudeAgentSession` attaches to the action as
+ * `_meta.copilotUsage.totalNanoAiu` (the key the workbench reads).
+ */
+export function buildClaudeUsageInfo(message: Extract<SDKMessage, { type: 'result'; subtype: 'success' }>): UsageInfo {
+	const modelKey = Object.keys(message.modelUsage)[0];
+	return {
+		inputTokens: message.usage.input_tokens,
+		outputTokens: message.usage.output_tokens,
+		cacheReadTokens: message.usage.cache_read_input_tokens,
+		...(modelKey ? { model: modelKey } : {}),
+	};
+}
+
 function mapResult(
 	message: Extract<SDKMessage, { type: 'result' }>,
 	session: URI,
@@ -457,28 +483,13 @@ function mapResult(
 ): AgentSignal[] {
 	const signals: AgentSignal[] = [];
 	if (message.subtype === 'success') {
-		// `modelUsage` is keyed by model name; pick the first key as the
-		// reported model. Phase 6 turns are single-model; multi-model
-		// attribution is a Phase 7+ concern.
-		const modelKey = Object.keys(message.modelUsage)[0];
-		// Per-turn credits are deliberately NOT derived from
-		// `total_cost_usd`: that is the SDK's Anthropic-list-price USD
-		// estimate, not what CAPI actually bills. Real Copilot credits come
-		// from CAPI's `copilot_usage.total_nano_aiu`, which the proxy
-		// captures and `ClaudeAgentSession` attaches to this action as
-		// `_meta.copilotUsage.totalNanoAiu` (the key the workbench reads).
 		signals.push({
 			kind: 'action',
 			resource: session,
 			action: {
 				type: ActionType.ChatUsage,
 				turnId,
-				usage: {
-					inputTokens: message.usage.input_tokens,
-					outputTokens: message.usage.output_tokens,
-					cacheReadTokens: message.usage.cache_read_input_tokens,
-					...(modelKey ? { model: modelKey } : {}),
-				},
+				usage: buildClaudeUsageInfo(message),
 			},
 		});
 	}
