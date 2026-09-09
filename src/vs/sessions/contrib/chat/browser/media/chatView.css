@@ -27,19 +27,23 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response {
-	/* Match the response padding so wide content remains fully backed before the fade. */
-	background: linear-gradient(
-		to right,
-		transparent,
-		color-mix(in srgb, var(--session-view-background) 88%, transparent) var(--vscode-spacing-size320),
-		color-mix(in srgb, var(--session-view-background) 88%, transparent) calc(100% - var(--vscode-spacing-size320)),
-		transparent
-	);
-	border: 0;
+	padding: var(--vscode-spacing-size80) calc(var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)) + var(--vscode-spacing-size120));
+	isolation: isolate;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before {
+	content: '';
+	position: absolute;
+	inset: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	z-index: -1;
+	background-color: var(--vscode-editorWidget-background, var(--session-view-background));
 	border-radius: var(--vscode-cornerRadius-medium);
-	box-shadow: none;
-	padding-bottom: var(--vscode-spacing-size160);
-	overflow: hidden;
+}
+
+.monaco-workbench.agent-sessions-workbench.hc-black .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before,
+.monaco-workbench.agent-sessions-workbench.hc-light .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before {
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,

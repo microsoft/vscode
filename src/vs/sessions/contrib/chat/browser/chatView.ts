@@ -28,7 +28,7 @@ import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
-import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { chatPersistentContentVisibleClass, ChatWidget, SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -54,6 +54,17 @@ import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
 import { SessionArchiveNudge } from './sessionArchiveNudge.js';
+import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+
+const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
+
+/**
+ * Returns the total horizontal space the renderer must reserve for Sessions chat items.
+ * The background increment must match the response's `--vscode-spacing-size120` padding on both sides.
+ */
+export function getSessionChatItemHorizontalPadding(hasBackground: boolean): number {
+	return SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING + (hasBackground ? SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING * 2 : 0);
+}
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
@@ -196,6 +207,7 @@ export class ChatView extends AbstractChatView {
 	private _isVisible: boolean | undefined;
 	private readonly _isVisibleObs = observableValue(this, false);
 	private _lastLayout: { width: number; height: number } | undefined;
+	private _chatItemHorizontalPadding: number;
 
 	/**
 	 * Per-view mirror of `agentsVoiceInitiatedHere`, scoped above the chat widget.
@@ -221,9 +233,11 @@ export class ChatView extends AbstractChatView {
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
+		this._chatItemHorizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
 
 		this.element.classList.add('chat-view-chat');
 		this._widgetContainer = $('.chat-view-widget');
@@ -248,6 +262,7 @@ export class ChatView extends AbstractChatView {
 				rendererOptions: {
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
+					contentHorizontalPadding: this._chatItemHorizontalPadding,
 				},
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
@@ -261,6 +276,7 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatItemHorizontalPadding()));
 		const transcript = this._widget.transcriptDomNode;
 		this._register(addDisposableListener(transcript, EventType.CONTEXT_MENU, event => {
 			if (isHighContrast(this.themeService.getColorTheme().type)) {
@@ -641,6 +657,16 @@ export class ChatView extends AbstractChatView {
 		}
 		size(this._widgetContainer, width, widgetHeight);
 		this._widget.layout(widgetHeight, width);
+	}
+
+	private _updateChatItemHorizontalPadding(): void {
+		const horizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
+		if (horizontalPadding === this._chatItemHorizontalPadding) {
+			return;
+		}
+
+		this._chatItemHorizontalPadding = horizontalPadding;
+		this._widget.setContentHorizontalPadding(horizontalPadding);
 	}
 
 	/**
