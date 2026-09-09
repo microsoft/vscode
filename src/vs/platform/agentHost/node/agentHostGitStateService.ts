@@ -249,7 +249,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
 				const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
 				if (gitState) {
-					const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+					const currentState = this._stateManager.getSessionState(sessionKey);
+					const currentWorkingDirectory = currentState?.workingDirectories?.[0];
+					if (!currentWorkingDirectory || !isEqual(URI.parse(currentWorkingDirectory), workingDirectory)) {
+						return;
+					}
+					const currentMeta = currentState._meta;
 					const previousGitState = readSessionGitState(currentMeta);
 					const gitStateChanged = !objectEquals(previousGitState, gitState);
 					if (gitStateChanged) {
@@ -299,12 +304,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	getMaterializedWorktreeMeta(sessionKey: string, branchName: string): SessionSummaryMeta | undefined {
 		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 		const currentGitState = readSessionGitState(currentMeta);
-		if (currentGitState?.branchName === branchName) {
-			return currentMeta;
-		}
 		return withSessionGitState(currentMeta, {
-			...currentGitState,
 			branchName,
+			...(currentGitState?.hasGitHubRemote !== undefined ? { hasGitHubRemote: currentGitState.hasGitHubRemote } : {}),
+			...(currentGitState?.baseBranchName !== undefined ? { baseBranchName: currentGitState.baseBranchName } : {}),
+			...(currentGitState?.githubOwner !== undefined ? { githubOwner: currentGitState.githubOwner } : {}),
+			...(currentGitState?.githubRepo !== undefined ? { githubRepo: currentGitState.githubRepo } : {}),
 		});
 	}
 
