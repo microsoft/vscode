@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Fetches the Foundry Local native core libraries (Foundry Local Core +
- * onnxruntime + onnxruntime-genai) from NuGet for an EXPLICIT RID, so a single
+ * Fetches the Foundry Local native dependencies (onnxruntime +
+ * onnxruntime-genai) from NuGet for an EXPLICIT RID, so a single
  * build agent can assemble a tarball for any target regardless of its own
  * `process.platform`/`process.arch`.
  *
@@ -17,7 +17,7 @@
  * tarballs; extracting `runtimes/<rid>/native/*` from the same `.nupkg` files
  * for an explicit RID is host-independent and fixes that.
  *
- * Only the "standard" artifact set is supported (the three packages selected by
+ * Only the "standard" artifact set is supported (the two packages selected by
  * `package.ts`); the SDK installer's WinML override / `includeFiles` /
  * `removeFiles` paths are intentionally not ported.
  */
@@ -28,7 +28,7 @@ import * as fs from 'fs';
 import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
-import { SDK_PACKAGE_NAME } from './common.ts';
+import { resolveSdkPackageRoot } from './common.ts';
 
 const SCRIPT = 'nuget.ts';
 const VSCODE_FEED_PREFIX = 'https://pkgs.dev.azure.com/monacotools/';
@@ -44,8 +44,7 @@ export const VSCODE_NUGET_FEED = 'https://pkgs.dev.azure.com/monacotools/Monaco/
  * `.nupkg` archives.
  */
 function loadAdmZip(): any {
-	const sdkRequire = createRequire(import.meta.url);
-	const fromSdk = createRequire(sdkRequire.resolve(`${SDK_PACKAGE_NAME}/package.json`));
+	const fromSdk = createRequire(path.join(resolveSdkPackageRoot(), 'package.json'));
 	return fromSdk('adm-zip');
 }
 
@@ -89,38 +88,60 @@ export interface INugetArtifact {
 }
 
 export interface IFoundryDependencyVersions {
-	readonly 'foundry-local-core': { readonly nuget: string };
 	readonly onnxruntime: { readonly version: string };
 	readonly 'onnxruntime-genai': { readonly version: string };
 }
 
-export interface IFetchCoreLibrariesOptions {
+export interface IFetchDependencyLibrariesOptions {
 	readonly feeds?: readonly string[];
 	readonly skipIfPresent?: boolean;
 }
 
-export function supportsCoreLibraryTarget(target: string): boolean {
+export function supportsDependencyLibraryTarget(target: string): boolean {
 	return Object.hasOwn(RID_BY_TARGET, target);
 }
 
-export function getStandardArtifacts(target: string, dependencies: IFoundryDependencyVersions): readonly INugetArtifact[] {
-	const ortPackageName = target === 'linux-x64' ? 'Microsoft.ML.OnnxRuntime.Gpu.Linux' : 'Microsoft.ML.OnnxRuntime.Foundry';
+export function getStandardArtifacts(dependencies: IFoundryDependencyVersions): readonly INugetArtifact[] {
 	return [
-		{ name: 'Microsoft.AI.Foundry.Local.Core', version: dependencies['foundry-local-core'].nuget },
-		{ name: ortPackageName, version: dependencies.onnxruntime.version },
+		{ name: 'Microsoft.ML.OnnxRuntime', version: dependencies.onnxruntime.version },
 		{ name: 'Microsoft.ML.OnnxRuntimeGenAI.Foundry', version: dependencies['onnxruntime-genai'].version },
 	];
 }
 
-export function requiredCoreLibraryNames(target: string): readonly string[] {
+export function requiredDependencyLibraryNames(target: string, dependencies: IFoundryDependencyVersions): readonly string[] {
 	const isWin = target.startsWith('win32-');
-	const ext = isWin ? '.dll' : target.startsWith('darwin-') ? '.dylib' : '.so';
+	const isDarwin = target.startsWith('darwin-');
+	const ext = isWin ? '.dll' : isDarwin ? '.dylib' : '.so';
 	const prefix = isWin ? '' : 'lib';
+	const onnxRuntime = isWin
+		? 'onnxruntime.dll'
+		: isDarwin
+			? `libonnxruntime.${dependencies.onnxruntime.version.split('.')[0]}.dylib`
+			: 'libonnxruntime.so.1';
 	return [
-		`Microsoft.AI.Foundry.Local.Core${ext}`,
-		`${prefix}onnxruntime${ext}`,
+		onnxRuntime,
 		`${prefix}onnxruntime-genai${ext}`,
 	];
+}
+
+export function normalizeOrtLibraryName(binDir: string, target: string, version: string): void {
+	let unversioned: string;
+	let versioned: string;
+	if (target.startsWith('linux-')) {
+		unversioned = path.join(binDir, 'libonnxruntime.so');
+		versioned = path.join(binDir, 'libonnxruntime.so.1');
+	} else if (target.startsWith('darwin-')) {
+		unversioned = path.join(binDir, 'libonnxruntime.dylib');
+		versioned = path.join(binDir, `libonnxruntime.${version.split('.')[0]}.dylib`);
+	} else {
+		return;
+	}
+	if (!fs.existsSync(versioned) && fs.existsSync(unversioned)) {
+		fs.renameSync(unversioned, versioned);
+	}
+	if (target.startsWith('darwin-') && fs.existsSync(versioned) && !fs.existsSync(unversioned)) {
+		fs.symlinkSync(path.basename(versioned), unversioned);
+	}
 }
 
 /**
@@ -128,7 +149,7 @@ export function requiredCoreLibraryNames(target: string): readonly string[] {
  * shared libraries into `binDir`. Throws if a package can't be fetched from any
  * feed; callers verify the resulting library set separately.
  */
-export async function fetchCoreLibraries(target: string, artifacts: readonly INugetArtifact[], binDir: string, options?: IFetchCoreLibrariesOptions): Promise<void> {
+export async function fetchDependencyLibraries(target: string, artifacts: readonly INugetArtifact[], binDir: string, options?: IFetchDependencyLibrariesOptions): Promise<void> {
 	const rid = RID_BY_TARGET[target];
 	if (!rid) {
 		throw new Error(`[${SCRIPT}] No NuGet RID mapping for target '${target}'.`);
@@ -163,7 +184,7 @@ async function installPackage(
 	skipIfPresent: boolean,
 ): Promise<void> {
 	if (skipIfPresent) {
-		const expectedFile = expectedCoreLibraryName(target, artifact.name);
+		const expectedFile = expectedDependencyLibraryName(target, artifact.name);
 		if (expectedFile && fs.existsSync(path.join(binDir, expectedFile))) {
 			console.log(`[${SCRIPT}]   ${artifact.name}: already present, skipping download.`);
 			return;
@@ -206,16 +227,14 @@ async function installPackage(
 	throw new Error(`[${SCRIPT}] Failed to download ${artifact.name} ${artifact.version} from any feed (${feedHosts}): ${lastError instanceof Error ? lastError.message : lastError}`);
 }
 
-function expectedCoreLibraryName(target: string, packageName: string): string | undefined {
-	const [foundryCore, onnxRuntime, onnxRuntimeGenAI] = requiredCoreLibraryNames(target);
-	if (packageName.includes('Foundry.Local.Core')) {
-		return foundryCore;
-	}
+function expectedDependencyLibraryName(target: string, packageName: string): string | undefined {
+	const isWin = target.startsWith('win32-');
+	const isDarwin = target.startsWith('darwin-');
 	if (packageName.includes('OnnxRuntimeGenAI')) {
-		return onnxRuntimeGenAI;
+		return `${isWin ? '' : 'lib'}onnxruntime-genai${isWin ? '.dll' : isDarwin ? '.dylib' : '.so'}`;
 	}
 	if (packageName.includes('OnnxRuntime')) {
-		return onnxRuntime;
+		return isWin ? 'onnxruntime.dll' : isDarwin ? 'libonnxruntime.dylib' : 'libonnxruntime.so';
 	}
 	return undefined;
 }

@@ -11,9 +11,9 @@
  * at packaging time.
  *
  * This mirrors `build/agent-sdk/` but for the Foundry Local native runtime used
- * by on-device dictation: a prebuilt N-API addon (`foundry_local_napi.node`)
- * plus the Foundry Local Core / onnxruntime / onnxruntime-genai shared
- * libraries. Rather than downloading those from npm + NuGet at runtime, each
+ * by on-device dictation: two prebuilt N-API addons plus the Foundry Local /
+ * onnxruntime / onnxruntime-genai shared libraries. Rather than downloading
+ * those from npm + NuGet at runtime, each
  * platform build job produces its own tarball and uploads it to
  * `main.vscode-cdn.net`; the runtime downloads the single content-addressed
  * tarball for its target (see `foundryLocalRuntime.ts`).
@@ -37,6 +37,11 @@ const ROOT_PACKAGE_JSON = path.join(THIS_DIR, '..', '..', 'package.json');
 
 /** The npm package whose native payload we republish to the CDN. */
 export const SDK_PACKAGE_NAME = 'foundry-local-sdk';
+
+/** Resolve the SDK root through its ESM-only exported entry point. */
+export function resolveSdkPackageRoot(): string {
+	return path.resolve(path.dirname(fileURLToPath(import.meta.resolve(SDK_PACKAGE_NAME))), '..');
+}
 
 /**
  * Path segment under the CDN URL and the conceptual id of the runtime. Kept as a
@@ -103,7 +108,7 @@ export const SUPPORTED_TARGETS: ReadonlySet<string> = new Set([
  * reports on-device dictation unsupported there and never downloads.
  *
  * The legacy Alpine x64 encoding (`{platform: 'linux', arch: 'alpine'}`) and any
- * real `alpine` platform return `undefined`: the core libraries are glibc-linked.
+ * real `alpine` platform return `undefined`: the native libraries are glibc-linked.
  */
 export function getRuntimeTargetForBuild(vscodePlatform: string, arch: string): string | undefined {
 	if (vscodePlatform === 'alpine' || arch === 'alpine' || arch === 'musl') {
@@ -127,13 +132,13 @@ export function getRuntimeTargetForBuild(vscodePlatform: string, arch: string): 
  *     config so dictation works when the Universal app runs natively on Apple
  *     Silicon — even though only the `darwin-arm64` job builds/uploads the
  *     payload. So `darwin-x64` stamps but does not produce.
- *   - non-publish product builds: packaging always strips the SDK's native
- *     payload (`getFoundryLocalExcludeFilter` in `gulpfile.vscode.ts`), so a
- *     packaged build with no stamp would have NEITHER a CDN location NOR a
- *     `node_modules` fallback. Stamping regardless of `VSCODE_PUBLISH` gives the
+ *   - non-publish product builds: packaging keeps the SDK's addons but strips
+ *     its shared libraries (`getFoundryLocalExcludeFilter` in
+ *     `gulpfile.vscode.ts`), so a packaged build with no stamp would have no
+ *     loadable runtime. Stamping regardless of `VSCODE_PUBLISH` gives the
  *     packaged app a usable CDN source; the payload for that version is uploaded
- *     (idempotently) by publish runs. Only local dev-from-source (which never
- *     runs `produce.ts`) keeps the `node_modules` payload.
+ *     (idempotently) by publish runs. Local dev-from-source (which never runs
+ *     `produce.ts`) uses the complete `node_modules` payload.
  *
  * Returns `false` for platforms/arches that can never host dictation (armhf,
  * Alpine/musl, web) so their `product.json` stays clean.
