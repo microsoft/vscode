@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
@@ -60,14 +61,24 @@ suite('Chat Accessibility Help', () => {
 			shown: shown.includes('An archive suggestion appears'),
 			hidden: hidden.includes('An archive suggestion appears'),
 			keyboard: shown.includes('Tab or Shift+Tab to reach Archive or Dismiss Archive Suggestion, then press Enter or Space'),
+			disclosure: shown.includes('What Does "Archive" Do? is collapsed by default'),
+			disclosureKeyboard: shown.includes('Enter or Space to expand or collapse it'),
 			focus: shown.includes('Escape while it is focused, returns to the chat input'),
-			recovery: shown.includes('session-list filter to find the session and unarchive it at any time'),
-			worktree: shown.includes('archiving cleans up the worktree and unarchiving recreates it'),
+			focusRemainingTasks: shown.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			retained: shown.includes('The session is not deleted'),
+			agentRecovery: shown.includes('Ask your agent to find it'),
+			recovery: shown.includes('"Archived" section of the sessions list. You can unarchive it anytime'),
+			worktree: shown.includes('worktree created for the session, if any, will be deleted. You can recreate it by unarchiving the session'),
 		}, {
 			shown: true,
 			hidden: false,
 			keyboard: true,
+			disclosure: true,
+			disclosureKeyboard: true,
 			focus: true,
+			focusRemainingTasks: true,
+			retained: true,
+			agentRecovery: true,
 			recovery: true,
 			worktree: true,
 		});
@@ -80,6 +91,20 @@ suite('Chat Accessibility Help', () => {
 			settingOverride: help.includes('regardless of your thinking-style setting'),
 			keyboardExpansion: help.includes('Focus a thinking header and press Enter or Space to expand or collapse its details'),
 		}, { readOnlyPreview: true, settingOverride: true, keyboardExpansion: true });
+	});
+
+	test('uses the configured Mark as Done wording for nudge help', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, true, ChatSessionArchiveActionWording.MarkAsDone);
+		assert.deepStrictEqual({
+			keyboard: help.includes('Tab or Shift+Tab to reach Mark as Done or Dismiss Mark as Done Suggestion'),
+			disclosure: help.includes('What Does "Mark as Done" Do? is collapsed by default'),
+			focusRemainingTasks: help.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			retained: help.includes('The session is not deleted'),
+			agentRecovery: help.includes('Ask your agent to find it'),
+			recovery: help.includes('"Done" section of the sessions list. You can restore it anytime'),
+			worktree: help.includes('worktree created for the session, if any, will be deleted. You can recreate it by restoring the session'),
+			archiveDisclosure: help.includes('What Does "Archive" Do?'),
+		}, { keyboard: true, disclosure: true, focusRemainingTasks: true, retained: true, agentRecovery: true, recovery: true, worktree: true, archiveDisclosure: false });
 	});
 
 	test('only describes inline attachment references when supported', () => {
