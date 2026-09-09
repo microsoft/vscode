@@ -1662,9 +1662,10 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('single-pane reserves an empty header only for docked editor inputs', () => {
+	test('single-pane reserves an empty header only for docked inputs with editor content visible', () => {
 		const getOptions = Reflect.get(SinglePaneMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
-		const options = getOptions.call({});
+		let editorVisible = true;
+		const options = getOptions.call({ agentWorkbenchLayoutService: { isVisible: () => editorVisible } });
 		const store = new DisposableStore();
 		try {
 			const dockedEditor = store.add(new TestDockedEditorInput());
@@ -1672,14 +1673,22 @@ suite('Sessions - Workbench', () => {
 				override get typeId(): string { return 'test.ordinaryEditor'; }
 				override get resource(): undefined { return undefined; }
 			}());
-			assert.deepStrictEqual({
+			const visibleState = {
 				docked: options.reserveHeaderSpace?.(dockedEditor),
 				ordinary: options.reserveHeaderSpace?.(ordinaryEditor),
 				empty: options.reserveHeaderSpace?.(undefined),
+			};
+			editorVisible = false;
+			const hiddenState = options.reserveHeaderSpace?.(dockedEditor);
+			editorVisible = true;
+			assert.deepStrictEqual({
+				visibleState,
+				hiddenState,
+				reopened: options.reserveHeaderSpace?.(dockedEditor),
 			}, {
-				docked: true,
-				ordinary: false,
-				empty: false,
+				visibleState: { docked: true, ordinary: false, empty: false },
+				hiddenState: false,
+				reopened: true,
 			});
 		} finally {
 			store.dispose();
