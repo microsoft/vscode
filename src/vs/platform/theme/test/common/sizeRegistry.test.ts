@@ -7,7 +7,44 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getSizeRegistry, registerSize, size, sizeForAllThemes, sizeValueToCss, asCssVariableName, asCssVariable } from '../../common/sizeRegistry.js';
 // Import baseSizes to ensure base size tokens are registered
-import { bodyFontSize, bodyFontSizeSmall, codiconFontSize, cornerRadiusMedium, cornerRadiusSmall, cornerRadiusLarge, iconSizeLarge, iconSizeMedium, iconSizeSmall, iconSizeXLarge, iconSizeXSmall, spacingSize10, spacingSize30, strokeThickness } from '../../common/sizes/baseSizes.js';
+import {
+	bodyFontSize,
+	bodyFontSizeSmall,
+	codiconFontSize,
+	cornerRadiusLarge,
+	cornerRadiusMedium,
+	cornerRadiusSmall,
+	iconSizeLarge,
+	iconSizeMedium,
+	iconSizeSmall,
+	iconSizeXLarge,
+	iconSizeXSmall,
+	spacingNone,
+	spacingSize10,
+	spacingSize20,
+	spacingSize30,
+	spacingSize40,
+	spacingSize60,
+	spacingSize80,
+	spacingSize100,
+	spacingSize120,
+	spacingSize160,
+	spacingSize200,
+	spacingSize240,
+	spacingSize280,
+	spacingSize320,
+	spacingSize360,
+	spacingSize400,
+	strokeThickness,
+} from '../../common/sizes/baseSizes.js';
+
+function getSizeTokenValues(ids: readonly string[]) {
+	const sizes = getSizeRegistry().getSizes();
+	return ids.map(id => {
+		const contribution = sizes.find(size => size.id === id);
+		return { id, value: contribution?.defaults };
+	});
+}
 
 suite('Size Registry', () => {
 
@@ -68,24 +105,56 @@ suite('Size Registry', () => {
 		assert.ok(sizes.find(s => s.id === strokeThickness), 'strokeThickness should be registered');
 	});
 
-	test('composition size tokens should use the expected values', () => {
-		const sizes = getSizeRegistry().getSizes();
-		const values = [
+	test('spacing size tokens should use the expected scale', () => {
+		const values = getSizeTokenValues([
+			spacingNone,
 			spacingSize10,
+			spacingSize20,
 			spacingSize30,
+			spacingSize40,
+			spacingSize60,
+			spacingSize80,
+			spacingSize100,
+			spacingSize120,
+			spacingSize160,
+			spacingSize200,
+			spacingSize240,
+			spacingSize280,
+			spacingSize320,
+			spacingSize360,
+			spacingSize400,
+		]);
+
+		assert.deepStrictEqual(values, [
+			{ id: 'spacing.sizeNone', value: sizeForAllThemes(0, 'px') },
+			{ id: 'spacing.size10', value: sizeForAllThemes(1, 'px') },
+			{ id: 'spacing.size20', value: sizeForAllThemes(2, 'px') },
+			{ id: 'spacing.size30', value: sizeForAllThemes(3, 'px') },
+			{ id: 'spacing.size40', value: sizeForAllThemes(4, 'px') },
+			{ id: 'spacing.size60', value: sizeForAllThemes(6, 'px') },
+			{ id: 'spacing.size80', value: sizeForAllThemes(8, 'px') },
+			{ id: 'spacing.size100', value: sizeForAllThemes(10, 'px') },
+			{ id: 'spacing.size120', value: sizeForAllThemes(12, 'px') },
+			{ id: 'spacing.size160', value: sizeForAllThemes(16, 'px') },
+			{ id: 'spacing.size200', value: sizeForAllThemes(20, 'px') },
+			{ id: 'spacing.size240', value: sizeForAllThemes(24, 'px') },
+			{ id: 'spacing.size280', value: sizeForAllThemes(28, 'px') },
+			{ id: 'spacing.size320', value: sizeForAllThemes(32, 'px') },
+			{ id: 'spacing.size360', value: sizeForAllThemes(36, 'px') },
+			{ id: 'spacing.size400', value: sizeForAllThemes(40, 'px') },
+		]);
+	});
+
+	test('icon size tokens should use the expected scale', () => {
+		const values = getSizeTokenValues([
 			iconSizeXSmall,
 			iconSizeSmall,
 			iconSizeMedium,
 			iconSizeLarge,
 			iconSizeXLarge,
-		].map(id => {
-			const contribution = sizes.find(size => size.id === id);
-			return { id, value: contribution?.defaults };
-		});
+		]);
 
 		assert.deepStrictEqual(values, [
-			{ id: 'spacing.size10', value: sizeForAllThemes(1, 'px') },
-			{ id: 'spacing.size30', value: sizeForAllThemes(3, 'px') },
 			{ id: 'iconSize.xSmall', value: sizeForAllThemes(12, 'px') },
 			{ id: 'iconSize.small', value: sizeForAllThemes(16, 'px') },
 			{ id: 'iconSize.medium', value: sizeForAllThemes(20, 'px') },
