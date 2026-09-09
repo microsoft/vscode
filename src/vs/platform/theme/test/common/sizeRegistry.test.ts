@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getSizeRegistry, registerSize, size, sizeForAllThemes, sizeValueToCss, asCssVariableName, asCssVariable } from '../../common/sizeRegistry.js';
 // Import baseSizes to ensure base size tokens are registered
-import { bodyFontSize, bodyFontSizeSmall, codiconFontSize, cornerRadiusMedium, cornerRadiusSmall, cornerRadiusLarge, strokeThickness } from '../../common/sizes/baseSizes.js';
+import { bodyFontSize, bodyFontSizeSmall, codiconFontSize, cornerRadiusMedium, cornerRadiusSmall, cornerRadiusLarge, iconSizeLarge, iconSizeMedium, iconSizeSmall, iconSizeXLarge, iconSizeXSmall, spacingSize10, spacingSize30, strokeThickness } from '../../common/sizes/baseSizes.js';
 
 suite('Size Registry', () => {
 
@@ -66,6 +66,32 @@ suite('Size Registry', () => {
 		assert.ok(sizes.find(s => s.id === cornerRadiusSmall), 'cornerRadius.small should be registered');
 		assert.ok(sizes.find(s => s.id === cornerRadiusLarge), 'cornerRadius.large should be registered');
 		assert.ok(sizes.find(s => s.id === strokeThickness), 'strokeThickness should be registered');
+	});
+
+	test('composition size tokens should use the expected values', () => {
+		const sizes = getSizeRegistry().getSizes();
+		const values = [
+			spacingSize10,
+			spacingSize30,
+			iconSizeXSmall,
+			iconSizeSmall,
+			iconSizeMedium,
+			iconSizeLarge,
+			iconSizeXLarge,
+		].map(id => {
+			const contribution = sizes.find(size => size.id === id);
+			return { id, value: contribution?.defaults };
+		});
+
+		assert.deepStrictEqual(values, [
+			{ id: 'spacing.size10', value: sizeForAllThemes(1, 'px') },
+			{ id: 'spacing.size30', value: sizeForAllThemes(3, 'px') },
+			{ id: 'iconSize.xSmall', value: sizeForAllThemes(12, 'px') },
+			{ id: 'iconSize.small', value: sizeForAllThemes(16, 'px') },
+			{ id: 'iconSize.medium', value: sizeForAllThemes(20, 'px') },
+			{ id: 'iconSize.large', value: sizeForAllThemes(24, 'px') },
+			{ id: 'iconSize.xLarge', value: sizeForAllThemes(32, 'px') },
+		]);
 	});
 
 	test('sizeForAllThemes should create same value for all themes', () => {
