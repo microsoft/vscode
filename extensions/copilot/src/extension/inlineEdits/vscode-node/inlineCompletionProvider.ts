@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { CancellationToken, Command, EndOfLine, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
+import { CancellationToken, Command, EndOfLine, env, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { stringEditFromDiff } from '../../../platform/editing/common/edit';
@@ -233,6 +233,10 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		context: InlineCompletionContext | NESInlineCompletionContext,
 		token: CancellationToken
 	): Promise<NesCompletionList | undefined> {
+		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && env.isMeteredConnection) {
+			return undefined;
+		}
+
 		const label = `NES | ${basename(document.uri.fsPath)} (v${document.version})`;
 
 		const capturingToken = new CapturingToken(label, undefined);

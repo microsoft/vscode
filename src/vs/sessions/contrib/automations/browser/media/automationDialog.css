@@ -249,6 +249,25 @@
 	gap: var(--vscode-spacing-size100);
 }
 
+.automation-target-hint {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automation-target-hint-message {
+	flex: 1 1 240px;
+	min-width: 0;
+}
+
+.automation-target-hint-action {
+	flex-shrink: 0;
+}
+
 /*
  * Host for the embedded ChatInputPart. The composer brings its own
  * background, border, and rounded corners (see chat.css

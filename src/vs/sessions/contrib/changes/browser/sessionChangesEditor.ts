@@ -281,7 +281,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
 		this._register(autorun(reader => {
-			this.widget?.setViewMode(this.diffEditorOptionsService.viewMode.read(reader));
+			this.widget?.setDiffLayoutOptions(
+				this.diffEditorOptionsService.viewMode.read(reader),
+				this.diffEditorOptionsService.diffEditorWordWrap.read(reader),
+			);
 		}));
 	}
 

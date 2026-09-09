@@ -15,7 +15,7 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
@@ -67,6 +67,7 @@ export interface IFixtureMessage {
 	readonly responseComplete?: boolean;
 	/** Whether the request is a host-initiated turn rendered with its specialized presentation. */
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: ChatRequestSource;
 	/** Whether the request half of the turn stays out of the transcript. */
 	readonly requestHidden?: boolean;
 	/**
@@ -82,6 +83,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	/** Total horizontal padding reserved when laying out response content and embedded editors. */
+	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
 	/** Whether to populate the response footer with an action. */
@@ -279,6 +282,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			undefined,
 			undefined,
 			message.requestHidden,
+			message.requestSource,
 		);
 		const response = request.response!;
 		if (message.fileChanges) {
@@ -448,6 +452,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			location: ChatAgentLocation.Chat,
 			paddingBottom: options.persistentContentHeight,
 			rendererOptions: {
+				contentHorizontalPadding: options.contentHorizontalPadding,
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 			},
 		},
@@ -482,7 +487,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					? Math.max(0, Math.max(116, inputHeight) - inputHeight)
 					: Math.max(0, height - inputHeight);
 				listContainer.style.height = `${contentHeight}px`;
-				listContainer.dataset['expectedHeight'] = String(contentHeight);
+				listContainer.dataset.expectedHeight = String(contentHeight);
 				listWidget.layout(contentHeight, width);
 			} finally {
 				layouting = false;
@@ -807,7 +812,7 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
 			warningCount++;
 			warnings.textContent = `Warnings: ${warningCount}`;
-			warnings.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+			warnings.dataset.observerContext = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
 			status.textContent = 'Captured ResizeObserver warning';
 		}
 	}));
@@ -908,11 +913,11 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	const status = dom.append(context.container, dom.$('.disabled-pet-resize-observer-status'));
 	status.role = 'status';
 	status.textContent = 'Running disabled pet observer probe';
-	status.dataset['warningCount'] = '0';
+	status.dataset.warningCount = '0';
 	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
 		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
-			status.dataset['warningCount'] = String(Number(status.dataset['warningCount']) + 1);
-			status.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+			status.dataset.warningCount = String(Number(status.dataset.warningCount) + 1);
+			status.dataset.observerContext = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
 		}
 	}));
 

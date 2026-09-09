@@ -106,7 +106,7 @@ export class ListAutomationsTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
-			modelDescription: 'List all configured scheduled automations and their stable IDs, editable fields, targets, and timing metadata. Use this before configureAutomation, runAutomation, or deleteAutomation when acting on an existing automation. This tool never changes automation state.',
+			modelDescription: 'List all currently available scheduled automations and their stable IDs, editable fields, targets, and timing metadata. The result includes catalogueState; only "ready" means the list is complete, so never interpret an empty non-ready result as no configured automations. Use this before configureAutomation, runAutomation, or deleteAutomation when acting on an existing automation. This tool never changes automation state.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -130,11 +130,14 @@ export class ListAutomationsTool implements IToolImpl {
 			return automationToolError('Automations are disabled.');
 		}
 
+		const catalogueState = this.automationService.catalogueState.get();
 		const automations = this.automationService.automations.get().map(toAutomationToolOutput);
-		const result = automationToolResult(JSON.stringify({ automations }, undefined, 2));
-		result.toolResultMessage = automations.length === 1
-			? localize('automation.tool.list.result.singular', "Listed 1 automation")
-			: localize('automation.tool.list.result.plural', "Listed {0} automations", automations.length);
+		const result = automationToolResult(JSON.stringify({ catalogueState, automations }, undefined, 2));
+		result.toolResultMessage = catalogueState !== 'ready'
+			? localize('automation.tool.list.result.incomplete', "Listed {0} available automations; catalogue is incomplete", automations.length)
+			: automations.length === 1
+				? localize('automation.tool.list.result.singular', "Listed 1 automation")
+				: localize('automation.tool.list.result.plural', "Listed {0} automations", automations.length);
 		return result;
 	}
 }

@@ -10,7 +10,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -28,7 +28,7 @@ import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
-import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { chatPersistentContentVisibleClass, ChatWidget, SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -53,6 +53,18 @@ import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
+import { SessionArchiveNudge } from './sessionArchiveNudge.js';
+import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
+
+const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
+
+/**
+ * Returns the total horizontal space the renderer must reserve for Sessions chat items.
+ * The background increment must match the response's `--vscode-spacing-size120` padding on both sides.
+ */
+export function getSessionChatItemHorizontalPadding(hasBackground: boolean): number {
+	return SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING + (hasBackground ? SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING * 2 : 0);
+}
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
@@ -187,13 +199,15 @@ export class ChatView extends AbstractChatView {
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
 	/** Whether this view occupies the first group in the session's chat grid. */
-	private _isPrimary = false;
+	private readonly _isPrimaryObs = observableValue(this, false);
 	/** Observable mirror of {@link _isActive} so the voice overlay can react. */
 	private readonly _isActiveObs = observableValue<boolean>(this, true);
 
 	/** Whether this view is currently visible. `undefined` so the first push always reaches the widget. */
 	private _isVisible: boolean | undefined;
+	private readonly _isVisibleObs = observableValue(this, false);
 	private _lastLayout: { width: number; height: number } | undefined;
+	private _chatItemHorizontalPadding: number;
 
 	/**
 	 * Per-view mirror of `agentsVoiceInitiatedHere`, scoped above the chat widget.
@@ -219,9 +233,11 @@ export class ChatView extends AbstractChatView {
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
+		this._chatItemHorizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
 
 		this.element.classList.add('chat-view-chat');
 		this._widgetContainer = $('.chat-view-widget');
@@ -246,6 +262,7 @@ export class ChatView extends AbstractChatView {
 				rendererOptions: {
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
+					contentHorizontalPadding: this._chatItemHorizontalPadding,
 				},
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
@@ -259,6 +276,7 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatItemHorizontalPadding()));
 		const transcript = this._widget.transcriptDomNode;
 		this._register(addDisposableListener(transcript, EventType.CONTEXT_MENU, event => {
 			if (isHighContrast(this.themeService.getColorTheme().type)) {
@@ -301,6 +319,26 @@ export class ChatView extends AbstractChatView {
 		// Mount the session banners directly above the chat input.
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
 		this._banners.setActive(this._isActive);
+
+		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derived(this, reader => {
+			if (!this._isVisibleObs.read(reader) || !this._isPrimaryObs.read(reader) || this.isLoadingTranscript.read(reader)) {
+				return undefined;
+			}
+			const session = this._currentSessionObs.read(reader);
+			const resource = this._currentChatResourceObs.read(reader);
+			if (!isEqual(chatModel.read(reader)?.sessionResource, resource)) {
+				return undefined;
+			}
+			const chat = session?.chats.read(reader).find(chat => isEqual(chat.resource, resource));
+			return chat?.interactivity.read(reader) === ChatInteractivity.Full ? session : undefined;
+		})));
+		this._register(autorun(reader => {
+			const options = archiveNudge.options.read(reader);
+			this._widget.inputPart.setSessionArchiveNudge(options);
+			if (options) {
+				archiveNudge.markShown();
+			}
+		}));
 
 		// Floating status pills above the input.
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput()));
@@ -421,7 +459,7 @@ export class ChatView extends AbstractChatView {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const previousSession = this._currentSessionObs.get();
 		this._currentSessionObs.set(session, undefined);
-		this._externalSessionBanner.setSession(this._isPrimary ? session : undefined);
+		this._externalSessionBanner.setSession(this._isPrimaryObs.get() ? session : undefined);
 		const resource = chat.resource;
 		const previousChatResource = this._currentChatResource;
 		const chatChanged = !isEqual(previousChatResource, resource);
@@ -621,6 +659,16 @@ export class ChatView extends AbstractChatView {
 		this._widget.layout(widgetHeight, width);
 	}
 
+	private _updateChatItemHorizontalPadding(): void {
+		const horizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
+		if (horizontalPadding === this._chatItemHorizontalPadding) {
+			return;
+		}
+
+		this._chatItemHorizontalPadding = horizontalPadding;
+		this._widget.setContentHorizontalPadding(horizontalPadding);
+	}
+
 	/**
 	 * Mounts the status pills and session banners above the chat input.
 	 */
@@ -677,10 +725,10 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override setPrimary(primary: boolean): void {
-		if (this._isPrimary === primary) {
+		if (this._isPrimaryObs.get() === primary) {
 			return;
 		}
-		this._isPrimary = primary;
+		this._isPrimaryObs.set(primary, undefined);
 		this._externalSessionBanner.setSession(primary ? this._currentSessionObs.get() : undefined);
 	}
 
@@ -700,6 +748,7 @@ export class ChatView extends AbstractChatView {
 		}
 		this._isVisible = visible;
 		this._widget.setVisible(visible);
+		this._isVisibleObs.set(visible, undefined);
 	}
 }
 

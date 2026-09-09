@@ -60,8 +60,9 @@ import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdenti
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
+import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { dedupeLinks, getPresentedArtifacts, linkKey, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
+import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -383,22 +384,12 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 	return refs.length > 0 ? refs : undefined;
 }
 
-/**
- * The GitHub info for a session, plus the links its pills actually surfaced.
- * Anything they could not surface stays in the artifacts or references pill.
- */
-interface IGitHubPromotion {
-	readonly info: IGitHubInfo | undefined;
-	readonly surfacedLinks: ReadonlySet<string>;
-}
-
-function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
+function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
 	const { pullRequestUrls, pullRequestTitles, issueUrls } = partitionSessionArtifacts(meta);
 
-	// Only pull requests the session produced are promoted, so the ones it
-	// recorded lead the discovered ones and the first is the main pull request.
+	// Recorded pull requests lead discovered ones, so the first is the newest.
 	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
 	const repository = state?.owner && state.repo
 		? { owner: state.owner, repo: state.repo }
@@ -407,7 +398,7 @@ function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 			: allPullRequests?.[0];
 
 	if (!repository) {
-		return { info: undefined, surfacedLinks: new Set() };
+		return undefined;
 	}
 
 	// A session carries one repository, so a link from another repository would
@@ -419,32 +410,17 @@ function toGitHubPromotion(meta: SessionMeta | undefined): IGitHubPromotion {
 	const pullRequest = pullRequests?.at(0);
 	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls))?.filter(belongsToRepository);
 
-	// Everything the GitHub pills actually render, whichever source produced it.
-	// An entry standing for one of these links is left out of the artifacts and
-	// references pills, so the user is offered it exactly once.
-	const surfacedLinks = new Set([
-		...(pullRequests ?? []).map(ref => linkKey(ref.uri.toString())),
-		...(issues ?? []).map(ref => linkKey(ref.uri.toString())),
-	]);
-
 	return {
-		info: {
-			owner: repository.owner,
-			repo: repository.repo,
-			pullRequests: pullRequests?.length ? pullRequests : undefined,
-			pullRequest: pullRequest ? {
-				number: pullRequest.number,
-				uri: pullRequest.uri,
-				state: pullRequest.state,
-			} : undefined,
-			issues: issues?.length ? issues : undefined,
-		},
-		surfacedLinks,
+		owner: repository.owner,
+		repo: repository.repo,
+		pullRequests: pullRequests?.length ? pullRequests : undefined,
+		pullRequest: pullRequest ? {
+			number: pullRequest.number,
+			uri: pullRequest.uri,
+			state: pullRequest.state,
+		} : undefined,
+		issues: issues?.length ? issues : undefined,
 	};
-}
-
-function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
-	return toGitHubPromotion(meta).info;
 }
 
 // ============================================================================
@@ -994,6 +970,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		resourceScheme: string,
 		logicalSessionType: string,
 		private readonly _options: IAgentHostAdapterOptions,
+		chatCatalogLoading: IObservable<boolean>,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
@@ -1046,7 +1023,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
-			return getPresentedArtifacts(partitionSessionArtifacts(meta), toGitHubPromotion(meta).surfacedLinks);
+			return partitionSessionArtifacts(meta).entries.map(entry => entry.artifact);
 		});
 
 		const baseGitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({
@@ -1102,7 +1079,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.worktreePending = derived(this, reader =>
 			this._worktreeIsolation.read(reader)
 			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
-		this.loading = _options.loading;
+		this.loading = derived(this, reader => {
+			const visible = _sessionsService.visibleSessions.read(reader).some(session => isEqual(session?.resource, this.resource));
+			return _options.loading.read(reader) || (visible && chatCatalogLoading.read(reader));
+		});
 		this.description = derivedOpts<IMarkdownString | undefined>({ owner: this, equalsFn: markdownStringEquals }, reader => {
 			const status = this.status.read(reader);
 			if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
@@ -2945,6 +2925,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * state can be evicted on the agent host. Keyed by session ID.
 	 */
 	protected readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _chatCatalogLoading = new Map<string, ISettableObservable<boolean>>();
 	private readonly _agentMergeSessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _agentMergeSessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _agentMergeSessionStateObservables = new Map<string, IObservable<IAgentMergeClientState | undefined>>();
@@ -3145,8 +3126,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
-		this._metaByRawId.set(AgentSession.id(meta.session), meta);
-		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options);
+		const rawId = AgentSession.id(meta.session);
+		this._metaByRawId.set(rawId, meta);
+		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options, this._getChatCatalogLoading(rawId));
+	}
+
+	private _getChatCatalogLoading(rawId: string): ISettableObservable<boolean> {
+		let loading = this._chatCatalogLoading.get(rawId);
+		if (!loading) {
+			loading = observableValue(`chatCatalogLoading-${rawId}`, false);
+			this._chatCatalogLoading.set(rawId, loading);
+		}
+		return loading;
 	}
 
 	protected updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
@@ -5517,10 +5508,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
+		const chatCatalogLoading = this._getChatCatalogLoading(rawId);
+		if (!this._lastSessionStates.has(sessionId)) {
+			chatCatalogLoading.set(true, undefined);
+		}
 		const sessionUri = cached.backendUri;
 		const ref = connection.getSubscription(StateComponents.Session, sessionUri, 'BaseAgentHostSessionsProvider.summary');
 		// Do not cache failures, so a later pin can retry sessions addressed before host creation.
 		if (ref.object.value instanceof Error) {
+			chatCatalogLoading.set(false, undefined);
 			ref.dispose();
 			return;
 		}
@@ -5533,6 +5529,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const onDidError = ref.object.onDidError;
 		if (onDidError) {
 			store.add(onDidError(() => {
+				chatCatalogLoading.set(false, undefined);
 				if (this._sessionStateSubscriptions.get(sessionId) === store) {
 					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
 				}
@@ -5652,6 +5649,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetadataFromState(sessionId, state, previous);
 		this._applyChatCatalogFromState(sessionId, state);
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (rawId) {
+			this._chatCatalogLoading.get(rawId)?.set(false, undefined);
+		}
 
 		if (!previous) {
 			// This is the first time we've seen this session and the initial
@@ -6273,6 +6274,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		this._metaByRawId.delete(rawId);
+		this._chatCatalogLoading.delete(rawId);
 		const stateOwner = cached ?? expected;
 		if (!stateOwner) {
 			return undefined;

@@ -113,11 +113,11 @@ import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 const $ = dom.$;
 
 /**
- * Total horizontal padding of a chat item in the agents window (`.interactive-item-container`,
- * `padding: 0 32px` in sessions `style.css`). Reserved when laying out embedded editors so code
+ * Baseline total horizontal padding of a chat item in the Agents window (`.interactive-item-container`,
+ * `padding: 0 32px` in Sessions `chatView.css`). Reserved when laying out embedded editors so code
  * blocks match the rendered content width. See {@link IChatListItemRendererOptions.contentHorizontalPadding}.
  */
-const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
+export const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
 
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;
@@ -2038,7 +2038,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * editing on a read-only chat.
 	 */
 	private _applyRendererEditable(editable: boolean): void {
-		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly });
+		this.listWidget?.updateRendererOptions({ editable: editable && !this._readOnly, readOnly: this._readOnly });
 	}
 
 	/**
@@ -2052,6 +2052,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Re-applied in `createInput` so a rebuilt input part keeps the correct visibility.
 		this._applyInputVisibility();
 		if (changed && this.bodyDimension) {
+			this._layoutListForInputHeight();
+		}
+	}
+
+	/**
+	 * Updates the horizontal space reserved for chat item content and re-lays out embedded editors.
+	 */
+	setContentHorizontalPadding(contentHorizontalPadding: number): void {
+		this.listWidget.updateRendererOptions({ contentHorizontalPadding });
+		if (this.bodyDimension) {
 			this._layoutListForInputHeight();
 		}
 	}
@@ -2101,7 +2111,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatListWidget,
 			listContainer,
 			{
-				rendererOptions: options,
+				rendererOptions: { ...options, readOnly: this._readOnly },
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -3679,6 +3689,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// resend/confirmation flows preserve custom per-model settings.
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'> {
 		const modelId = this.input.currentLanguageModel;
+		const model = this.viewModel?.model;
+		const intendedModel = model?.inputModel.intendedModel;
+		if (this._lockedAgent?.agentHostProviderId && model?.getRequests().length && intendedModel && intendedModel.modelId !== modelId) {
+			return { userSelectedModelId: undefined, userSelectedModelConfiguration: undefined };
+		}
 		return {
 			userSelectedModelId: modelId,
 			userSelectedModelConfiguration: modelId ? this.input.getModelConfiguration(modelId) : undefined,
