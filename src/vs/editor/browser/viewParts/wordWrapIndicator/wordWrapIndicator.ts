@@ -51,13 +51,11 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 	// --- begin event handlers
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (!this._isEnabled) {
-			return false;
-		}
+		const wasEnabled = this._isEnabled;
 		const newOptions = new WordWrapIndicatorOptions(this._context.configuration);
 		const optionsChanged = !this._options.equals(newOptions);
 		this._options = newOptions;
-		return optionsChanged;
+		return (wasEnabled || this._isEnabled) && optionsChanged;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return this._isEnabled;

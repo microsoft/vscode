@@ -163,13 +163,19 @@ function invalidationsAfterRender(text: string[], options: IEditorOptions): Reco
  * the real event dispatcher and leaves its answer in `shouldRender`.
  */
 function configurationChangeInvalidates(options: IEditorOptions, newOptions: IEditorOptions): boolean {
-	let result: boolean | undefined;
+	return configurationChangesInvalidate(options, [newOptions])[0];
+}
+
+function configurationChangesInvalidate(options: IEditorOptions, newOptions: readonly IEditorOptions[]): boolean[] {
+	const result: boolean[] = [];
 	withOverlay(['aaaaa bbbbb'], options, ({ overlay, configuration }) => {
-		overlay.onDidRender();
-		configuration.updateOptions(newOptions);
-		result = overlay.shouldRender();
+		for (const update of newOptions) {
+			overlay.onDidRender();
+			configuration.updateOptions(update);
+			result.push(overlay.shouldRender());
+		}
 	});
-	return result!;
+	return result;
 }
 
 suite('WordWrapIndicatorOverlay', () => {
@@ -350,15 +356,19 @@ suite('WordWrapIndicatorOverlay', () => {
 				indicatorTurnedOff: configurationChangeInvalidates(options, { wordWrapIndicator: false }),
 				wrappingTurnedOn: configurationChangeInvalidates({ wordWrap: 'off', wordWrapIndicator: true }, WRAPPING_OPTIONS),
 				wrappingTurnedOff: configurationChangeInvalidates(options, { wordWrap: 'off' }),
+				indicatorTurnedOffAndOn: configurationChangesInvalidate(options, [{ wordWrapIndicator: false }, { wordWrapIndicator: true }]),
+				wrappingTurnedOffAndOn: configurationChangesInvalidate(options, [{ wordWrap: 'off' }, WRAPPING_OPTIONS]),
 				// A layout change can move the right edge of the viewport.
 				layoutChanged: configurationChangeInvalidates(options, { lineNumbers: 'off' }),
 				unrelatedChange: configurationChangeInvalidates(options, { cursorBlinking: 'solid' })
 			},
 			{
-				indicatorTurnedOn: false,
+				indicatorTurnedOn: true,
 				indicatorTurnedOff: true,
-				wrappingTurnedOn: false,
+				wrappingTurnedOn: true,
 				wrappingTurnedOff: true,
+				indicatorTurnedOffAndOn: [true, true],
+				wrappingTurnedOffAndOn: [true, true],
 				layoutChanged: true,
 				unrelatedChange: false
 			}
