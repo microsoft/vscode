@@ -73,17 +73,18 @@ The narrow exception is shared focus/active-outline suppression, where `outline:
 
 Use **one relationship, one owner** when composing controls:
 
-1. A leaf owns its intrinsic content. An icon source does not add spacing for an unknown neighbor.
-2. A rendered icon owns its semantic size, fitting, and optical correction.
-3. A control owns relationships among its internal parts, including icon-to-label spacing and reserved space for conditional actions.
-4. A parent owns relationships between controls.
+1. Put the relationship in the lowest component contract that understands all participating elements.
+2. Treat ownership as responsibility for the relationship, not the DOM node that receives the CSS property.
+3. Keep primitive content neutral about unknown neighbors unless its API explicitly defines a complete composition.
+4. As a default, a rendered icon owns semantic size, fitting, and optical correction; a control owns relationships among its internal parts; and a parent owns relationships between controls. Let the actual composition override this default when another layer has the necessary context.
 
 Choose the CSS mechanism from the relationship:
 
 - Use `gap` when one container lays out a repeatable sequence and conditional children should not require selector changes.
 - Use padding for the inset between a control boundary and its contents.
 - Use a pair-specific margin when only one neighboring pair has a relationship and moving it to the parent would obscure that exception.
-- Do not split one relationship across child margin, pseudo-element padding, and parent padding. Trace the visible space to one owner before changing its value.
+- A control-owned selector may apply margin or padding to a child; that remains control-owned when the declaration is part of the control's composition contract.
+- Do not let multiple layers contribute additive spacing to the same relationship. A child margin or pseudo-element padding is not a defect by itself; repeated consumer resets, negative offsets, or an additional parent gap are signals to trace the effective spacing and reconsider its owner.
 
 For multi-part controls, keep fixed icon/action areas from shrinking and let the text area own truncation with `min-width: 0` plus the complete ellipsis pattern. Optical transforms belong inside the icon area and must not move the label or change the control footprint.
 
@@ -267,15 +268,13 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 
 ## 10. Design-System Size Tokens (spacing, radius, font, codicon, stroke)
 
-VS Code ships a design-system **size** ramp, registered in `src/vs/platform/theme/common/sizes/baseSizes.ts` and emitted as `--vscode-*` CSS variables. When writing or editing CSS, prefer the token var over a raw px value wherever a token exists. The full tables + rationale live in the auto-injected `.github/instructions/design-tokens.instructions.md` (canonical source — keep this section in sync with it). This section captures the **decision logic** for deeper styling tasks.
+VS Code ships design-system size tokens from `src/vs/platform/theme/common/sizes/baseSizes.ts`, which is the source of truth for current IDs, values, and descriptions. Read the relevant family there instead of copying its current values into this skill. The auto-injected `.github/instructions/design-tokens.instructions.md` remains a transitional authoring reference; this section captures layout-specific decision logic.
 
 > Every `--vscode-*` size var you reference must already exist in `build/lib/stylelint/vscode-known-variables.json` (`"sizes"` array, alphabetically sorted) or stylelint/hygiene fails. Adding a *new* token means adding it both in `baseSizes.ts` and that JSON file.
 
 ### Spacing — `padding`, `margin`, `gap`
 
-Scale (px): `0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40` → `--vscode-spacing-sizeNone`, `--vscode-spacing-size10` … `--vscode-spacing-size400` (token number = px × 10, so `size200` = 20px).
-
-**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale**. What breaks rhythm is an **off-scale** value (5, 7, 14, 26px…). Snap off-scale values to the nearest scale value, **ties round up** (`5px → 6px`, `7px → 8px`, `26px → 28px`). Each length of a shorthand is checked independently (`0 5px → 0 6px`). Leave `auto`, `%`, `em`/`rem`, `var()`/`calc()` untouched.
+Use the registered spacing family for padding, margin, and gap. What matters is selecting an intentional step rather than introducing an arbitrary relationship. Use the design-token validator for current on-ramp values and nearest-step guidance. Leave structural percentages and relative units, and deliberate `var()`/`calc()` expressions, to case-by-case review.
 
 ### Corner radius — `border-radius`
 
@@ -320,28 +319,13 @@ The legacy Agents-specific `--vscode-agents-fontSize-*` and `--vscode-agents-fon
 
 ### Icon size
 
-Use the representation-neutral icon-size ramp for rendered geometry:
-
-| px | Variable | Use |
-|----|----------|-----|
-| 12 | `--vscode-iconSize-xSmall` | subordinate inline status and dense secondary chrome |
-| 16 | `--vscode-iconSize-small` | ordinary controls, tabs, and default Codicons |
-| 20 | `--vscode-iconSize-medium` | emphasized controls and selectors |
-| 24 | `--vscode-iconSize-large` | prominent navigation |
-| 32 | `--vscode-iconSize-xLarge` | welcome-state and orientation cues |
-
-Image and SVG sources should contain-fit inside the selected area without distorting their aspect ratio. Optical transforms stay inside that area and do not affect surrounding layout.
+Use a representation-neutral icon-size role from the registry for rendered geometry. Choose it from the density and prominence of the context rather than the source format. Image and SVG sources should contain-fit inside the selected area without distorting their aspect ratio. Optical transforms stay inside that area and do not affect surrounding layout.
 
 ### Codicon compatibility — icon `font-size`
 
-Codicons use only the xSmall and small roles — never `14px` or any in-between value.
+Use the dedicated Codicon font-size tokens from the registry rather than an arbitrary generic icon-box size.
 
-| px | Variable | Use |
-|----|----------|-----|
-| 16 | `--vscode-codiconFontSize` (base) | default icon size |
-| 12 | `--vscode-codiconFontSize-compact` | dense/inline chrome |
-
-**Compact-glyph convention:** when sizing an icon at the compact 12px size, also swap the registered glyph to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`, `Codicon.add` → `Codicon.addCompact`). CSS `font-size` alone only scales the icon — it does **not** change to the visually-optimized compact glyph; that requires changing the registered icon (Action2 `icon:` / `renderIcon`). **Only swap the glyph when no CSS selector targets the original glyph class** (e.g. `.codicon-close`); selectors keyed on the glyph class (`.codicon-add`, `.codicon-chevron-down`) break when the class becomes `-compact`, so update those selectors too (or size via a glyph-independent wrapper class like `.monaco-button`). Some icons (settings/sliders, agent, vm, info, lock, plus) have **no** compact variant — keep the regular glyph at 12px.
+**Compact-glyph convention:** when selecting the compact Codicon role, also swap the registered glyph to its `*Compact` variant when one exists. CSS `font-size` alone only scales the icon; it does not select the optically tuned glyph. Only swap the glyph when no CSS selector targets the original glyph class, otherwise update that selector too or size through a glyph-independent wrapper.
 
 ### Stroke — border width
 
