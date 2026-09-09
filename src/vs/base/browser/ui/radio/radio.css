@@ -71,6 +71,7 @@
 /* optional segmented appearance - opt in via IRadioOptions.className */
 
 .monaco-custom-radio.segmented {
+	position: relative;
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
 	padding: var(--vscode-spacing-size20);
@@ -81,6 +82,8 @@
 /* Every segment carries the border box so the selected one can colour it without
  * shifting the reel by a pixel as the selection moves. */
 .monaco-custom-radio.segmented > .monaco-button {
+	position: relative;
+	z-index: 1;
 	flex: 1 1 0;
 	justify-content: center;
 	height: var(--vscode-spacing-size240);
@@ -114,12 +117,60 @@
 
 /* The fill only shifts the hue, so the border is what identifies the selection. */
 .monaco-custom-radio.segmented > .monaco-button.active,
-.monaco-custom-radio.segmented > .monaco-button.active:hover {
+.monaco-custom-radio.segmented > .monaco-button.active:hover,
+.monaco-custom-radio.segmented > .monaco-radio-selection {
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-menu-background));
 	border-color: var(--vscode-radio-activeBorder, var(--vscode-contrastActiveBorder));
 	box-shadow: var(--vscode-shadow-sm);
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.monaco-custom-radio.segmented > .monaco-radio-selection {
+	display: none;
+	position: absolute;
+	top: 0;
+	left: 0;
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-radio-activeBorder, var(--vscode-contrastActiveBorder));
+	border-radius: var(--vscode-cornerRadius-circle);
+	pointer-events: none;
+	transition: none;
+}
+
+.monaco-custom-radio.segmented.selection-indicator-ready > .monaco-radio-selection {
+	display: block;
+}
+
+.monaco-custom-radio.segmented.selection-indicator-ready > .monaco-button.active,
+.monaco-custom-radio.segmented.selection-indicator-ready > .monaco-button.active:hover {
+	background: transparent;
+	border-color: transparent;
+	box-shadow: none;
+}
+
+.hc-black .monaco-custom-radio.segmented > .monaco-radio-selection,
+.hc-light .monaco-custom-radio.segmented > .monaco-radio-selection {
+	box-shadow: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-custom-radio.segmented > .monaco-radio-selection {
+		transition: scale 100ms ease-out;
+	}
+
+	.monaco-custom-radio.segmented.animate-selection > .monaco-radio-selection {
+		transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1), width 160ms cubic-bezier(0.2, 0.8, 0.2, 1), scale 100ms ease-out;
+	}
+
+	.monaco-custom-radio.segmented:active > .monaco-radio-selection {
+		scale: 0.96;
+	}
+}
+
+.monaco-reduce-motion .monaco-custom-radio.segmented > .monaco-radio-selection {
+	transition: none;
+	scale: 1;
 }
 
 .monaco-custom-radio.segmented > .monaco-button:focus-visible {

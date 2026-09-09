@@ -11021,6 +11021,37 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('collectDebugLogs includes persisted events for a closed session', async () => {
+			const { agent, fileService } = createTestAgentContext(disposables, { userHome: URI.file('/home/test') });
+			try {
+				const provider = disposables.add(new InMemoryFileSystemProvider());
+				disposables.add(fileService.registerProvider(Schemas.file, provider));
+				const session = AgentSession.uri('copilotcli', 'closed-session');
+				chatBackings(agent).set(buildDefaultChatUri(session).toString(), { sdkSessionId: 'closed-sdk-session' });
+				const stateFile = URI.file('/home/test/.copilot/session-state/closed-sdk-session/events.jsonl');
+				await fileService.writeFile(stateFile, VSBuffer.fromString('persisted event'));
+				const outputDirectory = URI.file('/debug-output');
+				await fileService.createFolder(outputDirectory);
+
+				const liveSession = makeFakeChatSession(AgentSession.uri('copilotcli', 'live-session'), 'live-sdk-session');
+				setDefaultSessionStub(agent, 'live-session', liveSession.fake);
+
+				const included = await agent.collectDebugLogs(session, outputDirectory);
+
+				assert.deepStrictEqual({
+					included,
+					events: (await fileService.readFile(URI.joinPath(outputDirectory, 'events.jsonl'))).value.toString(),
+					liveSession: liveSession.rec.debugLogCalls,
+				}, {
+					included: true,
+					events: 'persisted event',
+					liveSession: [{ outputDirectory: 'file:///debug-output', includeSessionLogs: false }],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('createChat materializes an addressed chat, records its backing, and returns providerData (no copilot.chats write)', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
