@@ -3460,11 +3460,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.map(node => node.element)
 			.find(element => !!element && isSessionChatItem(element) && this.uriIdentityService.extUri.isEqual(element.chat.resource, activeChat.resource));
 		if (!chatItem || !isSessionChatItem(chatItem)) {
+			this.tree.setFocus([session]);
 			this.tree.setSelection([session]);
 			return;
 		}
 		this.tree.expand(session);
 		this.tree.reveal(chatItem, 0.5);
+		this.tree.setFocus([chatItem]);
 		this.tree.setSelection([chatItem]);
 	}
 

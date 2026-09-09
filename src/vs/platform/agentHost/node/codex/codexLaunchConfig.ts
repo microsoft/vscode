@@ -21,7 +21,7 @@ export interface ICodexLaunchConfig {
 export const CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY = 'features.default_mode_request_user_input';
 
 export function buildCodexResumeParams(
-	modelProvider: string,
+	model: { readonly modelProvider: string; readonly modelId: string },
 	threadId: string,
 	mcpServers: Readonly<Record<string, unknown>>,
 	workingDirectories?: readonly string[],
@@ -37,7 +37,8 @@ export function buildCodexResumeParams(
 	};
 	return {
 		threadId,
-		modelProvider,
+		model: model.modelId,
+		modelProvider: model.modelProvider,
 		...(workingDirectories?.length ? {
 			cwd: workingDirectories[0],
 			runtimeWorkspaceRoots: [...workingDirectories],

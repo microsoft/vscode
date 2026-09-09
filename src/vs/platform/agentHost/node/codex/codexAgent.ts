@@ -1673,19 +1673,34 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._defaultModel();
 	}
 
-	private async _resolveModel(session: ICodexSession): Promise<ModelSelection> {
-		// Ensure the catalog is populated before validating the selection so a
+	private async _resolveRestoredModel(model: ModelSelection | undefined): Promise<ModelSelection | undefined> {
+		// Ensure the catalog is populated before resolving the selection so a
 		// model picked before models finished loading isn't dropped. Authentication
 		// can queue a newer refresh while the current one is finishing, so follow
 		// the latest queued refresh until the sequencer is idle.
-		if (this._models.get().length === 0) {
-			let refresh: Promise<void> | undefined = this.refreshModels();
-			while (refresh) {
-				await refresh;
-				refresh = this._modelsRefreshPromise;
-			}
+		let refresh = this._modelsRefreshPromise ?? (this._models.get().length === 0 ? this.refreshModels() : undefined);
+		while (refresh) {
+			await refresh;
+			refresh = this._modelsRefreshPromise;
 		}
-		const selected = this._supportedModelOrUndefined(session.model);
+		if (!model) {
+			return this._defaultModel();
+		}
+		const models = this._models.get();
+		if (models.some(candidate => candidate.id === model.id)) {
+			return model;
+		}
+		const modelProvider = parseCodexModelSelection(model).modelProvider;
+		const fallback = models.find(candidate => parseCodexModelSelection(candidate).modelProvider === modelProvider);
+		if (fallback) {
+			this._logService.info(`[Codex] Restored model '${model.id}' is unavailable; using '${fallback.id}' from the same provider`);
+			return { id: fallback.id };
+		}
+		return model;
+	}
+
+	private async _resolveModel(session: ICodexSession): Promise<ModelSelection> {
+		const selected = await this._resolveRestoredModel(session.model);
 		if (selected) {
 			session.model = selected;
 			return selected;
@@ -4838,11 +4853,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			// folder on the strength of a (possibly stale) ownership flag alone.
 			const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId) ?? overlay.managedWorkingDirectory;
 			const workingDirectory = overlay.cwd ?? managedWorkingDirectory;
-			if (this._models.get().length === 0) {
-				await this.refreshModels();
-			}
+			const model = await this._resolveRestoredModel(overlay.modelId ? { id: overlay.modelId } : decoded.model);
 			this._throwIfShuttingDown();
-			const model = this._supportedModelOrUndefined(overlay.modelId ? { id: overlay.modelId } : decoded.model);
 			// Codex's session id == thread id convention: the backing thread already
 			// exists on the app-server, so the entry resumes on first send.
 			session = this._createResumedSessionEntry(sessionId, threadId, workingDirectory, model, target, undefined, undefined, overlay.agent);
@@ -5726,7 +5738,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		try {
 			if (session.needsResume) {
-				await this._resumeSession(session, conn);
+				try {
+					await this._resumeSession(session, conn);
+				} catch (error) {
+					if (!(error instanceof JsonRpcError) || !/no rollout found for thread id/i.test(error.message)) {
+						throw error;
+					}
+					await this._replaceMissingRolloutBacking(session, configResource);
+				}
 			}
 			// `_resumeSession` may have retried on a replacement process. Carry the
 			// exact connection that now owns the loaded thread into turn preparation.
@@ -6304,17 +6323,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!sessionUri) {
 			return [];
 		}
-		const session = this._sessions.get(AgentSession.id(sessionUri));
-		if (session?.needsResume) {
-			try {
-				await this._resumeSession(session);
-			} catch (error) {
-				if (!(error instanceof JsonRpcError) || !/no rollout found for thread id/i.test(error.message)) {
-					throw error;
-				}
-				await this._replaceMissingRolloutBacking(session, operationContext.configurationResource);
-			}
-		}
 		const read = await this._readSession(sessionUri);
 		return read
 			? replayThreadToTurns(read.thread, toRolloutTurnModels(read.rolloutMetadata), read.rolloutMetadata?.threadCoordinationByTurnId)
@@ -6406,7 +6414,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					'thread/resume',
 					{
 						...buildCodexResumeParams(
-							resolvedModel.modelProvider,
+							resolvedModel,
 							threadId,
 							mcpServers,
 							runtimeWorkspaceRoots,
@@ -6585,11 +6593,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			await this._threadToMetadata(read.thread, chat, read.rolloutMetadata),
 			read.persistedWorkingDirectories,
 		);
+		const savedModel = metadata.model ?? (read.persistedModelId ? { id: read.persistedModelId } : undefined);
+		const restoredModel = savedModel ? await this._resolveRestoredModel(savedModel) : undefined;
 		if (!this._sessions.has(sessionId)) {
 			const workingDirectory = read.thread.cwd ? URI.file(read.thread.cwd) : undefined;
 			const threadId = read.thread.id;
 			const overlay = await this._metadataStore.read(backingUri);
-			const restoredModel = metadata.model ?? (read.persistedModelId ? { id: read.persistedModelId } : undefined);
 			const materializedModelProvider = read.rolloutMetadata?.selectedModel?.modelProvider
 				?? read.rolloutMetadata?.originModelProvider
 				?? read.thread.modelProvider;
@@ -6625,7 +6634,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// on the session the host addressed, which is the only URI it knows.
 			this._advertiseServerTools(restored, session);
 		}
-		return metadata;
+		return restoredModel ? { ...metadata, model: restoredModel } : metadata;
 	}
 
 	private _readSession(session: URI, includeTurns = true): Promise<ICodexSessionRead | undefined> {
@@ -6667,9 +6676,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			persistedWorkingDirectories = overlay.workingDirectories;
 			persistedModelId = overlay.modelId;
 		}
-		const conn = existing?.threadId
-			? (await this._ensureThreadConnection(existing)).connection
-			: await this._ensureConnection();
+		const conn = await this._ensureConnection();
 		const readThread = async (candidateThreadId: string): Promise<ICodexSessionRead> => {
 			const response = await conn.client.request<'thread/read', ThreadReadResponse>('thread/read', {
 				threadId: candidateThreadId,

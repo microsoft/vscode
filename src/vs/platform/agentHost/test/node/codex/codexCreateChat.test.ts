@@ -56,6 +56,9 @@ interface ITestWireRequest {
 	readonly params: {
 		readonly cwd?: string;
 		readonly threadId?: string;
+		readonly model?: string;
+		readonly modelProvider?: string;
+		readonly config?: { readonly 'features.default_mode_request_user_input'?: boolean };
 		readonly includeTurns?: boolean;
 		readonly numTurns?: number;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
@@ -1138,17 +1141,17 @@ suite('CodexAgent createChat', () => {
 			agent['_handleConnectionLost'](lostConnection as never, agent['_connectionGeneration']);
 			connectPeer(agent, secondPeer);
 
-			const resume = await readNextRequest(secondPeer.outbound);
-			assert.strictEqual(resume.method, 'thread/resume');
-			secondPeer.push({ id: resume.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
-			const resumeInventory = await readNextRequest(secondPeer.outbound);
-			secondPeer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
 			const retriedRead = await readNextRequest(secondPeer.outbound);
 			assert.strictEqual(retriedRead.method, 'thread/read');
 			secondPeer.push({ id: retriedRead.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
 			const retriedHistoryRead = await readNextRequest(secondPeer.outbound);
 			assert.strictEqual(retriedHistoryRead.method, 'thread/read');
 			secondPeer.push({ id: retriedHistoryRead.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'source-turn' }] } } });
+			const resume = await readNextRequest(secondPeer.outbound);
+			assert.strictEqual(resume.method, 'thread/resume');
+			secondPeer.push({ id: resume.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+			const resumeInventory = await readNextRequest(secondPeer.outbound);
+			secondPeer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
 			const fork = await readNextRequest(secondPeer.outbound);
 			secondPeer.push({ id: fork.id, result: { thread: { id: 'replace-after-read-fork', cwd: folder.fsPath }, cwd: folder.fsPath } });
 			await forking;
@@ -1158,16 +1161,16 @@ suite('CodexAgent createChat', () => {
 			assert.deepStrictEqual([
 				{ method: read.method, threadId: read.params.threadId },
 				{ method: historyRead.method, threadId: historyRead.params.threadId },
-				{ method: resume.method, threadId: resume.params.threadId },
 				{ method: retriedRead.method, threadId: retriedRead.params.threadId },
 				{ method: retriedHistoryRead.method, threadId: retriedHistoryRead.params.threadId },
+				{ method: resume.method, threadId: resume.params.threadId },
 				{ method: fork.method, threadId: fork.params.threadId },
 			], [
 				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
 				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
+				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
+				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
 				{ method: 'thread/resume', threadId: 'replace-after-read-thread' },
-				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
-				{ method: 'thread/read', threadId: 'replace-after-read-thread' },
 				{ method: 'thread/fork', threadId: 'replace-after-read-thread' },
 			]);
 		} finally {
@@ -1552,11 +1555,18 @@ suite('CodexAgent workspace conversion', () => {
 			await sending;
 			assert.deepStrictEqual({
 				unsubscribe: unsubscribe.method,
-				resume: { method: resume.method, threadId: resume.params.threadId, cwd: resume.params.cwd },
+				resume: {
+					method: resume.method, threadId: resume.params.threadId, cwd: resume.params.cwd,
+					model: resume.params.model, modelProvider: resume.params.modelProvider,
+					userInputEnabled: resume.params.config?.['features.default_mode_request_user_input'],
+				},
 				turn: { method: nextTurn.method, threadId: nextTurn.params.threadId },
 			}, {
 				unsubscribe: 'thread/unsubscribe',
-				resume: { method: 'thread/resume', threadId, cwd: folder.fsPath },
+				resume: {
+					method: 'thread/resume', threadId, cwd: folder.fsPath,
+					model: 'gpt-test', modelProvider: 'vscode-proxy', userInputEnabled: true,
+				},
 				turn: { method: 'turn/start', threadId },
 			});
 		});
@@ -3028,7 +3038,7 @@ suite('CodexAgent chat backing durability', () => {
 		});
 	});
 
-	test('materializeChat replaces a restored backing that has no rollout', async () => {
+	test('a restored backing with no rollout is replaced on send, not on history read', async () => {
 		const sessionStore = createTestSessionStore();
 		const runtime = AgentSession.uri('codex', 'durable-peer-runtime');
 		const owningSession = AgentSession.uri('codex', 'owning-session');
@@ -3054,25 +3064,33 @@ suite('CodexAgent chat backing durability', () => {
 			}));
 			const materializedBeforeReplacement = agent['_sessions'].get(AgentSession.id(runtime))?.materializedEventFired;
 			const reading = agent.chats.getMessages(chat, context);
+			const read = await readNextRequest(peer.outbound);
+			peer.push({ id: read.id, error: { code: -32000, message: 'no rollout found for thread id missing-rollout-thread' } });
+			const turns = await reading;
+			const rematerializationReceiptsAfterRead = receipts.length;
+			const sending = agent.chats.sendMessage(chat, 'continue', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
 			const resume = await readNextRequest(peer.outbound);
 			peer.push({ id: resume.id, error: { code: -32000, message: 'no rollout found for thread id missing-rollout-thread' } });
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath } } });
-			const read = await readNextRequest(peer.outbound);
-			peer.push({ id: read.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
-			const historyRead = await readNextRequest(peer.outbound);
-			peer.push({ id: historyRead.id, result: { thread: { id: 'replacement-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
-			const turns = await reading;
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
 			await new Promise(resolve => setImmediate(resolve));
 			assert.strictEqual(receipts.length, 1);
 			const restored = receipts[0].result;
 
 			assert.deepStrictEqual({
 				materializedBeforeReplacement,
+				rematerializationReceiptsAfterRead,
 				rematerializationReceipts: receipts.length,
+				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
 				resume: { method: resume.method, threadId: resume.params.threadId },
 				start: { method: start.method, cwd: start.params.cwd },
 				read: { method: read.method, threadId: read.params.threadId },
+				turn: { method: turn.method, threadId: turn.params.threadId },
 				providerData: restored?.providerData ? JSON.parse(restored.providerData) : undefined,
 				backingSession: restored?.backingSession?.toString(),
 				boundRuntime: agent['_sessionIdByChatUri'].get(chat.toString()),
@@ -3081,10 +3099,13 @@ suite('CodexAgent chat backing durability', () => {
 				turns,
 			}, {
 				materializedBeforeReplacement: true,
+				rematerializationReceiptsAfterRead: 0,
 				rematerializationReceipts: 1,
+				unsubscribe: { method: 'thread/unsubscribe', threadId: 'missing-rollout-thread' },
 				resume: { method: 'thread/resume', threadId: 'missing-rollout-thread' },
 				start: { method: 'thread/start', cwd: folder.fsPath },
-				read: { method: 'thread/read', threadId: 'replacement-thread' },
+				read: { method: 'thread/read', threadId: 'missing-rollout-thread' },
+				turn: { method: 'turn/start', threadId: 'replacement-thread' },
 				providerData: { sessionId: AgentSession.id(runtime), model: { id: COPILOT_TEST_MODEL } },
 				backingSession: AgentSession.uri('codex', 'replacement-thread').toString(),
 				boundRuntime: AgentSession.id(runtime),
