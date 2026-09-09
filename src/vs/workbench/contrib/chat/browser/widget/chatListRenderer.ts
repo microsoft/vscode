@@ -2813,7 +2813,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (newPart) {
 					renderedParts[contentIndex] = newPart;
 					// Collapsed mode can create a new group instead of appending to the preceding thinking part.
-					if (newPart.domNode && !newPart.domNode.parentElement) {
+					if (newPart instanceof ChatThinkingContentPart && !newPart.domNode.parentElement) {
 						if (alreadyRenderedPart?.domNode?.parentElement) {
 							alreadyRenderedPart.domNode.before(newPart.domNode);
 						} else {

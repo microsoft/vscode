@@ -37,7 +37,7 @@ import { registerChatFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking', readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete', readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 620;
 	const instantiationService = createEditorServices(disposableStore, {
@@ -125,7 +125,11 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 	const publisher = disposableStore.add(new AgentHostSubagentProgress(parts => {
 		for (const part of parts) {
-			model.acceptResponseProgress(request, part);
+			if (request.response?.isComplete && (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')) {
+				request.response.updateContent(part);
+			} else {
+				model.acceptResponseProgress(request, part);
+			}
 		}
 		// Match the list's element lifecycle when reusing the response template.
 		renderer.disposeElement(node, 0, template);
@@ -181,6 +185,9 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	);
 	await normalTool.didExecuteTool(undefined);
 	publisher.publish([normalTool]);
+	if (state === 'parent-complete') {
+		request.response?.complete();
+	}
 
 	const start = (invocation: ChatToolInvocation) => {
 		const data = invocation.toolSpecificData;
@@ -205,11 +212,11 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			start(invocation);
 			button.enabled = false;
 		}));
-		if (state === 'running') {
+		if (state === 'running' || state === 'parent-complete') {
 			button.enabled = false;
 		}
 	}
-	if (state === 'running') {
+	if (state === 'running' || state === 'parent-complete') {
 		start(launches[1]);
 		start(launches[0]);
 	}
@@ -240,6 +247,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Pending: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'pending') }),
 	Initializing: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'initializing') }),
 	Running: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'running') }),
+	StartedAfterParentComplete: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'parent-complete') }),
 	CompletionNotices: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderCompletionNotices }),
 	ThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking') }),
 	ReadOnlyThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking', true) }),

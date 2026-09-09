@@ -1962,6 +1962,34 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('a started child remains active after the parent response has completed', async () => {
+			const data: IChatSubagentToolInvocationData = {
+				kind: 'subagent', hasStarted: true, isActive: true, isChatAvailable: true,
+				description: 'Late child', chatResource: 'ahp-chat://subagent/test/late-child',
+				startedAt: Date.now() - 5000,
+			};
+			const invocation = new ChatToolInvocation(
+				{ toolSpecificData: data },
+				{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+				'late-child', undefined, {},
+			);
+			await invocation.didExecuteTool(undefined);
+			const context = createMockRenderContext(true);
+			const part = createPart(invocation, {
+				...context,
+				element: { ...context.element, setVote: () => { } } as IChatResponseViewModel,
+			});
+			part.markAsInactive(true);
+			const afterParent = { active: part.getIsActive(), reportedActive: data.isActive, duration: data.duration };
+			data.isActive = false;
+			data.duration = 5000;
+			invocation.notifyToolSpecificDataChanged();
+			assert.deepStrictEqual({ afterParent, afterChild: { active: part.getIsActive(), duration: data.duration } }, {
+				afterParent: { active: true, reportedActive: true, duration: undefined },
+				afterChild: { active: false, duration: 5000 },
+			});
+		});
+
 		test('stops immediately when the parent response becomes terminal', () => {
 			const onDidChange = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 			let isComplete = false;

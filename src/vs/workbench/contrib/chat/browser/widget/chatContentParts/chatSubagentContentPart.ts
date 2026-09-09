@@ -734,6 +734,10 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	public markAsInactive(force: boolean = false): void {
 		if (force && this._subagentToolInvocation.toolSpecificData?.kind === 'subagent') {
 			const data = this._subagentToolInvocation.toolSpecificData;
+			// An independently observed child can outlive the completed parent response.
+			if (data.hasStarted === true && data.isActive === true) {
+				return;
+			}
 			data.isActive = false;
 			if (data.duration === undefined && data.startedAt !== undefined) {
 				data.duration = Math.max(0, Date.now() - data.startedAt);

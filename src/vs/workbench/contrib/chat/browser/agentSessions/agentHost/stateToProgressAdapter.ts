@@ -557,7 +557,10 @@ export function isSubagentTool(tc: ToolCallState): boolean {
 }
 
 /** Returns whether the tool call can have a child chat worth observing. */
-export function shouldObserveSubagentChat(tc: ToolCallState): boolean {
+export function shouldObserveSubagentChat(tc: ToolCallState, hasCatalogChild = false): boolean {
+	if (hasCatalogChild) {
+		return true;
+	}
 	const hasSubagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
 		&& getToolSubagentContent(tc) !== undefined;
 	if (tc.status === ToolCallStatus.Running) {
@@ -1395,7 +1398,7 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
 	if (usage) {
@@ -1420,7 +1423,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 					&& toolInvocationOptions
 					&& tc.contributor.clientId !== toolInvocationOptions.currentClientId;
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
-					if (shouldObserveSubagentChat(tc)) {
+					if (shouldObserveSubagentChat(tc, subagentToolCallIds?.has(tc.toolCallId))) {
 						const invocation = toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, toolInvocationOptions, resourceUris);
 						finalizeToolInvocation(invocation, tc, sessionResource, connectionAuthority, resourceUris);
 						parts.push(invocation);
