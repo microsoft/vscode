@@ -7,9 +7,12 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ChatClosedPromoNotification, ChatConfiguration } from '../common/constants.js';
@@ -17,11 +20,12 @@ import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetada
 import { getChatSessionType } from '../common/model/chatUri.js';
 import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from './chat.js';
-import { ARM_CHAT_PROMO_COMMAND_ID, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, DISARM_CHAT_PROMO_COMMAND_ID, IChatPromoCardInput } from './chatPromoWidget.js';
+import { ARM_CHAT_PROMO_COMMAND_ID, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, DISARM_CHAT_PROMO_COMMAND_ID, findChatIconAnchor, IChatPromoCardInput } from './chatPromoWidget.js';
 import { addDismissedNotificationId, ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationContext, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, matchesModelIdentifier, readDismissedNotificationIds } from './widget/input/chatInputNotificationService.js';
 
 const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
 const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
+export const CHAT_CLOSED_PROMO_TREATMENT = `config.${ChatConfiguration.ChatClosedPromoNotification}`;
 
 export { CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID };
 
@@ -49,6 +53,9 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IViewsService private readonly _viewsService: IViewsService,
+		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly _logService: ILogService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super();
 
@@ -63,6 +70,13 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		}));
 
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._update()));
+		this._register(this._layoutService.onDidLayoutMainContainer(() => this._update()));
+		this._register(this._assignmentService.onDidRefetchAssignments(() => {
+			this._popupTreatmentGeneration++;
+			this._popupTreatment = undefined;
+			this._popupTreatmentPending = false;
+			this._update();
+		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.ChatClosedPromoNotification)) {
 				this._update();
@@ -91,6 +105,41 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 
 	private readonly _shownNotifications = new Map<string, { promoId: string; modelIdentifier: string; kind: ChatClosedPromoNotification }>();
 	private _promoPipPayload: IChatPromoCardInput | undefined;
+	private _popupTreatment: boolean | undefined;
+	private _popupTreatmentPending = false;
+	private _popupTreatmentGeneration = 0;
+
+	private _isPopupEnabled(): boolean {
+		const config = this._configurationService.inspect<ChatClosedPromoNotification>(ChatConfiguration.ChatClosedPromoNotification);
+		if (isConfigured(config) || config.policyValue !== undefined || config.memoryValue !== undefined) {
+			return config.value === ChatClosedPromoNotification.CopilotIconPopup;
+		}
+		const anchor = findChatIconAnchor(this._layoutService.mainContainer);
+		if (!anchor?.getClientRects().length) {
+			return false;
+		}
+		if (this._popupTreatment === undefined && !this._popupTreatmentPending) {
+			void this._resolvePopupTreatment();
+		}
+		return this._popupTreatment === true;
+	}
+
+	private async _resolvePopupTreatment(): Promise<void> {
+		const generation = this._popupTreatmentGeneration;
+		this._popupTreatmentPending = true;
+		let enabled = false;
+		try {
+			enabled = await this._assignmentService.getTreatment<ChatClosedPromoNotification>(CHAT_CLOSED_PROMO_TREATMENT) === ChatClosedPromoNotification.CopilotIconPopup;
+		} catch (error) {
+			this._logService.warn('[ChatPromoNotification] Failed to resolve promo treatment', error);
+		}
+		if (this._store.isDisposed || generation !== this._popupTreatmentGeneration) {
+			return;
+		}
+		this._popupTreatmentPending = false;
+		this._popupTreatment = enabled;
+		this._update();
+	}
 
 	/**
 	 * GitHub Copilot chat (local harness). Codex and Claude CLI promos stay on the
@@ -128,7 +177,6 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		// scoping each one to its harness so it only renders in matching sessions.
 		const desired = new Set<string>();
 		let pendingPopupPayload: IChatPromoCardInput | undefined;
-		const popupSetting = this._configurationService.getValue(ChatConfiguration.ChatClosedPromoNotification) === ChatClosedPromoNotification.CopilotIconPopup;
 		for (const [harness, model] of promoByHarness) {
 			const promo = model.metadata.promo!;
 			const notificationId = `${PROMO_NOTIFICATION_ID}.${harness}`;
@@ -136,10 +184,10 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 
 			// Don't re-push an unchanged notification: re-setting it would clear a
 			// pending user dismissal in the notification service.
-			const showPip = popupSetting
-				&& ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)
+			const showPip = ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)
 				&& this._isGitHubCopilotPromo(model)
-				&& !this._viewsService.isViewVisible(ChatViewId);
+				&& !this._viewsService.isViewVisible(ChatViewId)
+				&& this._isPopupEnabled();
 			const kind = showPip ? ChatClosedPromoNotification.CopilotIconPopup : ChatClosedPromoNotification.None;
 			const shownNotification = this._shownNotifications.get(notificationId);
 			if (shownNotification?.modelIdentifier === model.identifier && shownNotification.promoId === promo.id && shownNotification.kind === kind) {

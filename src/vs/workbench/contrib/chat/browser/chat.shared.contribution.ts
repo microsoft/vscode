@@ -2400,12 +2400,9 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.closedPromoNotification.none.description', "Do not show a promo on the Copilot icon when Chat is closed."),
 				nls.localize('chat.closedPromoNotification.copilotIconPopup.description', "Show a promo popup from the Copilot icon when Chat is closed."),
 			],
-			description: nls.localize('chat.closedPromoNotification', "Controls whether a live model promo is shown on the Copilot icon when Chat is closed. The experiment service can override the default."),
+			description: nls.localize('chat.closedPromoNotification', "Controls whether a live model promo is shown on the Copilot icon when Chat is closed. When explicitly set, this overrides the experiment without an experiment lookup. Otherwise, eligible promos use the experiment treatment."),
 			default: ChatClosedPromoNotification.None,
 			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
 		[ChatConfiguration.RestoreLastPanelSession]: {
 			type: 'boolean',

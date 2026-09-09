@@ -284,7 +284,7 @@ function findCopilotIcon(anchor: HTMLElement): Element | null {
 	return anchor.querySelector('.codicon-copilot-dot, .codicon-copilot, .codicon-copilot-warning, .codicon-copilot-unavailable, .codicon-copilot-snooze');
 }
 
-function findChatIconAnchor(container: HTMLElement): HTMLElement | undefined {
+export function findChatIconAnchor(container: HTMLElement): HTMLElement | undefined {
 	const doc = container.ownerDocument;
 	const statusEntry = doc.getElementById('chat.statusBarEntry') ?? doc.getElementById('status.chat.statusBarEntry');
 	if (statusEntry instanceof HTMLElement) {

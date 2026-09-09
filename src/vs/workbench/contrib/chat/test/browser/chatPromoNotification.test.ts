@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,11 +15,14 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
+import { CHAT_CLOSED_PROMO_TREATMENT, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, ChatPromoNotificationContribution } from '../../browser/chatPromoNotification.js';
 import { ARM_CHAT_PROMO_COMMAND_ID, ChatPromoWidgetContribution, DISARM_CHAT_PROMO_COMMAND_ID, IChatPromoCardInput } from '../../browser/chatPromoWidget.js';
 import { ChatClosedPromoNotification, ChatConfiguration } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../../browser/chat.js';
@@ -208,8 +212,9 @@ function createContribution(
 	closedPromoNotification: ChatClosedPromoNotification = ChatClosedPromoNotification.None,
 	viewsService?: IViewsService,
 	widgetService?: IChatWidgetService,
+	options: { configurationService?: TestConfigurationService; assignmentService?: IWorkbenchAssignmentService; logService?: ILogService; layoutService?: ILayoutService } = {},
 ) {
-	const configurationService = new TestConfigurationService({
+	const configurationService = options.configurationService ?? new TestConfigurationService({
 		[ChatConfiguration.ChatClosedPromoNotification]: closedPromoNotification,
 	});
 	return new ChatPromoNotificationContribution(
@@ -224,12 +229,241 @@ function createContribution(
 			onDidChangeViewVisibility: Event.None,
 			isViewVisible: () => false,
 		} as unknown as IViewsService,
+		options.assignmentService ?? new NullWorkbenchAssignmentService(),
+		options.logService ?? new NullLogService(),
+		options.layoutService ?? { mainContainer: document.body, onDidLayoutMainContainer: Event.None } as ILayoutService,
 	);
 }
 
 suite('ChatPromoNotificationContribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	function experimentFixture(options: {
+		metadata?: Partial<ILanguageModelChatMetadata>;
+		visible?: boolean;
+		configured?: ChatClosedPromoNotification;
+		dismissed?: boolean;
+		treatment?: string;
+		iconPresent?: boolean;
+		iconVisible?: boolean;
+	} = {}) {
+		const anchor = dom.append(document.body, dom.$('div', { id: 'chat.statusBarEntry' }));
+		anchor.textContent = 'Copilot';
+		disposables.add(toDisposable(() => anchor.remove()));
+		if (options.iconPresent === false) {
+			anchor.remove();
+		} else if (options.iconVisible === false) {
+			anchor.style.display = 'none';
+		}
+		const layout = disposables.add(new Emitter<dom.IDimension>());
+		const layoutService = { mainContainer: document.body, onDidLayoutMainContainer: layout.event } as ILayoutService;
+		const models = [{
+			identifier: 'copilot:model',
+			metadata: { name: 'Model', id: 'model', promo: { id: 'promo', discountPercent: 20, message: 'Model promo' }, ...options.metadata },
+		}];
+		const languageModels = createMockLanguageModelsService(models, disposables);
+		const notifications = createMockNotificationService(disposables);
+		const storage = disposables.add(new InMemoryStorageService());
+		if (options.dismissed) {
+			storage.store('chat.dismissedPromoIds', '["promo"]', StorageScope.APPLICATION, 0);
+		}
+		const commands = createMockCommandService();
+		const configuration = new TestConfigurationService(options.configured === undefined ? {} : {
+			[ChatConfiguration.ChatClosedPromoNotification]: options.configured,
+		});
+		const assignments = new NullWorkbenchAssignmentService();
+		const refetch = disposables.add(new Emitter<void>());
+		sinon.stub(assignments, 'onDidRefetchAssignments').value(refetch.event);
+		const getTreatment = sinon.stub(assignments, 'getTreatment').resolves(options.treatment);
+		const views = createMockViewsService(disposables, options.visible);
+		const log = new NullLogService();
+		const warn = sinon.spy(log, 'warn');
+		return {
+			models, languageModels, notifications, storage, commands, configuration, getTreatment, refetch, views, warn, anchor, layout,
+			start: () => disposables.add(createContribution(
+				languageModels.service, notifications.service, storage, commands.service, undefined, views.service, undefined,
+				{ configurationService: configuration, assignmentService: assignments, logService: log, layoutService },
+			)),
+		};
+	}
+
+	for (const configured of [ChatClosedPromoNotification.None, ChatClosedPromoNotification.CopilotIconPopup]) {
+		test(`explicit ${configured} overrides ExP without querying it`, () => {
+			const fixture = experimentFixture({ configured, treatment: configured === ChatClosedPromoNotification.None ? ChatClosedPromoNotification.CopilotIconPopup : ChatClosedPromoNotification.None });
+			fixture.start();
+			fixture.refetch.fire();
+			assert.deepStrictEqual({
+				queries: fixture.getTreatment.callCount,
+				commands: fixture.commands.executed.map(command => command.id),
+			}, {
+				queries: 0,
+				commands: configured === ChatClosedPromoNotification.CopilotIconPopup ? [ARM_CHAT_PROMO_COMMAND_ID] : [],
+			});
+		});
+	}
+
+	const ineligibleCases: { name: string; options: Parameters<typeof experimentFixture>[0] }[] = [
+		{ name: 'missing promo', options: { metadata: { promo: undefined } } },
+		{ name: 'quiet promo', options: { metadata: { promo: { id: 'promo', discountPercent: 20, message: 'Promo', showBanner: false } } } },
+		{ name: 'message-only promo', options: { metadata: { promo: { id: 'promo', discountPercent: 0, message: 'Promo' } } } },
+		{ name: 'other harness', options: { metadata: { targetChatSessionType: 'openai-codex' } } },
+		{ name: 'other vendor', options: { metadata: { vendor: 'other' } } },
+		{ name: 'expanded Chat', options: { visible: true } },
+		{ name: 'dismissed promo', options: { dismissed: true } },
+		{ name: 'missing status icon', options: { iconPresent: false } },
+		{ name: 'hidden status icon', options: { iconVisible: false } },
+	];
+	for (const { name, options } of ineligibleCases) {
+		test(`does not query ExP for ${name}`, () => {
+			const fixture = experimentFixture(options);
+			fixture.start();
+			fixture.refetch.fire();
+			assert.strictEqual(fixture.getTreatment.callCount, 0);
+		});
+	}
+
+	for (const treatment of [undefined, 'unexpected', ChatClosedPromoNotification.None, ChatClosedPromoNotification.CopilotIconPopup]) {
+		test(`unconfigured eligible promo uses treatment ${treatment}`, async () => {
+			const fixture = experimentFixture({ treatment });
+			fixture.start();
+			fixture.languageModels.onDidChangeLanguageModels.fire(undefined);
+			await timeout(0);
+			const popup = treatment === ChatClosedPromoNotification.CopilotIconPopup;
+			assert.deepStrictEqual({
+				queries: fixture.getTreatment.getCalls().map(call => call.args),
+				commands: fixture.commands.executed.map(command => command.id),
+				banner: !!fixture.notifications.getNotification(),
+			}, {
+				queries: [[CHAT_CLOSED_PROMO_TREATMENT]],
+				commands: popup ? [ARM_CHAT_PROMO_COMMAND_ID] : [],
+				banner: !popup,
+			});
+		});
+	}
+
+	test('the registered none default is not an explicit override', async () => {
+		const fixture = experimentFixture({ treatment: ChatClosedPromoNotification.CopilotIconPopup });
+		sinon.stub(fixture.configuration, 'inspect').returns({
+			value: ChatClosedPromoNotification.None,
+			defaultValue: ChatClosedPromoNotification.None,
+		});
+		fixture.start();
+		await timeout(0);
+		assert.deepStrictEqual({
+			queries: fixture.getTreatment.callCount,
+			commands: fixture.commands.executed.map(command => command.id),
+		}, { queries: 1, commands: [ARM_CHAT_PROMO_COMMAND_ID] });
+	});
+
+	test('a refetched control assignment disarms an active treatment', async () => {
+		const fixture = experimentFixture({ treatment: ChatClosedPromoNotification.CopilotIconPopup });
+		fixture.start();
+		await timeout(0);
+		fixture.getTreatment.resolves(ChatClosedPromoNotification.None);
+		fixture.refetch.fire();
+		await timeout(0);
+		assert.deepStrictEqual({
+			queries: fixture.getTreatment.callCount,
+			commands: fixture.commands.executed.map(command => command.id),
+			banner: !!fixture.notifications.getNotification(),
+		}, { queries: 2, commands: [ARM_CHAT_PROMO_COMMAND_ID, DISARM_CHAT_PROMO_COMMAND_ID], banner: true });
+	});
+
+	test('waits until Chat collapses before the first cohort query', async () => {
+		const fixture = experimentFixture({ visible: true, treatment: ChatClosedPromoNotification.CopilotIconPopup });
+		fixture.start();
+		const beforeCollapse = fixture.getTreatment.callCount;
+		fixture.views.setVisible(false);
+		await timeout(0);
+		assert.deepStrictEqual({
+			beforeCollapse,
+			queries: fixture.getTreatment.callCount,
+			commands: fixture.commands.executed.map(command => command.id),
+		}, { beforeCollapse: 0, queries: 1, commands: [ARM_CHAT_PROMO_COMMAND_ID] });
+	});
+
+	test('waits until the status icon is visible before the first cohort query', async () => {
+		const fixture = experimentFixture({ iconVisible: false, treatment: ChatClosedPromoNotification.CopilotIconPopup });
+		fixture.start();
+		const beforeLayout = fixture.getTreatment.callCount;
+		fixture.anchor.style.display = '';
+		fixture.layout.fire({ width: 100, height: 100 });
+		await timeout(0);
+		assert.deepStrictEqual({
+			beforeLayout,
+			queries: fixture.getTreatment.callCount,
+			commands: fixture.commands.executed.map(command => command.id),
+		}, { beforeLayout: 0, queries: 1, commands: [ARM_CHAT_PROMO_COMMAND_ID] });
+	});
+
+	for (const change of ['expand', 'remove', 'dismiss', 'override', 'dispose', 'hideIcon']) {
+		test(`does not show a stale treatment after ${change}`, async () => {
+			const fixture = experimentFixture();
+			const pending = new DeferredPromise<string>();
+			fixture.getTreatment.returns(pending.p);
+			const contribution = fixture.start();
+			switch (change) {
+				case 'expand':
+					fixture.views.setVisible(true);
+					break;
+				case 'remove':
+					fixture.models.length = 0;
+					fixture.languageModels.onDidChangeLanguageModels.fire(undefined);
+					break;
+				case 'dismiss':
+					fixture.notifications.dismiss();
+					break;
+				case 'override':
+					await fixture.configuration.setUserConfiguration(ChatConfiguration.ChatClosedPromoNotification, ChatClosedPromoNotification.None);
+					break;
+				case 'dispose':
+					contribution.dispose();
+					break;
+				case 'hideIcon':
+					fixture.anchor.style.display = 'none';
+					fixture.layout.fire({ width: 100, height: 100 });
+					break;
+			}
+			await pending.complete(ChatClosedPromoNotification.CopilotIconPopup);
+			await timeout(0);
+			assert.deepStrictEqual({
+				queries: fixture.getTreatment.callCount,
+				commands: fixture.commands.executed,
+			}, { queries: 1, commands: [] });
+		});
+	}
+
+	test('ignores an older response after assignments are refetched', async () => {
+		const fixture = experimentFixture();
+		const old = new DeferredPromise<string>();
+		fixture.getTreatment.onFirstCall().returns(old.p);
+		fixture.getTreatment.onSecondCall().resolves(ChatClosedPromoNotification.None);
+		fixture.start();
+		fixture.refetch.fire();
+		await timeout(0);
+		await old.complete(ChatClosedPromoNotification.CopilotIconPopup);
+		await timeout(0);
+		assert.deepStrictEqual({
+			queries: fixture.getTreatment.callCount,
+			commands: fixture.commands.executed,
+		}, { queries: 2, commands: [] });
+	});
+
+	test('logs a failed cohort query and leaves the banner in place', async () => {
+		const fixture = experimentFixture();
+		fixture.getTreatment.rejects(new Error('ExP unavailable'));
+		fixture.start();
+		await timeout(0);
+		fixture.languageModels.onDidChangeLanguageModels.fire(undefined);
+		assert.deepStrictEqual({
+			queries: fixture.getTreatment.callCount,
+			warnings: fixture.warn.callCount,
+			banner: !!fixture.notifications.getNotification(),
+			commands: fixture.commands.executed,
+		}, { queries: 1, warnings: 1, banner: true, commands: [] });
+	});
 
 	test('shows the input banner for a discounted promo by default', () => {
 		const notifService = createMockNotificationService(disposables);
