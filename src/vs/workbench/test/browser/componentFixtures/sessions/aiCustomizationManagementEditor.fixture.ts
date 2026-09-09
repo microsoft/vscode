@@ -1793,6 +1793,7 @@ async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureCont
 
 	const row = ctx.container.querySelector<HTMLElement>('.ai-customization-list-item');
 	assert(row?.querySelector('.item-name')?.textContent === 'dreaming' && row.classList.contains('disabled'), 'The invalid Codex skill must remain visible and disabled.');
+	assert(row.getAttribute('aria-label')?.includes('Error. missing field `description`') === true, 'The skill row must expose its validation diagnostic to screen readers.');
 	const statusIcon = row.querySelector<HTMLElement>('.item-status-icon');
 	assert(statusIcon !== null && statusIcon.classList.contains('codicon-error'), 'The invalid Codex skill must show an error status icon.');
 	statusIcon.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
