@@ -16,19 +16,7 @@ The Modern UI colors below are experimental and require a build that supports th
 
 Changes apply immediately, including in auxiliary editor windows. This setting does not enable Modern UI by itself and does not change the Agents window's pill tabs. High contrast themes keep their explicit selection and focus borders.
 
-Customize `modernEditorTab.connectedBorder` to change the active tab stroke, both shoulders, and the strip separator together, independently of editor-split borders. It defaults to `editorGroup.border`. Translucent strokes are composited over `editor.background` to avoid brighter overlaps; `#00000000` hides the decorative stroke.
-
-```json
-{
-  "workbench.experimental.modernUI": true,
-  "workbench.experimental.modernUIEditorTabStyle": "connected",
-  "workbench.colorCustomizations": {
-    "modernEditorTab.connectedBorder": "#5b8def"
-  }
-}
-```
-
-The connected design uses `editor.background` for the active tab and `panel.background` for the strip and inactive tabs, so the active tab reads as part of the editor. Its hover fill is derived from `foreground` over `panel.background`. Existing tab foreground customizations continue to apply. The separate `modernEditorTab.*Background` colors in the table below control the pill treatment.
+The connected design uses `modernEditorTab.activeBackground` for the active tab, its outside stroke, both shoulders, and the strip separator so they read as one surface. Translucent active backgrounds are composited over `editor.background` once to keep every join uniform. The strip and inactive tabs use `panel.background`, and their hover fill is derived from `foreground` over `panel.background`. Existing tab foreground customizations continue to apply.
 
 ## Colors
 
@@ -47,7 +35,6 @@ The connected design uses `editor.background` for the active tab and `panel.back
 | `modernTab.hoverBackground` | Background of hovered Modern UI tabs | `list.hoverBackground` |
 | `modernTab.hoverForeground` | Foreground of hovered Modern UI tabs | `list.hoverForeground`, then `foreground` |
 | `modernEditorTab.activeBackground` | Background of active Modern UI editor tabs | `modernTab.activeBackground` |
-| `modernEditorTab.connectedBorder` | Stroke around the active connected editor tab and along its strip separator | `editorGroup.border` |
 | `modernEditorTab.activeActionBackground` | Opaque background of actions on active Modern UI editor tabs | `modernEditorTab.activeBackground` composited over `editor.background` |
 | `modernEditorTab.activeForeground` | Foreground of active Modern UI editor tabs | `modernTab.activeForeground` |
 | `modernEditorTab.activeHoverBackground` | Background of active Modern UI editor tabs when hovered | `modernEditorTab.hoverBackground` |

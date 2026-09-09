@@ -792,7 +792,7 @@ function createThemeColorFixtures() {
 	};
 }
 
-function renderConnectedSurface(stroke: boolean, activeTabIndex = 1, forcedHoverTab?: number, focusedTabAction?: number): (ctx: ComponentFixtureContext) => void {
+function renderConnectedSurface(activeTabIndex = 1, forcedHoverTab?: number, focusedTabAction?: number): (ctx: ComponentFixtureContext) => void {
 	return render(true, {
 		editors: [
 			{ resource: file('/project/README.md'), pinned: true, active: activeTabIndex >= 0 },
@@ -810,7 +810,6 @@ function renderConnectedSurface(stroke: boolean, activeTabIndex = 1, forcedHover
 			'',
 			'await app.start();',
 		].join('\n'),
-		colorCustomizations: stroke ? undefined : { 'editorGroup.border': 'transparent' },
 		forcedHoverTab,
 		focusedTabAction,
 	});
@@ -869,45 +868,39 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			expectedVisualDescriptions: ['The leftmost visible active tab uses a continuous straight edge when there is no room for its full shoulder. No part of the shoulder is clipped at the viewport boundary.'],
 		}),
 		Stroke: defineComponentFixture({
-			render: renderConnectedSurface(true),
+			render: renderConnectedSurface(),
 			additionalThemes: ['darkHighContrast'],
 			expectedVisualDescriptions: [
-				'The active main.ts tab joins the code editor with curved shoulders and no bottom divider. Inactive tabs sit on the panel-colored strip. A single subtle stroke follows the active tab into the strip separator. High contrast retains explicit focus and selection borders.',
-				'The stroke remains uniform through the cap, shoulders and separator, including dark themes with translucent borders. There are no gaps, vertical protrusions or brighter overlaps at the tangent joins.',
+				'The active main.ts tab uses the Modern UI active-tab background for its fill, outside stroke, curved shoulders and strip separator so they read as one continuous surface. Inactive tabs sit on the panel-colored strip. High contrast retains explicit focus and selection borders.',
+				'The surface color remains uniform through the cap, shoulders and separator, including themes with translucent active-tab backgrounds. There are no gaps, vertical protrusions, darker seams or brighter overlaps at the tangent joins.',
 				'In standard themes, the concave shoulder radii are reduced by the outward stroke offset while the convex cap radii grow. The lower gutter reserves an extra pixel for the separator so the visible gap matches the upper gutter.',
 			],
 		}),
 		HoveredTab: defineComponentFixture({
-			render: renderConnectedSurface(true, 1, 0),
+			render: renderConnectedSurface(1, 0),
 			expectedVisualDescriptions: [
 				'The hovered README.md pill sits one stroke closer to the strip separator than an ordinary pill, balancing its top and bottom whitespace.',
 			],
 		}),
 		FocusedCloseAction: defineComponentFixture({
-			render: renderConnectedSurface(true, 1, undefined, 1),
+			render: renderConnectedSurface(1, undefined, 1),
 			additionalThemes: ['darkHighContrast'],
 			expectedVisualDescriptions: [
 				'The focused close action keeps its full interaction target while sitting close to the active tab edge. In high contrast, the action follows the complete pill corner instead of squaring its lower outside corner.',
 			],
 		}),
 		FirstTabActive: defineComponentFixture({
-			render: renderConnectedSurface(true, 0),
+			render: renderConnectedSurface(0),
 			additionalThemes: ['darkHighContrast'],
 			expectedVisualDescriptions: [
 				'The first active tab has a straight left edge meeting the strip separator, with no clipped outer shoulder. The right shoulder still curves into the separator. High contrast retains explicit selection borders.',
 			],
 		}),
 		LastTabActive: defineComponentFixture({
-			render: renderConnectedSurface(true, 3),
+			render: renderConnectedSurface(3),
 			additionalThemes: ['darkHighContrast'],
 			expectedVisualDescriptions: [
 				'The last active tab has a straight right edge meeting the strip separator, with no outer shoulder. The left shoulder still curves into the separator. High contrast retains explicit selection borders.',
-			],
-		}),
-		WithoutStroke: defineComponentFixture({
-			render: renderConnectedSurface(false),
-			expectedVisualDescriptions: [
-				'The active main.ts tab joins the code editor with curved shoulders. Only the contrast between the panel background and editor background distinguishes the surfaces; there is no decorative stroke.',
 			],
 		}),
 	}),

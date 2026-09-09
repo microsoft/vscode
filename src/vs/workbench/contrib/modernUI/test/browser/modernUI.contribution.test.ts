@@ -1865,26 +1865,29 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('flattens connected tab strokes while preserving opaque and transparent borders', () => {
-		const strokes = [
-			{ background: '#1f1f1f', border: '#ffffff17' },
-			{ background: '#ffffff', border: '#e5e5e5' },
-			{ background: '#1f1f1f', border: '#00000000' },
-		].map(({ background, border }) => {
+	test('flattens modern tab backgrounds for the connected surface', () => {
+		const backgrounds = [
+			{ editor: '#1f1f1f', tab: '#ffffff17' },
+			{ editor: '#ffffff', tab: '#2468ac' },
+			{ editor: '#1f1f1f', tab: '#00000000' },
+		].map(({ editor, tab }) => {
 			const theme = ColorThemeData.createUnloadedTheme('vs-dark', {
-				[editorBackground]: background,
-				'editorGroup.border': border,
+				[editorBackground]: editor,
+				[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: tab,
 			});
 			const css = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
-			return /--modern-ui-connected-tab-border: (?<stroke>[^;]+);/.exec(css)?.groups?.stroke;
+			return /--modern-ui-connected-tab-surface: (?<background>[^;]+);/.exec(css)?.groups?.background;
 		});
 
-		assert.deepStrictEqual(strokes, ['#333333', '#e5e5e5', 'rgba(0, 0, 0, 0)']);
+		assert.deepStrictEqual(backgrounds, ['#333333', '#2468ac', '#1f1f1f']);
 	});
 
-	test('customizes the connected tab stroke without changing editor split borders', () => {
+	test('uses the modern tab background for the connected surface and stroke', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 		const style = document.createElement('style');
@@ -1898,30 +1901,36 @@ suite('ModernUIContribution', () => {
 		appendElement(tabs, 'tab');
 		const tab = appendElement(tabs, 'tab active');
 		const fill = appendElement(tab, 'tab-fill');
+		const actions = appendElement(tab, 'tab-actions');
+		const action = appendElement(actions, 'action-label');
+		action.tabIndex = 0;
+		action.focus();
 		const targetWindow = getWindow(root);
 		const results = ['#2468ac', '#ff000080', '#00000000'].map(color => {
 			const theme = ColorThemeData.createUnloadedTheme('vs', {
 				[editorBackground]: '#ffffff',
 				'editorGroup.border': '#123456',
-				'modernEditorTab.connectedBorder': '#abcdef',
+				[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#abcdef',
 			});
-			theme.setCustomColors({ 'modernEditorTab.connectedBorder': color });
+			theme.setCustomColors({ [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: color });
 			style.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
 			return {
-				strokes: [
+				surface: [
+					targetWindow.getComputedStyle(fill).backgroundColor,
 					targetWindow.getComputedStyle(fill).borderTopColor,
 					targetWindow.getComputedStyle(fill, '::before').borderRightColor,
 					targetWindow.getComputedStyle(fill, '::after').borderLeftColor,
 					targetWindow.getComputedStyle(row, '::after').backgroundColor,
+					targetWindow.getComputedStyle(actions).backgroundColor,
 				],
 				editorSplitBorder: theme.getColor('editorGroup.border')?.toString(),
 			};
 		});
 
 		assert.deepStrictEqual(results, [
-			{ strokes: Array(4).fill('rgb(36, 104, 172)'), editorSplitBorder: '#123456' },
-			{ strokes: Array(4).fill('rgb(255, 126, 126)'), editorSplitBorder: '#123456' },
-			{ strokes: Array(4).fill('rgba(0, 0, 0, 0)'), editorSplitBorder: '#123456' },
+			{ surface: Array(6).fill('rgb(36, 104, 172)'), editorSplitBorder: '#123456' },
+			{ surface: Array(6).fill('rgb(255, 126, 126)'), editorSplitBorder: '#123456' },
+			{ surface: Array(6).fill('rgb(255, 255, 255)'), editorSplitBorder: '#123456' },
 		]);
 	});
 
@@ -1932,7 +1941,7 @@ suite('ModernUIContribution', () => {
 		root.style.setProperty('--vscode-spacing-size60', '6px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
 		root.style.setProperty('--vscode-strokeThickness', '1px');
-		root.style.setProperty('--modern-ui-connected-tab-border', '#333333');
+		root.style.setProperty('--modern-ui-connected-tab-surface', '#333333');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 

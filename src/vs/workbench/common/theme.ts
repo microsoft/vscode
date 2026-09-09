@@ -714,8 +714,6 @@ export const MODERN_TAB_HOVER_FOREGROUND = registerColor('modernTab.hoverForegro
 
 // < --- Modern Editor Tabs --- >
 
-export const MODERN_EDITOR_TAB_CONNECTED_BORDER = registerColor('modernEditorTab.connectedBorder', EDITOR_GROUP_BORDER, localize('modernEditorTabConnectedBorder', "Border color of the active editor tab and the tab strip separator when the connected modern editor tab style is enabled. Does not replace high contrast selection or focus borders."));
-
 export const MODERN_EDITOR_TAB_ACTIVE_BACKGROUND = registerColor('modernEditorTab.activeBackground', MODERN_TAB_ACTIVE_BACKGROUND, localize('modernEditorTabActiveBackground', "Background color of active editor tabs when the modern tab style is enabled."));
 
 export const MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND = registerColor('modernEditorTab.activeActionBackground', opaque(MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, editorBackground), localize('modernEditorTabActiveActionBackground', "Opaque background color of tab actions on active editor tabs when the modern tab style is enabled."));
