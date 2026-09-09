@@ -14,24 +14,23 @@ import { CancellationError } from '../../../base/common/errors.js';
  * On-demand provisioning of the Foundry Local native runtime used by on-device
  * dictation.
  *
- * `foundry-local-sdk` ships a prebuilt N-API addon (`foundry_local_napi.node`)
- * and native core libraries (Foundry Local Core + ONNX Runtime + ONNX Runtime
- * GenAI). The addon requires a newer glibc than VS Code's minimum supported
- * Linux distros, so we deliberately do NOT bundle any of this native payload
- * with the product (see `build/gulpfile.vscode.ts`). Instead we republish a
- * per-target tarball of the addon + core libraries to VS Code's CDN at build
- * time (see `build/dictation-runtime/`) and download it here, at runtime, only
- * on supported platforms, into a per-user writable cache — keeping the shipped
- * package's glibc floor intact and avoiding any runtime dependency on the npm
- * registry or NuGet.
+ * `foundry-local-sdk` ships two prebuilt N-API addons (`foundry_local_node.node`
+ * and `foundry_local_preload.node`) and native libraries (Foundry Local + ONNX
+ * Runtime + ONNX Runtime GenAI). The shared libraries require a newer glibc than
+ * VS Code's minimum supported Linux distros, so we bundle only the addons with
+ * the product (see `build/gulpfile.vscode.ts`). We republish the complete
+ * per-target native directory to VS Code's CDN at build time (see
+ * `build/dictation-runtime/`) and download it here, at runtime, into a per-user
+ * writable cache. This keeps the shipped package's glibc floor intact and
+ * avoids any runtime dependency on the npm registry or NuGet.
  *
- * The SDK loader (`dist/detail/coreInterop.js`) is patched during
- * `postinstall` to honor `VSCODE_FOUNDRY_LOCAL_NATIVE_DIR`, pointing it at the
- * cache directory this module populates. The tarball's internal layout mirrors
- * the SDK's own package layout so the patched resolution is a trivial path join:
+ * The tarball's internal layout mirrors the SDK's own package layout:
  *
- *   <cacheRoot>/<version>/prebuilds/<target>/foundry_local_napi.node
- *   <cacheRoot>/<version>/foundry-local-core/<target>/<core libraries>
+ *   <cacheRoot>/<version>/prebuilds/<target>/<addons and native libraries>
+ *
+ * The SDK keeps its addons in the packaged npm module and is configured through
+ * `configureNativeLoader`/`FoundryLocalConfig.libraryPath` to preload the shared
+ * libraries from this cache directory.
  *
  * NOTE: the single CDN download leg honors the standard proxy environment
  * variables (`HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`, with `NO_PROXY`). VS Code's
@@ -45,7 +44,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 
 /**
  * Platforms (`<process.platform>-<process.arch>`) for which Foundry Local ships
- * a native addon + core libraries. Mirrors the SDK installer's RID map.
+ * native addons and libraries. Mirrors the SDK installer's RID map.
  */
 export const FOUNDRY_LOCAL_SUPPORTED_PLATFORMS: ReadonlySet<string> = new Set([
 	'darwin-arm64',
@@ -84,10 +83,10 @@ const inFlight = new Map<string, Promise<string>>();
 const DOWNLOAD_INACTIVITY_TIMEOUT_MS = 60_000;
 
 /**
- * Ensure the Foundry Local native runtime (addon + core libraries) is present
+ * Ensure the Foundry Local native runtime (addons + shared libraries) is present
  * in `<cacheRoot>`, downloading the per-target CDN tarball if necessary. Returns
- * the versioned override directory to set as `VSCODE_FOUNDRY_LOCAL_NATIVE_DIR`
- * before loading the SDK.
+ * the concrete cached `prebuilds/<target>` directory to use as the SDK's
+ * `libraryPath` before constructing a manager.
  *
  * Idempotent: once a version is fully provisioned a per-platform `.complete`
  * marker is written and subsequent calls return immediately (after verifying the
@@ -100,15 +99,16 @@ export async function ensureFoundryLocalRuntime(cacheRoot: string, download: IFo
 	}
 
 	const overrideDir = join(cacheRoot, download.version);
+	const libraryPath = foundryPrebuildDir(overrideDir, platformKey);
 
 	// A single in-flight provisioning per override dir; late joiners share it.
-	const existing = inFlight.get(overrideDir);
+	const existing = inFlight.get(libraryPath);
 	if (existing) {
 		return existing;
 	}
 	const promise = doEnsure(overrideDir, platformKey, download, token, onProgress)
-		.finally(() => inFlight.delete(overrideDir));
-	inFlight.set(overrideDir, promise);
+		.finally(() => inFlight.delete(libraryPath));
+	inFlight.set(libraryPath, promise);
 	return promise;
 }
 
@@ -120,7 +120,7 @@ async function doEnsure(overrideDir: string, platformKey: string, download: IFou
 	// marker never short-circuits this arch's provisioning and a stale/partially
 	// deleted cache is repaired rather than trusted.
 	if (isRuntimeProvisioned(overrideDir, platformKey)) {
-		return overrideDir;
+		return foundryPrebuildDir(overrideDir, platformKey);
 	}
 
 	// Fail fast (before any download) when the host can't actually load the
@@ -131,7 +131,7 @@ async function doEnsure(overrideDir: string, platformKey: string, download: IFou
 
 	onProgress?.('Downloading dictation runtime…');
 	await provisionRuntime(overrideDir, platformKey, download.urlTemplate, download.version, token);
-	return overrideDir;
+	return foundryPrebuildDir(overrideDir, platformKey);
 }
 
 /**
@@ -142,8 +142,7 @@ async function doEnsure(overrideDir: string, platformKey: string, download: IFou
  * host should use `ensureFoundryLocalRuntime`, which gates and de-dupes.
  */
 export async function provisionRuntime(overrideDir: string, platformKey: string, urlTemplate: string, version: string, token: CancellationToken): Promise<void> {
-	const addonPath = foundryAddonPath(overrideDir, platformKey);
-	const coreDir = foundryCoreDir(overrideDir, platformKey);
+	const targetDir = foundryPrebuildDir(overrideDir, platformKey);
 
 	// The cache is shared by the utility processes of every open VS Code window,
 	// so provision into a process-unique staging dir and atomically promote each
@@ -152,24 +151,25 @@ export async function provisionRuntime(overrideDir: string, platformKey: string,
 	// the published copy and the loser accepts it as success.
 	const url = format2(urlTemplate, { target: platformKey });
 	const staging = join(overrideDir, `.staging-${process.pid}-${randomSuffix()}`);
-	const stagingAddon = join(staging, 'prebuilds', platformKey, 'foundry_local_napi.node');
-	const stagingCore = join(staging, 'foundry-local-core', platformKey);
+	const stagingTarget = foundryPrebuildDir(staging, platformKey);
 	try {
 		await downloadAndExtractTarball(url, staging, token);
 		throwIfCancelled(token);
 
-		if (!fs.existsSync(stagingAddon) || !hasAllCoreLibraries(stagingCore)) {
+		if (!hasAllRuntimeFiles(stagingTarget, platformKey)) {
 			throw new Error(`Foundry Local native runtime download from ${url} completed but expected files are missing.`);
 		}
 
-		await promoteDir(dirname(stagingAddon), dirname(addonPath));
-		await promoteDir(stagingCore, coreDir);
+		if (fs.existsSync(targetDir) && !hasAllRuntimeFiles(targetDir, platformKey)) {
+			await fs.promises.rm(targetDir, { recursive: true, force: true });
+		}
+		await promoteDir(stagingTarget, targetDir);
 	} finally {
 		await fs.promises.rm(staging, { recursive: true, force: true }).catch(() => { /* best effort */ });
 	}
 
 	// Verify the published payload — ours or a concurrent winner's — is complete.
-	if (!fs.existsSync(addonPath) || !hasAllCoreLibraries(coreDir)) {
+	if (!hasAllRuntimeFiles(targetDir, platformKey)) {
 		throw new Error('Foundry Local native runtime is incomplete after provisioning.');
 	}
 
@@ -181,26 +181,20 @@ function foundryMarkerPath(overrideDir: string, platformKey: string): string {
 	return join(overrideDir, `.complete-${platformKey}`);
 }
 
-/** Path of the prebuilt N-API addon inside a versioned override dir. */
-function foundryAddonPath(overrideDir: string, platformKey: string): string {
-	return join(overrideDir, 'prebuilds', platformKey, 'foundry_local_napi.node');
-}
-
-/** Directory of the native core libraries inside a versioned override dir. */
-function foundryCoreDir(overrideDir: string, platformKey: string): string {
-	return join(overrideDir, 'foundry-local-core', platformKey);
+/** Directory containing the target's addons and shared libraries. */
+function foundryPrebuildDir(overrideDir: string, platformKey: string): string {
+	return join(overrideDir, 'prebuilds', platformKey);
 }
 
 /**
  * Whether `<overrideDir>` holds a complete, verified runtime for `platformKey`:
- * the per-platform marker AND the actual addon + all core libraries. A marker
+ * the per-platform marker AND all expected addons and shared libraries. A marker
  * alone is insufficient (it can belong to a different architecture, or the
  * payload can be partially deleted). Exported for tests.
  */
 export function isRuntimeProvisioned(overrideDir: string, platformKey: string): boolean {
 	return fs.existsSync(foundryMarkerPath(overrideDir, platformKey))
-		&& fs.existsSync(foundryAddonPath(overrideDir, platformKey))
-		&& hasAllCoreLibraries(foundryCoreDir(overrideDir, platformKey));
+		&& hasAllRuntimeFiles(foundryPrebuildDir(overrideDir, platformKey), platformKey);
 }
 
 /**
@@ -265,10 +259,9 @@ function detectGlibcVersion(): [number, number] | undefined {
 
 /**
  * Download the per-target runtime tarball from `url` and extract it into
- * `stagingDir`, which then contains `prebuilds/<target>/foundry_local_napi.node`
- * and `foundry-local-core/<target>/<core libraries>` (the tarball's layout
- * mirrors the cache layout). The tarball is published to VS Code's CDN by
- * `build/dictation-runtime/`.
+ * `stagingDir`, which then contains
+ * `prebuilds/<target>/<addons and native libraries>`. The tarball is published
+ * to VS Code's CDN by `build/dictation-runtime/`.
  */
 async function downloadAndExtractTarball(url: string, stagingDir: string, token: CancellationToken): Promise<void> {
 	await fs.promises.mkdir(stagingDir, { recursive: true });
@@ -286,20 +279,24 @@ async function downloadAndExtractTarball(url: string, stagingDir: string, token:
 	}
 }
 
-/** The core library filenames required for the current platform. Exported for tests. */
-export function requiredCoreLibraryNames(): string[] {
-	const ext = process.platform === 'win32' ? '.dll' : process.platform === 'darwin' ? '.dylib' : '.so';
-	const prefix = process.platform === 'win32' ? '' : 'lib';
+/** The native files required for a target's complete runtime. Exported for tests. */
+export function requiredRuntimeFileNames(platformKey: string): string[] {
+	const isWin = platformKey.startsWith('win32-');
+	const isDarwin = platformKey.startsWith('darwin-');
+	const ext = isWin ? '.dll' : isDarwin ? '.dylib' : '.so';
+	const prefix = isWin ? '' : 'lib';
 	return [
-		`Microsoft.AI.Foundry.Local.Core${ext}`,
-		`${prefix}onnxruntime${ext}`,
+		'foundry_local_node.node',
+		'foundry_local_preload.node',
+		`${prefix}foundry_local${ext}`,
+		isWin ? 'onnxruntime.dll' : isDarwin ? 'libonnxruntime.1.dylib' : 'libonnxruntime.so.1',
 		`${prefix}onnxruntime-genai${ext}`,
 	];
 }
 
-/** Whether all required core libraries already exist in `coreDir`. */
-function hasAllCoreLibraries(coreDir: string): boolean {
-	return requiredCoreLibraryNames().every(name => fs.existsSync(join(coreDir, name)));
+/** Whether all required runtime files already exist in `targetDir`. */
+function hasAllRuntimeFiles(targetDir: string, platformKey: string): boolean {
+	return requiredRuntimeFileNames(platformKey).every(name => fs.existsSync(join(targetDir, name)));
 }
 
 /**

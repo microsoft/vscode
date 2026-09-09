@@ -252,19 +252,16 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
-// foundry-local-sdk (on-device chat dictation) ships a prebuilt N-API addon
-// (`foundry_local_napi.node`) inside its tarball, and its native core libraries
-// are fetched per-RID into `foundry-local-core/<platform>-<arch>/` at install
-// time. The addon requires a newer glibc than VS Code's minimum supported Linux
-// distros, so we deliberately do NOT ship any of this native payload: it is
-// downloaded on demand at runtime, only on supported platforms, into a per-user
-// cache (see `src/vs/platform/localTranscription/node/foundryLocalRuntime.ts`).
-// Exclude every prebuilt addon and core library from the package here.
+// foundry-local-sdk (on-device chat dictation) loads two N-API addons from its
+// package, while configureNativeLoader redirects its shared libraries to the
+// per-user runtime cache. Keep the addons but exclude the shared libraries,
+// which require a newer glibc than VS Code's minimum supported Linux distros.
 function getFoundryLocalExcludeFilter(): string[] {
 	return [
 		'**',
 		'!**/foundry-local-sdk/prebuilds/**',
-		'!**/foundry-local-sdk/foundry-local-core/**',
+		'**/foundry-local-sdk/prebuilds/**/foundry_local_node.node',
+		'**/foundry-local-sdk/prebuilds/**/foundry_local_preload.node',
 	];
 }
 

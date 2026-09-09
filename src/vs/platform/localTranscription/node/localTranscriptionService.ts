@@ -72,11 +72,10 @@ function runtimeCacheDir(modelCacheDir: string): string {
 }
 
 /**
- * Foundry Local JS SDK. It is an ESM package that loads a native addon
- * (`foundry_local_napi.node`) plus the Foundry Local Core / onnxruntime /
- * onnxruntime-genai shared libraries. Import it lazily so forking the utility
- * process stays cheap; the model itself is only downloaded/loaded when dictation
- * first runs.
+ * Foundry Local JS SDK. It is an ESM package that loads two native addons plus
+ * the Foundry Local / onnxruntime / onnxruntime-genai shared libraries. Import
+ * it lazily so forking the utility process stays cheap; the model itself is only
+ * downloaded/loaded when dictation first runs.
  */
 type FoundryLocal = typeof import('foundry-local-sdk');
 type FoundryLocalManager = import('foundry-local-sdk').FoundryLocalManager;
@@ -516,24 +515,25 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				// The model cache state is unknown until the catalog is queried.
 				this._setStatus({ state: LocalTranscriptionModelState.Loading });
 
-				// Ensure the Foundry Local native runtime (N-API addon + core
-				// libraries) is available before loading the SDK. We do not ship
-				// it — the addon requires a newer glibc than our minimum supported
-				// Linux distros — so in packaged builds it is downloaded on demand
-				// from VS Code's CDN (per `product.dictationRuntime`) into a
-				// per-user cache and the SDK loader is pointed at it via env var.
+				// Ensure the Foundry Local shared libraries are available before
+				// loading the SDK. Packaged builds keep the two addons but download
+				// the shared libraries on demand from VS Code's CDN into a per-user
+				// cache and point the SDK loader at it via libraryPath.
 				// This is a no-op once cached. In dev builds (no product config)
-				// the SDK resolves its addon + core libs from node_modules, so we
+				// the SDK resolves its addons + shared libraries from node_modules, so we
 				// skip provisioning and leave the loader on its default path.
+				let nativeLibraryPath: string | undefined;
 				if (this._runtimeDownload) {
-					const nativeDir = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), this._runtimeDownload, cts.token);
-					process.env.VSCODE_FOUNDRY_LOCAL_NATIVE_DIR = nativeDir;
+					nativeLibraryPath = await ensureFoundryLocalRuntime(runtimeCacheDir(cacheDir), this._runtimeDownload, cts.token);
 				}
 
 				if (!this._sdk) {
 					this._sdk = await import('foundry-local-sdk');
 				}
 				if (!this._manager) {
+					if (nativeLibraryPath) {
+						this._sdk.configureNativeLoader({ libraryPath: nativeLibraryPath });
+					}
 					// Store downloaded model files under VS Code's cache dir so
 					// subsequent sessions load without re-downloading ("model
 					// management"). `createAsync` avoids blocking the event loop
@@ -542,6 +542,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 						appName: FOUNDRY_APP_NAME,
 						modelCacheDir: cacheDir,
 						logLevel: 'warn',
+						...(nativeLibraryPath ? { libraryPath: nativeLibraryPath } : {}),
 					});
 				}
 
@@ -559,16 +560,9 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 					// download UI appears immediately rather than waiting for the
 					// SDK's first progress callback.
 					this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
-					// Bridge VS Code cancellation to the AbortSignal the SDK expects.
-					const ac = new AbortController();
-					const sub = cts.token.onCancellationRequested(() => ac.abort());
-					try {
-						await model.download((percent: number) => {
-							this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: Math.min(1, Math.max(0, percent / 100)) });
-						}, ac.signal);
-					} finally {
-						sub.dispose();
-					}
+					await model.download((percent: number) => {
+						this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: Math.min(1, Math.max(0, percent / 100)) });
+					});
 				}
 
 				// model.load() has no AbortSignal; check cancellation before starting it.
