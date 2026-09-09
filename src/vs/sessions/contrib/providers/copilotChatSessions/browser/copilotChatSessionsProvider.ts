@@ -1592,7 +1592,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 						icon: Codicon.repoClone,
 						providerId: this.id,
 						attachesContext: false,
-						run: () => this._cloneRepository(),
+						run: () => this._browseForRepositoryToClone(),
 					},
 				] satisfies ISessionWorkspaceBrowseAction[] : []),
 				{
@@ -2963,6 +2963,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	// -- Private --
+
+	private async _browseForRepositoryToClone(): Promise<ISessionWorkspace | undefined> {
+		const repository = await this.commandService.executeCommand<string>(
+			OPEN_REPO_COMMAND,
+			undefined,
+			{ allowRepositoryUrl: true },
+		);
+		if (!repository) {
+			return undefined;
+		}
+		const url = repository.includes('://') || repository.includes('@')
+			? repository
+			: `https://github.com/${repository}.git`;
+		return this._cloneRepository(url);
+	}
 
 	private async _cloneRepository(url?: string): Promise<ISessionWorkspace | undefined> {
 		try {

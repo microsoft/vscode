@@ -80,6 +80,7 @@ interface IGitHubRepositoryBrowseHarness {
 	resolveWorkspace(uri: URI): ISessionWorkspace | undefined;
 	_labelFromUri(uri: URI): string;
 	_iconFromUri(uri: URI): ThemeIcon;
+	_cloneRepository?(url?: string): Promise<ISessionWorkspace | undefined>;
 }
 
 const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForGitHubContext') as (
@@ -92,6 +93,10 @@ const browseForGitHubContext = Reflect.get(CopilotChatSessionsProvider.prototype
 const cloneRepository = Reflect.get(CopilotChatSessionsProvider.prototype, '_cloneRepository') as (
 	this: IGitHubRepositoryBrowseHarness,
 	url?: string,
+) => Promise<ISessionWorkspace | undefined>;
+
+const browseForRepositoryToClone = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForRepositoryToClone') as (
+	this: IGitHubRepositoryBrowseHarness,
 ) => Promise<ISessionWorkspace | undefined>;
 
 const browseForCloudRepo = Reflect.get(CopilotChatSessionsProvider.prototype, '_browseForCloudRepo') as (
@@ -614,7 +619,7 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
-	test('adds a local repository through the Git remote-source picker', async () => {
+	test('clones a selected repository URL', async () => {
 		const calls: { commandId: string; args: unknown[] }[] = [];
 		const harness: IGitHubRepositoryBrowseHarness = {
 			commandService: new class extends mock<ICommandService>() {
@@ -650,6 +655,49 @@ suite('CopilotChatSessionsProvider', () => {
 				},
 			],
 			workspace: URI.file('/repos/vscode').toString(),
+		});
+
+		test('lists GitHub repositories directly and preserves pasted clone URLs', async () => {
+			const calls: { commandId: string; args: unknown[] }[] = [];
+			const selections = ['microsoft/vscode', 'ssh://git@gitlab.com/example/project.git'];
+			const harness: IGitHubRepositoryBrowseHarness = {
+				commandService: new class extends mock<ICommandService>() {
+					override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+						calls.push({ commandId, args });
+						return selections.shift() as T;
+					}
+				}(),
+				notificationService: upcastPartial<INotificationService>({ error: () => undefined }),
+				resolveWorkspace: () => undefined,
+				_labelFromUri: () => 'vscode',
+				_iconFromUri: () => Codicon.repo,
+				_cloneRepository: async url => {
+					calls.push({ commandId: '_cloneRepository', args: [url] });
+					return undefined;
+				},
+			};
+
+			await browseForRepositoryToClone.call(harness);
+			await browseForRepositoryToClone.call(harness);
+
+			assert.deepStrictEqual(calls, [
+				{
+					commandId: 'github.copilot.chat.cloudSessions.openRepository',
+					args: [undefined, { allowRepositoryUrl: true }],
+				},
+				{
+					commandId: '_cloneRepository',
+					args: ['https://github.com/microsoft/vscode.git'],
+				},
+				{
+					commandId: 'github.copilot.chat.cloudSessions.openRepository',
+					args: [undefined, { allowRepositoryUrl: true }],
+				},
+				{
+					commandId: '_cloneRepository',
+					args: ['ssh://git@gitlab.com/example/project.git'],
+				},
+			]);
 		});
 	});
 
