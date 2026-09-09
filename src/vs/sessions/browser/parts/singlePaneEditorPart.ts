@@ -51,7 +51,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
 			},
 			showHeader: true,
-			reserveHeaderSpace: editor => editor instanceof DockedEditorInput
+			reserveHeaderSpace: editor => editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow)
 		};
 	}
 
@@ -107,6 +107,11 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 		this._register(agentWorkbenchLayoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.EDITOR_PART || event.partId === Parts.AUXILIARYBAR_PART) {
 				updateTabsOverride();
+			}
+			if (event.partId === Parts.EDITOR_PART) {
+				for (const group of this.groups) {
+					group.relayout();
+				}
 			}
 		}));
 		updateTabsOverride();
