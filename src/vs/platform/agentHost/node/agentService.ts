@@ -4456,7 +4456,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	addSubscriber(resource: URI, clientId: string): void {
 		// A new subscriber means the session is being observed again; cancel
-		// any pending GC or idle-release armed while it had no subscribers.
+		// any pending GC armed while it had no subscribers.
 		this._cancelPendingSessionGc(resource);
 		this._cancelPendingEphemeralSessionGc(resource);
 		// 0→1 transition — covers both the full subscribe path AND the
@@ -4481,16 +4481,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._maybeScheduleEphemeralSessionGc(resource)) {
 			return;
 		}
-		// An empty session whose last subscriber dropped is a candidate for
-		// full GC (provider session, worktree, on-disk state). Sessions with
-		// at least one turn participate in residency reconciliation, which only
-		// drops the in-memory cache and lets the session be restored from disk
-		// later. Skipping eviction here for empty
-		// sessions ensures their state stays observable so a re-subscribe
-		// can re-arm GC.
-		if (this._maybeScheduleSessionGc(resource)) {
-			return;
-		}
+		// Annotation subscribers block destructive GC, but must not suppress residency reconciliation.
+		this._maybeScheduleSessionGc(resource);
 		void this._sessionResidency.reconcile();
 	}
 
@@ -4533,30 +4525,27 @@ export class AgentService extends Disposable implements IAgentService {
 	 * to reconnect or a workspace switch to settle. Any subsequent subscribe
 	 * (or createSession on the same URI) cancels the timer via
 	 * {@link _cancelPendingSessionGc}.
-	 *
-	 * Returns `true` if a GC timer was armed (existing or newly scheduled),
-	 * so callers can skip alternative cleanup paths.
 	 */
-	private _maybeScheduleSessionGc(resource: URI): boolean {
+	private _maybeScheduleSessionGc(resource: URI): void {
 		const session = resolveAgentHostSession(resource);
 		if (this._subscriptions.hasSessionSubscribers(session)) {
-			return true;
+			return;
 		}
 		const key = session.toString();
 		const state = this._stateManager.getSessionState(key);
 		if (!state) {
-			return false;
+			return;
 		}
 		if (state.turns.length > 0 || state.activeTurn !== undefined) {
-			return false;
+			return;
 		}
 		if (this._stateManager.isUnusedDraft(key) !== true) {
 			this._logService.trace(`[AgentService] Skipping GC for session that is not an unused draft: ${key}`);
-			return false;
+			return;
 		}
 		// Never tear down a session Agent Merge is holding.
 		if (this._agentMergeController.holdsSession(key)) {
-			return false;
+			return;
 		}
 		this._pendingSessionGc.set(session, disposableTimeout(() => {
 			this._pendingSessionGc.deleteAndDispose(session);
@@ -4564,7 +4553,6 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(err, `[AgentService] GC failed for ${key}`);
 			});
 		}, SESSION_GC_GRACE_MS));
-		return true;
 	}
 
 	private _cancelPendingSessionGc(resource: URI): void {
@@ -4778,9 +4766,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
+		const requiresAnnotationsRestore = isAnnotationsAction(action);
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresTurnOwnerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate) {
+		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresTurnOwnerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore) {
 			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
@@ -4788,6 +4777,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const next = (pending ?? Promise.resolve()).then(async () => {
 			const sessionUri = URI.parse(sessionChannel);
 			const subagent = parseSubagentSessionUri(sessionUri);
+			if (requiresAnnotationsRestore) {
+				const annotations = parseAnnotationsUri(channel);
+				if (!annotations) {
+					throw new Error(`Invalid annotations channel: ${channel}`);
+				}
+				await this._ensureAnnotationsRestored(annotations.sessionUri);
+			}
 			// Evaluated here rather than from the entry-time `requiresSessionRestore`:
 			// this callback is queued behind earlier dispatches, so the session may
 			// since have been restored or evicted. Joining an in-flight restore also
@@ -5515,21 +5511,31 @@ export class AgentService extends Disposable implements IAgentService {
 	 * already populating the session.
 	 */
 	private async _ensureAnnotationsRestored(sessionUri: string): Promise<void> {
+		await this._validateAnnotationsOwner(sessionUri);
 		if (this._stateManager.getAnnotationsState(buildAnnotationsUri(sessionUri))) {
 			return;
 		}
 		await this._restoreSessionInFlight.get(sessionUri);
 		await this._restoreSubagentInFlight.get(sessionUri);
 		const session = URI.parse(sessionUri);
-		if (!this._stateManager.getSessionState(sessionUri)) {
-			const parsedSubagent = parseSubagentSessionUri(session);
-			if (parsedSubagent) {
-				await this._restoreSubagentSession(sessionUri, parsedSubagent.parentSession);
-			} else {
-				await this.restoreSession(session);
-			}
-		}
+		// Read the independent annotations store without restoring provider history or affecting session recency.
 		await this._restoreAnnotations(session);
+		await this._validateAnnotationsOwner(sessionUri);
+	}
+
+	private async _validateAnnotationsOwner(sessionUri: string): Promise<void> {
+		const owner = resolveAgentHostSession(URI.parse(sessionUri));
+		const ownerKey = owner.toString();
+		// Live throwaway sessions are deliberately tombstoned to exclude them from discovery.
+		if (this._stateManager.isEphemeralSession(ownerKey)) {
+			return;
+		}
+		if (await this._sessionRegistry.isTombstoned(owner)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${ownerKey}`);
+		}
+		if (!this._stateManager.getSessionState(ownerKey) && !await this._sessionRegistry.get(owner)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${ownerKey}`);
+		}
 	}
 
 	/** Reads persisted annotations into state. */
@@ -7065,7 +7071,7 @@ export class AgentService extends Disposable implements IAgentService {
 				contentType: 'text/plain',
 			};
 		} finally {
-			if (!wasRestored && this._stateManager.getSessionState(owningSession.toString()) && !this._subscriptions.hasSessionSubscribers(owningSession)) {
+			if (!wasRestored && this._stateManager.getSessionState(owningSession.toString())) {
 				void this._sessionResidency.reconcile();
 			}
 		}

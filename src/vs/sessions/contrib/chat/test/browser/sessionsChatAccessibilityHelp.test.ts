@@ -36,11 +36,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const nudgeHelp = provider.provideContent().split('\n').find(line => line.includes('suggestion may appear'));
 
 			assert.deepStrictEqual({
-				controls: nudgeHelp?.includes(`Use Tab or Shift+Tab to reach ${action} or ${dismiss}, then Enter or Space to activate it.`),
+				controls: nudgeHelp?.includes(`Use Tab or Shift+Tab to reach ${action}, Configure Automatic Cleanup, or ${dismiss}, then Enter or Space to activate it.`),
+				cleanupSettings: nudgeHelp?.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions.'),
 				escape: nudgeHelp?.includes(`${dismiss}, or Escape while the suggestion is focused, hides the suggestion`),
 				focus: nudgeHelp?.includes('returns focus to the chat input'),
 				close: nudgeHelp?.includes('Close'),
-			}, { controls: true, escape: true, focus: true, close: false });
+			}, { controls: true, cleanupSettings: true, escape: true, focus: true, close: false });
 		});
 	}
 });

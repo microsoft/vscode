@@ -4387,6 +4387,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _abortSession(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
+		const context = this._resolveChatContext(chat, operationContext);
+		const abort = this._abortSessionWithRecovery(chat, operationContext);
+		const barrier = abort.then(() => undefined, () => undefined);
+		const queuedBarrier = this._queueChat(context.configurationId, context.sequencerKey, 'abortBarrier', () => barrier);
+		void queuedBarrier.catch(error => {
+			if (!(error instanceof CancellationError)) {
+				this._logService.error(`[Copilot:${context.configurationId}] Failed to queue abort barrier for ${context.sequencerKey}`, error);
+			}
+		});
+		await abort;
+	}
+
+	private async _abortSessionWithRecovery(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		try {
 			await this._abortSessionOnce(chat, operationContext);
 		} catch (error) {

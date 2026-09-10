@@ -76,6 +76,7 @@ function renderArchiveNudge(context: ComponentFixtureContext, options: {
 				pullRequestCount: options.pullRequestCount ?? 1,
 				onArchive: async () => inputPart.setSessionArchiveNudge(undefined),
 				onDismiss: () => { },
+				onOpenCleanupSettings: async () => { },
 			});
 			if (options.expanded) {
 				inputPart.element.querySelector<HTMLDetailsElement>('.chat-session-archive-nudge-details')!.open = true;
