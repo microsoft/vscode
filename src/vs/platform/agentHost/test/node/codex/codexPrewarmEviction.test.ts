@@ -1516,6 +1516,33 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 	});
 
+	test('does not discover workspace customizations from managed scratch', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const created = await createSession(agent);
+		const chat = defaultChatOf(created.session);
+		const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+		const scratch = URI.file('/scratch/quick-chat');
+		entry.workingDirectory = scratch;
+		entry.managedWorkingDirectory = scratch;
+		await Promise.all([
+			agent['_fileService'].writeFile(URI.joinPath(scratch, 'AGENTS.md'), VSBuffer.fromString('Scratch instructions')),
+			agent['_fileService'].writeFile(URI.joinPath(scratch, '.github', 'agents', 'scratch.agent.md'), VSBuffer.fromString('---\nname: Scratch\n---\nScratch agent')),
+			agent['_fileService'].writeFile(URI.joinPath(scratch, '.github', 'skills', 'scratch', 'SKILL.md'), VSBuffer.fromString('---\nname: scratch\ndescription: Scratch\n---\nScratch skill')),
+		]);
+
+		const customizations = await agent.getChatCustomizations(chat, chatContext(created.session, chat));
+		const launch = await agent['_buildCustomizationLaunch'](entry);
+
+		assert.deepStrictEqual({
+			customizations: customizations.map(customization => customization.uri),
+			agents: launch.config.agents,
+		}, {
+			customizations: [],
+			agents: undefined,
+		});
+	});
+
 	test('workspace skill roots stay session-scoped rather than process-global', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };

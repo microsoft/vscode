@@ -1839,6 +1839,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		return session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : []);
 	}
 
+	private _customizationWorkingDirectories(session: ICodexSession): readonly URI[] {
+		return session.managedWorkingDirectory ? [] : this._workingDirectories(session);
+	}
+
 	private _runtimeWorkspaceRoots(session: ICodexSession): string[] {
 		return distinctAbsolutePaths(this._workingDirectories(session).map(directory => directory.fsPath));
 	}
@@ -1867,8 +1871,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	private async _buildCustomizationLaunch(session: ICodexSession): Promise<ICodexCustomizationLaunch> {
 		const plugins = this._enabledClientPlugins(session);
 		const [workspaceAgents, workspaceSkills] = await Promise.all([
-			discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
-			discoverCodexWorkspaceSkills(this._workingDirectories(session), this._fileService),
+			discoverCodexWorkspaceAgents(this._customizationWorkingDirectories(session), this._fileService),
+			discoverCodexWorkspaceSkills(this._customizationWorkingDirectories(session), this._fileService),
 		]);
 		const customization = await codexCustomizationConfig(workspaceAgents.agents, plugins, session.agent, this._fileService);
 		const developerInstructions = [
@@ -7338,9 +7342,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._refreshMcpCustomizationIds(session, controller);
 			}
 			const [workspaceAgents, workspaceInstructions, workspaceSkills, nativeSkillHookContainers] = await Promise.all([
-				discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
-				discoverCodexWorkspaceInstructions(this._workingDirectories(session), this._fileService),
-				discoverCodexWorkspaceSkills(this._workingDirectories(session), this._fileService),
+				discoverCodexWorkspaceAgents(this._customizationWorkingDirectories(session), this._fileService),
+				discoverCodexWorkspaceInstructions(this._customizationWorkingDirectories(session), this._fileService),
+				discoverCodexWorkspaceSkills(this._customizationWorkingDirectories(session), this._fileService),
 				this._fetchSkillHookContainers(session),
 			]);
 			if (session.disposed || (catalogConnection !== undefined && !this._isCurrentConnection(catalogConnection))) {
@@ -7385,7 +7389,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			client.request<'hooks/list', HooksListResponse>('hooks/list', { cwds: [cwd] })
 				.catch(err => { this._logService.warn(`[Codex] hooks/list failed: ${err instanceof Error ? err.message : String(err)}`); return undefined; }),
 		]);
-		return [...codexSkillsToContainers(skills), ...codexHooksToContainers(hooks)];
+		const effectiveSkills = session.managedWorkingDirectory && skills
+			? { ...skills, data: skills.data.map(entry => ({ ...entry, skills: entry.skills.filter(skill => skill.scope !== 'repo') })) }
+			: skills;
+		const effectiveHooks = session.managedWorkingDirectory && hooks
+			? { ...hooks, data: hooks.data.map(entry => ({ ...entry, hooks: entry.hooks.filter(hook => hook.source !== 'project') })) }
+			: hooks;
+		return [...codexSkillsToContainers(effectiveSkills), ...codexHooksToContainers(effectiveHooks)];
 	}
 
 	/**
@@ -7407,9 +7417,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const catalogConnection = this._connection.kind === 'ready' ? this._connection : undefined;
 		const [workspaceAgents, workspaceInstructions, workspaceSkills, nativeSkillHookContainers] = await Promise.all([
-			discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
-			discoverCodexWorkspaceInstructions(this._workingDirectories(session), this._fileService),
-			discoverCodexWorkspaceSkills(this._workingDirectories(session), this._fileService),
+			discoverCodexWorkspaceAgents(this._customizationWorkingDirectories(session), this._fileService),
+			discoverCodexWorkspaceInstructions(this._customizationWorkingDirectories(session), this._fileService),
+			discoverCodexWorkspaceSkills(this._customizationWorkingDirectories(session), this._fileService),
 			this._fetchSkillHookContainers(session),
 		]);
 		if (session.disposed || (catalogConnection !== undefined && !this._isCurrentConnection(catalogConnection))) {

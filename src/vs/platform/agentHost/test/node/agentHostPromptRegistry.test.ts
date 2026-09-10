@@ -221,7 +221,7 @@ suite('AgentHostPromptRegistry', () => {
 				avoidsReplacementSession: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('do not create a replacement session'),
 				allowsScratchArtifacts: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('scratch changes alone do not require a workspace'),
 				keepsAttachmentWorkWorkspaceless: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Keep attachment-, pasted-, or generated-content work here'),
-				requiresConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Before workspace-dependent work'),
+				requiresConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('ask exactly one single-select question'),
 				namesProviderTools: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`request_user_input` (Codex) or `ask_user` (Copilot)'),
 				combinesWorkspaceAndIsolation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Each choice must pair an exact workspace with isolation'),
 				forbidsSplitQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not split the question'),
