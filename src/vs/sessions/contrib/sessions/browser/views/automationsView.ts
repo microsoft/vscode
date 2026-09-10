@@ -6,6 +6,7 @@
 import '../media/automationsCards.css';
 import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -26,17 +27,22 @@ import { type AutomationCatalogueState, IAutomationService } from '../../../../.
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -55,12 +61,34 @@ import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionI
 import { SessionsFlatList, SessionItemStatusContext } from './sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { AUTOMATION_TEMPLATES, IAutomationTemplate } from './automationTemplates.js';
+import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
+export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanDisableContext = new RawContextKey<boolean>('sessionsAutomationCardCanDisable', false);
+
+function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], second: readonly IAutomationTemplate[]): boolean {
+	return first.length === second.length && first.every((template, index) => {
+		const other = second[index];
+		return template.id === other.id
+			&& template.name === other.name
+			&& template.description === other.description
+			&& template.prompt === other.prompt
+			&& template.enabled === other.enabled
+			&& template.schedule.interval === other.schedule.interval
+			&& template.schedule.scheduleHour === other.schedule.scheduleHour
+			&& template.schedule.scheduleMinute === other.schedule.scheduleMinute
+			&& template.schedule.scheduleDay === other.schedule.scheduleDay
+			&& template.source?.label === other.source?.label
+			&& ((!template.source && !other.source) || (!!template.source && !!other.source && isEqual(template.source.uri, other.source.uri)));
+	});
+}
+
+function setsEqual(first: ReadonlySet<string>, second: ReadonlySet<string>): boolean {
+	return first.size === second.size && [...first].every(value => second.has(value));
+}
 
 interface IAutomationCardEntry {
 	readonly element: HTMLElement;
@@ -103,6 +131,28 @@ interface IAutomationTemporaryRunRow extends IDisposable {
 	readonly title: HTMLElement;
 }
 
+interface IAutomationTemplateSectionOptions {
+	readonly className: string;
+	readonly title: string;
+	readonly description: string;
+	readonly templates: readonly IAutomationTemplate[];
+	readonly expanded: boolean;
+	readonly showUnreadIndicator?: boolean;
+	readonly onDidToggle: (expanded: boolean) => void;
+}
+
+interface IRenderedAutomationTemplateSection {
+	readonly section: HTMLDetailsElement;
+	readonly summary: HTMLElement;
+	readonly unreadIndicator: HTMLElement | undefined;
+}
+
+type AutomationDropData =
+	| { readonly kind: 'resource'; readonly resource: URI }
+	| { readonly kind: 'file'; readonly file: File }
+	| { readonly kind: 'invalid'; readonly reason: 'multiple' | 'unsupported' }
+	| { readonly kind: 'none' };
+
 /**
  * Card-style view of automations for the Agents window sessions grid.
  * Uses native VS Code components and styling patterns matching the
@@ -118,6 +168,7 @@ export class AutomationsCardsWidget extends Disposable {
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -140,7 +191,8 @@ export class AutomationsCardsWidget extends Disposable {
 		this._register(autorun(reader => {
 			const catalogueState = this.automationService.catalogueState.read(reader);
 			const items = this.automationService.automations.read(reader);
-			this.cardsSection.render(items, catalogueState);
+			const templates = readAutomationTemplates(this.agentPluginService.plugins.read(reader), reader);
+			this.cardsSection.render(items, catalogueState, templates);
 		}));
 
 		const sessionDeleted = observableSignalFromEvent(this, this.sessionsManagementService.onDidDeleteSession);
@@ -195,16 +247,28 @@ class AutomationCardsSection extends Disposable {
 	private readonly errorContainer: HTMLElement;
 	private readonly templatesContainer: HTMLElement;
 	private readonly partialStateContainer: HTMLElement;
+	private readonly dropOverlay: HTMLElement;
 	private readonly partialLoadingIcon: HTMLElement;
 	private readonly partialErrorIcon: HTMLElement;
 	private readonly partialStateMessage: HTMLElement;
 	private readonly persistentCards = new Map<string, IAutomationCardEntry>();
 	private readonly latestAutomations = new Map<string, IAutomationDescriptor>();
 	private readonly emptyStateDisposables = this._register(new DisposableStore());
+	private readonly templateDisposables = this._register(new DisposableStore());
 	private readonly stateDisposables = this._register(new DisposableStore());
 	private readonly templateAriaId = generateUuid();
 	private emptyStateRendered = false;
-	private templatesRendered = false;
+	private renderedTemplates: readonly IAutomationTemplate[] = [];
+	private builtInTemplatesSection: HTMLDetailsElement | undefined;
+	private builtInTemplatesExpanded: boolean | undefined;
+	private builtInTemplatesUserToggled = false;
+	private pluginTemplatesSection: HTMLDetailsElement | undefined;
+	private pluginTemplatesSummary: HTMLElement | undefined;
+	private pluginTemplatesUnreadIndicator: HTMLElement | undefined;
+	private pluginTemplatesExpanded: boolean | undefined;
+	private pluginTemplatesUserToggled = false;
+	private currentPluginTemplateIds = new Set<string>();
+	private seenPluginTemplateIds: Set<string>;
 	private emptyCreateButton: IButton | undefined;
 	private readonly loadingCreateButton: IButton;
 	private readonly unavailableCreateButton: IButton;
@@ -223,11 +287,18 @@ class AutomationCardsSection extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IFileService private readonly fileService: IFileService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
+		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, this._store)(() => {
+			this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
+			this.updatePluginTemplateUnreadState(false);
+		}));
 		this.partialStateContainer = DOM.append(parent, $('.automations-cards-partial-state'));
 		this.partialStateContainer.setAttribute('role', 'status');
 		this.partialStateContainer.setAttribute('aria-live', 'polite');
@@ -254,6 +325,23 @@ class AutomationCardsSection extends Disposable {
 		this.errorCreateButton = this.renderErrorState();
 		this.templatesContainer = DOM.append(parent, $('.automations-templates'));
 		this.templatesContainer.style.display = 'none';
+		this.dropOverlay = DOM.append(this.focusRoot, $('.automations-drop-overlay'));
+		this.dropOverlay.setAttribute('role', 'status');
+		this.dropOverlay.setAttribute('aria-live', 'polite');
+		const dropIcon = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-icon'));
+		dropIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.cloudUpload));
+		dropIcon.setAttribute('aria-hidden', 'true');
+		const dropTitle = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-title'));
+		dropTitle.textContent = localize('automationDropTitle', "Drop to import automation");
+		const dropDescription = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-description'));
+		dropDescription.textContent = localize('automationDropDescription', "You can review the Automation before creating it.");
+		this._register(new DOM.DragAndDropObserver(this.focusRoot, {
+			onDragEnter: event => this.updateDropOverlay(event),
+			onDragOver: event => this.updateDropOverlay(event),
+			onDragLeave: () => this.hideDropOverlay(),
+			onDragEnd: () => this.hideDropOverlay(),
+			onDrop: event => this.handleDrop(event),
+		}));
 		const focusTracker = this._register(DOM.trackFocus(this.focusRoot));
 		this._register(focusTracker.onDidBlur(() => this.clearPendingFocus()));
 		this._register(DOM.addDisposableListener(this.focusRoot, DOM.EventType.FOCUS_OUT, (event: FocusEvent) => {
@@ -275,7 +363,47 @@ class AutomationCardsSection extends Disposable {
 		}));
 	}
 
-	render(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState): void {
+	private updateDropOverlay(event: DragEvent): void {
+		const dropData = getAutomationDropData(event);
+		const canImport = dropData.kind === 'resource' || dropData.kind === 'file';
+		this.dropOverlay.classList.toggle('visible', canImport);
+		if (canImport && event.dataTransfer) {
+			event.dataTransfer.dropEffect = 'copy';
+		}
+	}
+
+	private hideDropOverlay(): void {
+		this.dropOverlay.classList.remove('visible');
+	}
+
+	private handleDrop(event: DragEvent): void {
+		const dropData = getAutomationDropData(event);
+		this.hideDropOverlay();
+		if (dropData.kind === 'none') {
+			return;
+		}
+		DOM.EventHelper.stop(event, true);
+		if (dropData.kind === 'invalid') {
+			const detail = dropData.reason === 'multiple'
+				? localize('automationDropMultiple', "Drop one Automation blueprint file at a time.")
+				: localize('automationDropUnsupported', "Only .automation.md files can be imported.");
+			void this.dialogService.error(localize('automationDropFailed', "Unable to import automation."), detail);
+			return;
+		}
+		const readContent = dropData.kind === 'resource'
+			? async () => (await this.fileService.readFile(dropData.resource)).value.toString()
+			: async () => VSBuffer.wrap(new Uint8Array(await dropData.file.arrayBuffer())).toString();
+		void importAutomationBlueprint(
+			readContent,
+			this.automationDialogService,
+			this.automationService,
+			this.configurationService,
+			this.dialogService,
+			this.logService,
+		);
+	}
+
+	render(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[]): void {
 		const activeElement = DOM.getActiveElement();
 		const contentOwnedFocus = DOM.isHTMLElement(activeElement) && (
 			this.visibleContainer?.contains(activeElement) || this.templatesContainer.contains(activeElement)
@@ -312,15 +440,38 @@ class AutomationCardsSection extends Disposable {
 			index++;
 		}
 
-		const showTemplates = automations.length === 0;
-		if (showTemplates) {
-			if (!this.templatesRendered) {
-				this.renderTemplates();
-				this.templatesRendered = true;
+		if (!this.builtInTemplatesUserToggled) {
+			const defaultExpanded = automations.length === 0;
+			if (this.builtInTemplatesExpanded !== defaultExpanded) {
+				this.builtInTemplatesExpanded = defaultExpanded;
+				if (this.builtInTemplatesSection) {
+					this.builtInTemplatesSection.open = defaultExpanded;
+				}
 			}
-			this.templatesContainer.style.display = '';
 		}
-		const nextContainer = showTemplates ? this.getEmptyStateContainer(catalogueState) : this.container;
+
+		if (!this.pluginTemplatesUserToggled) {
+			const defaultExpanded = automations.length === 0;
+			if (this.pluginTemplatesExpanded !== defaultExpanded) {
+				this.pluginTemplatesExpanded = defaultExpanded;
+				if (this.pluginTemplatesSection) {
+					this.pluginTemplatesSection.open = defaultExpanded;
+				}
+			}
+		}
+
+		if (!areAutomationTemplatesEqual(this.renderedTemplates, templates)) {
+			this.renderTemplates(templates);
+			this.renderedTemplates = templates;
+		}
+
+		this.updatePluginTemplateUnreadState(
+			this.pluginTemplatesUserToggled || (catalogueState === 'ready' && automations.length === 0)
+		);
+		const showTemplateSections = templates.length > 0;
+		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
+
+		const nextContainer = automations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
 		const previousContainer = this.visibleContainer;
 		if (previousContainer !== nextContainer) {
 			nextContainer.style.display = '';
@@ -330,18 +481,25 @@ class AutomationCardsSection extends Disposable {
 
 		// Move focus before hiding its previous container.
 		if (!this.focusPendingAutomation() && contentOwnedFocus && DOM.isHTMLElement(activeElement)) {
-			if (!nextContainer.contains(activeElement) && !(showTemplates && this.templatesContainer.contains(activeElement))) {
+			if (!nextContainer.contains(activeElement) && !(showTemplateSections && this.isVisibleTemplateElement(activeElement))) {
 				this.focusVisibleState(automations, catalogueState);
 			} else if (!DOM.isActiveElement(activeElement)) {
 				activeElement.focus();
 			}
 		}
+
 		if (previousContainer && previousContainer !== nextContainer) {
 			previousContainer.style.display = 'none';
 		}
-		if (!showTemplates) {
-			this.templatesContainer.style.display = 'none';
+	}
+
+	private isVisibleTemplateElement(element: HTMLElement): boolean {
+		if (!this.templatesContainer.contains(element)) {
+			return false;
 		}
+		const section = element.closest<HTMLDetailsElement>('details.automations-template-section');
+		const summary = element.closest<HTMLElement>('summary');
+		return !section || section.open || summary?.parentElement === section;
 	}
 
 	private getEmptyStateContainer(catalogueState: AutomationCatalogueState): HTMLElement {
@@ -563,18 +721,129 @@ class AutomationCardsSection extends Disposable {
 		this.emptyStateDisposables.add(createButton.onDidClick(() => this.openCreateDialog()));
 	}
 
-	private renderTemplates(): void {
-		const templatesTitle = DOM.append(this.templatesContainer, $('h3.automations-templates-title'));
-		templatesTitle.id = 'automations-templates-title';
-		templatesTitle.textContent = localize('automationTemplatesTitle', "Start with a template");
-		const templatesDescription = DOM.append(this.templatesContainer, $('p.automations-templates-description'));
-		templatesDescription.textContent = localize('automationTemplatesDescription', "Choose a starting point, then review and customize it before creating.");
-		const templatesGrid = DOM.append(this.templatesContainer, $('.automations-templates-grid'));
-		templatesGrid.setAttribute('role', 'group');
-		templatesGrid.setAttribute('aria-labelledby', templatesTitle.id);
-		for (const template of AUTOMATION_TEMPLATES) {
-			this.renderTemplateCard(templatesGrid, template);
+	private renderTemplates(templates: readonly IAutomationTemplate[]): void {
+		this.templateDisposables.clear();
+		DOM.clearNode(this.templatesContainer);
+		const builtInTemplates = templates.filter(template => !template.source);
+		const pluginTemplates = templates.filter(template => !!template.source);
+		this.currentPluginTemplateIds = new Set(pluginTemplates.map(template => template.id));
+		this.pluginTemplatesSection = undefined;
+		this.pluginTemplatesSummary = undefined;
+		this.pluginTemplatesUnreadIndicator = undefined;
+
+		this.builtInTemplatesSection = this.renderTemplateSection({
+			className: 'automations-built-in-templates',
+			title: localize('automationBuiltInTemplatesTitle', "Built-in Templates"),
+			description: localize('automationBuiltInTemplatesDescription', "Choose a starting point, then review and customize it before creating."),
+			templates: builtInTemplates,
+			expanded: this.builtInTemplatesExpanded ?? false,
+			onDidToggle: expanded => {
+				if (expanded !== this.builtInTemplatesExpanded) {
+					this.builtInTemplatesExpanded = expanded;
+					this.builtInTemplatesUserToggled = true;
+				}
+			},
+		}).section;
+
+		if (pluginTemplates.length > 0) {
+			const rendered = this.renderTemplateSection({
+				className: 'automations-plugin-templates',
+				title: localize('automationPluginTemplatesTitle', "Templates from Plugins"),
+				description: localize('automationPluginTemplatesDescription', "Templates provided by enabled plugins start disabled."),
+				templates: pluginTemplates,
+				expanded: this.pluginTemplatesExpanded ?? false,
+				showUnreadIndicator: true,
+				onDidToggle: expanded => {
+					this.pluginTemplatesExpanded = expanded;
+					this.pluginTemplatesUserToggled = true;
+					this.updatePluginTemplateUnreadState(expanded);
+				},
+			});
+			this.pluginTemplatesSection = rendered.section;
+			this.pluginTemplatesSummary = rendered.summary;
+			this.pluginTemplatesUnreadIndicator = rendered.unreadIndicator;
 		}
+	}
+
+	private renderTemplateSection(options: IAutomationTemplateSectionOptions): IRenderedAutomationTemplateSection {
+		const section = DOM.append(this.templatesContainer, $<HTMLDetailsElement>(`details.automations-template-section.${options.className}`));
+		section.open = options.expanded;
+		const summary = DOM.append(section, $('summary.automations-template-section-summary'));
+		const chevron = DOM.append(summary, $('span.automations-template-section-chevron'));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.setAttribute('aria-hidden', 'true');
+		const title = DOM.append(summary, $('span.automations-template-section-title'));
+		title.id = `${options.className}-${this.templateAriaId}`;
+		title.setAttribute('role', 'heading');
+		title.setAttribute('aria-level', '3');
+		title.textContent = options.title;
+		const unreadIndicator = options.showUnreadIndicator
+			? DOM.append(summary, $('span.automations-template-section-unread'))
+			: undefined;
+		unreadIndicator?.setAttribute('aria-hidden', 'true');
+		const count = DOM.append(summary, $('span.automations-template-section-count'));
+		count.textContent = String(options.templates.length);
+		this.templateDisposables.add(DOM.addDisposableListener(section, 'toggle', () => options.onDidToggle(section.open)));
+		const description = DOM.append(section, $('p.automations-templates-description'));
+		description.textContent = options.description;
+		const grid = DOM.append(section, $('.automations-templates-grid'));
+		grid.setAttribute('role', 'group');
+		grid.setAttribute('aria-labelledby', title.id);
+		for (const template of options.templates) {
+			this.renderTemplateCard(grid, template);
+		}
+		return { section, summary, unreadIndicator };
+	}
+
+	private updatePluginTemplateUnreadState(markExpandedAsSeen: boolean): void {
+		if (!this.pluginTemplatesSection || !this.pluginTemplatesSummary || !this.pluginTemplatesUnreadIndicator) {
+			return;
+		}
+		if (this.pluginTemplatesSection.open && markExpandedAsSeen) {
+			this.markCurrentPluginTemplatesSeen();
+		}
+		const unreadCount = this.pluginTemplatesSection.open
+			? 0
+			: [...this.currentPluginTemplateIds].filter(id => !this.seenPluginTemplateIds.has(id)).length;
+		this.pluginTemplatesUnreadIndicator.classList.toggle('visible', unreadCount > 0);
+		if (unreadCount === 0) {
+			this.pluginTemplatesSummary.removeAttribute('aria-label');
+		} else {
+			this.pluginTemplatesSummary.setAttribute('aria-label', unreadCount === 1
+				? localize('automationPluginTemplatesOneNewAriaLabel', "Templates from Plugins, 1 new template")
+				: localize('automationPluginTemplatesManyNewAriaLabel', "Templates from Plugins, {0} new templates", unreadCount));
+		}
+	}
+
+	private markCurrentPluginTemplatesSeen(): void {
+		if (setsEqual(this.currentPluginTemplateIds, this.seenPluginTemplateIds)) {
+			return;
+		}
+		this.seenPluginTemplateIds = new Set(this.currentPluginTemplateIds);
+		this.storageService.store(
+			SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY,
+			JSON.stringify([...this.seenPluginTemplateIds].sort()),
+			StorageScope.PROFILE,
+			StorageTarget.MACHINE,
+		);
+	}
+
+	private readSeenPluginTemplateIds(): Set<string> {
+		const raw = this.storageService.get(SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return new Set();
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			if (Array.isArray(parsed) && parsed.every(id => typeof id === 'string')) {
+				return new Set(parsed);
+			}
+		} catch (error) {
+			this.logService.warn('[Automations] Failed to read seen plugin Automation templates.', error);
+			return new Set();
+		}
+		this.logService.warn('[Automations] Ignoring invalid seen plugin Automation templates storage.');
+		return new Set();
 	}
 
 	private renderLoadingState(): IButton {
@@ -648,29 +917,39 @@ class AutomationCardsSection extends Disposable {
 	private renderTemplateCard(container: HTMLElement, template: IAutomationTemplate): void {
 		const card = DOM.append(container, $<HTMLButtonElement>('button.automations-template-card', { type: 'button' }));
 		const schedule = formatSchedule(template.schedule);
-		card.setAttribute('aria-label', localize('useAutomationTemplate', "Use template: {0}, {1}", template.name, schedule));
+		card.setAttribute('aria-label', template.source
+			? localize('usePluginAutomationTemplate', "Use template: {0}, {1}, from {2}", template.name, schedule, template.source.label)
+			: localize('useAutomationTemplate', "Use template: {0}, {1}", template.name, schedule));
 
 		const nameRow = DOM.append(card, $('.automations-template-card-name'));
 		const name = DOM.append(nameRow, $('span.automations-template-card-name-text'));
 		name.textContent = template.name;
-		this.emptyStateDisposables.add(this.hoverService.setupDelayedHover(name, { content: template.name }));
+		this.templateDisposables.add(this.hoverService.setupDelayedHover(name, { content: template.name }));
 		const badge = DOM.append(nameRow, $('span.automations-template-card-badge'));
-		badge.textContent = localize('automationTemplateBadge', "Template");
+		badge.textContent = template.source
+			? localize('automationPluginTemplateBadge', "Plugin")
+			: localize('automationTemplateBadge', "Template");
 		badge.setAttribute('aria-hidden', 'true');
 
+		if (template.source) {
+			const source = DOM.append(card, $('span.automations-template-card-source'));
+			source.textContent = localize('automationTemplateSource', "From {0}", template.source.label);
+			this.templateDisposables.add(this.hoverService.setupDelayedHover(source, { content: template.source.label }));
+		}
 		const scheduleElement = DOM.append(card, $('span.automations-template-card-schedule'));
 		scheduleElement.textContent = schedule;
 		const description = DOM.append(card, $('span.automations-template-card-prompt'));
 		description.id = `automations-template-${this.templateAriaId}-${template.id}-description`;
 		description.textContent = template.description;
-		this.emptyStateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt }));
+		this.templateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt }));
 		card.setAttribute('aria-describedby', description.id);
 
-		this.emptyStateDisposables.add(DOM.addDisposableListener(card, DOM.EventType.CLICK, () => {
+		this.templateDisposables.add(DOM.addDisposableListener(card, DOM.EventType.CLICK, () => {
 			void this.openCreateDialog({
 				name: template.name,
 				prompt: template.prompt,
 				schedule: template.schedule,
+				...(template.enabled !== undefined ? { enabled: template.enabled } : {}),
 			});
 		}));
 	}
@@ -1297,6 +1576,134 @@ function getErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
+function getAutomationBlueprintErrorMessage(error: unknown): string {
+	if (!(error instanceof AutomationBlueprintParseError)) {
+		return getErrorMessage(error);
+	}
+	switch (error.code) {
+		case 'invalidFrontmatter':
+			return localize('automationBlueprint.invalidFrontmatter', "The file must start with valid YAML frontmatter.");
+		case 'unknownProperty':
+			return localize('automationBlueprint.unknownProperty', "The property '{0}' is not supported.", error.property ?? '');
+		case 'invalidField':
+			return localize('automationBlueprint.invalidField', "The property '{0}' is missing or invalid.", error.property ?? '');
+		case 'unsupportedVersion':
+			return localize('automationBlueprint.unsupportedVersion', "Automation blueprint version {0} is not supported.", error.property ?? '');
+		case 'invalidId':
+			return localize('automationBlueprint.invalidId', "The blueprint id '{0}' is invalid.", error.property ?? '');
+		case 'unsupportedSchedule':
+			return localize('automationBlueprint.unsupportedSchedule', "The cron expression '{0}' cannot be represented by the current Automation editor.", error.property ?? '');
+		case 'unsupportedTimeZone':
+			return localize('automationBlueprint.unsupportedTimeZone', "The time zone '{0}' is not supported. Use 'local' so the schedule follows the importing user's time zone.", error.property ?? '');
+		case 'missingPrompt':
+			return localize('automationBlueprint.missingPrompt', "The Automation prompt must follow the frontmatter.");
+	}
+}
+
+function normalizeAutomationBlueprintResource(resource: URI): URI {
+	let name = basename(resource);
+	while (name.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)) {
+		name = name.slice(0, -AUTOMATION_BLUEPRINT_FILE_SUFFIX.length);
+	}
+	if (name.toLowerCase().endsWith('.md')) {
+		name = name.slice(0, -'.md'.length);
+	}
+	return joinPath(dirname(resource), `${name || 'automation'}${AUTOMATION_BLUEPRINT_FILE_SUFFIX}`);
+}
+
+function isAutomationBlueprintResource(resource: URI): boolean {
+	return resource.path.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX);
+}
+
+function getAutomationDropData(event: DragEvent): AutomationDropData {
+	const editors = extractEditorsDropData(event);
+	if (editors.length > 0) {
+		if (editors.length !== 1 || !editors[0].resource) {
+			return { kind: 'invalid', reason: 'multiple' };
+		}
+		return isAutomationBlueprintResource(editors[0].resource)
+			? { kind: 'resource', resource: editors[0].resource }
+			: { kind: 'invalid', reason: 'unsupported' };
+	}
+
+	const files: File[] = [];
+	if (event.dataTransfer?.files) {
+		for (let index = 0; index < event.dataTransfer.files.length; index++) {
+			const file = event.dataTransfer.files.item(index);
+			if (file) {
+				files.push(file);
+			}
+		}
+	}
+	if (files.length === 0) {
+		return { kind: 'none' };
+	}
+	if (files.length !== 1) {
+		return { kind: 'invalid', reason: 'multiple' };
+	}
+	return files[0].name.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)
+		? { kind: 'file', file: files[0] }
+		: { kind: 'invalid', reason: 'unsupported' };
+}
+
+async function importAutomationBlueprint(
+	readContent: () => Promise<string>,
+	automationDialogService: IAutomationDialogService,
+	automationService: IAutomationService,
+	configurationService: IConfigurationService,
+	dialogService: IDialogService,
+	logService: ILogService,
+): Promise<void> {
+	const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+	if (!isEnabled()) {
+		await showAutomationsDisabled(dialogService);
+		return;
+	}
+
+	let blueprint;
+	try {
+		blueprint = parseAutomationBlueprint(await readContent());
+	} catch (error) {
+		logService.error('[Automations] Failed to read Automation blueprint', error);
+		await dialogService.error(
+			localize('automationImportReadFailed', "Failed to import automation."),
+			getAutomationBlueprintErrorMessage(error),
+		);
+		return;
+	}
+
+	const result = await automationDialogService.showAutomationDialog({
+		initialValues: {
+			name: blueprint.name,
+			prompt: blueprint.prompt,
+			schedule: blueprint.schedule,
+			enabled: false,
+		},
+	});
+	if (!result || result.kind !== 'create') {
+		return;
+	}
+	if (!isEnabled()) {
+		await showAutomationsDisabled(dialogService);
+		return;
+	}
+
+	try {
+		const automation = await automationService.createAutomation(result.value, () => {
+			if (!isEnabled()) {
+				throw new Error(localize('automationsDisabledBeforeImport', "Automations were disabled before the imported automation could be saved."));
+			}
+		});
+		status(localize('automationImportedStatus', "Imported automation {0}", automation.name));
+	} catch (error) {
+		logService.error('[Automations] Failed to import Automation blueprint', error);
+		await dialogService.error(
+			localize('automationImportFailed', "Failed to import automation."),
+			getErrorMessage(error),
+		);
+	}
+}
+
 async function showAutomationsDisabled(dialogService: IDialogService): Promise<void> {
 	await dialogService.info(
 		localize('automationsDisabledTitle', "Automations are disabled."),
@@ -1433,12 +1840,18 @@ export class AutomationsCustomViewContribution extends Disposable {
 			}
 		}));
 
-		// Render the "New Automation" button as primary instead of secondary
+		// Header actions share one control treatment while preserving primary/secondary hierarchy.
 		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(PrimaryButtonActionViewItem, undefined, action, options);
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false);
+		}));
+		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessions.automations.import', (action, options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true);
 		}));
 	}
 }
@@ -1507,18 +1920,18 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 	);
 }
 
-class PrimaryButtonActionViewItem extends BaseActionViewItem {
+class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 
 	private button: Button | undefined;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean) {
 		super(context, action, options);
 	}
 
 	override render(container: HTMLElement): void {
 		this.element = container;
 		container.classList.add('chat-pill-item');
-		const button = this.button = this._register(new Button(container, { secondary: false, ...defaultButtonStyles }));
+		const button = this.button = this._register(new Button(container, { secondary: this.secondary, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
 		this._register(button.onDidClick(() => {
 			if (this._action.enabled) {
@@ -1589,6 +2002,61 @@ registerAction2(class NewAutomationAction extends Action2 {
 	}
 });
 
+registerAction2(class ImportAutomationAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.import',
+			title: localize2('importAutomation', "Import Automation"),
+			precondition: ChatAutomationsEnabledContext,
+			menu: [{ id: Menus.CustomViewAutomations, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const fileDialogService = accessor.get(IFileDialogService);
+		const fileService = accessor.get(IFileService);
+		const logService = accessor.get(ILogService);
+		const automationDialogService = accessor.get(IAutomationDialogService);
+		const automationService = accessor.get(IAutomationService);
+		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+		if (!isEnabled()) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
+
+		const resources = await fileDialogService.showOpenDialog({
+			title: localize('importAutomationDialogTitle', "Import Automation"),
+			openLabel: localize('importAutomationDialogOpen', "Import"),
+			canSelectFiles: true,
+			canSelectFolders: false,
+			canSelectMany: false,
+			filters: [{ name: localize('automationBlueprintFileFilter', "Automation Blueprint"), extensions: ['automation.md'] }],
+		});
+		const resource = resources?.[0];
+		if (!resource) {
+			return;
+		}
+		if (!isAutomationBlueprintResource(resource)) {
+			await dialogService.error(
+				localize('automationDropFailed', "Unable to import automation."),
+				localize('automationDropUnsupported', "Only .automation.md files can be imported."),
+			);
+			return;
+		}
+
+		await importAutomationBlueprint(
+			async () => (await fileService.readFile(resource)).value.toString(),
+			automationDialogService,
+			automationService,
+			configurationService,
+			dialogService,
+			logService,
+		);
+	}
+});
+
 registerAction2(class DuplicateAutomationAction extends Action2 {
 	constructor() {
 		super({
@@ -1652,13 +2120,72 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 	}
 });
 
+registerAction2(class ExportAutomationAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.export',
+			title: localize2('exportAutomation', "Export"),
+			precondition: ChatAutomationsEnabledContext,
+			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, automation: IAutomationDescriptor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const fileDialogService = accessor.get(IFileDialogService);
+		const fileService = accessor.get(IFileService);
+		const logService = accessor.get(ILogService);
+		if (configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
+
+		let defaultUri = joinPath(await fileDialogService.defaultFilePath(), createAutomationBlueprintFileName(automation.name));
+		let resource: URI;
+		while (true) {
+			const selectedResource = await fileDialogService.showSaveDialog({
+				title: localize('exportAutomationDialogTitle', "Export Automation"),
+				saveLabel: localize('exportAutomationDialogSave', "Export"),
+				defaultUri,
+				filters: [{ name: localize('automationBlueprintFileFilter', "Automation Blueprint"), extensions: ['md'] }],
+			});
+			if (!selectedResource) {
+				return;
+			}
+			const normalizedResource = normalizeAutomationBlueprintResource(selectedResource);
+			if (isEqual(selectedResource, normalizedResource)) {
+				resource = selectedResource;
+				break;
+			}
+			await dialogService.error(
+				localize('automationExportInvalidFileNameTitle', "Unable to export automation."),
+				localize('automationExportInvalidFileName', "Use a file name ending in exactly one .automation.md suffix."),
+			);
+			defaultUri = normalizedResource;
+		}
+
+		try {
+			const content = serializeAutomationBlueprint(automationToBlueprint(automation));
+			await fileService.writeFile(resource, VSBuffer.fromString(content));
+			status(localize('automationExportedStatus', "Exported automation {0}", automation.name));
+		} catch (error) {
+			logService.error('[Automations] Failed to export Automation blueprint', error);
+			await dialogService.error(
+				localize('automationExportFailed', "Failed to export automation."),
+				getErrorMessage(error),
+			);
+		}
+	}
+});
+
 registerAction2(class DeleteAutomationAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.delete',
 			title: localize2('deleteAutomationContextMenu', "Delete"),
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanDeleteContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 3, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 4, when: ChatAutomationsEnabledContext }],
 		});
 	}
 
@@ -1679,7 +2206,7 @@ registerAction2(class DisableAutomationAction extends Action2 {
 			id: 'sessions.automations.disable',
 			title: localize2('disableAutomationContextMenu', "Disable"),
 			precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationCardCanDisableContext),
-			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: Menus.AutomationCardContext, group: 'navigation', order: 3, when: ChatAutomationsEnabledContext }],
 		});
 	}
 

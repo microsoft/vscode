@@ -1608,6 +1608,28 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('removeSessionArtifact sends the VS Code extension request', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const resultPromise = client.removeSessionArtifact(session, 'artifact-1');
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'vscode/removeSessionArtifact',
+			params: { session: session.toString(), artifactId: 'artifact-1' },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+		await resultPromise;
+	});
+
+	test('removeSessionArtifact propagates unsupported host errors', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.removeSessionArtifact(URI.parse('copilotcli:/session-1'), 'artifact-1');
+		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
+		await assertRemoteProtocolError(resultPromise, error);
+	});
+
 	test('getSessionStateFile maps the returned host resource', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());

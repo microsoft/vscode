@@ -1678,6 +1678,20 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('persists sandbox selections through the session metadata path', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const values = {
+			[SessionConfigKey.SandboxEnabled]: 'off',
+			[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
+		};
+		contributions.stateManager.setSessionConfig(contributions.session, {
+			schema: { type: 'object', properties: {} }, values,
+		});
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: values }));
+		await Promise.resolve();
+		assert.strictEqual(await contributions.database.getMetadata('configValues'), JSON.stringify({ [SessionConfigKey.SandboxEnabled]: 'off' }));
+	});
+
 	test('clears automatic archive time when a session is unarchived', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		await contributions.database.setMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY, String(Date.now()));

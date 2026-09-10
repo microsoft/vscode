@@ -1073,6 +1073,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.domNode;
 	}
 
+	get stickyScrollDomNode(): HTMLElement | undefined {
+		return this.listWidget.stickyScrollDomNode;
+	}
+
+	get onDidChangeStickyScrollDomNode(): Event<HTMLElement | undefined> {
+		return this.listWidget.onDidChangeStickyScrollDomNode;
+	}
+
 	get scrollHeight(): number {
 		return this.listWidget.scrollHeight;
 	}
@@ -2139,6 +2147,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
 				paddingBottom: this._persistentContentHeight,
+				tabIndex: this.viewOptions.transcriptTabIndex,
 			}
 		));
 

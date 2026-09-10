@@ -134,7 +134,7 @@ function makeNoGitConfig(): ResolveSessionConfigResult {
  * provider (not the picker) owns the seeded schema, so a picker recreated by a
  * toolbar rebuild still reads the seeded chips from here.
  */
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'isDevContainerAvailable' | 'isDevContainerEnabled' | 'setDevContainerEnabled'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'isDevContainerEnabled'> {
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string>;
 	config: ResolveSessionConfigResult = makeRepoConfig('main');
@@ -143,7 +143,6 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	setSessionConfigValueCalls = 0;
 	readonly setSessionConfigValueArguments: { sessionId: string; property: string; value: unknown }[] = [];
 	devContainerEnabled = false;
-	devContainerAvailable = true;
 	/** Completions returned by `getSessionConfigCompletions`, e.g. for the dynamic branch picker. */
 	completions: readonly SessionConfigValueItem[] = [];
 
@@ -169,12 +168,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	}
 	trackSessionConfigOperation(_sessionId: string, _operation: Promise<void>): void { }
 	async getSessionConfigCompletions(): Promise<readonly SessionConfigValueItem[]> { return this.completions; }
-	isDevContainerAvailable(): boolean { return this.devContainerAvailable; }
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
-	setDevContainerEnabled(_sessionId: string, enabled: boolean): void {
-		this.devContainerEnabled = enabled;
-		this._emitter.fire(SESSION_ID);
-	}
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
 	set(config: ResolveSessionConfigResult, resolving: boolean): void {
@@ -200,10 +194,6 @@ class AlwaysRenderConfigPicker extends AgentHostSessionConfigPicker {
 
 function isolationSlot(container: HTMLElement): HTMLElement | null {
 	return container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox');
-}
-
-function devContainerSlot(container: HTMLElement): HTMLElement | null {
-	return container.querySelector<HTMLElement>('.sessions-chat-dev-container-checkbox');
 }
 
 function branchSlot(container: HTMLElement): HTMLElement | undefined {
@@ -234,7 +224,6 @@ class CapturingActionWidgetHolder {
 function setupServices(
 	store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>,
 	options?: {
-		devContainerWorktreeEnabled?: boolean;
 		checkoutDialogChoice?: 'Stash & Checkout' | 'Commit & Checkout';
 		checkoutDialogShown?: DeferredPromise<void>;
 		checkoutDialogRelease?: DeferredPromise<void>;
@@ -258,7 +247,7 @@ function setupServices(
 	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService({
-		[DevContainerWorktreeEnabledSettingId]: options?.devContainerWorktreeEnabled ?? false,
+		[DevContainerWorktreeEnabledSettingId]: false,
 	}));
 	const checkoutDialogs: { message: string; buttons: readonly string[]; cancelButton: boolean; alignment: string | undefined }[] = [];
 	instantiationService.stub(IDialogService, {
@@ -283,6 +272,9 @@ function setupServices(
 		// No `phone-layout` class → `isPhoneLayout` is false → isolation renders as a checkbox.
 		override readonly mainContainer = document.createElement('div');
 		override readonly isSinglePaneLayoutEnabled = true;
+		override revealEditorPartExplicitly(): void {
+			actionWidget.events.push('revealEditorPartExplicitly');
+		}
 		override suppressEditorPartAutoVisibility() {
 			actionWidget.events.push('suppressEditorPartAutoVisibility');
 			return { dispose: () => actionWidget.events.push('releaseEditorPartAutoVisibility') };
@@ -1013,7 +1005,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	for (const uncommittedChanges of [undefined, 0, 1]) {
+	for (const uncommittedChanges of [undefined, 0, 1, 2]) {
 		test(`current branch action selects the Changes tab before focusing the Changes view with ${uncommittedChanges} uncommitted files`, async () => {
 			const services = setupServices(store);
 			services.provider.config = makeDynamicBranchConfig('main');
@@ -1031,6 +1023,32 @@ suite('Agent Host Session Config Picker', () => {
 
 			assert.deepStrictEqual(services.actionWidget.events, [
 				'hide',
+				...((uncommittedChanges ?? 0) > 0 ? ['revealEditorPartExplicitly'] : []),
+				'suppressEditorPartAutoVisibility',
+				`openChangesEditor:${SESSION_RESOURCE.toString()}`,
+				'releaseEditorPartAutoVisibility',
+				`openView:${CHANGES_VIEW_ID}:true`,
+			]);
+		});
+	}
+
+	for (const [initialChanges, currentChanges] of [[0, 1], [1, 0]]) {
+		test(`current branch action uses the latest uncommitted count after changing from ${initialChanges} to ${currentChanges}`, async () => {
+			const services = setupServices(store);
+			services.provider.config = makeDynamicBranchConfig('main');
+			services.provider.completions = [{ value: 'main', label: 'main' }];
+			services.workspaceObs.set(makeWorkspace(initialChanges), undefined);
+			const { container } = renderPicker(store, services);
+
+			branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+			await new Promise(resolve => setTimeout(resolve));
+			const action = services.actionWidget.items.find(item => item.label === 'main')?.toolbarActions?.[0];
+			services.workspaceObs.set(makeWorkspace(currentChanges), undefined);
+			await action?.run();
+
+			assert.deepStrictEqual(services.actionWidget.events, [
+				'hide',
+				...(currentChanges > 0 ? ['revealEditorPartExplicitly'] : []),
 				'suppressEditorPartAutoVisibility',
 				`openChangesEditor:${SESSION_RESOURCE.toString()}`,
 				'releaseEditorPartAutoVisibility',
@@ -1074,106 +1092,24 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
 	});
 
-	test('renders Dev Container before the Worktree and Branch controls and updates the draft', () => {
-		const services = setupServices(store, { devContainerWorktreeEnabled: true });
-		const { provider } = services;
-		const { container } = renderPicker(store, services);
-
-		const devContainer = devContainerSlot(container)!;
-		const worktree = isolationSlot(container)!;
-		devContainer.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-
-		assert.deepStrictEqual({
-			labels: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-config-checkbox .sessions-chat-dropdown-label')).map(label => label.textContent),
-			devContainerImmediatelyPrecedesWorktree: devContainer.nextElementSibling === worktree,
-			worktreeImmediatelyPrecedesBranch: worktree.nextElementSibling === branchSlot(container),
-			devContainerChecked: devContainer.querySelector('.monaco-checkbox')?.getAttribute('aria-checked'),
-			devContainerEnabled: provider.devContainerEnabled,
-			setSessionConfigValueCalls: provider.setSessionConfigValueCalls,
-		}, {
-			labels: ['Dev Container', 'New Worktree'],
-			devContainerImmediatelyPrecedesWorktree: true,
-			worktreeImmediatelyPrecedesBranch: true,
-			devContainerChecked: 'true',
-			devContainerEnabled: true,
-			setSessionConfigValueCalls: 0,
-		});
-	});
-
-	test('disables Dev Container while New Worktree is selected when the combination is disabled', () => {
-		const services = setupServices(store);
-		const { provider } = services;
-		const { container } = renderPicker(store, services);
-		const devContainer = devContainerSlot(container)!;
-
-		devContainer.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-
-		assert.deepStrictEqual({
-			devContainerDisabled: devContainer.classList.contains('disabled'),
-			devContainerAriaDisabled: devContainer.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'),
-			devContainerEnabled: provider.devContainerEnabled,
-			worktreeDisabled: isolationSlot(container)!.classList.contains('disabled'),
-		}, {
-			devContainerDisabled: true,
-			devContainerAriaDisabled: 'true',
-			devContainerEnabled: false,
-			worktreeDisabled: false,
-		});
-	});
-
-	test('disables New Worktree while Dev Container is selected when the combination is disabled', () => {
+	test('does not render a Dev Container checkbox and disables New Worktree while Dev Container is selected', () => {
 		const services = setupServices(store);
 		services.provider.config = makeRepoConfig('main', 'folder');
-		const { provider } = services;
+		services.provider.devContainerEnabled = true;
 		const { container } = renderPicker(store, services);
-		const devContainer = devContainerSlot(container)!;
-
-		devContainer.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		const worktree = isolationSlot(container)!;
 		worktree.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
 		assert.deepStrictEqual({
-			devContainerChecked: devContainer.querySelector('.monaco-checkbox')?.getAttribute('aria-checked'),
-			devContainerDisabled: devContainer.classList.contains('disabled'),
+			devContainerCheckbox: container.querySelector('.sessions-chat-dev-container-checkbox'),
 			worktreeDisabled: worktree.classList.contains('disabled'),
 			worktreeAriaDisabled: worktree.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'),
-			setSessionConfigValueCalls: provider.setSessionConfigValueCalls,
+			setSessionConfigValueCalls: services.provider.setSessionConfigValueCalls,
 		}, {
-			devContainerChecked: 'true',
-			devContainerDisabled: false,
+			devContainerCheckbox: null,
 			worktreeDisabled: true,
 			worktreeAriaDisabled: 'true',
 			setSessionConfigValueCalls: 0,
-		});
-	});
-
-	test('does not render Dev Container when the draft workspace is unavailable', () => {
-		const services = setupServices(store);
-		services.provider.devContainerAvailable = false;
-		const { container } = renderPicker(store, services);
-
-		assert.strictEqual(devContainerSlot(container), null);
-	});
-
-	test('keeps Dev Container left of Worktree when availability resolves later', () => {
-		const services = setupServices(store);
-		services.provider.devContainerAvailable = false;
-		const { container } = renderPicker(store, services);
-
-		services.provider.devContainerAvailable = true;
-		services.provider.set(makeRepoConfig('main'), false);
-		services.provider.set(makeRepoConfig('dev'), false);
-
-		const worktree = isolationSlot(container)!;
-		const devContainer = devContainerSlot(container)!;
-		assert.deepStrictEqual({
-			labels: Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-config-checkbox .sessions-chat-dropdown-label')).map(label => label.textContent),
-			devContainerImmediatelyPrecedesWorktree: devContainer.nextElementSibling === worktree,
-			worktreeImmediatelyPrecedesBranch: worktree.nextElementSibling === branchSlot(container),
-		}, {
-			labels: ['Dev Container', 'New Worktree'],
-			devContainerImmediatelyPrecedesWorktree: true,
-			worktreeImmediatelyPrecedesBranch: true,
 		});
 	});
 
@@ -1297,20 +1233,14 @@ suite('Agent Host Session Config Picker', () => {
 		picker.dispose();
 	});
 
-	test('renders Dev Container independently when the workspace has no Git repository', () => {
+	test('does not render configuration controls when the workspace has no Git repository', () => {
 		const services = setupServices(store);
 		services.provider.config = makeNoGitConfig();
 		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 
-		assert.deepStrictEqual({
-			devContainer: devContainerSlot(container)?.querySelector('.sessions-chat-dropdown-label')?.textContent,
-			isolation: isolationSlot(container),
-		}, {
-			devContainer: 'Dev Container',
-			isolation: null,
-		});
+		assert.strictEqual(container.querySelector('.sessions-chat-picker-slot'), null);
 	});
 
 	test('never renders chips for hidden worktree branch carrier properties', () => {
@@ -1340,6 +1270,29 @@ suite('Agent Host Session Config Picker', () => {
 		const container = document.createElement('div');
 		picker.render(container);
 
-		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 2, 'only the Dev Container and isolation checkboxes render, not a worktreeBranchTrack chip');
+		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders, not a worktreeBranchTrack chip');
+	});
+
+	test('leaves sandbox enablement to the permission picker', () => {
+		const services = setupServices(store);
+		services.provider.config = {
+			schema: {
+				type: 'object',
+				properties: {
+					[SessionConfigKey.SandboxEnabled]: {
+						title: 'Sandbox', type: 'string', enum: ['default', 'on', 'off'], sessionMutable: true,
+					},
+				},
+			},
+			values: { [SessionConfigKey.SandboxEnabled]: 'off' },
+		};
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const container = document.createElement('div');
+		picker.render(container);
+
+		assert.deepStrictEqual(
+			Array.from(container.querySelectorAll('.sessions-chat-dropdown-label'), label => label.textContent),
+			[],
+		);
 	});
 });

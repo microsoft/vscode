@@ -49,7 +49,7 @@ import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
@@ -57,11 +57,7 @@ import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } fro
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
-import { ICustomizationMigrationAvailabilityService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationAvailabilityService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { OPEN_CUSTOMIZATIONS_COMMAND_ID } from '../../../common/customizations.js';
 
 // #region --- New Chat Widget ---
 
@@ -97,7 +93,6 @@ export class NewChatWidget extends Disposable {
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
-	private readonly _useCustomizationEntryPoints: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
 	private readonly _feedbackItems: IObservable<readonly IAgentFeedback[]>;
@@ -135,9 +130,7 @@ export class NewChatWidget extends Disposable {
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
-		@ICustomizationMigrationAvailabilityService private readonly customizationMigrationAvailabilityService: ICustomizationMigrationAvailabilityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -164,11 +157,6 @@ export class NewChatWidget extends Disposable {
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)),
 			() => this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING),
-		);
-		this._useCustomizationEntryPoints = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.CustomizationEntryPoints)),
-			() => this.configurationService.getValue<boolean>(ChatConfiguration.CustomizationEntryPoints),
 		);
 		this._isWorkspacePickerQuickChat = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -197,6 +185,22 @@ export class NewChatWidget extends Disposable {
 				return undefined;
 			},
 			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
+		}));
+		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
+		this._register(autorun(reader => {
+			providersChanged.read(reader);
+			const activeSession = this._session.read(reader);
+			if (!activeSession) {
+				return;
+			}
+			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+			if (!provider || !isAgentHostProvider(provider)) {
+				return;
+			}
+			reader.store.add(Event.filter(
+				provider.onDidChangeSessionConfig,
+				sessionId => sessionId === activeSession.sessionId,
+			)(() => this._syncWorkspacePickerDevContainerMode(activeSession, false)));
 		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
@@ -296,6 +300,9 @@ export class NewChatWidget extends Disposable {
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
 			await this._onWorkspaceSelected(folderUri);
 			this._newChatInput.focus();
+		}));
+		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
+			this._preferredDevContainerFolderUri = preferDevContainer ? folderUri : undefined;
 		}));
 		this._register(this._workspacePicker.onDidSelectContext(context => {
 			const contextUri = context.uri.toString();
@@ -464,7 +471,6 @@ export class NewChatWidget extends Disposable {
 
 		if (!isWeb) {
 			this._quickChatHeaderPickerHost = dom.append(chatWidgetContent, dom.$('.new-session-quick-chat-header.sessions-workspace-category-picker'));
-			this._register(this._renderCustomizeTrigger(this._quickChatHeaderPickerHost));
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
@@ -640,14 +646,23 @@ export class NewChatWidget extends Disposable {
 			return false;
 		}
 
-		const sessionWorkspace = activeSession.workspace.get();
-		const folderUri = sessionWorkspace?.folders[0]?.root;
+		const folderUri = this._syncWorkspacePickerDevContainerMode(activeSession, true);
 		if (folderUri) {
-			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
 			this._replaceDraftOnUnservableHarness(folderUri, activeSession);
 		}
 
 		return true;
+	}
+
+	private _syncWorkspacePickerDevContainerMode(activeSession: IActiveSession, persist: boolean): URI | undefined {
+		const folderUri = activeSession.workspace.get()?.folders[0]?.root;
+		if (!folderUri) {
+			return undefined;
+		}
+		const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+		const preferDevContainer = !!provider && isAgentHostProvider(provider) && provider.isDevContainerEnabled?.(activeSession.sessionId) === true;
+		this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: activeSession.providerId, persist, preferDevContainer });
+		return folderUri;
 	}
 
 	/**
@@ -846,59 +861,12 @@ export class NewChatWidget extends Disposable {
 			workspaceTrigger,
 		]);
 		this._renderSessionTypePicker(row, false);
-		const customizeTrigger = this._renderCustomizeTrigger(row);
 		this._workspacePickerRow = row;
 		return toDisposable(() => {
-			customizeTrigger.dispose();
 			if (this._workspacePickerRow === row) {
 				this._workspacePickerRow = undefined;
 			}
 		});
-	}
-
-	private _renderCustomizeTrigger(container: HTMLElement): IDisposable {
-		const store = new DisposableStore();
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
-		slot.classList.add('sessions-customize-trigger-slot');
-		const trigger = dom.append(slot, dom.$('a.action-label.sessions-customize-trigger'));
-		trigger.tabIndex = 0;
-		trigger.role = 'button';
-		const icon = dom.append(trigger, renderIcon(Codicon.tools));
-		icon.setAttribute('aria-hidden', 'true');
-		const label = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		label.textContent = localize('newSessionCustomize', "Customize");
-		const indicator = dom.append(trigger, dom.$('span.sessions-customize-migration-indicator'));
-		indicator.setAttribute('aria-hidden', 'true');
-
-		const run = () => this.commandService.executeCommand(OPEN_CUSTOMIZATIONS_COMMAND_ID).catch(onUnexpectedError);
-		store.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, event => {
-			dom.EventHelper.stop(event, true);
-			run();
-		}));
-		store.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, event => {
-			if (event.key === 'Enter' || event.key === ' ') {
-				dom.EventHelper.stop(event, true);
-				run();
-			}
-		}));
-		store.add(this.hoverService.setupDelayedHover(trigger, {
-			content: localize('newSessionCustomizeTooltip', "Open customization overview"),
-		}));
-		store.add(autorun(reader => {
-			const enabled = this._useCustomizationEntryPoints.read(reader);
-			slot.style.display = enabled ? '' : 'none';
-			if (!enabled) {
-				trigger.classList.remove('has-migrations');
-				return;
-			}
-			const hasMigrations = this.customizationMigrationAvailabilityService.candidateCount.read(reader) > 0;
-			trigger.classList.toggle('has-migrations', hasMigrations);
-			trigger.setAttribute('aria-label', hasMigrations
-				? localize('newSessionCustomizeMigrationsAriaLabel', "Customize, migrations available")
-				: localize('newSessionCustomizeAriaLabel', "Customize"));
-		}));
-		store.add(toDisposable(() => slot.remove()));
-		return store;
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
@@ -1209,7 +1177,7 @@ export class NewChatWidget extends Disposable {
 
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
 		this._preferredDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
-		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId });
+		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId, preferDevContainer: options?.preferDevContainer });
 	}
 }
 

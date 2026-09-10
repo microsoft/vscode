@@ -3,4 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const OPEN_CUSTOMIZATIONS_COMMAND_ID = 'sessions.customization.overview';
+.monaco-action-bar .action-item.changes-commit-action .action-label {
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 16px;
+}
