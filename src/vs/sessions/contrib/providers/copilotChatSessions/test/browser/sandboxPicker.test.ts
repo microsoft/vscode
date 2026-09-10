@@ -9,6 +9,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { CloudSandboxEnabledSettingId } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -20,6 +21,8 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { Menus } from '../../../../../browser/menus.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
@@ -27,6 +30,7 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISessionFolder, ISessionWorkspace } from '..
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, ICopilotChatSession, RemoteNewSession } from '../../browser/copilotChatSessionsProvider.js';
 import { SandboxPicker } from '../../browser/sandboxPicker.js';
+import '../../browser/copilotChatSessionsActions.js';
 
 class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
 	override readonly onDidChangeProviders = Event.None;
@@ -42,6 +46,17 @@ class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
 
 suite('Copilot SandboxPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('offers Sandbox in automation controls while respecting AI visibility', () => {
+		const item = MenuRegistry.getMenuItems(Menus.NewSessionControl)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.defaultCopilot.sandboxPicker');
+
+		assert.deepStrictEqual({
+			automationScoped: item?.when?.keys().includes(ChatContextKeys.inAutomationsDialog.key),
+			aiScoped: item?.when?.keys().includes(ChatContextKeys.enabled.key),
+		}, { automationScoped: true, aiScoped: true });
+	});
 
 	function createPicker(options: { settingEnabled?: boolean; remoteHostsEnabled?: boolean; hasRepository?: boolean; useSandbox?: boolean; committedSession?: boolean } = {}) {
 		const configurationService = new TestConfigurationService();

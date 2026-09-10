@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
@@ -42,7 +42,7 @@ import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/co
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
-import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
+import { BranchPicker, IBranchPickerBranch, type IBranchPickerState } from '../../chat/browser/branchPicker.js';
 import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
@@ -65,6 +65,7 @@ import { NewChatModelPickerService, INewChatModelPickerService } from '../../cha
 import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
@@ -560,11 +561,15 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly branchRepoDisposable = this._register(new MutableDisposable<IDisposable>());
 	private readonly branchRequest = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly repositoryReloadScheduler = this._register(new RunOnceScheduler(() => {
+		void this.reloadRepository(this.isolationModel.folderUri);
+	}, 0));
 	private branchRequestId = 0;
 	private readonly branchPicker: BranchPicker;
 	private branchLoadState: BranchLoadState = 'noFolder';
 	private repository: IGitRepository | undefined;
 	private branches: readonly string[] = [];
+	private filterBranches: IBranchPickerState['filterBranches'];
 	private detachedCommit: string | undefined;
 	private worktreeCapabilityResolved = false;
 
@@ -579,6 +584,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		private readonly visible: IObservable<boolean> | undefined,
 		@IGitService private readonly gitService: IGitService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ILogService private readonly pickerLogService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -597,7 +603,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				this.renderBranchControl();
 			},
 			onRetry: () => {
-				void this.reloadRepository(this.isolationModel.folderUri);
+				this.scheduleRepositoryReload();
 			},
 			isolation: {
 				label: localize('automation.form.isolation.worktree', "New Worktree"),
@@ -613,6 +619,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		this.renderDisposables.clear();
 		this.branchRepoDisposable.clear();
+		this.repositoryReloadScheduler.cancel();
 		this.cancelBranchRequest();
 		DOM.clearNode(container);
 		container.style.marginLeft = 'auto';
@@ -629,16 +636,21 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		this.refreshTargetCapability();
 		this.renderBranchControl();
 		this.renderDisposables.add(autorun(reader => {
-			const folderUri = this.workspaceFolder.read(reader);
+			this.workspaceFolder.read(reader);
 			this.refreshTargetAndRender();
-			void this.reloadRepository(folderUri);
+			this.scheduleRepositoryReload();
 		}));
 		this.renderDisposables.add(this.onDidChangeTarget(() => {
 			this.refreshTargetAndRender();
+			this.scheduleRepositoryReload();
 		}));
-		this.renderDisposables.add(this.sessionsManagementService.onDidChangeSessionTypes(() => this.refreshTargetAndRender()));
+		this.renderDisposables.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
+			this.refreshTargetAndRender();
+			this.scheduleRepositoryReload();
+		}));
 		this.renderDisposables.add({
 			dispose: () => {
+				this.repositoryReloadScheduler.cancel();
 				this.cancelBranchRequest();
 			}
 		});
@@ -690,16 +702,17 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			branches.unshift({
 				name: selectedBranch,
 				selected: true,
-				unavailable: true,
+				unavailable: !this.filterBranches,
 			});
 		}
 		const worktreeUnavailableReason = this.getWorktreeUnavailableReason();
 		const isolationState: 'enabled' | 'disabled' | 'hidden' =
-			worktreeUnavailableReason === undefined ? 'enabled' : 'disabled';
+			worktreeUnavailableReason === undefined || this.isolationModel.isolationMode === 'worktree' ? 'enabled' : 'disabled';
 
 		this.branchPicker.update({
 			label: presentation.label,
 			branches,
+			filterBranches: this.filterBranches,
 			status: this.branchLoadState === 'loadingRepository' || this.branchLoadState === 'loadingBranches'
 				? 'loading'
 				: this.branchLoadState === 'error'
@@ -813,7 +826,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		if (!this.isolationModel.supportsWorktreeConfiguration) {
 			return localize('automation.form.isolation.worktreeUnavailable', "Not supported by the selected session type");
 		}
-		if (this.isolationModel.selectedBranch) {
+		if (this.isolationModel.isolationMode === 'worktree' && this.isolationModel.selectedBranch) {
 			return undefined;
 		}
 		switch (this.branchLoadState) {
@@ -840,12 +853,21 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		this.branchRequest.clear();
 	}
 
+	private scheduleRepositoryReload(): void {
+		this.cancelBranchRequest();
+		this.branchRepoDisposable.clear();
+		this.branchLoadState = this.isolationModel.folderUri ? 'loadingRepository' : 'noFolder';
+		this.renderBranchControl();
+		this.repositoryReloadScheduler.schedule();
+	}
+
 	private async reloadRepository(folder: URI | undefined): Promise<void> {
 		const requestId = ++this.branchRequestId;
 		this.cancelBranchRequest();
 		this.branchRepoDisposable.clear();
 		this.repository = undefined;
 		this.branches = [];
+		this.filterBranches = undefined;
 		this.detachedCommit = undefined;
 		if (!folder) {
 			this.branchLoadState = 'noFolder';
@@ -857,6 +879,46 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		this.renderBranchControl();
 		const cts = new CancellationTokenSource();
 		this.branchRequest.value = cts;
+		const target = this.sessionsManagementService.getSessionTypesForFolder(folder).find(candidate =>
+			candidate.sessionType.id === this.state.sessionTypeId
+			&& (this.state.providerId === undefined || candidate.providerId === this.state.providerId)
+		);
+		const provider = target && this.sessionsProvidersService.getProvider(target.providerId);
+		if (provider?.getWorktreeOptions && target) {
+			try {
+				const options = await provider.getWorktreeOptions(folder, target.sessionType.id, cts.token);
+				if (requestId !== this.branchRequestId || cts.token.isCancellationRequested) {
+					return;
+				}
+				this.isolationModel.setHeadBranch(options?.currentBranch);
+				this.branches = normalizeAutomationBranchNames(options?.branches ?? []);
+				this.branchLoadState = !options ? 'noRepository' : this.branches.length > 0 ? 'ready' : 'empty';
+				if (options) {
+					this.isolationModel.setSupportsWorktreeConfiguration(options.supportsWorktree);
+					const loadBranches = options.loadBranches;
+					this.filterBranches = loadBranches ? async (query, token) => {
+						try {
+							const branches = await loadBranches(query, token);
+							const selectedBranch = this.isolationModel.selectedBranch ?? this.isolationModel.headBranch;
+							return normalizeAutomationBranchNames(branches).map(name => ({ name, selected: name === selectedBranch }));
+						} catch (error) {
+							if (!token.isCancellationRequested) {
+								this.pickerLogService.error('[AutomationDialog] Failed to filter worktree branches.', error);
+							}
+							throw error;
+						}
+					} : undefined;
+				}
+			} catch (error) {
+				if (requestId !== this.branchRequestId || cts.token.isCancellationRequested) {
+					return;
+				}
+				this.pickerLogService.error('[AutomationDialog] Failed to load worktree options from the session provider.', error);
+				this.branchLoadState = 'error';
+			}
+			this.renderBranchControl();
+			return;
+		}
 		let repo: IGitRepository | undefined;
 		try {
 			repo = await this.gitService.openRepository(folder);

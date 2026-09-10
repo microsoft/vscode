@@ -9,6 +9,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
@@ -40,7 +41,8 @@ import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/cha
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISession, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { IAutomationSessionConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, type ISessionsProvider, type ISessionWorktreeOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, canSelectAutomationWorkspace, getAutomationTargetHint, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
@@ -110,6 +112,8 @@ class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 	labels: readonly string[] = [];
 	details: ReadonlyArray<IActionListItem<unknown>['detail']> = [];
 	ariaLabels: readonly string[] = [];
+	filter: ((query: string) => Promise<void>) | undefined;
+	filterVisible = false;
 	private selectItem: ((label: string) => void) | undefined;
 	private hideWidget: ((didCancel?: boolean) => void) | undefined;
 
@@ -122,7 +126,7 @@ class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 		_container: HTMLElement | undefined,
 		_actionBarActions: readonly IAction[],
 		accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>,
-		_listOptions?: IActionListOptions,
+		listOptions?: IActionListOptions,
 	): void {
 		this.isVisible = true;
 		this.labels = items.map(item => item.label ?? '');
@@ -131,6 +135,17 @@ class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 			const label = accessibilityProvider?.getAriaLabel?.(item);
 			return typeof label === 'string' ? label : label?.get() ?? '';
 		});
+		this.filterVisible = listOptions?.showFilter === true;
+		this.filter = delegate.onFilter ? async query => {
+			const filteredItems = await delegate.onFilter?.(query, CancellationToken.None) ?? [];
+			this.labels = filteredItems.map(item => item.label ?? '');
+			this.selectItem = label => {
+				const item = filteredItems.find(candidate => candidate.label === label)?.item;
+				if (item) {
+					delegate.onSelect(item);
+				}
+			};
+		} : undefined;
 		this.selectItem = label => {
 			const item = items.find(candidate => candidate.label === label)?.item;
 			if (item) {
@@ -739,8 +754,11 @@ suite('Automation branch picker', () => {
 	function createItem(options?: {
 		readonly state?: IFormState;
 		readonly getRefs?: IGitRepository['getRefs'];
+		readonly getWorktreeOptions?: ISessionsProvider['getWorktreeOptions'];
+		readonly supportsWorktreeConfiguration?: boolean;
 		readonly failOpenRepositoryOnce?: boolean;
 		readonly providerInitiallyUnavailable?: boolean;
+		readonly onDidChangeTarget?: Event<void>;
 		readonly revalidate?: () => void;
 		readonly visible?: boolean;
 	}): {
@@ -795,10 +813,13 @@ suite('Automation branch picker', () => {
 					id: state.sessionTypeId ?? 'copilotcli',
 					label: 'Copilot',
 					icon: Codicon.copilot,
-					supportsWorktreeConfiguration: state.sessionTypeId === 'copilotcli',
+					supportsWorktreeConfiguration: options?.supportsWorktreeConfiguration ?? true,
 					authRequirement: SessionTypeAuthRequirement.GitHub,
 				},
 			}] : [],
+		}));
+		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined }, 'getProvider', upcastPartial<ISessionsProvider>({
+			getWorktreeOptions: options?.getWorktreeOptions,
 		}));
 		instantiationService.stub(ILogService, new NullLogService());
 
@@ -809,7 +830,7 @@ suite('Automation branch picker', () => {
 			state,
 			model,
 			model.folderUriObs,
-			Event.None,
+			options?.onDidChangeTarget ?? Event.None,
 			options?.revalidate ?? (() => { }),
 			undefined,
 			visible,
@@ -1029,7 +1050,8 @@ suite('Automation branch picker', () => {
 
 	test('normalizes unsupported Worktree targets back to Folder mode', async () => {
 		const { container, model } = createItem({
-			state: createFormState({ sessionTypeId: 'claude', branch: 'feature/saved' }),
+			state: createFormState({ sessionTypeId: 'cloud', branch: 'feature/saved' }),
+			supportsWorktreeConfiguration: false,
 		});
 		await timeout(0);
 
@@ -1046,21 +1068,241 @@ suite('Automation branch picker', () => {
 		});
 	});
 
-	test('enables Worktree branches for agent-host Copilot CLI', async () => {
-		const { container } = createItem({
-			state: createFormState({ providerId: 'local-agent-host', sessionTypeId: 'copilotcli' }),
+	for (const sessionTypeId of ['copilotcli', 'claude', 'codex', 'custom']) {
+		test(`selects provider-owned worktree branches for ${sessionTypeId} without local Git`, async () => {
+			const folderUri = URI.parse('vscode-agent-host://remote/workspace');
+			const requests: { folderUri: URI; sessionTypeId: string }[] = [];
+			const { container, model, actionWidgetService, getOpenRepositoryAttempts } = createItem({
+				state: createFormState({ providerId: 'remote-provider', sessionTypeId, folderUri, isolationMode: 'workspace' }),
+				getWorktreeOptions: async (folderUri, sessionTypeId) => {
+					requests.push({ folderUri, sessionTypeId });
+					return { supportsWorktree: true, currentBranch: 'main', branches: ['release', 'main', 'copilot-worktree-generated'] };
+				},
+			});
+			await timeout(0);
+			container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .action-label')!.click();
+			container.querySelector<HTMLElement>('.automation-form-branch-slot')!.click();
+			actionWidgetService.select('release');
+
+			assert.deepStrictEqual({
+				requests,
+				localGitRequests: getOpenRepositoryAttempts(),
+				branches: actionWidgetService.labels,
+				mode: model.isolationMode,
+				branch: model.persistedBranch,
+				checked: container.querySelector('.monaco-checkbox')?.getAttribute('aria-checked'),
+			}, {
+				requests: [{ folderUri, sessionTypeId }],
+				localGitRequests: 0,
+				branches: ['main', 'release'],
+				mode: 'worktree',
+				branch: 'release',
+				checked: 'true',
+			});
+		});
+	}
+
+	for (const options of [undefined, { supportsWorktree: false, currentBranch: 'main', branches: ['main'] }] satisfies (ISessionWorktreeOptions | undefined)[]) {
+		test(`disables provider worktrees when ${options ? 'the schema does not support them' : 'no repository exists'}`, async () => {
+			const { container, model, getOpenRepositoryAttempts } = createItem({
+				state: createFormState({ isolationMode: 'workspace', branch: undefined }),
+				getWorktreeOptions: async () => options,
+			});
+			await timeout(0);
+			container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .action-label')!.click();
+
+			assert.deepStrictEqual({
+				mode: model.isolationMode,
+				branch: model.persistedBranch,
+				localGitRequests: getOpenRepositoryAttempts(),
+			}, { mode: 'workspace', branch: undefined, localGitRequests: 0 });
+		});
+	}
+
+	test('allows a saved worktree target to opt back into Folder when its workspace no longer supports worktrees', async () => {
+		const { container, model } = createItem({
+			state: createFormState({ isolationMode: 'worktree', branch: 'release' }),
+			getWorktreeOptions: async () => ({ supportsWorktree: false, currentBranch: 'main', branches: ['main'] }),
 		});
 		await timeout(0);
-		const trigger = container.querySelector<HTMLElement>('.automation-form-branch-slot');
-		assert.ok(trigger);
+		const before = { mode: model.isolationMode, branch: model.persistedBranch };
+		container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .action-label')!.click();
+		const after = { mode: model.isolationMode, branch: model.persistedBranch };
+		container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .action-label')!.click();
 
 		assert.deepStrictEqual({
-			disabled: trigger.getAttribute('aria-disabled'),
-			label: trigger.querySelector('.automation-form-branch-name')?.textContent,
+			before,
+			after,
+			cannotReenable: model.isolationMode,
 		}, {
-			disabled: 'false',
-			label: 'main',
+			before: { mode: 'worktree', branch: undefined },
+			after: { mode: 'workspace', branch: undefined },
+			cannotReenable: 'workspace',
 		});
+	});
+
+	for (const discovery of ['noRepository', 'loading', 'error', 'empty'] as const) {
+		test(`does not re-enable a saved Worktree target after opting out while repository discovery is ${discovery}`, async () => {
+			const pending = new DeferredPromise<ISessionWorktreeOptions | undefined>();
+			const { container, model } = createItem({
+				state: createFormState({ isolationMode: 'worktree', branch: 'release' }),
+				getWorktreeOptions: async () => {
+					switch (discovery) {
+						case 'noRepository': return undefined;
+						case 'loading': return pending.p;
+						case 'error': throw new Error('Repository unavailable');
+						case 'empty': return { supportsWorktree: true, currentBranch: undefined, branches: [] };
+					}
+				},
+			});
+			await timeout(0);
+			const toggle = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .action-label')!;
+			const initialMode = model.isolationMode;
+			toggle.click();
+			const afterOptingOut = model.isolationMode;
+			toggle.click();
+			const afterReenableAttempt = {
+				mode: model.isolationMode,
+				selectedBranch: model.selectedBranch,
+				persistedBranch: model.persistedBranch,
+				disabled: container.querySelector('.sessions-chat-isolation-checkbox')?.classList.contains('disabled'),
+			};
+			await pending.complete({ supportsWorktree: true, currentBranch: 'main', branches: ['main', 'release'] });
+
+			assert.deepStrictEqual({ initialMode, afterOptingOut, afterReenableAttempt }, {
+				initialMode: 'worktree',
+				afterOptingOut: 'workspace',
+				afterReenableAttempt: { mode: 'workspace', selectedBranch: 'release', persistedBranch: undefined, disabled: true },
+			});
+		});
+	}
+
+	test('retries provider branch failures without falling back to local Git', async () => {
+		let attempts = 0;
+		const { container, actionWidgetService, getOpenRepositoryAttempts } = createItem({
+			getWorktreeOptions: async () => {
+				if (++attempts === 1) {
+					throw new Error('Remote host unavailable');
+				}
+				return { supportsWorktree: true, currentBranch: 'remote-main', branches: ['remote-main'] };
+			},
+		});
+		await timeout(0);
+		container.querySelector<HTMLElement>('.automation-form-branch-slot')!.click();
+		actionWidgetService.select('Retry Loading Branches');
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			attempts,
+			localGitRequests: getOpenRepositoryAttempts(),
+			branch: container.querySelector('.automation-form-branch-name')?.textContent,
+		}, { attempts: 2, localGitRequests: 0, branch: 'remote-main' });
+	});
+
+	test('coalesces target and session-type notifications into one provider repository lookup', async () => {
+		const targetChanged = disposables.add(new Emitter<void>());
+		const requests: string[] = [];
+		const { state, model, setProviderAvailable } = createItem({
+			onDidChangeTarget: targetChanged.event,
+			getWorktreeOptions: async (_folder, sessionTypeId) => {
+				requests.push(sessionTypeId);
+				return { supportsWorktree: true, currentBranch: `${sessionTypeId}-main`, branches: [`${sessionTypeId}-main`] };
+			},
+		});
+		await timeout(0);
+		state.sessionTypeId = 'claude';
+		targetChanged.fire();
+		setProviderAvailable();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			requests,
+			branch: model.persistedBranch,
+		}, { requests: ['copilotcli', 'claude'], branch: 'claude-main' });
+	});
+
+	test('queries the provider for branches beyond its initial completion window', async () => {
+		const queries: string[] = [];
+		let resolutionCount = 0;
+		const { container, actionWidgetService, model } = createItem({
+			state: createFormState({ branch: 'saved/base' }),
+			getWorktreeOptions: async () => {
+				resolutionCount++;
+				return {
+					supportsWorktree: true, currentBranch: 'main', branches: ['main'],
+					loadBranches: async query => {
+						queries.push(query);
+						return ['release/long-lived'];
+					},
+				};
+			},
+		});
+		await timeout(0);
+		container.querySelector<HTMLElement>('.automation-form-branch-slot')!.click();
+		const savedBranchDetail = actionWidgetService.details[0];
+		await actionWidgetService.filter?.('release');
+		const filteredBranches = actionWidgetService.labels;
+		actionWidgetService.select('release/long-lived');
+		container.querySelector<HTMLElement>('.automation-form-branch-slot')!.click();
+
+		assert.deepStrictEqual({
+			resolutionCount,
+			queries,
+			filterVisible: actionWidgetService.filterVisible,
+			filteredBranches,
+			selected: model.persistedBranch,
+			savedBranchDetail,
+			reopenedDetails: actionWidgetService.details,
+		}, {
+			resolutionCount: 1,
+			queries: ['release'],
+			filterVisible: true,
+			filteredBranches: ['release/long-lived'],
+			selected: 'release/long-lived',
+			savedBranchDetail: undefined,
+			reopenedDetails: [undefined, undefined],
+		});
+	});
+
+	test('does not select stale results while provider branch search is pending', async () => {
+		const branches = new DeferredPromise<readonly string[]>();
+		const { container, actionWidgetService, model } = createItem({
+			getWorktreeOptions: async () => ({
+				supportsWorktree: true, currentBranch: 'main', branches: ['main'],
+				loadBranches: async () => branches.p,
+			}),
+		});
+		await timeout(0);
+		container.querySelector<HTMLElement>('.automation-form-branch-slot')!.click();
+		const filtering = actionWidgetService.filter?.('release');
+		actionWidgetService.select('main');
+		const pending = {
+			labels: actionWidgetService.labels,
+			selected: model.selectedBranch,
+			pickerVisible: actionWidgetService.isVisible,
+		};
+		await branches.complete(['release']);
+		await filtering;
+		actionWidgetService.select('release');
+
+		assert.deepStrictEqual({ pending, selected: model.selectedBranch }, {
+			pending: { labels: ['Loading branches…'], selected: undefined, pickerVisible: true },
+			selected: 'release',
+		});
+	});
+
+	test('surfaces provider branch search failures as retry actions', async () => {
+		const { container, actionWidgetService } = createItem({
+			getWorktreeOptions: async () => ({
+				supportsWorktree: true, currentBranch: 'main', branches: ['main'],
+				loadBranches: async () => { throw new Error('Remote branch search failed'); },
+			}),
+		});
+		await timeout(0);
+		container.querySelector<HTMLElement>('.automation-form-branch-slot')!.click();
+		await actionWidgetService.filter?.('release');
+
+		assert.deepStrictEqual(actionWidgetService.labels, ['Retry Loading Branches']);
 	});
 
 	test('preserves Worktree intent while the provider is discovered late', async () => {
@@ -1084,6 +1326,7 @@ suite('Automation branch picker', () => {
 		});
 
 		setProviderAvailable();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			mode: model.isolationMode,

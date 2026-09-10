@@ -17,7 +17,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { type IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -32,15 +32,15 @@ import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/
 import { IAgentSessionsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionProviderOptionGroup, IChatSessionsService, SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { type ChatSessionOptionsMap, ChatSessionStatus, type IChatSession, IChatSessionProviderOptionGroup, IChatSessionsService, SessionType } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { type IChatModel, IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatMode, CustomChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
-import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { type IAutomationSessionConfiguration, ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -418,11 +418,23 @@ class TestSandboxCopilotProvider extends CopilotChatSessionsProvider {
 	}
 }
 
+interface ICreateProviderForSendTestsOptions {
+	readonly onDidCommitSession?: Event<{ original: URI; committed: URI }>;
+	readonly configurationService?: TestConfigurationService;
+	readonly agentHostEnabled?: boolean;
+	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
+	readonly notifications?: string[];
+	readonly chatModeService?: IChatModeService;
+	readonly languageModelsService?: Partial<ILanguageModelsService>;
+	readonly chatSessionsService?: Partial<IChatSessionsService>;
+	readonly acquireOrLoadSession?: IChatService['acquireOrLoadSession'];
+}
+
 function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[]; chatModeService?: IChatModeService; languageModelsService?: Partial<ILanguageModelsService> },
+	opts?: ICreateProviderForSendTestsOptions,
 ): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -451,9 +463,10 @@ function createProviderForSendTests(
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
 		onDidChangeOptionGroups: Event.None,
+		...opts?.chatSessionsService,
 	});
 	instantiationService.stub(IChatService, {
-		acquireOrLoadSession: async () => undefined,
+		acquireOrLoadSession: opts?.acquireOrLoadSession ?? (async () => undefined),
 		sendRequest: sendRequest,
 		removeHistoryEntry: async (resource: URI) => { model.removeSession(resource); },
 		setChatSessionTitle: () => { },
@@ -2437,14 +2450,111 @@ suite('CopilotChatSessionsProvider', () => {
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Autopilot);
 		});
 
-		test('clamps to Default when chat.tools.global.autoApprove policy is false', () => {
+		test('clamps the effective default without rewriting its permission preference', async () => {
 			const configurationService = makeConfig({ defaultLevel: ChatPermissionLevel.Autopilot, policyRestricted: true });
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
 			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const session = provider.getSession(sessionInfo.sessionId);
+			const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
 
-			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
+			assert.deepStrictEqual({
+				effective: session?.permissionLevel.get(),
+				preference: captured?.sessionTemplate?.config?.autoApprove,
+			}, {
+				effective: ChatPermissionLevel.Default,
+				preference: ChatPermissionLevel.Autopilot,
+			});
+		});
+
+		for (const permissionLevel of [ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot]) {
+			for (const canonical of [true, false]) {
+				test(`clamps restored ${canonical ? 'canonical' : 'legacy'} ${permissionLevel} before sending without changing the saved preference`, async () => {
+					const configurationService = makeConfig({ policyRestricted: true });
+					let sentPermissionLevel: ChatPermissionLevel | undefined;
+					const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+						sentPermissionLevel = options?.modeInfo?.permissionLevel;
+						return { kind: 'rejected', reason: 'Request recorded' };
+					}, { configurationService });
+					const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id, {
+						automationConfiguration: canonical
+							? { sessionTemplate: { config: { autoApprove: permissionLevel } }, permissionLevel: ChatPermissionLevel.Default }
+							: { permissionLevel },
+					});
+					const effective = provider.getSession(sessionInfo.sessionId)?.permissionLevel.get();
+					const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+					await assert.rejects(provider.sendRequest(sessionInfo.sessionId, sessionInfo.mainChat.get().resource, { query: 'hello' }), /Request recorded/);
+
+					assert.deepStrictEqual({
+						effective,
+						sentPermissionLevel,
+						preference: captured?.sessionTemplate?.config?.autoApprove,
+						legacyPreference: captured?.permissionLevel,
+					}, {
+						effective: ChatPermissionLevel.Default,
+						sentPermissionLevel: ChatPermissionLevel.Default,
+						preference: permissionLevel,
+						legacyPreference: permissionLevel,
+					});
+				});
+			}
+		}
+
+		test('updates effective approvals when policy changes while preserving intent until an explicit edit', async () => {
+			const policy = { policyRestricted: false };
+			const configurationService = makeConfig(policy);
+			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }), { configurationService });
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id, {
+				automationConfiguration: { sessionTemplate: { config: { autoApprove: ChatPermissionLevel.Autopilot } } },
+			});
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			const effective: ChatPermissionLevel[] = [];
+			disposables.add(autorun(reader => { effective.push(session.permissionLevel.read(reader)); }));
+
+			const updatePolicy = (restricted: boolean) => {
+				policy.policyRestricted = restricted;
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: key => key === ChatConfiguration.GlobalAutoApprove,
+				}));
+			};
+			updatePolicy(true);
+			const restricted = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+			updatePolicy(false);
+			const unrestricted = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+			provider.setPermissionLevel(sessionInfo.sessionId, ChatPermissionLevel.Default);
+			updatePolicy(true);
+			updatePolicy(false);
+			const edited = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+			assert.deepStrictEqual({
+				effective,
+				preferences: [restricted, unrestricted, edited].map(configuration => configuration?.sessionTemplate?.config?.autoApprove),
+			}, {
+				effective: [ChatPermissionLevel.Autopilot, ChatPermissionLevel.Default, ChatPermissionLevel.Autopilot, ChatPermissionLevel.Default],
+				preferences: [ChatPermissionLevel.Autopilot, ChatPermissionLevel.Autopilot, ChatPermissionLevel.Default],
+			});
+		});
+
+		test('preserves an unknown approval preference until the user selects a supported level', async () => {
+			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id, {
+				automationConfiguration: { sessionTemplate: { config: { autoApprove: 'future-approvals', providerOption: true } } },
+			});
+			const initialEffective = provider.getSession(sessionInfo.sessionId)?.permissionLevel.get();
+			const initial = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+			provider.setPermissionLevel(sessionInfo.sessionId, ChatPermissionLevel.AutoApprove);
+			const edited = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+			assert.deepStrictEqual({
+				initialEffective,
+				initialConfig: initial?.sessionTemplate?.config,
+				editedConfig: edited?.sessionTemplate?.config,
+			}, {
+				initialEffective: ChatPermissionLevel.Default,
+				initialConfig: { autoApprove: 'future-approvals', providerOption: true },
+				editedConfig: { autoApprove: ChatPermissionLevel.AutoApprove, providerOption: true },
+			});
 		});
 
 		test('falls back to Default when chat.permissions.default is unset', () => {
@@ -2550,6 +2660,54 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 		}
 
+		test('round trips native fallback model options without taking ordinary composer defaults', async () => {
+			const modelMetadata: ILanguageModelChatMetadata = {
+				extension: new ExtensionIdentifier('test'),
+				id: 'model', name: 'Model', vendor: 'copilot', family: 'test', version: '1',
+				maxInputTokens: 1, maxOutputTokens: 1, isDefaultForLocation: {},
+				targetChatSessionType: CopilotCLISessionType.id,
+				configurationSchema: {
+					type: 'object',
+					properties: { thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' } },
+				},
+			};
+			let sentOptions: IChatSendRequestOptions | undefined;
+			const writes: Record<string, unknown>[] = [];
+			const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+				sentOptions = options;
+				return { kind: 'rejected', reason: 'Request recorded' };
+			}, {
+				languageModelsService: {
+					getLanguageModelIds: () => ['copilot/model'],
+					lookupLanguageModel: identifier => identifier === 'copilot/model' ? modelMetadata : undefined,
+					hasResolvedVendor: () => true,
+					getModelConfiguration: () => ({ thinkingLevel: 'high' }),
+					setModelConfiguration: async (_modelId, values) => { writes.push(values); },
+				},
+			});
+			const modelConfiguration = { thinkingLevel: 'low', futureOption: true };
+			const original = provider.createNewSession(workspace, CopilotCLISessionType.id, {
+				automationConfiguration: { sessionTemplate: { modelId: 'copilot/model', modelConfiguration } },
+			});
+			const captured = await provider.getAutomationSessionConfiguration(original.sessionId);
+			const session = provider.createNewSession(workspace, CopilotCLISessionType.id, { automationConfiguration: captured });
+			const recaptured = await provider.getAutomationSessionConfiguration(session.sessionId);
+			await assert.rejects(provider.sendRequest(session.sessionId, session.mainChat.get().resource, { query: 'hello' }), /Request recorded/);
+
+			assert.deepStrictEqual({
+				captured: [captured, recaptured].map(configuration => ({
+					modelId: configuration?.sessionTemplate?.modelId,
+					modelConfiguration: configuration?.sessionTemplate?.modelConfiguration,
+				})),
+				sent: { modelId: sentOptions?.userSelectedModelId, modelConfiguration: sentOptions?.userSelectedModelConfiguration },
+				writes,
+			}, {
+				captured: [{ modelId: 'copilot/model', modelConfiguration }, { modelId: 'copilot/model', modelConfiguration }],
+				sent: { modelId: 'copilot/model', modelConfiguration: { thinkingLevel: 'low' } },
+				writes: [],
+			});
+		});
+
 		test('rejects Automation model configuration without a model before creating a fallback draft', () => {
 			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
 			assert.throws(() => provider.createNewSession(workspace, CopilotCLISessionType.id, {
@@ -2578,6 +2736,168 @@ suite('CopilotChatSessionsProvider', () => {
 				sessionMode: mode,
 				capturedMode: mode,
 				templateMode: mode,
+			});
+		});
+	});
+
+	suite('Automation cloud session configuration', () => {
+		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo/HEAD' });
+
+		for (const selection of ['canonical', 'legacy', 'explicit'] as const) {
+			for (const delayed of [false, true]) {
+				test(`applies the ${selection} model option with ${delayed ? 'late' : 'ready'} Cloud options before sending`, async () => {
+					const defaultModel = { id: 'default-model', name: 'Default Model', default: true };
+					const selectedModel = { id: 'selected-model', name: 'Selected Model' };
+					const modelGroup: IChatSessionProviderOptionGroup = { id: 'models', name: 'Models', items: [defaultModel, selectedModel] };
+					let optionGroups = delayed ? undefined : [modelGroup];
+					const optionsChanged = disposables.add(new Emitter<string>());
+					const sessionOptions: ChatSessionOptionsMap = new Map();
+					const sentOptionMaps: ChatSessionOptionsMap[] = [];
+					let sentModelId: string | undefined;
+					const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+						sentModelId = options?.userSelectedModelId;
+						sentOptionMaps.push(new Map(sessionOptions));
+						return { kind: 'rejected', reason: 'Request recorded' };
+					}, {
+						getOptionGroups: () => optionGroups,
+						chatSessionsService: {
+							onDidChangeOptionGroups: optionsChanged.event,
+							setSessionOption: (_resource, optionId, value) => {
+								sessionOptions.set(optionId, value);
+								return true;
+							},
+							getSessionOption: (_resource, optionId) => sessionOptions.get(optionId),
+							getOrCreateChatSession: async resource => {
+								sessionOptions.set('models', defaultModel);
+								if (delayed) {
+									optionGroups = [modelGroup];
+									optionsChanged.fire(AgentSessionProviders.Cloud);
+								}
+								return upcastPartial<IChatSession>({ sessionResource: resource });
+							},
+							updateSessionOptions: (_resource, updates) => {
+								for (const [key, value] of updates) {
+									sessionOptions.set(key, value);
+								}
+								return true;
+							},
+						},
+						acquireOrLoadSession: async () => new ImmortalReference(upcastPartial<IChatModel>({
+							inputModel: upcastPartial<IChatModel['inputModel']>({ setState: () => { } }),
+						})),
+					});
+					const automationConfiguration: IAutomationSessionConfiguration = selection === 'canonical'
+						? { sessionTemplate: { modelId: selectedModel.id }, modelId: defaultModel.id }
+						: selection === 'legacy' ? { modelId: selectedModel.id } : {};
+					const session = provider.createNewSession(workspace, CopilotCloudSessionType.id, { automationConfiguration });
+					if (selection === 'explicit') {
+						provider.setModel(session.sessionId, session.mainChat.get().resource, selectedModel.id, ChatModelSource.Chosen);
+					}
+					const initialOption = sessionOptions.get('models');
+					const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+					const chat = await provider.createNewChat(session.sessionId);
+					const preparedOption = sessionOptions.get('models');
+					await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }), /Request recorded/);
+
+					assert.deepStrictEqual({
+						initialOption,
+						preparedOption,
+						capturedModel: captured?.sessionTemplate?.modelId,
+						sentModelId,
+						sentModelOptions: sentOptionMaps.map(options => options.get('models')),
+					}, {
+						initialOption: delayed ? undefined : selectedModel,
+						preparedOption: selectedModel,
+						capturedModel: selectedModel.id,
+						sentModelId: selectedModel.id,
+						sentModelOptions: [selectedModel],
+					});
+				});
+			}
+		}
+
+		for (const config of [
+			{ mode: ChatModeKind.Ask, autoApprove: ChatPermissionLevel.Autopilot },
+			{ mode: 'future-mode', autoApprove: 'future-approvals' },
+		]) {
+			test(`preserves canonical Cloud ${config.mode} preferences over legacy aliases`, async () => {
+				const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
+				const providerOption = { future: ['value'], unset: null };
+				const sessionInfo = provider.createNewSession(workspace, CopilotCloudSessionType.id, {
+					automationConfiguration: {
+						sessionTemplate: { config: { ...config, providerOption } },
+						mode: ChatModeKind.Agent,
+						permissionLevel: ChatPermissionLevel.Default,
+					},
+				});
+				const session = provider.getSession(sessionInfo.sessionId)!;
+				const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+				assert.deepStrictEqual({
+					mode: session.mode.get(),
+					permissionLevel: session.permissionLevel.get(),
+					captured,
+				}, {
+					mode: undefined,
+					permissionLevel: ChatPermissionLevel.Default,
+					captured: {
+						sessionTemplate: { config: { ...config, providerOption, useSandbox: false } },
+						modelId: undefined,
+						mode: config.mode,
+						permissionLevel: config.autoApprove,
+					},
+				});
+			});
+		}
+
+		for (const useSandbox of [false, true]) {
+			test(`keeps legacy Cloud Sandbox=${useSandbox} behavior until its first template capture`, async () => {
+				let sentPermissionLevel: ChatPermissionLevel | undefined;
+				const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
+					sentPermissionLevel = options?.modeInfo?.permissionLevel;
+					return { kind: 'rejected', reason: 'Request recorded' };
+				});
+				const ordinary = provider.createNewSession(workspace, CopilotCloudSessionType.id);
+				provider.getSession(ordinary.sessionId)!.setUseSandbox(useSandbox);
+				const sessionInfo = provider.createNewSession(workspace, CopilotCloudSessionType.id, {
+					automationConfiguration: { mode: ChatModeKind.Ask, permissionLevel: ChatPermissionLevel.AutoApprove },
+				});
+				provider.setMode(sessionInfo.sessionId, ChatModeKind.Ask);
+				provider.setPermissionLevel(sessionInfo.sessionId, ChatPermissionLevel.AutoApprove);
+				const restoredUseSandbox = provider.getSession(sessionInfo.sessionId)?.useSandbox.get();
+				const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+				await assert.rejects(provider.sendRequest(sessionInfo.sessionId, sessionInfo.mainChat.get().resource, { query: 'hello' }), /Request recorded/);
+
+				assert.deepStrictEqual({
+					useSandbox: restoredUseSandbox,
+					sentPermissionLevel,
+					config: captured?.sessionTemplate?.config,
+				}, {
+					useSandbox,
+					sentPermissionLevel: ChatPermissionLevel.Default,
+					config: { mode: ChatModeKind.Ask, autoApprove: ChatPermissionLevel.AutoApprove, useSandbox },
+				});
+			});
+		}
+
+		test('does not enable unsupported Cloud worktree or branch configuration', async () => {
+			const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCloudSessionType.id, { automationConfiguration: {} });
+			await provider.setIsolationMode(sessionInfo.sessionId, 'worktree');
+			await provider.setBranch(sessionInfo.sessionId, 'feature/saved');
+			const session = provider.getSession(sessionInfo.sessionId)!;
+			const captured = await provider.getAutomationSessionConfiguration(sessionInfo.sessionId);
+
+			assert.deepStrictEqual({
+				supportsWorktree: CopilotCloudSessionType.supportsWorktreeConfiguration ?? false,
+				isolationMode: session.isolationMode.get(),
+				branch: session.branch.get(),
+				config: captured?.sessionTemplate?.config,
+			}, {
+				supportsWorktree: false,
+				isolationMode: undefined,
+				branch: undefined,
+				config: { autoApprove: ChatPermissionLevel.Default, useSandbox: false },
 			});
 		});
 	});
@@ -2655,10 +2975,17 @@ suite('CopilotChatSessionsProvider', () => {
 				const discoveryStarted = new DeferredPromise<void>();
 				let modes: readonly IChatMode[] = [];
 				let sentOptions: IChatSendRequestOptions | undefined;
+				const sessionOptions: ChatSessionOptionsMap = new Map();
 				const provider = createProviderForSendTests(disposables, model, async (_resource, _message, options) => {
 					sentOptions = options;
 					return { kind: 'rejected', reason: 'Request recorded' };
 				}, {
+					chatSessionsService: {
+						setSessionOption: (_resource, optionId, value) => {
+							sessionOptions.set(optionId, value);
+							return true;
+						},
+					},
 					chatModeService: createModeService(() => modes, async () => {
 						await discoveryStarted.complete();
 						await ready.p;
@@ -2681,11 +3008,13 @@ suite('CopilotChatSessionsProvider', () => {
 					sentBeforeDiscovery,
 					instructions: sentOptions?.modeInfo?.modeInstructions?.content,
 					agent: sentOptions?.modeInfo?.modeInstructions?.name,
+					nativeAgentOption: sessionOptions.get('agent'),
 					isBuiltin: sentOptions?.modeInfo?.isBuiltin,
 				}, {
 					sentBeforeDiscovery: false,
 					instructions: 'Instructions for reviewer',
 					agent: 'reviewer',
+					nativeAgentOption: 'reviewer',
 					isBuiltin: false,
 				});
 			});
@@ -3006,7 +3335,7 @@ suite('CopilotChatSessionsProvider', () => {
 		// `repoNwo` has to strip back down to `owner/repo`.
 		const repoWorkspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/osortega/simple-server/HEAD' });
 
-		function createSandboxProvider(opts: { enabled?: boolean; provision?: () => Promise<ICloudSandboxProvisionedSession>; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined } = {}) {
+		function createSandboxProvider(opts: { enabled?: boolean; provision?: () => Promise<ICloudSandboxProvisionedSession>; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; cloudSendResult?: ChatSendResult } = {}) {
 			const configurationService = new TestConfigurationService();
 			configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, opts.enabled ?? true);
 			configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
@@ -3015,8 +3344,8 @@ suite('CopilotChatSessionsProvider', () => {
 			const notifications: string[] = [];
 			const provider = createProviderForSendTests(disposables, model, async (_resource, message) => {
 				cloudSends.push(message);
-				// Never settles: these tests only assert which path the send took.
-				return new Promise<ChatSendResult>(() => { });
+				// Leave routing-only requests pending unless the test provides a result.
+				return opts.cloudSendResult ?? new Promise<ChatSendResult>(() => { });
 			}, { configurationService, getOptionGroups: opts.getOptionGroups, notifications });
 
 			const provisionRequests: ICloudSandboxCreateSessionRequest[] = [];
@@ -3101,6 +3430,52 @@ suite('CopilotChatSessionsProvider', () => {
 				name: 'Models',
 				items: [{ id: itemId, name: backendModelId, modelMetadata: { id: backendModelId, name: backendModelId } }],
 			}];
+		}
+
+		for (const useSandbox of [false, true]) {
+			for (const enabled of [false, true]) {
+				test(`restores Automation Sandbox=${useSandbox} independently of the composer with the feature ${enabled ? 'enabled' : 'disabled'}`, async () => {
+					const provisioned = provisionedSession();
+					const { provider, provisionRequests, cloudSends } = createSandboxProvider({
+						enabled,
+						provision: async () => provisioned,
+						cloudSendResult: { kind: 'rejected', reason: 'Cloud request recorded' },
+					});
+					const original = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id, {
+						automationConfiguration: { sessionTemplate: { config: { futureCloudOption: true } } },
+					});
+					provider.getSession(original.sessionId)!.setUseSandbox(useSandbox);
+					const saved = await provider.getAutomationSessionConfiguration(original.sessionId);
+					provider.deleteNewSession(original.sessionId);
+					const ordinary = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+					provider.getSession(ordinary.sessionId)!.setUseSandbox(!useSandbox);
+
+					const restored = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id, { automationConfiguration: saved });
+					const restoredUseSandbox = provider.getSession(restored.sessionId)?.useSandbox.get();
+					const recaptured = await provider.getAutomationSessionConfiguration(restored.sessionId);
+					const laterOrdinary = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+					const send = provider.sendRequest(restored.sessionId, restored.mainChat.get().resource, { query: 'fix it' });
+					if (useSandbox && enabled) {
+						await send;
+					} else {
+						await assert.rejects(send, /Cloud request recorded/);
+					}
+
+					assert.deepStrictEqual({
+						restoredUseSandbox,
+						recapturedConfig: recaptured?.sessionTemplate?.config,
+						ordinaryUseSandbox: provider.getSession(laterOrdinary.sessionId)?.useSandbox.get(),
+						provisionRequests,
+						cloudSends,
+					}, {
+						restoredUseSandbox: useSandbox,
+						recapturedConfig: { futureCloudOption: true, autoApprove: ChatPermissionLevel.Default, useSandbox },
+						ordinaryUseSandbox: !useSandbox,
+						provisionRequests: useSandbox && enabled ? [{ repoNwo: 'osortega/simple-server', prompt: 'fix it' }] : [],
+						cloudSends: useSandbox && enabled ? [] : ['fix it'],
+					});
+				});
+			}
 		}
 
 		test('carries the composer model into the sandbox before the first turn', async () => {
