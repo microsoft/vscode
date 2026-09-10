@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
-import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { DataTransfers } from '../../../../../base/browser/dnd.js';
+import { EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -27,7 +29,8 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService, ISaveDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -35,11 +38,14 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -50,7 +56,7 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
-import { AutomationsCardsWidget, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -77,6 +83,10 @@ function hourly(): IAutomationSchedule {
 
 function workspaceTarget(): AutomationTarget {
 	return { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
+}
+
+function getCreateInitialValues(options: IShowAutomationDialogOptions | undefined) {
+	return options?.existing ? undefined : options?.initialValues;
 }
 
 function automation(overrides: Partial<IAutomationDescriptor> = {}): IAutomationDescriptor {
@@ -287,6 +297,14 @@ class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 		}
 		this.beforeReturn?.();
 		return this.result;
+	}
+}
+
+class FakeAgentPluginService extends mock<IAgentPluginService>() {
+	override readonly plugins = observableValue<readonly IAgentPlugin[]>(this, []);
+
+	setPlugins(plugins: readonly IAgentPlugin[]): void {
+		this.plugins.set(plugins, undefined);
 	}
 }
 
@@ -569,9 +587,10 @@ suite('AutomationsCardsWidget', () => {
 		return !!button && button.style.display !== 'none';
 	}
 
-	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService) {
+	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService, fileService?: IFileService, storageService?: IStorageService) {
 		const automationService = new FakeAutomationService();
 		const automationDialogService = new FakeAutomationDialogService();
+		const agentPluginService = new FakeAgentPluginService();
 		const contextMenuService = new TestContextMenuService();
 		const dialogService = new FakeDialogService();
 		const runner = new FakeRunner();
@@ -591,12 +610,19 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		instantiationService.stub(IAutomationService, automationService);
 		instantiationService.stub(IAutomationDialogService, automationDialogService);
+		instantiationService.stub(IAgentPluginService, agentPluginService);
 		instantiationService.stub(IContextMenuService, contextMenuService);
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(IAutomationRunner, runner);
 		instantiationService.stub(ISessionsService, sessionsService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IConfigurationService, configurationService);
+		if (fileService) {
+			instantiationService.stub(IFileService, fileService);
+		}
+		if (storageService) {
+			instantiationService.stub(IStorageService, storageService);
+		}
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 		instantiationService.stub(IContextKeyService, contextKeyService);
@@ -633,7 +659,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, widget };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, widget };
 	}
 
 	function dispatchContextMenu(target: HTMLElement): void {
@@ -862,6 +888,417 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('shows enabled plugin Automation templates and opens them disabled by default', async () => {
+		const { agentPluginService, automationDialogService, automationService, widget } = setup();
+		automationService.setCatalogueState('ready');
+		const pluginEnablement = observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile);
+		agentPluginService.setPlugins([upcastPartial<IAgentPlugin>({
+			uri: URI.file('/plugins/review'),
+			label: 'Review plugin',
+			enablement: pluginEnablement,
+			automations: observableValue('pluginAutomations', [{
+				uri: URI.file('/plugins/review/automations/weekly-review.automation.md'),
+				blueprint: {
+					version: 1,
+					id: 'weekly-review',
+					name: 'Weekly review',
+					description: 'Review the past week.',
+					prompt: 'Review the workspace for the past week.',
+					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				},
+			}]),
+		})]);
+
+		const cards = widget.element.querySelectorAll<HTMLButtonElement>('.automations-template-card');
+		cards[cards.length - 1].click();
+		await timeout(0);
+		const enabledNames = Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent);
+		const sourceBadge = cards[cards.length - 1].querySelector('.automations-template-card-badge')?.textContent;
+		const sourceLabel = cards[cards.length - 1].querySelector('.automations-template-card-source')?.textContent;
+		const initialValues = getCreateInitialValues(automationDialogService.lastOptions);
+		const builtInSection = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates');
+		const pluginSection = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
+
+		pluginEnablement.set(ContributionEnablementState.DisabledProfile, undefined);
+		const disabledNames = Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent);
+
+		assert.deepStrictEqual({
+			enabledNames,
+			sourceBadge,
+			sourceLabel,
+			initialValues,
+			builtInSection: {
+				label: builtInSection?.querySelector('.automations-template-section-title')?.textContent,
+				count: builtInSection?.querySelector('.automations-template-section-count')?.textContent,
+				open: builtInSection?.open,
+			},
+			pluginSection: {
+				label: pluginSection?.querySelector('.automations-template-section-title')?.textContent,
+				count: pluginSection?.querySelector('.automations-template-section-count')?.textContent,
+				open: pluginSection?.open,
+				unreadVisible: pluginSection?.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
+			},
+			disabledNames,
+		}, {
+			enabledNames: ['Catch up on main', 'Issue triage', 'Find bugs', 'Weekly review'],
+			sourceBadge: 'Plugin',
+			sourceLabel: 'From Review plugin',
+			initialValues: {
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				enabled: false,
+			},
+			builtInSection: {
+				label: 'Built-in Templates',
+				count: String(AUTOMATION_TEMPLATES.length),
+				open: true,
+			},
+			pluginSection: {
+				label: 'Templates from Plugins',
+				count: '1',
+				open: true,
+				unreadVisible: false,
+			},
+			disabledNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
+		});
+	});
+
+	test('keeps template disclosure choices when saved automations update', () => {
+		const { agentPluginService, automationService, widget } = setup();
+		agentPluginService.setPlugins([upcastPartial<IAgentPlugin>({
+			uri: URI.file('/plugins/review'),
+			label: 'Review plugin',
+			enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
+			automations: observableValue('pluginAutomations', [{
+				uri: URI.file('/plugins/review/automations/weekly-review.automation.md'),
+				blueprint: {
+					version: 1,
+					id: 'weekly-review',
+					name: 'Weekly review',
+					description: 'Review the past week.',
+					prompt: 'Review the workspace for the past week.',
+					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				},
+			}]),
+		})]);
+		automationService.setAutomations([automation()]);
+
+		const builtInSection = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates');
+		const pluginSection = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
+		assert.ok(builtInSection);
+		assert.ok(pluginSection);
+		automationService.setAutomations([automation({ name: 'Updated review' })]);
+
+		assert.deepStrictEqual({
+			builtInDisplay: builtInSection.style.display,
+			builtInSectionOpen: builtInSection.open,
+			pluginContainerDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
+			pluginTemplateNames: Array.from(pluginSection.querySelectorAll('.automations-template-card-name-text'), element => element.textContent),
+			pluginSectionOpen: pluginSection.open,
+		}, {
+			builtInDisplay: '',
+			builtInSectionOpen: false,
+			pluginContainerDisplay: '',
+			pluginTemplateNames: ['Weekly review'],
+			pluginSectionOpen: false,
+		});
+	});
+
+	test('marks new folded plugin templates unread until the section is expanded', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const { agentPluginService, automationService, widget } = setup('archive', NullHoverService, undefined, storageService);
+		automationService.setAutomations([automation()]);
+		const makePlugin = (templateNames: readonly string[]) => upcastPartial<IAgentPlugin>({
+			uri: URI.file('/plugins/review'),
+			label: 'Review plugin',
+			enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
+			automations: observableValue('pluginAutomations', templateNames.map((name, index) => ({
+				uri: URI.file(`/plugins/review/automations/review-${index}.automation.md`),
+				blueprint: {
+					version: 1,
+					id: `review-${index}`,
+					name,
+					prompt: `Run ${name}.`,
+					schedule: { interval: 'manual' as const, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				},
+			}))),
+		});
+		agentPluginService.setPlugins([makePlugin(['First review'])]);
+
+		let section = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
+		assert.ok(section);
+		const summary = section.querySelector<HTMLElement>('summary');
+		assert.ok(summary);
+		const initial = {
+			open: section.open,
+			unreadVisible: section.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
+			ariaLabel: summary.getAttribute('aria-label'),
+		};
+		summary.click();
+		await timeout(0);
+		const afterExpand = {
+			open: section.open,
+			unreadVisible: section.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
+			stored: JSON.parse(storageService.get(SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, StorageScope.PROFILE) ?? '[]'),
+		};
+		summary.click();
+		await timeout(0);
+		agentPluginService.setPlugins([makePlugin(['First review', 'Second review'])]);
+		section = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
+		assert.ok(section);
+		const afterNewTemplate = {
+			open: section.open,
+			unreadVisible: section.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
+			ariaLabel: section.querySelector('summary')?.getAttribute('aria-label'),
+		};
+		section.querySelector<HTMLElement>('summary')?.click();
+		await timeout(0);
+		widget.dispose();
+		const recreated = setup('archive', NullHoverService, undefined, storageService);
+		recreated.automationService.setAutomations([automation()]);
+		recreated.agentPluginService.setPlugins([makePlugin(['First review', 'Second review'])]);
+		const recreatedSection = recreated.widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
+		assert.ok(recreatedSection);
+
+		assert.deepStrictEqual({
+			initial,
+			afterExpand,
+			afterNewTemplate,
+			storedAfterSecondExpand: JSON.parse(storageService.get(SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, StorageScope.PROFILE) ?? '[]'),
+			recreated: {
+				open: recreatedSection.open,
+				unreadVisible: recreatedSection.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
+			},
+		}, {
+			initial: {
+				open: false,
+				unreadVisible: true,
+				ariaLabel: 'Templates from Plugins, 1 new template',
+			},
+			afterExpand: {
+				open: true,
+				unreadVisible: false,
+				stored: ['file:///plugins/review#automation=review-0'],
+			},
+			afterNewTemplate: {
+				open: false,
+				unreadVisible: true,
+				ariaLabel: 'Templates from Plugins, 1 new template',
+			},
+			storedAfterSecondExpand: [
+				'file:///plugins/review#automation=review-0',
+				'file:///plugins/review#automation=review-1',
+			],
+			recreated: {
+				open: false,
+				unreadVisible: false,
+			},
+		});
+	});
+
+	test('imports an Automation blueprint through review with disabled defaults', async () => {
+		const { automationDialogService, automationService, instantiationService } = setup();
+		const resource = URI.file('/shared/weekly-review.automation.md');
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+			override async showOpenDialog(): Promise<URI[]> {
+				return [resource];
+			}
+		}());
+		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+			override async readFile(): Promise<IFileContent> {
+				return upcastPartial<IFileContent>({
+					resource,
+					value: VSBuffer.fromString([
+						'---',
+						'version: 1',
+						'id: weekly-review',
+						'name: Weekly review',
+						'schedule:',
+						'  kind: cron',
+						'  expression: "30 10 * * 5"',
+						'  timeZone: local',
+						'---',
+						'Review the workspace for the past week.',
+					].join('\n')),
+				});
+			}
+
+			override async writeFile(): Promise<IFileStatWithMetadata> {
+				throw new Error('Unexpected write');
+			}
+		}());
+		automationDialogService.result = {
+			kind: 'create',
+			value: {
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				target: workspaceTarget(),
+				enabled: false,
+			},
+		};
+
+		const command = CommandsRegistry.getCommand('sessions.automations.import');
+		assert.ok(command);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+
+		const initialValues = getCreateInitialValues(automationDialogService.lastOptions);
+		assert.deepStrictEqual({
+			initialValues,
+			createCalls: automationService.createCalls,
+		}, {
+			initialValues: {
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				enabled: false,
+			},
+			createCalls: [{
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				target: workspaceTarget(),
+				enabled: false,
+			}],
+		});
+	});
+
+	test('rejects importing a file without the Automation blueprint suffix', async () => {
+		const resource = URI.file('/shared/weekly-review.md');
+		let readCount = 0;
+		const fileService = new class extends mock<IFileService>() {
+			override async readFile(): Promise<IFileContent> {
+				readCount++;
+				throw new Error('Unexpected read');
+			}
+		}();
+		const { automationDialogService, dialogService, instantiationService } = setup('archive', NullHoverService, fileService);
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+			override async showOpenDialog(): Promise<URI[]> {
+				return [resource];
+			}
+		}());
+
+		const command = CommandsRegistry.getCommand('sessions.automations.import');
+		assert.ok(command);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+
+		assert.deepStrictEqual({
+			readCount,
+			dialogOptions: automationDialogService.lastOptions,
+			errors: dialogService.errors,
+		}, {
+			readCount: 0,
+			dialogOptions: undefined,
+			errors: [{
+				message: 'Unable to import automation.',
+				detail: 'Only .automation.md files can be imported.',
+			}],
+		});
+	});
+
+	test('confirms the normalized Automation blueprint destination before export', async () => {
+		const writes: { resource: URI; content: string }[] = [];
+		const saveDialogDefaults: (URI | undefined)[] = [];
+		const saveDialogResults = [
+			URI.file('/exports/review.automation.md.automation.md'),
+			URI.file('/exports/review.automation.md'),
+		];
+		const fileService = new class extends mock<IFileService>() {
+			override async writeFile(resource: URI, buffer: VSBuffer): Promise<IFileStatWithMetadata> {
+				writes.push({ resource, content: buffer.toString() });
+				return upcastPartial<IFileStatWithMetadata>({ resource });
+			}
+		}();
+		const { dialogService, instantiationService } = setup('archive', NullHoverService, fileService);
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+			override async defaultFilePath(): Promise<URI> {
+				return URI.file('/exports');
+			}
+
+			override async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+				saveDialogDefaults.push(options.defaultUri);
+				return saveDialogResults.shift();
+			}
+		}());
+		const command = CommandsRegistry.getCommand('sessions.automations.export');
+		assert.ok(command);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, automation()));
+
+		assert.deepStrictEqual({
+			saveDialogDefaults: saveDialogDefaults.map(resource => resource?.path),
+			errors: dialogService.errors,
+			writes: writes.map(write => ({
+				path: write.resource.path,
+				hasHourlySchedule: write.content.includes('kind: hourly'),
+				hasCron: write.content.includes('kind: cron'),
+				hasTarget: write.content.includes('/workspace'),
+			})),
+		}, {
+			saveDialogDefaults: [
+				'/exports/daily-review.automation.md',
+				'/exports/review.automation.md',
+			],
+			errors: [{
+				message: 'Unable to export automation.',
+				detail: 'Use a file name ending in exactly one .automation.md suffix.',
+			}],
+			writes: [{
+				path: '/exports/review.automation.md',
+				hasHourlySchedule: true,
+				hasCron: false,
+				hasTarget: false,
+			}],
+		});
+	});
+
+	test('imports a dropped Automation blueprint through the same review flow', async () => {
+		const resource = URI.file('/shared/weekly-review.automation.md');
+		const fileService = new class extends mock<IFileService>() {
+			override async readFile(): Promise<IFileContent> {
+				return upcastPartial<IFileContent>({
+					resource,
+					value: VSBuffer.fromString([
+						'---',
+						'version: 1',
+						'id: weekly-review',
+						'name: Weekly review',
+						'schedule:',
+						'  kind: cron',
+						'  expression: "30 10 * * 5"',
+						'  timeZone: local',
+						'---',
+						'Review the workspace for the past week.',
+					].join('\n')),
+				});
+			}
+		}();
+		const { automationDialogService, widget } = setup('archive', NullHoverService, fileService);
+		const dataTransfer = new DataTransfer();
+		dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([resource.toString()]));
+
+		widget.element.dispatchEvent(new DragEvent(EventType.DRAG_ENTER, { bubbles: true, cancelable: true, dataTransfer }));
+		const overlayVisibleWhileDragging = widget.element.querySelector('.automations-drop-overlay')?.classList.contains('visible');
+		widget.element.dispatchEvent(new DragEvent(EventType.DROP, { bubbles: true, cancelable: true, dataTransfer }));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			overlayVisibleWhileDragging,
+			overlayVisibleAfterDrop: widget.element.querySelector('.automations-drop-overlay')?.classList.contains('visible'),
+			initialValues: getCreateInitialValues(automationDialogService.lastOptions),
+		}, {
+			overlayVisibleWhileDragging: true,
+			overlayVisibleAfterDrop: false,
+			initialValues: {
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				enabled: false,
+			},
+		});
+	});
+
 	test('keeps templates available while distinguishing incomplete catalogues from confirmed empty', () => {
 		const { automationService, widget } = setup();
 
@@ -921,7 +1358,7 @@ suite('AutomationsCardsWidget', () => {
 			unavailableMessage: 'Some automations are unavailable.',
 			errorMessage: 'Some automations could not be loaded.',
 			savedCards: 1,
-			templatesDisplay: 'none',
+			templatesDisplay: '',
 		});
 	});
 
@@ -935,7 +1372,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(automationDialogService.showCalls, 1);
 	});
 
-	test('hides templates when saved automations become available', () => {
+	test('collapses built-in templates when saved automations become available', () => {
 		const { automationService, widget } = setup();
 
 		automationService.setAutomations([automation()]);
@@ -944,9 +1381,11 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			savedCards: widget.element.querySelectorAll('.automations-card').length,
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
+			builtInOpen: widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')?.open,
 		}, {
 			savedCards: 1,
-			templatesDisplay: 'none',
+			templatesDisplay: '',
+			builtInOpen: false,
 		});
 	});
 
@@ -1032,10 +1471,12 @@ suite('AutomationsCardsWidget', () => {
 			createCalls: automationService.createCalls,
 			activeElementLabel: document.activeElement?.getAttribute('aria-label'),
 			templateVisible: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
+			builtInOpen: widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')?.open,
 		}, {
 			createCalls: [submitted],
 			activeElementLabel: 'Edit automation Customized issue triage',
-			templateVisible: 'none',
+			templateVisible: '',
+			builtInOpen: false,
 		});
 	});
 
@@ -1067,13 +1508,15 @@ suite('AutomationsCardsWidget', () => {
 				createCalls: automationService.createCalls,
 				catalogueState: automationService.catalogueState.get(),
 				templateDisplay: templates.style.display,
+				builtInOpen: widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')?.open,
 				cardLabel: widget.element.querySelector('.automations-card-main')?.getAttribute('aria-label'),
 				warningVisible: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display === '',
 			}, {
 				beforeCreate: { templatesVisible: true, emptyClaimVisible: false, catalogueStatusVisible: true },
 				createCalls: [submitted],
 				catalogueState,
-				templateDisplay: 'none',
+				templateDisplay: '',
+				builtInOpen: false,
 				cardLabel: 'Edit automation Local review',
 				warningVisible: true,
 			});
@@ -1320,6 +1763,7 @@ suite('AutomationsCardsWidget', () => {
 		).flatMap(([, actions]) => actions);
 		assert.deepStrictEqual(menuActions.map(action => ({ id: action.id, enabled: action.enabled })), [
 			{ id: 'sessions.automations.duplicate', enabled: true },
+			{ id: 'sessions.automations.export', enabled: true },
 			{ id: 'sessions.automations.disable', enabled: false },
 			{ id: 'sessions.automations.delete', enabled: true },
 		]);
@@ -1467,7 +1911,7 @@ suite('AutomationsCardsWidget', () => {
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
-		assert.deepStrictEqual(duplicateActions.map(action => action.id), ['sessions.automations.duplicate', 'sessions.automations.disable', 'sessions.automations.delete']);
+		assert.deepStrictEqual(duplicateActions.map(action => action.id), ['sessions.automations.duplicate', 'sessions.automations.export', 'sessions.automations.disable', 'sessions.automations.delete']);
 		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
 		assert.ok(command);
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
@@ -1658,6 +2102,7 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			actions: [
 				{ id: 'sessions.automations.duplicate', enabled: true },
+				{ id: 'sessions.automations.export', enabled: true },
 				{ id: 'sessions.automations.disable', enabled: true },
 				{ id: 'sessions.automations.delete', enabled: false },
 			],
@@ -2233,30 +2678,53 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('accessible view shows built-in and plugin templates with saved automations', () => {
+		const pluginTemplate = {
+			...AUTOMATION_TEMPLATES[0],
+			id: 'plugin-template',
+			name: 'Plugin review',
+			source: { label: 'Review plugin', uri: URI.file('/plugins/review/automations/review.automation.md') },
+			enabled: false,
+		};
+		const content = buildAutomationsAccessibleContent([automation()], [], 'ready', [...AUTOMATION_TEMPLATES, pluginTemplate]);
+
+		assert.deepStrictEqual({
+			includesPluginSection: content.includes('Templates from Plugins'),
+			includesPluginTemplate: content.includes('Plugin review') && content.includes('From Review plugin.'),
+			includesBuiltInSection: content.includes('\nBuilt-in Templates\n'),
+			includesBuiltInTemplate: content.includes(AUTOMATION_TEMPLATES[1].name),
+		}, {
+			includesPluginSection: true,
+			includesPluginTemplate: true,
+			includesBuiltInSection: true,
+			includesBuiltInTemplate: true,
+		});
+	});
+
 	test('accessibility help describes visible templates independently of catalogue completeness', () => {
 		const { automationService, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
-		const describesTemplates = () => {
+		const describesBuiltInTemplates = () => {
 			const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
 			assert.ok(provider);
 			disposables.add(provider);
-			return provider.provideContent().includes('Tab to a template');
+			return provider.provideContent().includes('Built-in Templates section');
 		};
 		const states: readonly AutomationCatalogueState[] = ['loading', 'unavailable', 'error', 'ready'];
 		const emptyCatalogueHelp = states.map(state => {
 			automationService.setCatalogueState(state);
-			return describesTemplates();
+			return describesBuiltInTemplates();
 		});
 		automationService.setAutomations([automation()]);
 
 		assert.deepStrictEqual({
 			emptyCatalogueHelp,
-			populatedCatalogueHelp: describesTemplates(),
+			populatedCatalogueHelp: describesBuiltInTemplates(),
 		}, {
 			emptyCatalogueHelp: [true, true, true, true],
-			populatedCatalogueHelp: false,
+			populatedCatalogueHelp: true,
 		});
 	});
 

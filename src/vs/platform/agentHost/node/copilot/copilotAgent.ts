@@ -6786,7 +6786,7 @@ class SessionPluginController extends Disposable {
 
 		if (!this._sessionDiscovered.value) {
 			this._sessionDiscovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry,
-				[this._directory, ...this._additionalDirectories],
+				this._workspaceCustomizationDirectories(),
 				this._parent.getUserHome(),
 				() => this._parent.getClient(),
 				() => this._publish(() => ({
@@ -6799,12 +6799,13 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _mcpDiscoveryEntry(): SessionMcpDiscovery | undefined {
-		if (!this._directory) {
+		const workingDirectories = this._workspaceCustomizationDirectories();
+		if (workingDirectories.length === 0) {
 			return undefined;
 		}
 		if (!this._sessionMcpDiscovery.value) {
 			const store = new DisposableStore();
-			const discovery = store.add(new SessionMcpDiscovery([this._directory, ...this._additionalDirectories], this._fileService));
+			const discovery = store.add(new SessionMcpDiscovery(workingDirectories, this._fileService));
 			store.add(discovery.onDidChange(() => this._publish(() => ({
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: [...this.getCustomizations()],
@@ -6812,6 +6813,13 @@ class SessionPluginController extends Disposable {
 			this._sessionMcpDiscovery.value = { discovery, dispose: () => store.dispose() };
 		}
 		return this._sessionMcpDiscovery.value.discovery;
+	}
+
+	private _workspaceCustomizationDirectories(): readonly URI[] {
+		if (!this._directory || isEqual(this._directory, workspacelessScratchDir(this._parent.getUserHome(), AgentSession.id(this._session)))) {
+			return [];
+		}
+		return [this._directory, ...this._additionalDirectories];
 	}
 
 	private _publish(action: () => SessionAction): void {

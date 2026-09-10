@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
-import { constObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -20,6 +23,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -33,19 +38,20 @@ import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbe
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
+import { getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, ISortChangeRecord } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
@@ -749,6 +755,7 @@ suite('Sessions - SessionsList', () => {
 				expanded: true,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
+				revealSessionId: '3',
 			});
 
 			assert.deepStrictEqual({
@@ -774,6 +781,7 @@ suite('Sessions - SessionsList', () => {
 				expanded: false,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
+				revealSessionId: '3',
 			});
 
 			assert.deepStrictEqual({
@@ -784,6 +792,209 @@ suite('Sessions - SessionsList', () => {
 				showMore: undefined,
 			});
 		});
+
+		for (const revealSessionId of ['1', '3', '5', 'missing']) {
+			test(`includes only the revealed session beyond the cap (${revealSessionId})`, () => {
+				const sessions = ['1', '2', '3', '4', '5'].map(id => createSession(id, {}));
+				const result = limitSessionsForList(sessions, 2, {
+					enabled: true,
+					expanded: false,
+					sectionId: 'group:alpha',
+					sectionLabel: 'Alpha',
+					revealSessionId,
+				});
+				const addsSession = revealSessionId === '3' || revealSessionId === '5';
+
+				assert.deepStrictEqual({
+					sessions: result.sessions.map(session => session.sessionId),
+					showMore: result.showMore,
+				}, {
+					sessions: addsSession ? ['1', '2', revealSessionId] : ['1', '2'],
+					showMore: {
+						showMore: true,
+						kind: 'sessions',
+						mode: 'more',
+						sectionId: 'group:alpha',
+						sectionLabel: 'Alpha',
+						remainingCount: addsSession ? 2 : 3,
+					},
+				});
+			});
+		}
+
+		test('omits show more when the revealed session is the only hidden session', () => {
+			const sessions = ['1', '2', '3'].map(id => createSession(id, {}));
+			const result = limitSessionsForList(sessions, 2, {
+				enabled: true,
+				expanded: false,
+				sectionId: 'group:alpha',
+				sectionLabel: 'Alpha',
+				revealSessionId: '3',
+			});
+
+			assert.deepStrictEqual({
+				sessions: result.sessions.map(session => session.sessionId),
+				showMore: result.showMore,
+			}, {
+				sessions: ['1', '2', '3'],
+				showMore: undefined,
+			});
+		});
+	});
+
+	suite('session hover diff stats', () => {
+		test('does not read or observe detailed changes when the summary is available', () => {
+			const changesSummary = observableValue<ISessionChangesSummary>('summary', { files: 7, additions: 40, deletions: 20 });
+			const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
+			const changesets = observableValue<readonly ISessionChangeset[]>('changesets', []);
+			let detailedReads = 0;
+			let changesetReads = 0;
+			const session: ISession = {
+				...createTestSession('Session').session,
+				changesSummary,
+				changes: derived(reader => {
+					detailedReads++;
+					return changes.read(reader);
+				}),
+				changesets: derived(reader => {
+					changesetReads++;
+					return changesets.read(reader);
+				}),
+			};
+			const results: ReturnType<typeof getSessionDiffStats>[] = [];
+			disposables.add(autorun(reader => results.push(getSessionDiffStats(session, reader))));
+
+			changes.set([{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 3, deletions: 1 }], undefined);
+			changesets.set([], undefined);
+			changesSummary.set({ files: 0, additions: 0, deletions: 0 }, undefined);
+
+			assert.deepStrictEqual({ results, detailedReads, changesetReads }, {
+				results: [{ files: 7, insertions: 40, deletions: 20 }, undefined],
+				detailedReads: 0,
+				changesetReads: 0,
+			});
+		});
+
+		test('uses the default changeset only while the summary is absent', () => {
+			const changesSummary = observableValue<ISessionChangesSummary | undefined>('summary', undefined);
+			const changes = observableValue<readonly ISessionFileChange[]>('changes', [
+				{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 3, deletions: 1 },
+			]);
+			const changeset = upcastPartial<ISessionChangeset>({ isDefault: constObservable(true), changes });
+			const session: ISession = {
+				...createTestSession('Session').session,
+				changesSummary,
+				changesets: constObservable([changeset]),
+			};
+			const results: ReturnType<typeof getSessionDiffStats>[] = [];
+			disposables.add(autorun(reader => results.push(getSessionDiffStats(session, reader))));
+
+			changesSummary.set({ files: 7, additions: 40, deletions: 20 }, undefined);
+			changes.set([{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 5, deletions: 2 }], undefined);
+			changesSummary.set(undefined, undefined);
+			changes.set([], undefined);
+
+			assert.deepStrictEqual(results, [
+				{ files: 1, insertions: 3, deletions: 1 },
+				{ files: 7, insertions: 40, deletions: 20 },
+				{ files: 1, insertions: 5, deletions: 2 },
+				undefined,
+			]);
+		});
+
+		test('prefers the list summary and falls back to detailed changes only when absent', () => {
+			const base = createTestSession('Session').session;
+			const changes = [
+				{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 3, deletions: 1 },
+				{ uri: URI.file('/workspace/b.ts'), insertions: 2, deletions: 4 },
+			];
+			const summary = { files: 7, additions: 40, deletions: 20 };
+			const zeroSummary = { files: 0, additions: 0, deletions: 0 };
+			const stats = (changesSummary: ISessionChangesSummary | undefined, detailedChanges = changes) => getSessionDiffStats({
+				...base,
+				changes: constObservable(detailedChanges),
+				changesSummary: constObservable(changesSummary),
+			});
+
+			assert.deepStrictEqual({
+				summaryOnly: stats(summary, []),
+				summaryAndDetails: stats(summary),
+				detailsOnly: stats(undefined),
+				zeroSummary: stats(zeroSummary),
+				noChanges: stats(undefined, []),
+				noLineChanges: stats(undefined, [{ modifiedUri: URI.file('/workspace/binary'), insertions: 0, deletions: 0 }]),
+			}, {
+				summaryOnly: { files: 7, insertions: 40, deletions: 20 },
+				summaryAndDetails: { files: 7, insertions: 40, deletions: 20 },
+				detailsOnly: { files: 2, insertions: 5, deletions: 5 },
+				zeroSummary: undefined,
+				noChanges: undefined,
+				noLineChanges: undefined,
+			});
+		});
+
+		for (const flat of [false, true]) {
+			test(`shows matching row and hover summaries without selecting sessions in the ${flat ? 'flat' : 'main'} list`, () => {
+				const changesSummary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 3, additions: 12, deletions: 4 });
+				const sessions = ['First', 'Second'].map(title => {
+					const base = createTestSession(title).session;
+					const root = URI.file(`/workspace/${title}`);
+					return {
+						...base,
+						changesSummary,
+						workspace: constObservable({
+							...base.workspace.get()!,
+							folders: [{ root, workingDirectory: root, name: title, description: undefined }],
+						}),
+					};
+				});
+				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+				const harness = createListHarness(disposables, sessions, instantiationService => {
+					instantiationService.stub(IHoverService, {
+						...NullHoverService,
+						setupDelayedHover: (target, options) => {
+							hovers.set(target, typeof options === 'function' ? options : () => options);
+							return toDisposable(() => hovers.delete(target));
+						},
+					});
+				});
+				const container = harness.createContainer();
+				if (flat) {
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, { onSessionOpen: () => { } }));
+					list.setSessions(sessions);
+					list.layout(300, 400);
+				} else {
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+						grouping: () => SessionsGrouping.Date,
+						sorting: () => SessionsSorting.Created,
+						onSessionOpen: () => { },
+					}));
+					list.layout(300, 400);
+				}
+				const readSummaries = () => [...container.querySelectorAll<HTMLElement>('.session-item')].map(row => {
+					const hover = hovers.get(row)?.().content;
+					assert.ok(hover instanceof HTMLElement);
+					return {
+						row: [row.querySelector('.session-diff-added')?.textContent, row.querySelector('.session-diff-removed')?.textContent],
+						hover: [hover.querySelector('.session-summary-hover-insertions')?.textContent, hover.querySelector('.session-summary-hover-deletions')?.textContent],
+						files: hover.textContent?.includes(`${changesSummary.get()?.files} files changed`),
+					};
+				});
+				const initial = readSummaries();
+				changesSummary.set({ files: 5, additions: 30, deletions: 10 }, undefined);
+				const updated = readSummaries();
+				changesSummary.set({ files: 0, additions: 0, deletions: 0 }, undefined);
+				const cleared = readSummaries();
+				harness.store.dispose();
+
+				assert.deepStrictEqual({ initial, updated, cleared, remainingHovers: hovers.size }, {
+					initial: Array(2).fill({ row: ['+12', '-4'], hover: ['+12', '-4'], files: true }),
+					updated: Array(2).fill({ row: ['+30', '-10'], hover: ['+30', '-10'], files: true }),
+					cleared: Array(2).fill({ row: [undefined, undefined], hover: [undefined, undefined], files: false }),
+					remainingHovers: 0,
+				});
+			});
+		}
 	});
 
 	test('created session hover includes its creator action', () => {
@@ -849,6 +1060,7 @@ suite('Sessions - SessionsList', () => {
 			isQuickChat: constObservable(false),
 			worktreePending: constObservable(false),
 			changes: constObservable([]),
+			changesets: constObservable([]),
 			workspace: constObservable({
 				uri: root,
 				label: 'vscode',
@@ -1432,6 +1644,107 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('session toolbar keyboard focus', () => {
+		for (const pinned of [false, true]) {
+			test(`keeps the ${pinned ? 'pinned' : 'unpinned'} archive action visible only for the onboarding lifetime`, () => {
+				const session = createTestSession('Onboarding session').session;
+				const harness = createListHarness(disposables, [session], {
+					pinnedSessionIds: new Set(pinned ? [session.sessionId] : []),
+				});
+				const actions = [
+					harness.instantiationService.createInstance(MenuItemAction, { id: ARCHIVE_SESSION_COMMAND_ID, title: 'Archive', icon: Codicon.archive }, undefined, undefined, undefined, undefined),
+					harness.instantiationService.createInstance(MenuItemAction, { id: 'unpin', title: 'Unpin', icon: Codicon.pinned }, undefined, undefined, undefined, undefined),
+				];
+				harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+					override createMenu(menuId: MenuId): IMenu {
+						return { onDidChange: Event.None, getActions: () => menuId === SessionItemToolbarMenuId ? [['navigation', actions]] : [], dispose: () => { } };
+					}
+				}());
+				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				list.collapseAllSections();
+				const target = harness.store.add(list.revealArchiveAction(session));
+				list.clearFocus();
+				const outside = mainWindow.document.createElement('button');
+				container.appendChild(outside);
+				outside.focus();
+				const action = findOnboardingTarget(mainWindow, target.targetId);
+				assert.ok(action);
+				const during = action.checkVisibility();
+				list.update();
+				const afterRerender = findOnboardingTarget(mainWindow, target.targetId)?.checkVisibility();
+				target.dispose();
+				const after = findOnboardingTarget(mainWindow, target.targetId)?.checkVisibility() ?? false;
+				assert.deepStrictEqual({
+					during, afterRerender, after,
+					unpinVisibleAfter: container.querySelector<HTMLElement>('.codicon-pinned')?.checkVisibility(),
+					remainingClasses: container.querySelectorAll('.archive-onboarding').length,
+				}, { during: true, afterRerender: true, after: false, unpinVisibleAfter: pinned, remainingClasses: 0 });
+			});
+		}
+
+		test('temporarily reveals a filtered session without changing its filters', () => {
+			const session = createTestSession('Filtered session').session;
+			const harness = createListHarness(disposables, [session]);
+			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.setStatusExcluded(SessionStatus.Completed, true);
+			const before = list.reveal(session.resource);
+			const target = harness.store.add(list.revealArchiveAction(session));
+			const during = list.reveal(session.resource);
+			target.dispose();
+			assert.deepStrictEqual({
+				before, during, after: list.reveal(session.resource),
+				filterPreserved: list.isStatusExcluded(SessionStatus.Completed),
+			}, { before: false, during: true, after: false, filterPreserved: true });
+		});
+
+		for (const customGroup of [false, true]) {
+			test(`reveals only the onboarding target beyond the ${customGroup ? 'custom group' : 'workspace'} cap`, () => {
+				const sessions = Array.from({ length: 12 }, (_, index) => ({
+					...createTestSession(`Session ${index}`).session,
+					createdAt: new Date(2025, 0, 12 - index),
+				}));
+				const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+				const harness = createListHarness(disposables, sessions, {
+					groups: customGroup ? [group] : [],
+					memberships: customGroup ? new Map(sessions.map(session => [session.sessionId, group.id])) : undefined,
+				});
+				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+				const container = harness.createContainer(400, 1000);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1000, 400);
+				const snapshot = () => ({
+					sessions: list.getVisibleSessions().map(session => session.title.get()),
+					showMore: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
+				});
+				const before = snapshot();
+				const target = harness.store.add(list.revealArchiveAction(sessions[9]));
+				const during = snapshot();
+				target.dispose();
+
+				assert.deepStrictEqual({ before, during, after: snapshot() }, {
+					before: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4'], showMore: ['+7 more'] },
+					during: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 9'], showMore: ['+6 more'] },
+					after: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4'], showMore: ['+7 more'] },
+				});
+			});
+		}
+
 		for (const pinned of [false, true]) {
 			test(`tabs into the selected ${pinned ? 'pinned' : 'unpinned'} session toolbar without hover`, () => {
 				const session = createTestSession('Session').session;
