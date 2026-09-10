@@ -1022,6 +1022,19 @@ suite('CopilotChatSessionsProvider', () => {
 		);
 	});
 
+	test('new Copilot CLI drafts expose their creating session', () => {
+		const provider = createProvider(disposables, model, { agentHostEnabled: false });
+		const createdBySession = {
+			session: URI.parse('agent-host-copilotcli:/parent'),
+			chat: URI.parse('agent-host-chat:/parent/default'),
+			turnId: 'turn-1',
+		};
+
+		const session = provider.createNewSession(URI.file('/test/vscode'), CopilotCLISessionType.id, { createdBySession });
+
+		assert.deepStrictEqual(session.createdBySession?.get(), createdBySession);
+	});
+
 	test('getSessionTypes offers Cloud for a local workspace with a GitHub remote', async () => {
 		const folder = URI.file('/test/vscode');
 		const provider = createProvider(disposables, model, {
@@ -1277,6 +1290,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repository' });
 		const session = provider.createNewSession(workspace, CopilotCloudSessionType.id);
 		const beforeResolve = provider.getModelsSnapshot(session.sessionId, 'removed-cloud-model');
+		const creationBeforeResolve = provider.getModelsSnapshotForCreation(workspace, CopilotCloudSessionType.id, 'removed-cloud-model');
 
 		modelsState.optionGroups = [{
 			id: 'models',
@@ -1284,13 +1298,18 @@ suite('CopilotChatSessionsProvider', () => {
 			items: [{ id: 'synthetic-cloud-model', name: 'Synthetic Cloud Model' }],
 		}];
 		const afterResolve = provider.getModelsSnapshot(session.sessionId, 'removed-cloud-model');
+		const creationAfterResolve = provider.getModelsSnapshotForCreation(workspace, CopilotCloudSessionType.id, 'removed-cloud-model');
 
 		assert.deepStrictEqual({
 			beforeResolve: { models: beforeResolve.models.map(model => model.identifier), desiredModelResolution: beforeResolve.desiredModelResolution, modelTarget: beforeResolve.modelTarget },
 			afterResolve: { models: afterResolve.models.map(model => model.identifier), desiredModelResolution: afterResolve.desiredModelResolution, modelTarget: afterResolve.modelTarget },
+			creationBeforeResolve: creationBeforeResolve.desiredModelResolution,
+			creationAfterResolve: creationAfterResolve.models.map(model => model.identifier),
 		}, {
 			beforeResolve: { models: [], desiredModelResolution: { kind: 'pending', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
 			afterResolve: { models: ['synthetic-cloud-model'], desiredModelResolution: { kind: 'unavailable', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
+			creationBeforeResolve: { kind: 'pending', identifier: 'removed-cloud-model' },
+			creationAfterResolve: ['synthetic-cloud-model'],
 		});
 	});
 
@@ -2957,7 +2976,13 @@ suite('CopilotChatSessionsProvider', () => {
 		}), { onDidCommitSession: onDidCommit.event });
 
 		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo/HEAD' });
-		const session = provider.createNewSession(workspace, CopilotCloudSessionType.id);
+		const createdBySession = {
+			session: URI.parse('agent-host-copilotcli:/parent'),
+			chat: URI.parse('agent-host-chat:/parent/default'),
+			turnId: 'turn-1',
+		};
+		const session = provider.createNewSession(workspace, CopilotCloudSessionType.id, { createdBySession });
+		assert.deepStrictEqual(session.createdBySession?.get(), createdBySession);
 
 		const removals: string[] = [];
 		disposables.add(provider.onDidChangeSessions(e => {
@@ -2988,18 +3013,22 @@ suite('CopilotChatSessionsProvider', () => {
 			}
 		};
 		const commitLoop = fireCommitUntilSettled();
+		let committedSession!: ISession;
 
 		try {
-			await assert.doesNotReject(sendPromise);
+			committedSession = await sendPromise;
 		} finally {
 			sendSettled = true;
 			await commitLoop;
 		}
 
-		assert.ok(
-			!removals.includes(untitledResource.toString()),
-			`Cloud session should not be removed after committing. Removals seen: [${removals.join(', ')}]`,
-		);
+		assert.deepStrictEqual({
+			createdBySession: committedSession.createdBySession?.get(),
+			untitledRemoved: removals.includes(untitledResource.toString()),
+		}, {
+			createdBySession,
+			untitledRemoved: false,
+		});
 	});
 	suite('cloud sandbox send path', () => {
 		// A browsed GitHub workspace root carries a ref (`/<owner>/<repo>/HEAD`), which is what

@@ -510,6 +510,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			renderRepositoryControls?: boolean;
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
+			sendButtonLabel?: IObservable<string | undefined>;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
@@ -1204,6 +1205,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				ariaLabel: localize('send', "Send"),
 			}));
 			sendButton.icon = Codicon.arrowUpCompact;
+			if (this.options.sendButtonLabel) {
+				this._register(autorun(reader => {
+					const label = this.options.sendButtonLabel?.read(reader);
+					sendButton.label = label ?? '';
+					sendButton.element.ariaLabel = label ?? localize('send', "Send");
+				}));
+			}
 			// Hold Alt while clicking Send to start the session in the background.
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}

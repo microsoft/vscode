@@ -1971,9 +1971,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			models: snapshot.models.map(model => model.identifier),
 			modelTarget: snapshot.modelTarget,
+			creationModels: provider.getModelsSnapshotForCreation(URI.file('/workspace'), provider.sessionTypes[0].id).models.map(model => model.identifier),
 		}, {
 			models: ['matching'],
 			modelTarget: 'agent-host-copilotcli',
+			creationModels: ['matching'],
 		});
 	});
 
@@ -4648,6 +4650,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}), /model configuration requires a model identifier/);
 		await timeout(0);
 		assert.deepStrictEqual(agentHost.createSessionConfigs, []);
+	});
+
+	test('forwards programmatic parent session provenance to eager creation', async () => {
+		const provider = createProvider(disposables, agentHost);
+		provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, {
+			metadata: { existing: 'value' },
+			createdBySession: {
+				session: URI.parse('agent-host-copilotcli:/parent'),
+				chat: URI.parse('agent-host-chat:/parent/default'),
+				turnId: 'turn-1',
+			},
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.createSessionConfigs[0]?.metadata, withSessionCreationReference({ existing: 'value' }, {
+			session: 'agent-host-copilotcli:/parent',
+			chat: 'agent-host-chat:/parent/default',
+			turnId: 'turn-1',
+		}));
 	});
 
 	test('Automation model options reach eager creation and the browser-executed first request', async () => {

@@ -11,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
@@ -58,6 +59,8 @@ import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/common/sessionComparison.js';
 
 // #region --- New Chat Widget ---
 
@@ -99,6 +102,8 @@ export class NewChatWidget extends Disposable {
 
 	/** In-flight background sends awaiting confirmation before their comments are cleared. */
 	private readonly _pendingBackgroundSends = this._register(new DisposableMap<object>());
+	private readonly _comparisonMode = observableValue(this, false);
+	private readonly _comparisonPicks = observableValue<readonly IPickedSessionType[]>(this, []);
 
 	/**
 	 * Tracks whether the workspace picker is currently rendered (vs replaced by
@@ -131,6 +136,8 @@ export class NewChatWidget extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -144,6 +151,7 @@ export class NewChatWidget extends Disposable {
 			if (activeSession && activeSession.isCreated.read(reader)) {
 				return prev;
 			}
+
 			return activeSession;
 		});
 
@@ -202,6 +210,9 @@ export class NewChatWidget extends Disposable {
 			if (session.loading.read(reader)) {
 				return false;
 			}
+			if (this._comparisonMode.read(reader) && this._comparisonPicks.read(reader).length < 2) {
+				return false;
+			}
 			return true;
 		});
 
@@ -211,6 +222,9 @@ export class NewChatWidget extends Disposable {
 		});
 		const hasFeedback = derived(this, reader => this._feedbackItems.read(reader).length > 0);
 		const canSubmitWithoutSession = derived(this, reader => !this._session.read(reader));
+		const sendButtonLabel = derived(this, reader => this._comparisonMode.read(reader)
+			? localize('newSession.runAttempts', "Run {0} Attempts", this._comparisonPicks.read(reader).length)
+			: undefined);
 		const deferredNotificationsEnabled = observableFromEvent(
 			this,
 			this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store),
@@ -232,12 +246,14 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: localize('newSessionPromptPlaceholder', "Pitch your idea"),
 			supportsBackground: true,
+			sendButtonLabel,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
 			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
 			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
 			sessionTypePickerOptions: {
 				prepareSessionTypeSelection: pick => this._prepareSessionTypeSelection(pick),
+				showComparisonToggle: true,
 			},
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
@@ -331,6 +347,10 @@ export class NewChatWidget extends Disposable {
 			}
 			await this._onWorkspaceSelected(this._workspacePicker.selectedFolderUri, pick);
 			this._newChatInput.focus();
+		}));
+		this._register(this._newChatInput.sessionTypePicker.onDidChangeComparisonPicks(picks => {
+			this._comparisonMode.set(this._newChatInput.sessionTypePicker.isComparisonMode(), undefined);
+			this._comparisonPicks.set(picks, undefined);
 		}));
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._restoreNoWorkspaceDraft()));
 
@@ -957,6 +977,56 @@ export class NewChatWidget extends Disposable {
 		for (const context of attachedContext ?? []) {
 			if (!requestContext.has(context.id)) {
 				requestContext.set(context.id, context);
+			}
+		}
+
+		if (this._comparisonMode?.get()) {
+			const workspace = this._workspacePicker.selectedFolderUri;
+			if (!workspace) {
+				this._workspacePicker.showPicker();
+				return false;
+			}
+			const availableTypes = this.sessionsManagementService.getSessionTypesForFolder(workspace);
+			const modelId = this._newChatInput.selectedModelState.get().currentModel?.identifier;
+			const harnesses = this._comparisonPicks.get().flatMap(pick => {
+				const type = availableTypes.find(candidate =>
+					candidate.providerId === pick.providerId && candidate.sessionType.id === pick.sessionTypeId);
+				const resolution = type && modelId
+					? this.sessionsProvidersService.getProvider(type.providerId)?.getModelsSnapshotForCreation?.(workspace, type.sessionType.id, modelId).desiredModelResolution
+					: undefined;
+				const resolvedModelId = resolution?.kind === 'available' ? resolution.model.identifier : undefined;
+				return type ? [{
+					providerId: pick.providerId,
+					sessionTypeId: pick.sessionTypeId,
+					label: type.sessionType.label,
+					modelId: resolvedModelId,
+				}] : [];
+			});
+			if (harnesses.length < 2) {
+				return false;
+			}
+			if (modelId && harnesses.some(harness => !harness.modelId)) {
+				this.notificationService.error(localize('sessionComparison.modelUnavailable', "The selected model is not available for every comparison harness. Choose a model shared by all selected harnesses."));
+				return false;
+			}
+			try {
+				this.sessionsService.unsetNewSession();
+				const comparison = await this.sessionComparisonService.startComparison({
+					workspace,
+					prompt: request,
+					attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
+					harnesses,
+				});
+				const coordinator = comparison.participants.find(participant =>
+					participant.role === SessionComparisonParticipantRole.Coordinator)?.sessionResource;
+				if (coordinator) {
+					await this.sessionsService.openSession(coordinator, { source: 'chat' });
+				}
+				await this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id);
+				return true;
+			} catch (error) {
+				this.logService.error('Failed to start session comparison:', error);
+				return false;
 			}
 		}
 
