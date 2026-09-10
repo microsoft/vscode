@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource, Disposable, LanguageModelChat, LanguageModelChatMessage, ProgressLocation, QuickPickItem, QuickPickItemKind, SourceControl, SourceControlResourceGroup, SourceControlResourceState, ThemeIcon, Uri, commands, l10n, lm, scm, window, workspace } from 'vscode';
+import { CancellationToken, Disposable, LanguageModelChat, LanguageModelChatMessage, ProgressLocation, QuickPickItem, QuickPickItemKind, SourceControl, SourceControlResourceGroup, SourceControlResourceState, ThemeIcon, Uri, commands, l10n, lm, scm, window, workspace } from 'vscode';
 import { Status } from './api/git.constants';
 import { Repository, Resource } from './repository';
 import { toGitUri } from './uri';
@@ -12,7 +12,7 @@ import { coalesce, dispose, relativePath, subject, truncate } from './util';
 /**
  * A single commit proposed by the model: a message and the files that belong to it.
  */
-interface ProposedCommit {
+export interface ProposedCommit {
 	readonly message: string;
 	readonly files: readonly string[];
 }
@@ -22,7 +22,7 @@ interface ProposedCommit {
  * lifetime of the commit, so that its resource group survives message edits and
  * changes to the files it contains.
  */
-interface PlannedCommit {
+export interface PlannedCommit {
 	readonly id: string;
 	message: string;
 	files: string[];
@@ -61,6 +61,12 @@ class AgenticCommitPlan implements Disposable {
 
 	get sourceControl(): SourceControl { return this._sourceControl; }
 
+	/**
+	 * Whether the plan proposes at least one commit. A plan can be left with no
+	 * commits at all, and only files that are not included.
+	 */
+	get hasCommits(): boolean { return this._commits.length > 0; }
+
 	constructor(readonly repository: Repository, private readonly onDidClose: (plan: AgenticCommitPlan) => void) {
 		this._sourceControl = scm.createSourceControl(
 			PLANNER_SOURCE_CONTROL_ID,
@@ -81,28 +87,9 @@ class AgenticCommitPlan implements Disposable {
 	 * changed anymore, and files that were claimed by an earlier commit, are dropped.
 	 */
 	setCommits(proposals: readonly ProposedCommit[]): void {
-		const resources = this.changedResources();
-		const claimed = new Set<string>();
-		const commits: PlannedCommit[] = [];
+		this._commits = resolveProposals(proposals, this.repository.root, new Set(this.changedResources().keys()))
+			.map(commit => ({ id: `commit-${this._nextCommitId++}`, ...commit }));
 
-		for (const proposal of proposals) {
-			const files: string[] = [];
-
-			for (const file of proposal.files) {
-				const fsPath = Uri.joinPath(Uri.file(this.repository.root), file).fsPath;
-
-				if (resources.has(fsPath) && !claimed.has(fsPath)) {
-					claimed.add(fsPath);
-					files.push(fsPath);
-				}
-			}
-
-			if (files.length > 0) {
-				commits.push({ id: `commit-${this._nextCommitId++}`, message: proposal.message.trim(), files });
-			}
-		}
-
-		this._commits = commits;
 		this.reconcile();
 	}
 
@@ -180,7 +167,7 @@ class AgenticCommitPlan implements Disposable {
 		items.push(
 			{ label: '', kind: QuickPickItemKind.Separator },
 			{ action: 'new', label: l10n.t('{0} New Commit...', '$(plus)') },
-			{ action: 'unassigned', label: l10n.t('{0} Remove From Plan', '$(circle-slash)') });
+			{ action: 'unassigned', label: l10n.t('{0} Remove from Plan', '$(circle-slash)') });
 
 		const placeHolder = fsPaths.length === 1
 			? l10n.t('Select the commit that should contain "{0}"', relativePath(this.repository.root, fsPaths[0]))
@@ -280,7 +267,7 @@ class AgenticCommitPlan implements Disposable {
 	 * commits are created, so that the preview always shows what is left to do.
 	 */
 	private async create(commits: readonly PlannedCommit[]): Promise<void> {
-		if (commits.length === 0) {
+		if (commits.length === 0 || !await this.ensureNothingStaged()) {
 			return;
 		}
 
@@ -302,12 +289,6 @@ class AgenticCommitPlan implements Disposable {
 						continue;
 					}
 
-					// Only the files of this commit may be staged.
-					const staged = this.repository.indexGroup.resourceStates.map(resource => resource.resourceUri);
-					if (staged.length > 0) {
-						await this.repository.revert(staged);
-					}
-
 					await this.repository.add(uris);
 					await this.repository.commit(commit.message, { all: false });
 
@@ -322,6 +303,36 @@ class AgenticCommitPlan implements Disposable {
 		}
 
 		this.reconcile();
+	}
+
+	/**
+	 * Only the files of the commit that is being created may be staged, so an index
+	 * the user has prepared would be lost. Ask before touching it.
+	 */
+	private async ensureNothingStaged(): Promise<boolean> {
+		const staged = this.repository.indexGroup.resourceStates.map(resource => resource.resourceUri);
+
+		if (staged.length === 0) {
+			return true;
+		}
+
+		const unstage = l10n.t('Unstage Changes');
+		const choice = await window.showWarningMessage(
+			l10n.t('The planned commits can only be created while nothing is staged.'),
+			{
+				modal: true,
+				detail: staged.length === 1
+					? l10n.t('1 staged change has to be unstaged first. The change itself is kept.')
+					: l10n.t('{0} staged changes have to be unstaged first. The changes themselves are kept.', staged.length)
+			},
+			unstage);
+
+		if (choice !== unstage) {
+			return false;
+		}
+
+		await this.repository.revert(staged);
+		return true;
 	}
 
 	/**
@@ -356,22 +367,16 @@ class AgenticCommitPlan implements Disposable {
 			return;
 		}
 
-		const resources = this.changedResources();
-
-		for (const commit of this._commits) {
-			commit.files = commit.files.filter(file => resources.has(file));
-		}
-
-		const planned = new Set(this._commits.flatMap(commit => commit.files));
-		this._unassigned = [...resources.keys()].filter(file => !planned.has(file));
-
+		this._unassigned = reconcileCommits(this._commits, [...this.changedResources().keys()]);
 		this.renderOrClose();
 	}
 
 	private renderOrClose(): void {
 		this._commits = this._commits.filter(commit => commit.files.length > 0);
 
-		if (this._commits.length === 0) {
+		// Files that are left without a commit stay in the preview, so that they can
+		// be moved into another commit. Only an empty plan has nothing left to show.
+		if (this._commits.length === 0 && this._unassigned.length === 0) {
 			this.close();
 			return;
 		}
@@ -430,7 +435,7 @@ class AgenticCommitPlan implements Disposable {
 		}
 
 		this._sourceControl.count = this._commits.reduce((count, commit) => count + commit.files.length, 0);
-		this._sourceControl.actionButton = {
+		this._sourceControl.actionButton = this._commits.length === 0 ? undefined : {
 			command: {
 				command: 'git.agenticCommitPlannerCreateAll',
 				title: this._commits.length === 1
@@ -518,8 +523,9 @@ export class AgenticCommitPlanner implements Disposable {
 
 		plan.setCommits(proposals);
 
-		if (!this.plans.has(repository)) {
-			// Every proposed file was filtered out, and the plan closed itself.
+		if (!plan.hasCommits) {
+			// Every proposed file was filtered out.
+			plan.close();
 			window.showInformationMessage(l10n.t('Copilot did not propose any commits for the current changes.'));
 			return undefined;
 		}
@@ -655,6 +661,12 @@ async function selectModel(): Promise<LanguageModelChat | undefined> {
  * Returns `undefined` when no plan could be requested.
  */
 async function requestCommitPlan(repository: Repository): Promise<ProposedCommit[] | undefined> {
+	// The changes of the repository are sent to a language model.
+	if (workspace.getConfiguration('chat').get<boolean>('disableAIFeatures', false)) {
+		window.showInformationMessage(l10n.t('Commit plans cannot be generated while AI features are disabled.'));
+		return undefined;
+	}
+
 	const changedUris = changedResourceUris(repository);
 
 	if (changedUris.length === 0) {
@@ -667,17 +679,34 @@ async function requestCommitPlan(repository: Repository): Promise<ProposedCommit
 		return undefined;
 	}
 
-	const tokenSource = new CancellationTokenSource();
-
 	try {
 		const proposals = await window.withProgress({
-			location: ProgressLocation.SourceControl,
+			location: ProgressLocation.Notification,
 			title: l10n.t('Planning commits with Copilot...'),
-		}, async () => {
+			cancellable: true
+		}, async (_progress, token) => {
 			// Build a compact description of each change (path + truncated diff).
-			const diffs = await collectDiffs(repository, changedUris);
-			return await requestProposals(model, diffs, tokenSource);
+			const diffs = await collectDiffs(repository, changedUris, token);
+
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			try {
+				return await requestProposals(model, diffs, token);
+			} catch (err) {
+				// A canceled request is not a failure.
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+
+				throw err;
+			}
 		});
+
+		if (!proposals) {
+			return undefined;
+		}
 
 		if (proposals.length === 0) {
 			window.showInformationMessage(l10n.t('Copilot did not propose any commits.'));
@@ -688,15 +717,17 @@ async function requestCommitPlan(repository: Repository): Promise<ProposedCommit
 	} catch (err) {
 		window.showErrorMessage(l10n.t('Failed to generate a commit plan: {0}', err instanceof Error ? err.message : String(err)));
 		return undefined;
-	} finally {
-		tokenSource.dispose();
 	}
 }
 
-async function collectDiffs(repository: Repository, uris: Uri[]): Promise<{ path: string; diff: string }[]> {
+async function collectDiffs(repository: Repository, uris: Uri[], token: CancellationToken): Promise<{ path: string; diff: string }[]> {
 	const result: { path: string; diff: string }[] = [];
 
 	for (const uri of uris) {
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
 		const path = relativePath(repository.root, uri.fsPath);
 
 		let diff: string;
@@ -715,7 +746,7 @@ async function collectDiffs(repository: Repository, uris: Uri[]): Promise<{ path
 	return result;
 }
 
-async function requestProposals(model: LanguageModelChat, diffs: { path: string; diff: string }[], tokenSource: CancellationTokenSource): Promise<ProposedCommit[]> {
+async function requestProposals(model: LanguageModelChat, diffs: { path: string; diff: string }[], token: CancellationToken): Promise<ProposedCommit[]> {
 	const changes = diffs.map(({ path, diff }) => `### ${path}\n\`\`\`diff\n${diff}\n\`\`\``).join('\n\n');
 
 	const prompt = [
@@ -729,7 +760,9 @@ async function requestProposals(model: LanguageModelChat, diffs: { path: string;
 		LanguageModelChatMessage.User(`Here are the changes:\n\n${changes}`),
 	];
 
-	const response = await model.sendRequest(prompt, {}, tokenSource.token);
+	const response = await model.sendRequest(prompt, {
+		justification: l10n.t('The changes of the repository are sent to Copilot so that it can group them into commits and write a message for each of them.')
+	}, token);
 
 	let text = '';
 	for await (const fragment of response.text) {
@@ -739,17 +772,83 @@ async function requestProposals(model: LanguageModelChat, diffs: { path: string;
 	return parseProposals(text);
 }
 
-function parseProposals(text: string): ProposedCommit[] {
+/**
+ * The commits proposed by the model. Everything that does not have the requested
+ * shape is dropped, as the response cannot be trusted to be well-formed.
+ */
+export function parseProposals(text: string): ProposedCommit[] {
 	// The model may wrap the JSON in a markdown code fence.
 	const match = text.match(/\[[\s\S]*\]/);
 	if (!match) {
 		return [];
 	}
 
+	let parsed: unknown;
 	try {
-		const parsed = JSON.parse(match[0]) as ProposedCommit[];
-		return parsed.filter(p => typeof p.message === 'string' && Array.isArray(p.files) && p.files.length > 0);
+		parsed = JSON.parse(match[0]);
 	} catch {
 		return [];
 	}
+
+	return Array.isArray(parsed) ? coalesce(parsed.map(value => toProposedCommit(value))) : [];
+}
+
+function toProposedCommit(value: unknown): ProposedCommit | undefined {
+	if (typeof value !== 'object' || value === null) {
+		return undefined;
+	}
+
+	const { message, files } = value as { message?: unknown; files?: unknown };
+
+	if (typeof message !== 'string' || message.trim().length === 0 || !Array.isArray(files)) {
+		return undefined;
+	}
+
+	const paths = files.filter((file): file is string => typeof file === 'string' && file.length > 0);
+
+	return paths.length > 0 ? { message, files: paths } : undefined;
+}
+
+/**
+ * The commits to plan for a set of proposals. Files that are not changed anymore,
+ * and files that were already claimed by an earlier commit, are dropped.
+ */
+export function resolveProposals(proposals: readonly ProposedCommit[], root: string, changed: ReadonlySet<string>): { message: string; files: string[] }[] {
+	const claimed = new Set<string>();
+	const commits: { message: string; files: string[] }[] = [];
+
+	for (const proposal of proposals) {
+		const files: string[] = [];
+
+		for (const file of proposal.files) {
+			const fsPath = Uri.joinPath(Uri.file(root), file).fsPath;
+
+			if (changed.has(fsPath) && !claimed.has(fsPath)) {
+				claimed.add(fsPath);
+				files.push(fsPath);
+			}
+		}
+
+		if (files.length > 0) {
+			commits.push({ message: proposal.message.trim(), files });
+		}
+	}
+
+	return commits;
+}
+
+/**
+ * Bring the commits of a plan back in sync with the changes of a repository: files
+ * that are not changed anymore leave their commit. Returns the changes that are
+ * left without a commit.
+ */
+export function reconcileCommits(commits: readonly PlannedCommit[], changedPaths: readonly string[]): string[] {
+	const changed = new Set(changedPaths);
+
+	for (const commit of commits) {
+		commit.files = commit.files.filter(file => changed.has(file));
+	}
+
+	const planned = new Set(commits.flatMap(commit => commit.files));
+	return changedPaths.filter(file => !planned.has(file));
 }
