@@ -96,7 +96,10 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 			istream = createWriteStream(targetFileName, { mode });
 			istream.once('close', () => c());
 			istream.once('error', e);
-			stream.once('error', e);
+			stream.once('error', err => {
+				istream.destroy(); // pipe() doesn't destroy the sink on source error; close it so the fd isn't leaked
+				e(err);
+			});
 			stream.pipe(istream);
 		} catch (error) {
 			e(error);
