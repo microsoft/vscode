@@ -11,7 +11,8 @@ export const AUTOMATION_BLUEPRINT_VERSION = 1;
 
 const AUTOMATION_BLUEPRINT_ID_PATTERN = /^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
 const AUTOMATION_BLUEPRINT_PROPERTIES = new Set(['version', 'id', 'name', 'description', 'schedule']);
-const AUTOMATION_BLUEPRINT_SCHEDULE_PROPERTIES = new Set(['interval', 'hour', 'minute', 'day']);
+const AUTOMATION_BLUEPRINT_MANUAL_SCHEDULE_PROPERTIES = new Set(['kind']);
+const AUTOMATION_BLUEPRINT_CRON_SCHEDULE_PROPERTIES = new Set(['kind', 'expression', 'timeZone']);
 
 export type AutomationBlueprintParseErrorCode =
 	| 'invalidFrontmatter'
@@ -19,6 +20,8 @@ export type AutomationBlueprintParseErrorCode =
 	| 'invalidField'
 	| 'unsupportedVersion'
 	| 'invalidId'
+	| 'unsupportedSchedule'
+	| 'unsupportedTimeZone'
 	| 'missingPrompt';
 
 export class AutomationBlueprintParseError extends Error {
@@ -86,18 +89,15 @@ export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): s
 	if (blueprint.description) {
 		lines.push(`description: ${quoteYamlString(blueprint.description)}`);
 	}
-	lines.push('schedule:', `  interval: ${blueprint.schedule.interval}`);
-	switch (blueprint.schedule.interval) {
-		case 'daily':
-			lines.push(`  hour: ${blueprint.schedule.scheduleHour}`, `  minute: ${blueprint.schedule.scheduleMinute}`);
-			break;
-		case 'weekly':
-			lines.push(
-				`  hour: ${blueprint.schedule.scheduleHour}`,
-				`  minute: ${blueprint.schedule.scheduleMinute}`,
-				`  day: ${blueprint.schedule.scheduleDay}`,
-			);
-			break;
+	lines.push('schedule:');
+	if (blueprint.schedule.interval === 'manual') {
+		lines.push('  kind: manual');
+	} else {
+		lines.push(
+			'  kind: cron',
+			`  expression: ${quoteYamlString(toCronExpression(blueprint.schedule))}`,
+			'  timeZone: local',
+		);
 	}
 	lines.push('---', '', blueprint.prompt.trim(), '');
 	return lines.join('\n');
@@ -135,7 +135,7 @@ function normalizeSchedule(schedule: IAutomationSchedule): IAutomationSchedule {
 		case 'manual':
 			return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		case 'hourly':
-			return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+			return { interval: 'hourly', scheduleHour: 0, scheduleMinute: schedule.scheduleMinute, scheduleDay: 0 };
 		case 'daily':
 			return { interval: 'daily', scheduleHour: schedule.scheduleHour, scheduleMinute: schedule.scheduleMinute, scheduleDay: 0 };
 		case 'weekly':
@@ -148,31 +148,70 @@ function readSchedule(root: YamlMapNode): IAutomationSchedule {
 	if (!node || node.type !== 'map') {
 		throw new AutomationBlueprintParseError('invalidField', 'schedule');
 	}
-	assertKnownProperties(node, AUTOMATION_BLUEPRINT_SCHEDULE_PROPERTIES, 'schedule.');
 
-	const interval = readRequiredString(node, 'interval');
-	switch (interval) {
-		case 'manual':
-			return { interval, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
-		case 'hourly':
-			return { interval, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
-		case 'daily':
-			return {
-				interval,
-				scheduleHour: readScheduleInteger(node, 'hour', 0, 23),
-				scheduleMinute: readScheduleInteger(node, 'minute', 0, 59),
-				scheduleDay: 0,
-			};
-		case 'weekly':
-			return {
-				interval,
-				scheduleHour: readScheduleInteger(node, 'hour', 0, 23),
-				scheduleMinute: readScheduleInteger(node, 'minute', 0, 59),
-				scheduleDay: readScheduleInteger(node, 'day', 0, 6),
-			};
-		default:
-			throw new AutomationBlueprintParseError('invalidField', 'schedule.interval');
+	const kind = readRequiredString(node, 'kind');
+	if (kind === 'manual') {
+		assertKnownProperties(node, AUTOMATION_BLUEPRINT_MANUAL_SCHEDULE_PROPERTIES, 'schedule.');
+		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
+	if (kind !== 'cron') {
+		throw new AutomationBlueprintParseError('invalidField', 'schedule.kind');
+	}
+
+	assertKnownProperties(node, AUTOMATION_BLUEPRINT_CRON_SCHEDULE_PROPERTIES, 'schedule.');
+	const expression = readRequiredString(node, 'expression');
+	const timeZone = readRequiredString(node, 'timeZone');
+	if (timeZone !== 'local') {
+		throw new AutomationBlueprintParseError('unsupportedTimeZone', timeZone);
+	}
+	return fromCronExpression(expression);
+}
+
+function toCronExpression(schedule: IAutomationSchedule): string {
+	switch (schedule.interval) {
+		case 'manual':
+			throw new Error('Manual Automation schedules do not have cron expressions.');
+		case 'hourly':
+			return `${schedule.scheduleMinute} * * * *`;
+		case 'daily':
+			return `${schedule.scheduleMinute} ${schedule.scheduleHour} * * *`;
+		case 'weekly':
+			return `${schedule.scheduleMinute} ${schedule.scheduleHour} * * ${schedule.scheduleDay}`;
+	}
+}
+
+function fromCronExpression(expression: string): IAutomationSchedule {
+	const [minuteValue, hourValue, dayOfMonth, month, dayValue, ...remaining] = expression.trim().split(/\s+/);
+	if (remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
+		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
+	}
+	const scheduleMinute = parseCronValue(minuteValue, 0, 59);
+	if (scheduleMinute === undefined) {
+		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
+	}
+	if (hourValue === '*' && dayValue === '*') {
+		return { interval: 'hourly', scheduleHour: 0, scheduleMinute, scheduleDay: 0 };
+	}
+	const scheduleHour = parseCronValue(hourValue, 0, 23);
+	if (scheduleHour === undefined) {
+		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
+	}
+	if (dayValue === '*') {
+		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
+	}
+	const scheduleDay = parseCronValue(dayValue, 0, 7);
+	if (scheduleDay === undefined) {
+		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
+	}
+	return { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay: scheduleDay === 7 ? 0 : scheduleDay };
+}
+
+function parseCronValue(value: string | undefined, minimum: number, maximum: number): number | undefined {
+	if (!value || !/^\d+$/.test(value)) {
+		return undefined;
+	}
+	const parsed = Number(value);
+	return parsed >= minimum && parsed <= maximum ? parsed : undefined;
 }
 
 function assertKnownProperties(node: YamlMapNode, known: ReadonlySet<string>, prefix = ''): void {
@@ -213,14 +252,6 @@ function readRequiredInteger(node: YamlMapNode, name: string): number {
 	const value = Number(property.value);
 	if (!Number.isSafeInteger(value)) {
 		throw new AutomationBlueprintParseError('invalidField', name);
-	}
-	return value;
-}
-
-function readScheduleInteger(node: YamlMapNode, name: string, minimum: number, maximum: number): number {
-	const value = readRequiredInteger(node, name);
-	if (value < minimum || value > maximum) {
-		throw new AutomationBlueprintParseError('invalidField', `schedule.${name}`);
 	}
 	return value;
 }

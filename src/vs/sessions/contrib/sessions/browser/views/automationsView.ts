@@ -36,6 +36,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -64,6 +65,7 @@ import { IAutomationTemplate, readAutomationTemplates } from './automationTempla
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
+export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanDisableContext = new RawContextKey<boolean>('sessionsAutomationCardCanDisable', false);
 
@@ -82,6 +84,10 @@ function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], seco
 			&& template.source?.label === other.source?.label
 			&& ((!template.source && !other.source) || (!!template.source && !!other.source && isEqual(template.source.uri, other.source.uri)));
 	});
+}
+
+function setsEqual(first: ReadonlySet<string>, second: ReadonlySet<string>): boolean {
+	return first.size === second.size && [...first].every(value => second.has(value));
 }
 
 interface IAutomationCardEntry {
@@ -131,7 +137,14 @@ interface IAutomationTemplateSectionOptions {
 	readonly description: string;
 	readonly templates: readonly IAutomationTemplate[];
 	readonly expanded: boolean;
+	readonly showUnreadIndicator?: boolean;
 	readonly onDidToggle: (expanded: boolean) => void;
+}
+
+interface IRenderedAutomationTemplateSection {
+	readonly section: HTMLDetailsElement;
+	readonly summary: HTMLElement;
+	readonly unreadIndicator: HTMLElement | undefined;
 }
 
 type AutomationDropData =
@@ -249,7 +262,13 @@ class AutomationCardsSection extends Disposable {
 	private builtInTemplatesSection: HTMLDetailsElement | undefined;
 	private builtInTemplatesExpanded: boolean | undefined;
 	private builtInTemplatesUserToggled = false;
-	private pluginTemplatesExpanded = true;
+	private pluginTemplatesSection: HTMLDetailsElement | undefined;
+	private pluginTemplatesSummary: HTMLElement | undefined;
+	private pluginTemplatesUnreadIndicator: HTMLElement | undefined;
+	private pluginTemplatesExpanded: boolean | undefined;
+	private pluginTemplatesUserToggled = false;
+	private currentPluginTemplateIds = new Set<string>();
+	private seenPluginTemplateIds: Set<string>;
 	private emptyCreateButton: IButton | undefined;
 	private readonly loadingCreateButton: IButton;
 	private readonly unavailableCreateButton: IButton;
@@ -269,11 +288,17 @@ class AutomationCardsSection extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IFileService private readonly fileService: IFileService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
+		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, this._store)(() => {
+			this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
+			this.updatePluginTemplateUnreadState(false);
+		}));
 		this.partialStateContainer = DOM.append(parent, $('.automations-cards-partial-state'));
 		this.partialStateContainer.setAttribute('role', 'status');
 		this.partialStateContainer.setAttribute('aria-live', 'polite');
@@ -415,11 +440,6 @@ class AutomationCardsSection extends Disposable {
 			index++;
 		}
 
-		if (!areAutomationTemplatesEqual(this.renderedTemplates, templates)) {
-			this.renderTemplates(templates);
-			this.renderedTemplates = templates;
-		}
-
 		if (!this.builtInTemplatesUserToggled) {
 			const defaultExpanded = automations.length === 0;
 			if (this.builtInTemplatesExpanded !== defaultExpanded) {
@@ -430,6 +450,24 @@ class AutomationCardsSection extends Disposable {
 			}
 		}
 
+		if (!this.pluginTemplatesUserToggled) {
+			const defaultExpanded = automations.length === 0;
+			if (this.pluginTemplatesExpanded !== defaultExpanded) {
+				this.pluginTemplatesExpanded = defaultExpanded;
+				if (this.pluginTemplatesSection) {
+					this.pluginTemplatesSection.open = defaultExpanded;
+				}
+			}
+		}
+
+		if (!areAutomationTemplatesEqual(this.renderedTemplates, templates)) {
+			this.renderTemplates(templates);
+			this.renderedTemplates = templates;
+		}
+
+		this.updatePluginTemplateUnreadState(
+			this.pluginTemplatesUserToggled || (catalogueState === 'ready' && automations.length === 0)
+		);
 		const showTemplateSections = templates.length > 0;
 		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
 
@@ -688,6 +726,10 @@ class AutomationCardsSection extends Disposable {
 		DOM.clearNode(this.templatesContainer);
 		const builtInTemplates = templates.filter(template => !template.source);
 		const pluginTemplates = templates.filter(template => !!template.source);
+		this.currentPluginTemplateIds = new Set(pluginTemplates.map(template => template.id));
+		this.pluginTemplatesSection = undefined;
+		this.pluginTemplatesSummary = undefined;
+		this.pluginTemplatesUnreadIndicator = undefined;
 
 		this.builtInTemplatesSection = this.renderTemplateSection({
 			className: 'automations-built-in-templates',
@@ -701,21 +743,29 @@ class AutomationCardsSection extends Disposable {
 					this.builtInTemplatesUserToggled = true;
 				}
 			},
-		});
+		}).section;
 
 		if (pluginTemplates.length > 0) {
-			this.renderTemplateSection({
+			const rendered = this.renderTemplateSection({
 				className: 'automations-plugin-templates',
 				title: localize('automationPluginTemplatesTitle', "Templates from Plugins"),
 				description: localize('automationPluginTemplatesDescription', "Templates provided by enabled plugins start disabled."),
 				templates: pluginTemplates,
-				expanded: this.pluginTemplatesExpanded,
-				onDidToggle: expanded => this.pluginTemplatesExpanded = expanded,
+				expanded: this.pluginTemplatesExpanded ?? false,
+				showUnreadIndicator: true,
+				onDidToggle: expanded => {
+					this.pluginTemplatesExpanded = expanded;
+					this.pluginTemplatesUserToggled = true;
+					this.updatePluginTemplateUnreadState(expanded);
+				},
 			});
+			this.pluginTemplatesSection = rendered.section;
+			this.pluginTemplatesSummary = rendered.summary;
+			this.pluginTemplatesUnreadIndicator = rendered.unreadIndicator;
 		}
 	}
 
-	private renderTemplateSection(options: IAutomationTemplateSectionOptions): HTMLDetailsElement {
+	private renderTemplateSection(options: IAutomationTemplateSectionOptions): IRenderedAutomationTemplateSection {
 		const section = DOM.append(this.templatesContainer, $<HTMLDetailsElement>(`details.automations-template-section.${options.className}`));
 		section.open = options.expanded;
 		const summary = DOM.append(section, $('summary.automations-template-section-summary'));
@@ -727,6 +777,10 @@ class AutomationCardsSection extends Disposable {
 		title.setAttribute('role', 'heading');
 		title.setAttribute('aria-level', '3');
 		title.textContent = options.title;
+		const unreadIndicator = options.showUnreadIndicator
+			? DOM.append(summary, $('span.automations-template-section-unread'))
+			: undefined;
+		unreadIndicator?.setAttribute('aria-hidden', 'true');
 		const count = DOM.append(summary, $('span.automations-template-section-count'));
 		count.textContent = String(options.templates.length);
 		this.templateDisposables.add(DOM.addDisposableListener(section, 'toggle', () => options.onDidToggle(section.open)));
@@ -738,7 +792,58 @@ class AutomationCardsSection extends Disposable {
 		for (const template of options.templates) {
 			this.renderTemplateCard(grid, template);
 		}
-		return section;
+		return { section, summary, unreadIndicator };
+	}
+
+	private updatePluginTemplateUnreadState(markExpandedAsSeen: boolean): void {
+		if (!this.pluginTemplatesSection || !this.pluginTemplatesSummary || !this.pluginTemplatesUnreadIndicator) {
+			return;
+		}
+		if (this.pluginTemplatesSection.open && markExpandedAsSeen) {
+			this.markCurrentPluginTemplatesSeen();
+		}
+		const unreadCount = this.pluginTemplatesSection.open
+			? 0
+			: [...this.currentPluginTemplateIds].filter(id => !this.seenPluginTemplateIds.has(id)).length;
+		this.pluginTemplatesUnreadIndicator.classList.toggle('visible', unreadCount > 0);
+		if (unreadCount === 0) {
+			this.pluginTemplatesSummary.removeAttribute('aria-label');
+		} else {
+			this.pluginTemplatesSummary.setAttribute('aria-label', unreadCount === 1
+				? localize('automationPluginTemplatesOneNewAriaLabel', "Templates from Plugins, 1 new template")
+				: localize('automationPluginTemplatesManyNewAriaLabel', "Templates from Plugins, {0} new templates", unreadCount));
+		}
+	}
+
+	private markCurrentPluginTemplatesSeen(): void {
+		if (setsEqual(this.currentPluginTemplateIds, this.seenPluginTemplateIds)) {
+			return;
+		}
+		this.seenPluginTemplateIds = new Set(this.currentPluginTemplateIds);
+		this.storageService.store(
+			SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY,
+			JSON.stringify([...this.seenPluginTemplateIds].sort()),
+			StorageScope.PROFILE,
+			StorageTarget.MACHINE,
+		);
+	}
+
+	private readSeenPluginTemplateIds(): Set<string> {
+		const raw = this.storageService.get(SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return new Set();
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			if (Array.isArray(parsed) && parsed.every(id => typeof id === 'string')) {
+				return new Set(parsed);
+			}
+		} catch (error) {
+			this.logService.warn('[Automations] Failed to read seen plugin Automation templates.', error);
+			return new Set();
+		}
+		this.logService.warn('[Automations] Ignoring invalid seen plugin Automation templates storage.');
+		return new Set();
 	}
 
 	private renderLoadingState(): IButton {
@@ -1486,6 +1591,10 @@ function getAutomationBlueprintErrorMessage(error: unknown): string {
 			return localize('automationBlueprint.unsupportedVersion', "Automation blueprint version {0} is not supported.", error.property ?? '');
 		case 'invalidId':
 			return localize('automationBlueprint.invalidId', "The blueprint id '{0}' is invalid.", error.property ?? '');
+		case 'unsupportedSchedule':
+			return localize('automationBlueprint.unsupportedSchedule', "The cron expression '{0}' cannot be represented by the current Automation editor.", error.property ?? '');
+		case 'unsupportedTimeZone':
+			return localize('automationBlueprint.unsupportedTimeZone', "The time zone '{0}' is not supported. Use 'local' so the schedule follows the importing user's time zone.", error.property ?? '');
 		case 'missingPrompt':
 			return localize('automationBlueprint.missingPrompt', "The Automation prompt must follow the frontmatter.");
 	}

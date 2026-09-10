@@ -446,6 +446,19 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
+.automations-template-section-unread {
+	display: none;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-textLink-foreground);
+	flex-shrink: 0;
+}
+
+.automations-template-section-unread.visible {
+	display: inline-block;
+}
+
 .automations-template-section-count {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);

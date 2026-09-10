@@ -38,6 +38,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -55,7 +56,7 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
-import { AutomationsCardsWidget, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -586,7 +587,7 @@ suite('AutomationsCardsWidget', () => {
 		return !!button && button.style.display !== 'none';
 	}
 
-	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService, fileService?: IFileService) {
+	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService, fileService?: IFileService, storageService?: IStorageService) {
 		const automationService = new FakeAutomationService();
 		const automationDialogService = new FakeAutomationDialogService();
 		const agentPluginService = new FakeAgentPluginService();
@@ -618,6 +619,9 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		if (fileService) {
 			instantiationService.stub(IFileService, fileService);
+		}
+		if (storageService) {
+			instantiationService.stub(IStorageService, storageService);
 		}
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
@@ -932,6 +936,7 @@ suite('AutomationsCardsWidget', () => {
 				label: pluginSection?.querySelector('.automations-template-section-title')?.textContent,
 				count: pluginSection?.querySelector('.automations-template-section-count')?.textContent,
 				open: pluginSection?.open,
+				unreadVisible: pluginSection?.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
 			},
 			disabledNames,
 		}, {
@@ -953,6 +958,7 @@ suite('AutomationsCardsWidget', () => {
 				label: 'Templates from Plugins',
 				count: '1',
 				open: true,
+				unreadVisible: false,
 			},
 			disabledNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
 		});
@@ -982,7 +988,6 @@ suite('AutomationsCardsWidget', () => {
 		const pluginSection = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
 		assert.ok(builtInSection);
 		assert.ok(pluginSection);
-		pluginSection.querySelector<HTMLElement>('summary')?.click();
 		automationService.setAutomations([automation({ name: 'Updated review' })]);
 
 		assert.deepStrictEqual({
@@ -997,6 +1002,98 @@ suite('AutomationsCardsWidget', () => {
 			pluginContainerDisplay: '',
 			pluginTemplateNames: ['Weekly review'],
 			pluginSectionOpen: false,
+		});
+	});
+
+	test('marks new folded plugin templates unread until the section is expanded', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const { agentPluginService, automationService, widget } = setup('archive', NullHoverService, undefined, storageService);
+		automationService.setAutomations([automation()]);
+		const makePlugin = (templateNames: readonly string[]) => upcastPartial<IAgentPlugin>({
+			uri: URI.file('/plugins/review'),
+			label: 'Review plugin',
+			enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
+			automations: observableValue('pluginAutomations', templateNames.map((name, index) => ({
+				uri: URI.file(`/plugins/review/automations/review-${index}.automation.md`),
+				blueprint: {
+					version: 1,
+					id: `review-${index}`,
+					name,
+					prompt: `Run ${name}.`,
+					schedule: { interval: 'manual' as const, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				},
+			}))),
+		});
+		agentPluginService.setPlugins([makePlugin(['First review'])]);
+
+		let section = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
+		assert.ok(section);
+		const summary = section.querySelector<HTMLElement>('summary');
+		assert.ok(summary);
+		const initial = {
+			open: section.open,
+			unreadVisible: section.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
+			ariaLabel: summary.getAttribute('aria-label'),
+		};
+		summary.click();
+		await timeout(0);
+		const afterExpand = {
+			open: section.open,
+			unreadVisible: section.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
+			stored: JSON.parse(storageService.get(SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, StorageScope.PROFILE) ?? '[]'),
+		};
+		summary.click();
+		await timeout(0);
+		agentPluginService.setPlugins([makePlugin(['First review', 'Second review'])]);
+		section = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
+		assert.ok(section);
+		const afterNewTemplate = {
+			open: section.open,
+			unreadVisible: section.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
+			ariaLabel: section.querySelector('summary')?.getAttribute('aria-label'),
+		};
+		section.querySelector<HTMLElement>('summary')?.click();
+		await timeout(0);
+		widget.dispose();
+		const recreated = setup('archive', NullHoverService, undefined, storageService);
+		recreated.automationService.setAutomations([automation()]);
+		recreated.agentPluginService.setPlugins([makePlugin(['First review', 'Second review'])]);
+		const recreatedSection = recreated.widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
+		assert.ok(recreatedSection);
+
+		assert.deepStrictEqual({
+			initial,
+			afterExpand,
+			afterNewTemplate,
+			storedAfterSecondExpand: JSON.parse(storageService.get(SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, StorageScope.PROFILE) ?? '[]'),
+			recreated: {
+				open: recreatedSection.open,
+				unreadVisible: recreatedSection.querySelector('.automations-template-section-unread')?.classList.contains('visible'),
+			},
+		}, {
+			initial: {
+				open: false,
+				unreadVisible: true,
+				ariaLabel: 'Templates from Plugins, 1 new template',
+			},
+			afterExpand: {
+				open: true,
+				unreadVisible: false,
+				stored: ['file:///plugins/review#automation=review-0'],
+			},
+			afterNewTemplate: {
+				open: false,
+				unreadVisible: true,
+				ariaLabel: 'Templates from Plugins, 1 new template',
+			},
+			storedAfterSecondExpand: [
+				'file:///plugins/review#automation=review-0',
+				'file:///plugins/review#automation=review-1',
+			],
+			recreated: {
+				open: false,
+				unreadVisible: false,
+			},
 		});
 	});
 
@@ -1018,10 +1115,9 @@ suite('AutomationsCardsWidget', () => {
 						'id: weekly-review',
 						'name: Weekly review',
 						'schedule:',
-						'  interval: weekly',
-						'  hour: 10',
-						'  minute: 30',
-						'  day: 5',
+						'  kind: cron',
+						'  expression: "30 10 * * 5"',
+						'  timeZone: local',
 						'---',
 						'Review the workspace for the past week.',
 					].join('\n')),
@@ -1080,10 +1176,9 @@ suite('AutomationsCardsWidget', () => {
 						'id: weekly-review',
 						'name: Weekly review',
 						'schedule:',
-						'  interval: weekly',
-						'  hour: 10',
-						'  minute: 30',
-						'  day: 5',
+						'  kind: cron',
+						'  expression: "30 10 * * 5"',
+						'  timeZone: local',
 						'---',
 						'Review the workspace for the past week.',
 					].join('\n')),

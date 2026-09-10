@@ -20,10 +20,9 @@ suite('Automation blueprints', () => {
 			'name: "Issue triage"',
 			'description: "Review new issues"',
 			'schedule:',
-			'  interval: weekly',
-			'  hour: 9',
-			'  minute: 30',
-			'  day: 1',
+			'  kind: cron',
+			'  expression: "30 9 * * 1"',
+			'  timeZone: local',
 			'---',
 			'Review new issues using repository precedents.',
 		].join('\n'));
@@ -57,16 +56,35 @@ suite('Automation blueprints', () => {
 			},
 		];
 
-		assert.deepStrictEqual(blueprints.map(blueprint => parseAutomationBlueprint(serializeAutomationBlueprint(blueprint))), blueprints);
+		assert.deepStrictEqual({
+			roundTripped: blueprints.map(blueprint => parseAutomationBlueprint(serializeAutomationBlueprint(blueprint))),
+			manualDocument: serializeAutomationBlueprint(blueprints[0]),
+		}, {
+			roundTripped: blueprints,
+			manualDocument: [
+				'---',
+				'version: 1',
+				'id: "manual-review"',
+				'name: "Manual \\"review\\""',
+				'description: "Review: on demand"',
+				'schedule:',
+				'  kind: manual',
+				'---',
+				'',
+				'Review the workspace.',
+				'',
+			].join('\n'),
+		});
 	});
 
 	test('rejects invalid authority and schedule fields', () => {
 		const documents = [
 			'Review the workspace.',
-			'---\nversion: 2\nid: review\nname: Review\nschedule:\n  interval: manual\n---\nReview.',
-			'---\nversion: 1\nid: Review Task\nname: Review\nschedule:\n  interval: manual\n---\nReview.',
-			'---\nversion: 1\nid: review\nname: Review\nenabled: true\nschedule:\n  interval: manual\n---\nReview.',
-			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  interval: daily\n  hour: 24\n  minute: 0\n---\nReview.',
+			'---\nversion: 2\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
+			'---\nversion: 1\nid: Review Task\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
+			'---\nversion: 1\nid: review\nname: Review\nenabled: true\nschedule:\n  kind: manual\n---\nReview.',
+			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "0 24 * * *"\n  timeZone: local\n---\nReview.',
+			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "0 9 * * 1"\n  timeZone: Europe/Berlin\n---\nReview.',
 		];
 
 		assert.deepStrictEqual(documents.map(document => {
@@ -82,7 +100,8 @@ suite('Automation blueprints', () => {
 			{ code: 'unsupportedVersion', property: '2' },
 			{ code: 'invalidId', property: 'Review Task' },
 			{ code: 'unknownProperty', property: 'enabled' },
-			{ code: 'invalidField', property: 'schedule.hour' },
+			{ code: 'unsupportedSchedule', property: '0 24 * * *' },
+			{ code: 'unsupportedTimeZone', property: 'Europe/Berlin' },
 		]);
 	});
 
@@ -101,15 +120,30 @@ suite('Automation blueprints', () => {
 		assert.deepStrictEqual({
 			blueprint: automationToBlueprint(automation),
 			fileName: createAutomationBlueprintFileName(automation.name),
+			serialized: serializeAutomationBlueprint(automationToBlueprint(automation)),
 		}, {
 			blueprint: {
 				version: 1,
 				id: 'resume-review',
 				name: 'Résumé Review',
 				prompt: 'Review the workspace.',
-				schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 20, scheduleDay: 0 },
 			},
 			fileName: 'resume-review.automation.md',
+			serialized: [
+				'---',
+				'version: 1',
+				'id: "resume-review"',
+				'name: "Résumé Review"',
+				'schedule:',
+				'  kind: cron',
+				'  expression: "20 * * * *"',
+				'  timeZone: local',
+				'---',
+				'',
+				'Review the workspace.',
+				'',
+			].join('\n'),
 		});
 	});
 });
