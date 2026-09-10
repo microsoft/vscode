@@ -21,6 +21,9 @@ interface CheckResult {
 const root = path.resolve(import.meta.dirname, '../..');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
+const args = process.argv.slice(2);
+const specificPackage = args.find(arg => !arg.startsWith('--'));
+
 function parsePendingScripts(output: string): PendingScript[] {
 	const pending: PendingScript[] = [];
 	let inPendingList = false;
@@ -60,14 +63,37 @@ function checkDirectory(directory: string): CheckResult {
 	};
 }
 
+function approvePackage(directory: string, packageName: string): void {
+	console.log(`Approving script for specified package '${packageName}' in ${path.relative(root, directory) || '.'}...`);
+	const result = spawnSync(npm, ['approve-scripts', packageName], {
+		cwd: directory,
+		encoding: 'utf8',
+		env: { ...process.env, npm_config_loglevel: 'error' }
+	});
+	if (result.error) {
+		throw new Error(`Failed to automatically approve ${packageName}: ${result.error.message}`);
+	}
+	if (result.status !== 0) {
+		throw new Error(`npm approve-scripts failed for ${packageName}:\n${result.stderr}`);
+	}
+}
+
 function main(): void {
 	const packageDirectories = dirs
 		.map(dir => path.join(root, dir))
 		.filter(directory => existsSync(path.join(directory, 'package.json')));
 	const results: CheckResult[] = [];
+	
 	for (const directory of packageDirectories) {
 		const result = checkDirectory(directory);
 		if (result.pending.length > 0) {
+			if (specificPackage) {
+				const match = result.pending.find(p => p.package === specificPackage);
+				if (match) {
+					approvePackage(directory, specificPackage);
+					continue;
+				}
+			}
 			results.push(result);
 		}
 	}
@@ -84,7 +110,7 @@ function main(): void {
 			console.error(`  - ${pending.package} (${pending.scripts})`);
 		}
 	}
-	console.error('\nRun `npm approve-scripts <pkg>` in each directory to review the pending install scripts.');
+	console.error('\nTo approve a specific package safely, run with the package name or use `npm approve-scripts <pkg>`.');
 	process.exitCode = 1;
 }
 
