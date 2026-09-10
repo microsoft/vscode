@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,6 +26,7 @@ import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/c
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 
 export const ListAutomationsToolId = 'vscode_listAutomations';
 export const ConfigureAutomationToolId = 'vscode_configureAutomation';
@@ -365,6 +368,7 @@ export class ConfigureAutomationTool implements IToolImpl {
 		@IAutomationService private readonly automationService: IAutomationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) { }
 
 	getToolData(): IToolData {
@@ -578,14 +582,14 @@ The change uses the current tool-approval policy. When approval is required, the
 		try {
 			if (proposal.kind === 'create') {
 				const target = proposal.validateTargetAvailability
-					? this.resolveAvailableTarget(proposal.initialValues.target)
+					? await this.resolveAvailableTarget(proposal.initialValues.target, token)
 					: proposal.initialValues.target;
 				return await this.applyCreate({ ...proposal.initialValues, target }, token);
 			}
 
 			const target = proposal.initialValues.target
 				? proposal.validateTargetAvailability
-					? this.resolveAvailableTarget(proposal.initialValues.target)
+					? await this.resolveAvailableTarget(proposal.initialValues.target, token)
 					: proposal.initialValues.target
 				: undefined;
 			const patch = target ? { ...proposal.initialValues, target } : proposal.initialValues;
@@ -599,6 +603,9 @@ The change uses the current tool-approval policy. When approval is required, the
 		} catch (error) {
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return error.result;
+			}
+			if (token.isCancellationRequested && isCancellationError(error)) {
+				return automationToolCancelled();
 			}
 			if (error instanceof AutomationToolInputError) {
 				return automationToolError(error.message);
@@ -660,7 +667,7 @@ The change uses the current tool-approval policy. When approval is required, the
 		return undefined;
 	}
 
-	private resolveAvailableTarget(target: AutomationTarget): AutomationTarget {
+	private async resolveAvailableTarget(target: AutomationTarget, token: CancellationToken): Promise<AutomationTarget> {
 		const candidates = target.kind === 'quickChat'
 			? this.sessionsManagementService.getQuickChatSessionTypes()
 			: this.sessionsManagementService.getSessionTypesForFolder(target.folderUri);
@@ -670,8 +677,20 @@ The change uses the current tool-approval policy. When approval is required, the
 				? `The quick-chat target "${target.providerId}/${target.sessionTypeId}" is not available.`
 				: 'The proposed workspace target is not available for the selected provider and session type.');
 		}
-		if (target.kind === 'workspace' && target.isolation.kind === 'worktree' && !candidate.sessionType.supportsWorktreeConfiguration) {
-			throw new AutomationToolInputError(`Session type "${candidate.sessionType.id}" does not support worktree isolation.`);
+		if (target.kind === 'workspace' && target.isolation.kind === 'worktree') {
+			if (!candidate.sessionType.supportsWorktreeConfiguration) {
+				throw new AutomationToolInputError(`Session type "${candidate.sessionType.id}" does not support worktree isolation.`);
+			}
+			const provider = this.sessionsProvidersService.getProvider(candidate.providerId);
+			if (!provider) {
+				throw new AutomationToolInputError(`Sessions provider "${candidate.providerId}" is no longer available.`);
+			}
+			if (provider.getWorktreeOptions) {
+				const options = await raceCancellationError(provider.getWorktreeOptions(target.folderUri, candidate.sessionType.id, token), token);
+				if (!options?.supportsWorktree) {
+					throw new AutomationToolInputError('The selected workspace does not support worktree isolation.');
+				}
+			}
 		}
 		return {
 			...target,
