@@ -1640,7 +1640,7 @@ export class CommandCenter {
 	@command('git.stageAllMerge', { repository: true })
 	async stageAllMerge(repository: Repository): Promise<void> {
 		const resources = repository.mergeGroup.resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const { merge, unresolved, deletionConflicts } = await categorizeResourceByResolution(resources);
+		const { unresolved, deletionConflicts } = await categorizeResourceByResolution(resources);
 
 		try {
 			for (const deletionConflict of deletionConflicts) {
@@ -1656,8 +1656,8 @@ export class CommandCenter {
 
 		if (unresolved.length > 0) {
 			const message = unresolved.length > 1
-				? l10n.t('Are you sure you want to stage {0} files with merge conflicts?', merge.length)
-				: l10n.t('Are you sure you want to stage {0} with merge conflicts?', path.basename(merge[0].resourceUri.fsPath));
+				? l10n.t('Are you sure you want to stage {0} files with merge conflicts?', unresolved.length)
+				: l10n.t('Are you sure you want to stage {0} with merge conflicts?', path.basename(unresolved[0].resourceUri.fsPath));
 
 			const yes = l10n.t('Yes');
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
