@@ -29,9 +29,28 @@ import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js'
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
+import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards workspace acknowledgement only from a new-session widget', () => {
+		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+		const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+			selectWorkspace: (folder: URI, options?: ISelectWorkspaceOptions) => {
+				calls.push({ folder, options });
+				return 'applied';
+			},
+		});
+		const results = [undefined, Object.create(NewChatInSessionWidget.prototype), widget].map(_widget => {
+			const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget });
+			return view.selectWorkspace(URI.file('/requested'), { isDefault: true });
+		});
+		assert.deepStrictEqual({ results, calls }, {
+			results: ['notReady', 'notReady', 'applied'],
+			calls: [{ folder: URI.file('/requested'), options: { isDefault: true } }],
+		});
+	});
 
 	/** Reaches the banner without standing up the widget's whole service graph. */
 	interface ISubSessionTipRenderer {
