@@ -8,6 +8,7 @@ import { app, BrowserWindow, WebContents, shell } from 'electron';
 import { addUNCHostToAllowlist } from '../../../base/node/unc.js';
 import { hostname, release, arch } from 'os';
 import { coalesce, distinct } from '../../../base/common/arrays.js';
+import { raceTimeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CharCode } from '../../../base/common/charCode.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -496,6 +497,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Handle `<app> chat`
 		this.handleChatRequest(openConfig, usedWindows);
 
+		// Merge restored windows into native tabs on startup (macOS only)
+		this.handleMergeWindowTabsOnStartup(openConfig, usedWindows);
+
 		return usedWindows;
 	}
 
@@ -537,6 +541,48 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
 			windowHandlingChatRequest.focus();
 		}
+	}
+
+	private handleMergeWindowTabsOnStartup(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
+		if (!isMacintosh || !openConfig.initialStartup) {
+			return; // only on macOS during initial startup
+		}
+
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+		if (windowConfig?.nativeTabs !== true) {
+			return; // only when native tabs are enabled
+		}
+
+		// macOS automatic window tabbing does not apply to windows that are restored programmatically on startup, so we merge them into tabs explicitly
+
+		const mergeCandidates = usedWindows.filter(window => !window.isExtensionDevelopmentHost);
+		if (mergeCandidates.length < 2) {
+			return;
+		}
+
+		(async () => {
+
+			// Wait for the windows to be ready (and as such visible) before merging, because tabbing hidden windows can cause layout issues (https://github.com/microsoft/vscode/issues/75830)
+			await Promise.allSettled(mergeCandidates.map(window => raceTimeout(window.ready(), 10000)));
+
+			const windowsToMerge = mergeCandidates.filter(window => window.isReady && !window.isFullScreen && window.win && !window.win.isDestroyed());
+			if (windowsToMerge.length < 2) {
+				return;
+			}
+
+			const [firstWindow, ...otherWindows] = windowsToMerge;
+			const focusedWindow = this.getFocusedWindow();
+			for (const window of otherWindows) {
+				if (!firstWindow.win || firstWindow.win.isDestroyed() || !window.win || window.win.isDestroyed()) {
+					continue;
+				}
+
+				firstWindow.addTabbedWindow(window);
+			}
+
+			// Merging moves focus to the window that was tabbed last, so restore it
+			focusedWindow?.focus();
+		})().catch(error => this.logService.error('windowsManager#handleMergeWindowTabsOnStartup', error));
 	}
 
 	private async doOpen(
