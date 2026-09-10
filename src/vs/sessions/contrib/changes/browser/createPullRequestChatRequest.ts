@@ -3,11 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { localize } from '../../../../nls.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity, effectiveChatInteractivity, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionPullRequestCreation, ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
@@ -15,37 +11,15 @@ import { ISessionPullRequestCreation, ISessionPullRequestOptions, SessionPullReq
 export class CreatePullRequestChatRequest {
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
 	async send(session: ISession, options: ISessionPullRequestOptions, creation: ISessionPullRequestCreation): Promise<void> {
-		const provider = this.sessionsProvidersService.getProvider(session.providerId);
-		if (!provider || !isAgentHostProvider(provider)) {
-			throw new Error(localize('createPR.chat.providerUnavailable', "The session's agent host provider is unavailable."));
-		}
-
-		if (options.expectedContext) {
-			await creation.validate(options.expectedContext);
-		}
+		const request = await creation.prepareChatRequest(createPullRequestMessage(options), options);
 		const chat = session.mainChat.get();
 		if (effectiveChatInteractivity(session.isArchived.get() || chat.isArchived.get(), chat.interactivity.get()) !== ChatInteractivity.Full) {
 			throw new Error(localize('createPR.chat.readOnly', "Cannot send a pull request creation message to a read-only chat."));
 		}
-		await this.sessionsManagementService.sendRequest(session, chat, { query: createPullRequestMessage(options) });
-
-		try {
-			const current = provider.getAgentMergeSessionState(session.sessionId);
-			if (options.agentMerge && options.agentMergeOptions) {
-				await provider.setAgentMergeOverrides(session.sessionId, { ...current?.overrides, ...options.agentMergeOptions });
-			}
-			if (options.agentMerge !== (current?.enabled ?? false)) {
-				await provider.setAgentMergeEnabled(session.sessionId, options.agentMerge);
-			}
-		} catch (error) {
-			// The message was already sent; a retry must not send it again.
-			this.notificationService.warn(localize('createPR.chat.agentMergeFailed', "The Create PR message was sent, but the session's Agent Merge settings could not be updated: {0}", toErrorMessage(error)));
-		}
+		await this.sessionsManagementService.sendRequest(session, chat, request);
 	}
 }
 

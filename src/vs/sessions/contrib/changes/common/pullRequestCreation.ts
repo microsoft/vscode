@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ISessionChangesetOperation } from '../../../services/sessions/common/session.js';
+import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 
 export type SessionPullRequestMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
 
@@ -54,8 +55,8 @@ export interface ISessionPullRequestCreation {
 	readonly operationId: string;
 	/** Generates editable details without changing the repository or creating a pull request. */
 	prepare(token: CancellationToken): Promise<ISessionPullRequestDetails>;
-	/** Validates prepared identity without generating details or changing the repository. */
-	validate(context: ISessionPullRequestContext): Promise<void>;
+	/** Validates prepared identity and carries submission choices with a normal chat request. */
+	prepareChatRequest(query: string, options: ISessionPullRequestOptions): Promise<ISendRequestOptions>;
 	/** Returns an optional plain-text outcome, including any post-creation warnings. */
 	create(options: ISessionPullRequestOptions): Promise<string | void>;
 }

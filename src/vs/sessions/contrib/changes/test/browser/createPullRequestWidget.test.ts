@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event as BaseEvent } from '../../../../../base/common/event.js';
+import { Emitter, Event as BaseEvent } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -64,7 +64,7 @@ suite('CreatePullRequestWidget', () => {
 		const widget = store.add(new CreatePullRequestWidget({
 			creation: {
 				operationId: 'create-pr',
-				validate: async () => { },
+				prepareChatRequest: async query => ({ query }),
 				prepare: async () => details,
 				create: async options => { submissions.push(options); },
 				...creation,
@@ -126,10 +126,11 @@ suite('CreatePullRequestWidget', () => {
 		const host = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => host.remove()));
 		const anchor = dom.append(host, dom.$('button', undefined, 'Create PR'));
+		const onDidLayoutContainer = store.add(new Emitter<{ container: HTMLElement; dimension: dom.Dimension }>());
 		const layout = new class extends mock<ILayoutService>() {
 			override readonly mainContainer = host;
 			override readonly activeContainer = host;
-			override readonly onDidLayoutContainer = BaseEvent.None;
+			override readonly onDidLayoutContainer = onDidLayoutContainer.event;
 			override getContainer(): HTMLElement { return host; }
 		}();
 		const contextService = store.add(new ContextViewService(layout));
@@ -145,7 +146,7 @@ suite('CreatePullRequestWidget', () => {
 		const logService = store.add(new NullLogService());
 		const contextView = store.add(new CreatePullRequestContextView(contextService, contextKeys, notificationService,
 			layout, NullHoverService, contextMenuService, storage, logService));
-		return { host, anchor, contextService, contextMenuService, contextView, errors, storage, logService };
+		return { host, anchor, contextService, contextMenuService, contextView, errors, storage, logService, relayout: () => onDidLayoutContainer.fire({ container: host, dimension: dom.getClientArea(host) }) };
 	}
 
 	function openActionMenu(widget: CreatePullRequestWidget): void {
@@ -305,7 +306,7 @@ suite('CreatePullRequestWidget', () => {
 
 	test('editing preferences is remembered on cancel without remembering PR content', async () => {
 		const { host, anchor, contextView, storage } = createContextView();
-		const creation: ISessionPullRequestCreation = { operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => assert.fail('Must not create') };
+		const creation: ISessionPullRequestCreation = { operationId: 'create-pr', prepare: async () => details, prepareChatRequest: async query => ({ query }), create: async () => assert.fail('Must not create') };
 		contextView.show(anchor, creation);
 		await timeout(0);
 		const title = host.querySelector<HTMLInputElement>('input')!;
@@ -419,7 +420,7 @@ suite('CreatePullRequestWidget', () => {
 		let created = 0;
 		let sent = 0;
 		contextView.show(anchor, {
-			operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => assert.fail('Must not create directly'),
+			operationId: 'create-pr', prepare: async () => details, prepareChatRequest: async query => ({ query }), create: async () => assert.fail('Must not create directly'),
 		}, { sendToChat: async () => { sent++; await completion.p; } }, () => created++);
 		await timeout(0);
 		host.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
@@ -440,7 +441,7 @@ suite('CreatePullRequestWidget', () => {
 			new CreatePullRequestPreferences(storage, store.add(new NullLogService())).update({ primaryAction: 'sendToChat' });
 			const completion = new DeferredPromise<void>();
 			const creation: ISessionPullRequestCreation = {
-				operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => assert.fail('Must not create directly'),
+				operationId: 'create-pr', prepare: async () => details, prepareChatRequest: async query => ({ query }), create: async () => assert.fail('Must not create directly'),
 			};
 			contextView.show(anchor, creation, { sendToChat: () => completion.p });
 			await timeout(0);
@@ -1110,6 +1111,40 @@ suite('CreatePullRequestWidget', () => {
 		assert.deepStrictEqual({ cancelled: token?.isCancellationRequested, title: element<HTMLInputElement>(widget, 'input').value }, { cancelled: true, title: '' });
 	});
 
+	test('container relayout keeps the final Agent Merge controls scrollable after shrinking', async () => {
+		const { host, anchor, contextView, relayout } = createContextView();
+		contextView.show(anchor, {
+			operationId: 'create-pr', prepare: async () => details,
+			prepareChatRequest: async query => ({ query }), create: async () => { },
+		});
+		await timeout(0);
+		const dialog = host.querySelector<HTMLElement>('.create-pull-request-widget')!;
+		dialog.querySelector<HTMLElement>('[role="radio"][aria-label="Agent Merge"]')!.click();
+		const body = dialog.querySelector<HTMLElement>('.create-pr-body')!;
+		const controls = dialog.querySelectorAll<HTMLElement>('.create-pr-agent-merge [role="radio"]');
+		const finalControl = controls[controls.length - 1];
+		dialog.style.maxHeight = 'none';
+		body.style.maxHeight = 'none';
+		relayout();
+		const initiallyFits = body.clientHeight === body.scrollHeight;
+
+		body.style.maxHeight = '160px';
+		relayout();
+		const wheel = new WheelEvent('wheel', { deltaY: 10000, bubbles: true, cancelable: true });
+		// Chromium gives synthetic legacy deltas the wrong sign; keep both representations consistent.
+		Object.defineProperty(wheel, 'wheelDeltaY', { value: -10000 });
+		body.dispatchEvent(wheel);
+		const scrolledToEnd = Math.abs(body.scrollTop - (body.scrollHeight - body.clientHeight)) <= 1 && body.scrollTop > 0;
+		const controlVisible = finalControl.getBoundingClientRect().top >= body.getBoundingClientRect().top
+			&& finalControl.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom + 1;
+
+		body.style.maxHeight = 'none';
+		relayout();
+		assert.deepStrictEqual({ initiallyFits, scrolledToEnd, controlVisible, scrollTopAfterGrowing: body.scrollTop }, {
+			initiallyFits: true, scrolledToEnd: true, controlVisible: true, scrollTopAfterGrowing: 0,
+		});
+	});
+
 	test('the real context view opens immediately and restores focus on Escape', async () => {
 		const { host, anchor, contextView } = createContextView();
 		const generation = new DeferredPromise<ISessionPullRequestDetails>();
@@ -1118,7 +1153,7 @@ suite('CreatePullRequestWidget', () => {
 		anchor.focus();
 		contextView.show(anchor, {
 			operationId: 'create-pr',
-			validate: async () => { },
+			prepareChatRequest: async query => ({ query }),
 			prepare: token => { cancellation = token; return generation.p; },
 			create: async () => { created = true; },
 		});
@@ -1139,7 +1174,7 @@ suite('CreatePullRequestWidget', () => {
 
 	test('Accessibility Help does not discard the form or edits', async () => {
 		const { host, anchor, contextService, contextView } = createContextView();
-		contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => { } });
+		contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, prepareChatRequest: async query => ({ query }), create: async () => { } });
 		await timeout(0);
 		const title = host.querySelector<HTMLInputElement>('input')!;
 		title.value = 'Keep my draft';
@@ -1168,7 +1203,7 @@ suite('CreatePullRequestWidget', () => {
 	test('clicking outside dismisses the form without creating or stealing focus', async () => {
 		const { host, anchor, contextView } = createContextView();
 		let created = false;
-		contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => { created = true; } });
+		contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, prepareChatRequest: async query => ({ query }), create: async () => { created = true; } });
 		await timeout(0);
 		const outside = dom.append(host, dom.$('button', undefined, 'Another action'));
 		outside.focus();
@@ -1184,7 +1219,7 @@ suite('CreatePullRequestWidget', () => {
 		test(`creation ${outcome} cannot close or steal focus from a newer form after a session switch`, async () => {
 			const { host, anchor, contextView, errors } = createContextView();
 			const completion = new DeferredPromise<void>();
-			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: () => completion.p });
+			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, prepareChatRequest: async query => ({ query }), create: () => completion.p });
 			await timeout(0);
 			const input = host.querySelector<HTMLInputElement>('input')!;
 			input.focus();
@@ -1193,7 +1228,7 @@ suite('CreatePullRequestWidget', () => {
 			outside.click();
 			const visibleWhileSubmitting = !!host.querySelector('[role="dialog"]');
 			contextView.close();
-			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => ({ ...details, title: 'Another session' }), validate: async () => { }, create: async () => { } });
+			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => ({ ...details, title: 'Another session' }), prepareChatRequest: async query => ({ query }), create: async () => { } });
 			await timeout(0);
 			const newInput = host.querySelector<HTMLInputElement>('input')!;
 			newInput.focus();

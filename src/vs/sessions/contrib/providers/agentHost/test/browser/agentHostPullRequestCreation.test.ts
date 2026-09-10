@@ -30,7 +30,8 @@ suite('AgentHostPullRequestCreation', () => {
 		}();
 		const creation = new AgentHostPullRequestCreation(() => connection, () => channel, (operationId, metadata) =>
 			connection.invokeChangesetOperation({ operationId, channel: channel.toString(), _meta: metadata }));
-		await creation.validate(context);
+		const chatRequest = await creation.prepareChatRequest('Create the PR', { ...options, expectedContext: context });
+		assert.deepStrictEqual(chatRequest, { query: 'Create the PR', metadata: createPullRequestOperationMeta({ ...options, expectedContext: context }) });
 		await creation.create({ ...options, expectedContext: context });
 		assert.deepStrictEqual(invocations, [
 			{ channel: channel.toString(), operationId: PREPARE_PULL_REQUEST_OPERATION_ID, _meta: createPullRequestValidationMeta(context) },
@@ -44,7 +45,7 @@ suite('AgentHostPullRequestCreation', () => {
 
 		await assert.rejects(() => withoutConnection.prepare(CancellationToken.None), /connection or changeset is unavailable/);
 		await assert.rejects(() => withoutChannel.prepare(CancellationToken.None), /connection or changeset is unavailable/);
-		await assert.rejects(() => withoutConnection.validate(context), /connection or changeset is unavailable/);
+		await assert.rejects(() => withoutConnection.prepareChatRequest('Create the PR', { ...options, expectedContext: context }), /connection or changeset is unavailable/);
 	});
 
 	test('discards preparation results when cancelled in flight', async () => {

@@ -331,7 +331,7 @@ export class CreatePullRequestWidget extends Disposable {
 				this.descriptionEdited = true;
 			}
 		}));
-		this._register(this.descriptionInput.onDidHeightChange(() => this.layout()));
+		this._register(this.descriptionInput.onDidHeightChange(() => this.relayout()));
 		// Capture before child buttons consume Escape and blur themselves.
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => this.onKeyDown(event), true));
 		this.updateMergeOptions();
@@ -346,6 +346,10 @@ export class CreatePullRequestWidget extends Disposable {
 
 	layout(): void {
 		this.scrollable.scanDomNode();
+	}
+
+	private relayout(): void {
+		this.layout();
 		this.options.onLayout?.();
 	}
 
@@ -427,7 +431,7 @@ export class CreatePullRequestWidget extends Disposable {
 				this.updateLoadingState();
 				this.updateSubmitButton();
 				this.updateMergeOptions();
-				this.layout();
+				this.relayout();
 			}
 		}
 	}
@@ -517,7 +521,7 @@ export class CreatePullRequestWidget extends Disposable {
 			? localize('createPR.agentMergeDraftPolicyHint', "{0} Drafts can be marked ready automatically.", policyDescription)
 			: policyDescription;
 		this.updateMergeMethodDescription();
-		this.layout();
+		this.relayout();
 	}
 
 	private updateMergeMethodDescription(): void {
@@ -635,7 +639,7 @@ export class CreatePullRequestWidget extends Disposable {
 				this.retryButton.enabled = true;
 				this.updateSubmitButton();
 				this.updateMergeOptions();
-				this.layout();
+				this.relayout();
 				if (failed && dom.getActiveElement() === focusAfterDisabling) {
 					if (previouslyFocusedRadio) {
 						previouslyFocusedRadio.focusActiveItem();

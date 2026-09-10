@@ -11,7 +11,8 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import { createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID, readPullRequestDetailsResult } from '../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ISessionChangesetOperation } from '../../../../services/sessions/common/session.js';
-import { ISessionPullRequestContext, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOperation, ISessionPullRequestOptions } from '../../../changes/common/pullRequestCreation.js';
+import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOperation, ISessionPullRequestOptions } from '../../../changes/common/pullRequestCreation.js';
 
 export class AgentHostPullRequestCreation implements ISessionPullRequestCreation {
 	readonly operationId = 'create-pr';
@@ -35,8 +36,11 @@ export class AgentHostPullRequestCreation implements ISessionPullRequestCreation
 		return readPullRequestDetailsResult(await this._invokePreparation(token));
 	}
 
-	async validate(context: ISessionPullRequestContext): Promise<void> {
-		await this._invokePreparation(CancellationToken.None, createPullRequestValidationMeta(context));
+	async prepareChatRequest(query: string, options: ISessionPullRequestOptions): Promise<ISendRequestOptions> {
+		if (options.expectedContext) {
+			await this._invokePreparation(CancellationToken.None, createPullRequestValidationMeta(options.expectedContext));
+		}
+		return { query, metadata: createPullRequestOperationMeta(options) };
 	}
 
 	private async _invokePreparation(token: CancellationToken, metadata?: Record<string, unknown>): Promise<InvokeChangesetOperationResult> {

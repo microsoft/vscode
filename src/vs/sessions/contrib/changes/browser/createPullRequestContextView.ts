@@ -85,6 +85,7 @@ export class CreatePullRequestContextView extends Disposable {
 				return store;
 			},
 			focus: () => widget.focus(),
+			layout: () => widget.layout(),
 			onDOMEvent: (event: Event | StandardMouseEvent) => {
 				if (!(event instanceof StandardMouseEvent) || event.browserEvent.type !== dom.EventType.CLICK) {
 					return;
