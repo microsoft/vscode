@@ -99,6 +99,13 @@ export interface IChatInputNotification {
 	readonly actions: readonly IChatInputNotificationAction[];
 	/** Controls whether this notification applies to an input. */
 	readonly when?: (context: IChatInputNotificationContext) => boolean;
+	/**
+	 * Called the first time a chat input actually renders this notification, so an
+	 * owner can record that the user has now seen it. Re-renders of the same content
+	 * in the same input don't call it again, but a second input showing the same
+	 * notification does, so treat it as idempotent.
+	 */
+	readonly onDidShow?: () => void;
 	/** Resolves the description and actions for an input. */
 	readonly resolveBody?: (context: IChatInputNotificationContext) => IChatInputNotificationBody;
 	readonly dismissible: boolean;

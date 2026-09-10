@@ -195,7 +195,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 		setChatInputStackSlot(this._slot, ChatInputStackSlot.Docked);
 		this._renderNotification(notification, body);
-		this._logShownTelemetry(notification);
+		this._handleShown(notification);
 		if (hadFocus) {
 			// The region is rebuilt on every render; keep focus inside it.
 			this.focus();
@@ -477,13 +477,18 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		await this._commandService.executeCommand(action.commandId, ...(action.commandArgs ?? []));
 	}
 
-	private _logShownTelemetry(notification: IChatInputNotification): void {
+	private _handleShown(notification: IChatInputNotification): void {
 		const data = this._getTelemetryData(notification);
 		if (this._lastShownTelemetryData?.id === data.id && this._lastShownTelemetryData.telemetryId === data.telemetryId) {
 			return;
 		}
 		this._lastShownTelemetryData = data;
 		this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationShown', data);
+		try {
+			notification.onDidShow?.();
+		} catch (error) {
+			this._logError(error);
+		}
 	}
 
 	private _getTelemetryData(notification: IChatInputNotification): ChatInputNotificationTelemetryEvent {
