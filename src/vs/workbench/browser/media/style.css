@@ -213,6 +213,7 @@ body {
 .monaco-workbench .monaco-icon-label.predefined-file-icon::before {
 	box-sizing: border-box;
 	padding-right: 0;
+	width: var(--vscode-iconSize-small, 16px);
 }
 
 .predefined-file-icon::before { /* do add additional specificity to this selector, so it can be overridden by product themes */

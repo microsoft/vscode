@@ -16,6 +16,11 @@ export default defineThemedFixtureGroup({ path: 'base/' }, {
 		expectedVisualDescriptions: ['Five captioned rows show the shared IconLabel with a pseudo-element file icon, a file icon through the explicit iconPath path, an icon-rich label containing an inline check icon, an icon with no separation, and a long label with a description truncated at the fixed guide. The first two labels begin at the same horizontal position after equal fixed icon slots and separation.'],
 		render: renderIconLabels,
 	}),
+	ThemeIconSizeOverride: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Two captioned IconLabel rows show the same predefined ThemeIcon through the pseudo-element and explicit iconPath paths. Both icons occupy 20px slots and both labels begin at the same horizontal position after equal separation.'],
+		render: renderThemeIconSizeOverride,
+	}),
 });
 
 function renderIconLabels({ container, disposableStore }: ComponentFixtureContext): void {
@@ -68,5 +73,37 @@ function renderIconLabels({ container, disposableStore }: ComponentFixtureContex
 		labelHost.style.minWidth = '0';
 		const iconLabel = disposableStore.add(new IconLabel(labelHost, { supportIcons: true }));
 		iconLabel.setLabel(label, description, options);
+	}
+}
+
+function renderThemeIconSizeOverride({ container, disposableStore }: ComponentFixtureContext): void {
+	container.style.width = '440px';
+	container.style.padding = '16px';
+	container.style.display = 'flex';
+	container.style.flexDirection = 'column';
+	container.style.gap = '12px';
+	container.style.backgroundColor = 'var(--vscode-editor-background)';
+	container.style.color = 'var(--vscode-foreground)';
+	container.style.fontFamily = DEFAULT_FONT_FAMILY;
+	container.style.fontSize = 'var(--vscode-fontSize-label1)';
+	container.style.setProperty('--vscode-iconSize-small', '20px');
+
+	addLabel('Pseudo ThemeIcon', { extraClasses: ['codicon-symbol-file', 'predefined-file-icon'] });
+	addLabel('Explicit ThemeIcon', { iconPath: Codicon.symbolFile });
+
+	function addLabel(caption: string, options: IIconLabelValueOptions): void {
+		const row = dom.append(container, dom.$('.fixture-row'));
+		row.style.display = 'flex';
+		row.style.alignItems = 'center';
+		row.style.gap = '16px';
+
+		const captionElement = dom.append(row, dom.$('span'));
+		captionElement.textContent = caption;
+		captionElement.style.flex = '0 0 140px';
+		captionElement.style.color = 'var(--vscode-descriptionForeground)';
+
+		const labelHost = dom.append(row, dom.$('.fixture-label-host'));
+		const iconLabel = disposableStore.add(new IconLabel(labelHost));
+		iconLabel.setLabel('File label', undefined, options);
 	}
 }
