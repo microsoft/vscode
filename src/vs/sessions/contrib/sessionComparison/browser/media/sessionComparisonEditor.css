@@ -1,0 +1,89 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-comparison-editor {
+	overflow: auto;
+	color: var(--vscode-editor-foreground);
+	background: var(--vscode-editor-background);
+}
+
+.session-comparison-content {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: var(--vscode-spacing-size240);
+}
+
+.session-comparison-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-subtitle {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-attempts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: var(--vscode-spacing-size120);
+}
+
+.session-comparison-attempt {
+	min-width: 0;
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-sideBar-background);
+}
+
+.session-comparison-attempt-title {
+	margin: 0 0 var(--vscode-spacing-size120);
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-comparison-evidence {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+}
+
+.session-comparison-evidence dt {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-evidence dd {
+	margin: 0;
+	text-align: right;
+}
+
+.session-comparison-error {
+	color: var(--vscode-errorForeground);
+}
+
+.session-comparison-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: var(--vscode-spacing-size120);
+}
+
+.session-comparison-section {
+	margin-top: var(--vscode-spacing-size240);
+	padding-top: var(--vscode-spacing-size160);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.session-comparison-section h2,
+.session-comparison-section h3 {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-recommendation {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}

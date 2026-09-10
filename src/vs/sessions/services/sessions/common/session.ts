@@ -785,6 +785,10 @@ export interface ISession {
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	/** Provider-owned permission level selected while configuring a new session. */
+	readonly permissionLevel?: IObservable<string>;
+	/** Provider-owned branch selected while configuring a new session. */
+	readonly branch?: IObservable<string | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
 	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */

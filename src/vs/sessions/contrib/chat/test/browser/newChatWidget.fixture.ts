@@ -50,6 +50,7 @@ import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
@@ -232,6 +233,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
 				}
 			}());
+			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable([]);
+			}());
 			reg.defineInstance(ISessionsService, sessionsService);
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
@@ -375,6 +379,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	await nextFrame();
 	await nextFrame();
+	for (let attempt = 0; attempt < 30 && !view.element.querySelector('.sessions-chat-comparison-toggle'); attempt++) {
+		await nextFrame();
+	}
+	assert(!!view.element.querySelector('.sessions-chat-comparison-toggle'));
 	if (phoneLayout && withAttachedContext) {
 		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
 		assert(!!content);

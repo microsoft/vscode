@@ -508,8 +508,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSendButton?: boolean;
 			renderRepositoryControls?: boolean;
+			/** Configures session-type selection, including optional comparison mode. */
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
+			sendButtonLabel?: IObservable<string | undefined>;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
@@ -581,7 +583,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// the same class regardless of construction-time viewport
 		// avoids a class-mismatch when the user resizes across the
 		// phone breakpoint after the chat input mounted.
-		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, this.options.sessionTypePickerOptions));
+		const sessionTypePickerOptions = this.options.sessionTypePickerOptions;
+		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, sessionTypePickerOptions));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateAndSaveDraftState();
 			this._updateSendButtonState();
@@ -1204,6 +1207,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				ariaLabel: localize('send', "Send"),
 			}));
 			sendButton.icon = Codicon.arrowUpCompact;
+			if (this.options.sendButtonLabel) {
+				this._register(autorun(reader => {
+					const label = this.options.sendButtonLabel?.read(reader);
+					sendButton.label = label ?? '';
+					sendButton.element.ariaLabel = label ?? localize('send', "Send");
+					sendButtonContainer.classList.toggle('labeled', !!label);
+				}));
+			}
 			// Hold Alt while clicking Send to start the session in the background.
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}
