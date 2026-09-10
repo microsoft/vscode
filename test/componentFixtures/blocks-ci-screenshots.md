@@ -300,12 +300,6 @@
 #### sessions/chat/newWidget/newChatWidget/NewSessionCompactAutoModel/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/380dfb27391cf8830be7685782c1e655c021e42c91992d515abd0971d9729858)
 
-#### sessions/chat/newWidget/newChatWidget/NewSessionDefault/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/cf84f73dbb1ac6a3a271c75825623b7c65d92789f59db1ef7b505557f95df2ff)
-
-#### sessions/chat/newWidget/newChatWidget/NewSessionDefault/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/180cb6633f8c78d01b6fb57393d0c6b836d75f85145d51bf6803314f62aaf9ca)
-
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/cf84f73dbb1ac6a3a271c75825623b7c65d92789f59db1ef7b505557f95df2ff)
 
