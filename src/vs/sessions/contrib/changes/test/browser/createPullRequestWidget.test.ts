@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter, Event as BaseEvent } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { mock } from '../../../../../base/test/common/mock.js';
