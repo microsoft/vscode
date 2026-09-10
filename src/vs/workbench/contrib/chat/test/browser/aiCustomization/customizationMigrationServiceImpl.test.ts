@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -22,6 +22,7 @@ import { IFileService, IFileWriteOptions } from '../../../../../../platform/file
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -425,12 +426,12 @@ suite('CustomizationMigrationService', () => {
 			localHint: undefined,
 			requestedTypes: [
 				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
-				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook,
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
 			],
 			requestedSourceFolderTypes: [
-				PromptsType.agent, PromptsType.agent, PromptsType.agent,
-				PromptsType.instructions, PromptsType.instructions, PromptsType.instructions,
-				PromptsType.skill, PromptsType.skill, PromptsType.skill,
+				PromptsType.agent, PromptsType.agent, PromptsType.agent, PromptsType.agent,
+				PromptsType.instructions, PromptsType.instructions, PromptsType.instructions, PromptsType.instructions,
+				PromptsType.skill, PromptsType.skill, PromptsType.skill, PromptsType.skill,
 			],
 			requestedSessionType: SessionType.AgentHostCopilot,
 			requestedRoots: ['/workspace'],
@@ -585,11 +586,20 @@ suite('CustomizationMigrationService', () => {
 			override readonly onDidChangeCustomizations = Event.None;
 			override getClientWorkingDirectoryUris() { return []; }
 		}();
+		const assessmentReported = new DeferredPromise<void>();
 		const telemetryEvents: unknown[] = [];
 		const telemetryService = new class extends NullTelemetryServiceShape {
+			constructor() {
+				super();
+				Object.defineProperty(this, 'telemetryLevel', { value: TelemetryLevel.USAGE });
+			}
+
 			override publicLog2(eventName?: string, data?: unknown): void {
 				if (eventName === 'chat.customizationMigrationAssessment') {
 					telemetryEvents.push(data);
+					if (telemetryEvents.length === 4) {
+						assessmentReported.complete();
+					}
 				}
 			}
 		}();
@@ -604,6 +614,10 @@ suite('CustomizationMigrationService', () => {
 		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration()), telemetryService, chatSessionsService));
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: sessionType, path: '/session' }));
+		assert.deepStrictEqual(telemetryEvents, []);
+		await assessmentReported.p;
+		await service.computeMigrationHint(URI.from({ scheme: sessionType, path: '/another-session' }));
+		await timeout(0);
 
 		assert.deepStrictEqual({ hint, telemetryEvents }, {
 			hint: {
@@ -898,7 +912,7 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
-	test('gates migration candidates while assessing the file inventory', async () => {
+	test('queries file migration categories only when enabled', async () => {
 		const promptsService = store.add(new TestPromptsService([
 			{ uri: URI.file('/user-data/prompts/reviewer.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
 			{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
@@ -951,14 +965,14 @@ suite('CustomizationMigrationService', () => {
 				{ type: 'mcpServers', candidates: 0, servers: 0 },
 			],
 			disabledHint: undefined,
-			disabledRequestedTypes: [PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook],
-			disabledSourceFolderTypes: [PromptsType.agent, PromptsType.skill],
+			disabledRequestedTypes: [],
+			disabledSourceFolderTypes: [],
 			promptOnlyHint: {
 				message: 'Found 1 workspace customization file that is present but not used by Copilot and could be migrated.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
 			},
-			promptOnlyRequestedTypes: [PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook],
-			promptOnlySourceFolderTypes: [PromptsType.agent, PromptsType.skill],
+			promptOnlyRequestedTypes: [PromptsType.prompt],
+			promptOnlySourceFolderTypes: [PromptsType.skill],
 		});
 	});
 

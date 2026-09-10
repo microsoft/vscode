@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { raceCancellation } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { equals } from '../../../../../base/common/objects.js';
@@ -14,7 +14,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel, telemetryLevelEnabled } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -36,10 +36,6 @@ type CustomizationMigrationAssessmentCount = {
 	readonly nativeCount: number;
 	readonly mappedCount: number;
 	readonly unsupportedCount: number;
-};
-type CustomizationMigrationAssessment = {
-	readonly hint: ICustomizationMigrationHint | undefined;
-	readonly counts: readonly CustomizationMigrationAssessmentCount[];
 };
 type McpServerCustomizationMigrationResult = {
 	readonly migration: McpServerCustomizationMigration;
@@ -73,6 +69,7 @@ function incrementAssessmentCount(
 export class CustomizationMigrationService extends Disposable implements ICustomizationMigrationService {
 	declare readonly _serviceBrand: undefined;
 	private readonly mcpServerMigration: McpServerCustomizationMigrator;
+	private readonly reportedAssessmentContexts = new Set<string>();
 	private activeContextKey = '';
 	private activeContextGeneration = 0;
 
@@ -214,34 +211,20 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		}
 	}
 
-	private async collectMigrationAssessment(sessionResource: URI, token: CancellationToken): Promise<CustomizationMigrationAssessment | undefined> {
+	async computeMigrationHint(sessionResource: URI, token = CancellationToken.None): Promise<ICustomizationMigrationHint | undefined> {
 		const harness = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource));
 		if (!harness) {
 			return undefined;
 		}
 
-		const [agents, instructions, prompts, skills, hooks, mcpServerResult] = await Promise.all([
-			this.promptsService.listPromptFiles(PromptsType.agent, token),
-			this.promptsService.listPromptFiles(PromptsType.instructions, token),
-			this.promptsService.listPromptFiles(PromptsType.prompt, token),
-			this.promptsService.listPromptFiles(PromptsType.skill, token),
-			this.promptsService.listPromptFiles(PromptsType.hook, token),
-			this.computeMcpServerMigration(sessionResource, token),
+		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration] = await Promise.all([
+			this.computeMigration(sessionResource, CustomizationMigrationType.UserData, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token),
 		]);
-		const mcpServerMigration = mcpServerResult.migration;
-		const fileCustomizations = [...agents, ...instructions, ...prompts, ...skills, ...hooks]
-			.filter(customization => customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
-		const sourceFolders = await this.getSourceFolders(sessionResource, fileCustomizations, token);
-		const userDataMigration = this.isMigrationEnabled(CustomizationMigrationType.UserData)
-			? this.createFileMigrationFromSourceFolders(CustomizationMigrationType.UserData, fileCustomizations.filter(isUserDataMigrationCandidate), sourceFolders)
-			: { type: CustomizationMigrationType.UserData, files: [], candidates: [] } satisfies FileCustomizationMigration;
-		const promptFilesMigration = this.isMigrationEnabled(CustomizationMigrationType.PromptFiles)
-			? this.createFileMigrationFromSourceFolders(CustomizationMigrationType.PromptFiles, fileCustomizations.filter(isPromptFileMigrationCandidate), sourceFolders)
-			: { type: CustomizationMigrationType.PromptFiles, files: [], candidates: [] } satisfies FileCustomizationMigration;
-		const configuredLocationsMigration = this.isMigrationEnabled(CustomizationMigrationType.ConfiguredLocations)
-			? this.createFileMigrationFromSourceFolders(CustomizationMigrationType.ConfiguredLocations, fileCustomizations.filter(isConfiguredLocationMigrationCandidate), sourceFolders, true)
-			: { type: CustomizationMigrationType.ConfiguredLocations, files: [], candidates: [] } satisfies FileCustomizationMigration;
 		const fileCandidates = [userDataMigration, promptFilesMigration, configuredLocationsMigration]
+			.filter(migration => this.isMigrationEnabled(migration.type))
 			.flatMap(migration => migration.candidates);
 		const workspaceFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
 		const userFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
@@ -268,34 +251,59 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				? localize('customizationMigrationHintCombined', "{0} {1}", firstHint, secondHint)
 				: firstHint ?? unsupportedMcpHint;
 		}
-		return {
-			hint: migrationHint ? {
+		const hint = migrationHint ? {
 				message: migrationHint,
 				target: fileHint || migratableMcpHint ? CustomizationMigrationHintTarget.FileMigrations : CustomizationMigrationHintTarget.McpServers,
-			} : undefined,
-			counts: [...this.computeFileAssessmentCounts(fileCustomizations, sourceFolders), ...mcpServerResult.assessmentCounts],
-		};
+			} : undefined;
+		this.scheduleMigrationAssessment(sessionResource);
+		return hint;
 	}
 
-	async computeMigrationHint(sessionResource: URI, token = CancellationToken.None): Promise<ICustomizationMigrationHint | undefined> {
-		const assessment = await this.collectMigrationAssessment(sessionResource, token);
-		if (!assessment || token.isCancellationRequested) {
-			return undefined;
+	private scheduleMigrationAssessment(sessionResource: URI): void {
+		if (!telemetryLevelEnabled(this.telemetryService, TelemetryLevel.USAGE)) {
+			return;
 		}
 
 		const sessionType = getChatSessionType(sessionResource);
 		const target = this.chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId ?? 'unknown';
-		for (const { customizationType, source, nativeCount, mappedCount, unsupportedCount } of assessment.counts) {
-			this.telemetryService.publicLog2<CustomizationMigrationAssessmentEvent, CustomizationMigrationAssessmentClassification>('chat.customizationMigrationAssessment', {
-				target,
-				customizationType,
-				source,
-				nativeCount,
-				mappedCount,
-				unsupportedCount,
-			});
+		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
+		const context = JSON.stringify([target, ...roots.map(root => getComparisonKey(root))]);
+		if (this.reportedAssessmentContexts.has(context)) {
+			return;
 		}
-		return assessment.hint;
+		this.reportedAssessmentContexts.add(context);
+		this._register(disposableTimeout(() => {
+			void this.collectMigrationAssessment(sessionResource).then(counts => {
+				for (const { customizationType, source, nativeCount, mappedCount, unsupportedCount } of counts) {
+					this.telemetryService.publicLog2<CustomizationMigrationAssessmentEvent, CustomizationMigrationAssessmentClassification>('chat.customizationMigrationAssessment', {
+						target,
+						customizationType,
+						source,
+						nativeCount,
+						mappedCount,
+						unsupportedCount,
+					});
+				}
+			}, error => {
+				this.reportedAssessmentContexts.delete(context);
+				this.logService.warn('[CustomizationMigrationService] Failed to collect migration assessment:', error);
+			});
+		}, 0));
+	}
+
+	private async collectMigrationAssessment(sessionResource: URI): Promise<readonly CustomizationMigrationAssessmentCount[]> {
+		const [agents, instructions, prompts, skills, hooks, mcpServerResult] = await Promise.all([
+			this.promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
+			this.promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+			this.promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+			this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
+			this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None),
+			this.computeMcpServerMigration(sessionResource, CancellationToken.None),
+		]);
+		const fileCustomizations = [...agents, ...instructions, ...prompts, ...skills, ...hooks]
+			.filter(customization => customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
+		const sourceFolders = await this.getSourceFolders(sessionResource, fileCustomizations, CancellationToken.None);
+		return [...this.computeFileAssessmentCounts(fileCustomizations, sourceFolders), ...mcpServerResult.assessmentCounts];
 	}
 
 	private formatFileMigrationHint(workspaceCount: number, userCount: number, harnessLabel: string): string | undefined {
