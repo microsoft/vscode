@@ -199,13 +199,14 @@ export class AutoClosingOpenCharTypeOperation {
 		}
 		let autoCloseConfig: EditorAutoClosingStrategy;
 		let shouldAutoCloseBefore: (ch: string) => boolean;
+		let pairIsForComments = false;
 
 		const chIsQuote = isQuote(ch);
 		if (chIsQuote) {
 			autoCloseConfig = config.autoClosingQuotes;
 			shouldAutoCloseBefore = config.shouldAutoCloseBefore.quote;
 		} else {
-			const pairIsForComments = config.blockCommentStartToken ? pair.open.includes(config.blockCommentStartToken) : false;
+			pairIsForComments = config.blockCommentStartToken ? pair.open.includes(config.blockCommentStartToken) : false;
 			if (pairIsForComments) {
 				autoCloseConfig = config.autoClosingComments;
 				shouldAutoCloseBefore = config.shouldAutoCloseBefore.comment;
@@ -233,6 +234,13 @@ export class AutoClosingOpenCharTypeOperation {
 
 			if (!lineAfter.startsWith(containedPairClose)) {
 				isContainedPairPresent = false;
+			}
+			if (pairIsForComments
+				&& autoCloseConfig === 'languageDefined'
+				&& pair.close.length > 0
+				&& lineAfter.trimStart().startsWith(pair.close.trimStart())
+			) {
+				return null;
 			}
 			// Only consider auto closing the pair if an allowed character follows or if another autoclosed pair closing brace follows
 			if (lineAfter.length > 0) {
