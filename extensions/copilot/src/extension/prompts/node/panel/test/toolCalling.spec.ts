@@ -6,7 +6,11 @@
 import { Raw } from '@vscode/prompt-tsx';
 import { describe, expect, test } from 'vitest';
 import type * as vscode from 'vscode';
-import { IChatHookService, type IPreToolUseHookResult } from '../../../../../platform/chat/common/chatHookService';
+import {
+	IChatHookService,
+	type IPostToolUseHookResult,
+	type IPreToolUseHookResult,
+} from '../../../../../platform/chat/common/chatHookService';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../../../platform/endpoint/common/endpointProvider';
 import type { IChatEndpoint } from '../../../../../platform/networking/common/networking';
@@ -40,9 +44,11 @@ class CapturingChatHookService implements IChatHookService {
 	} | undefined;
 
 	public postToolUseCalled = false;
+	public readonly postToolUseStarted = new DeferredPromise<void>();
 
 	constructor(
 		private readonly hookResult: IPreToolUseHookResult | undefined,
+		private readonly postHookResult: Promise<IPostToolUseHookResult | undefined> = Promise.resolve(undefined),
 	) { }
 
 	logConfiguredHooks(): void { }
@@ -63,9 +69,10 @@ class CapturingChatHookService implements IChatHookService {
 		return this.hookResult;
 	}
 
-	async executePostToolUseHook(): Promise<undefined> {
+	async executePostToolUseHook(): Promise<IPostToolUseHookResult | undefined> {
 		this.postToolUseCalled = true;
-		return undefined;
+		this.postToolUseStarted.complete();
+		return this.postHookResult;
 	}
 }
 
@@ -374,6 +381,68 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 			.join('\n');
 		expect(contentText).toContain('<PreToolUse-context>');
 		expect(contentText).toContain(hookContext);
+	});
+
+	test('waits for postToolUse additionalContext before completing the rendered tool result', async () => {
+		const toolName = 'myTool';
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'test tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+		const postHookResult = new DeferredPromise<IPostToolUseHookResult | undefined>();
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const toolsService = new CapturingToolsService(toolInfo);
+		const hookService = new CapturingChatHookService(undefined, postHookResult.p);
+		testingServiceCollection.define(IToolsService, toolsService);
+		testingServiceCollection.define(IChatHookService, hookService);
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-post' } as unknown as Conversation,
+			request: { hooks: { PostToolUse: [] } } as unknown as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+		const round: IToolCallRound = {
+			id: 'round-1',
+			response: 'calling tool',
+			toolInputRetry: 0,
+			toolCalls: [{ name: toolName, arguments: JSON.stringify({ x: 1 }), id: 'call-post' }],
+		};
+
+		let renderSettled = false;
+		const renderPromise = renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults: undefined,
+		}).then(result => {
+			renderSettled = true;
+			return result;
+		});
+		await hookService.postToolUseStarted.p;
+		await new Promise(resolve => setTimeout(resolve, 0));
+		expect(renderSettled).toBe(false);
+
+		postHookResult.complete({ additionalContext: ['post-tool context'] });
+		await renderPromise;
+		const contentText = (toolsService.lastToolResult?.content ?? [])
+			.filter((part): part is LanguageModelTextPart => part instanceof LanguageModelTextPart)
+			.map(part => part.value)
+			.join('\n');
+		expect(contentText).toContain('<PostToolUse-context>');
+		expect(contentText).toContain('post-tool context');
 	});
 
 	test('skips postToolUse hook when preToolUse denies the tool but still appends preToolUse context', async () => {
