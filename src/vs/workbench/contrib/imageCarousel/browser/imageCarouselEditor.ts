@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, clearNode, Dimension, EventType, h } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, Dimension, EventType, h } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -16,13 +16,17 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext } from '../../../common/editor.js';
+import { IEditorCommandsContext, IEditorOpenContext } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
 import { ImageCarouselEditorInput } from './imageCarouselEditorInput.js';
-import { ICarouselImage, ICarouselSection, isVideoMimeType } from './imageCarouselTypes.js';
+import { ICarouselImage, ICarouselSection, ImageCarouselContextKeys, ImageCarouselContextMenu, isVideoMimeType } from './imageCarouselTypes.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 /**
  * A flat entry referencing a specific image within a section, used
@@ -52,7 +56,15 @@ export class ImageCarouselEditor extends EditorPane {
 	private _flatImages: IFlatImageEntry[] = [];
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private readonly _imageDisposables = this._register(new DisposableStore());
-	private readonly _blobUrlCache = new Map<string, string>();
+	private readonly _blobUrlCache = new Map<string, { url: string; blob: Blob }>();
+	private _navigationId = 0;
+	private _contentVersion = 0;
+	private _currentImage: ICarouselImage | undefined;
+	private _scopedContextKeyService: IContextKeyService | undefined;
+
+	override get scopedContextKeyService(): IContextKeyService | undefined { return this._scopedContextKeyService; }
+	get currentImage(): ICarouselImage | undefined { return this._currentImage; }
+	get sourceUri() { return this._currentImage?.sourceUri ?? (this._currentImage?.data ? undefined : this._currentImage?.uri); }
 
 	private _videoWebview: IWebviewElement | undefined;
 	private _elements: {
@@ -77,7 +89,10 @@ export class ImageCarouselEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IFileService private readonly _fileService: IFileService,
-		@IWebviewService private readonly _webviewService: IWebviewService
+		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super(ImageCarouselEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -85,6 +100,7 @@ export class ImageCarouselEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		this._container = h('div.image-carousel-editor').root;
 		parent.appendChild(this._container);
+		this._scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
 	}
 
 	override async setInput(input: ImageCarouselEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -102,6 +118,9 @@ export class ImageCarouselEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		this._navigationId++;
+		this._contentVersion++;
+		this.setCurrentImage(undefined);
 		this._videoWebview?.dispose();
 		this._videoWebview = undefined;
 		this._contentDisposables.clear();
@@ -114,6 +133,68 @@ export class ImageCarouselEditor extends EditorPane {
 		this._elements = undefined;
 		this._thumbnailElements = [];
 		super.clearInput();
+	}
+
+	override dispose(): void {
+		this._navigationId++;
+		this._contentVersion++;
+		this._revokeCachedBlobUrls();
+		super.dispose();
+	}
+
+	private setCurrentImage(image: ICarouselImage | undefined): void {
+		this._currentImage = image;
+		const context = this._scopedContextKeyService;
+		if (context) {
+			context.bufferChangeEvents(() => {
+				ImageCarouselContextKeys.hasMedia.bindTo(context).set(!!image);
+				ImageCarouselContextKeys.canCopy.bindTo(context).set(!!image && !isVideoMimeType(image.mimeType));
+				ImageCarouselContextKeys.hasSource.bindTo(context).set(!!this.sourceUri);
+				ImageCarouselContextKeys.canReveal.bindTo(context).set(!!this.sourceUri && this._workspaceContextService.isInsideWorkspace(this.sourceUri));
+			});
+		}
+	}
+
+	async getCurrentImageData(): Promise<VSBuffer> {
+		const image = this.currentImage;
+		if (!image) {
+			throw new Error(localize('imageCarousel.notLoaded', "The image has not finished loading."));
+		}
+		return VSBuffer.wrap(await this._loadRawData(image));
+	}
+
+	copyImage(): Promise<void> {
+		const image = this._elements?.mainImage;
+		if (!image || !this.currentImage || this._isCurrentVideo() || !image.naturalWidth) {
+			return Promise.reject(new Error(localize('imageCarousel.cannotCopy', "The image cannot be copied.")));
+		}
+		const canvas = $<HTMLCanvasElement>('canvas');
+		canvas.width = image.naturalWidth;
+		canvas.height = image.naturalHeight;
+		const context = canvas.getContext('2d');
+		if (!context) {
+			return Promise.reject(new Error(localize('imageCarousel.cannotCopy', "The image cannot be copied.")));
+		}
+		context.drawImage(image, 0, 0);
+		return this.window.navigator.clipboard.write([new ClipboardItem({
+			'image/png': new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => {
+				if (blob) {
+					resolve(blob);
+				} else {
+					reject(new Error(localize('imageCarousel.cannotCopy', "The image cannot be copied.")));
+				}
+			}, 'image/png')),
+		})]);
+	}
+
+	private showContextMenu(anchor: HTMLElement | { x: number; y: number }): void {
+		this._contextMenuService.showContextMenu({
+			menuId: ImageCarouselContextMenu,
+			contextKeyService: this._scopedContextKeyService,
+			getAnchor: () => anchor,
+			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.input ? this.group.getIndexOfEditor(this.input) : undefined } satisfies IEditorCommandsContext),
+			menuActionOptions: { shouldForwardArgs: true },
+		});
 	}
 
 	private _isCurrentVideo(): boolean {
@@ -129,6 +210,9 @@ export class ImageCarouselEditor extends EditorPane {
 			return;
 		}
 
+		this._contentVersion++;
+		this._navigationId++;
+		this.setCurrentImage(undefined);
 		this._contentDisposables.clear();
 		this._imageDisposables.clear();
 		this._revokeCachedBlobUrls();
@@ -213,7 +297,11 @@ export class ImageCarouselEditor extends EditorPane {
 		// Keyboard navigation
 		this._contentDisposables.add(addDisposableListener(elements.root, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.LeftArrow) {
+			if (event.keyCode === KeyCode.ContextMenu || (event.shiftKey && event.keyCode === KeyCode.F10)) {
+				this.showContextMenu(elements.mainImageContainer);
+				event.stopPropagation();
+				event.preventDefault();
+			} else if (event.keyCode === KeyCode.LeftArrow) {
 				this.previous();
 				event.stopPropagation();
 				event.preventDefault();
@@ -222,6 +310,11 @@ export class ImageCarouselEditor extends EditorPane {
 				event.stopPropagation();
 				event.preventDefault();
 			}
+		}));
+		this._contentDisposables.add(addDisposableListener(elements.imageArea, EventType.CONTEXT_MENU, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.showContextMenu({ x: e.clientX, y: e.clientY });
 		}));
 		elements.root.tabIndex = 0;
 
@@ -389,6 +482,8 @@ export class ImageCarouselEditor extends EditorPane {
 		// Capture the navigation index before starting async work so that
 		// we can discard stale results if the user navigates while loading/decoding.
 		const navigationIndex = this._currentIndex;
+		const navigationId = ++this._navigationId;
+		this.setCurrentImage(undefined);
 
 		// Swap main image using cached/lazy-loaded blob URL.
 		// Pre-decode via decode() before assigning to <img> so the browser
@@ -405,8 +500,9 @@ export class ImageCarouselEditor extends EditorPane {
 			this._elements.mainImageContainer.style.cursor = 'default';
 
 			// Load raw data to send via postMessage
+			await this._loadBlobUrl(currentImage);
 			const rawData = await this._loadRawData(currentImage);
-			if (this._currentIndex !== navigationIndex) {
+			if (this._navigationId !== navigationId || !this._elements) {
 				return;
 			}
 
@@ -453,26 +549,20 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			const url = await this._loadBlobUrl(currentImage);
 
 			// If the user navigated while loading the blob URL, discard this result.
-			if (this._currentIndex !== navigationIndex) {
+			if (this._navigationId !== navigationId || !this._elements) {
 				return;
 			}
 
 			const tmp = new Image();
 			tmp.src = url;
-			tmp.decode().then(() => {
-				// Only apply if user hasn't navigated away during decode
-				if (this._currentIndex === navigationIndex && this._elements) {
-					this._elements.mainImage.src = url;
-					this._elements.mainImage.alt = currentImage.name;
-				}
-			}, () => {
-				// Decode failed (invalid image) — still show src for browser fallback
-				if (this._currentIndex === navigationIndex && this._elements) {
-					this._elements.mainImage.src = url;
-					this._elements.mainImage.alt = currentImage.name;
-				}
-			});
+			await tmp.decode().catch(() => { /* Show the browser fallback for invalid images. */ });
+			if (this._navigationId !== navigationId || !this._elements) {
+				return;
+			}
+			this._elements.mainImage.src = url;
+			this._elements.mainImage.alt = currentImage.name;
 		}
+		this.setCurrentImage(currentImage);
 
 		// Reset zoom when switching images
 		this._applyZoom('fit');
@@ -537,8 +627,9 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 	private async _loadBlobUrl(image: ICarouselImage): Promise<string> {
 		const cached = this._blobUrlCache.get(image.id);
 		if (cached) {
-			return cached;
+			return cached.url;
 		}
+		const contentVersion = this._contentVersion;
 
 		let buffer: Uint8Array;
 		if (image.data) {
@@ -551,20 +642,31 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			return '';
 		}
 
+		if (contentVersion !== this._contentVersion) {
+			return '';
+		}
+		const existing = this._blobUrlCache.get(image.id);
+		if (existing) {
+			return existing.url;
+		}
 		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: image.mimeType });
 		const url = URL.createObjectURL(blob);
-		this._blobUrlCache.set(image.id, url);
+		this._blobUrlCache.set(image.id, { url, blob });
 		return url;
 	}
 
 	private _revokeCachedBlobUrls(): void {
-		for (const url of this._blobUrlCache.values()) {
+		for (const { url } of this._blobUrlCache.values()) {
 			URL.revokeObjectURL(url);
 		}
 		this._blobUrlCache.clear();
 	}
 
 	private async _loadRawData(image: ICarouselImage): Promise<Uint8Array> {
+		const cached = this._blobUrlCache.get(image.id);
+		if (cached) {
+			return new Uint8Array(await cached.blob.arrayBuffer());
+		}
 		if (image.data) {
 			return image.data instanceof Uint8Array ? image.data : image.data.buffer;
 		} else if (image.uri) {

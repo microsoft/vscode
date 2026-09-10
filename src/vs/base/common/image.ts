@@ -24,24 +24,36 @@ export function readImageDimensions(buffer: VSBuffer): IImageDimensions | undefi
 	if (bytes.length < 12) {
 		return undefined;
 	}
+	switch (getImageMimeType(buffer)) {
+		case 'image/jpeg': return readJpegDimensions(bytes);
+		case 'image/png': return readPngDimensions(bytes);
+		case 'image/gif': return readGifDimensions(bytes);
+		case 'image/webp': return readWebPDimensions(bytes);
+		default: return undefined;
+	}
+}
+
+/** Detect JPEG, PNG, GIF or WebP from the encoded buffer's signature. */
+export function getImageMimeType(buffer: VSBuffer): string | undefined {
+	const bytes = buffer.buffer;
 	// JPEG: FF D8
 	if (bytes[0] === 0xFF && bytes[1] === 0xD8) {
-		return readJpegDimensions(bytes);
+		return 'image/jpeg';
 	}
 	// PNG: 89 50 4E 47 0D 0A 1A 0A
 	if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47 &&
 		bytes[4] === 0x0D && bytes[5] === 0x0A && bytes[6] === 0x1A && bytes[7] === 0x0A) {
-		return readPngDimensions(bytes);
+		return 'image/png';
 	}
 	// GIF: "GIF87a" or "GIF89a"
 	if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38 &&
 		(bytes[4] === 0x37 || bytes[4] === 0x39) && bytes[5] === 0x61) {
-		return readGifDimensions(bytes);
+		return 'image/gif';
 	}
 	// WebP: "RIFF" <size> "WEBP"
 	if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
 		bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
-		return readWebPDimensions(bytes);
+		return 'image/webp';
 	}
 	return undefined;
 }

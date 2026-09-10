@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../common/buffer.js';
-import { readImageDimensions } from '../../common/image.js';
+import { getImageMimeType, readImageDimensions } from '../../common/image.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function buf(...bytes: number[]): VSBuffer {
@@ -98,6 +98,24 @@ function makeWebPVp8x(width: number, height: number): VSBuffer {
 		h & 0xFF, (h >> 8) & 0xFF, (h >> 16) & 0xFF
 	);
 }
+
+suite('getImageMimeType', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('detects encoded formats and rejects incomplete or unrecognized signatures', () => {
+		const fixtures = [
+			makeJpeg(640, 480), makePng(640, 480), makeGif(640, 480),
+			makeWebPVp8(640, 480), makeWebPVp8l(640, 480), makeWebPVp8x(640, 480),
+			VSBuffer.alloc(0), buf(0xFF), makePng(1, 1).slice(0, 7),
+			makeGif(1, 1).slice(0, 5), makeWebPVp8(1, 1).slice(0, 11),
+			VSBuffer.fromString('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+		];
+		assert.deepStrictEqual(fixtures.map(getImageMimeType), [
+			'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/webp', 'image/webp',
+			undefined, undefined, undefined, undefined, undefined, undefined,
+		]);
+	});
+});
 
 suite('readImageDimensions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

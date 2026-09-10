@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { buildCollectionArgs, buildSingleImageArgs, collectCarouselSections, findClickedImageIndex, ICarouselSection } from '../../browser/chatImageCarouselService.js';
+import { resizeImage } from '../../browser/chatImageUtils.js';
 import { IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { ChatResponseResource } from '../../common/model/chatModel.js';
 import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -177,6 +178,30 @@ suite('ChatImageCarouselService helpers', () => {
 	});
 
 	suite('buildSingleImageArgs', () => {
+		test('uses encoded MIME rather than the resource extension', () => {
+			const data = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+			const args = buildSingleImageArgs(URI.file('/photos/image.gif'), data);
+			assert.deepStrictEqual({ name: args.name, mimeType: args.mimeType, data: args.data }, {
+				name: 'image.gif', mimeType: 'image/png', data,
+			});
+		});
+
+
+		test('keeps real source URIs but excludes synthetic and generated resources', () => {
+			const uris = [
+				URI.file('/photos/image.png'),
+				URI.parse('vscode-remote://host/photos/image.png'),
+				URI.parse('image-provider://host/photos/image.png'),
+				URI.from({ scheme: 'data', path: 'image.png' }),
+				ChatResponseResource.createUri(URI.parse('chat-session://test/session'), 'call_1', 0, 'file.png'),
+			];
+
+			assert.deepStrictEqual(uris.map(uri => buildSingleImageArgs(uri, new Uint8Array([1])).sourceUri), [
+				...uris.slice(0, 3),
+				undefined,
+				undefined,
+			]);
+		});
 
 		test('extracts name and mime from URI path', () => {
 			const uri = URI.file('/path/to/photo.jpg');
@@ -186,6 +211,7 @@ suite('ChatImageCarouselService helpers', () => {
 				mimeType: 'image/jpg',
 				data,
 				title: 'photo.jpg',
+				sourceUri: uri,
 			});
 		});
 
@@ -203,11 +229,52 @@ suite('ChatImageCarouselService helpers', () => {
 				mimeType: 'image/png',
 				data,
 				title: 'Element Screenshot.png',
+				sourceUri: uri,
 			});
 		});
 	});
 
 	suite('collectCarouselSections', () => {
+		test('preserves resized GIF bytes with PNG MIME and excludes pasted cache sources', async () => {
+			const gif = decodeBase64('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+			const data = await resizeImage(gif.buffer, 'image/gif');
+			const sections = await collectCarouselSections([], async () => { throw new Error('Unexpected file read'); }, {
+				text: '',
+				attachments: [makeImageVariableEntry({
+					name: 'image.gif', mimeType: 'image/gif', value: data, isPasted: true,
+					references: [{ kind: 'reference', reference: URI.file('/cache/image.gif') }],
+				})],
+			});
+			const image = sections[0].images[0];
+			assert.deepStrictEqual({ mimeType: image.mimeType, sourceUri: image.sourceUri, data: [...image.data] }, {
+				mimeType: 'image/png', sourceUri: undefined, data: [...data],
+			});
+		});
+
+
+		test('preserves image identity and provenance in response, pending request and current input sections', async () => {
+			const uris = [
+				URI.file('/photos/paired.png'),
+				URI.parse('image-provider://host/response.png'),
+				URI.file('/photos/pending.png'),
+				URI.parse('vscode-remote://host/input.png'),
+			];
+			const attachment = (uri: URI) => makeImageVariableEntry({
+				value: new Uint8Array([1]),
+				references: [{ kind: 'reference', reference: uri }],
+			});
+			const result = await collectCarouselSections([
+				makeRequest('paired', [attachment(uris[0])]),
+				makeResponse('paired', 'response', [{ kind: 'inlineReference', inlineReference: uris[1] }]),
+				makeRequest('pending', [attachment(uris[2])]),
+			], async () => new Uint8Array([2]), { text: 'Current Input', attachments: [attachment(uris[3])] });
+
+			assert.deepStrictEqual(result.map(section => section.images.map(({ id, uri, sourceUri }) => ({ id, uri, sourceUri }))), [
+				uris.slice(0, 2).map(uri => ({ id: uri.toString(), uri, sourceUri: uri })),
+				[{ id: uris[2].toString(), uri: uris[2], sourceUri: uris[2] }],
+				[{ id: uris[3].toString(), uri: uris[3], sourceUri: uris[3] }],
+			]);
+		});
 
 		test('collects request attachment images for pending requests', async () => {
 			const request = makeRequest('req-1', [
@@ -243,13 +310,13 @@ suite('ChatImageCarouselService helpers', () => {
 
 			assert.deepStrictEqual(result.map(section => ({
 				...section,
-				images: section.images.map(image => ({ ...image, data: [...image.data] })),
+				images: section.images.map(image => ({ ...image, uri: image.uri?.toString(), data: [...image.data] })),
 			})), [{
 				title: 'Current Input',
 				images: [
-					{ id: 'data:img-1/first.png', name: 'first.png', mimeType: 'image/png', data: [1], caption: undefined },
-					{ id: 'data:img-2/second.png', name: 'second.png', mimeType: 'image/png', data: [2], caption: undefined },
-					{ id: 'data:img-3/third.png', name: 'third.png', mimeType: 'image/png', data: [3], caption: undefined },
+					{ id: 'data:img-1/first.png', uri: 'data:img-1/first.png', sourceUri: undefined, name: 'first.png', mimeType: 'image/png', data: [1], caption: undefined },
+					{ id: 'data:img-2/second.png', uri: 'data:img-2/second.png', sourceUri: undefined, name: 'second.png', mimeType: 'image/png', data: [2], caption: undefined },
+					{ id: 'data:img-3/third.png', uri: 'data:img-3/third.png', sourceUri: undefined, name: 'third.png', mimeType: 'image/png', data: [3], caption: undefined },
 				],
 			}]);
 		});
@@ -386,6 +453,10 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.strictEqual(result[0].images.length, 1);
 			assert.strictEqual(result[0].images[0].id, expectedUri);
 			assert.strictEqual(result[0].images[0].caption, 'Took screenshot');
+			assert.deepStrictEqual({
+				uri: result[0].images[0].uri?.toString(),
+				sourceUri: result[0].images[0].sourceUri,
+			}, { uri: expectedUri, sourceUri: undefined });
 		});
 
 		test('strips markdown from tool invocation message captions', async () => {
