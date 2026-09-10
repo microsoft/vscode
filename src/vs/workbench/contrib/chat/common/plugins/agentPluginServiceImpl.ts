@@ -52,10 +52,11 @@ import * as extensionsRegistry from '../../../../services/extensions/common/exte
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
 import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
+import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, parseAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
+import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAutomation, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
@@ -421,6 +422,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		const skills = observeComponent('skills', d => readPluginSkills(uri, d, format, this._fileService));
 		const agents = observeComponent('agents', d => readMarkdownComponents(d, this._fileService));
 		const instructions = observeComponent('rules', d => this._readRules(d));
+		const automations = observeComponent('automations', d => this._readAutomations(d));
 		const hooks = observeComponent(
 			'hooks',
 			paths => this._readHooksFromPaths(uri, paths, format),
@@ -492,6 +494,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			agents,
 			instructions,
 			mcpServerDefinitions,
+			automations,
 			fromMarketplace,
 		};
 
@@ -502,6 +505,31 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 
 		return plugin;
+	}
+
+	private async _readAutomations(dirs: readonly URI[]): Promise<readonly IAgentPluginAutomation[]> {
+		const resources = await readMarkdownComponents(dirs, this._fileService);
+		const automations: IAgentPluginAutomation[] = [];
+		const ids = new Set<string>();
+		for (const resource of resources) {
+			if (!resource.uri.path.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)) {
+				continue;
+			}
+			try {
+				const content = await this._fileService.readFile(resource.uri);
+				const blueprint = parseAutomationBlueprint(content.value.toString());
+				if (ids.has(blueprint.id)) {
+					this._logService.warn(`[AgentPluginDiscovery] Ignored duplicate Automation blueprint id '${blueprint.id}' in '${resource.uri.toString()}'.`);
+					continue;
+				}
+				ids.add(blueprint.id);
+				automations.push({ uri: resource.uri, blueprint });
+			} catch (error) {
+				this._logService.warn(`[AgentPluginDiscovery] Failed to read Automation blueprint '${resource.uri.toString()}': ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+		automations.sort((a, b) => a.blueprint.name.localeCompare(b.blueprint.name));
+		return automations;
 	}
 
 	/**
