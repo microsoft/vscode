@@ -24,6 +24,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../../nls.js';
+import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -62,7 +63,7 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationAssessmentSource, CustomizationMigrationAssessmentType, CustomizationMigrationHintTarget, ICustomizationMigrationAssessment, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
@@ -130,15 +131,23 @@ const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
 
 type CustomizationMigrationAssessmentEvent = {
-	category: CustomizationMigrationType;
-	count: number;
+	target: string;
+	customizationType: CustomizationMigrationAssessmentType;
+	source: CustomizationMigrationAssessmentSource;
+	nativeCount: number;
+	mappedCount: number;
+	unsupportedCount: number;
 };
 
 type CustomizationMigrationAssessmentClassification = {
-	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The category of customization migration finding.' };
-	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations in the finding.' };
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The target Agent Host harness for the assessment.' };
+	customizationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization in the assessment.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded source category of customizations in the assessment.' };
+	nativeCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations consumed from a native location.' };
+	mappedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations consumed through compatibility mapping.' };
+	unsupportedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations not fully supported by the target.' };
 	owner: 'digitarald';
-	comment: 'Tracks aggregate customization migration findings without collecting customization names, paths, or content.';
+	comment: 'Tracks aggregate customization migration assessments without collecting customization names, paths, IDs, or content.';
 };
 
 /**
@@ -235,7 +244,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
-	private _customizationMigrationHintProvider: ((sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>) | undefined;
+	private _customizationMigrationAssessmentProvider: ((sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>) | undefined;
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -255,15 +264,15 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.waitForModelDisposals();
 	}
 
-	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>): IDisposable {
-		if (this._customizationMigrationHintProvider) {
-			throw new BugIndicatingError('A customization migration hint provider is already registered');
+	registerCustomizationMigrationAssessmentProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>): IDisposable {
+		if (this._customizationMigrationAssessmentProvider) {
+			throw new BugIndicatingError('A customization migration assessment provider is already registered');
 		}
 
-		this._customizationMigrationHintProvider = provider;
+		this._customizationMigrationAssessmentProvider = provider;
 		return toDisposable(() => {
-			if (this._customizationMigrationHintProvider === provider) {
-				this._customizationMigrationHintProvider = undefined;
+			if (this._customizationMigrationAssessmentProvider === provider) {
+				this._customizationMigrationAssessmentProvider = undefined;
 			}
 		});
 	}
@@ -1617,20 +1626,25 @@ export class ChatService extends Disposable implements IChatService {
 					|| (!showOnce && hintMode !== CustomizationMigrationHintMode.Always)
 					|| this.storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE)
 					|| (showOnce && hintAlreadyShown)
-					|| !this._customizationMigrationHintProvider) {
+					|| !this._customizationMigrationAssessmentProvider) {
 					return undefined;
 				}
 
 				try {
-					const hint = await this._customizationMigrationHintProvider(sessionResource, token);
-					if (hint && !token.isCancellationRequested) {
-						for (const { type, count } of hint.counts) {
+					const assessment = await this._customizationMigrationAssessmentProvider(sessionResource, token);
+					if (assessment && !token.isCancellationRequested) {
+						const target = isRemoteAgentHostSessionType(sessionType) ? parseRemoteAgentHostHarness(sessionType) ?? 'unknown' : sessionType;
+						for (const { customizationType, source, nativeCount, mappedCount, unsupportedCount } of assessment.counts) {
 							this.telemetryService.publicLog2<CustomizationMigrationAssessmentEvent, CustomizationMigrationAssessmentClassification>('chat.customizationMigrationAssessment', {
-								category: type,
-								count,
+								target,
+								customizationType,
+								source,
+								nativeCount,
+								mappedCount,
+								unsupportedCount,
 							});
 						}
-						return hint;
+						return assessment.hint;
 					}
 					return undefined;
 				} catch (error) {

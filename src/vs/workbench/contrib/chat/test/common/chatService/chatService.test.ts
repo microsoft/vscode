@@ -61,7 +61,7 @@ import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '..
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -69,7 +69,7 @@ import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsSe
 import { MockChatService } from './mockChatService.js';
 import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionServerRequest, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
-import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, PromptFileSource, PromptsType, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
 import { NullLanguageModelsService } from '../languageModels.js';
 
@@ -2125,17 +2125,29 @@ suite('ChatService', () => {
 		const migrationHint = {
 			message: 'Found 3 customization files that could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
-			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 3 }],
 		};
-		migrationService.computeMigrationHint.resolves(migrationHint);
-		const migrationTelemetry: { readonly category: string; readonly count: number }[] = [];
+		migrationService.computeMigrationAssessment.resolves({
+			hint: migrationHint,
+			counts: [{
+				customizationType: PromptsType.prompt,
+				source: PromptFileSource.GitHubWorkspace,
+				nativeCount: 1,
+				mappedCount: 2,
+				unsupportedCount: 0,
+			}],
+		});
+		const migrationTelemetry: { readonly target: string; readonly customizationType: string; readonly source: string; readonly nativeCount: number; readonly mappedCount: number; readonly unsupportedCount: number }[] = [];
 		instantiationService.stub(ITelemetryService, {
 			...NullTelemetryService,
 			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
 				if (eventName === 'chat.customizationMigrationAssessment' && data) {
 					migrationTelemetry.push({
-						category: String(data.category),
-						count: Number(data.count),
+						target: String(data.target),
+						customizationType: String(data.customizationType),
+						source: String(data.source),
+						nativeCount: Number(data.nativeCount),
+						mappedCount: Number(data.mappedCount),
+						unsupportedCount: Number(data.unsupportedCount),
 					});
 				}
 			}
@@ -2161,8 +2173,8 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
+		testDisposables.add(testService.registerCustomizationMigrationAssessmentProvider(
+			(sessionResource, token) => migrationService.computeMigrationAssessment(sessionResource, token)
 		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
@@ -2217,8 +2229,8 @@ suite('ChatService', () => {
 		const expectedReviewLink = `[Review customizations](command:aiCustomization.openManagementEditor?%255B%257B%2522migration%2522%253Atrue%257D%255D "Open Chat Customizations")`;
 		const expectedHint = `*Found 3 customization files that could be migrated. ${expectedReviewLink} | [Hide for this workspace](command:aiCustomization.dismissMigrationHint "Stop Showing Migration Hints for This Harness")*`;
 		assert.deepStrictEqual({
-			computeCalls: migrationService.computeMigrationHint.callCount,
-			computedFor: migrationService.computeMigrationHint.firstCall.args[0].toString(),
+			computeCalls: migrationService.computeMigrationAssessment.callCount,
+			computedFor: migrationService.computeMigrationAssessment.firstCall.args[0].toString(),
 			migrationTelemetry,
 			neverHint: getHintContent(0),
 			firstHint: getHintContent(1),
@@ -2231,9 +2243,9 @@ suite('ChatService', () => {
 			computeCalls: 3,
 			computedFor: sessionResource.toString(),
 			migrationTelemetry: [
-				{ category: 'promptFiles', count: 3 },
-				{ category: 'promptFiles', count: 3 },
-				{ category: 'promptFiles', count: 3 },
+				{ target: sessionType, customizationType: 'prompt', source: 'github-workspace', nativeCount: 1, mappedCount: 2, unsupportedCount: 0 },
+				{ target: sessionType, customizationType: 'prompt', source: 'github-workspace', nativeCount: 1, mappedCount: 2, unsupportedCount: 0 },
+				{ target: sessionType, customizationType: 'prompt', source: 'github-workspace', nativeCount: 1, mappedCount: 2, unsupportedCount: 0 },
 			],
 			neverHint: [],
 			firstHint: [expectedHint],
@@ -2249,10 +2261,12 @@ suite('ChatService', () => {
 		const sessionType = SessionType.AgentHostCopilot;
 		const sessionResource = URI.from({ scheme: sessionType, path: '/restored-session' });
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
-		migrationService.computeMigrationHint.resolves({
-			message: 'Found customization files that could be migrated.',
-			target: CustomizationMigrationHintTarget.FileMigrations,
-			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
+		migrationService.computeMigrationAssessment.resolves({
+			hint: {
+				message: 'Found customization files that could be migrated.',
+				target: CustomizationMigrationHintTarget.FileMigrations,
+			},
+			counts: [],
 		});
 
 		const mockSessionsService = new MockChatSessionsService();
@@ -2277,8 +2291,8 @@ suite('ChatService', () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
+		testDisposables.add(testService.registerCustomizationMigrationAssessmentProvider(
+			(sessionResource, token) => migrationService.computeMigrationAssessment(sessionResource, token)
 		));
 		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(firstRef);
@@ -2298,7 +2312,7 @@ suite('ChatService', () => {
 		await secondResponse.data.responseCompletePromise;
 		const restoredHintCount = restoredRef.object.getRequests()[0].response?.response.value.filter(part => part.kind === 'systemNotification').length;
 
-		assert.deepStrictEqual({ computeCalls: migrationService.computeMigrationHint.callCount, firstHintCount, restoredHintCount }, {
+		assert.deepStrictEqual({ computeCalls: migrationService.computeMigrationAssessment.callCount, firstHintCount, restoredHintCount }, {
 			computeCalls: 1,
 			firstHintCount: 1,
 			restoredHintCount: 0,
@@ -2308,8 +2322,8 @@ suite('ChatService', () => {
 	test('customization migration hint is not computed for local sessions', async () => {
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
+		testDisposables.add(testService.registerCustomizationMigrationAssessmentProvider(
+			(sessionResource, token) => migrationService.computeMigrationAssessment(sessionResource, token)
 		));
 		const model = startSessionModel(testService).object;
 		const response = await testService.sendRequest(model.sessionResource, 'test');
@@ -2317,7 +2331,7 @@ suite('ChatService', () => {
 		await response.data.responseCompletePromise;
 
 		assert.deepStrictEqual({
-			computeCalls: migrationService.computeMigrationHint.callCount,
+			computeCalls: migrationService.computeMigrationAssessment.callCount,
 			hints: (model.getRequests()[0].response?.response.value ?? [])
 				.filter(part => part.kind === 'systemNotification').length,
 		}, { computeCalls: 0, hints: 0 });
@@ -2348,8 +2362,8 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
-			(sessionResource, token) => migrationService.computeMigrationHint(sessionResource, token)
+		testDisposables.add(testService.registerCustomizationMigrationAssessmentProvider(
+			(sessionResource, token) => migrationService.computeMigrationAssessment(sessionResource, token)
 		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		assert.ok(ref);
@@ -2359,7 +2373,7 @@ suite('ChatService', () => {
 		await response.data.responseCompletePromise;
 
 		assert.deepStrictEqual({
-			computeCalls: migrationService.computeMigrationHint.callCount,
+			computeCalls: migrationService.computeMigrationAssessment.callCount,
 			hints: ((testService.getSession(sessionResource) as ChatModel).getRequests()[0].response?.response.value ?? [])
 				.filter(part => part.kind === 'systemNotification').length,
 		}, { computeCalls: 0, hints: 0 });

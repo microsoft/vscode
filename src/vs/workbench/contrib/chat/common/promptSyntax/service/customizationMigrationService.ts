@@ -102,6 +102,7 @@ export interface McpServerCustomizationMigration {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly servers: readonly IMcpServerCustomizationMigrationItem[];
 	readonly candidates: readonly IMcpServerCustomizationMigrationCandidate[];
+	readonly assessmentCounts: readonly ICustomizationMigrationAssessmentCount[];
 	/** Whether all lazy MCP collections known to the client have loaded; when false, servers may be missing. */
 	readonly discoveryComplete: boolean;
 	/** Snapshot-wide restrictions that may limit inventory or delivery, independent of per-server support. */
@@ -166,12 +167,37 @@ export const enum CustomizationMigrationHintTarget {
 export interface ICustomizationMigrationHint {
 	readonly message: string;
 	readonly target: CustomizationMigrationHintTarget;
-	readonly counts: readonly ICustomizationMigrationCount[];
 }
 
-export interface ICustomizationMigrationCount {
-	readonly type: CustomizationMigrationType;
-	readonly count: number;
+export const enum CustomizationMigrationMcpServerSource {
+	UserProfile = 'userProfile',
+	RemoteUser = 'remoteUser',
+	VscodeWorkspaceFolder = 'vscodeWorkspaceFolder',
+	WorkspaceConfiguration = 'workspaceConfiguration',
+	WorkspaceDotMcp = 'workspaceDotMcp',
+	ClaudeDesktop = 'claudeDesktop',
+	Windsurf = 'windsurf',
+	CursorUser = 'cursorUser',
+	CursorWorkspace = 'cursorWorkspace',
+	Extension = 'extension',
+	AgentPlugin = 'agentPlugin',
+	Unknown = 'unknown',
+}
+
+export type CustomizationMigrationAssessmentSource = PromptFileSource | PromptsStorage | CustomizationMigrationMcpServerSource;
+export type CustomizationMigrationAssessmentType = PromptsType | CustomizationMigrationType.McpServers;
+
+export interface ICustomizationMigrationAssessmentCount {
+	readonly customizationType: CustomizationMigrationAssessmentType;
+	readonly source: CustomizationMigrationAssessmentSource;
+	readonly nativeCount: number;
+	readonly mappedCount: number;
+	readonly unsupportedCount: number;
+}
+
+export interface ICustomizationMigrationAssessment {
+	readonly hint: ICustomizationMigrationHint | undefined;
+	readonly counts: readonly ICustomizationMigrationAssessmentCount[];
 }
 
 export interface ICustomizationMigrationService {
@@ -181,5 +207,6 @@ export interface ICustomizationMigrationService {
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
 	migrateMcpServers(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
 	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;
+	computeMigrationAssessment(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationAssessment | undefined>;
 	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
 }

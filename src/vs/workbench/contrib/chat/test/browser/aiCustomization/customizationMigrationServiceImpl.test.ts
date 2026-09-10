@@ -402,6 +402,7 @@ suite('CustomizationMigrationService', () => {
 					type: 'mcpServers',
 					servers: [],
 					candidates: [],
+					assessmentCounts: [],
 					discoveryComplete: true,
 					coverage: {
 						restrictedByMcpAccess: false,
@@ -412,22 +413,16 @@ suite('CustomizationMigrationService', () => {
 			hint: {
 				message: 'Found 2 workspace and 3 user customizations that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
-				counts: [
-					{ type: CustomizationMigrationType.UserData, count: 1 },
-					{ type: CustomizationMigrationType.PromptFiles, count: 2 },
-					{ type: CustomizationMigrationType.ConfiguredLocations, count: 2 },
-					{ type: CustomizationMigrationType.McpServers, count: 1 },
-				],
 			},
 			localHint: undefined,
 			requestedTypes: [
 				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
-				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook,
 			],
 			requestedSourceFolderTypes: [
-				PromptsType.agent, PromptsType.agent, PromptsType.agent, PromptsType.agent,
-				PromptsType.instructions, PromptsType.instructions, PromptsType.instructions, PromptsType.instructions,
-				PromptsType.skill, PromptsType.skill, PromptsType.skill, PromptsType.skill,
+				PromptsType.agent, PromptsType.agent, PromptsType.agent,
+				PromptsType.instructions, PromptsType.instructions, PromptsType.instructions,
+				PromptsType.skill, PromptsType.skill, PromptsType.skill,
 			],
 			requestedSessionType: SessionType.AgentHostCopilot,
 			requestedRoots: ['/workspace'],
@@ -454,7 +449,6 @@ suite('CustomizationMigrationService', () => {
 		assert.deepStrictEqual(hint, {
 			message: 'Found 1 workspace customization file that is present but not used by Claude and could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
-			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
 	});
 
@@ -480,10 +474,6 @@ suite('CustomizationMigrationService', () => {
 		assert.deepStrictEqual(hint, {
 			message: 'Found 2 workspace and 2 user customizations that are present but not used by Claude and could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
-			counts: [
-				{ type: CustomizationMigrationType.UserData, count: 1 },
-				{ type: CustomizationMigrationType.PromptFiles, count: 3 },
-			],
 		});
 	});
 
@@ -535,7 +525,118 @@ suite('CustomizationMigrationService', () => {
 		assert.deepStrictEqual(hint, {
 			message: 'Found 2 MCP servers that are not fully supported by Copilot.',
 			target: CustomizationMigrationHintTarget.McpServers,
-			counts: [{ type: CustomizationMigrationType.McpServers, count: 2 }],
+		});
+	});
+
+	test('assesses native, mapped, and unsupported customizations by type and source', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{ uri: URI.file('/copilot/agents/native.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
+			{ uri: URI.file('/legacy/agents/mapped.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
+			{ uri: URI.file('/legacy/instructions/unsupported.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.CopilotPersonal },
+			{ uri: URI.file('/legacy/hooks/unsupported.json'), storage: PromptsStorage.user, type: PromptsType.hook, source: PromptFileSource.CopilotPersonal },
+		]));
+		const harnessService = new TestCustomizationHarnessService();
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [
+				{
+					...createWorkspaceMcpSupportSnapshot(URI.file('/workspace')).servers[0],
+					id: 'native',
+					name: 'native',
+					source: {
+						group: undefined,
+						kind: AgentHostMcpServerSourceKind.UserProfile,
+						label: 'User',
+						collectionUri: undefined,
+						definitionLocation: undefined,
+						remoteAuthority: null,
+						extensionId: undefined,
+						pluginUri: undefined,
+					},
+					delivery: AgentHostMcpServerDelivery.ProviderBuiltIn,
+				},
+				{
+					...createWorkspaceMcpSupportSnapshot(URI.file('/workspace')).servers[0],
+					id: 'mapped',
+					name: 'mapped',
+					source: {
+						group: undefined,
+						kind: AgentHostMcpServerSourceKind.UserProfile,
+						label: 'User',
+						collectionUri: undefined,
+						definitionLocation: undefined,
+						remoteAuthority: null,
+						extensionId: undefined,
+						pluginUri: undefined,
+					},
+					delivery: AgentHostMcpServerDelivery.ClientForwarded,
+				},
+				{
+					...createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
+						compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.LaunchNotRepresentable] },
+					}).servers[0],
+					id: 'unsupported',
+					name: 'unsupported',
+					source: {
+						group: undefined,
+						kind: AgentHostMcpServerSourceKind.UserProfile,
+						label: 'User',
+						collectionUri: undefined,
+						definitionLocation: undefined,
+						remoteAuthority: null,
+						extensionId: undefined,
+						pluginUri: undefined,
+					},
+					delivery: AgentHostMcpServerDelivery.NotDelivered,
+				},
+				{
+					...createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
+						enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledProfile },
+					}).servers[0],
+					id: 'disabled',
+					name: 'disabled',
+					source: {
+						group: undefined,
+						kind: AgentHostMcpServerSourceKind.UserProfile,
+						label: 'User',
+						collectionUri: undefined,
+						definitionLocation: undefined,
+						remoteAuthority: null,
+						extensionId: undefined,
+						pluginUri: undefined,
+					},
+					delivery: AgentHostMcpServerDelivery.NotDelivered,
+				},
+			],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const activeClientService = {
+			acquireMcpServerSupportScope: () => ({
+				support: constObservable(snapshot),
+				isResolved: constObservable(true),
+				whenResolved: () => Promise.resolve(),
+				dispose: () => { },
+			}),
+		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override readonly onDidChangeCustomizations = Event.None;
+			override getClientWorkingDirectoryUris() { return []; }
+		}();
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration())));
+
+		const assessment = await service.computeMigrationAssessment(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
+
+		assert.deepStrictEqual(assessment, {
+			hint: {
+				message: 'Found 1 MCP server that is not fully supported by Copilot.',
+				target: CustomizationMigrationHintTarget.McpServers,
+			},
+			counts: [
+				{ customizationType: PromptsType.agent, source: PromptFileSource.CopilotPersonal, nativeCount: 1, mappedCount: 1, unsupportedCount: 0 },
+				{ customizationType: PromptsType.instructions, source: PromptFileSource.CopilotPersonal, nativeCount: 0, mappedCount: 0, unsupportedCount: 1 },
+				{ customizationType: PromptsType.hook, source: PromptFileSource.CopilotPersonal, nativeCount: 0, mappedCount: 0, unsupportedCount: 1 },
+				{ customizationType: CustomizationMigrationType.McpServers, source: AgentHostMcpServerSourceKind.UserProfile, nativeCount: 1, mappedCount: 1, unsupportedCount: 1 },
+			],
 		});
 	});
 
@@ -813,13 +914,12 @@ suite('CustomizationMigrationService', () => {
 			hint: {
 				message: 'Found 1 MCP server that is not fully supported by Copilot.',
 				target: CustomizationMigrationHintTarget.McpServers,
-				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
 			},
 			fileReads: [],
 		});
 	});
 
-	test('queries file migration categories only when enabled', async () => {
+	test('gates migration candidates while assessing the file inventory', async () => {
 		const promptsService = store.add(new TestPromptsService([
 			{ uri: URI.file('/user-data/prompts/reviewer.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
 			{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
@@ -872,15 +972,14 @@ suite('CustomizationMigrationService', () => {
 				{ type: 'mcpServers', candidates: 0, servers: 0 },
 			],
 			disabledHint: undefined,
-			disabledRequestedTypes: [],
-			disabledSourceFolderTypes: [],
+			disabledRequestedTypes: [PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook],
+			disabledSourceFolderTypes: [PromptsType.agent, PromptsType.skill],
 			promptOnlyHint: {
 				message: 'Found 1 workspace customization file that is present but not used by Copilot and could be migrated.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
-				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 			},
-			promptOnlyRequestedTypes: [PromptsType.prompt],
-			promptOnlySourceFolderTypes: [PromptsType.skill],
+			promptOnlyRequestedTypes: [PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook],
+			promptOnlySourceFolderTypes: [PromptsType.agent, PromptsType.skill],
 		});
 	});
 
@@ -955,7 +1054,6 @@ suite('CustomizationMigrationService', () => {
 			hint: {
 				message: 'Found 1 workspace MCP server that can be migrated for Copilot.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
-				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
 			},
 			result: { migratedCount: 0, failures: ['noLongerEligible'] },
 			changedDuringWriteResult: { migratedCount: 0, failures: ['noLongerEligible'] },

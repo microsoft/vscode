@@ -32,7 +32,7 @@ import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariab
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
 import { HookTypeValue } from '../promptSyntax/hookTypes.js';
-import { ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
+import { ICustomizationMigrationAssessment } from '../promptSyntax/service/customizationMigrationService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
@@ -2025,7 +2025,7 @@ export interface IChatService {
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
-	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>): IDisposable;
+	registerCustomizationMigrationAssessmentProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>): IDisposable;
 
 	/**
 	 * An observable containing all live chat models.
