@@ -13,7 +13,7 @@ const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
 const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
-const WORKSPACE_PICKER_ROW_WITH_SUBMENU = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu)';
+const WORKSPACE_PICKER_DEV_CONTAINER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"])';
 const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
@@ -121,7 +121,7 @@ export class AgentsWindow {
 	async selectDevContainer(): Promise<void> {
 		const page = this.code.driver.currentPage;
 		const picker = page.locator(WORKSPACE_PICKER).first();
-		const workspaceRow = page.locator(WORKSPACE_PICKER_ROW_WITH_SUBMENU).first();
+		const workspaceRow = page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
 		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
 		const deadline = Date.now() + 120_000;
 		let lastError: unknown;
