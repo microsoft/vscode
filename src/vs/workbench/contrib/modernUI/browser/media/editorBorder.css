@@ -56,6 +56,48 @@
 }
 
 /*
+ * Notebook editors are not children of the editor part. The widget is parented
+ * to a host on the workbench that `OverlayLayoutElement` anchors over the part
+ * and clips with `clip-path: content-box`. That host carries no radius, so the
+ * clip is a sharp rectangle and `notebook.editorBackground` paints square
+ * corners on top of the card. Text editors sit inside the part and are clipped
+ * by it, which is why only notebooks show this.
+ *
+ * Rounding the host makes its content box a rounded rect, so the existing clip
+ * follows the card. Because the host spans the whole part rather than one group,
+ * this stays correct when the part is split: a group only loses a corner where
+ * it actually meets a corner of the card, and a group in the middle keeps all
+ * four square.
+ *
+ * The marker and edge classes are kept in sync by the widget, the same way
+ * `OverlayWebview` drives its rules in `floatingPanels.css`.
+ */
+.modern-ui.monaco-workbench .notebook-overlay-host {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* Compact mode squares the card off and restores only the corners on the cluster perimeter. */
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .notebook-overlay-host:not(.notebook-overlay-modal) {
+	border-radius: 0;
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .notebook-overlay-host.notebook-overlay-outer-left.notebook-overlay-outer-top {
+	border-top-left-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .notebook-overlay-host.notebook-overlay-outer-right.notebook-overlay-outer-top {
+	border-top-right-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .notebook-overlay-host.notebook-overlay-outer-left.notebook-overlay-outer-bottom {
+	border-bottom-left-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .notebook-overlay-host.notebook-overlay-outer-right.notebook-overlay-outer-bottom {
+	border-bottom-right-radius: var(--vscode-cornerRadius-large);
+}
+
+/*
  * The editor part paints a separator shadow on its leading edge (via the
  * `::after` overlay) to set itself apart from the side bar. With the explicit
  * border above that shadow is redundant and would double up, so suppress it.
