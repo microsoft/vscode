@@ -18,6 +18,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateM
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -149,7 +150,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
 		const changesets = changeset
 			? [changeset]
-			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
+			: resolveChangesetSubscriptions(sessionKey, this._changesetSubscriptions.getSessionSubscriptions(sessionKey));
 
 		// Clear the suppressed per-turn / compare-turns changesets FIRST, before
 		// the git-state gate below. A root transition (e.g. the Editor Window

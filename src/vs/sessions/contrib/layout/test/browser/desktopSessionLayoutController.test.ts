@@ -2850,10 +2850,12 @@ suite('LayoutController (desktop)', () => {
 		const filesTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
 		assert.deepStrictEqual({
 			hasChangesTab: hasChangesTab(),
-			filesResource: filesTab?.resource?.toString()
+			filesResource: filesTab?.resource,
+			filesWorkingDirectory: filesTab?.workspace?.folders[0]?.workingDirectory.toString()
 		}, {
 			hasChangesTab: true,
-			filesResource: URI.file('/repo').toString()
+			filesResource: undefined,
+			filesWorkingDirectory: URI.file('/repo').toString()
 		});
 	});
 
@@ -2888,7 +2890,13 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 
 		const filesTabs = harness.activeGroupEditors.filter(e => e instanceof EmptyFileEditorInput);
-		assert.deepStrictEqual(filesTabs.map(editor => editor.resource?.toString()), [URI.file('/repo/second').toString()]);
+		assert.deepStrictEqual(filesTabs.map(editor => ({
+			resource: editor.resource,
+			workingDirectory: editor.workspace?.folders[0]?.workingDirectory.toString()
+		})), [{
+			resource: undefined,
+			workingDirectory: URI.file('/repo/second').toString()
+		}]);
 	});
 
 	test('[managed tabs / Changes pill] reveals the editor area before opening the managed Changes editor', async () => {

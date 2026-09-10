@@ -11,13 +11,23 @@ import { getGitHubRepositoryFromRemoteUrl, IGitHubRemoteInfo } from '../../../..
 
 const MAX_PARENT_LOOKUPS = 50;
 
-export async function resolveGitHubRepositoryFromGitConfig(fileService: IFileService, workspaceUri: URI, supportedHosts?: readonly string[]): Promise<IGitHubRemoteInfo | undefined> {
+export interface IResolvedGitRepository {
+	readonly gitHub: IGitHubRemoteInfo | undefined;
+}
+
+export async function resolveGitRepositoryFromGitConfig(fileService: IFileService, workspaceUri: URI, supportedHosts?: readonly string[]): Promise<IResolvedGitRepository | undefined> {
 	const configUri = await findGitConfig(fileService, workspaceUri);
 	if (!configUri) {
 		return undefined;
 	}
 	const content = await readFileIfExists(fileService, configUri);
-	return content ? parseGitHubRepositoryFromGitConfig(content, supportedHosts) : undefined;
+	return {
+		gitHub: content === undefined ? undefined : parseGitHubRepositoryFromGitConfig(content, supportedHosts),
+	};
+}
+
+export async function resolveGitHubRepositoryFromGitConfig(fileService: IFileService, workspaceUri: URI, supportedHosts?: readonly string[]): Promise<IGitHubRemoteInfo | undefined> {
+	return (await resolveGitRepositoryFromGitConfig(fileService, workspaceUri, supportedHosts))?.gitHub;
 }
 
 export function parseGitHubRepositoryFromGitConfig(content: string, supportedHosts?: readonly string[]): IGitHubRemoteInfo | undefined {

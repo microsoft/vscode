@@ -329,6 +329,16 @@ suite('Agent Merge gate', () => {
 		);
 	});
 
+	test('distinguishes observed merges from pull requests closed without merging', () => {
+		assert.deepStrictEqual({
+			merged: agentMergeDisableReasons.pullRequestAlreadyMerged(123, 'https://github.com/octo/repo/pull/123').notice,
+			closed: agentMergeDisableReasons.pullRequestClosed().notice,
+		}, {
+			merged: 'Pull request [#123](https://github.com/octo/repo/pull/123) was merged. Agent Merge is now disabled.',
+			closed: 'Agent Merge was disabled because its pull request was closed without merging.',
+		});
+	});
+
 	test('describes effective Agent Merge configuration changes, and who they apply to', () => {
 		const previous: AgentMergeConfiguration = {
 			...configuration,

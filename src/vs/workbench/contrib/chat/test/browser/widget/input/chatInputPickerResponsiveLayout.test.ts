@@ -504,7 +504,7 @@ suite('ChatInputPickerResponsiveLayout', () => {
 				icon: { width: 12, height: 12, x: 5, y: 5 },
 			},
 			secondary: {
-				expandedOffset: 8,
+				expandedOffset: 6,
 				action: { width: 22, height: 22 },
 				icon: { width: 12, height: 12, x: 5, y: 5 },
 			},

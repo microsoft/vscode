@@ -123,7 +123,7 @@
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon + .chat-input-picker-label {
-	margin-left: 2px;
+	margin-left: var(--vscode-spacing-size60);
 }
 
 .chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section {
@@ -262,12 +262,11 @@
 	border-radius: var(--vscode-cornerRadius-circle);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
 	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 	white-space: nowrap;
 }
 
 .chat-model-hover-price-badge.high-cost {
-	color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
 	border-color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
 }
 
@@ -421,7 +420,6 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
 }
 
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabstrip {
@@ -484,7 +482,6 @@
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button,
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action {
-	position: relative;
 	box-sizing: border-box;
 	flex: 0 0 auto;
 	width: var(--vscode-spacing-size280);
@@ -502,7 +499,7 @@
 	margin: var(--vscode-spacing-sizeNone);
 }
 
-/* Let the active tab label yield space first, and clip the label rather than its underline. */
+/* Let the active tab label yield space first without clipping its control surface. */
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active {
 	flex: 0 1 auto;
 	width: auto;
@@ -519,27 +516,17 @@
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button:hover:not(.active),
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:hover {
-	color: var(--vscode-foreground);
-	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-modernTab-hoverForeground);
+	background: var(--vscode-modernTab-hoverBackground);
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active,
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active:hover,
 .action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked {
-	color: var(--vscode-foreground);
-	background: transparent;
-}
-
-.action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button.active::after,
-.action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked::after {
-	content: "";
-	position: absolute;
-	right: var(--vscode-spacing-size40);
-	bottom: calc(-1 * var(--vscode-spacing-size60) - var(--vscode-strokeThickness));
-	left: var(--vscode-spacing-size40);
-	height: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: var(--vscode-textLink-foreground);
+	color: var(--vscode-modernTab-activeForeground);
+	background: var(--vscode-modernTab-activeBackground);
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastActiveBorder, transparent);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio > .monaco-button:focus-visible,
@@ -581,7 +568,7 @@
 	box-sizing: border-box;
 	width: calc(100% - var(--vscode-spacing-size80));
 	margin-left: var(--vscode-spacing-size40);
-	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60) var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone);
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size160) var(--vscode-spacing-sizeNone) var(--vscode-spacing-sizeNone);
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -646,17 +633,6 @@
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-section-toggle > .codicon:first-child {
 	font-size: var(--vscode-codiconFontSize-compact);
-}
-
-.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-section-toggle .title {
-	flex: 0 1 auto;
-}
-
-.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-section-toggle .action-item-badge {
-	margin-left: var(--vscode-spacing-size60);
-	margin-right: auto;
-	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action.checked {
@@ -733,7 +709,6 @@
 
 /* A filled pill reads as a box, so it centres with the icon and chevron. Sharing a
  * baseline would leave it a pixel low, since its type is smaller than the model name's. */
-.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-section-toggle > .action-item-badge,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-promo > .action-item-badge,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-warning > .action-item-badge {
 	align-self: center;
@@ -795,7 +770,6 @@
 	display: flex;
 	flex-direction: column;
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80) var(--vscode-spacing-sizeNone);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
 }
 
 .chat-model-picker-auto-main {
@@ -820,17 +794,22 @@
 	margin-bottom: var(--vscode-spacing-size20);
 }
 
-.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active {
-	color: var(--vscode-descriptionForeground);
-	background: var(--vscode-menu-background);
-	border-color: var(--vscode-contrastBorder, var(--vscode-radio-inactiveBorder, transparent));
-	box-shadow: none;
+.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-radio-selection {
+	visibility: hidden;
 }
 
-.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active:hover,
-.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active:focus-visible {
+.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button,
+.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button.active {
+	color: color-mix(in srgb, var(--vscode-foreground) 75%, transparent);
+	background: transparent;
+	border-color: transparent;
+	box-shadow: none;
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button:hover,
+.chat-model-picker-auto-row:not(.enabled) .monaco-custom-radio.segmented > .monaco-button:focus-visible {
 	color: var(--vscode-foreground);
-	border-color: var(--vscode-radio-activeBorder, var(--vscode-contrastActiveBorder));
 }
 
 .chat-model-picker-auto-description {
@@ -928,43 +907,12 @@
 	white-space: nowrap;
 }
 
-/* Pinning sits with the model's name rather than on its row: a control that only
- * appears on hover makes the list twitch as the pointer crosses it. */
-.chat-model-card-pin {
-	display: flex;
+.chat-model-card-actions {
 	flex: 0 0 auto;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-sizeNone);
-	border: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	color: var(--vscode-descriptionForeground);
-	background: transparent;
-	cursor: pointer;
 }
 
-.chat-model-card-pin:hover {
-	color: var(--vscode-foreground);
-	background: var(--vscode-toolbar-hoverBackground);
-}
-
-.chat-model-card-pin.checked {
-	color: var(--vscode-textLink-foreground);
-}
-
-.chat-model-card-pin:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
-.chat-model-card-pin:focus:not(:focus-visible) {
-	outline: none;
-}
-
-.chat-model-card-pin .codicon {
-	font-size: var(--vscode-codiconFontSize-compact);
+.chat-model-card-name + .chat-model-card-actions {
+	margin-left: auto;
 }
 
 .chat-model-card-badge {
@@ -972,7 +920,7 @@
 	margin-left: auto;
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-circle);
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	font-size: var(--vscode-fontSize-label2);
 	line-height: var(--vscode-spacing-size160);
@@ -980,7 +928,6 @@
 }
 
 .chat-model-card-badge.high-cost {
-	color: var(--vscode-editorWarning-foreground);
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 14%, transparent);
 }
 
@@ -1050,19 +997,42 @@
 	white-space: nowrap;
 }
 
+.chat-model-card-pricing {
+	gap: var(--vscode-spacing-sizeNone);
+	padding: var(--vscode-spacing-size20);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+}
+
+.hc-black .chat-model-card-pricing,
+.hc-light .chat-model-card-pricing {
+	background: var(--vscode-menu-background);
+}
+
+.chat-model-card-pricing > .chat-model-card-section-heading {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+}
+
 .chat-model-card-pricing-toggle {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: var(--vscode-spacing-size40);
 	width: 100%;
-	padding: var(--vscode-spacing-sizeNone);
+	margin: var(--vscode-spacing-sizeNone);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
 	border: none;
-	color: inherit;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
 	background: transparent;
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
+}
+
+.chat-model-card-pricing-toggle:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 }
 
 .chat-model-card-pricing-chevron {
@@ -1073,8 +1043,7 @@
 
 .chat-model-card-pricing-toggle:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-small);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .chat-model-card-pricing-toggle:focus:not(:focus-visible) {
@@ -1082,10 +1051,44 @@
 }
 
 .chat-model-card-pricing-body {
+	display: grid;
+	grid-template-rows: 0fr;
+	visibility: hidden;
+}
+
+.chat-model-card-pricing-body.expanded {
+	grid-template-rows: 1fr;
+	visibility: visible;
+}
+
+.chat-model-card-pricing-body-clip {
+	min-height: 0;
+	overflow: hidden;
+}
+
+.chat-model-card-pricing-body-content {
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size20);
-	margin-top: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60) var(--vscode-spacing-size60);
+}
+
+.chat-model-card-pricing.collapsible .chat-model-card-pricing-body-content {
+	padding-left: calc(var(--vscode-spacing-size60) + var(--vscode-codiconFontSize-compact) + var(--vscode-spacing-size40));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.chat-model-card-pricing-body {
+		transition: grid-template-rows 150ms ease-out, visibility 0s linear 150ms;
+	}
+
+	.chat-model-card-pricing-body.expanded {
+		transition-delay: 0s;
+	}
+}
+
+.monaco-reduce-motion .chat-model-card-pricing-body {
+	transition: none;
 }
 
 .chat-model-card-pricing-caption {

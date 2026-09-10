@@ -117,7 +117,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 				channel: sessionUri,
 				provider: CODEX_CONFIG.provider,
 				workingDirectories: [URI.file(rootA).toString(), URI.file(rootB).toString()],
-				config: { isolation: 'folder' },
+				config: { isolation: 'folder', ...CODEX_CONFIG.sessionConfig },
 			}, 30_000);
 			createdSessions.push(sessionUri);
 			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });

@@ -346,6 +346,61 @@ suite('TabbedActionListWidget', () => {
 		widget.hide();
 	});
 
+	for (const motionReduced of [false, true]) {
+		test(`refresh preserves the focused detail control and moves its row with reduced motion ${motionReduced}`, async () => {
+			const { widget, contextView } = createWidget(disposables, motionReduced);
+			const anchor = document.createElement('div');
+			anchor.style.cssText = 'position: fixed; top: 400px; left: 20px; width: 100px; height: 20px;';
+			document.body.appendChild(anchor);
+			disposables.add({ dispose: () => anchor.remove() });
+			const content = document.createElement('div');
+			const button = document.createElement('button');
+			button.textContent = 'Pin Model';
+			content.appendChild(button);
+			let pinned = false;
+			widget.show<ITestItem>({
+				user: 'test',
+				anchor,
+				tabs: [{ id: 'Models' }],
+				initialTab: 'Models',
+				showCheckedItemHover: true,
+				createActionList: () => {
+					const model = { ...action('model'), item: { id: 'model', checked: true }, hover: { content, expandable: true, preserveVerticalPosition: true } };
+					const others = ['one', 'two', 'three'].map(action);
+					return { items: pinned ? [model, ...others] : [...others, model], listOptions: { showFilter: false, persistentHover: true } };
+				},
+				delegate: { onSelect: () => { }, onHide: () => { } },
+			});
+			button.focus();
+			const popup = contextView.getContextViewElement();
+			const panel = popup.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const before = panel.getBoundingClientRect();
+			pinned = true;
+			widget.refreshActiveList({ focusItemId: 'model', preserveHover: true, animateItemMove: true });
+			const moved = Array.from(popup.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.textContent === 'model')!;
+			const animations = moved.getAnimations();
+			const animated = animations.length > 0;
+			animations.forEach(animation => animation.finish());
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+			const after = panel.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				visible: widget.isVisible,
+				sameContent: panel.contains(content),
+				buttonFocused: document.activeElement === button,
+				stationary: Math.abs(before.x - after.x) < 1 && Math.abs(before.y - after.y) < 1,
+				animated,
+			}, {
+				visible: true,
+				sameContent: true,
+				buttonFocused: true,
+				stationary: true,
+				animated: !motionReduced && !mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches,
+			});
+			widget.hide();
+		});
+	}
+
 	test('buildItems is called with the initial tab', () => {
 		const { widget } = createWidget(disposables);
 		const anchor = document.createElement('div');

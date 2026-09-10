@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from '../../../../../base/common/network.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -45,7 +46,7 @@ export function isFileEditorInput(editor: EditorInput): boolean {
 	if (editor instanceof WebviewInput) {
 		return MARKDOWN_EDITOR_VIEW_TYPES.has(editor.viewType) || MARKDOWN_EDITOR_VIEW_TYPES.has(editor.providerId ?? '');
 	}
-	return editor instanceof EmptyFileEditorInput || editor instanceof FileEditorInput;
+	return editor instanceof EmptyFileEditorInput || editor instanceof FileEditorInput || editor.resource?.scheme === Schemas.untitled;
 }
 
 /** Whether `editor` owns its full presentation and must hide the docked Details panel. */

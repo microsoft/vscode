@@ -607,6 +607,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 			});
 			return sortedResult;
 		} catch (err) {
+			if (err instanceof CancellationError) {
+				throw err;
+			}
 			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}`);
 			return [];
 		}

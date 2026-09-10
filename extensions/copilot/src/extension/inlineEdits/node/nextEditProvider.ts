@@ -181,7 +181,6 @@ function getSourcePatchIndex(cachedEdit: CachedOrRebasedEdit): number | undefine
 }
 
 export interface NESInlineCompletionContext extends vscode.InlineCompletionContext {
-	enforceCacheDelay: boolean;
 	changeHint?: NesChangeHint;
 }
 
@@ -540,7 +539,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		telemetryBuilder.setHasNextEdit(true);
 
-		const delay = this.computeMinimumResponseDelay({ triggerTime, isRebasedCachedEdit, isSubsequentCachedEdit, isFromSpeculativeRequest, enforceCacheDelay: context.enforceCacheDelay }, logger);
+		const delay = this.computeMinimumResponseDelay({ triggerTime, isRebasedCachedEdit, isSubsequentCachedEdit, isFromSpeculativeRequest }, logger);
 		if (delay > 0) {
 			await timeout(delay);
 			if (cancellationToken.isCancellationRequested) {
@@ -1130,12 +1129,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		return disposables;
 	}
 
-	private computeMinimumResponseDelay({ triggerTime, isRebasedCachedEdit, isSubsequentCachedEdit, isFromSpeculativeRequest, enforceCacheDelay }: { triggerTime: number; isRebasedCachedEdit: boolean; isSubsequentCachedEdit: boolean; isFromSpeculativeRequest: boolean; enforceCacheDelay: boolean }, logger: ILogger): number {
-
-		if (!enforceCacheDelay) {
-			logger.trace('[minimumDelay] no minimum delay enforced due to enforceCacheDelay being false');
-			return 0;
-		}
+	private computeMinimumResponseDelay({ triggerTime, isRebasedCachedEdit, isSubsequentCachedEdit, isFromSpeculativeRequest }: { triggerTime: number; isRebasedCachedEdit: boolean; isSubsequentCachedEdit: boolean; isFromSpeculativeRequest: boolean }, logger: ILogger): number {
 
 		const modelConfig = this._modelService.selectedModelConfiguration();
 		const cacheDelay = resolveModelConfigValue(this._configService, this._expService, ConfigKey.TeamInternal.InlineEditsCacheDelay, modelConfig.cacheDelay);

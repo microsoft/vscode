@@ -211,6 +211,12 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		return migrationHint ? {
 			message: migrationHint,
 			target: fileHint || migratableMcpHint ? CustomizationMigrationHintTarget.FileMigrations : CustomizationMigrationHintTarget.McpServers,
+			counts: [
+				{ type: CustomizationMigrationType.UserData, count: userDataMigration.files.length },
+				{ type: CustomizationMigrationType.PromptFiles, count: promptFilesMigration.files.length },
+				{ type: CustomizationMigrationType.ConfiguredLocations, count: configuredLocationsMigration.files.length },
+				{ type: CustomizationMigrationType.McpServers, count: migratableMcpServerCount + unsupportedMcpServerCount },
+			].filter(({ count }) => count > 0),
 		} : undefined;
 	}
 

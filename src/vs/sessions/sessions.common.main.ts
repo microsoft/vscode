@@ -489,6 +489,7 @@ import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view re
 import './contrib/configuration/browser/configuration.contribution.js';
 import './contrib/browserView/browser/sessionBrowserView.contribution.js';
 import './contrib/editor/browser/editor.contribution.js';
+import './contrib/extensions/browser/extensions.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/chatDebug/browser/chatDebug.contribution.js';

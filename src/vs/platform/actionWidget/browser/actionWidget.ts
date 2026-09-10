@@ -61,7 +61,7 @@ export interface IActionWidgetService {
 	readonly isVisible: boolean;
 }
 
-class ActionWidgetService extends Disposable implements IActionWidgetService {
+export class ActionWidgetService extends Disposable implements IActionWidgetService {
 	declare readonly _serviceBrand: undefined;
 
 	get isVisible() {
@@ -83,7 +83,6 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
-
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
@@ -96,6 +95,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 				this._onWidgetClosed(didCancel);
 			},
 			get anchorPosition() { return list.anchorPosition; },
+			focus: () => list.focus(),
 		}, container, false);
 	}
 
@@ -232,8 +232,6 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const width = this._list.value?.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
-
-		this._list.value?.focus();
 
 		// Track filter input focus state
 		const filterFocusedContext = ActionWidgetContextKeys.FilterFocused.bindTo(this._contextKeyService);

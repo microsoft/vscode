@@ -28,7 +28,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getGitHubPullRequestRefs, IChat, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
@@ -345,7 +345,12 @@ export class SessionChatInputToolbar extends Disposable {
 						return;
 					}
 					layoutService.revealEditorPartExplicitly();
-					void sessionChangesService.openChangesEditor(session.resource, { changesetSelection: { kind: 'id', id: undefined } });
+					void sessionChangesService.openChangesEditor(session.resource, {
+						changesetSelection: {
+							kind: 'id',
+							id: SESSION_CHANGES_CHANGESET_ID
+						}
+					});
 				},
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),

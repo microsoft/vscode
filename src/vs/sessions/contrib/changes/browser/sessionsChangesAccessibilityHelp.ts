@@ -38,6 +38,7 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 		content.push(layoutService.isSinglePaneLayoutEnabled
 			? localize('sessionsChanges.diffView.singlePane', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout. The Toggle Preferred Diff View command switches between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>')
 			: localize('sessionsChanges.diffView.classic', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout. The Toggle Preferred Diff View command switches between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
+		content.push(localize('sessionsChanges.editorWordWrap', "Use Word Wrap in the editor title area's More Actions menu to control word wrapping independently for code and multi-diff editors in the Agents window."));
 
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionsChanges,

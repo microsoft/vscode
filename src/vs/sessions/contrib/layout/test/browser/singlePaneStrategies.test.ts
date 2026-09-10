@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -20,6 +21,7 @@ import { SinglePaneDetailPanelCoordinator } from '../../browser/singlePane/singl
 import { SinglePaneDraftSessionStrategy } from '../../browser/singlePane/singlePaneDraftSessionStrategy.js';
 import { SinglePaneExistingSessionStrategy } from '../../browser/singlePane/singlePaneExistingSessionStrategy.js';
 import { ISinglePaneLayoutContext } from '../../browser/singlePane/singlePaneLayoutStrategy.js';
+import { isFileEditorInput } from '../../browser/singlePane/singlePaneSharedHelpers.js';
 import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from '../../browser/singlePane/singlePaneVisibilityProfileStore.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
@@ -101,6 +103,12 @@ suite('SinglePane layout strategies', () => {
 	function createVisibilityStore(): SinglePaneVisibilityProfileStore {
 		return harness.instaService.createInstance(SinglePaneVisibilityProfileStore);
 	}
+
+	test('untitled editors map to Files Details', () => {
+		const editor = store.add(new TestStubEditorInput(URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' })));
+
+		assert.strictEqual(isFileEditorInput(editor), true);
+	});
 
 	function createDraftStrategy(ctx: ISinglePaneLayoutContext, visibilityStore = createVisibilityStore()): SinglePaneDraftSessionStrategy {
 		return store.add(harness.instaService.createInstance(SinglePaneDraftSessionStrategy, ctx, createDetailPanel(), visibilityStore));

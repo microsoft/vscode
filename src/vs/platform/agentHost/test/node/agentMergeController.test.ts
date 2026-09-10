@@ -15,12 +15,15 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, plat
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { URI } from '../../../../base/common/uri.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { SessionStatus, buildDefaultChatUri, MessageKind, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
-import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
+import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
+import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError, parsePullRequestUrl } from '../../node/agentMergeController.js';
@@ -437,7 +440,7 @@ suite('AgentMergeController', () => {
 		});
 	});
 
-	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): {
+	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot): {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
 		readonly session: string;
@@ -464,7 +467,25 @@ suite('AgentMergeController', () => {
 			configurationService,
 			gitStateService,
 			noopGitService,
-			new class extends mock<IGitHubService>() { }(),
+			new class extends mock<IGitHubService>() {
+				override readonly credentials = new class extends mock<IGitHubCredentials>() {
+					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
+						assert.ok(snapshot);
+						return { account: snapshot.ref, token: 'test-token', generation: 1, signal };
+					}
+				}();
+				override readonly pullRequests = new class extends mock<IPullRequestResources>() {
+					override subscribePullRequest(): PullRequestSubscription {
+						assert.ok(snapshot);
+						return {
+							resource: { ref: snapshot.ref, snapshot: constObservable(snapshot) },
+							refresh: async () => { },
+							update: () => { },
+							dispose: () => { },
+						};
+					}
+				}();
+			}(),
 			endpointService,
 			createProviderService(() => configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true
 				? { [SessionConfigKey.Mode]: 'autopilot' }
@@ -481,6 +502,62 @@ suite('AgentMergeController', () => {
 			values: {},
 		});
 		return { stateManager, configurationService, session, notices };
+	}
+
+	for (const state of ['merged', 'closed'] as const) {
+		test(`announces a ${state} pull request when monitoring stops`, async () => {
+			const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
+			const snapshot: PullRequestSnapshot = {
+				ref: { owner: 'octo', repo: 'repo', number: 1, host: 'api.github.com', accountId: 'account' },
+				generation: 1,
+				headGeneration: 1,
+				core: {
+					status: 'ready',
+					complete: true,
+					value: {
+						repositoryNameWithOwner: 'octo/repo',
+						number: 1, title: 'Change', url: pullRequestUrl, state, draft: false,
+						headSha: 'head', headRef: 'feature', baseSha: 'base', baseRef: 'main',
+					},
+				},
+				topLevelComments: { status: 'missing', complete: false },
+				submittedReviews: { status: 'missing', complete: false },
+				inlineComments: { status: 'missing', complete: false },
+				reviewThreads: { status: 'missing', complete: false },
+				checks: { status: 'missing', complete: false },
+				mergeability: { status: 'missing', complete: false },
+				participants: { status: 'missing', complete: false },
+			};
+			const { stateManager, configurationService, session, notices } = createControllerHarness(disposables, snapshot);
+			stateManager.setSessionMeta(session, withSessionGitHubState(
+				withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }),
+				{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
+			));
+			const disabled = new Promise<void>(resolve => {
+				disposables.add(stateManager.onDidChangeSessionConfig(event => {
+					if (event.session.toString() === session && readAgentMergeSessionState(event.current?.values)?.enabled === false) {
+						resolve();
+					}
+				}));
+			});
+			configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+			await disabled;
+
+			assert.deepStrictEqual({
+				notices: notices.slice(1),
+				enabled: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.enabled,
+			}, {
+				notices: [state === 'merged' ? {
+					kind: AgentSystemNotificationKind.AgentMergePullRequestMerged,
+					content: 'Pull request [#1](https://github.com/octo/repo/pull/1) was merged. Agent Merge is now disabled.',
+				} : {
+					kind: AgentSystemNotificationKind.AgentMergeDisabled,
+					content: 'Agent Merge was disabled because its pull request was closed without merging.',
+				}],
+				enabled: false,
+			});
+		});
 	}
 
 	test('announces enablement once it captures a branch, and again on the branch that turned it off', async () => {

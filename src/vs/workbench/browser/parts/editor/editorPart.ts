@@ -243,9 +243,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private _contentRightInset = 0;
 
 	/**
-	 * Reserves an inset (px) on the right of the editor content of the group(s) at the
-	 * right edge of the editor part, while the title stays full width, so a docked panel
-	 * can sit beside the editor content under one full-width tab bar. Only the right-edge
+	 * Reserves an inset (px) on the right of the editor header and content of the group(s)
+	 * at the right edge of the editor part, while tabs stay full width, so a docked panel
+	 * can sit beside the editor under one full-width tab bar. Only the right-edge
 	 * groups (no neighbor to the right) are inset; interior groups in a split layout keep
 	 * full-width content. Recomputed when the group topology changes. `0` (default)
 	 * restores full-width content for all groups.

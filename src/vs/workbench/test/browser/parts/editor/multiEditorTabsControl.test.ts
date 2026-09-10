@@ -86,7 +86,7 @@ suite('MultiEditorTabsControl', () => {
 		container = $('.title.tabs');
 		mainWindow.document.body.appendChild(container);
 
-		const control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, undefined, false));
+		const control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
 		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 	});
 

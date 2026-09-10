@@ -328,6 +328,8 @@ function Start-Code([string]$codeBat, [string[]]$arguments, [string]$logFile) {
 	# Core only, and `powershell.exe` is still the built-in Windows shell.
 	[void]($processInfo.EnvironmentVariables['VSCODE_SKIP_PRELAUNCH'] = '1')
 	[void]$processInfo.EnvironmentVariables.Remove('ELECTRON_RUN_AS_NODE')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_COUNT')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_PARAMETERS')
 
 	$process = [Diagnostics.Process]::new()
 	$process.StartInfo = $processInfo

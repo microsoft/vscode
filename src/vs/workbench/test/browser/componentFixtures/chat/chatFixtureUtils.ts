@@ -310,7 +310,15 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly hasByokModels = false;
 	}());
 	reg.defineInstance(IChatModeService, new MockChatModeService());
-	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override onDidChangeModelVisibility = Event.None; override getLanguageModelIds() { return []; } override getVendors() { return []; } override hasResolvedVendor() { return false; } }());
+	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
+		override onDidChangeLanguageModels = Event.None;
+		override onDidChangeModelVisibility = Event.None;
+		override getLanguageModelIds() { return []; }
+		override getVendors() { return []; }
+		override hasResolvedVendor() { return false; }
+		override getModelConfiguration() { return undefined; }
+		override getModelConfigurationActions() { return []; }
+	}());
 	reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { override onDidChangeTools = Event.None; override onDidPrepareToolCallBecomeUnresponsive = Event.None; override getTools() { return []; } }());
 	reg.defineInstance(IChatToolRiskAssessmentService, new class extends mock<IChatToolRiskAssessmentService>() {
 		override isEnabled() { return false; }

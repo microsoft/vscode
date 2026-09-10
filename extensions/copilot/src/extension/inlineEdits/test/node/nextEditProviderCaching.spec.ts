@@ -73,10 +73,11 @@ describe('NextEditProvider Caching', () => {
 	let disposableStore: DisposableStore;
 	let workspaceService: IWorkspaceService;
 	let requestLogger: IRequestLogger;
-	beforeAll(() => {
+	beforeAll(async () => {
 		disposableStore = new DisposableStore();
 		workspaceService = disposableStore.add(new TestWorkspaceService());
-		configService = new DefaultsOnlyConfigurationService();
+		configService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
+		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
 		snippyService = new NullSnippyService();
 		gitExtensionService = new NullGitExtensionService();
 		logService = new LogServiceImpl([]);
@@ -151,7 +152,7 @@ describe('NextEditProvider Caching', () => {
 
 		doc.applyEdit(StringEdit.insert(11, '3D'));
 
-		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200, enforceCacheDelay: false };
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200 };
 		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
 		const cancellationToken = CancellationToken.None;
 		const tb1 = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
@@ -261,7 +262,7 @@ describe('NextEditProvider Caching', () => {
 		// Insert "3D" after "Point" at offset 11 (same offset, within first line before any line ending)
 		doc.applyEdit(StringEdit.insert(11, '3D'));
 
-		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200, enforceCacheDelay: false };
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200 };
 		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
 		const cancellationToken = CancellationToken.None;
 		const tb1 = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
@@ -336,7 +337,7 @@ describe('NextEditProvider Caching', () => {
 
 		doc.applyEdit(StringEdit.insert(11, '3D'));
 
-		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200, enforceCacheDelay: false };
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200 };
 		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
 		const cancellationToken = CancellationToken.None;
 
@@ -393,7 +394,7 @@ describe('NextEditProvider Caching', () => {
 		doc.setSelection([new OffsetRange(1, 1)], undefined);
 		doc.applyEdit(StringEdit.insert(11, '3D'));
 
-		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200, enforceCacheDelay: false };
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200 };
 		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
 		const cancellationToken = CancellationToken.None;
 
@@ -464,7 +465,7 @@ describe('NextEditProvider Caching', () => {
 		doc.setSelection([new OffsetRange(0, 0)], undefined);
 		doc.applyEdit(StringEdit.insert(15, '\n'));
 
-		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now(), enforceCacheDelay: false };
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() };
 		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
 
 		const firstBuilder = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
@@ -558,9 +559,9 @@ describe('NextEditProvider Caching', () => {
 		const docAId = DocumentId.create(URI.file('/test/a.ts').toString());
 		const docBId = DocumentId.create(URI.file('/test/b.ts').toString());
 
-		// By default the shared (defaults-only) config keeps the cross-document cache purge on.
+		// By default the shared config keeps the cross-document cache purge on.
 		// Opt into the purge-disabled config to isolate the read-path staleness guard.
-		const scenarioConfigService = options?.disableEditorChangeTrigger ? new PurgeDisabledConfigurationService(new DefaultsOnlyConfigurationService()) : configService;
+		const scenarioConfigService = options?.disableEditorChangeTrigger ? new PurgeDisabledConfigurationService(configService) : configService;
 
 		// Suggestion (for the non-active document B) replacing its `return 1;` line.
 		const targetEdit = new LineReplacement(new LineRange(2, 3), ['\treturn 42;']);
@@ -583,7 +584,7 @@ describe('NextEditProvider Caching', () => {
 		// Edit document A so it is the active document and has history ("Point" -> "Point3D").
 		docA.applyEdit(StringEdit.insert(11, '3D'));
 
-		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200, enforceCacheDelay: false };
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200 };
 		const logContext = new InlineEditRequestLogContext(docA.id.toString(), 1, context);
 		const cancellationToken = CancellationToken.None;
 

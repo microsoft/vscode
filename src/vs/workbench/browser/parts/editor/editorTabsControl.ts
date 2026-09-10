@@ -152,6 +152,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		protected readonly tabsModel: IReadonlyEditorGroupModel,
 		protected readonly menuIds: IEditorGroupMenuIds | undefined,
 		protected readonly breadcrumbsInHeader: boolean,
+		protected readonly useModernUITabs: boolean,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -625,8 +626,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// In modern multi-tab mode the tabs-and-actions-container gains extra
 		// padding (tabs.css), so the total height differs from the base values.
 		// The `.tabs` class is present only when showTabs === 'multiple'; single-tab
-		// and no-tab modes are not affected by those CSS overrides.
-		if (this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs')) {
+		// hosts using modern UI tabs opt into the same aligned height.
+		const usesModernMultiTabHeight = this.parent.classList.contains('tabs') && this.parent.closest('.modern-ui-tabs');
+		if (usesModernMultiTabHeight || this.useModernUITabs) {
 			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.modernUICompact : EditorTabsControl.EDITOR_TAB_HEIGHT.modernUI;
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;

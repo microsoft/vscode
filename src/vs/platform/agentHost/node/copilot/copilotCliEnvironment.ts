@@ -33,9 +33,5 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env[AiAgentEnvVar] = AiAgentEnvValue;
 	env['AUTO_APPROVAL'] = 'true';
 	env['ANTHROPIC_ADVISOR'] = String(claudeAdvisorEnabled);
-	// Resolve Auto mode through the CLI's single-call `POST /auto` endpoint. The
-	// runtime gates this on an ExP flag whose local override is the flag name
-	// itself, so VS Code opts its whole population in rather than splitting it.
-	env['AUTO_V2_ENDPOINT'] = 'true';
 	return env;
 }

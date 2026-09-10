@@ -412,6 +412,12 @@ suite('CustomizationMigrationService', () => {
 			hint: {
 				message: 'Found 2 workspace and 3 user customizations that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
+				counts: [
+					{ type: CustomizationMigrationType.UserData, count: 1 },
+					{ type: CustomizationMigrationType.PromptFiles, count: 2 },
+					{ type: CustomizationMigrationType.ConfiguredLocations, count: 2 },
+					{ type: CustomizationMigrationType.McpServers, count: 1 },
+				],
 			},
 			localHint: undefined,
 			requestedTypes: [
@@ -448,6 +454,7 @@ suite('CustomizationMigrationService', () => {
 		assert.deepStrictEqual(hint, {
 			message: 'Found 1 workspace customization file that is present but not used by Claude and could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
 	});
 
@@ -473,6 +480,10 @@ suite('CustomizationMigrationService', () => {
 		assert.deepStrictEqual(hint, {
 			message: 'Found 2 workspace and 2 user customizations that are present but not used by Claude and could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
+			counts: [
+				{ type: CustomizationMigrationType.UserData, count: 1 },
+				{ type: CustomizationMigrationType.PromptFiles, count: 3 },
+			],
 		});
 	});
 
@@ -524,6 +535,7 @@ suite('CustomizationMigrationService', () => {
 		assert.deepStrictEqual(hint, {
 			message: 'Found 2 MCP servers that are not fully supported by Copilot.',
 			target: CustomizationMigrationHintTarget.McpServers,
+			counts: [{ type: CustomizationMigrationType.McpServers, count: 2 }],
 		});
 	});
 
@@ -801,6 +813,7 @@ suite('CustomizationMigrationService', () => {
 			hint: {
 				message: 'Found 1 MCP server that is not fully supported by Copilot.',
 				target: CustomizationMigrationHintTarget.McpServers,
+				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
 			},
 			fileReads: [],
 		});
@@ -864,6 +877,7 @@ suite('CustomizationMigrationService', () => {
 			promptOnlyHint: {
 				message: 'Found 1 workspace customization file that is present but not used by Copilot and could be migrated.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
+				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 			},
 			promptOnlyRequestedTypes: [PromptsType.prompt],
 			promptOnlySourceFolderTypes: [PromptsType.skill],
@@ -941,6 +955,7 @@ suite('CustomizationMigrationService', () => {
 			hint: {
 				message: 'Found 1 workspace MCP server that can be migrated for Copilot.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
+				counts: [{ type: CustomizationMigrationType.McpServers, count: 1 }],
 			},
 			result: { migratedCount: 0, failures: ['noLongerEligible'] },
 			changedDuringWriteResult: { migratedCount: 0, failures: ['noLongerEligible'] },

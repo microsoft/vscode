@@ -124,65 +124,6 @@
 	}
 }
 
-/* Diff-stats item (rich "N files +X -Y" rendering) styling, keyed off the item's
- * own marker class so it applies in both the classic internal changes-editor
- * header and the single-pane editor-group header (where it renders inside
- * `.editor-group-header-primary-actions`). It remains fully interactive/clickable, so no
- * hover-background override is needed here -- it keeps the normal toolbar hover. */
-.changes-diff-stats-action-rich {
-	flex: 1 0 auto;
-	min-width: 0;
-}
-
-.changes-diff-stats-action-rich .action-label {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	max-width: 100%;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: var(--vscode-fontSize-label1);
-	padding: 3px;
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-/* Reset the picker-chevron overrides so the diff-stats icon/labels lay out via `gap`. */
-.changes-diff-stats-action-rich .action-label > span {
-	margin-left: 0;
-	min-width: 0;
-}
-
-.changes-diff-stats-action-rich .action-label > .codicon {
-	font-size: var(--vscode-codiconFontSize-compact) !important;
-	padding-left: 0;
-	width: auto;
-	height: auto;
-	flex-shrink: 0;
-}
-
-.changes-diff-stats-action-rich .changes-diff-stats-files {
-	flex: 1 1 auto;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.changes-diff-stats-action-rich .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
-	flex-shrink: 0;
-}
-
-.changes-diff-stats-action-rich .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
-	flex-shrink: 0;
-}
-
-/* Branch Changes picker (label + chevron) styling, keyed off the item's own
- * marker class so its chevron stays compact and vertically centered in both the
- * classic internal changes-editor header and the single-pane editor-group header. */
 .changes-picker-action-rich {
 	flex: 0 1 auto;
 	min-width: 0;
@@ -204,12 +145,53 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.changes-picker-action-rich .action-label > span:not(.codicon) {
+.changes-picker-action-with-summary .action-label {
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	background-color: var(--vscode-commandCenter-background);
+	color: var(--vscode-commandCenter-foreground);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.changes-picker-action-with-summary .action-label > .codicon {
+	color: var(--vscode-commandCenter-foreground);
+}
+
+:is(.hc-black, .hc-light) .changes-picker-action-with-summary .action-label {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+}
+
+.changes-picker-action-with-summary .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.changes-picker-action-rich .changes-picker-label {
 	flex: 1 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.changes-picker-action-rich .changes-picker-summary {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex: 0 0 auto;
+}
+
+.changes-picker-action-rich .changes-picker-separator {
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+.changes-picker-action-rich .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.changes-picker-action-rich .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 .changes-picker-action-rich .action-label > .codicon {

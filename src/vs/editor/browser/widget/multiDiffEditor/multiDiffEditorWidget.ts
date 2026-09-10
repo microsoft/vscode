@@ -109,16 +109,24 @@ export class MultiDiffEditorWidget extends Disposable {
 	 * unless explicitly enabled.
 	 */
 	public setRenderSideBySide(renderSideBySide: boolean, options?: { readonly useInlineViewWhenSpaceIsLimited?: boolean }): void {
-		this._diffLayoutOptions.set({
+		this._updateDiffLayoutOptions({
 			renderSideBySide,
 			useInlineViewWhenSpaceIsLimited: options?.useInlineViewWhenSpaceIsLimited ?? false,
-		}, undefined);
+		});
 	}
 
 	public setViewMode(mode: DiffEditorViewMode): void {
+		this.setDiffLayoutOptions(mode);
+	}
+
+	public setDiffLayoutOptions(mode: DiffEditorViewMode, diffWordWrap?: 'off' | 'on' | 'inherit'): void {
 		const currentOptions = this._diffLayoutOptions.get();
 		const wasAutomatic = currentOptions?.renderSideBySide === true && currentOptions.useInlineViewWhenSpaceIsLimited === true;
-		this.setRenderSideBySide(mode !== 'inline', { useInlineViewWhenSpaceIsLimited: mode === 'automatic' });
+		this._updateDiffLayoutOptions({
+			renderSideBySide: mode !== 'inline',
+			useInlineViewWhenSpaceIsLimited: mode === 'automatic',
+			...(diffWordWrap ? { diffWordWrap } : {}),
+		});
 		if (mode === 'automatic' && !wasAutomatic) {
 			this.resetWidthBasedLayout();
 		}
@@ -126,6 +134,25 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public toggleRenderSideBySide(): void {
 		this.setRenderSideBySide(!(this._diffLayoutOptions.get()?.renderSideBySide ?? true));
+	}
+
+	public setDiffWordWrap(diffWordWrap: 'off' | 'on' | 'inherit'): void {
+		this._updateDiffLayoutOptions({
+			diffWordWrap,
+		});
+	}
+
+	private _updateDiffLayoutOptions(options: IDiffEditorOptions): void {
+		const currentOptions = this._diffLayoutOptions.get();
+		const updatedOptions = { ...currentOptions, ...options };
+		if (
+			currentOptions?.renderSideBySide === updatedOptions.renderSideBySide
+			&& currentOptions?.useInlineViewWhenSpaceIsLimited === updatedOptions.useInlineViewWhenSpaceIsLimited
+			&& currentOptions?.diffWordWrap === updatedOptions.diffWordWrap
+		) {
+			return;
+		}
+		this._diffLayoutOptions.set(updatedOptions, undefined);
 	}
 
 	/** Reserves empty space below the last diff entry. */

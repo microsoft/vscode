@@ -785,6 +785,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/extensions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/onboardingTours",
 			"project": "vscode-sessions"
 		}

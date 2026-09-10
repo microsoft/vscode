@@ -3,4 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const OPEN_CUSTOMIZATIONS_COMMAND_ID = 'sessions.customization.overview';
+export const learnMoreCommandId = 'github.copilot.debug.inlineEdit.learnMore';
+export const learnMoreLink = 'https://aka.ms/vscode-nes';

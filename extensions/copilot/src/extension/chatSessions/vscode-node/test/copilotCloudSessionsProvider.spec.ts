@@ -12,7 +12,7 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { formatNewSessionContextReference, getCloudSessionItemMetadata, getCloudSessionResources, getRepositoryQuickPickItems, normalizeInitialSessionOptions, parseGitHubContextUrl, resolveGitHubContextRepository, resolveOrPickGitHubContextRepository, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -42,6 +42,33 @@ class TestGitService extends mock<IGitService>() {
 }
 
 describe('copilotCloudSessionsProvider helpers', () => {
+	it('lists GitHub repositories directly and optionally accepts a pasted clone URL', () => {
+		const repositories = [
+			{ id: 'microsoft/vscode', name: 'microsoft/vscode' },
+			{ id: 'microsoft/vscode-docs', name: 'microsoft/vscode-docs' },
+		];
+
+		expect({
+			search: getRepositoryQuickPickItems(repositories, 'vscode', true),
+			url: getRepositoryQuickPickItems(repositories, 'https://gitlab.com/example/project.git', true),
+			cloud: getRepositoryQuickPickItems(repositories, 'https://gitlab.com/example/project.git', false),
+		}).toEqual({
+			search: [
+				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
+				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
+			],
+			url: [
+				{ label: 'Clone from URL', description: 'https://gitlab.com/example/project.git', cloneUrl: 'https://gitlab.com/example/project.git' },
+				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
+				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
+			],
+			cloud: [
+				{ label: 'microsoft/vscode', repository: 'microsoft/vscode' },
+				{ label: 'microsoft/vscode-docs', repository: 'microsoft/vscode-docs' },
+			],
+		});
+	});
+
 	it('formats every redesigned new-session context pill for the cloud request', () => {
 		const references = [
 			{ id: 'github-context:https://github.com/microsoft/vscode/issues/332805', name: 'Issue', value: 'GitHub context' },

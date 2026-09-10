@@ -71,7 +71,9 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 	protected setAriaLabelAttributes(element: HTMLElement): void {
 		element.setAttribute('role', 'button');
 		element.setAttribute('aria-haspopup', 'true');
-		element.setAttribute('aria-expanded', 'false');
+		if (!element.hasAttribute('aria-expanded')) {
+			element.setAttribute('aria-expanded', 'false');
+		}
 		element.ariaLabel = (this.getTooltip() + ' - ' + (element.textContent || this._action.label)) || '';
 	}
 

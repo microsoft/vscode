@@ -6,7 +6,7 @@
 import { URI } from '../../../base/common/uri.js';
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { ISessionGitHubState } from './state/sessionState.js';
+import { ISessionGitHubState, SessionSummaryMeta } from './state/sessionState.js';
 
 export const META_GIT_STATE = 'agentHost.git';
 export const META_GITHUB_STATE = 'agentHost.github';
@@ -37,6 +37,9 @@ export interface IAgentHostGitStateService {
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */
 	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void>;
+
+	/** Merges the branch identity known when an isolated worktree materializes into session metadata. */
+	getMaterializedWorktreeMeta(sessionKey: string, branchName: string): SessionSummaryMeta | undefined;
 
 	/** Resolves the canonical base branch selected for a session. */
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;

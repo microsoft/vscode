@@ -1289,18 +1289,28 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			'!node -e "const fs=require(\'fs\');fs.writeFileSync(\'seed.txt\',\'edited\');fs.writeFileSync(\'added.txt\',\'added\')"',
 			1,
 		);
-		await waitForChangesetFiles(branchUri, ['seed.txt', 'added.txt']);
+		const branchFiles = await waitForChangesetFiles(branchUri, ['seed.txt', 'added.txt']);
+		// Bang commands bypass the provider, so their working-tree edits do not create session checkpoints.
+		const sessionChangeset = await changesetState(buildSessionChangesetUri(sessionUri));
 
 		const changes = await retry(async () => {
 			const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 			const summary = result.items.find(item => item.resource === sessionUri)?.changes;
-			if (!summary || summary.files !== 2) {
+			if (!summary || summary.files !== sessionChangeset.files.length) {
 				throw new Error('Session list has not received the changes summary');
 			}
 			return summary;
 		}, 100, 100);
 
-		assert.deepStrictEqual(changes, { additions: 2, deletions: 1, files: 2 });
+		assert.deepStrictEqual({
+			branchFiles: branchFiles.length,
+			sessionFiles: sessionChangeset.files.length,
+			changes,
+		}, {
+			branchFiles: 2,
+			sessionFiles: 0,
+			changes: { additions: 0, deletions: 0, files: 0 },
+		});
 	});
 
 	conformanceTest(context, 'invoking an unknown changeset operation is rejected', async function () {
@@ -1529,6 +1539,16 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				'default-provider.txt',
 				'peer-provider.txt',
 			]);
+
+			const expectedChanges = {
+				additions: files.reduce((total, file) => total + (file?.edit.diff?.added ?? 0), 0),
+				deletions: files.reduce((total, file) => total + (file?.edit.diff?.removed ?? 0), 0),
+				files: files.length,
+			};
+			await retry(async () => {
+				const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+				assert.deepStrictEqual(result.items.find(item => item.resource === sessionUri)?.changes, expectedChanges);
+			}, 100, 100);
 		});
 	}
 }
