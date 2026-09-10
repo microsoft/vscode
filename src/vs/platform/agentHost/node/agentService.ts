@@ -822,6 +822,7 @@ export class AgentService extends Disposable implements IAgentService {
 			{
 				...options.catalogReconciliationOptions,
 				canSchedule: () => this._startupSettled.isOpen(),
+				isSourceAvailable: registered => !!this._providerService.getProvider(registered.provider),
 			},
 		));
 		this._runWhenStartupSettled('catalog reconciliation', () => this._catalogReconciliationService.schedule());

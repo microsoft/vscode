@@ -70,6 +70,8 @@ export interface IAgentHostCatalogReconciliationOptions {
 	readonly now?: () => number;
 	/** Automatic maintenance may run only after the owner's startup work settles. */
 	readonly canSchedule?: () => boolean;
+	/** Cheap pre-check so a session whose source cannot resolve never opens local storage. */
+	readonly isSourceAvailable?: (registered: IRegisteredSession) => boolean;
 }
 
 export class AgentHostCatalogReconciliationService extends Disposable {
@@ -84,6 +86,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private readonly _schedule: (callback: () => void, delay: number) => IDisposable;
 	private readonly _now: () => number;
 	private readonly _canSchedule: () => boolean;
+	private readonly _isSourceAvailable: (registered: IRegisteredSession) => boolean;
 	private readonly _scheduledPass = this._register(new MutableDisposable<IDisposable>());
 	private _scheduledPassKind: ScheduledPassKind | undefined;
 	private _payloadDirtyMark: Promise<void> | undefined;
@@ -113,6 +116,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		this._schedule = options.schedule ?? ((callback, delay) => disposableTimeout(callback, delay));
 		this._now = options.now ?? Date.now;
 		this._canSchedule = options.canSchedule ?? (() => true);
+		this._isSourceAvailable = options.isSourceAvailable ?? (() => true);
 		this._initialPayloadDirtyMarkPending = this._storageService.get<number>(VERIFICATION_VERSION_STORAGE_KEY) !== CATALOG_VERIFICATION_VERSION;
 		const lastVerification = this._storageService.get<number>(LAST_VERIFICATION_STORAGE_KEY);
 		this._lastCompatibilityVerification = typeof lastVerification === 'number' && Number.isFinite(lastVerification) && lastVerification <= this._now() ? lastVerification : 0;
@@ -294,6 +298,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			}
 			if (await this._catalogDatabase.isSessionTombstoned(sessionKey)) {
 				return { session: sessionKey, status: 'retry', reason: 'tombstoned' };
+			}
+			// A source that cannot resolve produces no payload, so it must not claim local storage first.
+			if (!this._isSourceAvailable(registered)) {
+				return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
 			}
 			const observedDirty = receipt?.payloadDirty ?? await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey);
 
