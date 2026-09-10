@@ -894,7 +894,6 @@ suite('Sessions - Chat View', () => {
 	test('keeps background-image composer controls on complete opaque surfaces', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
-		workbench.style.setProperty('--vscode-chat-list-background', '#ffffff');
 		workbench.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0.08)');
 		workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#202020');
@@ -903,6 +902,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
 		const chatView = dom.append(part, dom.$('.chat-view'));
+		chatView.style.setProperty('--vscode-chat-list-background', '#ffffff');
 		const newChatWidget = dom.append(chatView, dom.$('.sessions-chat-widget'));
 		const newChatContent = dom.append(newChatWidget, dom.$('.new-chat-widget-content'));
 		const newChatContainer = dom.append(newChatWidget, dom.$('.new-chat-widget-container'));
