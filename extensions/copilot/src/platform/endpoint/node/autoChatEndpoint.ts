@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from 'vscode';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { IChatMLFetcher } from '../../chat/common/chatMLFetcher';
+import { ChatFetchResponseType } from '../../chat/common/commonTypes';
 import { IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
-import { IChatEndpoint } from '../../networking/common/networking';
+import { IChatEndpoint, IMakeChatRequestOptions } from '../../networking/common/networking';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
@@ -33,6 +35,7 @@ export class AutoChatEndpoint extends CopilotChatEndpoint {
 		_sessionToken: string,
 		_discountPercent: number,
 		public readonly discountRange: { low: number; high: number },
+		private readonly _onModelRejected: (() => void) | undefined,
 		@IDomainService _domainService: IDomainService,
 		@ICAPIClientService _capiClientService: ICAPIClientService,
 		@IFetcherService _fetcherService: IFetcherService,
@@ -63,6 +66,14 @@ export class AutoChatEndpoint extends CopilotChatEndpoint {
 			_chatWebSocketService,
 			_logService
 		);
+	}
+
+	override async makeChatRequest2(options: IMakeChatRequestOptions, token: CancellationToken) {
+		const response = await super.makeChatRequest2(options, token);
+		if (response.type === ChatFetchResponseType.BadRequest || response.type === ChatFetchResponseType.NotFound || response.type === ChatFetchResponseType.RateLimited) {
+			this._onModelRejected?.();
+		}
+		return response;
 	}
 }
 
