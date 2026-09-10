@@ -208,8 +208,7 @@ suite('WorkbenchButtonBar', () => {
 		const inlineStyle = getWindow(button).getComputedStyle(inlineIcon);
 		assert.strictEqual(buttonStyle.columnGap, 'normal');
 		assert.strictEqual(leadingStyle.marginInlineEnd, '6px');
-		// Sub-pixel font-metric rounding can differ by a fraction of a pixel across
-		// rendering engines, so compare the inline icon's symmetric margin numerically.
+		// Font-metric rounding requires a numeric symmetry comparison across rendering engines.
 		assert.ok(
 			Math.abs(parseFloat(inlineStyle.marginInlineEnd) - parseFloat(inlineStyle.marginInlineStart)) < 0.1,
 			`expected symmetric inline margins, got start=${inlineStyle.marginInlineStart} end=${inlineStyle.marginInlineEnd}`
