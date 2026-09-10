@@ -549,6 +549,11 @@ export interface IPasteEvent {
 	readonly range: Range;
 	readonly languageId: string | null;
 	readonly clipboardEvent?: ClipboardEvent;
+	/**
+	 * The selection the pasted text replaced. Empty when pasting at a cursor.
+	 * @internal
+	 */
+	readonly replacedSelection?: Selection;
 }
 
 /**
