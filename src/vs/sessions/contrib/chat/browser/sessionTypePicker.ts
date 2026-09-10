@@ -598,7 +598,7 @@ export class SessionTypePicker extends Disposable {
 				const modelResolution = this._comparisonMode && selectedModelId && workspaceUri
 					? this.sessionsProvidersService.getProvider(providerId)?.getModelsSnapshotForCreation?.(workspaceUri, sessionType.id, selectedModelId).desiredModelResolution
 					: undefined;
-				const modelUnavailable = modelResolution?.kind === 'unavailable' || modelResolution?.kind === 'pending';
+				const modelUnavailable = !!selectedModelId && modelResolution?.kind !== 'available';
 				const item: ISessionTypePickerItem = {
 					providerId,
 					sessionTypeId: sessionType.id,

@@ -17,6 +17,7 @@ Session comparisons run the same task through multiple Sessions providers and pr
 | Structured recommendation | visible Judge child session and `completeAttemptComparison` tool |
 
 Comparison records are persisted in profile storage. Session and chat resources remain provider-owned identities; the comparison record does not duplicate provider session state.
+Providers persist comparison child-session provenance with committed session identity so the parent-child hierarchy survives provider and window reloads.
 
 ## Participant hierarchy
 

@@ -21,8 +21,12 @@ import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Dimension } from '../../../../base/browser/dom.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { SessionComparisonEditorFocusedContext } from '../../../common/contextkeys.js';
+import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonFileKey, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, SessionComparisonParticipantRole, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { SessionComparisonEditorInput } from './sessionComparisonEditorInput.js';
@@ -45,6 +49,8 @@ export class SessionComparisonEditor extends EditorPane {
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 	) {
 		super(SessionComparisonEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -53,7 +59,12 @@ export class SessionComparisonEditor extends EditorPane {
 		this._container = dom.append(parent, dom.$('.session-comparison-editor'));
 		this._container.tabIndex = 0;
 		this._container.role = 'region';
-		this._container.ariaLabel = localize('sessionComparisonEditor.ariaLabel', "Implementation attempt comparison");
+		const accessibilityHint = this.accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.SessionComparison);
+		this._container.ariaLabel = accessibilityHint
+			? localize('sessionComparisonEditor.ariaLabelWithHint', "Implementation attempt comparison. {0}", accessibilityHint)
+			: localize('sessionComparisonEditor.ariaLabel', "Implementation attempt comparison");
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this._container));
+		SessionComparisonEditorFocusedContext.bindTo(scopedContextKeyService).set(true);
 	}
 
 	override async setInput(input: SessionComparisonEditorInput, options: object | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -190,7 +201,7 @@ export class SessionComparisonEditor extends EditorPane {
 			const session = attempt.sessionResource ? this.sessionsManagementService.getSession(attempt.sessionResource) : undefined;
 			filesByAttempt.set(attempt.id, new Set((session?.changes.get() ?? []).map(change => {
 				const resource = isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
-				return resource.path;
+				return getSessionComparisonFileKey(resource, session?.workspace.get()?.folders ?? []);
 			})));
 		}
 		const counts = new Map<string, number>();

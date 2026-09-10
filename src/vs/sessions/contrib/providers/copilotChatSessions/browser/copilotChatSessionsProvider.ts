@@ -78,6 +78,13 @@ const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
 
 /** Remembers the cloud sandbox choice across new sessions, like the isolation picker above. */
 const STORAGE_KEY_USE_SANDBOX = 'sessions.cloudSandboxPicker.useSandbox';
+const STORAGE_KEY_CREATED_BY_SESSIONS = 'sessions.copilotChat.createdBySessions';
+
+interface IStoredSessionCreationReference {
+	readonly session: string;
+	readonly chat?: string;
+	readonly turnId?: string;
+}
 
 function getGitHubRepositoryId(repository: string): string | undefined {
 	const match = /^(?:(?:https?|ssh|git):\/\/(?:git@)?github\.com\/|git@github\.com:)?(?<owner>[^/:\s]+)\/(?<repo>[^/\s]+?)(?:\.git)?\/?$/i.exec(repository);
@@ -1568,10 +1575,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
+		this._loadCreatedBySessions();
 
 		this._register(runOnChange(this.agentHostEnablementService.enabled, () => {
 			this._onDidChangeSessionTypes.fire();
@@ -1681,15 +1690,62 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _newSessions = this._register(new DisposableMap<string, NewSession>());
 	private readonly _createdBySessions = new Map<string, ISettableObservable<ISessionCreationReference | undefined>>();
+	private readonly _storedCreatedBySessions = new Map<string, ISessionCreationReference>();
 
 	private _createdBySession(resource: URI): ISettableObservable<ISessionCreationReference | undefined> {
 		const key = resource.toString();
 		let createdBySession = this._createdBySessions.get(key);
 		if (!createdBySession) {
-			createdBySession = observableValue(this, undefined);
+			createdBySession = observableValue(this, this._storedCreatedBySessions.get(key));
 			this._createdBySessions.set(key, createdBySession);
 		}
 		return createdBySession;
+	}
+
+	private _setCreatedBySession(resource: URI, reference: ISessionCreationReference): void {
+		const key = resource.toString();
+		this._createdBySession(resource).set(reference, undefined);
+		this._storedCreatedBySessions.set(key, reference);
+		this._saveCreatedBySessions();
+	}
+
+	private _deleteCreatedBySession(resource: URI): void {
+		const key = resource.toString();
+		this._createdBySessions.delete(key);
+		if (this._storedCreatedBySessions.delete(key)) {
+			this._saveCreatedBySessions();
+		}
+	}
+
+	private _loadCreatedBySessions(): void {
+		const raw = this.storageService.get(STORAGE_KEY_CREATED_BY_SESSIONS, StorageScope.PROFILE);
+		if (!raw) {
+			return;
+		}
+		try {
+			const stored = JSON.parse(raw) as Record<string, IStoredSessionCreationReference>;
+			for (const [resource, reference] of Object.entries(stored)) {
+				this._storedCreatedBySessions.set(resource, {
+					session: URI.parse(reference.session),
+					chat: reference.chat ? URI.parse(reference.chat) : undefined,
+					turnId: reference.turnId,
+				});
+			}
+		} catch (error) {
+			this.logService.error('[CopilotChatSessionsProvider] Failed to restore session creation references.', error);
+		}
+	}
+
+	private _saveCreatedBySessions(): void {
+		const stored: Record<string, IStoredSessionCreationReference> = {};
+		for (const [resource, reference] of this._storedCreatedBySessions) {
+			stored[resource] = {
+				session: reference.session.toString(),
+				chat: reference.chat?.toString(),
+				turnId: reference.turnId,
+			};
+		}
+		this.storageService.store(STORAGE_KEY_CREATED_BY_SESSIONS, JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	/**
@@ -2213,13 +2269,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return;
 		}
 
-		const createdByKeys = [...allChatIds].flatMap(chatId => {
+		const createdByResources = [...allChatIds].flatMap(chatId => {
 			const chat = this._findChatSession(chatId);
-			return chat ? [chat.resource.toString()] : [];
+			return chat ? [chat.resource] : [];
 		});
 		await this._deleteAgentSessions(agentSessions);
-		for (const key of createdByKeys) {
-			this._createdBySessions.delete(key);
+		for (const resource of createdByResources) {
+			this._deleteCreatedBySession(resource);
 		}
 		this._sessionGroupCache.delete(sessionId);
 		this._refreshSessionCache();
@@ -2699,7 +2755,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				try {
 					const createdBySession = session.createdBySession.get();
 					if (createdBySession) {
-						this._createdBySession(committedResource).set(createdBySession, undefined);
+						this._setCreatedBySession(committedResource, createdBySession);
 					}
 					// Wait for _refreshSessionCache to populate the committed adapter
 					const committedChat = await this._waitForSessionInCache(committedResource, cts.token);
@@ -3328,7 +3384,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const key = chatSession.resource.toString();
 		this._sessionCache.delete(key);
-		this._createdBySessions.delete(key);
+		this._deleteCreatedBySession(chatSession.resource);
 		this._invalidateGroupingCaches();
 		this._sessionGroupCache.delete(chatSession.sessionId);
 		if (this._newSessions.has(chatSession.sessionId)) {
@@ -3421,9 +3477,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					removed: removedData.map(d => this._chatToSession(d)),
 					changed: changedData.map(d => this._chatToSession(d)),
 				});
-			}
-			for (const removed of removedData) {
-				this._createdBySessions.delete(removed.resource.toString());
 			}
 		}
 

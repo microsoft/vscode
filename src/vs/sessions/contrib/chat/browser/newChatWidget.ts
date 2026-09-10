@@ -986,6 +986,8 @@ export class NewChatWidget extends Disposable {
 				this._workspacePicker.showPicker();
 				return false;
 			}
+			const permissionLevel = session.permissionLevel?.get();
+			const branch = session.branch?.get();
 			const availableTypes = this.sessionsManagementService.getSessionTypesForFolder(workspace);
 			const modelId = this._newChatInput.selectedModelState.get().currentModel?.identifier;
 			const harnesses = this._comparisonPicks.get().flatMap(pick => {
@@ -1016,6 +1018,8 @@ export class NewChatWidget extends Disposable {
 					prompt: request,
 					attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
 					harnesses,
+					permissionLevel,
+					branch,
 				});
 				const coordinator = comparison.participants.find(participant =>
 					participant.role === SessionComparisonParticipantRole.Coordinator)?.sessionResource;
@@ -1026,6 +1030,7 @@ export class NewChatWidget extends Disposable {
 				return true;
 			} catch (error) {
 				this.logService.error('Failed to start session comparison:', error);
+				this.notificationService.error(error);
 				return false;
 			}
 		}
