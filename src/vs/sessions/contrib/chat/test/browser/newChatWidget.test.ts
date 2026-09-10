@@ -109,6 +109,18 @@ const applyPreferredDevContainer = Reflect.get(NewChatWidget.prototype, '_applyP
 	session: ISession | undefined,
 	folderUri: URI,
 ) => void;
+const syncWorkspacePickerDevContainerMode = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerDevContainerMode') as (
+	this: {
+		readonly sessionsProvidersService: {
+			getProvider(providerId: string): { readonly id: string; isDevContainerEnabled?(sessionId: string): boolean } | undefined;
+		};
+		readonly _workspacePicker: {
+			setSelectedWorkspace(folderUri: URI, options: { fireEvent: boolean; providerId: string; persist: boolean; preferDevContainer: boolean }): void;
+		};
+	},
+	activeSession: IActiveSession,
+	persist: boolean,
+) => URI | undefined;
 const scheduleRecreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_scheduleRecreateOnProviderChange') as INewChatWidgetHarness['_scheduleRecreateOnProviderChange'];
 const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as (
 	this: IRecreateHarness,
@@ -560,6 +572,46 @@ suite('NewChatWidget', () => {
 			pendingAfterOtherFolder: folder.toString(),
 			pendingAfterMatch: undefined,
 		});
+	});
+
+	test('resynchronizes the workspace picker when the active draft Dev Container mode changes', () => {
+		const folder = URI.file('/project');
+		let enabled = true;
+		const selections: Array<{ readonly folderUri: string; readonly providerId: string; readonly persist: boolean; readonly preferDevContainer: boolean }> = [];
+		const harness = {
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					isDevContainerEnabled: () => enabled,
+				}),
+			},
+			_workspacePicker: {
+				setSelectedWorkspace: (folderUri: URI, options: { providerId: string; persist: boolean; preferDevContainer: boolean }) => selections.push({
+					folderUri: folderUri.toString(),
+					providerId: options.providerId,
+					persist: options.persist,
+					preferDevContainer: options.preferDevContainer,
+				}),
+			},
+		};
+		const activeSession = upcastPartial<IActiveSession>({
+			sessionId: 'draft',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable<ISessionWorkspace | undefined>(upcastPartial<ISessionWorkspace>({
+				uri: folder,
+				label: 'project',
+				folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }],
+			})),
+		});
+
+		syncWorkspacePickerDevContainerMode.call(harness, activeSession, false);
+		enabled = false;
+		syncWorkspacePickerDevContainerMode.call(harness, activeSession, false);
+
+		assert.deepStrictEqual(selections, [
+			{ folderUri: folder.toString(), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, persist: false, preferDevContainer: true },
+			{ folderUri: folder.toString(), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, persist: false, preferDevContainer: false },
+		]);
 	});
 
 	test('cancels an in-flight creation when a newer one starts', async () => {

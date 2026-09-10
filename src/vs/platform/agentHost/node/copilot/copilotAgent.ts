@@ -15,7 +15,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
 import { delimiter, dirname, isAbsolute, join } from '../../../../base/common/path.js';
@@ -37,6 +36,7 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
@@ -2440,39 +2440,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Synthesize a `contextSize` config property when the model exposes a `long_context` pricing tier with a distinct
-	 * context-max. Picker surfaces this as the "Context Size" button. Mirrors `getContextSizeOptions` in
-	 * `extensions/copilot/src/extension/chat/vscode-node/languageModelAccess.ts`.
-	 *
-	 * The `enum` values are the two context-window sizes (in tokens), smallest first, so the numeric token counts
-	 * flow to the client. The chosen value comes back in the model's `config` bag and is mapped to the SDK's
-	 * two-valued `contextTier` at the SDK boundary by {@link getCopilotContextTier}, using the model's long-context
-	 * window from {@link _longContextWindowFor}.
-	 */
-	private _createContextSizeConfigSchemaProperty(billing: ICAPIModelBilling | undefined): ConfigPropertySchema | undefined {
-		const tokenPrices = billing?.tokenPrices;
-		const defaultMax = tokenPrices?.contextMax;
-		const longContextMax = tokenPrices?.longContext?.contextMax;
-		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
-			return undefined;
-		}
-
-		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
-		return {
-			type: 'number',
-			title: localize('copilot.modelContextSize.title', "Context Size"),
-			description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-			default: hasLongContextSurcharge(billing) ? defaultMax : longContextMax,
-			enum: [defaultMax, longContextMax],
-			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
-			enumDescriptions: [
-				localize('copilot.modelContextSize.default', "Default"),
-				localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
-			],
-		};
-	}
-
-	/**
 	 * The model's long-context window (in tokens): the largest size offered by its "Context Size" picker
 	 * (the max numeric value in the synthesized `contextSize` {@link ConfigPropertySchema.enum}). Used by
 	 * {@link getCopilotContextTier} to decide whether a numeric selection opts into `long_context`.
@@ -2527,7 +2494,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
-		const contextSize = this._createContextSizeConfigSchemaProperty(billing);
+		const contextSize = createContextSizeConfigSchemaProperty(billing);
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
 		}

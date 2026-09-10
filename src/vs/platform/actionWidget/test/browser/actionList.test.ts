@@ -1242,6 +1242,26 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('removing the focused row toolbar restores focus inside the remaining list', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('one'), toolbarActions: [toAction({ id: 'remove', label: 'Remove', run: () => { } })] },
+				action('two'),
+				action('three'),
+			],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.focus();
+		widget.updateItems([action('two'), action('three')]);
+
+		assert.deepStrictEqual({
+			focusInside: widget.domNode.contains(document.activeElement),
+			focusedItem: widget.getFocusedElement()?.item?.id,
+			rows: getVisibleRowText(widget),
+		}, { focusInside: true, focusedItem: 'two', rows: ['two', 'three'] });
+	});
+
 	test('refreshing the initial selection stays quiet until hover or keyboard navigation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const items = [
 			{ ...action('selected'), item: { id: 'selected', checked: true }, hover: { content: 'Selected details' } },

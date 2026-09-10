@@ -39,6 +39,7 @@ import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
+import '../../../../browser/parts/statusbar/media/statusbarpart.css';
 import '../../../../browser/parts/titlebar/media/menubarControl.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
@@ -685,7 +686,7 @@ suite('ModernUIContribution', () => {
 				multiViewTitleTransform: 'capitalize',
 				multiViewExplorerPaneTitleTransform: 'none',
 				extensionsTitleTransform: 'capitalize',
-				panelTabTransform: 'capitalize',
+				panelTabTransform: 'none',
 				layoutCount: 0,
 			},
 			classApplied: true,
@@ -1076,6 +1077,56 @@ suite('ModernUIContribution', () => {
 			left: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
 			right: { actionWidth: 36, actionCenterOffset: 0, windowMargin: 4, seamGap: 0 },
 			railWidths: [44, 44],
+		});
+	});
+
+	test('centers status bar items within the floating bottom rail', () => {
+		const measure = (className: string, statusbarHeight: number, railGap: number) => {
+			const root = document.createElement('div');
+			root.className = className;
+			root.style.display = 'inline-flex';
+			root.style.flexDirection = 'column';
+			root.style.setProperty('--vscode-spacing-size20', '2px');
+			root.style.setProperty('--vscode-spacing-size40', '4px');
+			root.style.setProperty('--vscode-spacing-size60', '6px');
+			document.body.appendChild(root);
+			store.add(toDisposable(() => root.remove()));
+
+			const surface = appendElement(root, 'part editor');
+			surface.style.width = '240px';
+			surface.style.height = '20px';
+			surface.style.marginBottom = `${railGap}px`;
+
+			const statusbar = appendElement(root, 'part statusbar');
+			statusbar.style.width = '240px';
+			statusbar.style.height = `${statusbarHeight}px`;
+			const items = appendElement(statusbar, 'left-items items-container');
+			const item = appendElement(items, 'statusbar-item left');
+			const label = appendElement(item, 'statusbar-item-label');
+
+			const surfaceBounds = surface.getBoundingClientRect();
+			const statusbarBounds = statusbar.getBoundingClientRect();
+			const itemBounds = item.getBoundingClientRect();
+			const labelBounds = label.getBoundingClientRect();
+			const statusbarStyle = getWindow(statusbar).getComputedStyle(statusbar);
+
+			return {
+				paddingTop: statusbarStyle.paddingTop,
+				paddingBottom: statusbarStyle.paddingBottom,
+				itemHeight: itemBounds.height,
+				labelHeight: labelBounds.height,
+				centerOffset: itemBounds.top + itemBounds.height / 2 - (surfaceBounds.bottom + statusbarBounds.bottom) / 2,
+			};
+		};
+
+		assert.deepStrictEqual({
+			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28, 4),
+			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 4),
+			classic: measure('monaco-workbench', 22, 0),
+		}, {
+			defaultDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
+			compactDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 		});
 	});
 

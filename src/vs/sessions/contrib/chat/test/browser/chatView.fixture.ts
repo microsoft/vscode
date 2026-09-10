@@ -251,6 +251,27 @@ async function renderAgentMergeBackground(context: ComponentFixtureContext): Pro
 	}
 }
 
+async function renderRequestLinkKeyboardFocus(context: ComponentFixtureContext): Promise<void> {
+	await renderChatView(context, false, {
+		height: 320,
+		listHeight: 220,
+		inputVisible: false,
+		messages: [{
+			user: 'Review [microsoft/vscode#334596](https://github.com/microsoft/vscode/issues/334596) before continuing.',
+			assistant: [{ kind: 'markdown', text: 'The request link should have one clear keyboard focus indicator.' }],
+		}],
+	});
+
+	const focusTarget = context.container.querySelector<HTMLAnchorElement>('.interactive-request .chat-markdown-part.rendered-markdown a[data-href]:not(.chat-rich-link)');
+	if (!focusTarget) {
+		throw new Error('Expected a plain request link');
+	}
+	focusTarget.focus();
+	if (!focusTarget.matches(':focus-visible')) {
+		throw new Error('Expected the request link to receive keyboard-visible focus');
+	}
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 	AgentMergeBackground: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -266,6 +287,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The Agents chat without a wallpaper keeps the assistant response unboxed. The heading, Markdown table, code editor, and response footer use the normal transcript alignment, while the user request and composer retain their established surfaces.'],
 		render: context => renderAssistantResponse(context, false),
+	}),
+	RequestLinkKeyboardFocus: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A plain Markdown link in the Agents chat user request has exactly one solid, unclipped keyboard focus indicator in the themed focus color.'],
+		render: renderRequestLinkKeyboardFocus,
 	}),
 	StickyBackgroundContinuity: defineComponentFixture({
 		labels: { kind: 'screenshot' },

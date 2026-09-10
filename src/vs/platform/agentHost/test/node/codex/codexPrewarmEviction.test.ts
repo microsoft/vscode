@@ -80,8 +80,9 @@ interface ITestWireRequest {
 		readonly extraRoots?: readonly string[];
 		readonly permissions?: string;
 		readonly config?: Record<string, unknown>;
+		readonly effort?: string;
 		readonly developerInstructions?: string;
-		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
+		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null; readonly reasoning_effort?: string | null } };
 	};
 }
 
@@ -1917,6 +1918,70 @@ suite('CodexAgent prewarm eviction', () => {
 			hasLiveRuntime: false,
 			boundRuntime: AgentSession.id(created.session),
 			modelId: alternateModel,
+		});
+		peer.exit();
+	});
+
+	test('applies context size and thinking level to new and resumed threads', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const baseModel = agent.models.get()[0];
+		agent['_models'].set([{
+			...baseModel,
+			configSchema: {
+				type: 'object',
+				properties: {
+					thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'], default: 'low' },
+					contextSize: { type: 'number', title: 'Context Size', enum: [272_000, 1_000_000], default: 272_000 },
+				},
+			},
+		}], undefined);
+
+		const folder = URI.file('/repo/context-size');
+		const longContextModel = { id: COPILOT_TEST_MODEL, config: { thinkingLevel: 'low', contextSize: 1_000_000 } };
+		const created = await createSession(agent, { workingDirectories: [folder], model: longContextModel });
+		const chat = defaultChatOf(created.session);
+		const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+		const materializing = agent['_materializeIfNeeded'](entry, created.session, false);
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'context-size-thread', cwd: folder.fsPath } } });
+		await materializing;
+
+		await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL, config: { thinkingLevel: 'high', contextSize: 272_000 } }, chatContext(created.session, chat));
+		const sending = agent.chats.sendMessage(chat, 'use the shorter window', [folder], undefined, 'turn-1', undefined, undefined, chatContext(created.session, chat));
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: 'context-size-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			start: { method: start.method, contextSize: start.params.config?.model_context_window },
+			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+			resume: { method: resume.method, contextSize: resume.params.config?.model_context_window },
+			turn: {
+				method: turn.method,
+				thinkingLevel: turn.params.effort,
+				collaborationThinkingLevel: turn.params.collaborationMode?.settings.reasoning_effort,
+			},
+		}, {
+			start: { method: 'thread/start', contextSize: 1_000_000 },
+			unsubscribe: { method: 'thread/unsubscribe', threadId: 'context-size-thread' },
+			resume: { method: 'thread/resume', contextSize: 272_000 },
+			turn: { method: 'turn/start', thinkingLevel: 'high', collaborationThinkingLevel: 'high' },
 		});
 		peer.exit();
 	});

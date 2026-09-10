@@ -1241,66 +1241,74 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('batched artifact tools persist centrally and list after restart without local database reads', async () => {
-			class ArtifactAgent extends MockAgent {
-				serverToolHost: IAgentServerToolHost | undefined;
-				setServerToolHost(host: IAgentServerToolHost): void {
-					this.serverToolHost = host;
+		for (const removeArtifacts of [false, true]) {
+			test(`${removeArtifacts ? 'artifact removals' : 'batched artifact tools'} persist centrally and list after restart without local database reads`, async () => {
+				class ArtifactAgent extends MockAgent {
+					serverToolHost: IAgentServerToolHost | undefined;
+					setServerToolHost(host: IAgentServerToolHost): void {
+						this.serverToolHost = host;
+					}
 				}
-			}
-			const database = new TestSessionDatabase();
-			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
-			const baseSessionDataService = createSessionDataService(database);
-			let databaseOpens = 0;
-			const sessionDataService: ISessionDataService = {
-				...baseSessionDataService,
-				openDatabase: resource => {
-					databaseOpens++;
-					return baseSessionDataService.openDatabase(resource);
-				},
-				tryOpenDatabase: async resource => {
-					databaseOpens++;
-					return baseSessionDataService.tryOpenDatabase(resource);
-				},
-			};
-			const createService = () => disposables.add(createTestAgentService(
-				new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
-				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
-			));
-			const svc = createService();
-			const agent = disposables.add(new ArtifactAgent('copilot'));
-			registerTestAgentProvider(svc, agent);
-			getConfigurationService(svc).updateRootConfig({ [AgentHostArtifactToolsConfigKey]: true });
-			const session = await svc.createSession({ provider: 'copilot' });
-			const items = [
-				{ type: 'website', label: 'Result', link: 'https://example.com/result', isArtifact: true },
-				{ type: 'website', label: 'Reference', link: 'https://example.com/reference', isArtifact: false },
-			];
+				const database = new TestSessionDatabase();
+				const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+				const baseSessionDataService = createSessionDataService(database);
+				let databaseOpens = 0;
+				const sessionDataService: ISessionDataService = {
+					...baseSessionDataService,
+					openDatabase: resource => {
+						databaseOpens++;
+						return baseSessionDataService.openDatabase(resource);
+					},
+					tryOpenDatabase: async resource => {
+						databaseOpens++;
+						return baseSessionDataService.tryOpenDatabase(resource);
+					},
+				};
+				const createService = () => disposables.add(createTestAgentService(
+					new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+				));
+				const svc = createService();
+				const agent = disposables.add(new ArtifactAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				getConfigurationService(svc).updateRootConfig({ [AgentHostArtifactToolsConfigKey]: true });
+				const session = await svc.createSession({ provider: 'copilot' });
+				const items = [
+					{ type: 'website', label: 'Result', link: 'https://example.com/result', isArtifact: true },
+					{ type: 'website', label: 'Reference', link: 'https://example.com/reference', isArtifact: false },
+				];
 
-			await agent.serverToolHost!.executeTool(buildDefaultChatUri(session), ArtifactServerToolName.AddArtifactOrReference, { items });
-			await svc.whenCatalogReconciliationIdle();
-			const artifacts = readSessionArtifacts(getStateManager(svc).getSessionSummary(session.toString())?._meta);
-			const central = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()));
-			const legacy = await database.getMetadata(SESSION_ARTIFACTS_KEY);
-			const restarted = createService();
-			await restarted.whenCatalogReconciliationIdle();
-			databaseOpens = 0;
-			const [listed] = await restarted.listSessions();
+				await agent.serverToolHost!.executeTool(buildDefaultChatUri(session), ArtifactServerToolName.AddArtifactOrReference, { items });
+				await svc.whenCatalogReconciliationIdle();
+				const artifacts = readSessionArtifacts(getStateManager(svc).getSessionSummary(session.toString())?._meta);
+				if (removeArtifacts) {
+					for (const artifact of artifacts) {
+						await svc.removeSessionArtifact(session, artifact.id);
+					}
+				}
+				const expectedArtifacts = removeArtifacts ? [] : artifacts;
+				const central = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()));
+				const legacy = await database.getMetadata(SESSION_ARTIFACTS_KEY);
+				const restarted = createService();
+				await restarted.whenCatalogReconciliationIdle();
+				databaseOpens = 0;
+				const [listed] = await restarted.listSessions();
 
-			assert.deepStrictEqual({
-				items: artifacts.map(({ id, ...item }) => item),
-				legacy: JSON.parse(legacy!),
-				central: readSessionArtifacts(central?._meta),
-				restarted: readSessionArtifacts(listed._meta),
-				databaseOpens,
-			}, {
-				items,
-				legacy: artifacts,
-				central: artifacts,
-				restarted: artifacts,
-				databaseOpens: 0,
+				assert.deepStrictEqual({
+					items: artifacts.map(({ id, ...item }) => item),
+					legacy: JSON.parse(legacy!),
+					central: readSessionArtifacts(central?._meta),
+					restarted: readSessionArtifacts(listed._meta),
+					databaseOpens,
+				}, {
+					items,
+					legacy: expectedArtifacts,
+					central: expectedArtifacts,
+					restarted: expectedArtifacts,
+					databaseOpens: 0,
+				});
 			});
-		});
+		}
 
 		test('activity changes and clearing do not open session databases', async () => {
 			const baseSessionDataService = createSessionDataService(new TestSessionDatabase());

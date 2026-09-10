@@ -262,6 +262,7 @@ export function setup(logger: Logger) {
 			},
 			settings: {
 				'chat.agentHost.devContainer.enabled': true,
+				'chat.agentHost.devContainer.worktree.enabled': false,
 				'chat.remoteAgentHostsEnabled': true,
 			},
 			prepareWorkspace: workspacePath => {
