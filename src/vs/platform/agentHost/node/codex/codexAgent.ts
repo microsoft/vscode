@@ -26,7 +26,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, getModelContextSize } from '../../common/agentModelConfiguration.js';
-import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
+import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
@@ -1760,6 +1760,28 @@ export class CodexAgent extends Disposable implements IAgent {
 		);
 	}
 
+	private _withCopilotContextSize(model: IAgentModelInfo): IAgentModelInfo {
+		if (readAgentModelSourceId(model) !== CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID) {
+			return model;
+		}
+		const modelId = parseCodexModelSelection(model).modelId;
+		const copilotModel = this._copilotModels.find(candidate => parseCodexModelSelection(candidate).modelId === modelId);
+		const contextSize = copilotModel?.configSchema?.properties[ContextSizeConfigKey];
+		if (!contextSize) {
+			return model;
+		}
+		return {
+			...model,
+			configSchema: {
+				type: 'object',
+				properties: {
+					...model.configSchema?.properties,
+					[ContextSizeConfigKey]: contextSize,
+				},
+			},
+		};
+	}
+
 	/**
 	 * Resolve the Codex security axes (approval policy, sandbox, reviewer) for a
 	 * live or restored session from its RAW persisted config values.
@@ -1968,7 +1990,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (generation !== this._modelCatalogGeneration || this._isShuttingDown || this._store.isDisposed) {
 			return;
 		}
-		this._models.set([...this._copilotModels, ...this._codexModels], undefined);
+		this._models.set([...this._copilotModels, ...this._codexModels.map(model => this._withCopilotContextSize(model))], undefined);
 		// Last, never first: announcing `ready` before the catalog lands is how the
 		// window renders "no account found".
 		this._sdkSetupChannel.refresh();

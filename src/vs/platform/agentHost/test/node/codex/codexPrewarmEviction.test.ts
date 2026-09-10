@@ -1924,68 +1924,95 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
-	test('applies context size and thinking level to new and resumed threads', async () => {
-		const agent = await createAgent(disposables);
-		agent['_schedulePrewarm'] = () => { };
-		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
-		const peer = disposables.add(createTestPeer());
-		agent['_connection'] = {
-			kind: 'ready',
-			client: new CodexAppServerClient(peer.transport),
-			usageSource: 'github',
-			child: { kill: () => true },
-		} as never;
-		const baseModel = agent.models.get()[0];
-		agent['_models'].set([{
-			...baseModel,
-			configSchema: {
-				type: 'object',
-				properties: {
-					thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'], default: 'low' },
-					contextSize: { type: 'number', title: 'Context Size', enum: [272_000, 1_000_000], default: 272_000 },
+	test('applies context size and thinking level for Copilot and ChatGPT models', async () => {
+		const runScenario = async (source: 'copilot' | 'chatgpt', selectedModelId: string) => {
+			const agent = await createAgent(disposables);
+			agent['_schedulePrewarm'] = () => { };
+			agent['_refreshSkillHookCustomizations'] = async () => { };
+			agent['_refreshSkillExtraRoots'] = async () => { };
+			const peer = disposables.add(createTestPeer());
+			agent['_connection'] = {
+				kind: 'ready',
+				client: new CodexAppServerClient(peer.transport),
+				usageSource: source === 'copilot' ? 'github' : 'openai',
+				child: { kill: () => true },
+			} as never;
+			const baseModel = agent.models.get()[0];
+			agent['_models'].set([{
+				...baseModel,
+				id: selectedModelId,
+				configSchema: {
+					type: 'object',
+					properties: {
+						thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'], default: 'low' },
+						contextSize: { type: 'number', title: 'Context Size', enum: [272_000, 1_000_000], default: 272_000 },
+					},
 				},
-			},
-		}], undefined);
+			}], undefined);
 
-		const folder = URI.file('/repo/context-size');
-		const longContextModel = { id: COPILOT_TEST_MODEL, config: { thinkingLevel: 'low', contextSize: 1_000_000 } };
-		const created = await createSession(agent, { workingDirectories: [folder], model: longContextModel });
-		const chat = defaultChatOf(created.session);
-		const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
-		const materializing = agent['_materializeIfNeeded'](entry, created.session, false);
-		const start = await readNextRequest(peer.outbound);
-		peer.push({ id: start.id, result: { thread: { id: 'context-size-thread', cwd: folder.fsPath } } });
-		await materializing;
+			const threadId = `${source}-context-size-thread`;
+			const folder = URI.file(`/repo/context-size-${source}`);
+			const longContextModel = { id: selectedModelId, config: { thinkingLevel: 'low', contextSize: 1_000_000 } };
+			const created = await createSession(agent, { workingDirectories: [folder], model: longContextModel });
+			const chat = defaultChatOf(created.session);
+			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+			const materializing = agent['_materializeIfNeeded'](entry, created.session, false);
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: threadId, cwd: folder.fsPath } } });
+			await materializing;
 
-		await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL, config: { thinkingLevel: 'high', contextSize: 272_000 } }, chatContext(created.session, chat));
-		const sending = agent.chats.sendMessage(chat, 'use the shorter window', [folder], undefined, 'turn-1', undefined, undefined, chatContext(created.session, chat));
-		const unsubscribe = await readNextRequest(peer.outbound);
-		peer.push({ id: unsubscribe.id, result: {} });
-		const resume = await readNextRequest(peer.outbound);
-		peer.push({ id: resume.id, result: { thread: { id: 'context-size-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
-		const inventory = await readNextRequest(peer.outbound);
-		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
-		const turn = await readNextRequest(peer.outbound);
-		peer.push({ id: turn.id, result: {} });
-		await sending;
+			await agent.chats.changeModel(chat, { id: selectedModelId, config: { thinkingLevel: 'high', contextSize: 272_000 } }, chatContext(created.session, chat));
+			const sending = agent.chats.sendMessage(chat, 'use the shorter window', [folder], undefined, 'turn-1', undefined, undefined, chatContext(created.session, chat));
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			const resume = await readNextRequest(peer.outbound);
+			peer.push({ id: resume.id, result: { thread: { id: threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+			const inventory = await readNextRequest(peer.outbound);
+			peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+			peer.exit();
 
-		assert.deepStrictEqual({
-			start: { method: start.method, contextSize: start.params.config?.model_context_window },
-			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
-			resume: { method: resume.method, contextSize: resume.params.config?.model_context_window },
-			turn: {
-				method: turn.method,
-				thinkingLevel: turn.params.effort,
-				collaborationThinkingLevel: turn.params.collaborationMode?.settings.reasoning_effort,
-			},
-		}, {
-			start: { method: 'thread/start', contextSize: 1_000_000 },
-			unsubscribe: { method: 'thread/unsubscribe', threadId: 'context-size-thread' },
-			resume: { method: 'thread/resume', contextSize: 272_000 },
+			return {
+				source,
+				start: {
+					method: start.method,
+					model: start.params.model,
+					modelProvider: start.params.modelProvider,
+					contextSize: start.params.config?.model_context_window,
+				},
+				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+				resume: {
+					method: resume.method,
+					model: resume.params.model,
+					modelProvider: resume.params.modelProvider,
+					contextSize: resume.params.config?.model_context_window,
+				},
+				turn: {
+					method: turn.method,
+					thinkingLevel: turn.params.effort,
+					collaborationThinkingLevel: turn.params.collaborationMode?.settings.reasoning_effort,
+				},
+			};
+		};
+
+		assert.deepStrictEqual([
+			await runScenario('copilot', COPILOT_TEST_MODEL),
+			await runScenario('chatgpt', OPENAI_TEST_MODEL),
+		], [{
+			source: 'copilot',
+			start: { method: 'thread/start', model: 'gpt-test', modelProvider: 'vscode-proxy', contextSize: 1_000_000 },
+			unsubscribe: { method: 'thread/unsubscribe', threadId: 'copilot-context-size-thread' },
+			resume: { method: 'thread/resume', model: 'gpt-test', modelProvider: 'vscode-proxy', contextSize: 272_000 },
 			turn: { method: 'turn/start', thinkingLevel: 'high', collaborationThinkingLevel: 'high' },
-		});
-		peer.exit();
+		}, {
+			source: 'chatgpt',
+			start: { method: 'thread/start', model: 'gpt-5.6-sol', modelProvider: 'openai', contextSize: 1_000_000 },
+			unsubscribe: { method: 'thread/unsubscribe', threadId: 'chatgpt-context-size-thread' },
+			resume: { method: 'thread/resume', model: 'gpt-5.6-sol', modelProvider: 'openai', contextSize: 272_000 },
+			turn: { method: 'turn/start', thinkingLevel: 'high', collaborationThinkingLevel: 'high' },
+		}]);
 	});
 
 	test('routes provider-qualified models independently and switches one session', async () => {
