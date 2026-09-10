@@ -81,6 +81,7 @@ import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesVi
 import { renderSessionsEmptyState } from '../../../browser/parts/sessionsEmptyState.js';
 import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
+import { CHANGES_HEADER_ICON_LABEL_SPACING, CHANGES_OUTSIDE_CARD_ICON_LABEL_SPACING } from './changesButtonBarSpacing.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -610,8 +611,8 @@ export class ChangesActionsBar extends Disposable {
 			dom.clearNode(container);
 
 			const widget = isAgentHostSessionObs.read(reader)
-				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, 'compact')
-				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs, 'compact');
+				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, CHANGES_HEADER_ICON_LABEL_SPACING)
+				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs, CHANGES_HEADER_ICON_LABEL_SPACING);
 			reader.store.add(widget);
 			currentWidget = widget;
 			reader.store.add(widget.onDidChangeActions(() => updateVisibility()));
@@ -1664,8 +1665,8 @@ export class ChangesViewPane extends ViewPane {
 			const isAgentHostSession = isAgentHostSessionObs.read(reader);
 
 			const widget = isAgentHostSession
-				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, 'default')
-				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs, 'default');
+				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, CHANGES_OUTSIDE_CARD_ICON_LABEL_SPACING)
+				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs, CHANGES_OUTSIDE_CARD_ICON_LABEL_SPACING);
 			reader.store.add(widget);
 		}));
 	}
