@@ -519,6 +519,11 @@ interface ICodexTargetChat {
 	readonly configurationResource: URI;
 }
 
+interface ICodexPendingSteering {
+	readonly pendingMessage: PendingMessage;
+	readonly inputText: string;
+}
+
 interface ICodexSession {
 	/** Caller-facing session id used in the `codex:/<id>` URI; may differ from the codex thread id. */
 	readonly sessionId: string;
@@ -630,7 +635,7 @@ interface ICodexSession {
 	 * `steering_consumed` signal) on turn completion, abort, dispose, or a
 	 * `turn/steer` rejection so the chat UI's pending bubble never sticks.
 	 */
-	readonly pendingSteeringFlips: Map<string, PendingMessage>;
+	readonly pendingSteeringFlips: Map<string, ICodexPendingSteering>;
 	/**
 	 * Client-provided tool definitions for this session, keyed by the
 	 * contributing workbench client. The merged set is registered with codex
@@ -3016,16 +3021,16 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Pop the buffered steering message whose text matches the echoed
+	 * Pop the buffered steering message whose resolved input text matches the echoed
 	 * `userMessage` content. Matching by content (not FIFO) keeps the
 	 * mapping correct when several steering messages with different texts
 	 * are in flight.
 	 */
 	private _takeMatchingPendingSteering(session: ICodexSession, text: string): PendingMessage | undefined {
-		for (const [id, msg] of session.pendingSteeringFlips) {
-			if (msg.message.text === text) {
+		for (const [id, steering] of session.pendingSteeringFlips) {
+			if (steering.inputText === text) {
 				session.pendingSteeringFlips.delete(id);
-				return msg;
+				return steering.pendingMessage;
 			}
 		}
 		return undefined;
@@ -3548,7 +3553,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			acceptedForSession: parent.acceptedForSession,
 			handledGuardianReviews: new Set<string>(),
 			pendingGuardianReviewCards: new Set<string>(),
-			pendingSteeringFlips: new Map<string, PendingMessage>(),
+			pendingSteeringFlips: new Map<string, ICodexPendingSteering>(),
 			clientToolSet,
 			pendingClientToolCalls: new PendingRequestRegistry<ToolCallResult>(),
 			pendingUserInputs: new PendingRequestRegistry<ICodexUserInputResult>(),
@@ -4675,7 +4680,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			acceptedForSession: new Set<string>(),
 			handledGuardianReviews: new Set<string>(),
 			pendingGuardianReviewCards: new Set<string>(),
-			pendingSteeringFlips: new Map<string, PendingMessage>(),
+			pendingSteeringFlips: new Map<string, ICodexPendingSteering>(),
 			clientToolSet,
 			pendingClientToolCalls: new PendingRequestRegistry<ToolCallResult>(),
 			pendingUserInputs: new PendingRequestRegistry<ICodexUserInputResult>(),
@@ -4991,7 +4996,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			acceptedForSession: new Set<string>(),
 			handledGuardianReviews: new Set<string>(),
 			pendingGuardianReviewCards: new Set<string>(),
-			pendingSteeringFlips: new Map<string, PendingMessage>(),
+			pendingSteeringFlips: new Map<string, ICodexPendingSteering>(),
 			clientToolSet,
 			pendingClientToolCalls: new PendingRequestRegistry<ToolCallResult>(),
 			pendingUserInputs: new PendingRequestRegistry<ICodexUserInputResult>(),
@@ -5956,7 +5961,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		const threadId = session.threadId;
 		// Buffer so the codex `userMessage` echo can promote this into a
 		// visible turn (see {@link _handleSteeredUserMessage}).
-		session.pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
+		session.pendingSteeringFlips.set(steeringMessage.id, {
+			pendingMessage: steeringMessage,
+			// Match the text actually sent, including attachment context. Keep the
+			// original message for presentation and resolve attachments only once.
+			inputText: extractUserInputText(input),
+		});
 		void conn.client.request<'turn/steer'>('turn/steer', {
 			threadId,
 			input: input.slice(),
