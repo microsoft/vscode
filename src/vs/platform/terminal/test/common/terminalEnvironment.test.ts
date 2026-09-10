@@ -91,9 +91,14 @@ suite('terminalEnvironment', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz'), '\'/foo/bar\\\'baz\'');
 		});
 
-		test('should remove dangerous characters', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), '\'/foo/bar(echo evil)\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), '\'/foo/barwhoami\'');
+		test('should preserve shell-special characters by quoting the path', () => {
+			// Characters that were previously stripped are now safely preserved inside single quotes
+			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), "'/foo/bar$(echo evil)'");
+			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), "'/foo/bar`whoami`'");
+			strictEqual(escapeNonWindowsPath('/path/to/file~name', PosixShellType.Bash), "'/path/to/file~name'");
+			strictEqual(escapeNonWindowsPath('/path/to/file#tag', PosixShellType.Bash), "'/path/to/file#tag'");
+			strictEqual(escapeNonWindowsPath('/path/to/file&other', PosixShellType.Bash), "'/path/to/file&other'");
+			strictEqual(escapeNonWindowsPath('/path/to/file;cmd', PosixShellType.Bash), "'/path/to/file;cmd'");
 		});
 	});
 });
