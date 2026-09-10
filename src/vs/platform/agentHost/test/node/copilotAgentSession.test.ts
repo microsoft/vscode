@@ -45,6 +45,7 @@ import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAtt
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -76,6 +77,8 @@ import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilo
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, IAgentHostInternalTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+
+type BackgroundTasks = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'];
 
 const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTransaction = {
 	prepare: async () => { },
@@ -191,7 +194,9 @@ class MockCopilotSession {
 	 * Lets a test make an earlier-issued read resolve after a later one.
 	 */
 	readonly usageMetricsGates: Array<Promise<unknown>> = [];
-	backgroundTasks: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'] = [];
+	backgroundTasks: BackgroundTasks = [];
+	readonly backgroundTaskListResults: BackgroundTasks[] = [];
+	readonly backgroundTaskListGates: Promise<void>[] = [];
 	backgroundTaskListCalls = 0;
 	backgroundTaskRefreshCalls = 0;
 	backgroundTaskListError: Error | undefined;
@@ -422,7 +427,8 @@ class MockCopilotSession {
 					this.backgroundTaskListError = undefined;
 					throw error;
 				}
-				const tasks = this.backgroundTasks.map(task => ({ ...task }));
+				const tasks = (this.backgroundTaskListResults.shift() ?? this.backgroundTasks).map(task => ({ ...task }));
+				await this.backgroundTaskListGates.shift();
 				return { tasks };
 			},
 			refresh: async () => {
@@ -807,12 +813,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
 	platform?: NodeJS.Platform;
 	githubToken?: string;
+	githubCredentials?: CopilotGitHubSessionCredentials;
 	copilotApiEndpoint?: string;
 	gitService?: IAgentHostGitService;
 	gitHubEndpointService?: IAgentHostGitHubEndpointService;
 	restrictedTelemetryContext?: IRestrictedTelemetryContext;
 	restrictedTelemetryContextError?: Error;
-	isLaunchTokenCurrent?: () => boolean;
 	onTurnEnded?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
@@ -879,7 +885,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		resolvedAgentName: undefined,
 		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager: options?.shellManager,
-		githubToken: options?.githubToken,
+		githubCredentials: options?.githubCredentials ?? CopilotGitHubSessionCredentials.fromToken(options?.githubToken),
 		isEphemeral: options?.isEphemeral,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
 	};
@@ -1104,7 +1110,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			customizationDirectory: options?.customizationDirectory,
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
-			isLaunchTokenCurrent: options?.isLaunchTokenCurrent,
 			onTurnEnded: options?.onTurnEnded,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
@@ -2042,6 +2047,7 @@ suite('CopilotAgentSession', () => {
 				errorType: 'executionInterrupted',
 				message: 'The agent was interrupted before this request finished.',
 			},
+			resumable: true,
 		});
 	});
 
@@ -4163,14 +4169,19 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 7,
 			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
-		mockSession.fire('subagent.completed', {
+		mockSession.backgroundTasks = [{
+			type: 'agent',
+			id: 'agent-1',
 			toolCallId: 'tc-subagent',
-			agentName: 'explore',
-			agentDisplayName: 'Explore',
-			durationMs: 1,
-			totalTokens: 12,
-			totalToolCalls: 0,
-		} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-1' });
+			description: 'Explore tests',
+			status: 'idle',
+			agentType: 'explore',
+			prompt: 'Explore tests',
+			startedAt: new Date(0).toISOString(),
+			idleSince: new Date(1).toISOString(),
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
 
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
@@ -6491,7 +6502,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('the development $error-ui path emits an error even with attachments', async () => {
+		test('the development $error-ui path emits a resumable error even with attachments', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
 			await session.send('$error-ui', [{
@@ -6517,6 +6528,7 @@ Use the attached image as context.
 							errorType: 'developmentRecoverableError',
 							message: 'Injected recoverable development error (1/1).',
 						},
+						resumable: true,
 					},
 				}],
 			});
@@ -6668,6 +6680,43 @@ Use the attached image as context.
 				});
 			});
 		}
+
+		test('ignores the failed execution error until the resumed provider turn starts', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.resume('turn-1');
+
+			mockSession.fire('session.error', {
+				errorType: 'query',
+				message: 'previous failure',
+			} as SessionEventPayload<'session.error'>['data']);
+			const beforeProviderStart = getActions(signals);
+
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.error', {
+				errorType: 'query',
+				message: 'continuation failure',
+			} as SessionEventPayload<'session.error'>['data']);
+
+			assert.deepStrictEqual({
+				beforeProviderStart,
+				endingActions: getActions(signals).filter(action => action.type === ActionType.ChatError).map(action => ({
+					turnId: action.turnId,
+					error: action.part.error,
+					resumable: action.part.resumable,
+				})),
+			}, {
+				beforeProviderStart: [],
+				endingActions: [{
+					turnId: 'turn-1',
+					error: {
+						errorType: 'query',
+						message: 'continuation failure',
+						stack: undefined,
+					},
+					resumable: true,
+				}],
+			});
+		});
 
 		test('cancellation before the provider turn starts clears the resumed turn', async () => {
 			const abortGate = new DeferredPromise<void>();
@@ -6987,10 +7036,10 @@ Use the attached image as context.
 				...base,
 				data: {
 					content: 'Agent done',
-					kind: { type: 'agent_completed', agentId: 'agent-a', agentType: 'task', status: 'completed' },
+					kind: { type: 'agent_completed', agentId: 'agent-a', agentType: 'task', displayName: 'Lifecycle reviewer', description: 'Review lifecycle', status: 'completed' },
 				},
 			}), {
-				messageText: 'Background agent agent-a completed',
+				messageText: 'Background agent `Lifecycle reviewer` completed',
 				startsTurn: true,
 			});
 
@@ -6998,10 +7047,10 @@ Use the attached image as context.
 				...base,
 				data: {
 					content: 'Agent failed',
-					kind: { type: 'agent_completed', agentId: 'agent-b', agentType: 'task', status: 'failed' },
+					kind: { type: 'agent_completed', agentId: 'agent-b', agentType: 'task', displayName: ' ', description: 'Review rendering', status: 'failed' },
 				},
 			}), {
-				messageText: 'Background agent agent-b failed',
+				messageText: 'Background agent `Review rendering` failed',
 				startsTurn: true,
 			});
 
@@ -7012,7 +7061,7 @@ Use the attached image as context.
 					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'task' },
 				},
 			}), {
-				messageText: 'Background agent agent-a is complete',
+				messageText: 'Background agent `task` is complete',
 				startsTurn: true,
 			});
 
@@ -7073,6 +7122,35 @@ Use the attached image as context.
 			assert.deepStrictEqual(turnStarted.message, { text: '`sleep 6` completed', origin: { kind: MessageKind.SystemNotification } });
 		});
 
+		test('agent notifications trim names and never fall back to an opaque identifier', () => {
+			const metadata = { agentId: '28e28166-68dd-4b3b-9bcd-acfed635c4b0', agentType: ' ', description: ' ', displayName: ' ' };
+			const kinds: SessionEventPayload<'system.notification'>['data']['kind'][] = [
+				{ ...metadata, type: 'agent_idle', displayName: ' Astra picker review ', description: 'Review the picker' },
+				{ ...metadata, type: 'agent_idle', description: ' Review the picker ' },
+				{ ...metadata, type: 'agent_idle', agentType: ' code-review ' },
+				{ ...metadata, type: 'agent_idle', displayName: 'Review `permissions`' },
+				{ ...metadata, type: 'agent_idle' },
+				{ ...metadata, type: 'agent_completed', status: 'completed' },
+				{ ...metadata, type: 'agent_completed', status: 'failed' },
+			];
+
+			assert.deepStrictEqual(kinds.map(kind => buildCopilotSystemNotification({
+				id: 'evt-system',
+				parentId: null,
+				timestamp: '2026-09-08T00:00:00.000Z',
+				type: 'system.notification',
+				data: { content: 'Agent finished', kind },
+			})), [
+				{ messageText: 'Background agent `Astra picker review` is complete', startsTurn: true },
+				{ messageText: 'Background agent `Review the picker` is complete', startsTurn: true },
+				{ messageText: 'Background agent `code-review` is complete', startsTurn: true },
+				{ messageText: 'Background agent `` Review `permissions` `` is complete', startsTurn: true },
+				{ messageText: 'Background agent is complete', startsTurn: true },
+				{ messageText: 'Background agent completed', startsTurn: true },
+				{ messageText: 'Background agent failed', startsTurn: true },
+			]);
+		});
+
 		test('agent idle notification routes resumed SDK events into a generated system turn', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 
@@ -7092,7 +7170,7 @@ Use the attached image as context.
 				responseTurnId: (getActions(signals).find(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown) as ChatResponsePartAction | undefined)?.turnId,
 				completedTurnId: (getActions(signals).find(a => a.type === ActionType.ChatTurnComplete) as ChatTurnCompleteAction | undefined)?.turnId,
 			}, {
-				message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
+				message: { text: 'Background agent `Investigate the issue` is complete', origin: { kind: MessageKind.SystemNotification } },
 				responseTurnId: turnStarted.turnId,
 				completedTurnId: turnStarted.turnId,
 			});
@@ -7104,7 +7182,7 @@ Use the attached image as context.
 
 			mockSession.fire('system.notification', {
 				content: 'Agent "agent-a" has finished processing and is now idle.',
-				kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
+				kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', displayName: 'Renderer reviewer' },
 			} as SessionEventPayload<'system.notification'>['data']);
 
 			const actions = getActions(signals);
@@ -7118,7 +7196,7 @@ Use the attached image as context.
 				turnId: 'turn-active',
 				part: {
 					kind: ResponsePartKind.SystemNotification,
-					content: 'Background agent agent-a is complete',
+					content: 'Background agent `Renderer reviewer` is complete',
 				},
 			});
 		});
@@ -7148,6 +7226,55 @@ Use the attached image as context.
 				{ kind: ResponsePartKind.SystemNotification, content: 'New inbox message from sidekick' },
 				{ kind: ResponsePartKind.SystemNotification, content: 'Instruction discovered: AGENTS.md from packages/billing/' },
 			]);
+		});
+
+		test('completion notifications split parent reasoning without splitting running subagent reasoning', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-active');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task-running',
+				agentName: 'explore',
+				agentDisplayName: 'Running reviewer',
+				agentDescription: 'Continue reviewing',
+			}, { agentId: 'agent-running' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'parent-reasoning', deltaContent: 'Before notification' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'child-reasoning', deltaContent: 'Child reasoning' }, { agentId: 'agent-running' });
+			mockSession.fire('system.notification', {
+				content: 'Agent completed',
+				kind: { type: 'agent_idle', agentId: 'agent-completed', agentType: 'code-review', displayName: 'Completed reviewer' },
+			});
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'parent-reasoning', deltaContent: 'After notification' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'parent-reasoning', deltaContent: ' continued' });
+			mockSession.fire('assistant.reasoning_delta', { reasoningId: 'child-reasoning', deltaContent: ' still running' }, { agentId: 'agent-running' });
+
+			const reasoningIds = new Set<string>();
+			const updates = signals.map(signal => {
+				if (signal.kind !== 'action') {
+					return undefined;
+				}
+				const action = signal.action;
+				if (action.type === ActionType.ChatResponsePart && (action.part.kind === ResponsePartKind.Reasoning || action.part.kind === ResponsePartKind.SystemNotification)) {
+					if (action.part.kind === ResponsePartKind.Reasoning && !signal.parentToolCallId) {
+						reasoningIds.add(action.part.id);
+					}
+					return { kind: action.part.kind, scope: signal.parentToolCallId ?? 'parent', content: action.part.content };
+				}
+				return action.type === ActionType.ChatReasoning
+					? { kind: 'delta', scope: signal.parentToolCallId ?? 'parent', content: action.content }
+					: undefined;
+			}).filter(update => update !== undefined);
+
+			assert.deepStrictEqual({ updates, parentReasoningParts: reasoningIds.size }, {
+				updates: [
+					{ kind: ResponsePartKind.Reasoning, scope: 'parent', content: 'Before notification' },
+					{ kind: ResponsePartKind.Reasoning, scope: 'task-running', content: 'Child reasoning' },
+					{ kind: ResponsePartKind.SystemNotification, scope: 'parent', content: 'Background agent `Completed reviewer` is complete' },
+					{ kind: ResponsePartKind.Reasoning, scope: 'parent', content: 'After notification' },
+					{ kind: 'delta', scope: 'parent', content: ' continued' },
+					{ kind: 'delta', scope: 'task-running', content: ' still running' },
+				],
+				parentReasoningParts: 2,
+			});
 		});
 
 		test('generated system turn completes on session.idle', async () => {
@@ -8334,6 +8461,131 @@ Use the attached image as context.
 			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
 		});
 
+		suite('asynchronous edit completion', () => {
+			async function startEdits(count = 1) {
+				const sessionDatabase = new TestSessionDatabase();
+				const writes = Array.from({ length: count }, () => ({
+					started: new DeferredPromise<void>(),
+					release: new DeferredPromise<void>(),
+				}));
+				sessionDatabase.storeFileEdit = async edit => {
+					const write = writes[Number(edit.toolCallId)];
+					await write.started.complete();
+					await write.release.p;
+					sessionDatabase.addEdit(edit);
+				};
+				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+				const result = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime });
+				result.session.resetTurnState('turn-edit');
+				result.mockSession.fire('user.message', { content: 'Edit the files' });
+				for (let index = 0; index < count; index++) {
+					const toolCallId = String(index);
+					const hook = {
+						sessionId: 'test-session-1',
+						timestamp: new Date(0),
+						workingDirectory: '/repo',
+						toolName: 'edit',
+						toolArgs: { path: `/repo/file-${index}.txt`, old_str: 'before', new_str: 'after' },
+					};
+					await capturedRuntime.current!.handlePreToolUse(hook);
+					await capturedRuntime.current!.handlePostToolUse({
+						...hook,
+						toolResult: { textResultForLlm: '', resultType: 'success' },
+					});
+					result.mockSession.fire('tool.execution_start', {
+						toolCallId,
+						toolName: hook.toolName,
+						arguments: hook.toolArgs,
+					});
+					result.mockSession.fire('tool.execution_complete', { toolCallId, success: true });
+					await writes[index].started.p;
+				}
+				return { ...result, sessionDatabase, writes };
+			}
+
+			test('idle drains every pending edit before completing the original turn', async () => {
+				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startEdits(2);
+				mockSession.fire('session.idle', {});
+				assert.deepStrictEqual({
+					turnId: session.currentTurnId,
+					completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
+				}, { turnId: 'turn-edit', completions: [] });
+
+				await writes[1].release.complete();
+				await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+				assert.strictEqual(session.currentTurnId, 'turn-edit', 'The other pending edit must still keep the turn open');
+
+				await writes[0].release.complete();
+				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+				mockSession.fire('session.idle', {});
+				assert.deepStrictEqual({
+					completions: getActions(signals)
+						.filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
+						.map(action => ({ type: action.type, turnId: action.turnId, ...(action.type === ActionType.ChatToolCallComplete ? { toolCallId: action.toolCallId } : {}) })),
+					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => ({ turnId: edit.turnId, toolCallId: edit.toolCallId })),
+					activeTurn: session.currentTurnId,
+				}, {
+					completions: [
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '1' },
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit', toolCallId: '0' },
+						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
+					],
+					persisted: [{ turnId: 'turn-edit', toolCallId: '1' }, { turnId: 'turn-edit', toolCallId: '0' }],
+					activeTurn: undefined,
+				});
+			});
+
+			test('failed edit persistence still lets the tool and turn complete', async () => {
+				const { mockSession, signals, waitForSignal, writes } = await startEdits();
+				mockSession.fire('session.idle', {});
+				await writes[0].release.error(new Error('Persistence failed'));
+				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+				assert.deepStrictEqual(
+					getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete)
+						.map(action => ({ type: action.type, turnId: action.turnId })),
+					[
+						{ type: ActionType.ChatToolCallComplete, turnId: 'turn-edit' },
+						{ type: ActionType.ChatTurnComplete, turnId: 'turn-edit' },
+					],
+				);
+			});
+
+			for (const ending of ['abort', 'error', 'dispose', 'replace'] as const) {
+				test(`${ending} does not wait for edit persistence or complete a replacement turn`, async () => {
+					const { session, mockSession, signals, writes } = await startEdits();
+					mockSession.fire('session.idle', {});
+					switch (ending) {
+						case 'abort':
+							await session.abort();
+							mockSession.fire('session.idle', { aborted: true });
+							break;
+						case 'error':
+							mockSession.fire('session.error', { errorType: 'test', message: 'Failed' });
+							break;
+						case 'dispose':
+							session.dispose();
+							break;
+						case 'replace':
+							session.discardActiveTurn();
+							break;
+					}
+					assert.strictEqual(session.hasActiveTurn, false, 'Ending the turn must not wait for edit persistence');
+					if (ending !== 'dispose') {
+						session.resetTurnState('replacement');
+					}
+					await writes[0].release.complete();
+					await timeout(0);
+					assert.deepStrictEqual({
+						completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete),
+						activeTurn: session.currentTurnId,
+					}, {
+						completions: [],
+						activeTurn: ending === 'dispose' ? undefined : 'replacement',
+					});
+				});
+			}
+		});
+
 		test('tool_complete preserves its turn ID when edit persistence finishes after idle', async () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
@@ -8874,7 +9126,26 @@ Use the attached image as context.
 			assert.strictEqual(authRequiredCount, 2);
 		});
 
-		test('error event is forwarded', async () => {
+		test('root error event is resumable while the turn is active', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+			mockSession.fire('session.error', {
+				errorType: 'TestError',
+				message: 'something went wrong',
+			} as SessionEventPayload<'session.error'>['data']);
+
+			assert.deepStrictEqual(getActions(signals).map(action => ({
+				type: action.type,
+				turnId: action.type === ActionType.ChatError ? action.turnId : undefined,
+				resumable: action.type === ActionType.ChatError ? action.part.resumable : undefined,
+			})), [{
+				type: ActionType.ChatError,
+				turnId: 'turn-1',
+				resumable: true,
+			}]);
+		});
+
+		test('unmapped subagent error event is forwarded as non-resumable', async () => {
 			const telemetryService = new CapturingTelemetryService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, { telemetryService });
 			session.resetTurnState('turn-1');
@@ -9438,7 +9709,7 @@ Use the attached image as context.
 			]);
 		});
 
-		test('completes a resumed subagent when its stop hook identifies the agent only in the input', async () => {
+		test('completes a resumed subagent when its background task becomes idle', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
 
@@ -9456,51 +9727,69 @@ Use the attached image as context.
 				totalTokens: 0,
 				totalToolCalls: 0,
 			};
-			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+			const initialTask = {
+				type: 'agent',
+				id: 'agent-1',
+				toolCallId: 'tc-subagent',
+				description: 'Explore tests',
+				status: 'idle',
+				agentType: 'explore',
+				prompt: 'Initial request',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>;
+			mockSession.backgroundTasks = [initialTask];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 			mockSession.fire('user.message', {
 				content: 'Review the follow-up',
 				source: 'agent-parent',
 			}, { agentId: 'agent-1' });
-			mockSession.fire('hook.end', {
-				hookInvocationId: 'agent-stop',
-				hookType: 'agentStop',
-				success: true,
-			});
-			mockSession.fire('hook.start', {
-				hookInvocationId: 'subagent-stop',
-				hookType: 'subagentStop',
-				input: { agentId: 'agent-1' },
-			});
-
-			const completions = () => signals
-				.filter(signal => signal.kind === 'subagent_completed')
-				.map(signal => signal.toolCallId);
-			const beforeHookEnd = completions();
-
+			mockSession.fire('subagent.completed', completion);
+			const backgroundTask = {
+				...initialTask,
+				status: 'running',
+				prompt: 'Review the follow-up',
+				idleSince: undefined,
+				activeStartedAt: new Date(2).toISOString(),
+			} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>;
+			mockSession.backgroundTasks = [backgroundTask];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 			mockSession.fire('hook.end', {
 				hookInvocationId: 'subagent-stop',
 				hookType: 'subagentStop',
 				success: true,
 			});
-			const afterHookEnd = completions();
-			mockSession.fire('subagent.completed', completion, { agentId: 'agent-1' });
+			await timeout(0);
+			const beforeIdle = signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId);
+
+			mockSession.backgroundTasks = [{
+				...backgroundTask,
+				status: 'idle',
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
 			assert.deepStrictEqual({
-				beforeHookEnd,
-				afterHookEnd,
-				afterDuplicateCompletion: completions(),
+				beforeIdle,
+				afterIdle: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
 				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
 				parentCompleted: signals.some(signal => isAction(signal, ActionType.ChatTurnComplete)),
+				listCalls: mockSession.backgroundTaskListCalls,
 			}, {
-				beforeHookEnd: ['tc-subagent'],
-				afterHookEnd: ['tc-subagent', 'tc-subagent'],
-				afterDuplicateCompletion: ['tc-subagent', 'tc-subagent'],
+				beforeIdle: ['tc-subagent'],
+				afterIdle: ['tc-subagent', 'tc-subagent'],
 				resumed: ['tc-subagent'],
 				parentCompleted: false,
+				listCalls: 4,
 			});
 		});
 
-		test('ignores subagent stop hook inputs without a string agent ID', async () => {
+		test('retries subagent task status reconciliation after a transient failure', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
 			mockSession.fire('subagent.started', {
@@ -9510,61 +9799,97 @@ Use the attached image as context.
 				agentDescription: 'Explore tests',
 			}, { agentId: 'agent-1' });
 
-			const inputs: SessionEventPayload<'hook.start'>['data']['input'][] = [
-				undefined, null, true, 1, 'agent-1', [], {}, { agentId: 1 }, { agentId: null }, { agentId: ['agent-1'] },
-			];
-			for (const input of inputs) {
-				mockSession.fire('hook.start', {
-					hookInvocationId: 'subagent-stop',
-					hookType: 'subagentStop',
-					input,
-				});
-				mockSession.fire('hook.end', {
-					hookInvocationId: 'subagent-stop',
-					hookType: 'subagentStop',
-					success: true,
-				});
-			}
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-1',
+				toolCallId: 'tc-subagent',
+				description: 'Explore tests',
+				status: 'idle',
+				agentType: 'explore',
+				prompt: 'Explore tests',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.backgroundTaskListError = new Error('transient tasks.list failure');
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const afterFailure = signals.filter(signal => signal.kind === 'subagent_completed').length;
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
-			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+			assert.deepStrictEqual({
+				afterFailure,
+				afterRetry: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				listCalls: mockSession.backgroundTaskListCalls,
+			}, {
+				afterFailure: 0,
+				afterRetry: ['tc-subagent'],
+				listCalls: 2,
+			});
 		});
 
-		test('matches overlapping subagent stop hooks to their own agents', async () => {
+		test('does not apply a stale idle status to a newer subagent turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
 
-			for (const id of ['first', 'second']) {
-				mockSession.fire('subagent.started', {
-					toolCallId: `tc-${id}`,
-					agentName: 'explore',
-					agentDisplayName: 'Explore',
-					agentDescription: 'Explore tests',
-				}, { agentId: `agent-${id}` });
-				mockSession.fire('hook.start', {
-					hookInvocationId: `stop-${id}`,
-					hookType: 'subagentStop',
-					input: { agentId: `agent-${id}` },
-				});
-			}
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
 
-			for (const id of ['second', 'first']) {
-				mockSession.fire('hook.end', {
-					hookInvocationId: `stop-${id}`,
-					hookType: 'subagentStop',
-					success: true,
-				});
-			}
-			mockSession.fire('user.message', { content: 'Another turn' }, { agentId: 'agent-first' });
-			mockSession.fire('hook.end', {
-				hookInvocationId: 'stop-first',
-				hookType: 'subagentStop',
-				success: true,
+			const task = {
+				type: 'agent' as const,
+				id: 'agent-1',
+				toolCallId: 'tc-subagent',
+				description: 'Explore tests',
+				status: 'idle' as const,
+				agentType: 'explore',
+				prompt: 'First turn',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			};
+			mockSession.backgroundTasks = [task];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const staleRead = new DeferredPromise<void>();
+			mockSession.backgroundTaskListResults.push([task]);
+			mockSession.backgroundTaskListGates.push(staleRead.p);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			mockSession.fire('user.message', { content: 'Second turn' }, { agentId: 'agent-1' });
+			mockSession.backgroundTaskListResults.push([{
+				...task,
+				status: 'running',
+				prompt: 'Second turn',
+				idleSince: undefined,
+				activeStartedAt: new Date(2).toISOString(),
+			}]);
+			mockSession.fire('session.background_tasks_changed', {});
+			staleRead.complete();
+			await timeout(0);
+			await timeout(0);
+			const afterStaleIdle = signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId);
+
+			mockSession.backgroundTasks = [{
+				...task,
+				prompt: 'Second turn',
+				idleSince: new Date(3).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterStaleIdle,
+				afterCurrentIdle: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				resumed: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.toolCallId),
+			}, {
+				afterStaleIdle: ['tc-subagent'],
+				afterCurrentIdle: ['tc-subagent', 'tc-subagent'],
+				resumed: ['tc-subagent'],
 			});
-
-			assert.deepStrictEqual(
-				signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
-				['tc-second', 'tc-first'],
-			);
 		});
 
 		test('history replay seeds turn id from the SDK envelope id, matching `turns.event_id`', async () => {
@@ -10797,14 +11122,19 @@ Use the attached image as context.
 				agentDescription: 'Helps',
 			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-client-tool' });
 
-			mockSession.fire('subagent.completed', {
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-client-tool',
 				toolCallId: 'tc-parent-subagent',
-				agentName: 'helper',
-				agentDisplayName: 'Helper',
-				durationMs: 1,
-				totalTokens: 0,
-				totalToolCalls: 0,
-			} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-client-tool' });
+				description: 'Helps',
+				status: 'idle',
+				agentType: 'helper',
+				prompt: 'Use the client tool',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-sub-client',
@@ -10828,11 +11158,19 @@ Use the attached image as context.
 			session.respondToPermissionRequest('tc-sub-client', false);
 			await resultPromise;
 
-			mockSession.fire('hook.end', {
-				hookInvocationId: 'hook-follow-up-stop',
-				hookType: 'agentStop',
-				success: true,
-			} as SessionEventPayload<'hook.end'>['data'], { agentId: 'agent-client-tool' });
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-client-tool',
+				toolCallId: 'tc-parent-subagent',
+				description: 'Helps',
+				status: 'idle',
+				agentType: 'helper',
+				prompt: 'Follow-up',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
 			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), [
 				'tc-parent-subagent',
@@ -13080,9 +13418,10 @@ Use the attached image as context.
 		});
 
 		test('drops an in-flight capture when the launch token is no longer current', async () => {
-			let tokenCurrent = true;
 			const workingDirectory = URI.file('/repo');
 			const telemetryService = new CapturingRestrictedTelemetryService();
+			const githubCredentials = disposables.add(new CopilotGitHubCredentials());
+			githubCredentials.update('github-token', 7200);
 			const gitService: IAgentHostGitService = {
 				...createNoopGitService(),
 				getRepositoryRoot: async () => workingDirectory,
@@ -13097,8 +13436,7 @@ Use the attached image as context.
 				workingDirectory,
 				gitService,
 				telemetryService,
-				githubToken: 'github-token',
-				isLaunchTokenCurrent: () => tokenCurrent,
+				githubCredentials: githubCredentials.forSession(),
 				restrictedTelemetryContext: {
 					restrictedTelemetryEnabled: true,
 					trackingId: 'tracking-id',
@@ -13110,7 +13448,7 @@ Use the attached image as context.
 				},
 			});
 			mockSession.fire('assistant.turn_start', { turnId: 'root-turn' });
-			tokenCurrent = false;
+			githubCredentials.update('replacement-token', 7200);
 			await timeout(0);
 
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'request.repoInfo'), []);

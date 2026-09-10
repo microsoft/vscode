@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, Limiter, SequencerByKey } from '../../../base/common/async.js';
+import { disposableTimeout, Limiter, Promises, SequencerByKey } from '../../../base/common/async.js';
+import { equals } from '../../../base/common/arrays.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
@@ -48,12 +49,13 @@ import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { extUriBiasedIgnorePathCase, relativePath } from '../../../base/common/resources.js';
 import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
-import { dedupeSessionFileDiffs, evaluateMultiRootDiffSources } from './agentHostMultiRootDiff.js';
+import { dedupeSessionFileDiffs } from './agentHostMultiRootDiff.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
+import { resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -63,7 +65,7 @@ import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from
  * `extensions/git/src/model.ts`) — so a many-repository session cannot spawn an
  * unbounded number of git processes at once.
  */
-const MAX_TURN_DIFF_REPOSITORY_CONCURRENCY = 5;
+const MAX_DIFF_REPOSITORY_CONCURRENCY = 5;
 
 function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
 	return kind === 'branch'
@@ -108,24 +110,7 @@ function summariseDiffs(diffs: readonly ISessionFileDiff[] | undefined): Changes
 	return { additions, deletions, files: diffs.length };
 }
 
-/**
- * Derives the `summary.changes` aggregate for an unopened session from
- * the ready live {@link ChangesetState} of the catalogue entry whose
- * `changeKind === 'session'` — typically because a previous
- * `restoreStaticChangeset` warmed the cache before the session itself
- * was attached.
- *
- * Returns `undefined` when no live session-wide state is ready, so
- * `listSessions` leaves the `changes` field unset for sessions without
- * usable counts — preserving the long-standing contract that unopened
- * sessions without live or persisted data advertise no aggregate.
- *
- * Only the `changeKind: 'session'` entry feeds the summary; other kinds
- * (`'uncommitted'`, `'turn'`, `'compare-turns'`) describe slices, not
- * the session-level footprint. The static catalogue itself (built by
- * {@link buildDefaultChangesetCatalog}) is independent of counts and
- * is seeded once at session creation.
- */
+/** Aggregates a ready changeset, or leaves counts unavailable while it is not ready. */
 function computeChangesSummaryFromLiveState(
 	session: ChangesetState | undefined,
 ): ChangesSummary | undefined {
@@ -133,12 +118,7 @@ function computeChangesSummaryFromLiveState(
 	return summariseDiffs(sessionDiffs);
 }
 
-/**
- * Derives the `summary.changes` aggregate for an unopened session from
- * parsed persisted diffs for the `changeKind: 'session'` catalogue
- * entry. Returns `undefined` when the session-wide blob is absent so
- * malformed metadata leaves `summary.changes` unset.
- */
+/** Aggregates persisted session diffs for an unopened session without a cached summary. */
 function computeChangesSummaryFromPersistedDiffs(
 	sessionDiffs: readonly ISessionFileDiff[] | undefined,
 ): ChangesSummary | undefined {
@@ -258,46 +238,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	getListMetadataKeys(sessionUri: ProtocolURI): Record<string, true> | undefined {
-		// A loaded session's live `summary.changes` is authoritative — it already
-		// reflects every folder (single-folder: branch-derived; multi-folder:
-		// the all-folder aggregate) — so nothing needs to be read from the DB.
+		// Live counts already reflect the selected source; no persisted summary is needed.
 		const liveSummaryChanges = this._stateManager.getSessionSummary(sessionUri)?.changes;
 		if (liveSummaryChanges) {
 			return undefined;
 		}
-		// Otherwise the persisted `META_CHANGES_SUMMARY` is authoritative for the
-		// chip. A ready live `changeKind: 'session'` changeset is NOT sufficient:
-		// in a multi-folder session it is PRIMARY-ONLY, so deriving the chip from
-		// it would reintroduce the primary-only count (and clobber the persisted
-		// all-folder value) after an idle eviction that keeps changesets cached
-		// but drops the live summary. Request the small summary key (not the
-		// large diff blobs) so the all-folder aggregate is loaded and preferred.
+		// Prefer persisted counts until the session is opened and recomputed.
 		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionUri));
 		if (liveSession?.status === ChangesetStatus.Ready) {
-			// This is the "evicted-but-warm" state: to save memory the host drops
-			// a session's live `summary.changes` but deliberately keeps its
-			// changeset objects cached so a still-visible list row can be drawn.
-			// The keys we return here are merged into the single batched DB read
-			// in `AgentService.listSessions`, then handed to
-			// `computeListEntryChanges`, which prefers `META_CHANGES_SUMMARY` over
-			// re-deriving from the primary-only branch changeset.
-			//
-			// Worked example of the bug this avoids (why we must NOT return
-			// `undefined` here for multi-root):
-			//   1. Multi-root session: repoA (primary) 5 files +12/-3, repoB 3
-			//      files +8/-2.
-			//   2. All-folder chip = 8 files, +20/-5, saved to
-			//      `META_CHANGES_SUMMARY`; the list shows "8 files +20 -5".
-			//   3. Session goes idle -> evicted-but-warm (live summary dropped,
-			//      the changeset objects kept cached).
-			//   4. List refreshes. If we returned `undefined`, no summary key is
-			//      read, so `computeListEntryChanges` rebuilds the chip from the
-			//      branch changeset (primary-only) = 5 files +12/-3 and persists
-			//      it, OVERWRITING the DB `{8,+20,-5}` with `{5,+12,-3}`.
-			//   5. The row now shows the wrong number AND the correct all-folder
-			//      value is durably corrupted.
-			// Returning the summary key keeps the chip at the all-folder value and
-			// never lets the primary-only count be written back.
 			return CHANGES_SUMMARY_METADATA_KEYS;
 		}
 		// Cold session: nothing live to lean on, so read the full set (summary
@@ -325,10 +273,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}
 
-		// Read live state for an unopened session: synthesise the aggregate
-		// from the live `changeKind: 'branch'` changeset state. Counts stay
-		// in lockstep with the actual changeset state for the session-list chip.
-		const liveSession = this._stateManager.getChangesetState(buildBranchChangesetUri(sessionUri));
+		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionUri));
 		const liveChanges = computeChangesSummaryFromLiveState(liveSession);
 		if (liveChanges) {
 			// Migrate the changes summary to the new storage mechanism.
@@ -337,18 +282,18 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		// No live source — try persisted blobs (if the caller batched them).
-		const branchRaw = metadata[META_CHANGESET_BRANCH];
+		const sessionRaw = metadata[META_CHANGESET_SESSION];
 		const legacyRaw = metadata[META_LEGACY_DIFFS];
-		if (branchRaw === undefined && legacyRaw === undefined) {
+		if (sessionRaw === undefined && legacyRaw === undefined) {
 			return undefined;
 		}
-		const restored = this.parsePersistedStaticChangesets(sessionUri, { branchRaw, legacyRaw });
+		const restored = this.parsePersistedStaticChangesets(sessionUri, { sessionRaw, legacyRaw });
 
 		// `listSessions` must not seed full changeset state for every row; it
 		// only parses persisted blobs enough to render the chip aggregate.
 		// Once the session is opened via `restoreSession`, the live overlay in
 		// `AgentService.listSessions` replaces this parse-only aggregate.
-		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.branch);
+		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.session);
 		if (persistedChanges) {
 			// Migrate the changes summary to the new storage mechanism.
 			this.persistChangesSummary(sessionUri, persistedChanges);
@@ -411,7 +356,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * recomputes skip while the working directory is still unknown.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void {
-		const subscriptions = this._changesetSubscriptions.getSessionSubscriptions(session);
+		const subscriptions = resolveChangesetSubscriptions(session, this._changesetSubscriptions.getSessionSubscriptions(session));
 		if (subscriptions.size === 0) {
 			return;
 		}
@@ -430,15 +375,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				case ChangesetKind.Turn:
 					if (parsed.turnId !== undefined) {
 						void this.computeTurnChangeset(session, parsed.turnId);
-					}
-					break;
-				default:
-					// A plain session URI subscription (Agents Window list /
-					// detail observing the session) implicitly observes the
-					// catalogue's static changesets — refresh both.
-					if (changeset === session) {
-						this.refreshBranchChangeset(session);
-						this.refreshSessionChangeset(session);
 					}
 					break;
 			}
@@ -803,8 +739,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		// Diff every resolved repository, but bound how many per-repo git diffs
 		// run at once so a many-repository session cannot spawn an unbounded
-		// number of git processes (see MAX_TURN_DIFF_REPOSITORY_CONCURRENCY).
-		const limiter = new Limiter<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }>(MAX_TURN_DIFF_REPOSITORY_CONCURRENCY);
+		// number of git processes (see MAX_DIFF_REPOSITORY_CONCURRENCY).
+		const limiter = new Limiter<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }>(MAX_DIFF_REPOSITORY_CONCURRENCY);
 		const [perRepoDiffs, nonGitDiffs] = await Promise.all([
 			Promise.all(gitRepositories.map(repoRoot => limiter.queue(() => this._computeRepoTurnDiffs(session, trackedSession, sessionUri, db, turnId, repoRoot)))),
 			this._computeNonGitTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, nonGitDirectories),
@@ -925,148 +861,60 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return uris;
 	}
 
-	/**
-	 * Recomputes and publishes the all-folder `summary.changes` chip for a
-	 * multi-folder session, writing both `META_CHANGES_SUMMARY` and the in-memory
-	 * summary. Sums every git repo's branch delta plus the non-git folders' edits
-	 * recorded by the edit tracker (`FileEditTracker`). Per-repo failures are
-	 * skipped and the fan-out runs at bounded concurrency; if all sources fail
-	 * the cached summary is preserved instead of writing zero.
-	 */
-	private async _updateMultiFolderChangesSummary(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[], primaryBranchDiffs?: readonly ISessionFileDiff[]): Promise<void> {
-		const workingDirectoryUris = this._parseWorkingDirectoryUris(session, workingDirectories);
-
-		let gitRepositories: readonly URI[];
-		let nonGitDirectories: readonly URI[];
-		try {
-			({ gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectoryUris, this._gitService));
-		} catch (err) {
-			this._logService.error(`[AgentHostChangesetService] Failed to resolve repositories for multi-folder branch summary ${session}`, err);
-			return;
-		}
-
-		// The primary repo reuses the session's configured base branch so its
-		// contribution matches the primary Branch Changes view; secondary repos
-		// have no session-level base configured, so each uses its own default
-		// branch. Passing a base branch makes every repo measure from its merge-
-		// base (committed + uncommitted) instead of falling back to HEAD.
-		const primaryRepositoryRoot = workingDirectoryUris.length > 0
-			? await this._gitService.getRepositoryRoot(workingDirectoryUris[0])
-			: undefined;
-		const primaryRepositoryKey = primaryRepositoryRoot
-			? extUriBiasedIgnorePathCase.getComparisonKey(primaryRepositoryRoot)
-			: undefined;
-		const sessionBaseBranch = await this._resolveBranchBaseBranch(session, db);
-
-		// Diff every resolved repository, but bound how many per-repo git diffs
-		// run at once so a many-repository session cannot spawn an unbounded
-		// number of git processes (see MAX_TURN_DIFF_REPOSITORY_CONCURRENCY).
-		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_TURN_DIFF_REPOSITORY_CONCURRENCY);
-		const [perRepoDiffs, nonGitDiffs] = await Promise.all([
-			Promise.all(gitRepositories.map(repoRoot => limiter.queue(async () => {
-				// Isolate each repository: any failure — including the
-				// `getDefaultBranch` probe below — marks ONLY this repository
-				// unavailable (`undefined`) instead of rejecting the whole
-				// fan-out, so a single secondary repo's git failure never flips
-				// the already-published branch changeset to Error.
-				try {
-					const isPrimary = primaryRepositoryKey !== undefined
-						&& extUriBiasedIgnorePathCase.getComparisonKey(repoRoot) === primaryRepositoryKey;
-					// Reuse the branch changeset's already-computed primary diff
-					// instead of re-diffing the primary repo. Only supplied on the
-					// success path, where the session has its own working directories,
-					// so the branch changeset's primary repo == this primary repo and
-					// both measure from the session base branch — identical result,
-					// one fewer git diff per recompute.
-					if (isPrimary && primaryBranchDiffs) {
-						return primaryBranchDiffs;
-					}
-					const baseBranch = isPrimary
-						? sessionBaseBranch
-						: (await this._gitService.getDefaultBranch(repoRoot))?.name;
-					return await this._computeRepoBranchDiffs(session, repoRoot, baseBranch);
-				} catch (err) {
-					this._logService.error(`[AgentHostChangesetService] Failed to compute branch diff for multi-folder branch summary ${session} in repository ${repoRoot.toString()}`, err);
-					return undefined;
+	/** Computes a complete session delta across repositories and tracked-only folders. */
+	private async _computeMultiFolderSessionDiffs(session: ProtocolURI, db: ISessionDatabase, workingDirectories: readonly string[]): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
+		const { gitRepositories, nonGitDirectories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService);
+		const latestTurnId = this._latestTurnIdAcrossChats(session);
+		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
+		const perRepoDiffs = await Promises.settled(gitRepositories.map(repoRoot =>
+			limiter.queue(() => this._computeSessionCheckpointDiffs(session, repoRoot, latestTurnId))
+		)).finally(() => limiter.dispose());
+		const trackedRoots = [...nonGitDirectories, ...gitRepositories.filter((_, index) => perRepoDiffs[index] === undefined)];
+		let trackedDiffs: readonly ISessionFileDiff[] = [];
+		if (trackedRoots.length > 0) {
+			const peerSources = this._openPeerChatSources(session, true);
+			try {
+				trackedDiffs = await computeUnionedDiffs([
+					{ sessionUri: session, db },
+					...peerSources.map(peer => ({ sessionUri: peer.sessionUri, db: peer.ref.object })),
+				], this._diffComputeService, trackedRoots);
+			} finally {
+				for (const peer of peerSources) {
+					peer.ref.dispose();
 				}
-			}))),
-			this._computeNonGitBranchDiffs(session, db, nonGitDirectories),
-		]).finally(() => limiter.dispose());
-
-		// Classify the diff sources by availability. The non-git DB source only
-		// counts when there ARE non-git folders, so a session whose working
-		// directories all fail to resolve contributes no sources at all.
-		const orderedSources: (readonly ISessionFileDiff[] | undefined)[] = [...perRepoDiffs];
-		if (nonGitDirectories.length > 0) {
-			orderedSources.push(nonGitDiffs);
-		}
-		const evaluation = evaluateMultiRootDiffSources(orderedSources);
-		if (evaluation.outcome !== 'complete') {
-			// No source produced diffs (total failure or no sources at all).
-			// Preserve the previously cached summary instead of clobbering it
-			// with a spurious zero aggregate.
-			this._logService.warn(`[AgentHostChangesetService] No diff source available for multi-folder branch summary ${session}; preserving the cached summary.`);
-			return;
-		}
-
-		let additions = 0;
-		let deletions = 0;
-		let files = 0;
-		for (const diffs of evaluation.availableSources) {
-			const summary = summariseDiffs(diffs);
-			if (summary) {
-				additions += summary.additions ?? 0;
-				deletions += summary.deletions ?? 0;
-				files += summary.files ?? 0;
 			}
 		}
 
-		const changesSummary: ChangesSummary = { additions, deletions, files };
-		this.persistChangesSummary(session, changesSummary);
-		this._stateManager.setSessionSummaryChanges(session, changesSummary);
+		// A non-Git parent folder may contain a repository already covered by checkpoints.
+		const checkpointRoots = gitRepositories.filter((_, index) => perRepoDiffs[index] !== undefined);
+		trackedDiffs = trackedDiffs.filter(diff => {
+			const uri = diff.after?.uri ?? diff.before?.uri;
+			return uri !== undefined && !checkpointRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(uri), root));
+		});
+		const gitDiffs = perRepoDiffs.filter((diffs): diffs is readonly ISessionFileDiff[] => diffs !== undefined);
+		return { diffs: dedupeSessionFileDiffs([...gitDiffs, trackedDiffs]), usedFallback: trackedRoots.length > 0 };
 	}
 
-	/**
-	 * Computes one git repository's branch diff for the multi-folder summary,
-	 * logging and returning `undefined` on any failure so a single repo never
-	 * fails the whole aggregate and an unavailable repo is counted as such (not
-	 * as a spurious zero). Uses the same `computeSessionFileDiffs` primitive as
-	 * the primary branch changeset, threading the resolved `baseBranch` so
-	 * committed-on-branch work is counted (not just uncommitted).
-	 */
-	private async _computeRepoBranchDiffs(session: ProtocolURI, repoRoot: URI, baseBranch: string | undefined): Promise<readonly ISessionFileDiff[] | undefined> {
-		try {
-			const diffs = await this._gitService.computeSessionFileDiffs(repoRoot, { sessionUri: session, baseBranch });
-			if (!diffs) {
-				this._logService.error(`[AgentHostChangesetService] Git branch diff unavailable for multi-folder branch summary ${session} in repository ${repoRoot.toString()}; skipping that repository.`);
-				return undefined;
-			}
-			return diffs;
-		} catch (err) {
-			this._logService.error(`[AgentHostChangesetService] Failed to compute git branch diff for multi-folder branch summary ${session} in repository ${repoRoot.toString()}`, err);
+	/** Missing checkpoints permit tracked-edit fallback; failed Git computations must not publish partial results. */
+	private async _computeSessionCheckpointDiffs(session: ProtocolURI, workingDirectory: URI, latestTurnId: string | undefined): Promise<readonly ISessionFileDiff[] | undefined> {
+		if (!latestTurnId) {
 			return undefined;
 		}
-	}
-
-	/**
-	 * The session-level DB-tracked edits for the non-git folders, scoped to
-	 * those roots so the multi-folder summary counts non-git folder changes
-	 * (git folders are already covered by their branch diff, and the git/non-git
-	 * partition keeps the two disjoint). Uses full-session aggregation so a file
-	 * edited across several turns counts once. Callers only treat this as a
-	 * source when there ARE non-git folders; it returns `undefined` on failure
-	 * so a failed non-git source is counted as unavailable rather than empty.
-	 */
-	private async _computeNonGitBranchDiffs(session: ProtocolURI, db: ISessionDatabase, nonGitDirectories: readonly URI[]): Promise<readonly ISessionFileDiff[] | undefined> {
-		if (nonGitDirectories.length === 0) {
-			return [];
-		}
-		try {
-			return await computeSessionDiffs(session, db, this._diffComputeService, undefined, nonGitDirectories);
-		} catch (err) {
-			this._logService.error(`[AgentHostChangesetService] Failed to compute non-git DB branch summary for multi-folder session ${session}`, err);
+		const sessionUri = URI.parse(session);
+		const [baseline, pair] = await Promise.all([
+			this._checkpointService.getBaselineCheckpoint(sessionUri, workingDirectory),
+			this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId, workingDirectory),
+		]);
+		if (!baseline || !pair) {
 			return undefined;
 		}
+		const diffs = await this._gitService.computeFileDiffsBetweenRefs(workingDirectory, {
+			sessionUri: session, fromRef: baseline, toRef: pair.current,
+		});
+		if (!diffs) {
+			throw new Error(`Session checkpoint diff unavailable for ${session} in ${workingDirectory.toString()}`);
+		}
+		return diffs;
 	}
 
 	private async _resolveWorkingDirectory(session: ProtocolURI): Promise<URI | undefined> {
@@ -1248,23 +1096,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		this._stateManager.registerChangeset(changesetUri);
 		try {
-			let diffs = await this._tryComputeGitDiffs(session, ref.object, kind);
+			let diffs: readonly ISessionFileDiff[] | undefined;
+			if (kind === 'session' && isMultiRootSession(workingDirectories)) {
+				const result = await this._computeMultiFolderSessionDiffs(session, ref.object, workingDirectories!);
+				diffs = result.diffs;
+				usedEditTrackerFallback = result.usedFallback;
+			} else {
+				diffs = await this._tryComputeGitDiffs(session, ref.object, kind);
+			}
 			if (!diffs) {
 				if (kind === 'branch') {
-					// Branch changeset answers a different question than the
-					// edit-tracker aggregator — do not fall back. Preserve
-					// whatever cached state is already there.
-					//
-					// The multi-folder `summary.changes` aggregate is computed
-					// INDEPENDENTLY of the primary branch changeset (it re-diffs
-					// every folder itself), so refresh it here even though the
-					// primary branch diff is unavailable — otherwise a primary
-					// folder without a resolvable diff would suppress the whole
-					// all-folder count.
-					const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
-					if (isMultiRootSession(workingDirectories)) {
-						await this._updateMultiFolderChangesSummary(session, ref.object, workingDirectories!);
-					}
+					// Tracked edits cannot substitute for a branch diff; preserve the cached changeset.
 					this._logService.debug(`[AgentHostChangesetService] Branch git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
 					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 					outcome = 'preserved';
@@ -1312,6 +1154,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 			}
 
+			if (kind === 'session' && !equals(workingDirectories, this._configurationService.getEffectiveWorkingDirectories(session))) {
+				this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+				outcome = 'preserved';
+				return;
+			}
+
 			const reviewed = kind === ChangesetKind.Branch
 				? await this._computeReviewedInfo(session, ref.object)
 				: undefined;
@@ -1329,31 +1177,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				// session-changeset payload so older readers stay correct
 				// during the rollout window.
 				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
+			}
 
-				// Own the `summary.changes` aggregate by session shape:
-				//
-				// - SINGLE-folder: derive it from the primary branch `diffs`,
-				//   exactly as before — that branch changeset IS the whole
-				//   session footprint. The session-list chip and the
-				//   inactive-session aggregate (`computeListEntryChanges`) read the
-				//   branch changeset, as does the active session view, so sourcing
-				//   the persisted summary from the same place keeps the count stable
-				//   across the active <-> inactive transition.
-				// - MULTI-folder: the primary-only `diffs` under-count the session,
-				//   so do NOT write the summary here. Recompute the ALL-FOLDER
-				//   aggregate independently from every repository's branch diff so a
-				//   subsequent branch recompute keeps the all-folder count instead of
-				//   clobbering it back to the primary folder's. The branch CHANGESET
-				//   state is still published from the primary `diffs` above (data
-				//   unchanged); only the summary ownership moves.
-				const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
-				if (isMultiRootSession(workingDirectories)) {
-					// Reuse the primary branch `diffs` just computed above so the
-					// summary doesn't re-diff the primary repo (perf: one fewer git
-					// diff per branch recompute).
-					await this._updateMultiFolderChangesSummary(session, ref.object, workingDirectories!, diffs);
-				} else {
-					const changesSummary = summariseDiffs(diffs) ?? { additions: 0, deletions: 0, files: 0 };
+			if (kind === 'session') {
+				const changesSummary = computeChangesSummaryFromLiveState(this._stateManager.getChangesetState(changesetUri));
+				if (changesSummary) {
 					this.persistChangesSummary(session, changesSummary);
 					this._stateManager.setSessionSummaryChanges(session, changesSummary);
 				}
@@ -1460,7 +1288,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * databases with the session DB. Returns an empty array for single-chat
 	 * sessions. Callers MUST dispose every returned `ref`.
 	 */
-	private _openPeerChatSources(session: ProtocolURI): { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] {
+	private _openPeerChatSources(session: ProtocolURI, requireAllSources = false): { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] {
 		const chats = this._stateManager.getSessionState(session)?.chats ?? [];
 		const sources: { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
 		for (const chat of chats) {
@@ -1472,6 +1300,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				sources.push({ sessionUri: chat.resource, ref });
 			} catch (err) {
 				this._logService.warn(`[AgentHostChangesetService] Failed to open peer chat database for session changes: ${chat.resource}`, err);
+				if (requireAllSources) {
+					for (const source of sources) {
+						source.ref.dispose();
+					}
+					throw err;
+				}
 			}
 		}
 		return sources;

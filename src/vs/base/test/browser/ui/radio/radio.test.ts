@@ -7,6 +7,7 @@ import assert from 'assert';
 import { getWindow } from '../../../../browser/dom.js';
 import { Radio, IRadioOptions } from '../../../../browser/ui/radio/radio.js';
 import { mainWindow } from '../../../../browser/window.js';
+import { timeout } from '../../../../common/async.js';
 import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
@@ -15,8 +16,10 @@ suite('Radio', () => {
 
 	function createRadio(options: IRadioOptions): Radio {
 		const radio = disposables.add(new Radio(options));
-		mainWindow.document.body.appendChild(radio.domNode);
-		disposables.add(toDisposable(() => radio.domNode.remove()));
+		const container = mainWindow.document.createElement('div');
+		container.appendChild(radio.domNode);
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
 		radio.domNode.style.cssText = `
 			position: absolute;
 			top: 0;
@@ -27,10 +30,149 @@ suite('Radio', () => {
 			--vscode-spacing-size60: 6px;
 			--vscode-spacing-size240: 24px;
 			--vscode-strokeThickness: 1px;
+			--vscode-cornerRadius-small: 4px;
+			--vscode-cornerRadius-medium: 6px;
 			--vscode-fontSize-label2: 11px;
+			--vscode-fontWeight-regular: 400;
 			--vscode-fontWeight-semiBold: 600;
 		`;
 		return radio;
+	}
+
+	async function nextFrame(radio: Radio): Promise<void> {
+		const targetWindow = getWindow(radio.domNode);
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+	}
+
+	for (const highContrast of [false, true]) {
+		test(`segmented controls share rounded rectangles and a neutral selected fill${highContrast ? ' in high contrast' : ''}`, async () => {
+			const radio = createRadio({ className: 'segmented', items: [{ text: 'Low' }, { text: 'Medium', isActive: true }, { text: 'High' }] });
+			radio.domNode.style.width = '240px';
+			radio.domNode.style.setProperty('--vscode-foreground', '#333333');
+			radio.domNode.style.setProperty('--vscode-radio-inactiveBorder', '#dddddd');
+			radio.domNode.style.setProperty('--vscode-radio-activeBorder', '#0000ff');
+			radio.domNode.style.setProperty('--vscode-radio-activeBackground', '#0000ff');
+			if (highContrast) {
+				radio.domNode.parentElement!.classList.add('hc-light');
+				radio.domNode.style.setProperty('--vscode-contrastBorder', '#444444');
+				radio.domNode.style.setProperty('--vscode-contrastActiveBorder', '#006bbd');
+			}
+			await nextFrame(radio);
+			const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+			const targetWindow = getWindow(radio.domNode);
+			const groupStyle = targetWindow.getComputedStyle(radio.domNode);
+			const indicatorStyle = targetWindow.getComputedStyle(indicator);
+			const canvas = mainWindow.document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d');
+			assert.ok(context);
+			context.fillStyle = '#ffffff';
+			context.fillRect(0, 0, 1, 1);
+			context.fillStyle = indicatorStyle.backgroundColor;
+			context.fillRect(0, 0, 1, 1);
+			const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+			const selectedBounds = radio.optionElements[1].getBoundingClientRect();
+			const indicatorBounds = indicator.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				outline: { width: groupStyle.borderTopWidth, color: groupStyle.borderTopColor },
+				groupRadius: groupStyle.borderRadius,
+				segmentRadii: radio.optionElements.map(element => targetWindow.getComputedStyle(element).borderRadius),
+				indicatorRadius: indicatorStyle.borderRadius,
+				selectionBorder: indicatorStyle.borderTopColor,
+				selectionShadow: indicatorStyle.boxShadow,
+				neutralFill: red === green && green === blue && red > 51 && red < 255 && alpha === 255,
+				labelColors: radio.optionElements.map(element => targetWindow.getComputedStyle(element).color),
+				labelWeights: radio.optionElements.map(element => targetWindow.getComputedStyle(element).fontWeight),
+				aligned: Math.abs(selectedBounds.x - indicatorBounds.x) < 1 && Math.abs(selectedBounds.y - indicatorBounds.y) < 1,
+			}, {
+				outline: { width: '1px', color: highContrast ? 'rgb(68, 68, 68)' : 'rgb(221, 221, 221)' },
+				groupRadius: '6px',
+				segmentRadii: ['4px', '4px', '4px'],
+				indicatorRadius: '4px',
+				selectionBorder: highContrast ? 'rgb(0, 107, 189)' : 'rgba(0, 0, 0, 0)',
+				selectionShadow: 'none',
+				neutralFill: true,
+				labelColors: ['rgb(51, 51, 51)', 'rgb(51, 51, 51)', 'rgb(51, 51, 51)'],
+				labelWeights: ['400', '600', '400'],
+				aligned: true,
+			});
+		});
+	}
+
+	test('the decorative selection indicator follows unequal options and resizes without moving buttons', async () => {
+		const radio = createRadio({
+			className: 'segmented',
+			items: ['None', 'Low', 'Medium', 'High', 'Extra High', 'Max'].map(text => ({ text })),
+		});
+		radio.domNode.style.width = '276px';
+		radio.domNode.parentElement!.classList.add('monaco-reduce-motion');
+		await nextFrame(radio);
+		const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+		const aligned = (index: number) => {
+			const option = radio.optionElements[index];
+			return indicator.style.transform === `translate(${option.offsetLeft}px, ${option.offsetTop}px)`
+				&& indicator.style.width === `${option.offsetWidth}px`
+				&& indicator.style.height === `${option.offsetHeight}px`;
+		};
+		const selections = radio.optionElements.map((_, index) => {
+			radio.setActiveItem(index);
+			return aligned(index);
+		});
+		radio.domNode.style.width = '360px';
+		await nextFrame(radio);
+		assert.deepStrictEqual({ selections, resized: aligned(5), hidden: indicator.getAttribute('aria-hidden'), options: radio.optionElements.length }, {
+			selections: [true, true, true, true, true, true], resized: true, hidden: 'true', options: 6,
+		});
+	});
+
+	test('segmented motion uses a short slide and respects reduced motion', async () => {
+		const radio = createRadio({ className: 'segmented', items: [{ text: 'One' }, { text: 'Two' }, { text: 'Six' }] });
+		radio.domNode.style.width = '200px';
+		await nextFrame(radio);
+		radio.setActiveItem(1);
+		const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+		const targetWindow = getWindow(indicator);
+		const normalDuration = targetWindow.getComputedStyle(indicator).transitionDuration;
+		radio.domNode.parentElement!.classList.add('monaco-reduce-motion');
+		radio.setActiveItem(2);
+		await radio.whenSelectionAnimationSettles();
+		assert.deepStrictEqual({
+			normalDuration,
+			reducedDuration: targetWindow.getComputedStyle(indicator).transitionDuration,
+			animations: indicator.getAnimations().length,
+		}, {
+			normalDuration: targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? '0s' : '0.16s, 0.16s, 0.1s',
+			reducedDuration: '0s',
+			animations: 0,
+		});
+	});
+
+	for (const dispose of [false, true]) {
+		test(`selection waiting follows interruptions and settles on ${dispose ? 'disposal' : 'completion'}`, async () => {
+			const radio = createRadio({ className: 'segmented', items: [{ text: 'One' }, { text: 'Two' }] });
+			const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+			const animate = () => {
+				const animation = indicator.animate([{ opacity: 1 }, { opacity: 0.9 }], { duration: 160 });
+				disposables.add(toDisposable(() => animation.cancel()));
+				animation.pause();
+				return animation;
+			};
+			const first = animate();
+			let settled = false;
+			const pending = radio.whenSelectionAnimationSettles().then(() => { settled = true; });
+			const second = animate();
+			first.cancel();
+			await timeout(0);
+			const before = settled;
+			if (dispose) {
+				radio.dispose();
+			} else {
+				second.finish();
+			}
+			await pending;
+			assert.deepStrictEqual({ before, settled }, { before: false, settled: true });
+		});
 	}
 
 	for (const labels of [

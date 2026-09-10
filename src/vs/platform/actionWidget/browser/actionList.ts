@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Switch } from '../../../base/browser/ui/toggle/switch.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
@@ -21,6 +23,7 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import './actionWidget.css';
@@ -72,6 +75,15 @@ export interface IActionListItemHover {
 	readonly panelClassName?: string;
 	/** Align the panel's adjoining edge with the outer action widget rather than its inset list. */
 	readonly alignToParent?: boolean;
+	/** Keep the initial top edge as content or rows change, scrolling at the viewport edge. */
+	readonly preserveVerticalPosition?: boolean;
+}
+
+export interface IActionListUpdateOptions {
+	/** Retain the open hover when its replacement item returns the same content element. */
+	readonly preserveHover?: boolean;
+	/** Animate a visible focused item's move. The caller must respect reduced motion. */
+	readonly animateItemMove?: boolean;
 }
 
 /**
@@ -750,6 +762,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _currentSubmenuElement: IActionListItem<T> | undefined;
 	private _submenuPanelClassName: string | undefined;
 	private _layoutSubmenu: (() => void) | undefined;
+	private readonly _itemMoveAnimation = this._register(new MutableDisposable());
 	private _submenuSide: 'left' | 'right' | undefined;
 	private _submenuPointerOrigin: { readonly x: number; readonly y: number } | undefined;
 	private _submenuPointerGraceDeadline: number | undefined;
@@ -1248,7 +1261,8 @@ export class ActionListWidget<T> extends Disposable {
 		}).catch(() => { /* best-effort */ });
 	}
 
-	private _applyFilter(skipTextFilter = false, fireLayout = true): void {
+	private _applyFilter(skipTextFilter = false, fireLayout = true, focusItemId?: string): void {
+		this._itemMoveAnimation.clear();
 		const filterLower = skipTextFilter ? '' : this._filterText.toLowerCase();
 		const isFiltering = !skipTextFilter && filterLower.length > 0;
 		const visible: IActionListItem<T>[] = [];
@@ -1406,8 +1420,8 @@ export class ActionListWidget<T> extends Disposable {
 			this._focusCheckedOrFirst();
 		} else if (this._hasLaidOut) {
 			// Restore focus to the previously focused item
-			if (focusedItem) {
-				const focusedItemId = (focusedItem.item as { id?: string })?.id;
+			if (focusedItem || focusItemId) {
+				const focusedItemId = focusItemId ?? (focusedItem?.item as { id?: string })?.id;
 				if (focusedItemId) {
 					for (let i = 0; i < this._list.length; i++) {
 						const el = this._list.element(i);
@@ -1516,22 +1530,76 @@ export class ActionListWidget<T> extends Disposable {
 	 * focused item is preserved (matched by id). The widget only re-measures when
 	 * the number of visible rows changed.
 	 */
-	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string): void {
+	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		const expandedItemId = (this._currentSubmenuElement?.item as { id?: string } | undefined)?.id;
+		const preservedItem = options?.preserveHover && expandedItemId
+			? items.find(item => (item.item as { id?: string } | undefined)?.id === (focusItemId ?? expandedItemId))
+			: undefined;
+		const content = preservedItem?.hover?.content;
+		const preservedContent = typeof content === 'function' ? content() : content;
+		const preserveHover = !this._currentSubmenuWidget && dom.isHTMLElement(preservedContent) && this._submenuContainer.contains(preservedContent);
+		const previousRow = options?.animateItemMove && preserveHover && this._currentSubmenuElement
+			? this._getRowElement(this._list.indexOf(this._currentSubmenuElement))?.getBoundingClientRect()
+			: undefined;
+
 		this._allMenuItems = [...items];
-		if (this._options?.persistentHover && this._currentSubmenuElement && !this._allMenuItems.includes(this._currentSubmenuElement)) {
+		if (preserveHover && preservedItem) {
+			this._currentSubmenuElement = preservedItem;
+			if (preservedItem.label && preservedItem.hover?.expandable) {
+				this._submenuContainer.setAttribute('aria-label', preservedItem.label);
+			}
+			if (preservedItem.section) {
+				this._collapsedSections.delete(preservedItem.section);
+			}
+		} else if ((options?.preserveHover || this._options?.persistentHover) && this._currentSubmenuElement && !this._allMenuItems.includes(this._currentSubmenuElement)) {
 			this._hideSubmenu();
 		}
 		const previousVisibleCount = this._visibleMenuItems.length;
 		// Re-layout only when the number of rows changed. Holding the widget still
 		// otherwise keeps it from re-anchoring against a trigger that the same action
 		// just re-rendered.
-		this._applyFilter(false, false);
+		const suppressHover = this._suppressHover;
+		this._suppressHover ||= preserveHover;
+		try {
+			this._applyFilter(false, false, preserveHover ? focusItemId ?? expandedItemId : undefined);
+		} finally {
+			this._suppressHover = suppressHover;
+		}
 		if (this._visibleMenuItems.length !== previousVisibleCount) {
 			this._onDidRequestLayout.fire();
 		}
-		if (focusItemId !== undefined) {
+		if (preserveHover) {
+			this._layoutSubmenu?.();
+			if (previousRow && preservedItem) {
+				this._animateItemMove(preservedItem, previousRow);
+			}
+		} else if (focusItemId !== undefined) {
 			this.focusItemById(focusItemId);
 		}
+	}
+
+	private _animateItemMove(item: IActionListItem<T>, previous: DOMRect): void {
+		if (this.domNode.closest('.monaco-reduce-motion') || dom.getWindow(this.domNode).matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			return;
+		}
+		const row = this._getRowElement(this._list.indexOf(item));
+		if (!row) {
+			return;
+		}
+		const current = row.getBoundingClientRect();
+		const bounds = this._list.getHTMLElement().getBoundingClientRect();
+		if (previous.top < bounds.top || previous.bottom > bounds.bottom || current.top < bounds.top || current.bottom > bounds.bottom || Math.abs(previous.top - current.top) < 1) {
+			return;
+		}
+		const zoom = dom.getDomNodeZoomLevel(row);
+		const background = dom.getComputedStyle(row).backgroundColor;
+		// Keep the moving row opaque while it crosses other rows.
+		const frame = { zIndex: 1, backgroundColor: asCssVariable('menu.background'), backgroundImage: `linear-gradient(${background}, ${background})` };
+		const animation = row.animate([
+			{ ...frame, transform: `translateY(${(previous.top - current.top) / zoom}px)` },
+			{ ...frame, transform: 'translateY(0)' },
+		], { duration: 160, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+		this._itemMoveAnimation.value = toDisposable(() => animation.cancel());
 	}
 
 	/**
@@ -2032,6 +2100,9 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _getRowElement(index: number): HTMLElement | null {
+		if (index < 0) {
+			return null;
+		}
 		// eslint-disable-next-line no-restricted-syntax
 		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 	}
@@ -2087,6 +2158,29 @@ export class ActionListWidget<T> extends Disposable {
 			this._submenuContainer.classList.add(this._submenuPanelClassName);
 		}
 
+		const preserveVerticalPosition = element.hover?.preserveVerticalPosition;
+		const content = preserveVerticalPosition ? dom.$('.action-list-submenu-content') : this._submenuContainer;
+		const viewport = preserveVerticalPosition ? dom.$('.action-list-submenu-viewport', undefined, content) : undefined;
+		const scrollbar = viewport ? this._submenuDisposables.add(new DomScrollableElement(viewport, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+			useShadows: false,
+		})) : undefined;
+		if (scrollbar && viewport) {
+			this._submenuContainer.appendChild(scrollbar.getDomNode());
+			this._submenuDisposables.add(dom.addDisposableListener(viewport, dom.EventType.SCROLL, () => scrollbar.scanDomNode()));
+			this._submenuDisposables.add(dom.addDisposableListener(this._submenuContainer, dom.EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.PageDown) || event.equals(KeyCode.PageUp)) {
+					dom.EventHelper.stop(e, true);
+					scrollbar.setScrollPosition({
+						scrollTop: scrollbar.getScrollPosition().scrollTop + (event.equals(KeyCode.PageDown) ? 1 : -1) * viewport.clientHeight,
+					});
+				}
+			}));
+		}
+
 		// When the item has hover content, render it as a header
 		let hoverHeader: HTMLElement | undefined;
 		const hoverContent = typeof element.hover?.content === 'function' ? element.hover.content() : element.hover?.content;
@@ -2122,7 +2216,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (element.submenuActions?.length) {
 				hoverHeader.classList.add('has-submenu');
 			}
-			this._submenuContainer.appendChild(hoverHeader);
+			content.appendChild(hoverHeader);
 		}
 
 		const hasSubmenuActions = !!element.submenuActions?.length;
@@ -2220,7 +2314,7 @@ export class ActionListWidget<T> extends Disposable {
 				undefined,
 				undefined,
 			));
-			this._submenuContainer.appendChild(submenuWidget.domNode);
+			content.appendChild(submenuWidget.domNode);
 			this._currentSubmenuWidget = submenuWidget;
 
 			// The submenu widget's constructor focuses its first item by
@@ -2268,15 +2362,18 @@ export class ActionListWidget<T> extends Disposable {
 			}));
 		}
 
+		let openingPanelHeight: number | undefined;
+		let openingPanelTop: number | undefined;
 		const layout = () => {
-			if (this._currentSubmenuElement !== element) {
+			const currentElement = this._currentSubmenuElement;
+			if (!currentElement || this._layoutSubmenu !== layout) {
 				return;
 			}
 			// Width measurement and virtualization can replace or recycle the original row.
-			const index = this._list.indexOf(element);
+			const index = this._list.indexOf(currentElement);
 			const row = index >= 0 ? this._getRowElement(index) : null;
 			const persistent = this._options?.persistentHover;
-			if (!row && (!persistent || !this._allMenuItems.includes(element))) {
+			if (!row && (!persistent || !this._allMenuItems.includes(currentElement))) {
 				this._hideSubmenu();
 				return;
 			}
@@ -2288,12 +2385,12 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			row?.setAttribute('aria-expanded', 'true');
 			const parentRect = this.domNode.getBoundingClientRect();
-			const alignToParent = persistent || element.hover?.alignToParent;
+			const alignToParent = persistent || currentElement.hover?.alignToParent;
 			const edgeRect = alignToParent
 				? this.domNode.parentElement?.closest('.action-widget')?.getBoundingClientRect() ?? parentRect
 				: parentRect;
 			const anchorRect = row?.getBoundingClientRect() ?? edgeRect;
-			const zoom = alignToParent ? dom.getDomNodeZoomLevel(this.domNode) : 1;
+			const zoom = alignToParent || preserveVerticalPosition ? dom.getDomNodeZoomLevel(this.domNode) : 1;
 			if (persistent) {
 				this._submenuContainer.style.width = `${edgeRect.width / zoom}px`;
 			}
@@ -2314,25 +2411,40 @@ export class ActionListWidget<T> extends Disposable {
 				: edgeRect.left - parentRect.left - panelWidth - gap;
 			this._submenuContainer.style.left = `${left / zoom}px`;
 
-			const panelHeight = alignToParent ? panelRect.height : totalHeight + (hoverHeader?.offsetHeight ?? 0);
-			let top = row
-				? anchorRect.top - parentRect.top + (anchorRect.height - panelHeight) / 2
-				: panelRect.top - parentRect.top;
-			const panelBottom = parentRect.top + top + panelHeight;
+			const panelHeight = alignToParent || preserveVerticalPosition ? panelRect.height : totalHeight + (hoverHeader?.offsetHeight ?? 0);
+			if (preserveVerticalPosition) {
+				openingPanelHeight ??= panelHeight / zoom;
+			}
+			const anchorHeight = openingPanelHeight !== undefined ? openingPanelHeight * zoom : panelHeight;
+			let top = openingPanelTop !== undefined
+				? openingPanelTop * zoom
+				: row
+					? anchorRect.top - parentRect.top + (anchorRect.height - anchorHeight) / 2
+					: panelRect.top - parentRect.top;
+			const panelBottom = parentRect.top + top + anchorHeight;
 			if (panelBottom > targetWindow.innerHeight) {
 				top -= panelBottom - targetWindow.innerHeight + 8;
 			}
 			if (parentRect.top + top < 0) {
 				top = -parentRect.top;
 			}
+			if (preserveVerticalPosition) {
+				openingPanelTop ??= top / zoom;
+			}
+			if (viewport && scrollbar) {
+				const chromeHeight = (panelRect.height - scrollbar.getDomNode().getBoundingClientRect().height) / zoom;
+				const availableHeight = Math.max(0, (targetWindow.innerHeight - parentRect.top - top - 8) / zoom - chromeHeight);
+				viewport.style.height = `${Math.min(content.getBoundingClientRect().height / zoom, availableHeight)}px`;
+				scrollbar.scanDomNode();
+			}
 			this._submenuContainer.style.top = `${top / zoom}px`;
 		};
 		this._layoutSubmenu = layout;
 		layout();
-		if ((this._options?.persistentHover || element.hover?.alignToParent) && this._currentSubmenuElement === element) {
+		if ((this._options?.persistentHover || element.hover?.alignToParent || preserveVerticalPosition) && this._currentSubmenuElement === element) {
 			const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', layout, targetWindow));
-			this._submenuDisposables.add(observer.observe(this._submenuContainer, { box: 'border-box' }));
-			if (this._options?.persistentHover) {
+			this._submenuDisposables.add(observer.observe(preserveVerticalPosition ? content : this._submenuContainer, { box: 'border-box' }));
+			if (this._options?.persistentHover || preserveVerticalPosition) {
 				this._submenuDisposables.add(dom.addDisposableListener(targetWindow, dom.EventType.RESIZE, () => {
 					this._cancelSubmenuShow();
 					this._resetSubmenuPointer();
@@ -2667,8 +2779,8 @@ export class ActionList<T> extends Disposable {
 		this._widget.acceptSelected(preview);
 	}
 
-	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string): void {
-		this._widget.updateItems(items, focusItemId);
+	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		this._widget.updateItems(items, focusItemId, options);
 	}
 
 	/** Height the list would need for `items`, for a caller sizing against other contents. */

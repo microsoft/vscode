@@ -101,6 +101,10 @@ function dispatchKeyDown(target: HTMLElement, init: KeyboardEventInit): Keyboard
 	return event;
 }
 
+function settleLayout(): Promise<void> {
+	return new Promise(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+}
+
 function getVisibleRowText(widget: ActionListWidget<ITestActionItem>): string[] {
 	return Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'))
 		.map(row => row.textContent ?? '')
@@ -1353,9 +1357,6 @@ suite('ActionListWidget', () => {
 			widget.focus();
 			widget.showHoverForCheckedItem();
 
-			const settleLayout = () => new Promise<void>(resolve => {
-				mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve()));
-			});
 			const measure = () => {
 				const row = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.textContent === 'active');
 				const rowBounds = row?.getBoundingClientRect();
@@ -1379,6 +1380,193 @@ suite('ActionListWidget', () => {
 			assert.deepStrictEqual({ before, after: measure() }, { before: expected, after: expected });
 		});
 	}
+
+	for (const side of ['left', 'right']) {
+		for (const zoom of [1, 1.25]) {
+			for (const nearBottom of [false, true]) {
+				test(`resizable hover keeps its ${side} anchor at ${zoom} zoom${nearBottom ? ' near the viewport bottom' : ''}`, async () => {
+					const content = document.createElement('div');
+					content.style.cssText = 'width: 120px; height: 80px;';
+					const button = document.createElement('button');
+					button.textContent = 'Pricing details';
+					content.appendChild(button);
+					const widget = createActionListWidget(disposables, {
+						items: [{
+							...action('active'),
+							item: { id: 'active', checked: true },
+							hover: { content, alignToParent: true, preserveVerticalPosition: true },
+						}],
+						listOptions: { showFilter: false, persistentHover: true },
+					});
+					const popup = document.createElement('div');
+					const left = side === 'left' ? (mainWindow.innerWidth - 320) / zoom : 40;
+					const top = nearBottom ? (mainWindow.innerHeight - 100) / zoom : 100;
+					popup.className = 'action-widget';
+					popup.style.cssText = `position: fixed; top: ${top}px; left: ${left}px; width: 260px; padding: 8px; zoom: ${zoom};`;
+					document.body.appendChild(popup);
+					disposables.add({ dispose: () => popup.remove() });
+					popup.appendChild(widget.domNode);
+					widget.layout(24, 240);
+					widget.focus();
+					widget.showHoverForCheckedItem();
+					await settleLayout();
+
+					const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+					const viewport = panel.querySelector<HTMLElement>('.action-list-submenu-viewport')!;
+					button.focus();
+					const before = panel.getBoundingClientRect();
+					const beforeButton = button.getBoundingClientRect();
+					content.style.height = nearBottom ? `${mainWindow.innerHeight}px` : '160px';
+					await settleLayout();
+					const expanded = panel.getBoundingClientRect();
+					const expandedButton = button.getBoundingClientRect();
+					const scrolls = viewport.scrollHeight > viewport.clientHeight;
+					const pageDown = dispatchKeyDown(button, { key: 'PageDown', keyCode: 34 });
+					const scrolled = viewport.scrollTop > 0;
+					dispatchKeyDown(button, { key: 'PageUp', keyCode: 33 });
+					const pageUpRestored = viewport.scrollTop === 0;
+					dispatchKeyDown(button, { key: 'PageDown', keyCode: 34 });
+					content.style.height = '80px';
+					await settleLayout();
+					const collapsed = panel.getBoundingClientRect();
+					const sameOrigin = (rect: DOMRect) => Math.abs(rect.x - before.x) < 1 && Math.abs(rect.y - before.y) < 1 && Math.abs(rect.width - before.width) < 1;
+
+					assert.deepStrictEqual({
+						expandedAnchored: sameOrigin(expanded),
+						controlsAnchored: Math.abs(expandedButton.x - beforeButton.x) < 1 && Math.abs(expandedButton.y - beforeButton.y) < 1,
+						grewDownward: expanded.height > before.height,
+						withinViewport: expanded.bottom <= mainWindow.innerHeight - 7,
+						scrolls,
+						scrolled,
+						pageDownHandled: pageDown.defaultPrevented,
+						pageUpRestored,
+						collapsedAnchored: sameOrigin(collapsed),
+						collapsedHeight: Math.abs(collapsed.height - before.height) < 1,
+						scrollReset: viewport.scrollTop === 0,
+						focusRetained: document.activeElement === button,
+					}, {
+						expandedAnchored: true,
+						controlsAnchored: true,
+						grewDownward: true,
+						withinViewport: true,
+						scrolls: nearBottom,
+						scrolled: nearBottom,
+						pageDownHandled: true,
+						pageUpRestored: true,
+						collapsedAnchored: true,
+						collapsedHeight: true,
+						scrollReset: true,
+						focusRetained: true,
+					});
+				});
+			}
+		}
+	}
+
+	for (const zoom of [1, 1.25]) {
+		test(`refresh retains the live hover and its origin while the focused row moves at ${zoom} zoom`, async () => {
+			const content = document.createElement('div');
+			content.style.cssText = 'width: 120px; height: 80px;';
+			const button = document.createElement('button');
+			button.textContent = 'Pin Model';
+			content.appendChild(button);
+			const item = (id: string, label = id): IActionListItem<ITestActionItem> => ({
+				...action(id), label, item: { id, checked: true },
+				hover: { content: () => content, expandable: true, alignToParent: true, preserveVerticalPosition: true },
+			});
+			const others = ['one', 'two', 'three', 'four'].map(action);
+			const widget = createActionListWidget(disposables, {
+				items: [...others, item('model')],
+				listOptions: { showFilter: false, persistentHover: true },
+			});
+			const popup = document.createElement('div');
+			popup.className = 'action-widget';
+			popup.style.cssText = `position: fixed; top: 80px; left: 40px; zoom: ${zoom};`;
+			document.body.appendChild(popup);
+			disposables.add({ dispose: () => popup.remove() });
+			popup.appendChild(widget.domNode);
+			widget.layout(160, 200);
+			widget.showHoverForCheckedItem();
+			await settleLayout();
+			button.focus();
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const before = panel.getBoundingClientRect();
+			widget.updateItems([item('model'), ...others], 'model', { preserveHover: true, animateItemMove: true });
+			const moved = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.textContent === 'model')!;
+			const animations = moved.getAnimations();
+			const moveTiming = animations.map(animation => {
+				const timing = animation.effect?.getTiming();
+				return { duration: timing?.duration, easing: timing?.easing };
+			});
+			animations.forEach(animation => animation.finish());
+			await settleLayout();
+			const afterMove = panel.getBoundingClientRect();
+			widget.updateItems([...others, item('model-fast', 'Fast Model')], 'model-fast', { preserveHover: true });
+			await settleLayout();
+			const afterVariant = panel.getBoundingClientRect();
+			const stationary = (rect: DOMRect) => Math.abs(rect.x - before.x) < 1 && Math.abs(rect.y - before.y) < 1 && Math.abs(rect.width - before.width) < 1;
+
+			assert.deepStrictEqual({
+				samePanel: panel === widget.domNode.querySelector('.action-list-submenu-panel'),
+				sameContent: panel.contains(content),
+				focusPreserved: document.activeElement === button,
+				stationaryAfterMove: stationary(afterMove),
+				stationaryAfterVariant: stationary(afterVariant),
+				focusedModel: widget.getFocusedElement()?.item?.id,
+				panelLabel: panel.getAttribute('aria-label'),
+				moveTiming,
+			}, {
+				samePanel: true,
+				sameContent: true,
+				focusPreserved: true,
+				stationaryAfterMove: true,
+				stationaryAfterVariant: true,
+				focusedModel: 'model-fast',
+				panelLabel: 'Fast Model',
+				moveTiming: mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? [] : [{ duration: 160, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }],
+			});
+		});
+	}
+
+	test('preserving a hover reveals its row in a collapsed section without reporting a user toggle', () => {
+		const content = document.createElement('button');
+		content.textContent = 'Unpin Model';
+		const item: IActionListItem<ITestActionItem> = {
+			...action('model'), item: { id: 'model', checked: true }, hover: { content, expandable: true, preserveVerticalPosition: true },
+		};
+		const toggles: boolean[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [item],
+			listOptions: { showFilter: false, persistentHover: true, collapsedByDefault: new Set(['other']), onDidToggleSection: (_, collapsed) => toggles.push(collapsed) },
+		});
+		widget.showHoverForCheckedItem();
+		content.focus();
+		widget.updateItems([action('first'), { ...item, section: 'other' }], 'model', { preserveHover: true });
+
+		assert.deepStrictEqual({
+			rows: getVisibleRowText(widget),
+			toggles,
+			focused: widget.getFocusedElement()?.item?.id,
+			buttonFocused: document.activeElement === content,
+			panelVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+		}, { rows: ['first', 'model'], toggles: [], focused: 'model', buttonFocused: true, panelVisible: true });
+	});
+
+	test('a removed hover is not retained by an item with the same id but different content', () => {
+		const content = document.createElement('button');
+		content.textContent = 'Configure';
+		const item: IActionListItem<ITestActionItem> = {
+			...action('model'), item: { id: 'model', checked: true }, hover: { content, expandable: true },
+		};
+		const widget = createActionListWidget(disposables, { items: [item], listOptions: { showFilter: false, persistentHover: true } });
+		widget.showHoverForCheckedItem();
+		content.focus();
+		widget.updateItems([{ ...item, hover: undefined }], undefined, { preserveHover: true });
+		assert.deepStrictEqual({
+			contentConnected: content.isConnected,
+			panelHidden: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display === 'none',
+		}, { contentConnected: false, panelHidden: true });
+	});
 
 	for (const side of ['left', 'right']) {
 		for (const zoom of [1, 1.25]) {

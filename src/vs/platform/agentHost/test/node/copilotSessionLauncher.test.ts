@@ -33,6 +33,7 @@ import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalMana
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
+import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
@@ -511,7 +512,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			disabledRootMcpServers: ['github', 'azure'],
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 		};
 		const createPlan: CopilotSessionLaunchPlan = {
 			...basePlan,
@@ -541,6 +542,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createHasExitPlanHandler: typeof createConfigs[0].onExitPlanModeRequest === 'function',
 				createLargeOutput: createConfigs[0].largeOutput,
 				createManagedSettings: createConfigs[0].managedSettings,
+				createStreaming: createConfigs[0].streaming,
 				resumeClientName: resumeConfigs[0].clientName,
 				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
@@ -551,6 +553,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
 				resumeManagedSettings: resumeConfigs[0].managedSettings,
+				resumeStreaming: resumeConfigs[0].streaming,
 				ephemeralMcpServers: createConfigs[1].mcpServers,
 				ephemeralDisabledMcpServers: createConfigs[1].disabledMcpServers,
 				ephemeralExcludedTools: createConfigs[1].excludedTools,
@@ -582,6 +585,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createHasExitPlanHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
+				createStreaming: true,
 				resumeClientName: 'vscode-agent-host',
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -599,6 +603,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
+				resumeStreaming: true,
 				ephemeralMcpServers: {},
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
 				ephemeralExcludedTools: ['task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
@@ -674,7 +679,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 				snapshot: { tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
-				githubToken: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 				kind: 'resume',
 				fallback: { model: undefined },
 			},
@@ -898,7 +903,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 			model: { id: 'claude-sonnet-4.5', config: {} },
 		};
 
@@ -929,7 +934,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 			model: { id: 'claude-sonnet-4.5', config: {} },
 		};
 
@@ -959,7 +964,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 			model: { id: 'claude-sonnet-4.5', config: {} },
 		};
 
@@ -989,7 +994,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 			model: { id: 'claude-sonnet-4.5', config: {} },
 		};
 
@@ -1016,7 +1021,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 			fallback: { model: { id: 'gpt-5.6-sol', config: {} } },
 		};
 
@@ -1329,7 +1334,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			snapshot,
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: 'token',
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
@@ -1561,7 +1566,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			snapshot: { tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
-			githubToken: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
 			? { ...base, kind: 'create', model }

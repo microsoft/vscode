@@ -55,12 +55,10 @@ import { IEditSessionDiffStats } from '../../../common/editing/chatEditingServic
 const SESSIONS_IS_PHONE_LAYOUT_KEY = 'sessionsIsPhoneLayout';
 
 /**
- * Resolves the effective thinking display mode. On phone layout we always force
- * {@link ThinkingDisplayMode.CollapsedPreview} so streaming reasoning takes less
- * room and auto-collapses on completion regardless of the user's setting.
+ * Read-only chats and phone layouts use collapsed preview regardless of the configured thinking style.
  */
-export function getEffectiveThinkingDisplayMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService): ThinkingDisplayMode {
-	if (contextKeyService.getContextKeyValue<boolean>(SESSIONS_IS_PHONE_LAYOUT_KEY) === true) {
+export function getEffectiveThinkingDisplayMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService, readOnly = false): ThinkingDisplayMode {
+	if (readOnly || contextKeyService.getContextKeyValue<boolean>(SESSIONS_IS_PHONE_LAYOUT_KEY) === true) {
 		return ThinkingDisplayMode.CollapsedPreview;
 	}
 	return configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
@@ -491,7 +489,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.id = content.id;
 		this.content = content;
 		this.allThinkingParts.push(content);
-		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService);
+		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService, context.readOnly);
 		this.thinkingDisplayMode = configuredMode;
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;

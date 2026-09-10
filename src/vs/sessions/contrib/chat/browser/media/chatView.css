@@ -22,20 +22,28 @@
 	background-color: transparent;
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
+	content: none;
+}
+
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response {
-	/* Match the response padding so wide content remains fully backed before the fade. */
-	background: linear-gradient(
-		to right,
-		transparent,
-		color-mix(in srgb, var(--session-view-background) 88%, transparent) var(--vscode-spacing-size320),
-		color-mix(in srgb, var(--session-view-background) 88%, transparent) calc(100% - var(--vscode-spacing-size320)),
-		transparent
-	);
-	border: 0;
+	padding: var(--vscode-spacing-size80) calc(var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)) + var(--vscode-spacing-size120));
+	isolation: isolate;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before {
+	content: '';
+	position: absolute;
+	inset: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	z-index: -1;
+	background-color: var(--vscode-editorWidget-background, var(--session-view-background));
 	border-radius: var(--vscode-cornerRadius-medium);
-	box-shadow: none;
-	padding-bottom: var(--vscode-spacing-size160);
-	overflow: hidden;
+}
+
+.monaco-workbench.agent-sessions-workbench.hc-black .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before,
+.monaco-workbench.agent-sessions-workbench.hc-light .part.sessionspart.has-chat-background .chat-view .interactive-item-container.interactive-response::before {
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
@@ -62,6 +70,11 @@
 .agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown.clickable:hover {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
+}
+
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-agent-merge > .chat-agent-merge-card {
+	background-color: var(--session-view-background);
+	background-image: linear-gradient(var(--vscode-chat-statusBackground), var(--vscode-chat-statusBackground));
 }
 
 /* The edit input takes the place of the request bubble, so it needs the same opaque base under the translucent bubble tint. */

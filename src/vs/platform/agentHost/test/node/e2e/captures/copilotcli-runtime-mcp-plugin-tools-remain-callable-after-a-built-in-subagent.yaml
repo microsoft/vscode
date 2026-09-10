@@ -1,0 +1,220 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: runtime-probe-runtime_probe
+          input:
+            tag: before
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: MCP_PROBE:before
+    response:
+      content: MCP_PROBE:before
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: MCP_PROBE:before
+        - role: assistant
+          content: MCP_PROBE:before
+        - role: user
+          content: Call task exactly once with {"name":"probe-child","description":"Reply without tools","agent_type":"general-purpose","mode":"sync","prompt":"Reply exactly CHILD_READY. Do not call tools."}. After it finishes reply exactly PARENT_READY.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: task
+          input:
+            name: probe-child
+            description: Reply without tools
+            agent_type: general-purpose
+            mode: sync
+            prompt: Reply exactly CHILD_READY. Do not call tools.
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly CHILD_READY. Do not call tools.
+    response:
+      content: CHILD_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: MCP_PROBE:before
+        - role: assistant
+          content: MCP_PROBE:before
+        - role: user
+          content: Call task exactly once with {"name":"probe-child","description":"Reply without tools","agent_type":"general-purpose","mode":"sync","prompt":"Reply exactly CHILD_READY. Do not call tools."}. After it finishes reply exactly PARENT_READY.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: task
+              input:
+                name: probe-child
+                description: Reply without tools
+                agent_type: general-purpose
+                mode: sync
+                prompt: Reply exactly CHILD_READY. Do not call tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: CHILD_READY
+    response:
+      content: PARENT_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: MCP_PROBE:before
+        - role: assistant
+          content: MCP_PROBE:before
+        - role: user
+          content: Call task exactly once with {"name":"probe-child","description":"Reply without tools","agent_type":"general-purpose","mode":"sync","prompt":"Reply exactly CHILD_READY. Do not call tools."}. After it finishes reply exactly PARENT_READY.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: task
+              input:
+                name: probe-child
+                description: Reply without tools
+                agent_type: general-purpose
+                mode: sync
+                prompt: Reply exactly CHILD_READY. Do not call tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: CHILD_READY
+        - role: assistant
+          content: PARENT_READY
+        - role: user
+          content: Call runtime_probe exactly once with tag "after", then reply with its exact result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: runtime-probe-runtime_probe
+          input:
+            tag: after
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call runtime_probe exactly once with tag "before", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: MCP_PROBE:before
+        - role: assistant
+          content: MCP_PROBE:before
+        - role: user
+          content: Call task exactly once with {"name":"probe-child","description":"Reply without tools","agent_type":"general-purpose","mode":"sync","prompt":"Reply exactly CHILD_READY. Do not call tools."}. After it finishes reply exactly PARENT_READY.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: task
+              input:
+                name: probe-child
+                description: Reply without tools
+                agent_type: general-purpose
+                mode: sync
+                prompt: Reply exactly CHILD_READY. Do not call tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: CHILD_READY
+        - role: assistant
+          content: PARENT_READY
+        - role: user
+          content: Call runtime_probe exactly once with tag "after", then reply with its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-probe-runtime_probe
+              input:
+                tag: after
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: MCP_PROBE:after
+    response:
+      content: MCP_PROBE:after
+      stopReason: end_turn

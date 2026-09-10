@@ -14,11 +14,11 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
-import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
+import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -44,7 +44,7 @@ interface IRecreateHarness {
 		};
 	};
 	_isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean;
-	_createNewSession(folderUri: URI): Promise<IOpenNewSessionResult>;
+	_createNewSession(folderUri: URI, userPick?: IPreferredSessionType): Promise<IOpenNewSessionResult>;
 }
 
 /** The collaborators `_createSessionNow` reads while assembling the `openNewSession` options. */
@@ -78,6 +78,7 @@ interface INewChatWidgetHarness extends IRecreateHarness {
 const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession') as (
 	this: INewChatWidgetHarness,
 	folderUri: URI,
+	userPick?: IPreferredSessionType,
 ) => Promise<IOpenNewSessionResult>;
 const createSessionNow = Reflect.get(NewChatWidget.prototype, '_createSessionNow') as (
 	this: ICreateSessionNowHarness,
@@ -85,6 +86,19 @@ const createSessionNow = Reflect.get(NewChatWidget.prototype, '_createSessionNow
 	userPick: IPreferredSessionType | undefined,
 	token: CancellationToken,
 ) => Promise<IOpenNewSessionResult>;
+const prepareSessionTypeSelection = Reflect.get(NewChatWidget.prototype, '_prepareSessionTypeSelection') as (
+	this: {
+		readonly _workspacePicker: {
+			readonly selectedFolderUri: URI | undefined;
+			readonly selectedResolved: { readonly workspace: ISessionWorkspace } | undefined;
+			setSelectedWorkspace(folderUri: URI, options: { fireEvent: false; providerId: string }): void;
+		};
+		readonly commandService: { executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> };
+		readonly logService: { error(message: string): void };
+		_isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean;
+	},
+	pick: IPickedSessionType,
+) => Promise<boolean>;
 const applyPreferredDevContainer = Reflect.get(NewChatWidget.prototype, '_applyPreferredDevContainer') as (
 	this: {
 		_preferredDevContainerFolderUri: URI | undefined;
@@ -104,6 +118,7 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 	created: { readonly sessionId: string } | undefined,
 ) => void;
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
+const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 
@@ -111,6 +126,13 @@ interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
 	readonly _newChatInput: { clearPromptOptions(): void };
 	_refreshPromptOptions(): Promise<void>;
+}
+
+interface ISyncWorkspacePickerHarness {
+	readonly _workspacePicker: {
+		matchesSelectedWorkspace(workspace: ISessionWorkspace): boolean;
+		setSelectedWorkspace(folderUri: URI, options: { fireEvent: false }): void;
+	};
 }
 
 interface ISessionCountHarness {
@@ -213,7 +235,7 @@ function createHarness(
 		_isPreferredServable: () => false,
 		_createSessionNow: (_folderUri, _userPick, token) => stubCreateSessionNow(token),
 		_applyPreferredDevContainer: () => { },
-		_createNewSession: folderUri => createNewSession.call(harness, folderUri),
+		_createNewSession: (folderUri, userPick) => createNewSession.call(harness, folderUri, userPick),
 		_scheduleRecreateOnProviderChange: (folderUri, userPick, created, replayMissedChange) => scheduleRecreateOnProviderChange.call(harness, folderUri, userPick, created, replayMissedChange),
 		_recreateOnProviderChange: (folderUri, userPick, created) => recreateOnProviderChange.call(harness, folderUri, userPick, created),
 	};
@@ -690,6 +712,75 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
+	test('clones a cloud repository only when switching to a local harness', async () => {
+		const repository = URI.parse('github-remote-file://github/microsoft/vscode/HEAD');
+		const localRepository = URI.file('/repos/vscode');
+		const calls: { commandId: string; args: unknown[] }[] = [];
+		const selections: { folderUri: string; providerId: string }[] = [];
+		const pick = { providerId: 'local-agent-host', sessionTypeId: 'claude' };
+
+		const prepared = await prepareSessionTypeSelection.call({
+			_workspacePicker: {
+				selectedFolderUri: repository,
+				selectedResolved: {
+					workspace: upcastPartial<ISessionWorkspace>({
+						group: SESSION_WORKSPACE_GROUP_GITHUB,
+					}),
+				},
+				setSelectedWorkspace: (folderUri, options) => selections.push({ folderUri: folderUri.toString(), providerId: options.providerId }),
+			},
+			commandService: {
+				executeCommand: async <T>(commandId: string, ...args: unknown[]) => {
+					calls.push({ commandId, args });
+					return localRepository.fsPath as T;
+				},
+			},
+			logService: { error: () => { } },
+			_isPreferredServable: folderUri => folderUri.scheme === 'file',
+		}, pick);
+
+		assert.deepStrictEqual({
+			prepared,
+			calls,
+			selections,
+		}, {
+			prepared: true,
+			calls: [{
+				commandId: 'git.clone',
+				args: [
+					'https://github.com/microsoft/vscode.git',
+					undefined,
+					{ postCloneAction: 'none', returnRepositoryPath: true },
+				],
+			}],
+			selections: [{
+				folderUri: localRepository.toString(),
+				providerId: 'local-agent-host',
+			}],
+		});
+	});
+
+	test('creates the cloned repository draft with the explicitly selected harness', async () => {
+		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
+		const newSessionCreation = disposables.add(new MutableDisposable<IDisposable>());
+		const pick = { providerId: 'local-agent-host', sessionTypeId: 'copilot' };
+		let receivedPick: IPreferredSessionType | undefined;
+		const harness = createHarness(
+			pendingPreferredUpgrade,
+			newSessionCreation,
+			Event.None,
+			async () => ({ session: undefined, trustDeclined: true }),
+		);
+		harness._createSessionNow = async (_folderUri, userPick) => {
+			receivedPick = userPick;
+			return { session: undefined, trustDeclined: true };
+		};
+
+		await harness._createNewSession(URI.file('/repos/vscode'), pick);
+
+		assert.deepStrictEqual(receivedPick, pick);
+	});
+
 	test('a provider change only recreates the draft when the pick differs from it', () => {
 		const folder = URI.file('/project');
 		const draft: IActiveDraft = { sessionId: 's1', isCreated: constObservable(false), providerId: 'agent-host', sessionType: 'claude' };
@@ -727,6 +818,26 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
+	test('provider-change recreation preserves the selected harness', () => {
+		const folder = URI.file('/project');
+		const draft: IActiveDraft = { sessionId: 's1', isCreated: constObservable(false), providerId: 'cloud', sessionType: 'cloud' };
+		const pick = { providerId: 'local-agent-host', sessionTypeId: 'copilot' };
+		let recreatedWith: IPreferredSessionType | undefined;
+
+		recreateOnProviderChange.call({
+			_pendingPreferredUpgrade: disposables.add(new MutableDisposable<IDisposable>()),
+			_session: constObservable(draft),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+			_isPreferredServable: () => true,
+			_createNewSession: async (_folderUri, userPick) => {
+				recreatedWith = userPick;
+				return { session: undefined, trustDeclined: false };
+			},
+		}, folder, pick, { sessionId: 's1' });
+
+		assert.deepStrictEqual(recreatedWith, pick);
+	});
+
 	test('refreshes prompt options when the draft workspace changes', () => {
 		const changes: string[] = [];
 		const harness: IPromptOptionsWorkspaceHarness = {
@@ -743,6 +854,34 @@ suite('NewChatWidget', () => {
 		handlePromptOptionsWorkspaceChange.call(harness, undefined, first);
 
 		assert.deepStrictEqual(changes, ['refreshed', 'cleared', 'refreshed']);
+	});
+
+	test('preserves the selected local workspace when a cloud draft represents the same repository', () => {
+		const localFolder = URI.file('/project');
+		const cloudFolder = URI.parse('github-remote-file://github/owner/project/HEAD');
+		const otherCloudFolder = URI.parse('github-remote-file://github/owner/other/HEAD');
+		const selected: string[] = [];
+		const harness: ISyncWorkspacePickerHarness = {
+			_workspacePicker: {
+				matchesSelectedWorkspace: workspace => workspace.folders[0].root.toString() === cloudFolder.toString(),
+				setSelectedWorkspace: folderUri => selected.push(folderUri.toString()),
+			},
+		};
+		const workspace = (root: URI): ISessionWorkspace => upcastPartial<ISessionWorkspace>({
+			uri: root,
+			folders: [{
+				root,
+				workingDirectory: root,
+				name: root.path,
+				description: undefined,
+			}],
+		});
+
+		syncWorkspacePickerFromSessionWorkspace.call(harness, workspace(cloudFolder));
+		syncWorkspacePickerFromSessionWorkspace.call(harness, workspace(otherCloudFolder));
+		syncWorkspacePickerFromSessionWorkspace.call(harness, workspace(localFolder));
+
+		assert.deepStrictEqual(selected, [otherCloudFolder.toString(), localFolder.toString()]);
 	});
 
 	test('only allows first-run notices once the session count threshold is reached', () => {
