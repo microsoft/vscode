@@ -80,6 +80,7 @@ interface ITestWireRequest {
 		readonly model?: string;
 		readonly modelProvider?: string;
 		readonly approvalPolicy?: string;
+		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 		readonly approvalsReviewer?: string;
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
 		readonly extraRoots?: readonly string[];
@@ -437,6 +438,7 @@ suite('CodexAgent prewarm eviction', () => {
 			return {
 				config: {},
 				developerInstructions: 'Use current instructions.',
+				clientSkillInstructions: 'No client skills are currently available.',
 				selectedCapabilityRoots: [],
 				signature: entry.materializedCustomizationsSig ?? '',
 			};
@@ -1837,6 +1839,16 @@ suite('CodexAgent prewarm eviction', () => {
 
 		await agent['_ensureConnection']();
 		const launches = await Promise.all(sessions.map(candidate => agent['_buildCustomizationLaunch'](candidate.entry)));
+		const configurationService = agent['_configurationService'];
+		assert.ok(configurationService instanceof TestCodexConfigurationService);
+		configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
+		const fullAccessLaunch = await agent['_buildCustomizationLaunch'](sessions[0].entry);
+		sessions[0].entry.agentMergeTurn = true;
+		const agentMergeLaunch = await agent['_buildCustomizationLaunch'](sessions[0].entry);
+		sessions[0].entry.agentMergeTurn = false;
+		configurationService.setSessionConfig({ [CodexSessionConfigKey.SandboxMode]: 'read-only' });
+		const readOnlyLaunch = await agent['_buildCustomizationLaunch'](sessions[0].entry);
+		configurationService.setSessionConfig({});
 		const catalogs = await Promise.all(sessions.map(candidate => {
 			const chat = defaultChatOf(candidate.session);
 			return agent.getChatCustomizations(chat, chatContext(candidate.session, chat));
@@ -1845,14 +1857,24 @@ suite('CodexAgent prewarm eviction', () => {
 		await agent['_ensureConnection']();
 
 		assert.deepStrictEqual({
+			permissionProfiles: [launches[0], fullAccessLaunch, agentMergeLaunch, readOnlyLaunch].map(launch => launch.skillPermissionProfile),
+			permissionChangesReload: [fullAccessLaunch, readOnlyLaunch].map(launch => launch.signature !== launches[0].signature),
+			agentMergeRestoresSandbox: agentMergeLaunch.signature === launches[0].signature,
 			launchRoots: launches.map(launch => launch.selectedCapabilityRoots.map(root => root.location.path)),
+			launchSkills: launches.map(launch => sessions
+				.filter(candidate => launch.clientSkillInstructions.includes(candidate.skillUri.fsPath))
+				.map(candidate => candidate.skillUri.toString())),
 			catalogSkills: catalogs.map(catalog => catalog
 				.flatMap(customization => customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory ? customization.children ?? [] : [])
 				.filter(child => child.type === CustomizationType.Skill)
 				.map(skill => skill.uri)),
 			rootsByConnection,
 		}, {
-			launchRoots: sessions.map(candidate => [candidate.skillRoot.fsPath]),
+			permissionProfiles: ['vscode-workspace', ':danger-full-access', 'vscode-workspace', 'vscode-workspace-read-only'],
+			permissionChangesReload: [true, true],
+			agentMergeRestoresSandbox: true,
+			launchRoots: sessions.map(() => []),
+			launchSkills: sessions.map(candidate => [candidate.skillUri.toString()]),
 			catalogSkills: sessions.map(candidate => [candidate.skillUri.toString()]),
 			rootsByConnection: [[], []],
 		});
@@ -1949,7 +1971,6 @@ suite('CodexAgent prewarm eviction', () => {
 			const agent = await createAgent(disposables);
 			agent['_schedulePrewarm'] = () => { };
 			agent['_refreshSkillHookCustomizations'] = async () => { };
-			agent['_refreshSkillExtraRoots'] = async () => { };
 			const peer = disposables.add(createTestPeer());
 			agent['_connection'] = {
 				kind: 'ready',
@@ -2152,7 +2173,6 @@ suite('CodexAgent prewarm eviction', () => {
 			const agent = await createAgent(disposables, { database, telemetryService });
 			agent['_schedulePrewarm'] = () => { };
 			agent['_refreshSkillHookCustomizations'] = async () => { };
-			agent['_refreshSkillExtraRoots'] = async () => { };
 			await database.setMetadata('codex.threadId', 'native-chatgpt-thread');
 			await database.setMetadata('codex.model', COPILOT_TEST_MODEL);
 			const peer = disposables.add(createTestPeer());
@@ -2258,7 +2278,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -2400,7 +2419,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2444,7 +2462,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2738,6 +2755,7 @@ suite('CodexAgent prewarm eviction', () => {
 			mcp: start.params.config?.['mcp_servers'],
 			agentDescription: agents.Reviewer.description,
 			developerInstructions: start.params.developerInstructions,
+			clientSkill: turn.params.additionalContext?.['vscode.clientSkills']?.value.includes(`- greet: Greets (file: ${skillUri.fsPath})`),
 			turnDeveloperInstructions: turn.params.collaborationMode?.settings.developer_instructions,
 			capabilityPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
 			roleFile,
@@ -2746,8 +2764,9 @@ suite('CodexAgent prewarm eviction', () => {
 			mcp: { local: { command: 'node', args: ['server.js'] } },
 			agentDescription: 'Reviews changes',
 			developerInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			clientSkill: true,
 			turnDeveloperInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
-			capabilityPaths: [URI.file('/plugin/skills').fsPath],
+			capabilityPaths: undefined,
 			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
 			roleFileUsesHostGeneratedRoot: true,
 		});

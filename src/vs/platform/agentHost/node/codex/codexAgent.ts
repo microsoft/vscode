@@ -47,7 +47,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
-import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, codexSkillCapabilityRoots, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
+import { CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -90,7 +90,7 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
@@ -808,7 +808,7 @@ interface ICodexSession {
 	/**
 	 * Store of client-pushed ("Open Plugin") customizations synced to this
 	 * session. Their MCP servers are attached per-thread at `thread/start`
-	 * and their skills are supplied through per-thread `selectedCapabilityRoots`.
+	 * and their skill catalog is supplied through per-turn application context.
 	 */
 	readonly clientCustomizations: CodexClientCustomizationStore;
 }
@@ -891,6 +891,8 @@ class CodexConnectionReplacedError extends Error {
 interface ICodexCustomizationLaunch {
 	readonly config: Record<string, JsonValue>;
 	readonly developerInstructions?: string;
+	readonly clientSkillInstructions: string;
+	readonly skillPermissionProfile?: string;
 	readonly selectedCapabilityRoots: SelectedCapabilityRoot[];
 	readonly signature: string;
 }
@@ -1936,7 +1938,17 @@ export class CodexAgent extends Disposable implements IAgent {
 			customization.developerInstructions,
 			session.managedWorkingDirectory ? AGENT_HOST_WORKSPACELESS_INSTRUCTIONS : '',
 		].filter(instruction => instruction.length > 0).join('\n\n');
-		const config: Record<string, JsonValue> = {};
+		const skillReadRoots = distinctAbsolutePaths(plugins
+			.flatMap(plugin => plugin.parsed?.skills.map(skill => dirname(skill.uri.fsPath)) ?? [])).sort();
+		const config: Record<string, JsonValue> = skillReadRoots.length ? codexPermissionProfileReadRoots(skillReadRoots) : {};
+		let skillPermissionProfile: string | undefined;
+		if (skillReadRoots.length) {
+			const sessionConfig = this._readSessionConfig(session.configurationResource);
+			const { sandboxMode } = this._resolveSessionPermissions(session.configurationResource);
+			skillPermissionProfile = this._permissionProfile(sessionConfig,
+				session.agentMergeTurn && sandboxMode === 'danger-full-access' ? 'workspace-write' : sandboxMode,
+				session.agentMergeTurn ? false : undefined);
+		}
 		if (customization.agentRoles.length > 0) {
 			const root = session.customizationDirectory?.fsPath
 				?? await fs.promises.mkdtemp(join(os.tmpdir(), 'vscode-agent-codex-customizations-'));
@@ -1957,20 +1969,20 @@ export class CodexAgent extends Disposable implements IAgent {
 				id: container.id,
 				location: { type: 'environment', environmentId: 'local', path: URI.parse(container.uri).fsPath },
 			})),
-			...codexSkillCapabilityRoots(plugins).map((uri, index): SelectedCapabilityRoot => ({
-				id: `client-plugin-skills-${index}-${uri.fsPath}`,
-				location: { type: 'environment', environmentId: 'local', path: uri.fsPath },
-			})),
 		];
 		const signature = JSON.stringify({
 			agent: session.agent?.uri,
 			agentRoles: customization.agentRoles,
 			developerInstructions,
+			skillReadRoots,
+			skillPermissionProfile,
 			selectedCapabilityRoots: selectedCapabilityRoots.map(root => root.location.path),
 		});
 		return {
 			config,
 			...(developerInstructions ? { developerInstructions } : {}),
+			clientSkillInstructions: codexClientSkillInstructions(plugins),
+			...(skillPermissionProfile ? { skillPermissionProfile } : {}),
 			selectedCapabilityRoots,
 			signature,
 		};
@@ -5480,7 +5492,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			model: resolvedModel.modelId,
 			modelProvider: resolvedModel.modelProvider,
 			approvalPolicy,
-			permissions,
+			permissions: customizationLaunch.skillPermissionProfile ?? permissions,
 			approvalsReviewer,
 			config: threadConfig,
 			developerInstructions: customizationLaunch.developerInstructions,
@@ -5912,11 +5924,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				input: resolvedInput.input.slice(),
 				model: resolvedModel.modelId,
 				...turnOptions,
-				...(hostInstructions?.length ? {
-					additionalContext: {
-						'vscode.agentHost': { kind: 'application', value: hostInstructions.join('\n\n') },
-					},
-				} : {}),
+				permissions: currentCustomizationLaunch.skillPermissionProfile ? undefined : turnOptions.permissions,
+				additionalContext: {
+					...(hostInstructions?.length ? { 'vscode.agentHost': { kind: 'application' as const, value: hostInstructions.join('\n\n') } } : {}),
+					'vscode.clientSkills': { kind: 'application', value: currentCustomizationLaunch.clientSkillInstructions },
+				},
 			}, this._traceContext(session));
 			// The thread now has committed history; client tools are locked to
 			// what was registered at `thread/start` and won't be re-applied.
@@ -7213,7 +7225,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link IAgentPluginManager} copies each plugin to local disk (nonce
 	 * cached), we parse the resulting directory into its
 	 * {@link IParsedPlugin | components}, publish the customization surface,
-	 * and reconcile the per-thread skill roots and MCP servers at the next
+	 * and reconcile the per-thread skill catalog and MCP servers at the next
 	 * {@link _materialize}.
 	 */
 	private async _syncClientCustomizations(sessionUri: URI, clientId: string, customizations: readonly ClientPluginCustomization[], options?: { readonly quiet?: boolean; readonly isCurrent?: () => boolean }): Promise<void> {

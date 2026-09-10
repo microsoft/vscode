@@ -417,7 +417,11 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 
 ### Codex (`node/codex/codexAgent.ts`)
 
-Client-synced skills are delivered only through each thread's `selectedCapabilityRoots`, alongside its workspace skill roots. Never register those cache directories with the process-global `skills/extraRoots/set`: workspace-specific bundles and concurrently retained revisions would leak into unrelated sessions and be rediscovered as duplicate native user skills. The native `skills/list` catalog remains separate from the session's client-plugin customization projection.
+Client-synced skills are advertised through `turn/start.additionalContext`, using the enabled plugins' skill names, descriptions, and file paths. Every turn receives the current catalog, including an explicit empty catalog after removal; older catalogs can remain in conversation history but no longer describe the current selection. Native skills discovery remains unchanged and separate from the session's client-plugin customization projection.
+
+The thread's permission profiles grant read-only access to its enabled skill directories, reapplied through the existing start/resume path when those directories or the selected profile change. While these grants are active, omit `turn/start.permissions`: the pinned SDK otherwise reloads the process-global profile and discards the thread's read grants. The filesystem override preserves the provider's existing restrictions and profile inheritance.
+
+Do not rely on `selectedCapabilityRoots` for client skills: the pinned Codex launch does not advertise them, and `thread/resume` cannot update those roots. Never register those cache directories with the process-global `skills/extraRoots/set`: workspace-specific bundles and concurrently retained revisions would leak into unrelated sessions and be rediscovered as duplicate native user skills.
 
 Codex supports multiple chats per session. Each conversation — the session's default chat and every additional chat — is a distinct top-level Codex thread, explicitly bound to the concrete chat URI AH supplies:
 - `_sessions: Map<string, ICodexSession>` owns provider-native thread/runtime state. `_sessionIdByChatUri` maps exact chat URIs to those runtime keys and is never used to recover AH membership.

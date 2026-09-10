@@ -1376,9 +1376,8 @@ suite('CodexAgent createChat', () => {
 			assert.strictEqual(turn.method, 'turn/start');
 			assert.strictEqual(turn.params.threadId, 'prewarmed-thread');
 			assert.deepStrictEqual(turn.params.input, [{ type: 'text', text: 'hello', text_elements: [] }]);
-			assert.deepStrictEqual(turn.params.additionalContext, {
-				'vscode.agentHost': { kind: 'application', value: 'Rename with exact casing' },
-			});
+			assert.deepStrictEqual(turn.params.additionalContext?.['vscode.agentHost'], { kind: 'application', value: 'Rename with exact casing' });
+			assert.ok(turn.params.additionalContext?.['vscode.clientSkills']?.value.includes('No client skills are currently available.'));
 			peer.push({ id: turn.id, result: {} });
 			await sending;
 		} finally {

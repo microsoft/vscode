@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from '../../../../base/common/path.js';
 import { basename, extUri, joinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
@@ -34,14 +33,15 @@ export const CODEX_FILE_LINK_INSTRUCTIONS = [
  * from the `.agents`/`.codex` files it discovers itself. This module holds the
  * per-session store for those synced+parsed plugins plus the pure mappers that
  * project them into (a) the AHP {@link PluginCustomization} surface, (b) codex
- * per-thread `thread/start.config.mcp_servers`, and (c) per-thread
- * `selectedCapabilityRoots`.
+ * per-thread `thread/start.config.mcp_servers`, and (c) per-turn
+ * application context containing the client skill catalog.
  *
  * Feeding strategy (see the phase investigation):
  *  - MCP servers are attached **per session** via `thread/start.config`
  *    (verified: codex starts the server for that thread only), so a plugin's
  *    server only runs for sessions that enable it.
- *  - Skills are attached **per session** through selected capability roots.
+ *  - Skills are advertised **per session** through `turn/start.additionalContext`,
+ *    so additions and removals also apply to an existing thread.
  *    Registering the synced copies as process-global extra roots would expose
  *    other sessions' bundles and revisions and duplicate the native catalog.
  */
@@ -221,24 +221,6 @@ export function codexMcpServersFromDefinitions(definitions: readonly IMcpServerD
 }
 
 /**
- * Derives the codex skill roots (absolute fsPaths) for a set of client
- * plugins: the parent directory of each skill's `<name>/SKILL.md`, i.e. the
- * plugin's `skills` root, which codex scans for `<name>/SKILL.md` entries.
- * De-duplicated and sorted for a stable `selectedCapabilityRoots` payload.
- */
-export function codexSkillRootsFromPlugins(plugins: readonly ICodexClientPlugin[]): string[] {
-	const roots = new Set<string>();
-	for (const plugin of plugins) {
-		for (const skill of plugin.parsed?.skills ?? []) {
-			// skill.uri === <pluginDir>/<skillsDir>/<name>/SKILL.md
-			// dirname twice === <pluginDir>/<skillsDir> (the root codex scans).
-			roots.add(dirname(dirname(skill.uri.fsPath)));
-		}
-	}
-	return [...roots].sort();
-}
-
-/**
  * Builds Codex's launch-time roles and developer instructions. Workspace
  * agents are processed first so the session's own repository wins a role-name
  * collision with a global client plugin.
@@ -378,6 +360,22 @@ export function codexAgentRoleToml(role: ICodexAgentRoleSource): string {
 	].join('\n');
 }
 
-export function codexSkillCapabilityRoots(plugins: readonly ICodexClientPlugin[]): URI[] {
-	return codexSkillRootsFromPlugins(plugins).map(path => URI.file(path));
+export function codexClientSkillInstructions(plugins: readonly ICodexClientPlugin[]): string {
+	const skillDescriptions = new Map<string, string>();
+	for (const plugin of plugins) {
+		for (const skill of plugin.parsed?.skills ?? []) {
+			if (!skill.disableModelInvocation) {
+				skillDescriptions.set(skill.uri.toString(), `- ${skill.name}: ${skill.description ?? skill.name} (file: ${skill.uri.fsPath})`);
+			}
+		}
+	}
+	return [
+		'<client_skills>',
+		'This is the current client skill catalog for this session and replaces any earlier client skill catalog. Native skills are separate.',
+		...(skillDescriptions.size > 0 ? [
+			'When a task matches a skill, read its SKILL.md using file-reading tools before following its instructions. Resolve relative references from the skill directory.',
+			...skillDescriptions.values(),
+		] : ['No client skills are currently available.']),
+		'</client_skills>',
+	].join('\n');
 }

@@ -13,18 +13,21 @@ const CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE = 'vscode-workspace';
 const CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE = 'vscode-workspace-network';
 const CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE = 'vscode-workspace-read-only';
 
+function codexWorkspaceFileSystemPermissions(platform: NodeJS.Platform): Record<string, string> {
+	return platform === 'win32' ? {} : {
+		':root': 'deny',
+		':minimal': 'read',
+		':tmpdir': 'write',
+		':slash_tmp': platform === 'linux' ? 'read' : 'deny',
+	};
+}
+
 export function codexPermissionProfileOverrides(platform: NodeJS.Platform = process.platform): string[] {
 	// Codex materializes its Linux sandbox helper below /tmp before entering bwrap.
 	// Keep it executable from inside the sandbox without granting shared temp write access.
-	const slashTmpAccess = platform === 'linux' ? 'read' : 'deny';
 	const fileSystemOverride = platform === 'win32'
 		? ''
-		: `, filesystem = { ${[
-			`":root" = "deny"`,
-			`":minimal" = "read"`,
-			`":tmpdir" = "write"`,
-			`":slash_tmp" = "${slashTmpAccess}"`,
-		].join(', ')} }`;
+		: `, filesystem = { ${Object.entries(codexWorkspaceFileSystemPermissions(platform)).map(([path, access]) => `${JSON.stringify(path)} = ${JSON.stringify(access)}`).join(', ')} }`;
 	const readOnlyProfile = platform === 'win32'
 		? `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = ":read-only" }`
 		: `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = "${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}", filesystem = { ":workspace_roots" = { "." = "read" } } }`;
@@ -44,6 +47,15 @@ export function codexPermissionProfile(mode: SandboxMode, networkAccess: boolean
 		return CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE;
 	}
 	return networkAccess ? CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE : CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE;
+}
+
+export function codexPermissionProfileReadRoots(readRoots: readonly string[], platform: NodeJS.Platform = process.platform): Record<string, JsonValue> {
+	return {
+		[`permissions.${CODEX_VSCODE_WORKSPACE_PERMISSION_PROFILE}.filesystem`]: {
+			...codexWorkspaceFileSystemPermissions(platform),
+			...Object.fromEntries(readRoots.map(root => [root, 'read'])),
+		},
+	};
 }
 
 export interface ICodexLaunchProxy {
