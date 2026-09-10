@@ -16,10 +16,14 @@ import { reasoningEffortLevels } from './reasoningEffort.js';
 export const enum CopilotCliConfigKey {
 	/** Use Agent Host's custom terminal tool instead of the SDK's default. Off by default. */
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
+	/** Apply the shell init script a client published for a session to SDK shell commands. Off by default. */
+	EnableShellInitScript = 'enableShellInitScript',
 	/** Log level passed to the Copilot SDK client. */
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
+	/** Enable the provider-native Claude Advisor tool. Off by default. */
+	ClaudeAdvisor = 'claudeAdvisor',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
@@ -30,22 +34,28 @@ export const enum CopilotCliConfigKey {
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Enable concise reasoning summaries for supported models. Off by default. */
 	ReasoningSummary = 'reasoningSummary',
-	/** Let the Auto router score prior turns instead of the latest message alone. Off by default. */
-	MultiTurnContextRouting = 'multiTurnContextRouting',
+	/** Offer the Auto model's "Optimize for" picker. Shares the Copilot extension's setting and experiment. */
+	AutoModeTiers = 'autoModeTiers',
+	/** Override Auto's "Optimize for" preference, even when the picker is disabled. */
+	AutoModeTierOverride = 'autoModeTierOverride',
+	/** Tell the model to keep subagents on their default model unless the user asks otherwise. Off by default. */
+	SubagentModelGuidance = 'subagentModelGuidance',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
 }
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
 
-// VS Code `chat.agentHost.*` setting IDs that feed the root-config keys above,
-// kept beside the keys they forward to. Registered in `chat.shared.contribution.ts`
-// and forwarded into the host's root config by `AgentHostCopilotCliSettingsContribution`
-// (and, for the terminal-tool toggle, `AgentHostTerminalContribution`).
+// Client setting IDs forwarded into the matching provider-owned root-config keys.
 
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
+/** Enable VS Code's generated init script for the SDK built-in shell tool. */
+export const AgentHostShellToolInitScriptEnabledSettingId = 'chat.agentHost.shellTool.initScript.enabled';
+
 export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.logLevel';
+
+export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.enabled';
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
@@ -57,7 +67,14 @@ export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot
 
 export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
 
-export const AgentHostMultiTurnContextRoutingEnabledSettingId = 'chat.agentHost.copilot.multiTurnContextRouting.enabled';
+export const CopilotAutoModeTiersEnabledSettingId = 'github.copilot.chat.autoMode.tiers.enabled';
+
+export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
+
+/** Applied to the shared setting's default by the workbench configuration service. */
+export const AutoModeTiersExperimentName = 'copilotchat.autoModeTiersEnabled';
+
+export const CopilotSubagentModelGuidanceEnabledSettingId = 'chat.copilot.subagentModelGuidance.enabled';
 
 export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
@@ -84,6 +101,10 @@ export interface ICopilotCliModelCapabilityOverride {
 	readonly excludedTools?: readonly string[];
 	/** Deep-merged over the runtime's resolved defaults (e.g. `supports.vision`). */
 	readonly modelCapabilities?: Record<string, unknown>;
+	/** Inline YAML with system-prompt and tool-description overrides. */
+	readonly promptOverrideString?: string;
+	/** Path to a YAML file with system-prompt and tool-description overrides. */
+	readonly promptOverrideFile?: string;
 }
 
 /** Map of model id → capability override. */
@@ -127,6 +148,12 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.EnableShellInitScript]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.enableShellInitScript.title', "Shell Init Script"),
+		description: localize('agentHost.config.enableShellInitScript.description', "When enabled, Copilot SDK sessions apply the shell init script published by the client before each shell command."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.CopilotSdkLogLevel]: schemaProperty<CopilotSdkLogLevelSetting>({
 		type: 'string',
 		title: localize('agentHost.config.copilotSdkLogLevel.title', "Copilot SDK Log Level"),
@@ -143,6 +170,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
 		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
 		default: DEFAULT_COPILOT_RUBBER_DUCK_ENABLED,
+	}),
+	[CopilotCliConfigKey.ClaudeAdvisor]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.claudeAdvisor.title', "Claude Advisor Tool"),
+		description: localize('agentHost.config.claudeAdvisor.description', "When enabled, Copilot SDK sessions using supported Claude models expose the provider-native Advisor tool."),
+		default: false,
 	}),
 	[CopilotCliConfigKey.Opus48Prompt]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -168,16 +201,28 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.reasoningSummary.description', "When enabled, requests concise reasoning summaries for supported Copilot SDK sessions."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.MultiTurnContextRouting]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.multiTurnContextRouting.title', "Auto Multi-Turn Context Routing"),
-		description: localize('agentHost.config.multiTurnContextRouting.description', "When enabled, Auto model selection sends prior user messages to the router so it scores the conversation so far instead of the latest message alone."),
+		title: localize('agentHost.config.autoModeTiers.title', "Auto Optimize for"),
+		description: localize('agentHost.config.autoModeTiers.description', "When enabled, the Auto model offers an \"Optimize for\" picker with Efficiency, Balance, and Intelligence options. You can change the preference during a session. When disabled, the service chooses how to route unless an override is configured."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.AutoModeTierOverride]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.autoModeTierOverride.title', "Auto Optimize for Override"),
+		description: localize('agentHost.config.autoModeTierOverride.description', "Overrides Auto's \"Optimize for\" preference, even when the picker is disabled. Accepts efficiency, balance, or intelligence. Applied when a session is created or resumed and when its model changes. Empty or unsupported values use the picker or service defaults."),
+		default: '',
+	}),
+	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.subagentModelGuidance.title', "Subagent Model Guidance"),
+		description: localize('agentHost.config.subagentModelGuidance.description', "When enabled, Copilot SDK sessions instruct the model to keep subagents on their default model unless the user explicitly names another one."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({
 		type: 'object',
 		title: localize('agentHost.config.modelCapabilityOverrides.title', "Model Capability Overrides"),
-		description: localize('agentHost.config.modelCapabilityOverrides.description', "Per-model capability overrides for Copilot SDK sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field). Aliasing a model id to a known `family` routes it to that family's tuned system prompt and tool profile without changing the model id sent to the runtime; the remaining fields override reasoning effort, tool enablement, and model capability limits per model. Only affects Copilot SDK sessions; intended for experimentation."),
+		description: localize('agentHost.config.modelCapabilityOverrides.description', "Per-model overrides for Copilot SDK sessions. Use `*` to match every model. Intended for experimentation."),
 		additionalProperties: {
 			type: 'object',
 			title: localize('agentHost.config.modelCapabilityOverrides.entry.title', "Capability Override"),
@@ -210,6 +255,16 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'object',
 					title: localize('agentHost.config.modelCapabilityOverrides.modelCapabilities.title', "Model Capabilities"),
 					description: localize('agentHost.config.modelCapabilityOverrides.modelCapabilities.description', "Per-property model capability overrides passed through to the Copilot SDK's `modelCapabilities` session field (e.g. `{ \"supports\": { \"vision\": false }, \"limits\": { \"max_context_window_tokens\": 64000 } }`), deep-merged over the runtime's resolved defaults for this model. Applied when the session launches or resumes."),
+				},
+				promptOverrideString: {
+					type: 'string',
+					title: localize('agentHost.config.modelCapabilityOverrides.promptOverrideString.title', "Prompt Override String"),
+					description: localize('agentHost.config.modelCapabilityOverrides.promptOverrideString.description', "Inline YAML that overrides the system prompt and/or SDK tool descriptions for sessions on this model. Takes precedence over `promptOverrideFile`."),
+				},
+				promptOverrideFile: {
+					type: 'string',
+					title: localize('agentHost.config.modelCapabilityOverrides.promptOverrideFile.title', "Prompt Override File"),
+					description: localize('agentHost.config.modelCapabilityOverrides.promptOverrideFile.description', "Path to a YAML file that overrides the system prompt and/or SDK tool descriptions for sessions on this model. Ignored when `promptOverrideString` is also set."),
 				},
 			},
 		},

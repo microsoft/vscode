@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners, getFloatingEditorVerticalMargins } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, getFloatingEditorVerticalMargins, getFloatingEditorVerticalOuterEdges, getFloatingOuterEdgeOwners, getFloatingPaneCompositeHorizontalMargins } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -243,9 +243,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private _contentRightInset = 0;
 
 	/**
-	 * Reserves an inset (px) on the right of the editor content of the group(s) at the
-	 * right edge of the editor part, while the title stays full width, so a docked panel
-	 * can sit beside the editor content under one full-width tab bar. Only the right-edge
+	 * Reserves an inset (px) on the right of the editor header and content of the group(s)
+	 * at the right edge of the editor part, while tabs stay full width, so a docked panel
+	 * can sit beside the editor under one full-width tab bar. Only the right-edge
 	 * groups (no neighbor to the right) are inset; interior groups in a split layout keep
 	 * full-width content. Recomputed when the group topology changes. `0` (default)
 	 * restores full-width content for all groups.
@@ -1435,9 +1435,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const owners = getFloatingOuterEdgeOwners(this.layoutService);
 			const outerLeft = owners.left === Parts.EDITOR_PART;
 			const outerRight = owners.right === Parts.EDITOR_PART;
+			const verticalOuterEdges = getFloatingEditorVerticalOuterEdges(this.layoutService);
 
-			const leftMargin = outerLeft ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
-			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
+			const { left: leftMargin, right: rightMargin } = getFloatingPaneCompositeHorizontalMargins(this.layoutService, Parts.EDITOR_PART);
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			const { top, bottom } = getFloatingEditorVerticalMargins(this.layoutService, mainWindow);
@@ -1451,8 +1451,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
 			this.element.classList.toggle('floating-editor-outer-right', outerRight);
+			this.element.classList.toggle('floating-editor-outer-top', verticalOuterEdges.top);
+			this.element.classList.toggle('floating-editor-outer-bottom', verticalOuterEdges.bottom);
 		} else {
-			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right');
+			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right', 'floating-editor-outer-top', 'floating-editor-outer-bottom');
 		}
 
 		// Layout contents

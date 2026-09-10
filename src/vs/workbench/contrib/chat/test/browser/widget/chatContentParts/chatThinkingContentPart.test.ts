@@ -16,6 +16,8 @@ import { isResourceMultiDiffEditorInput } from '../../../../../../common/editor.
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
@@ -228,6 +230,38 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
+		test('logs telemetry when the user toggles the header', () => {
+			const telemetryService = new class extends NullTelemetryServiceShape {
+				readonly events: { readonly name: string; readonly data: unknown }[] = [];
+				override publicLog2(eventName?: string, data?: unknown): void {
+					if (eventName) {
+						this.events.push({ name: eventName, data });
+					}
+				}
+			}();
+			instantiationService.stub(ITelemetryService, telemetryService);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Analyzing code**'),
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				false
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			button.click();
+			button.click();
+
+			assert.deepStrictEqual(telemetryService.events, [
+				{ name: 'chat.collapsibleToggle', data: { kind: 'thinking', previousExpanded: false, thinkingStyle: ThinkingDisplayMode.Collapsed, inThinking: false } },
+				{ name: 'chat.collapsibleToggle', data: { kind: 'thinking', previousExpanded: true, thinkingStyle: ThinkingDisplayMode.Collapsed, inThinking: false } },
+			]);
+		});
+
 		test('should have chat-thinking-box class', () => {
 			const content = createThinkingPart('**Processing**');
 			const context = createMockRenderContext(false);
@@ -352,6 +386,38 @@ suite('ChatThinkingContentPart', () => {
 				expandedAfterToggle: 'true',
 			});
 		});
+	});
+
+	suite('Read-only chats', () => {
+		for (const configuredMode of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.CollapsedPreview, ThinkingDisplayMode.FixedScrolling]) {
+			test(`uses collapsed preview instead of ${configuredMode} without changing the setting`, () => {
+				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, configuredMode);
+				const states = [false, true].map(isComplete => {
+					const part = store.add(instantiationService.createInstance(
+						ChatThinkingContentPart,
+						createThinkingPart('**Reviewing changes**\nChecking the implementation'),
+						{ ...createMockRenderContext(isComplete), readOnly: true },
+						mockMarkdownRenderer,
+						isComplete,
+					));
+					return {
+						collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+						fixedScrolling: part.domNode.classList.contains('chat-thinking-fixed-mode'),
+					};
+				});
+
+				assert.deepStrictEqual({
+					states,
+					configuredMode: mockConfigurationService.getValue(ChatConfiguration.ThinkingStyle),
+				}, {
+					states: [
+						{ collapsed: false, fixedScrolling: false },
+						{ collapsed: true, fixedScrolling: false },
+					],
+					configuredMode,
+				});
+			});
+		}
 	});
 
 	suite('ThinkingDisplayMode.CollapsedPreview', () => {
@@ -1866,7 +1932,7 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			// The button should now show a check icon
-			const iconElement = part.domNode.querySelector('.codicon-check');
+			const iconElement = part.domNode.querySelector('.codicon-check-compact');
 			assert.ok(iconElement, 'Should have check icon after finalization');
 			assert.ok(part.domNode.classList.contains('chat-collapsible-content-animated'), 'Should enable content animation after finalization');
 		});
@@ -2150,7 +2216,7 @@ suite('ChatThinkingContentPart', () => {
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Should have circle-filled icon (not loading spinner) while streaming
-			const circleIcon = part.domNode.querySelector('.codicon-circle-filled');
+			const circleIcon = part.domNode.querySelector('.codicon-circle-filled-compact');
 			assert.ok(circleIcon, 'Should have circle-filled icon while streaming');
 		});
 
@@ -2747,7 +2813,7 @@ suite('ChatThinkingContentPart', () => {
 				childClasses: [
 					'monaco-button monaco-icon-button monaco-text-button chat-thinking-title-with-diff',
 					'monaco-button chat-thinking-title-diff',
-					'chat-collapsible-hover-chevron codicon codicon-chevron-right expanded',
+					'chat-collapsible-hover-chevron codicon codicon-chevron-right-compact expanded',
 				],
 				initialExpanded: 'false',
 				expandedAfterChevronClick: 'true',

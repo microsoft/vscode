@@ -1,0 +1,684 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: task
+          input:
+            name: echo-child
+            prompt: |-
+              Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+              Do not use any tools.
+            agent_type: general-purpose
+            mode: background
+            description: Echo child initial reply
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: echo-child
+                prompt: |-
+                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+                  Do not use any tools.
+                agent_type: general-purpose
+                mode: background
+                description: Echo child initial reply
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+    response:
+      content:
+        - type: text
+          text: Waiting for the background subagent to finish before continuing.
+        - type: tool_use
+          id: toolcall_1
+          name: read_agent
+          input:
+            agent_id: ${uuid_0}
+            wait: true
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+            Do not use any tools.
+    response:
+      content: CHILD_INITIAL_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: echo-child
+                prompt: |-
+                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+                  Do not use any tools.
+                agent_type: general-purpose
+                mode: background
+                description: Echo child initial reply
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+        - role: assistant
+          content:
+            - type: text
+              text: Waiting for the background subagent to finish before continuing.
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+    response:
+      content: PARENT_INITIAL_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: echo-child
+                prompt: |-
+                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+                  Do not use any tools.
+                agent_type: general-purpose
+                mode: background
+                description: Echo child initial reply
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+        - role: assistant
+          content:
+            - type: text
+              text: Waiting for the background subagent to finish before continuing.
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+        - role: assistant
+          content: PARENT_INITIAL_DONE
+        - role: user
+          content: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_ONE_DONE". Do not start or stop a subagent.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: write_agent
+          input:
+            agent_id: ${uuid_0}
+            message: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: echo-child
+                prompt: |-
+                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+                  Do not use any tools.
+                agent_type: general-purpose
+                mode: background
+                description: Echo child initial reply
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+        - role: assistant
+          content:
+            - type: text
+              text: Waiting for the background subagent to finish before continuing.
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+        - role: assistant
+          content: PARENT_INITIAL_DONE
+        - role: user
+          content: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_ONE_DONE". Do not start or stop a subagent.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: write_agent
+              input:
+                agent_id: ${uuid_0}
+                message: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: Message delivered to agent ${uuid_0}. Use read_agent to check the agent's response.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: read_agent
+          input:
+            agent_id: ${uuid_0}
+            wait: true
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+            Do not use any tools.
+        - role: assistant
+          content: CHILD_INITIAL_DONE
+        - role: user
+          content: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+    response:
+      content: CHILD_FOLLOWUP_ONE_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: echo-child
+                prompt: |-
+                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+                  Do not use any tools.
+                agent_type: general-purpose
+                mode: background
+                description: Echo child initial reply
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+        - role: assistant
+          content:
+            - type: text
+              text: Waiting for the background subagent to finish before continuing.
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+        - role: assistant
+          content: PARENT_INITIAL_DONE
+        - role: user
+          content: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_ONE_DONE". Do not start or stop a subagent.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: write_agent
+              input:
+                agent_id: ${uuid_0}
+                message: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: Message delivered to agent ${uuid_0}. Use read_agent to check the agent's response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 8s, total_turns: 2
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+
+                [Turn 1]
+                [Message]
+                Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+
+                [Response]
+                CHILD_FOLLOWUP_ONE_DONE
+    response:
+      content: PARENT_FOLLOWUP_ONE_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: echo-child
+                prompt: |-
+                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+                  Do not use any tools.
+                agent_type: general-purpose
+                mode: background
+                description: Echo child initial reply
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+        - role: assistant
+          content:
+            - type: text
+              text: Waiting for the background subagent to finish before continuing.
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+        - role: assistant
+          content: PARENT_INITIAL_DONE
+        - role: user
+          content: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_ONE_DONE". Do not start or stop a subagent.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: write_agent
+              input:
+                agent_id: ${uuid_0}
+                message: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: Message delivered to agent ${uuid_0}. Use read_agent to check the agent's response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 8s, total_turns: 2
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+
+                [Turn 1]
+                [Message]
+                Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+
+                [Response]
+                CHILD_FOLLOWUP_ONE_DONE
+        - role: assistant
+          content: PARENT_FOLLOWUP_ONE_DONE
+        - role: user
+          content: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_TWO_DONE". Do not start or stop a subagent.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_4
+          name: write_agent
+          input:
+            agent_id: ${uuid_0}
+            message: Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools.
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: echo-child
+                prompt: |-
+                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+                  Do not use any tools.
+                agent_type: general-purpose
+                mode: background
+                description: Echo child initial reply
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+        - role: assistant
+          content:
+            - type: text
+              text: Waiting for the background subagent to finish before continuing.
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+        - role: assistant
+          content: PARENT_INITIAL_DONE
+        - role: user
+          content: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_ONE_DONE". Do not start or stop a subagent.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: write_agent
+              input:
+                agent_id: ${uuid_0}
+                message: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: Message delivered to agent ${uuid_0}. Use read_agent to check the agent's response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 8s, total_turns: 2
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+
+                [Turn 1]
+                [Message]
+                Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+
+                [Response]
+                CHILD_FOLLOWUP_ONE_DONE
+        - role: assistant
+          content: PARENT_FOLLOWUP_ONE_DONE
+        - role: user
+          content: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_TWO_DONE". Do not start or stop a subagent.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: write_agent
+              input:
+                agent_id: ${uuid_0}
+                message: Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_4
+              content: Message delivered to agent ${uuid_0}. Use read_agent to check the agent's response.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_5
+          name: read_agent
+          input:
+            agent_id: ${uuid_0}
+            wait: true
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+            Do not use any tools.
+        - role: assistant
+          content: CHILD_INITIAL_DONE
+        - role: user
+          content: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+        - role: assistant
+          content: CHILD_FOLLOWUP_ONE_DONE
+        - role: user
+          content: Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools.
+    response:
+      content: CHILD_FOLLOWUP_TWO_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: echo-child
+                prompt: |-
+                  Reply with exactly this text and nothing else: CHILD_INITIAL_DONE
+                  Do not use any tools.
+                agent_type: general-purpose
+                mode: background
+                description: Echo child initial reply
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Agent started in background with agent_id: ${uuid_0}. You''ll be notified when it completes. Tell the user you''re waiting and end your response, or continue unrelated work until notified. The agent supports multi-turn conversations — use write_agent to send follow-up messages.'
+        - role: assistant
+          content:
+            - type: text
+              text: Waiting for the background subagent to finish before continuing.
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 2s, total_turns: 1
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+        - role: assistant
+          content: PARENT_INITIAL_DONE
+        - role: user
+          content: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_ONE_DONE". Do not start or stop a subagent.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: write_agent
+              input:
+                agent_id: ${uuid_0}
+                message: Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: Message delivered to agent ${uuid_0}. Use read_agent to check the agent's response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 8s, total_turns: 2
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+
+                [Turn 1]
+                [Message]
+                Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+
+                [Response]
+                CHILD_FOLLOWUP_ONE_DONE
+        - role: assistant
+          content: PARENT_FOLLOWUP_ONE_DONE
+        - role: user
+          content: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_TWO_DONE". Do not start or stop a subagent.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: write_agent
+              input:
+                agent_id: ${uuid_0}
+                message: Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_4
+              content: Message delivered to agent ${uuid_0}. Use read_agent to check the agent's response.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_agent
+              input:
+                agent_id: ${uuid_0}
+                wait: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_5
+              content: |-
+                Agent is idle (waiting for messages). agent_id: ${uuid_0}, agent_type: general-purpose, status: idle, description: Echo child initial reply, elapsed: 15s, total_turns: 3
+
+                [Turn 0]
+                CHILD_INITIAL_DONE
+
+                [Turn 1]
+                [Message]
+                Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools.
+
+                [Response]
+                CHILD_FOLLOWUP_ONE_DONE
+
+                [Turn 2]
+                [Message]
+                Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools.
+
+                [Response]
+                CHILD_FOLLOWUP_TWO_DONE
+    response:
+      content: PARENT_FOLLOWUP_TWO_DONE
+      stopReason: end_turn

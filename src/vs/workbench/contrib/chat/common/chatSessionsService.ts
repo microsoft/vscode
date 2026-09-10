@@ -17,7 +17,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
-import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
+import { ChatRequestSource, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
@@ -218,7 +218,7 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly onDidChangeRequiresCopilotSignIn?: Event<void>;
 	/**
-	 * When false, the delegation picker is hidden for this session type.
+	 * Whether this session type can delegate to another session.
 	 * Defaults to true.
 	 */
 	readonly supportsDelegation?: boolean;
@@ -312,7 +312,10 @@ export type IChatSessionHistoryItem = {
 	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
+	/** The feature that submitted this request on the user's behalf. */
+	requestSource?: ChatRequestSource;
 	isHidden?: boolean;
+	isRequestHidden?: boolean;
 	systemInitiatedLabel?: string;
 	isTerminalRequest?: boolean;
 	origin?: IChatRequestOrigin;
@@ -342,9 +345,14 @@ export interface IChatSessionServerRequest {
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
+	/** The feature that submitted this request on the user's behalf. */
+	readonly requestSource?: ChatRequestSource;
 	readonly isHidden?: boolean;
+	readonly isRequestHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
+	/** Reopen the existing request with this id instead of adding another request. */
+	readonly resume?: boolean;
 	readonly origin?: IChatRequestOrigin;
 }
 
@@ -560,6 +568,7 @@ export interface IChatInputCompletionResourceAttachment {
 export interface IChatInputCompletionCommandAttachment {
 	readonly kind: 'command';
 	readonly command: string;
+	readonly isSkill?: true;
 	readonly description: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
@@ -652,6 +661,7 @@ export interface IChatNewSessionRequest {
 
 export interface IChatSessionItemsDelta {
 	readonly addedOrUpdated?: readonly IChatSessionItem[];
+	/** Sessions no longer provided by the controller. Retained content is disposed and pending resolutions are cancelled. */
 	readonly removed?: readonly URI[];
 }
 

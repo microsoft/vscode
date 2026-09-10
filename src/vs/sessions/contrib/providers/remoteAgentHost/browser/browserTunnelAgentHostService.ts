@@ -5,14 +5,15 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
+import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ReconnectingTransport, type IEstablishedTransport } from '../../../../../platform/agentHost/common/reconnectingTransport.js';
 import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import type { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { NonReconnectableTransportError, type IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import {
 	TunnelAgentHostConnector,
 	parseTunnelInfo,
@@ -23,6 +24,7 @@ import {
 } from '../../../../../platform/agentHost/common/tunnelAgentHostConnector.js';
 import {
 	isTunnelGatewaySelectionRejectedError,
+	isTunnelNotFoundError,
 	TUNNEL_ADDRESS_PREFIX,
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_LAUNCHER_LABEL,
@@ -50,6 +52,82 @@ import { TunnelAgentHostStorage } from './tunnelAgentHostStorage.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../../platform/agentHost/common/transportConstants.js';
 
 const LOG_PREFIX = '[BrowserTunnelAgentHost]';
+
+class BrowserTunnelConnectionFactory extends Disposable implements IRemoteAgentHostConnectionFactory {
+	readonly kind = RemoteAgentHostEntryType.Tunnel;
+	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
+
+	private readonly _onDidStageTunnel = this._register(new Emitter<void>());
+	private readonly _stagedAuthProviders = new Map<string, 'github' | 'microsoft' | undefined>();
+	/**
+	 * Initiation mode for a staged tunnel, consumed by the first
+	 * {@link createConnection} for that address. Staging publishes the entry
+	 * synchronously, so the service's reconciliation can begin dialing before
+	 * the caller's explicit `reconnect` runs — and that dial would otherwise be
+	 * treated as background, suppressing interactive auth and gateway
+	 * selection for the user's own first connect.
+	 */
+	private readonly _stagedUserInitiated = new Map<string, boolean>();
+	private readonly _onDidStageTunnelSignal = observableSignalFromEvent(this, this._onDidStageTunnel.event);
+
+	constructor(
+		private readonly _storage: TunnelAgentHostStorage,
+		private readonly _createConnection: (entry: IRemoteAgentHostEntry, authProvider: 'github' | 'microsoft' | undefined, options: IRemoteAgentHostConnectOptions) => Promise<IRemoteAgentHostCreatedConnection>,
+	) {
+		super();
+		this.entries = derived(this, reader => {
+			this._onDidStageTunnelSignal.read(reader);
+			const autoConnectSuppressedTunnels = this._storage.autoConnectSuppressedTunnels.read(reader);
+			return this._storage.cachedTunnels.read(reader)
+				.filter(tunnel => !autoConnectSuppressedTunnels.includes(tunnel.tunnelId))
+				.map(tunnel => this._entryForTunnel(tunnel, tunnel.authProvider));
+		});
+	}
+
+	stageTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', userInitiated = true): IRemoteAgentHostEntry {
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+		this._stagedAuthProviders.set(address, authProvider);
+		this._stagedUserInitiated.set(address, userInitiated);
+		this._storage.cacheTunnel({ tunnelId: tunnel.tunnelId, clusterId: tunnel.clusterId, name: tunnel.name, protocolVersion: tunnel.protocolVersion, authProvider });
+		this._onDidStageTunnel.fire();
+		return this._entryForTunnel(tunnel, authProvider);
+	}
+
+	unstageTunnel(address: string): void {
+		this._stagedUserInitiated.delete(address);
+		if (this._stagedAuthProviders.delete(address)) {
+			this._onDidStageTunnel.fire();
+		}
+	}
+
+	createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+		if (entry.connection.type !== RemoteAgentHostEntryType.Tunnel) {
+			throw new Error(`Tunnel factory cannot create a ${entry.connection.type} connection.`);
+		}
+		const address = getEntryAddress(entry);
+		const stagedUserInitiated = this._stagedUserInitiated.get(address);
+		// Consume it: only the connect this staging was for is user-initiated,
+		// and a later automatic reconnect must not prompt.
+		this._stagedUserInitiated.delete(address);
+		const connectOptions = stagedUserInitiated === undefined
+			? options
+			: { ...options, userInitiated: stagedUserInitiated };
+		return this._createConnection(entry, this._stagedAuthProviders.has(address) ? this._stagedAuthProviders.get(address) : entry.connection.authProvider, connectOptions);
+	}
+
+	private _entryForTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'clusterId' | 'name'>, authProvider?: 'github' | 'microsoft'): IRemoteAgentHostEntry {
+		return {
+			name: tunnel.name,
+			connection: {
+				type: RemoteAgentHostEntryType.Tunnel,
+				tunnelId: tunnel.tunnelId,
+				clusterId: tunnel.clusterId,
+				label: tunnel.name,
+				authProvider,
+			},
+		};
+	}
+}
 
 /** Creates relay clients directly from the lazily-loaded Dev Tunnels browser SDK. */
 export class BrowserTunnelRelayClientFactory implements ITunnelRelayClientFactory {
@@ -140,6 +218,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _storage: TunnelAgentHostStorage;
+	private readonly _connectionFactory: BrowserTunnelConnectionFactory;
 	readonly onDidChangeTunnels: Event<void>;
 
 	private readonly _connector: ITunnelAgentHostConnector;
@@ -162,6 +241,11 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		super();
 		this._storage = this._register(new TunnelAgentHostStorage(this._storageService));
 		this.onDidChangeTunnels = this._storage.onDidChangeTunnels;
+		this._connectionFactory = this._register(new BrowserTunnelConnectionFactory(
+			this._storage,
+			(entry, authProvider, connectOptions) => this._createConnection(entry, authProvider, connectOptions),
+		));
+		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 		const load = options.loadDevTunnelsWeb ?? loadDevTunnelsWeb;
 		this._loadDevTunnelsWeb = load;
 		this._connector = options.connector ?? this._register(new TunnelAgentHostConnector(
@@ -211,68 +295,112 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
+		const entry = this._connectionFactory.stageTunnel(tunnel, authProvider, options?.userInitiated ?? true);
+		const address = getEntryAddress(entry);
+		this._remoteAgentHostService.reconnect(address, options?.userInitiated ?? true);
+		await this._remoteAgentHostService.waitForConnection(address);
+	}
+
+	private async _createConnection(entry: IRemoteAgentHostEntry, authProvider: 'github' | 'microsoft' | undefined, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+		if (entry.connection.type !== RemoteAgentHostEntryType.Tunnel) {
+			throw new Error(`Tunnel factory cannot create a ${entry.connection.type} connection.`);
+		}
+		// Bind the narrowed connection before the closure: TypeScript does not
+		// carry the discriminant narrowing into the `find` callback below.
+		const connection = entry.connection;
+		const cachedTunnel = this._storage.getCachedTunnels().find(cached => cached.tunnelId === connection.tunnelId);
+		const tunnel: ITunnelInfo = {
+			tunnelId: connection.tunnelId,
+			clusterId: connection.clusterId,
+			name: connection.label ?? entry.name,
+			tags: [],
+			// Legacy cache fallback, not a real capability claim.
+			protocolVersion: cachedTunnel?.protocolVersion ?? TUNNEL_MIN_PROTOCOL_VERSION,
+			hostConnectionCount: 0,
+		};
 		const auth = authProvider
-			? await this._getTokenForProvider(authProvider, false)
-			: await this._getToken(false);
+			? await this._getTokenForProvider(authProvider, !options.userInitiated)
+			: await this._getToken(!options.userInitiated);
 		if (!auth) {
-			throw new Error('No authentication available');
+			throw new NonReconnectableTransportError('No cached authentication available to connect the tunnel.');
 		}
 
-		const result = await connectThroughTunnelGateway(
-			this._connector,
-			this._resolveGatewaySelection,
-			this._locationPreferenceService,
-			this._dialogService,
-			this._productService.nameShort,
-			auth,
-			tunnel,
-			options?.userInitiated ?? true,
-		);
-		if (!result) {
-			return;
-		}
-		const transport = new BrowserTunnelConnectionTransport(result.connectionId, this._connector, this._logService);
-		const protocolClient = this._instantiationService.createInstance(
-			AgentHostProtocolClient, result.address, transport, undefined, undefined, agentsWindowAgentHostClientInfo,
-		);
-
-		let status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected;
-		let connectError: unknown;
+		let result: ITunnelConnectResult;
 		try {
-			await protocolClient.connect();
-			this._logService.info(`${LOG_PREFIX} Protocol handshake completed with ${result.address}`);
-		} catch (error) {
-			const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(error, [PROTOCOL_VERSION]);
-			if (!RemoteAgentHostConnectionStatus.isIncompatible(incompatible)) {
-				protocolClient.dispose();
-				throw error;
+			const connected = await connectThroughTunnelGateway(
+				this._connector,
+				this._resolveGatewaySelection,
+				this._locationPreferenceService,
+				this._dialogService,
+				this._productService.nameShort,
+				auth,
+				tunnel,
+				options.userInitiated,
+			);
+			if (!connected) {
+				throw new NonReconnectableTransportError('Tunnel agent host selection requires user interaction.');
 			}
-			status = incompatible;
-			connectError = error;
-			this._logService.warn(`${LOG_PREFIX} Incompatible with ${result.address}: ${incompatible.message}`);
-		}
-
-		this.cacheTunnel(tunnel, auth.provider);
-		try {
-			await this._remoteAgentHostService.addManagedConnection({
-				name: result.name,
-				connectionToken: result.connectionToken,
-				connection: {
-					type: RemoteAgentHostEntryType.Tunnel,
-					tunnelId: tunnel.tunnelId,
-					clusterId: tunnel.clusterId,
-					label: tunnel.name,
-					authProvider: auth.provider,
-				},
-			}, protocolClient, undefined, status);
+			result = connected;
 		} catch (error) {
-			protocolClient.dispose();
+			if (isTunnelNotFoundError(error)) {
+				throw new NonReconnectableTransportError(error.message);
+			}
 			throw error;
 		}
+		let useSeedConnection = true;
+		const establish = async (): Promise<IEstablishedTransport> => {
+			if (useSeedConnection) {
+				useSeedConnection = false;
+				// The initial relay is already owned by the transport established for this managed connection.
+				return { transport: new BrowserTunnelConnectionTransport(result.connectionId, this._connector, this._logService) };
+			}
 
-		if (connectError) {
-			throw connectError;
-		}
+			const authForReconnect = await this._getTokenForProvider(auth.provider, true);
+			if (!authForReconnect) {
+				throw new NonReconnectableTransportError('No cached authentication available to reconnect the tunnel.');
+			}
+
+			try {
+				const reconnected = await connectThroughTunnelGateway(
+					this._connector,
+					this._resolveGatewaySelection,
+					this._locationPreferenceService,
+					this._dialogService,
+					this._productService.nameShort,
+					authForReconnect,
+					tunnel,
+					false,
+				);
+				if (!reconnected) {
+					throw new NonReconnectableTransportError('Tunnel agent host selection requires user interaction.');
+				}
+				try {
+					return {
+						transport: new BrowserTunnelConnectionTransport(reconnected.connectionId, this._connector, this._logService),
+						close: () => this._connector.disconnect(reconnected.connectionId),
+					};
+				} catch (error) {
+					await this._connector.disconnect(reconnected.connectionId);
+					throw error;
+				}
+			} catch (error) {
+				if (isTunnelNotFoundError(error)) {
+					throw new NonReconnectableTransportError(error.message);
+				}
+				throw error;
+			}
+		};
+		const transportFactory = () => new ReconnectingTransport(
+			establish,
+			this._logService,
+			LOG_PREFIX,
+			AgentHostClientConnectionKind.DevTunnel,
+		);
+		return {
+			connection: this._instantiationService.createInstance(
+				AgentHostProtocolClient, result.address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo },
+			),
+		};
 	}
 
 	readonly canDeleteTunnels = true;
@@ -288,8 +416,8 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 	}
 
 	async disconnect(address: string): Promise<void> {
+		this._connectionFactory.unstageTunnel(address);
 		await this._remoteAgentHostService.removeRemoteAgentHost(address);
-		this._storage.notifyTunnelsChanged();
 	}
 
 	async getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined> {
@@ -305,12 +433,26 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 			tunnelId: tunnel.tunnelId,
 			clusterId: tunnel.clusterId,
 			name: tunnel.name,
+			protocolVersion: tunnel.protocolVersion,
 			authProvider,
 		});
 	}
 
 	removeCachedTunnel(tunnelId: string): void {
+		this._connectionFactory.unstageTunnel(`${TUNNEL_ADDRESS_PREFIX}${tunnelId}`);
 		this._storage.removeCachedTunnel(tunnelId);
+	}
+
+	isTunnelDismissed(tunnelId: string): boolean {
+		return this._storage.isTunnelDismissed(tunnelId);
+	}
+
+	dismissTunnel(tunnelId: string): void {
+		this._storage.dismissTunnel(tunnelId);
+	}
+
+	clearTunnelDismissal(tunnelId: string): void {
+		this._storage.clearTunnelDismissal(tunnelId);
 	}
 
 	isAutoConnectSuppressed(tunnelId: string): boolean {

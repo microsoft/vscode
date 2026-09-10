@@ -30,6 +30,7 @@ export interface TerminalInfo {
  * Lifecycle status of a terminal process.
  *
  * @category Terminal Types
+ * @exhaustive
  */
 export const enum TerminalLifecycleStatus {
 	Running = 'running',
@@ -69,6 +70,7 @@ export type TerminalLifecycleState =
  * Discriminant for terminal claim kinds.
  *
  * @category Terminal Types
+ * @exhaustive
  */
 export const enum TerminalClaimKind {
 	Client = 'client',

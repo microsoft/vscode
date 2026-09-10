@@ -357,6 +357,9 @@ export interface IEditorTabBarFixtureOptions {
 	readonly active?: boolean;
 	readonly dropTargetBetweenTabs?: boolean;
 	readonly showHeader?: boolean;
+	readonly useModernUITabs?: boolean;
+	readonly reserveHeaderSpace?: boolean;
+	readonly headerWidth?: number;
 	readonly headerMenuIds?: IEditorGroupMenuIds;
 	readonly colorCustomizations?: Readonly<Record<string, string>>;
 	readonly forcedHoverTab?: number;
@@ -398,7 +401,7 @@ function populateModel(model: EditorGroupModel, specs: IEditorSpec[], disposable
 }
 
 export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options: IEditorTabBarFixtureOptions): void {
-	const { container, disposableStore, theme } = ctx;
+	const { container, disposableStore, theme, fileIconTheme } = ctx;
 
 	const width = options.width ?? 820;
 	const isGroupActive = options.active ?? true;
@@ -421,8 +424,10 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		configurationService: () => configurationService,
 	}, disposableStore);
 
-	// Feed the fixture's themed colors to the shared theme service so tab-bar `getColor(...)` resolves.
-	(instantiationService.get(IThemeService) as TestThemeService).setTheme(theme);
+	// Feed the fixture's themes to the shared theme service so tab-bar theme lookups resolve.
+	const themeService = instantiationService.get(IThemeService) as TestThemeService;
+	themeService.setTheme(theme);
+	themeService.setFileIconTheme(fileIconTheme);
 
 	// Services the base workbench harness does not stub but the tab bar needs.
 	instantiationService.stub(ITreeViewsDnDService, new TreeViewsDnDService());
@@ -534,13 +539,15 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		model,
 		options.headerMenuIds,
 		options.showHeader ?? false,
+		options.reserveHeaderSpace ? () => true : undefined,
+		options.useModernUITabs ?? false,
 	));
 
 	const layout = () => {
 		titleControl.layout({
 			container: new Dimension(width, titleControl.getHeight().total),
 			available: new Dimension(width, 200),
-		});
+		}, options.headerWidth);
 	};
 	groupView.relayoutFn = layout;
 
@@ -570,7 +577,8 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 		Default: defineComponentFixture({ render: render(modernUI, {}), additionalThemes }),
 
 		// showTabs
-		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }) }),
+		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }), additionalThemes }),
+		ShowTabsSingleCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single', tabHeight: 'compact' }, breadcrumbs: {} }), additionalThemes }),
 		ShowTabsNone: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'none' } }) }),
 
 		// pinnedTabsOnSeparateRow
@@ -716,6 +724,11 @@ function createThemeColorFixtures() {
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
+	FileIconThemes: defineThemedFixtureGroup({
+		Seti: defineComponentFixture({ fileIconTheme: 'vs-seti', render: render(false, {}) }),
+		Minimal: defineComponentFixture({ fileIconTheme: 'vs-minimal', render: render(false, {}) }),
+		None: defineComponentFixture({ fileIconTheme: 'none', render: render(false, {}) }),
+	}),
 	ModernUIOff: defineThemedFixtureGroup(createFixtures(false, ['darkHighContrast'])),
 	ModernUIOn: defineThemedFixtureGroup({
 		...createFixtures(true, ['darkHighContrast']),

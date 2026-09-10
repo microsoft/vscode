@@ -7,8 +7,8 @@ import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { dirname, joinPath } from '../../../base/common/resources.js';
-import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
@@ -16,29 +16,34 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
-import { IAgentHostCustomizationEnablementService, supportsCustomizationEnablementWorktreeBinding } from './agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { AgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { AgentMergeController } from './agentMergeController.js';
-import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
 import { AgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
-import { SessionCoordinationService } from './sessionCoordination.js';
-import { AgentServerToolHost } from './shared/agentServerToolHost.js';
+import { AgentMergeController } from './agentMergeController.js';
+import { AgentMergeTools } from './agentMergeTools.js';
+import { AgentServerToolHost, IAgentHostServerToolService } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
+import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
-import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
-import { ICopilotApiService } from './shared/copilotApiService.js';
+import { IAgentHostProviderService } from './agentHostProviderService.js';
+import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
+import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
+import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
@@ -48,6 +53,7 @@ export interface IAgentServiceComposition {
 	readonly customizationEnablementService: IAgentHostCustomizationEnablementService;
 	readonly checkpointService: IAgentHostCheckpointService;
 	readonly completions: IAgentHostCompletions;
+	readonly providerService: IAgentHostProviderService;
 	readonly agents: IObservable<readonly IAgent[]>;
 	readonly onDidStartTurn: Event<string>;
 	setContributions(contributions: IDisposable): void;
@@ -67,9 +73,11 @@ export function createAgentServiceComposition(
 	options: IAgentServiceOptions,
 	accessor: ServicesAccessor,
 	instantiationService: IInstantiationService,
+	services: ServiceCollection,
 	logService: ILogService,
 	sessionDataService: ISessionDataService,
 	foundation: IAgentServiceFoundation,
+	localTurns: AgentHostLocalTurns,
 	additionalDisposables: readonly IDisposable[] = [],
 ): IAgentServiceComposition {
 	const owned = new DisposableStore();
@@ -83,7 +91,8 @@ export function createAgentServiceComposition(
 		const debugLogsCollector = options.debugLogsEnvironment
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
-		const { callbackAdapter, agents, stateManager, configurationService, authenticationService, gitHubEndpointService } = foundation;
+		const { callbackAdapter, stateManager, configurationService, authenticationService, gitHubEndpointService } = foundation;
+		const providerService = accessor.get(IAgentHostProviderService);
 		const sessionRegistry = owned.add(new AgentSessionRegistry(orchestratorDatabase));
 		const core: IAgentServiceCore = {
 			disposables: owned,
@@ -93,24 +102,22 @@ export function createAgentServiceComposition(
 			sessionRegistry,
 			stateManager,
 			configurationService,
-			agents,
 			callbackBinder: callbackAdapter,
 		};
-		// AgentService subscribes after this graph is complete, so collaborator constructors must not emit state-manager events.
-		const octoKitService = accessor.get(IAgentHostOctoKitService);
-		const copilotApiService = accessor.get(ICopilotApiService);
+		// Composition-owned collaborators are constructed before AgentService subscribes, so their constructors must not emit state-manager events.
 		const customizationEnablementService = accessor.get(IAgentHostCustomizationEnablementService);
-		if (!supportsCustomizationEnablementWorktreeBinding(customizationEnablementService)) {
-			throw new Error('AgentService requires customization enablement worktree binding support');
-		}
 		const gitStateService = accessor.get(IAgentHostGitStateService);
 		const agentMergeController = owned.add(instantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt),
 			cancelTurn: (session, turnId) => callbackAdapter.value.cancelAgentMergeTurn(session, turnId),
-			getAutonomousSessionConfig: (session, config) => callbackAdapter.value.getAutonomousSessionConfig(session, config),
+			postNotice: (session, kind, content) => callbackAdapter.value.postAgentMergeNotice(session, kind, content),
 		}));
+		// Resolve this even before first use so its session-data deletion listener
+		// always removes checkpoint refs before the database disappears.
 		const checkpointService = accessor.get(IAgentHostCheckpointService);
 		const changesetOperationService = accessor.get(IAgentHostChangesetOperationService);
+		// Resolve this even before first use so its session-data deletion listener
+		// always removes reviewed refs before the database disappears.
 		const reviewService = accessor.get(IAgentHostReviewService);
 		const changesets = accessor.get(IAgentHostChangesetService);
 		const changesetCoordinator = owned.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
@@ -119,47 +126,18 @@ export function createAgentServiceComposition(
 		const completions = accessor.get(IAgentHostCompletions);
 
 		const terminalManager = accessor.get(IAgentHostTerminalManager);
-		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		const sideEffects = owned.add(instantiationService.createInstance(
 			AgentSideEffects,
 			stateManager,
 			customizationEnablementService,
 			{
-				getAgent: session => callbackAdapter.value.getAgent(session),
+				getAgent: session => providerService.getProviderForSession(session),
 				sessionDataService,
 				localTurns,
-				agents,
+				agents: providerService.agents,
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
-				copilotApiService,
-				getGitHubCopilotToken: () => {
-					const resource = gitHubEndpointService.getCopilotResource();
-					return core.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-				getGitHubToken: () => {
-					const resource = gitHubEndpointService.getRepoResource();
-					return core.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-				getGitHubHost: () => gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
-				octoKitService,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
-				onTurnComplete: session => {
-					const workingDirStr = stateManager.getSessionState(session)?.workingDirectories?.[0];
-					void gitStateService.attachSessionGitHubPullRequest(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
-				},
-				onUserMessage: (session, text) => {
-					void gitStateService.attachSessionGitHubReferences(session.toString(), text);
-				},
-			},
-		));
-		const sessionCoordination = owned.add(new SessionCoordinationService(
-			stateManager,
-			sessionDataService,
-			logService,
-			{
-				getSessionMetadata: session => callbackAdapter.value.getSessionMetadata(session),
-				restoreSession: session => callbackAdapter.value.restoreSession(session),
-				handleAction: (chat, action) => sideEffects.handleAction(chat, action),
 			},
 		));
 		const agentMergeTools = instantiationService.createInstance(
@@ -167,14 +145,31 @@ export function createAgentServiceComposition(
 			() => agentMergeController.isEnabled(),
 			session => agentMergeController.getTurnContext(session),
 		);
+		const turnTracker = accessor.get(IAgentHostTurnTracker);
+		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
+		const sessionServerToolAccessor: ISessionServerToolAccessor = {
+			...callbackAdapter.sessionServerToolAccessor,
+			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
+				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
+				if (!initiatingClientId) {
+					throw new Error('Session workspace conversion requires a turn initiated by a connected VS Code client.');
+				}
+				if (!workspaceConversionService.value) {
+					throw new Error('Session workspace conversion is unavailable.');
+				}
+				workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
+			},
+		};
 		const serverToolHost = new AgentServerToolHost(
 			stateManager,
-			buildServerToolGroups(callbackAdapter.sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
+			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
 		);
+		services.set(IAgentHostServerToolService, serverToolHost);
+		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));
+		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 
 		const collaborators: IAgentServiceCollaborators = {
 			gitHubEndpointService,
-			customizationEnablementService,
 			gitStateService,
 			agentMergeController,
 			checkpointService,
@@ -186,10 +181,40 @@ export function createAgentServiceComposition(
 			terminalManager,
 			localTurns,
 			sideEffects,
-			sessionCoordination,
 			serverToolHost,
 		};
-		agentService = instantiationService.createInstance(AgentService, core, collaborators);
+		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
+		owned.add(new AgentHostSessionLifecycle(
+			{
+				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),
+				restoreSession: session => agentService!.restoreSession(session),
+				getAutoArchivedAt: async session => {
+					const ref = await sessionDataService.tryOpenDatabase(session);
+					if (!ref) {
+						return undefined;
+					}
+					try {
+						const value = await ref.object.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY);
+						const timestamp = value ? Number(value) : Number.NaN;
+						return Number.isFinite(timestamp) ? timestamp : undefined;
+					} finally {
+						ref.dispose();
+					}
+				},
+				setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(sessionDataService, session.toString(), {
+					[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),
+				}),
+				archiveSession: session => agentService!.archiveSession(session),
+				canDeleteSession: session => agentService!.canAutomaticallyDeleteArchivedSession(session),
+				cleanupWorktree: (session, sessionId) => agentService!.cleanupWorktree(session, sessionId),
+				deleteSession: (session, validate) => agentService!.disposeSessionIf(session, validate),
+			},
+			configurationService,
+			stateManager,
+			accessor.get(IAgentHostPullRequestStatusService),
+			providerService,
+			logService,
+		));
 		for (const disposable of additionalDisposables) {
 			owned.add(disposable);
 		}
@@ -201,7 +226,8 @@ export function createAgentServiceComposition(
 			customizationEnablementService,
 			checkpointService,
 			completions,
-			agents,
+			providerService,
+			agents: providerService.agents,
 			onDidStartTurn: sideEffects.onDidStartTurn,
 			setContributions: value => {
 				if (contributions.value) {

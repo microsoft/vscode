@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
@@ -120,6 +121,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 					...meta,
 					label: localize('agentHostPermissionPicker.manual.label', "Manual permissions"),
 					detail: localize('agentHostPermissionPicker.askWhenNeeded.detail', "Asks when approval settings don't apply"),
+					icon: Codicon.key,
 				};
 			case ChatPermissionLevel.Assisted:
 				return { ...meta, detail: localize('agentHostPermissionPicker.approveWhenSafe.detail', "Evaluates risk before running tools") };

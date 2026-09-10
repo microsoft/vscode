@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { decodeHex } from '../../../base/common/buffer.js';
+import { decodeHex, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, getEntryAddress, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
-import { resolveRemoteAuthority, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
+import { AGENT_HOST_SCHEME } from '../../../platform/agentHost/common/agentHostUri.js';
+import { URI } from '../../../base/common/uri.js';
+import { resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 
 suite('resolveRemoteAuthority', () => {
@@ -137,6 +139,56 @@ suite('resolveRemoteAuthority', () => {
 			}]) as IRemoteAgentHostService,
 		);
 		assert.strictEqual(result, 'tunnel+myTunnelId.usw2');
+	});
+
+	function assertDevContainerAuthority(hostPath: string): void {
+		const address = 'devcontainer:container-id';
+		const providersService = makeProvidersService(address);
+		const remoteAgentHostService = makeRemoteAgentHostService([{
+			name: 'Project Dev Container',
+			connection: {
+				type: RemoteAgentHostEntryType.DevContainer,
+				address,
+				hostPath,
+			},
+		}]);
+		const authority = resolveRemoteAuthority('agenthost-devcontainer', providersService, remoteAgentHostService);
+		const folderUri = resolveRemoteFolderUri(
+			URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'devcontainer__container-id', path: '/workspaces/project' }),
+			'agenthost-devcontainer',
+			providersService,
+			remoteAgentHostService,
+		);
+
+		assert.deepStrictEqual({
+			authority,
+			decodedHostPath: authority ? decodeHex(authority.slice('dev-container+'.length)).toString() : undefined,
+			folderUri: {
+				scheme: folderUri.scheme,
+				authority: folderUri.authority,
+				path: folderUri.path,
+			},
+		}, {
+			authority: `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}`,
+			decodedHostPath: hostPath,
+			folderUri: {
+				scheme: 'vscode-remote',
+				authority: `dev-container+${encodeHex(VSBuffer.fromString(hostPath))}`,
+				path: '/workspaces/project',
+			},
+		});
+	}
+
+	test('returns a Dev Containers authority for a POSIX source folder', () => {
+		assertDevContainerAuthority('/Users/test/project');
+	});
+
+	test('returns a Dev Containers authority for a Windows drive-letter source folder', () => {
+		assertDevContainerAuthority('C:\\Users\\Test User\\project');
+	});
+
+	test('returns a Dev Containers authority for a Windows WSL UNC source folder', () => {
+		assertDevContainerAuthority('\\\\wsl.localhost\\Ubuntu\\home\\test\\project');
 	});
 
 	test('returns undefined for WebSocket connections', () => {

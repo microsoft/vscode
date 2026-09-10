@@ -116,6 +116,11 @@ declare module 'vscode' {
 			readonly endsAt?: string;
 			/** A human-readable message about the promotion. */
 			readonly message: string;
+			/**
+			 * Whether the promotion may also be surfaced as a banner above the chat input.
+			 * Omit to allow the banner; set to `false` to keep the promotion in the model picker only.
+			 */
+			readonly showBanner?: boolean;
 		};
 	}
 

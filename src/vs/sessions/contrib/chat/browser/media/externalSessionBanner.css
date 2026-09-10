@@ -16,7 +16,7 @@
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
 	font-family: var(--vscode-chat-font-family, inherit);
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 }
 
 .external-session-banner.hidden {
@@ -31,7 +31,7 @@
 }
 
 .external-session-banner-message {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .external-session-banner-description {

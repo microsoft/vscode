@@ -131,6 +131,9 @@ jobs:
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
 
+      - script: node build/npm/electronTypes.ts
+        displayName: Prepare Electron types
+
       - script: node build/azure-pipelines/common/checkDistroCommit.ts
         displayName: Check distro commit
         env:

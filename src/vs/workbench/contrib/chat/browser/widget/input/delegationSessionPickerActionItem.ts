@@ -78,20 +78,23 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return this.delegate.getActiveSessionProvider();
 	}
 
+	protected override getTooltip(): string {
+		const activeProvider = this.delegate.getActiveSessionProvider();
+		if (activeProvider !== undefined && isAgentHostTarget(activeProvider)) {
+			return '';
+		}
+		return super.getTooltip();
+	}
+
 	protected override _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
 		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
 		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type || contribution.type === type);
 
-		// Delegation is allowed:
-		// - in core VS Code: from local sessions, plus from any agent host session;
-		// - in the sessions window: from background sessions, plus from any agent
-		//   host session (local `agent-host-*` or remote `remote-*`).
 		const activeProvider = this.delegate.getActiveSessionProvider();
-		const isAgentHostSource = activeProvider !== undefined && isAgentHostTarget(activeProvider);
-		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local && !isAgentHostSource) {
+		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local) {
 			return false;
 		}
-		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background && !isAgentHostSource) {
+		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background) {
 			return false;
 		}
 

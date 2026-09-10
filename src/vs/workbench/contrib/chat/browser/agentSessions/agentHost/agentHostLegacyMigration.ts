@@ -17,16 +17,43 @@ import type { SessionState } from '../../../../../../platform/agentHost/common/s
 import { COPILOT_CLI_AGENT_PROVIDER, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 
 /**
+ * Startup-frozen value of {@link ChatConfiguration.MigrateLegacyCopilotCliSessions}.
+ * Migration is a one-time, one-way operation, so enabling the setting only takes
+ * effect on the next window reload: until then an open must behave as if it were
+ * still off. {@link primeLegacyMigrationStartupSnapshot} captures the value once at
+ * startup; before that (only in tests) the live value is used so each test's stub
+ * is honored in isolation.
+ */
+let _legacyMigrationEnabledAtStartup: boolean | undefined;
+
+export function primeLegacyMigrationStartupSnapshot(configurationService: IConfigurationService): void {
+	_legacyMigrationEnabledAtStartup = configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true;
+}
+
+export function isLegacyMigrationEnabledAtStartup(configurationService: IConfigurationService): boolean {
+	return _legacyMigrationEnabledAtStartup ?? (configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) === true);
+}
+
+/**
  * How long an adoption probe may take before falling back to the legacy resource.
  *
- * Interactive opens happen against a warm host and answer immediately, so a short
- * bound keeps a wedged host from looking like a hang. Restore is the cold case:
- * the host is still working through its initial catalogue, and a measured restore
- * took ~28s on a large one — giving up early there is what makes a restored
- * session silently stay on the legacy provider.
+ * Right after migration is enabled on a large catalogue the host is still busy
+ * discovering thousands of sessions, so even an interactive open can hit a cold
+ * host; a too-short bound makes it fall back to the read-only legacy session
+ * instead of the migrated one. Restore is the fully-cold case (startup), so it
+ * gets the larger budget.
  */
-export const LEGACY_MIGRATION_TIMEOUT_MS = 10_000;
+export const LEGACY_MIGRATION_TIMEOUT_MS = 30_000;
 export const LEGACY_MIGRATION_RESTORE_TIMEOUT_MS = 60_000;
+
+/**
+ * Budget for an explicit, user-initiated open. Migration is invisible to the user, so we
+ * prefer to wait for the adopted session to surface (shown under a subtle progress hint)
+ * rather than fall back to the pre-migration view they did not ask for. A declined or
+ * external session still resolves quickly via the error signal, so only a genuinely
+ * still-warming host uses the full budget.
+ */
+export const LEGACY_MIGRATION_OPEN_TIMEOUT_MS = 60_000;
 
 /** Where a probe was triggered from, so outcomes can be attributed per entry point. */
 export type LegacyMigrationProbeSource = 'open' | 'restore';
@@ -93,8 +120,10 @@ export async function adoptLegacyCopilotCliResource(
 	// The host restores a session whether or not it adopts it, so a successful
 	// probe does not by itself mean migration happened. Gate on the setting here:
 	// without it we would move sessions onto the agent host for users who never
-	// opted in — including external ones, which are never adopted at all.
-	if (configurationService.getValue<boolean>(ChatConfiguration.MigrateLegacyCopilotCliSessions) !== true) {
+	// opted in — including external ones, which are never adopted at all. The gate
+	// is the startup-frozen value: enabling migration takes effect on the next
+	// window reload, so an open before reload behaves as if it were still off.
+	if (!isLegacyMigrationEnabledAtStartup(configurationService)) {
 		report('settingDisabled');
 		return undefined;
 	}
