@@ -10,10 +10,21 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
+async function waitForWorkingBorderStyles(input: HTMLElement): Promise<void> {
+	const targetWindow = getWindow(input);
+	for (let attempt = 0; attempt < 60; attempt++) {
+		if (targetWindow.getComputedStyle(input, '::before').animationName === 'chat-input-working-border-spin') {
+			return;
+		}
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	}
+	assert.fail('Chat working border styles were not loaded.');
+}
+
 suite('Chat working border styling', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('runs listening then speaking and falls back to a solid high-contrast border', () => {
+	test('runs both color phases, suppresses reduced motion, and preserves high-contrast feedback', async () => {
 		const workbench = $('.monaco-workbench.monaco-enable-motion.vs-dark');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		workbench.style.setProperty('--vscode-input-border', '#444444');
@@ -41,6 +52,7 @@ suite('Chat working border styling', () => {
 		};
 		const readAnimatedColor = () => targetWindow.getComputedStyle(input, '::before').getPropertyValue('--chat-input-anim-color').trim();
 
+		await waitForWorkingBorderStyles(input);
 		const active = readPseudo();
 		const animations = input.getAnimations({ subtree: true });
 		for (const animation of animations) {
@@ -55,10 +67,13 @@ suite('Chat working border styling', () => {
 
 		workbench.classList.remove('monaco-enable-motion');
 		workbench.classList.add('monaco-reduce-motion');
-		const reducedMotion = readPseudo();
+		const reducedMotion = {
+			beam: readPseudo(),
+			working: input.classList.contains('working'),
+		};
 
-		workbench.classList.remove('monaco-reduce-motion', 'vs-dark');
-		workbench.classList.add('monaco-enable-motion', 'hc-black');
+		workbench.classList.remove('vs-dark');
+		workbench.classList.add('hc-black');
 		const highContrast = {
 			beam: readPseudo(),
 			borderColor: targetWindow.getComputedStyle(input).borderColor,
@@ -78,9 +93,12 @@ suite('Chat working border styling', () => {
 			listening: 'rgb(88, 166, 255)',
 			speaking: 'rgb(226, 88, 255)',
 			reducedMotion: {
-				animationDuration: '0s',
-				animationName: 'none',
-				display: 'block',
+				beam: {
+					animationDuration: '0s',
+					animationName: 'none',
+					display: 'block',
+				},
+				working: true,
 			},
 			highContrast: {
 				beam: {
