@@ -229,7 +229,7 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
+export async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 
@@ -240,7 +240,25 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 			separator = copyRelativeOrFullPathSeparator;
 		}
 
-		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, separator })).join(lineDelimiter);
+		const quotingSection = relative ? 'explorer.copyRelativePathQuoting' : 'explorer.copyPathQuoting';
+		const quotingSetting: string = configurationService.getValue(quotingSection) ?? 'none';
+		let quoteChar: string;
+		switch (quotingSetting) {
+			case 'single':
+				quoteChar = '\'';
+				break;
+			case 'double':
+				quoteChar = '"';
+				break;
+			default:
+				quoteChar = '';
+				break;
+		}
+
+		const text = resources.map(resource => {
+			const label = labelService.getUriLabel(resource, { relative, noPrefix: true, separator });
+			return quoteChar ? `${quoteChar}${label}${quoteChar}` : label;
+		}).join(lineDelimiter);
 		await clipboardService.writeText(text);
 	}
 }
