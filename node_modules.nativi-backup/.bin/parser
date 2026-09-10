@@ -1,0 +1,1 @@
+../@babel/parser/bin/babel-parser.js
