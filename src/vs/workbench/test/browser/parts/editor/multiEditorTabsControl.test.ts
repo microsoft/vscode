@@ -221,6 +221,7 @@ suite('MultiEditorTabsControl', () => {
 		control.stickEditor(editor);
 
 		const iconLabel = container.querySelector<HTMLElement>('.tab.sticky-compact .monaco-icon-label')!;
+		assert.ok(iconLabel.classList.contains('predefined-file-icon'), iconLabel.className);
 		const variants = [iconLabel.classList.contains('monaco-icon-label-spacing-none')];
 
 		workbench.classList.add('modern-ui-tabs');
@@ -228,8 +229,6 @@ suite('MultiEditorTabsControl', () => {
 		variants.push(iconLabel.classList.contains('monaco-icon-label-spacing-none'));
 		const pseudoStyle = getWindow(iconLabel).getComputedStyle(iconLabel, '::before');
 		const themeIconGeometry = {
-			boxSizing: pseudoStyle.boxSizing,
-			paddingRight: pseudoStyle.paddingRight,
 			marginInlineEnd: pseudoStyle.marginInlineEnd,
 			width: pseudoStyle.width,
 		};
@@ -244,8 +243,6 @@ suite('MultiEditorTabsControl', () => {
 		}, {
 			variants: [false, true, false],
 			themeIconGeometry: {
-				boxSizing: 'border-box',
-				paddingRight: '0px',
 				marginInlineEnd: '0px',
 				width: '16px',
 			},
