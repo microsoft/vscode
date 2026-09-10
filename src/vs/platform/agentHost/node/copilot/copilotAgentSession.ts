@@ -1457,6 +1457,10 @@ export class CopilotAgentSession extends Disposable {
 		return e.agentId ? this._parentToolCallIdsByAgentId.get(e.agentId) : undefined;
 	}
 
+	private _shouldDropCompletedSubagentEvent(e: { readonly agentId?: string }): boolean {
+		return e.agentId !== undefined && this._completedSubagentAgentIds.has(e.agentId);
+	}
+
 	private _resumeSubagentForEvent(e: { readonly agentId?: string }, message?: Message, isTurnStart = false): void {
 		if (this._dropLateRootTurnEvents) {
 			return;
@@ -1474,6 +1478,7 @@ export class CopilotAgentSession extends Disposable {
 		if (this._currentTurn.value) {
 			this._rootTurnIdBySubagentToolCallId.set(parentToolCallId, this._currentTurn.value.id);
 		}
+		this._beginToolCallRound(parentToolCallId);
 		this._completedSubagentAgentIds.delete(e.agentId);
 		this._activeSubagentAgentIds.add(e.agentId);
 		this._subagentObservedTokenUsage.set(parentToolCallId, new ObservedTokenUsage());
@@ -5002,6 +5007,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessageDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] delta: ${e.data.deltaContent}`);
+			if (this._shouldDropCompletedSubagentEvent(e)) {
+				return;
+			}
 			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message_delta')) {
 				return;
@@ -5011,6 +5019,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
+			if (this._shouldDropCompletedSubagentEvent(e)) {
+				return;
+			}
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.message')) {
 				return;
@@ -5137,6 +5148,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onToolCallDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool call delta: ${e.data.toolName ?? '<pending>'} (${e.data.toolCallId})`);
+			if (this._shouldDropCompletedSubagentEvent(e)) {
+				return;
+			}
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.tool_call_delta')) {
 				return;
@@ -5577,6 +5591,9 @@ export class CopilotAgentSession extends Disposable {
 		// clickable file link, matching the `view`-tool display style.
 		this._register(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
+			if (this._shouldDropCompletedSubagentEvent(e)) {
+				return;
+			}
 			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'skill.invoked')) {
 				return;
@@ -5756,6 +5773,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onUsage(e => {
+			if (this._shouldDropCompletedSubagentEvent(e)) {
+				return;
+			}
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.usage')) {
 				return;
@@ -5978,6 +5998,9 @@ export class CopilotAgentSession extends Disposable {
 		// only, rather than being carried onto whatever runs next and inflating an unrelated
 		// response footer by what is often the session's single most expensive call.
 		this._register(wrapper.onSessionCompactionComplete(async e => {
+			if (this._shouldDropCompletedSubagentEvent(e)) {
+				return;
+			}
 			const observeUsage = () => {
 				const observedParentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 				if ((!e.agentId || observedParentToolCallId) && !this._dropLateRootTurnEvents) {
@@ -6093,6 +6116,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onReasoningDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
+			if (this._shouldDropCompletedSubagentEvent(e)) {
+				return;
+			}
 			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning_delta')) {
 				return;

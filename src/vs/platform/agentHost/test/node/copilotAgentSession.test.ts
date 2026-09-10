@@ -4195,7 +4195,7 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
-	test('starts direct subagent usage over when a retained child resumes', async () => {
+	test('quarantines late child state before a retained child resumes', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		session.resetTurnState('turn-1');
@@ -4225,11 +4225,29 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.background_tasks_changed', {});
 		await timeout(0);
 
+		mockSession.fire('assistant.message_delta', {
+			messageId: 'late-message',
+			deltaContent: 'Late child output',
+		} as SessionEventPayload<'assistant.message_delta'>['data'], { agentId: 'agent-1' });
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 6,
 			outputTokens: 8,
 			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+		mockSession.fire('user.message', {
+			content: 'Follow up',
+			source: 'agent-parent',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('assistant.message_delta', {
+			messageId: 'new-message',
+			deltaContent: 'New child output',
+		} as SessionEventPayload<'assistant.message_delta'>['data'], { agentId: 'agent-1' });
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 7,
+			outputTokens: 9,
+			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
 
 		const childUsage = signals.filter((signal): signal is IAgentActionSignal =>
@@ -4240,10 +4258,26 @@ suite('CopilotAgentSession', () => {
 		const resumed = childUsage.at(-1)?.action;
 		assert.ok(resumed?.type === ActionType.ChatUsage);
 		const meta = resumed.usage._meta as UsageInfoMeta | undefined;
-		assert.deepStrictEqual(meta?.directTurnTokenTotals, [
-			{ model: 'gpt-5.5', inputTokens: 6, cachedTokens: 0, outputTokens: 8 },
-		]);
-		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 300_000_000 });
+		assert.deepStrictEqual({
+			childUsageCount: childUsage.length,
+			directTurnTokenTotals: meta?.directTurnTokenTotals,
+			directCopilotUsage: meta?.directCopilotUsage,
+			markdown: signals.flatMap(signal =>
+				signal.kind === 'action'
+					&& signal.parentToolCallId === 'tc-subagent'
+					&& signal.action.type === ActionType.ChatResponsePart
+					&& signal.action.part.kind === ResponsePartKind.Markdown
+					? [signal.action.part.content]
+					: []
+			),
+		}, {
+			childUsageCount: 2,
+			directTurnTokenTotals: [
+				{ model: 'gpt-5.5', inputTokens: 7, cachedTokens: 0, outputTokens: 9 },
+			],
+			directCopilotUsage: { totalNanoAiu: 400_000_000 },
+			markdown: ['New child output'],
+		});
 	});
 
 	test('observed child usage excludes root and resumed child usage and deduplicates replayed records', async () => {
@@ -4262,6 +4296,10 @@ suite('CopilotAgentSession', () => {
 		} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>];
 		mockSession.fire('session.background_tasks_changed', {});
 		await timeout(0);
+		mockSession.fire('user.message', {
+			content: 'Follow up',
+			source: 'agent-parent',
+		}, { agentId: 'child' });
 		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
 		mockSession.fire('assistant.usage', { ...data, inputTokens: 7 }, { agentId: 'child', id: 'child-usage-2' });
 		const resumed = session.getTurnTokenUsage('child-turn-2', 'child-tool');
