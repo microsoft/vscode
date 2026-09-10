@@ -162,7 +162,7 @@ export interface IPluginFormatConfig {
 	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: URI): IParsedHookGroup[];
 }
 
-export type PluginComponent = 'commands' | 'skills' | 'agents' | 'rules' | 'hooks' | 'mcpServers';
+export type PluginComponent = 'commands' | 'skills' | 'agents' | 'rules' | 'hooks' | 'mcpServers' | 'automations';
 
 const COPILOT_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Copilot,
@@ -210,6 +210,7 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 		rules: `${AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE}/rules`,
 		hooks: `${AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE}/hooks/hooks.json`,
 		mcpServers: 'mcp.json',
+		automations: 'automations',
 	},
 	manifestExtensionNamespace: AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE,
 	requiresManifest: true,

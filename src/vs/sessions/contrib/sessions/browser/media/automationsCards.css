@@ -9,6 +9,42 @@
 	overflow: hidden;
 }
 
+.automations-drop-overlay {
+	position: absolute;
+	inset: var(--vscode-spacing-size80);
+	z-index: 10;
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) dashed var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--session-view-background) 92%, transparent);
+	color: var(--session-view-foreground);
+	pointer-events: none;
+}
+
+.automations-drop-overlay.visible {
+	display: flex;
+}
+
+.automations-drop-overlay-icon {
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-focusBorder);
+}
+
+.automations-drop-overlay-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-drop-overlay-description {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
 .monaco-workbench .automations-cards-content:focus,
 .monaco-workbench .automations-cards-widget:focus {
 	outline: none;
@@ -359,11 +395,8 @@
 	text-align: left;
 }
 
-.automations-templates-title {
-	margin: 0 0 var(--vscode-spacing-size40);
-	font-size: var(--vscode-fontSize-heading3);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	color: var(--vscode-foreground);
+.automations-template-section + .automations-template-section {
+	margin-top: var(--vscode-spacing-size240);
 }
 
 .automations-templates-description {
@@ -371,6 +404,70 @@
 	font-size: var(--vscode-fontSize-label1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
+}
+
+.automations-template-section-summary {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	width: fit-content;
+	margin-bottom: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	list-style: none;
+}
+
+.automations-template-section-summary::-webkit-details-marker {
+	display: none;
+}
+
+.automations-template-section-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+.automations-template-section-chevron {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize);
+	transform-origin: center;
+}
+
+.automations-template-section[open] .automations-template-section-chevron {
+	transform: rotate(90deg);
+}
+
+.automations-template-section-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-template-section-unread {
+	display: none;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-textLink-foreground);
+	flex-shrink: 0;
+}
+
+.automations-template-section-unread.visible {
+	display: inline-block;
+}
+
+.automations-template-section-count {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-template-section > .automations-templates-description,
+.automations-template-section > .automations-templates-grid {
+	width: calc(100% - var(--vscode-codiconFontSize) - var(--vscode-spacing-size60));
+	margin-left: calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
 }
 
 .automations-templates-grid {
@@ -427,6 +524,7 @@
 }
 
 .automations-template-card-badge,
+.automations-template-card-source,
 .automations-template-card-schedule,
 .automations-template-card-prompt {
 	font-size: var(--vscode-fontSize-label1);
@@ -435,6 +533,12 @@
 
 .automations-template-card-badge {
 	flex-shrink: 0;
+}
+
+.automations-template-card-source {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .automations-template-card-prompt {
