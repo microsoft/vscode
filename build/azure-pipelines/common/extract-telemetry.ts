@@ -78,9 +78,13 @@ if (hasLocalConfigOverrides) {
 	fs.writeFileSync(telemetryConfigForExtraction, JSON.stringify(resolvedTelemetryConfigEntries, null, '\t'));
 }
 
+// The extractor loads the whole source tree's telemetry declarations into memory. As the tree grows it
+// crosses V8's default ~2 GB old-space ceiling and crashes with an out-of-memory error, so raise the limit.
+const extractorNodeOptions = '--max-old-space-size=8192';
+
 try {
-	cp.execSync(`node "${extractor}" --sourceDir "${BUILD_SOURCESDIRECTORY}" --excludedDir "${path.join(BUILD_SOURCESDIRECTORY, 'extensions')}" --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
-	cp.execSync(`node "${extractor}" --config "${telemetryConfigForExtraction}" -o .`, { cwd: extractionDir, stdio: 'inherit' });
+	cp.execSync(`node ${extractorNodeOptions} "${extractor}" --sourceDir "${BUILD_SOURCESDIRECTORY}" --excludedDir "${path.join(BUILD_SOURCESDIRECTORY, 'extensions')}" --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
+	cp.execSync(`node ${extractorNodeOptions} "${extractor}" --config "${telemetryConfigForExtraction}" -o .`, { cwd: extractionDir, stdio: 'inherit' });
 } catch (error) {
 	const message = error instanceof Error ? error.message : String(error);
 	console.error(`Telemetry extraction failed: ${message}`);
