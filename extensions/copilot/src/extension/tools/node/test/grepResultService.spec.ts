@@ -25,14 +25,14 @@ suite('GrepResultService', () => {
 	}
 
 	test('returns all ranges overlapping the inclusive line bounds', () => {
+		const overlappingStart = new Range(2, 2, 4, 1);
 		const before = new Range(3, 0, 3, 1);
-		const overlappingStart = new Range(3, 2, 4, 1);
 		const first = new Range(4, 2, 4, 5);
 		const second = new Range(8, 1, 8, 7);
 		const after = new Range(9, 0, 9, 1);
 		const service = new GrepResultService();
 		service.addGrepResult(sessionUri, 'request', {
-			files: [{ uri, matches: [before, overlappingStart, first, second, after].map(createMatch) }]
+			files: [{ uri, matches: [overlappingStart, before, first, second, after].map(createMatch) }]
 		});
 
 		expect(service.getGrepResult(sessionUri, uri, 4, 8)).toEqual([overlappingStart, first, second]);
@@ -53,16 +53,16 @@ suite('GrepResultService', () => {
 		expect(service.getGrepResult(sessionUri, uri, 0, 10)).toEqual([duplicate, latest, older]);
 	});
 
-	test('fires the request ID when the oldest grep result is removed', () => {
+	test('fires the session URI and request ID when the oldest grep result is removed', () => {
 		const service = new GrepResultService();
-		const removedRequestIds: string[] = [];
-		service.onDidRemoveGrepResult(requestId => removedRequestIds.push(requestId));
+		const removedResults: { sessionUri: vscode.Uri; requestId: string }[] = [];
+		service.onDidRemoveGrepResult(result => removedResults.push(result));
 
 		for (let i = 0; i < 17; i++) {
 			service.addGrepResult(sessionUri, `request-${i}`, { files: [] });
 		}
 
-		expect(removedRequestIds).toEqual(['request-0']);
+		expect(removedResults).toEqual([{ sessionUri, requestId: 'request-0' }]);
 		service.dispose();
 	});
 

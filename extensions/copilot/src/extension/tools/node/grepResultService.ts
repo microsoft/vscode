@@ -6,6 +6,7 @@
 import type * as vscode from 'vscode';
 
 import { createServiceIdentifier } from '../../../util/common/services';
+import { binarySearch2 } from '../../../util/vs/base/common/arrays';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { LRUCache } from '../../../util/vs/base/common/map';
@@ -23,7 +24,7 @@ interface MatchResult {
 
 export interface IGrepResultService {
 	readonly _serviceBrand: undefined;
-	readonly onDidRemoveGrepResult: Event<string>;
+	readonly onDidRemoveGrepResult: Event<{ sessionUri: vscode.Uri; requestId: string }>;
 
 	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void;
 	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined;
@@ -42,9 +43,14 @@ export class NullGrepResultService implements IGrepResultService {
 	}
 }
 
+interface FileMatches {
+	ranges: vscode.Range[];
+	prefixMaxEndLines: number[];
+}
+
 interface GrepResult {
 	requestId: string;
-	matches: Map<string, vscode.Range[]>;
+	matches: Map<string, FileMatches>;
 }
 
 class SessionMatches {
@@ -75,7 +81,10 @@ class SessionMatches {
 				continue;
 			}
 
-			for (const match of fileMatches) {
+			const startIndex = ~binarySearch2(fileMatches.ranges.length, index => fileMatches.prefixMaxEndLines[index] < startLine ? -1 : 1);
+			const endIndex = ~binarySearch2(fileMatches.ranges.length, index => fileMatches.ranges[index].start.line <= endLine ? -1 : 1);
+			for (let matchIndex = startIndex; matchIndex < endIndex; matchIndex++) {
+				const match = fileMatches.ranges[matchIndex];
 				if (match.end.line < startLine || match.start.line > endLine) {
 					continue;
 				}
@@ -93,9 +102,9 @@ class SessionMatches {
 }
 
 export class GrepResultService extends Disposable implements IGrepResultService {
-	readonly _serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidRemoveGrepResult = this._register(new Emitter<string>());
+	private readonly _onDidRemoveGrepResult = this._register(new Emitter<{ sessionUri: vscode.Uri; requestId: string }>());
 	readonly onDidRemoveGrepResult = this._onDidRemoveGrepResult.event;
 
 	private readonly cache: LRUCache<string, SessionMatches>;
@@ -113,13 +122,20 @@ export class GrepResultService extends Disposable implements IGrepResultService 
 			this.cache.set(key, sessionMatches);
 		}
 
-		const matches = new Map<string, vscode.Range[]>();
+		const matches = new Map<string, FileMatches>();
 		for (const file of result.files) {
-			matches.set(file.uri.toString(), file.matches.map(m => m.ranges[0].sourceRange));
+			const ranges = file.matches.map(match => match.ranges[0].sourceRange);
+			const prefixMaxEndLines: number[] = [];
+			let maxEndLine = -1;
+			for (const range of ranges) {
+				maxEndLine = Math.max(maxEndLine, range.end.line);
+				prefixMaxEndLines.push(maxEndLine);
+			}
+			matches.set(file.uri.toString(), { ranges, prefixMaxEndLines });
 		}
 		const removedRequestId = sessionMatches.add({ requestId, matches });
 		if (removedRequestId !== undefined) {
-			this._onDidRemoveGrepResult.fire(removedRequestId);
+			this._onDidRemoveGrepResult.fire({ sessionUri, requestId: removedRequestId });
 		}
 	}
 
