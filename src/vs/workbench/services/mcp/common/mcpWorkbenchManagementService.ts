@@ -481,7 +481,7 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 
 			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);
 
-			await this.updateLocal();
+			await this.updateLocal(server);
 			const local = (await this.getInstalled()).find(s => s.name === server.name);
 			if (!local) {
 				throw new Error(`Failed to install MCP server: ${server.name}`);

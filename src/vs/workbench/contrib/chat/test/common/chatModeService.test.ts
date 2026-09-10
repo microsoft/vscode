@@ -338,4 +338,57 @@ suite('ChatModeService', () => {
 		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
 	});
 
+	test('should return custom modes sorted alphabetically by label', async () => {
+		const zMode: ICustomAgent = {
+			id: 'z-mode',
+			uri: URI.parse('file:///test/z-mode.md'),
+			name: 'Zebra Agent',
+			description: 'Starts with Z',
+			tools: [],
+			agentInstructions: { content: 'Z mode body', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+
+		const aMode: ICustomAgent = {
+			id: 'a-mode',
+			uri: URI.parse('file:///test/a-mode.md'),
+			name: 'Apple Agent',
+			description: 'Starts with A',
+			tools: [],
+			agentInstructions: { content: 'A mode body', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+
+		const mMode: ICustomAgent = {
+			id: 'm-mode',
+			uri: URI.parse('file:///test/m-mode.md'),
+			name: 'Mango Agent',
+			description: 'Starts with M',
+			tools: [],
+			agentInstructions: { content: 'M mode body', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+
+		// Add modes in non-alphabetical order: Z, A, M
+		promptsService.setCustomModes([zMode, aMode, mMode]);
+		await waitForRefresh();
+
+		const modes = await chatModeService.getLocalModes();
+		assert.strictEqual(modes.custom.length, 3);
+
+		// Verify modes are sorted alphabetically by label
+		assert.strictEqual(modes.custom[0].label.get(), 'Apple Agent');
+		assert.strictEqual(modes.custom[1].label.get(), 'Mango Agent');
+		assert.strictEqual(modes.custom[2].label.get(), 'Zebra Agent');
+	});
+
 });

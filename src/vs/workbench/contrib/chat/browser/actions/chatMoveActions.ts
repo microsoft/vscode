@@ -134,7 +134,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const resourceToOpen = widget.viewModel.sessionResource;
 
 	// Todo: can possibly go away with https://github.com/microsoft/vscode/pull/278476
-	const modelInputState = existingWidget.getViewState();
+	const modelInputState = existingWidget.getInputState();
 
 	await widget.clear();
 
@@ -151,14 +151,14 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	const chatEditorInput = chatEditor?.input;
 	let view: ChatViewPane;
 	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionResource) {
-		const previousViewState = chatEditor.widget.getViewState();
+		const previousInputState = chatEditor.widget.getInputState();
 		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 
 		// Todo: can possibly go away with https://github.com/microsoft/vscode/pull/278476
 		const newModel = await view.loadSession(chatEditorInput.sessionResource);
-		if (previousViewState && newModel && !newModel.inputModel.state.get()) {
-			newModel.inputModel.setState(previousViewState);
+		if (previousInputState && newModel && !newModel.inputModel.state.get()) {
+			newModel.inputModel.setState(previousInputState);
 		}
 	} else {
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;

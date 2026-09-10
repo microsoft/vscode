@@ -76,6 +76,13 @@ const copilotTgrepPlatforms = [
 
 const mxcArchitectures = ['x64', 'arm64'];
 
+const copilotOutOfProcessRuntimeExecutables = [
+	'copilot-runtime',
+	'copilot-runtime-bin',
+	'copilot-runtime.exe',
+	'copilot-runtime-bin.exe',
+];
+
 function toCopilotTgrepPlatformArch(platform: string, arch: string): string {
 	if (platform === 'alpine') {
 		return `linuxmusl-${arch}`;
@@ -110,11 +117,10 @@ const copilotOptionalNativePayloadDirs = [
 
 function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
 	const files = [
+		// Computer Use ships under plugins/computer-use/** in current
+		// @github/copilot platform packages. Do not productize it.
+		'plugins/computer-use/**',
 		'prebuilds/*/computer.node',
-		'prebuilds/*/computer-use-mcp',
-		'prebuilds/*/computer-use-mcp.exe',
-		'prebuilds/*/Copilot Computer Use.app/**',
-		'prebuilds/*/CopilotComputerUse.exe',
 		'prebuilds/*/keytar.node',
 		// macOS voice media-pause helper (MediaRemote adapter). Optional and
 		// nested under prebuilds; keep it out of the product so universal
@@ -192,6 +198,7 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 		...excludes,
 		'!**/node_modules/@github/copilot-*/copilot',
 		'!**/node_modules/@github/copilot-*/copilot.exe',
+		...copilotOutOfProcessRuntimeExecutables.map(executable => `!**/node_modules/@github/copilot-*/prebuilds/*/${executable}`),
 	];
 }
 
@@ -212,6 +219,7 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 		path.posix.join(copilotPlatformPackageDir, '**'),
 		`!${path.posix.join(copilotPlatformPackageDir, 'copilot')}`,
 		`!${path.posix.join(copilotPlatformPackageDir, 'copilot.exe')}`,
+		...copilotOutOfProcessRuntimeExecutables.map(executable => `!${path.posix.join(copilotPlatformPackageDir, 'prebuilds', '*', executable)}`),
 		...copilotOptionalNativePayloadDirs.map(dir => `!${path.posix.join(copilotPlatformPackageDir, dir, '**')}`),
 		...getCopilotOptionalNativePayloadFiles(platform).map(file => `!${path.posix.join(copilotPlatformPackageDir, file)}`),
 	];
@@ -317,6 +325,10 @@ function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: s
 		// Built-in materialization copies the whole prebuilds tree (not the gulp
 		// exclude globs above), so drop mediaremote-adapter explicitly afterward.
 		fs.rmSync(path.join(sdkPrebuildsTarget, 'mediaremote-adapter'), { recursive: true, force: true });
+		// The out-of-process runtime wrappers are not used by the built-in extension.
+		for (const executable of copilotOutOfProcessRuntimeExecutables) {
+			fs.rmSync(path.join(sdkPrebuildsTarget, executable), { force: true });
+		}
 
 		if (!copilotTgrepPlatforms.includes(tgrepPlatformArch)) {
 			return;

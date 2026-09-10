@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
@@ -16,12 +17,18 @@ export const SESSION_DB_FILENAME = 'session.db';
 
 /**
  * Subdirectory under a session's data directory that holds snapshotted
- * user-message attachments (e.g. pasted images, fetched file references).
+ * user-message attachments (e.g. pasted content, fetched file references).
  * The agent host writes these on dispatch so large blobs stay out of the
  * in-memory state tree, and reads of files under this directory are
  * auto-approved by the agent's permission flow.
  */
 export const SESSION_ATTACHMENTS_DIRNAME = 'attachments';
+
+export function isSessionAttachmentPath(sessionDataService: ISessionDataService, session: URI, filePath: string): boolean {
+	const attachmentsDir = normalizePath(URI.joinPath(sessionDataService.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME));
+	const fileUri = normalizePath(URI.file(filePath));
+	return extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, attachmentsDir);
+}
 
 // ---- File-edit types ----------------------------------------------------
 
@@ -128,18 +135,21 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Retrieves the SDK event ID previously stored for a turn.
 	 * Returns `undefined` if no event ID has been set.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getTurnEventId(turnId: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the SDK event ID of the turn inserted immediately after the
 	 * given turn, or `undefined` if the given turn is the last one.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getNextTurnEventId(turnId: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the SDK event ID of the earliest turn in insertion order,
 	 * or `undefined` if there are no turns.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined>;
 
@@ -160,6 +170,39 @@ export interface ISessionDatabase extends IDisposable {
 	 * SDK envelope id — resolve as well as live ones.
 	 */
 	getTurnUsages(): Promise<Map<string, string>>;
+
+	/**
+	 * Persists the JSON-serialized delegation metadata for an agent-authored turn.
+	 * Idempotent — last writer wins per turn.
+	 */
+	setTurnDelegation(turnId: string, delegation: string): Promise<void>;
+
+	/**
+	 * Returns every persisted turn delegation, keyed by both the turn's own id
+	 * and its provider event id when one has been recorded.
+	 */
+	getTurnDelegations(): Promise<Map<string, string>>;
+
+	/**
+	 * Persists the JSON-serialized successful workspace transition for a turn.
+	 * Idempotent — last writer wins per turn.
+	 */
+	setTurnWorkspaceTransition(turnId: string, transition: string): Promise<void>;
+
+	/**
+	 * Atomically persists converted session metadata and the workspace
+	 * transition associated with its deferred continuation turn.
+	 */
+	setWorkspaceConversion(turnId: string, transition: string, metadata: Readonly<Record<string, string>>): Promise<void>;
+
+	/** Deletes a persisted workspace transition without deleting its owning turn. */
+	deleteTurnWorkspaceTransition(turnId: string): Promise<void>;
+
+	/**
+	 * Returns every persisted workspace transition, keyed by both the turn's
+	 * own id and its provider event id when one has been recorded.
+	 */
+	getTurnWorkspaceTransitions(): Promise<Map<string, string>>;
 
 	/**
 	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
@@ -279,6 +322,22 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadata(key: string, value: string): Promise<void>;
 
 	/**
+	 * Atomically store multiple metadata key-value pairs.
+	 */
+	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+
+	/**
+	 * Atomically delete metadata keys.
+	 */
+	deleteMetadata(keys: readonly string[]): Promise<void>;
+
+	/**
+	 * Atomically stores metadata values only when `key` is absent. Values named
+	 * by `copies` are read from their source keys and copied when present.
+	 */
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
+
+	/**
 	 * Store or clear the draft for a chat in this session.
 	 */
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;
@@ -291,8 +350,10 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Bulk-remaps turn IDs using the provided old→new mapping.
 	 * Used after copying a database file for a forked session.
+	 * When provided, `eventIds` replaces the SDK event ID for each remapped
+	 * turn, keyed by the new turn ID.
 	 */
-	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
+	remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void>;
 
 	// ---- Reviewed files --------------------------------------------------
 
@@ -369,6 +430,7 @@ export interface ISessionDataService {
 	 * Equivalent to {@link getSessionDataDir} but without requiring a full URI.
 	 */
 	getSessionDataDirById(sessionId: string): URI;
+	listSessionDataIds?(prefix: string): Promise<readonly string[]>;
 
 	/**
 	 * Opens (or creates) a per-session SQLite database. The database file is
@@ -386,13 +448,20 @@ export interface ISessionDataService {
 	 * already exists on disk**. Returns `undefined` when no database has
 	 * been created yet, avoiding the side effect of materializing empty
 	 * database files during read-only operations like listing sessions.
+	 * Errors other than file-not-found are propagated.
 	 */
 	tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined>;
 
 	/**
 	 * Recursively deletes the data directory for a session, if it exists.
+	 *
+	 * `workingDirectories` is forwarded verbatim to
+	 * {@link IWillDeleteSessionDataEvent.workingDirectories}. Callers that
+	 * tear down live session state as part of disposal must resolve it
+	 * *before* doing so, otherwise subscribers cannot locate the
+	 * repositories they need to clean up.
 	 */
-	deleteSessionData(session: URI): Promise<void>;
+	deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void>;
 
 	/**
 	 * Fires immediately before a session's data directory (and the
@@ -401,9 +470,13 @@ export interface ISessionDataService {
 	 * Subscribers can register asynchronous cleanup work via
 	 * {@link IWillDeleteSessionDataEvent.waitUntil}; the deletion is
 	 * blocked until all registered promises settle. Used by
-	 * `IAgentHostCheckpointService.disposeSessionData` to read the exact
+	 * `IAgentHostCheckpointService.deleteCheckpoints` to read the exact
 	 * list of checkpoint refs from the (still-readable) database and
 	 * delete them before the directory is removed.
+	 *
+	 * The repositories to clean up are identified by
+	 * {@link IWillDeleteSessionDataEvent.workingDirectories}, which the
+	 * caller resolves before tearing down live session state.
 	 *
 	 * Subscribers must own their own error handling — exceptions
 	 * propagated out of `waitUntil` promises are logged and ignored;
@@ -431,6 +504,21 @@ export interface ISessionDataService {
  */
 export interface IWillDeleteSessionDataEvent {
 	readonly session: URI;
+	/**
+	 * The session's working directories (index 0 = primary), as resolved
+	 * by the caller of {@link ISessionDataService.deleteSessionData}
+	 * *before* any live session state was torn down.
+	 *
+	 * Subscribers that need to touch the session's repositories (deleting
+	 * checkpoint or reviewed refs) must use this rather than querying
+	 * session state themselves: by the time this event fires the session
+	 * has typically already been removed from the state manager, so a
+	 * live lookup returns `undefined` and the cleanup silently no-ops.
+	 *
+	 * `undefined` when the session had no working directories, or when
+	 * the caller did not supply them.
+	 */
+	readonly workingDirectories: readonly string[] | undefined;
 	/**
 	 * Register an asynchronous task that must settle before the session's
 	 * data directory is removed.

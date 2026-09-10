@@ -12,6 +12,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   VSCODE_QUALITY: 'oss'
@@ -22,12 +23,12 @@ jobs:
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
@@ -60,6 +61,9 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare Electron types
+        run: node build/npm/electronTypes.ts
+
       - name: Type check /build/ scripts
         run: npm run typecheck
         working-directory: build
@@ -70,7 +74,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
@@ -81,6 +85,11 @@ jobs:
         run: node build/lib/builtInExtensions.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Markdown editor manifests
+        run: |
+          npm run markdown-editor-package-json-check
+          npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
 
       - name: Compile & Hygiene
         run: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
@@ -104,12 +113,22 @@ jobs:
       job_name: CLI
       rustup_toolchain: 1.88
 
+  linux-electron-unit-tests:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron-Unit
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
   linux-electron-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron
       electron_tests: true
+      unit_tests: false
       smoke_tests: false
 
   linux-electron-smoke-tests:
@@ -118,7 +137,8 @@ jobs:
     with:
       job_name: Electron-Smoke
       electron_tests: true
-      unit_and_integration_tests: false
+      unit_tests: false
+      integration_tests: false
 
   linux-browser-tests:
     name: Linux
@@ -134,12 +154,22 @@ jobs:
       job_name: Remote
       remote_tests: true
 
+  macos-electron-unit-tests:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Electron-Unit
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
   macos-electron-tests:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron
       electron_tests: true
+      unit_tests: false
       smoke_tests: false
 
   macos-electron-smoke-tests:
@@ -148,7 +178,8 @@ jobs:
     with:
       job_name: Electron-Smoke
       electron_tests: true
-      unit_and_integration_tests: false
+      unit_tests: false
+      integration_tests: false
 
   macos-browser-tests:
     name: macOS
@@ -164,12 +195,22 @@ jobs:
       job_name: Remote
       remote_tests: true
 
+  windows-electron-unit-tests:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron-Unit
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
   windows-electron-tests:
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron
       electron_tests: true
+      unit_tests: false
       smoke_tests: false
 
   windows-electron-smoke-tests:
@@ -178,7 +219,8 @@ jobs:
     with:
       job_name: Electron-Smoke
       electron_tests: true
-      unit_and_integration_tests: false
+      unit_tests: false
+      integration_tests: false
 
   windows-browser-tests:
     name: Windows
@@ -202,11 +244,11 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
@@ -246,11 +288,11 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
@@ -265,23 +307,23 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
           architecture: 'x64'
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0'
 
@@ -347,7 +389,7 @@ jobs:
 
       - name: Upload simulation output
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: copilot-simulation-output-linux-${{ github.run_attempt }}
           path: extensions/copilot/.simulation-archive/simulation.tgz
@@ -359,23 +401,23 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: extensions/copilot/.nvmrc
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
           architecture: 'x64'
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0'
 
@@ -398,14 +440,6 @@ jobs:
         working-directory: extensions/copilot
         run: npm ci
 
-      - name: TypeScript type checking
-        working-directory: extensions/copilot
-        run: npm run typecheck
-
-      - name: Lint
-        working-directory: extensions/copilot
-        run: npm run lint
-
       - name: Compile
         working-directory: extensions/copilot
         run: npm run compile
@@ -425,5 +459,3 @@ jobs:
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
         run: npm run test:completions-core
-
-

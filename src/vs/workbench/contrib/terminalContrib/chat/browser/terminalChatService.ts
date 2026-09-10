@@ -48,8 +48,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	readonly onDidContinueInBackground: Event<string> = this._onDidContinueInBackground.event;
 	private readonly _onDidRegisterTerminalInstanceForToolSession = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
-	private readonly _onDidRegisterOutputSource = this._register(new Emitter<string>());
-	readonly onDidRegisterOutputSource: Event<string> = this._onDidRegisterOutputSource.event;
 
 	private readonly _activeProgressParts = new Set<IChatTerminalToolProgressPart>();
 	private _focusedProgressPart: IChatTerminalToolProgressPart | undefined;
@@ -254,7 +252,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	registerOutputSource(terminalToolSessionId: string, source: IChatTerminalOutputSource): IDisposable {
 		this._outputSources.set(terminalToolSessionId, source);
-		this._onDidRegisterOutputSource.fire(terminalToolSessionId);
+		for (const part of this._activeProgressParts) {
+			part.didRegisterOutputSource(terminalToolSessionId);
+		}
 		return toDisposable(() => {
 			if (this._outputSources.get(terminalToolSessionId) === source) {
 				this._outputSources.delete(terminalToolSessionId);
@@ -440,7 +440,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		const treeSitterLanguage = language === 'powershell' ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash;
 		let subCommands: string[];
 		try {
-			subCommands = await this._autoApproveCommandParser.extractSubCommands(treeSitterLanguage, trimmedCommandLine);
+			const parseResult = await this._autoApproveCommandParser.extractAutoApprovalSubCommands(treeSitterLanguage, trimmedCommandLine);
+			if (parseResult.hasUnanalyzableSyntax) {
+				return undefined;
+			}
+			subCommands = parseResult.subCommands;
 		} catch (e) {
 			this._logService.warn('Failed to parse sub-commands when generating auto approve actions', e);
 			return undefined;
@@ -463,6 +467,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	continueInBackground(terminalToolSessionId: string): void {
 		this._onDidContinueInBackground.fire(terminalToolSessionId);
+		for (const part of this._activeProgressParts) {
+			if (part.terminalToolSessionId === terminalToolSessionId) {
+				part.markContinuedInBackground();
+			}
+		}
 	}
 
 	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource, promisedTerminal: Promise<ITerminalInstance>): IDisposable {

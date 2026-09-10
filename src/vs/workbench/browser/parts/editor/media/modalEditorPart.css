@@ -109,7 +109,7 @@
 	.modal-editor-title {
 		grid-column: 2;
 		font-size: 12px;
-		font-weight: 500;
+		font-weight: var(--vscode-fontWeight-semiBold);
 		color: var(--vscode-titleBar-activeForeground);
 		overflow: hidden;
 
@@ -205,4 +205,9 @@
 .monaco-modal-editor-block.compact-header .modal-editor-title .monaco-icon-label::before,
 .monaco-modal-editor-block.compact-header .modal-editor-title .monaco-icon-label > .monaco-icon-label-iconpath {
 	display: none;
+}
+
+.monaco-modal-editor-block.compact-header .modal-editor-title .ai-customization-management-editor-label .label-description {
+	font-size: inherit;
+	font-weight: var(--vscode-fontWeight-regular);
 }

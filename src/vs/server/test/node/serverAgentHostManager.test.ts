@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IChannel, IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../../platform/agentHost/common/agent.js';
@@ -53,6 +54,9 @@ class MockChannel implements IChannel {
 class MockAgentHostStarter implements IAgentHostStarter {
 	private readonly _onDidProcessExit = new Emitter<{ code: number; signal: string }>();
 	private _startError: Error | undefined;
+	readonly connectionStores: DisposableStore[] = [];
+	startCount = 0;
+	shutdownCount = 0;
 
 	readonly agentHostChannel = new MockChannel();
 	readonly loggerChannel: MockChannel;
@@ -64,6 +68,7 @@ class MockAgentHostStarter implements IAgentHostStarter {
 	}
 
 	async start(): Promise<IAgentHostConnection> {
+		this.startCount++;
 		if (this._startError) {
 			const error = this._startError;
 			this._startError = undefined;
@@ -71,6 +76,7 @@ class MockAgentHostStarter implements IAgentHostStarter {
 		}
 
 		const store = new DisposableStore();
+		this.connectionStores.push(store);
 		const client: IChannelClient = {
 			getChannel: <T extends IChannel>(name: string): T => {
 				switch (name) {
@@ -89,6 +95,7 @@ class MockAgentHostStarter implements IAgentHostStarter {
 			client,
 			store,
 			onDidProcessExit: this._onDidProcessExit.event,
+			shutdown: async () => { this.shutdownCount++; },
 		};
 	}
 
@@ -108,9 +115,13 @@ class MockAgentHostStarter implements IAgentHostStarter {
 	}
 }
 
-class MockServerLifetimeService implements IServerLifetimeService {
+class MockServerLifetimeService extends Disposable implements IServerLifetimeService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onWillShutdown = this._register(new Emitter<{ join(promise: Promise<void>): void }>());
+	readonly onWillShutdown = this._onWillShutdown.event;
+	private readonly _onDidAbortShutdown = this._register(new Emitter<void>());
+	readonly onDidAbortShutdown = this._onDidAbortShutdown.event;
 	private _activeCount = 0;
 
 	get hasActiveConsumers(): boolean {
@@ -123,6 +134,16 @@ class MockServerLifetimeService implements IServerLifetimeService {
 	}
 
 	delay(): void { }
+
+	requestShutdown(): Promise<void> {
+		const joins: Promise<void>[] = [];
+		this._onWillShutdown.fire({ join: promise => joins.push(promise) });
+		return Promise.all(joins).then(() => undefined);
+	}
+
+	abortShutdown(): void {
+		this._onDidAbortShutdown.fire();
+	}
 }
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -135,6 +156,14 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 	}
 }
 
+function readWillRestart(data: unknown): boolean | undefined {
+	if (typeof data === 'object' && data !== null) {
+		const willRestart = Reflect.get(data, 'willRestart');
+		return typeof willRestart === 'boolean' ? willRestart : undefined;
+	}
+	return undefined;
+}
+
 suite('ServerAgentHostManager', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -144,13 +173,14 @@ suite('ServerAgentHostManager', () => {
 
 	setup(() => {
 		starter = new MockAgentHostStarter();
-		lifetimeService = new MockServerLifetimeService();
+		lifetimeService = ds.add(new MockServerLifetimeService());
 		telemetryService = new TestTelemetryService();
 	});
 
-	function createManager(): ServerAgentHostManager {
+	function createManager(options = {}): ServerAgentHostManager {
 		return ds.add(new ServerAgentHostManager(
 			starter,
+			options,
 			new NullLogService(),
 			ds.add(new NullLoggerService()),
 			lifetimeService,
@@ -158,10 +188,11 @@ suite('ServerAgentHostManager', () => {
 		));
 	}
 
-	// `ServerAgentHostManager._start()` is async (awaits `starter.start()`).
-	// Wait a microtask so the channel listeners are wired up before tests fire events.
-	async function waitForStart(): Promise<void> {
-		await Promise.resolve();
+	// `ServerAgentHostManager` reports startup complete only once the agent host
+	// confirms its configured WebSocket listener is bound, so wait for the real
+	// signal rather than a fixed number of microtasks.
+	async function waitForStart(manager: ServerAgentHostManager): Promise<void> {
+		await manager.ensureStarted();
 	}
 
 	function fireActiveSessions(count: number): void {
@@ -177,28 +208,60 @@ suite('ServerAgentHostManager', () => {
 	}
 
 	test('no lifetime token initially', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
 	});
 
+	test('joins graceful Agent Host shutdown before server exit', async () => {
+		const manager = createManager();
+		await waitForStart(manager);
+
+		await lifetimeService.requestShutdown();
+
+		assert.deepStrictEqual({
+			shutdownCount: starter.shutdownCount,
+			connectionDisposed: starter.connectionStores[0].isDisposed,
+		}, {
+			shutdownCount: 1,
+			connectionDisposed: true,
+		});
+	});
+
+	test('restarts an eager Agent Host after server shutdown is aborted', async () => {
+		const manager = createManager();
+		await waitForStart(manager);
+		await lifetimeService.requestShutdown();
+
+		lifetimeService.abortShutdown();
+		await manager.ensureStarted();
+
+		assert.deepStrictEqual({
+			startCount: starter.startCount,
+			shutdownCount: starter.shutdownCount,
+		}, {
+			startCount: 2,
+			shutdownCount: 1,
+		});
+	});
+
 	test('acquires token when sessions become active', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 		fireActiveSessions(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
 	test('acquires token when standalone WebSocket clients connect', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 		fireConnectionCount(2);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
 	test('releases token only when both sessions and standalone WebSocket connections are zero', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 
 		fireActiveSessions(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
@@ -214,8 +277,8 @@ suite('ServerAgentHostManager', () => {
 	});
 
 	test('process exit resets both signals and clears token', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 		fireActiveSessions(2);
 		fireConnectionCount(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
@@ -225,14 +288,15 @@ suite('ServerAgentHostManager', () => {
 	});
 
 	test('reports unexpected process exit', async () => {
-		createManager();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 
 		starter.fireProcessExit(17);
 
 		assert.deepStrictEqual(telemetryService.errorEvents, [{
 			eventName: 'agentHost.processError',
 			data: {
+				hostLaunchKind: 'vscode_cli',
 				kind: 'unexpectedExit',
 				code: 17,
 				restartCount: 0,
@@ -246,13 +310,13 @@ suite('ServerAgentHostManager', () => {
 		const error = new Error('test start failure');
 		error.stack = 'test start failure stack';
 		starter.failNextStart(error);
-		createManager();
-		await waitForStart();
-		await waitForStart();
+		const manager = createManager();
+		await waitForStart(manager);
 
 		assert.deepStrictEqual(telemetryService.errorEvents, [{
 			eventName: 'agentHost.processError',
 			data: {
+				hostLaunchKind: 'vscode_cli',
 				kind: 'startFailed',
 				restartCount: 0,
 				willRestart: true,
@@ -261,5 +325,133 @@ suite('ServerAgentHostManager', () => {
 				msg: 'test start failure',
 			},
 		}]);
+	});
+
+	test('starts eagerly by default', async () => {
+		const manager = createManager();
+
+		await manager.ensureStarted();
+		assert.strictEqual(starter.startCount, 1);
+	});
+
+	test('does not start lazily until requested', async () => {
+		const manager = createManager({ startMode: 'lazy' });
+
+		assert.strictEqual(starter.startCount, 0);
+		await manager.ensureStarted();
+		assert.strictEqual(starter.startCount, 1);
+	});
+
+	test('shares concurrent lazy startup', async () => {
+		const manager = createManager({ startMode: 'lazy' });
+
+		await Promise.all([
+			manager.ensureStarted(),
+			manager.ensureStarted(),
+		]);
+		assert.strictEqual(starter.startCount, 1);
+	});
+
+	test('restarts after a lazy agent host crash', async () => {
+		const manager = createManager({ startMode: 'lazy' });
+		await manager.ensureStarted();
+
+		starter.fireProcessExit(1);
+		await manager.ensureStarted();
+		assert.strictEqual(starter.startCount, 2);
+	});
+
+	test('waits for the configured WebSocket listener before resolving startup', async () => {
+		const ready = new DeferredPromise<void>();
+		starter.connectionTrackerChannel.setCallResult('waitForConfiguredWebSocketServer', ready.p);
+		const manager = createManager({ startMode: 'lazy' });
+		const start = manager.ensureStarted();
+		let started = false;
+		void start.then(() => started = true);
+
+		await Promise.resolve();
+		assert.strictEqual(started, false);
+
+		await ready.complete();
+		await start;
+		assert.strictEqual(started, true);
+	});
+
+	test('disposes the agent host connection when the manager shuts down during startup', async () => {
+		const ready = new DeferredPromise<void>();
+		starter.connectionTrackerChannel.setCallResult('waitForConfiguredWebSocketServer', ready.p);
+		const manager = createManager({ startMode: 'lazy' });
+		const start = manager.ensureStarted();
+
+		await Promise.resolve();
+		manager.dispose();
+		await ready.complete();
+		await start;
+
+		assert.strictEqual(starter.connectionStores[0].isDisposed, true);
+	});
+
+	test('allows a new explicit start after exhausting crash restarts', async () => {
+		const manager = createManager({ startMode: 'lazy' });
+		await manager.ensureStarted();
+
+		for (let i = 0; i <= 5; i++) {
+			starter.fireProcessExit(1);
+			await manager.ensureStarted();
+		}
+		starter.fireProcessExit(1);
+		await manager.ensureStarted();
+
+		assert.strictEqual(starter.startCount, 8);
+	});
+
+	test('keeps the original request pending while a transient start failure is retried', async () => {
+		const manager = createManager({ startMode: 'lazy' });
+		starter.failNextStart(new Error('transient'));
+
+		await manager.ensureStarted();
+
+		assert.strictEqual(starter.startCount, 2);
+	});
+
+	test('does not double-restart when the host exits during startup', async () => {
+		const ready = new DeferredPromise<void>();
+		starter.connectionTrackerChannel.setCallResult('waitForConfiguredWebSocketServer', ready.p);
+		const manager = createManager({ startMode: 'lazy' });
+		const start = manager.ensureStarted();
+
+		await Promise.resolve();
+		// The IPC client rejects in-flight requests before surfacing the exit, so
+		// both the readiness rejection and the exit event race to restart.
+		starter.connectionTrackerChannel.setCallResult('waitForConfiguredWebSocketServer', Promise.resolve());
+		ready.error(new Error('canceled'));
+		starter.fireProcessExit(1);
+		await start;
+
+		assert.strictEqual(starter.startCount, 2);
+	});
+
+	test('stops after five restarts and disposes every exited connection', async () => {
+		const manager = createManager();
+		await waitForStart(manager);
+
+		for (let restartCount = 0; restartCount < 5; restartCount++) {
+			starter.fireProcessExit(17);
+			await waitForStart(manager);
+		}
+
+		// The next crash exhausts the restart budget, so no automatic restart follows.
+		starter.fireProcessExit(17);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			startCount: starter.startCount,
+			allConnectionsDisposed: starter.connectionStores.every(store => store.isDisposed),
+			willRestart: telemetryService.errorEvents.map(event => readWillRestart(event.data)),
+		}, {
+			startCount: 6,
+			allConnectionsDisposed: true,
+			willRestart: [true, true, true, true, true, false],
+		});
 	});
 });

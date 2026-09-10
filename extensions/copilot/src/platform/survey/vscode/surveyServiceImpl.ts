@@ -162,14 +162,14 @@ export class SurveyService implements ISurveyService {
 
 	private async promptSurvey(surveyType: 'churn' | 'usage'): Promise<void> {
 		const usage = await this.getUsageData();
-		const source = this.lastSource || '';
+		const source = surveyType === 'churn' ? 'churn' : this.lastSource || '';
 		const language = this.lastLanguageId || '';
 		const firstSeenInDays = Math.floor((Date.now() - usage.firstActive) / (1000 * 60 * 60 * 24));
 		/* __GDPR__
 			"survey.show" : {
 				"owner": "digitarald",
 				"comment": "Measures survey notification result",
-				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last used feature before the survey." },
+				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The feature or attribution category associated with the survey." },
 				"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last used editor language before the survey." },
 				"activeDays": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of days the user has used the extension." },
 				"firstActive": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of days since the user first used the extension." },

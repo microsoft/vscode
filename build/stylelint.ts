@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import es from 'event-stream';
+import glob from 'glob';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
-import { findRootAnchoredHas } from './lib/stylelint/validateHasSelectors.ts';
+import { findClassAttributeSubstringSelector, findRootAnchoredHas } from './lib/stylelint/validateHasSelectors.ts';
 import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.ts';
 import { validateCodiconFontSizes, validateFontSizeTokens, validateFontWeightTokens, validateCornerRadiusTokens, validateSpacingTokens, validateStrokeTokens, validateDeprecatedTokens } from './lib/stylelint/validateDesignTokens.ts';
 
@@ -30,6 +31,9 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	let errorCount = 0;
 	const monacoWorkbenchPattern = /\.monaco-workbench/;
 	const restrictedPathPattern = /^src[\/\\]vs[\/\\](base|platform|editor)[\/\\]/;
+	const productionCssPattern = /^(?:src[\/\\]vs|extensions)[\/\\]/;
+	const extensionCssPattern = /^extensions[\/\\]/;
+	const testCssPattern = /[\/\\](?:test|test-data|testData)[\/\\]/;
 	const designSystemPattern = /^src[\/\\]vs[\/\\]sessions[\/\\]/;
 	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
 	const hasAnchorCheckerDisablePattern = /^\s*\/\*\s*stylelint-disable\s+has-anchor-checker\s*\*\/\s*$/;
@@ -52,10 +56,12 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 		const isHasAnchorCheckerDisabled = lines.some(line => hasAnchorCheckerDisablePattern.test(line));
 
 		lines.forEach((line, i) => {
-			variableValidator(line, (unknownVariable: string) => {
-				reporter(file.relative + '(' + (i + 1) + ',1): Unknown variable: ' + unknownVariable, true);
-				errorCount++;
-			});
+			if (!extensionCssPattern.test(file.relative)) {
+				variableValidator(line, (unknownVariable: string) => {
+					reporter(file.relative + '(' + (i + 1) + ',1): Unknown variable: ' + unknownVariable, true);
+					errorCount++;
+				});
+			}
 
 			if (isRestrictedPath && !isLayerCheckerDisabled && monacoWorkbenchPattern.test(line)) {
 				reporter(file.relative + '(' + (i + 1) + ',1): The class .monaco-workbench cannot be used in files under src/vs/{base,platform,editor} because only src/vs/workbench applies it', true);
@@ -67,6 +73,15 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 			const rootAnchoredHasOffset = findRootAnchoredHas(contents);
 			if (rootAnchoredHasOffset !== undefined) {
 				reporter(file.relative + '(' + lineNumberAtOffset(contents, rootAnchoredHasOffset) + ',1): Root-anchored :has() (on body/html/:root/.monaco-workbench) makes every DOM mutation pay workbench-wide style invalidation (see microsoft/vscode#324985). Toggle a class from code instead', true);
+				errorCount++;
+			}
+
+		}
+
+		if (productionCssPattern.test(file.relative) && !testCssPattern.test(file.relative)) {
+			const classAttributeSubstringOffset = findClassAttributeSubstringSelector(contents);
+			if (classAttributeSubstringOffset !== undefined) {
+				reporter(file.relative + '(' + lineNumberAtOffset(contents, classAttributeSubstringOffset) + ',1): Class attribute substring selectors make unrelated class mutations trigger style recalculation. Use a stable marker class instead', true);
 				errorCount++;
 			}
 		}
@@ -137,9 +152,14 @@ function lineNumberAtOffset(contents: string, offset: number): number {
 }
 
 function stylelint(sources: string[] = Array.from(stylelintFilter), explicit = false): NodeJS.ReadWriteStream {
+	const started = Date.now();
+	const resolvedSources = explicit ? resolveStylelintMatches(sources) : sources;
 	let fileCount = 0;
+	console.info(explicit
+		? `Stylelint: checking ${resolvedSources.length} CSS file${resolvedSources.length === 1 ? '' : 's'} matched by ${sources.length} requested path${sources.length === 1 ? '' : 's'}.`
+		: 'Stylelint: checking CSS files in the default src and extensions scope.');
 	return vfs
-		.src(sources, { base: '.', follow: true, allowEmpty: true })
+		.src(resolvedSources, { base: '.', follow: true, allowEmpty: !explicit })
 		.pipe(gulpstylelint((message, isError) => {
 			if (isError) {
 				console.error(message);
@@ -151,52 +171,80 @@ function stylelint(sources: string[] = Array.from(stylelintFilter), explicit = f
 			fileCount++;
 			this.emit('data', file);
 		}, function () {
-			// When the caller targeted an explicit path that matched no CSS files,
-			// say so - otherwise a typo'd path looks like a clean run.
-			if (explicit && fileCount === 0) {
-				console.info('No CSS files matched the requested path: ' + sources.join(', '));
-			}
+			console.info(`Stylelint: checked ${fileCount} CSS file${fileCount === 1 ? '' : 's'} in ${Date.now() - started}ms.`);
 			this.emit('end');
 		}));
 }
 
 /**
- * Resolves the source globs to lint from the CLI argument, if any. Accepts a
- * single file, a folder, or a glob (passed via `npm run stylelint -- <path>` or
+ * Resolves the source globs to lint from the CLI arguments, if any. Accepts
+ * files, folders, or globs (passed via `npm run stylelint -- <path>...` or
  * `--path=<path>`). A `.css` file or an explicit glob is used as-is; a folder is
- * expanded to `<folder>/**\/*.css`. With no argument the default
+ * expanded to `<folder>/**\/*.css`. With no arguments the default
  * `src/**\/*.css` set is linted. Returns the resolved globs plus whether an
  * explicit path was given (used to widen the design-token checks beyond the
  * default `src/vs/sessions` scope to follow the requested path).
  */
-function resolveSources(argv: string[]): { sources: string[]; explicit: boolean } {
-	const args = argv.slice(2);
-	let target: string | undefined;
-	for (const arg of args) {
+export function resolveStylelintSources(argv: readonly string[]): { sources: string[]; explicit: boolean } {
+	const targets: string[] = [];
+	for (let index = 2; index < argv.length; index++) {
+		const arg = argv[index];
 		if (arg.startsWith('--path=')) {
-			target = arg.slice('--path='.length);
+			targets.push(arg.slice('--path='.length));
 		} else if (arg === '--path' || arg === '-p') {
-			continue; // value is the next positional arg
+			const target = argv[++index];
+			if (!target || target.startsWith('-')) {
+				throw new Error(`Missing value for ${arg}.`);
+			}
+			targets.push(target);
 		} else if (!arg.startsWith('-')) {
-			target = arg;
+			targets.push(arg);
 		}
 	}
-	if (!target) {
+	if (targets.length === 0) {
 		return { sources: Array.from(stylelintFilter), explicit: false };
 	}
-	// Normalise separators and trim any trailing slash.
-	const normalized = target.replace(/\\/g, '/').replace(/\/+$/, '');
-	if (/[*?[\]{}]/.test(normalized) || /\.css$/i.test(normalized)) {
-		return { sources: [normalized], explicit: true };
+
+	return {
+		sources: targets.map(target => {
+			const normalized = target.replace(/\\/g, '/').replace(/\/+$/, '');
+			if (!normalized) {
+				throw new Error('Stylelint paths cannot be empty.');
+			}
+			if (/[*?[\]{}]/.test(normalized) || /\.css$/i.test(normalized)) {
+				return normalized;
+			}
+			return normalized + '/**/*.css';
+		}),
+		explicit: true,
+	};
+}
+
+export function resolveStylelintMatches(sources: readonly string[]): string[] {
+	const matches = new Set<string>();
+	for (const source of sources) {
+		const sourceMatches = glob.sync(source, { follow: true, nodir: true });
+		if (sourceMatches.length === 0) {
+			throw new Error(`No CSS files matched the requested path: ${source}`);
+		}
+		for (const match of sourceMatches) {
+			matches.add(match);
+		}
 	}
-	return { sources: [normalized + '/**/*.css'], explicit: true };
+	return Array.from(matches);
 }
 
 if (import.meta.main) {
-	const { sources, explicit } = resolveSources(process.argv);
-	stylelint(sources, explicit).on('error', (err: Error) => {
+	try {
+		const { sources, explicit } = resolveStylelintSources(process.argv);
+		stylelint(sources, explicit).on('error', (err: Error) => {
+			console.error();
+			console.error(err);
+			process.exit(1);
+		});
+	} catch (err) {
 		console.error();
 		console.error(err);
 		process.exit(1);
-	});
+	}
 }

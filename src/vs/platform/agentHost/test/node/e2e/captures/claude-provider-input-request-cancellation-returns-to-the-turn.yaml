@@ -1,0 +1,57 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use AskUserQuestion exactly once to ask "Continue?" with options "Yes" and "No". If the request is cancelled, reply exactly "cancelled".
+    response:
+      content:
+        - type: text
+          text: I'll ask the question now.
+        - type: tool_use
+          id: toolcall_0
+          name: AskUserQuestion
+          input:
+            questions:
+              - question: Continue?
+                header: Continue
+                options:
+                  - label: 'Yes'
+                    description: Proceed.
+                  - label: 'No'
+                    description: Do not proceed.
+                multiSelect: false
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use AskUserQuestion exactly once to ask "Continue?" with options "Yes" and "No". If the request is cancelled, reply exactly "cancelled".
+        - role: assistant
+          content:
+            - type: text
+              text: I'll ask the question now.
+            - type: tool_use
+              name: AskUserQuestion
+              input:
+                questions:
+                  - question: Continue?
+                    header: Continue
+                    options:
+                      - label: 'Yes'
+                        description: Proceed.
+                      - label: 'No'
+                        description: Do not proceed.
+                    multiSelect: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The user cancelled the question
+    response:
+      content: cancelled
+      stopReason: end_turn

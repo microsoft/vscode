@@ -12,6 +12,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
@@ -131,6 +132,7 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(options.workspace);
 		override readonly isArchived: IObservable<boolean> = constObservable<boolean>(false);
 		override readonly isRead: IObservable<boolean> = constObservable<boolean>(true);
+		override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsDelete: true });
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable<readonly ISessionFileChange[]>([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable<ISessionChangesSummary | undefined>(options.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable<IMarkdownString | undefined>(description);
@@ -234,6 +236,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
+			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			// `SessionsFlatList` creates an `AgentSessionApprovalModel` (reads
 			// `IChatService.chatModels`) and observes each session through the
 			// agent-sessions model. Both are stubbed to no-ops for the fixture.

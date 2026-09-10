@@ -8,6 +8,17 @@
 	visibility: hidden !important;
 }
 
+.monaco-workbench .part.sessionspart {
+	position: relative;
+	isolation: isolate;
+}
+
+.monaco-workbench .part.sessionspart > .title,
+.monaco-workbench .part.sessionspart > .content {
+	position: relative;
+	z-index: 2;
+}
+
 .monaco-workbench .part.sessionspart > .content .monaco-editor,
 .monaco-workbench .part.sessionspart > .content .monaco-editor .margin,
 .monaco-workbench .part.sessionspart > .content .monaco-editor .monaco-editor-background {
@@ -114,14 +125,6 @@
 
 .monaco-workbench .sessionspart.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
 	max-width: 150px;
-}
-
-.monaco-workbench .part.sessionspart .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up-compact) {
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.monaco-workbench .part.sessionspart .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up-compact {
-	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Nudge icon position to ensure it looks optically aligned within the button */

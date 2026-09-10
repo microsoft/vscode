@@ -96,7 +96,7 @@ import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
-import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
@@ -129,6 +129,7 @@ import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProces
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
+import { parseExternalOpenSessionLinkUri } from '../../platform/agentHost/common/openSessionLink.js';
 import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
 import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
@@ -147,6 +148,7 @@ import { NativeWebContentExtractorService } from '../../platform/webContentExtra
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
 
 type OSProxyConfigEvent = {
 	readonly success: boolean;
@@ -244,6 +246,10 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
+		const isUrlFromAuxiliaryWindow = (webContents: Electron.WebContents | null, requestingUrl: string | undefined, isMainFrame: boolean) =>
+			isMainFrame && requestingUrl === 'about:blank' && !!(webContents && this.auxiliaryWindowsMainService?.getWindowByWebContents(webContents));
+		const isRequestFromWindow = (webContents: Electron.WebContents | null, requestingUrl: string | undefined, isMainFrame: boolean) =>
+			isUrlFromWindow(requestingUrl) || isUrlFromAuxiliaryWindow(webContents, requestingUrl, isMainFrame);
 
 		const alwaysAllowedPermissions = new Set(['pointerLock', 'notifications']);
 
@@ -265,21 +271,21 @@ export class CodeApplication extends Disposable {
 			'deprecated-sync-clipboard-read',
 		]);
 
-		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+		session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
-			if (isUrlFromWindow(details.requestingUrl)) {
+			if (isRequestFromWindow(webContents, details.requestingUrl, details.isMainFrame)) {
 				return callback(allowedPermissionsInCore.has(permission));
 			}
 			return callback(false);
 		});
 
-		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
+		session.defaultSession.setPermissionCheckHandler((webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-			if (isUrlFromWindow(details.requestingUrl)) {
+			if (isRequestFromWindow(webContents, details.requestingUrl, details.isMainFrame)) {
 				return allowedPermissionsInCore.has(permission);
 			}
 			return false;
@@ -422,6 +428,20 @@ export class CodeApplication extends Disposable {
 				if (!isAllowedVsCodeFileRequest(details)) {
 					this.logService.error('Blocked vscode-file request', details.url);
 					return callback({ cancel: true });
+				}
+			}
+
+			if (uri.scheme === Schemas.vscodeManagedRemoteResource) {
+				let frame: WebFrameMain | null | undefined = details.frame;
+				if (!frame || frame.isDestroyed()) {
+					this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+					return callback({ cancel: true });
+				}
+				for (; frame; frame = frame.parent) {
+					if (frame.isDestroyed() || frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
+						this.logService.error('Blocked vscode-managed-remote-resource request', details.url);
+						return callback({ cancel: true });
+					}
 				}
 			}
 
@@ -729,12 +749,12 @@ export class CodeApplication extends Disposable {
 		// Always instantiate the starter + manager. They are cheap (the
 		// constructors only register an IPC listener and emitters) and the agent
 		// host utility process is spawned lazily on the first window connection
-		// request. The renderer is the gate: it only requests a connection when
-		// `chat.agentHost.enabled` resolves to `true` and AI features are enabled
-		// there (honoring experiment overrides + policy + web), which the main
-		// process cannot fully observe.
-		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
-		this._register(appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter));
+		// request. The renderer only requests a connection when the runtime is
+		// available and AI features are enabled there, which the main process
+		// cannot fully observe.
+		const agentHostStarter = appInstantiationService.createInstance(ElectronAgentHostStarter, { machineId, sqmId, devDeviceId });
+		// This manager self-disposes after its lifecycle join; CodeApplication disposes before later shutdown listeners run.
+		appInstantiationService.createInstance(AgentHostProcessManager, agentHostStarter, process.platform);
 
 		// Metered connection telemetry
 		appInstantiationService.invokeFunction(accessor => {
@@ -752,9 +772,6 @@ export class CodeApplication extends Disposable {
 
 		// Setup Protocol URL Handlers
 		const initialProtocolUrls = await appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
-
-		// Setup vscode-remote-resource protocol handler
-		this.setupManagedRemoteResourceUrlHandler(mainProcessElectronServer);
 
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
@@ -787,6 +804,7 @@ export class CodeApplication extends Disposable {
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const dialogMainService = accessor.get(IDialogMainService);
+		const protocolMainService = accessor.get(IProtocolMainService);
 
 		// Install URL handlers that deal with protocl URLs either
 		// from this process by opening windows and/or by forwarding
@@ -809,32 +827,18 @@ export class CodeApplication extends Disposable {
 		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
-		const initialProtocolUrls = await this.resolveInitialProtocolUrls(windowsMainService, dialogMainService);
-		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
-
-		return initialProtocolUrls;
-	}
-
-	private setupManagedRemoteResourceUrlHandler(mainProcessElectronServer: ElectronIPCServer) {
-		const notFound = (): Electron.ProtocolResponse => ({ statusCode: 404, data: 'Not found' });
 		const remoteResourceChannel = new Lazy(() => mainProcessElectronServer.getChannel(
 			NODE_REMOTE_RESOURCE_CHANNEL_NAME,
 			new NodeRemoteResourceRouter(),
 		));
+		protocolMainService.registerManagedRemoteResourceProtocol(
+			url => remoteResourceChannel.value.call<NodeRemoteResourceResponse>(NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, [url])
+		);
 
-		protocol.registerBufferProtocol(Schemas.vscodeManagedRemoteResource, (request, callback) => {
-			const url = URI.parse(request.url);
-			if (!url.authority.startsWith('window:')) {
-				return callback(notFound());
-			}
+		const initialProtocolUrls = await this.resolveInitialProtocolUrls(windowsMainService, dialogMainService);
+		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
-			remoteResourceChannel.value.call<NodeRemoteResourceResponse>(NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, [url]).then(
-				r => callback({ ...r, data: Buffer.from(r.body, 'base64') }),
-				err => {
-					this.logService.warn('error dispatching remote resource call', err);
-					callback({ statusCode: 500, data: String(err) });
-				});
-		});
+		return initialProtocolUrls;
 	}
 
 	private async resolveInitialProtocolUrls(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<IInitialProtocolUrls | undefined> {
@@ -1027,6 +1031,15 @@ export class CodeApplication extends Disposable {
 
 	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
+
+		const agentSessionLink = parseExternalOpenSessionLinkUri(uri, this.productService.urlProtocol);
+		if (agentSessionLink) {
+			const windows = await windowsMainService.openAgentsWindow({
+				context: OpenContext.LINK,
+				cli: { ...this.environmentMainService.args },
+			}, undefined, agentSessionLink, AgentsWindowOpenSource.Link);
+			return windows.length > 0;
+		}
 
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
 		if (uri.scheme === this.productService.urlProtocol && uri.path === 'workspace') {
@@ -1385,7 +1398,10 @@ export class CodeApplication extends Disposable {
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables);
+		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService, disposables, {
+			// This event has main-process consumers but no IPC consumer, so its buffer would never drain.
+			unbufferedEvents: ['onDidBlurMainWindow']
+		});
 		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
@@ -1472,6 +1488,17 @@ export class CodeApplication extends Disposable {
 
 		// Then check for windows from protocol links to open
 		if (initialProtocolUrls) {
+			const agentSessionProtocolUrlIndex = initialProtocolUrls.urls.findIndex(protocolUrl =>
+				parseExternalOpenSessionLinkUri(protocolUrl.uri, this.productService.urlProtocol));
+			if (agentSessionProtocolUrlIndex >= 0) {
+				const [agentSessionProtocolUrl] = initialProtocolUrls.urls.splice(agentSessionProtocolUrlIndex, 1);
+				const agentSessionLink = parseExternalOpenSessionLinkUri(agentSessionProtocolUrl.uri, this.productService.urlProtocol);
+				return windowsMainService.openAgentsWindow({
+					context: OpenContext.LINK,
+					cli: args,
+					initialStartup: true,
+				}, undefined, agentSessionLink, AgentsWindowOpenSource.Link);
+			}
 
 			// Openables can open as windows directly
 			if (initialProtocolUrls.openables.length > 0) {
@@ -1762,7 +1789,7 @@ export class CodeApplication extends Disposable {
 
 	private async installMutex(): Promise<void> {
 		const win32MutexName = this.productService.win32MutexName;
-		if (isWindows && win32MutexName && isInnoSetupInstall()) {
+		if (isWindows && win32MutexName && isInnoSetupInstall(this.productService.target)) {
 			try {
 				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);

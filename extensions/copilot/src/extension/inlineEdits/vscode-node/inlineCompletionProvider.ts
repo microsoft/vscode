@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { CancellationToken, Command, EndOfLine, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
+import { CancellationToken, Command, EndOfLine, env, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { stringEditFromDiff } from '../../../platform/editing/common/edit';
@@ -14,6 +14,8 @@ import { IGitExtensionService } from '../../../platform/git/common/gitExtensionS
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
+import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
+import { observeUnifiedCompletions } from './unifiedCompletions';
 import { shortenOpportunityId } from '../../../platform/inlineEdits/common/utils/utils';
 import { ILogger, ILogService } from '../../../platform/log/common/logService';
 import { getNotebookId } from '../../../platform/notebook/common/helpers';
@@ -36,6 +38,7 @@ import { basename } from '../../../util/vs/base/common/path';
 import { StringEdit } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { createCorrelationId } from '../common/correlationId';
+import { learnMoreCommandId, learnMoreLink } from '../common/inlineEditCommands';
 import { NesChangeHint } from '../common/nesTriggerHint';
 import { NESInlineCompletionContext } from '../node/nextEditProvider';
 import { NextEditProviderTelemetryBuilder, TelemetrySender } from '../node/nextEditProviderTelemetry';
@@ -45,7 +48,6 @@ import { InlineCompletionCommand, InlineEditDebugComponent } from './components/
 import { LogContextRecorder } from './components/logContextRecorder';
 import { DiagnosticsNextEditResult } from './features/diagnosticsInlineEditProvider';
 import { InlineEditModel } from './inlineEditModel';
-import { learnMoreCommandId, learnMoreLink } from './inlineEditProviderFeature';
 import { toInlineSuggestion } from './isInlineSuggestion';
 import { LineCheck } from './naturalLanguageHint';
 import { InlineEditLogger } from './parts/inlineEditLogger';
@@ -59,7 +61,7 @@ const learnMoreAction: Command = {
 	tooltip: learnMoreLink
 };
 
-export interface NesCompletionItem extends InlineCompletionItem {
+interface NesCompletionItem extends InlineCompletionItem {
 	readonly telemetryBuilder: NextEditProviderTelemetryBuilder;
 	readonly info: NesCompletionInfo;
 	wasShown: boolean;
@@ -72,7 +74,7 @@ export interface NesCompletionItem extends InlineCompletionItem {
 	isInlineCompletion?: boolean;
 }
 
-export class NesCompletionList extends InlineCompletionList {
+class NesCompletionList extends InlineCompletionList {
 
 	public override enableForwardStability = true;
 
@@ -121,8 +123,6 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	private readonly _logger: ILogger;
 
 	public readonly onDidChange = this.model.onChange;
-	public readonly handleDidPartiallyAcceptCompletionItem = undefined;
-	public readonly handleDidRejectCompletionItem = undefined;
 
 	//#region Model picker
 	private _isModelPickerEnabled: IObservable<boolean> = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsModelPickerEnabled, this._expService);
@@ -153,7 +153,11 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	private readonly _displayNextEditorNES: boolean;
 	private readonly _renameSymbolSuggestions: IObservable<boolean>;
 	private readonly _inlineCompletionsAdvanced: IObservable<boolean>;
-	private readonly _nesMimicGhostTextBehavior: IObservable<boolean>;
+	/**
+	 * Read here as well as at provider registration: the two must agree, or NES could be registered as
+	 * the unified provider while declining every request.
+	 */
+	private readonly _unifiedCompletions: IObservable<boolean>;
 
 	constructor(
 		private readonly model: InlineEditModel,
@@ -179,7 +183,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		this._displayNextEditorNES = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.UseAlternativeNESNotebookFormat, this._expService);
 		this._renameSymbolSuggestions = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.Advanced.InlineEditsRenameSymbolSuggestions, this._expService);
 		this._inlineCompletionsAdvanced = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsInlineCompletionsAdvanced, this._expService);
-		this._nesMimicGhostTextBehavior = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, this._expService);
+		this._unifiedCompletions = observeUnifiedCompletions(this, this._configurationService, this._expService, this._modelService);
 
 		this.setCurrentModelId = (modelId: string) => this._modelService.setCurrentModelId(modelId);
 
@@ -224,16 +228,20 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	public async provideInlineCompletionItems(
 		document: TextDocument,
 		position: Position,
-		context: InlineCompletionContext | NESInlineCompletionContext,
+		context: InlineCompletionContext,
 		token: CancellationToken
 	): Promise<NesCompletionList | undefined> {
+		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && env.isMeteredConnection) {
+			return undefined;
+		}
+
 		const label = `NES | ${basename(document.uri.fsPath)} (v${document.version})`;
 
 		const capturingToken = new CapturingToken(label, undefined);
 
 		assert(context.changeHint === undefined || NesChangeHint.is(context.changeHint), 'Expected changeHint to be of type TriggerNes or undefined');
 		const changeHint = context.changeHint as NesChangeHint | undefined;
-		const nesContext: NESInlineCompletionContext = { enforceCacheDelay: true, ...context, changeHint };
+		const nesContext: NESInlineCompletionContext = { ...context, changeHint };
 
 		return this._requestLogger.captureInvocation(capturingToken, () => this._provideInlineCompletionItems(document, position, nesContext, token));
 	}
@@ -254,7 +262,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const isCompletionsEnabled = this._isCompletionsEnabled(document);
 
-		const unification = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, this._expService);
+		const unification = this._unifiedCompletions.get();
 
 		const isInlineEditsEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.InlineEditsEnabled, this._expService, { languageId: document.languageId });
 
@@ -467,7 +475,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			// re-surface in any other form. Suppress here without evicting the cache entry —
 			// when the cursor returns to an inline-renderable position, we'll serve it again.
 			if (
-				this._nesMimicGhostTextBehavior.get()
+				resolveModelConfigValue(this._configurationService, this._expService, ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, this._modelService.selectedModelConfiguration().nesMimicGhostTextBehavior)
 				&& !isInlineCompletion
 				&& isLlmCompletionInfo(suggestionInfo)
 				&& suggestionInfo.suggestion.result?.cacheEntry?.wasRenderedAsInlineSuggestion

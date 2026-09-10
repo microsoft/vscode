@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { PermissionMode, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolPath, isClaudeFileEditTool } from './claudeToolDisplay.js';
@@ -54,7 +55,7 @@ export class ClaudeFileEditObserver extends Disposable {
 	 * per-subagent: when a subagent emits the `tool_use`, its model
 	 * (not the parent's) is what we record.
 	 */
-	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly toolName: string; readonly toolInput: unknown; readonly modelId: string | undefined }>();
+	private readonly _editToolPaths = new Map<string, { readonly filePath: string; readonly toolName: string; readonly toolInput: unknown; readonly modelId: string | undefined; readonly clientContext?: IAgentHostClientTelemetryContext }>();
 
 	constructor(
 		sessionUri: string,
@@ -82,7 +83,7 @@ export class ClaudeFileEditObserver extends Disposable {
 	 * the SDK yields a canonical `'assistant'` message (full
 	 * `tool_use.input` available).
 	 */
-	observeAssistant(message: Extract<SDKMessage, { type: 'assistant' }>): void {
+	observeAssistant(message: Extract<SDKMessage, { type: 'assistant' }>, mode?: PermissionMode, clientContext?: IAgentHostClientTelemetryContext): void {
 		const content = message.message.content;
 		if (!Array.isArray(content)) {
 			return;
@@ -96,8 +97,8 @@ export class ClaudeFileEditObserver extends Disposable {
 			if (!filePath) {
 				continue;
 			}
-			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId });
-			void this._editTracker.trackEditStart(filePath).catch(err =>
+			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext });
+			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
 		}
 	}
@@ -130,7 +131,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
 				await this._editTracker.completeEdit(tracked.filePath);
-				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId);
+				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, tracked.clientContext);
 				if (fileEdit) {
 					mapperState.cacheFileEdit(block.tool_use_id, fileEdit);
 				}

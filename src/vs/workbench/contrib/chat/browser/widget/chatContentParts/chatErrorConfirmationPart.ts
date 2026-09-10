@@ -44,23 +44,47 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 		const buttonOptions: IButtonOptions = { ...defaultButtonStyles };
 
 		const buttonContainer = dom.append(this.domNode, $('.chat-buttons-container'));
+		const buttons: Button[] = [];
+		let isRunning = false;
 		confirmationButtons.forEach(buttonData => {
 			const button = this._register(new Button(buttonContainer, buttonOptions));
+			buttons.push(button);
 			button.label = buttonData.label;
 
 			this._register(button.onDidClick(async () => {
+				if (isRunning) {
+					return;
+				}
+				isRunning = true;
+				buttons.forEach(button => button.enabled = false);
 				const prompt = buttonData.label;
 				const options: IChatSendRequestOptions = buttonData.isSecondary ?
 					{ rejectedConfirmationData: [buttonData.data] } :
 					{ acceptedConfirmationData: [buttonData.data] };
-				options.agentId = element.agent?.id;
-				options.slashCommand = element.slashCommand?.name;
-				options.confirmation = buttonData.label;
-				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
-				Object.assign(options, widget?.getSelectedModelRequestOptions());
-				Object.assign(options, widget?.getModeRequestOptions());
-				this.chatAccessibilityService.acceptRequest(element.sessionResource);
-				await chatService.sendRequest(element.sessionResource, prompt, options);
+				try {
+					options.agentId = element.agent?.id;
+					options.slashCommand = element.slashCommand?.name;
+					if (!buttonData.resend) {
+						options.confirmation = buttonData.label;
+					}
+					const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+					Object.assign(options, widget?.getSelectedModelRequestOptions());
+					Object.assign(options, widget?.getModeRequestOptions());
+					this.chatAccessibilityService.acceptRequest(element.sessionResource);
+					if (buttonData.resend) {
+						const request = chatService.getSession(element.sessionResource)?.getRequests().find(request => request.id === element.requestId);
+						if (!request) {
+							throw new Error(`Cannot resend missing chat request: ${element.requestId}`);
+						}
+						await chatService.resendRequest(request, options, buttonData.preserveRequestId);
+					} else {
+						await chatService.sendRequest(element.sessionResource, prompt, options);
+					}
+				} catch (error) {
+					isRunning = false;
+					buttons.forEach(button => button.enabled = true);
+					throw error;
+				}
 			}));
 		});
 	}

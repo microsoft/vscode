@@ -5,6 +5,7 @@
 
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2EProviderConfig } from '../harness/agentHostE2ETestHarness.js';
+import type { ICapiReplayResponse } from '../harness/capiReplayProxy.js';
 
 /**
  * Which axis a scenario belongs to.
@@ -22,6 +23,7 @@ export type AgentHostE2ETier = 'conformance' | 'parity';
 
 export interface IAgentHostE2ETestContext {
 	readonly tier: AgentHostE2ETier;
+	readonly targetId: string;
 	readonly config: IAgentHostE2EProviderConfig;
 	readonly client: TestProtocolClient;
 	readonly createdSessions: string[];
@@ -38,12 +40,22 @@ export interface IAgentHostE2ETestContext {
 	 * reason is visible at the call site.
 	 */
 	readonly portableShellToolReplayEnabled: boolean;
-	readonly supportsFileTools: boolean;
-	readonly stableSharedServerFileScenarios: boolean;
+	readonly isLinux: boolean;
 	readonly isWindows: boolean;
 	readonly runRecordOnlyTests: boolean;
+	/** Whether explicitly requested known-issue reproductions should run against live recording. */
+	readonly runKnownIssueTests: boolean;
+	/** Whether explicitly requested model-free known-issue reproductions should run in strict replay. */
+	readonly runHostOnlyKnownIssueTests: boolean;
 	readonly registerNoModelTrafficTest: (title: string) => void;
 	readonly observedModelRequestBodies: readonly string[];
+	/** Overrides the next matching model response while recording a fault-injection scenario. */
+	readonly setRecordingModelResponse: (response: ICapiReplayResponse, path?: string) => void;
+	/**
+	 * Restart the target against the current test's isolated persistent state and
+	 * replay stream. The replacement client is connected but not initialized.
+	 */
+	readonly restartServer: () => Promise<void>;
 	/**
 	 * Open an extra connection to the same server. Needed only by tests that
 	 * exercise connection lifecycle, which cannot be expressed on the single
@@ -55,7 +67,7 @@ export interface IAgentHostE2ETestContext {
 function registerHostOnlyTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, enabled: boolean): void {
 	context.registerNoModelTrafficTest(title);
 	(enabled ? test : test.skip)(title, function () {
-		this.timeout(60_000);
+		this.timeout(120_000);
 		return run.call(this);
 	});
 }
