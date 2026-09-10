@@ -29,7 +29,6 @@ import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/brows
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
-import { ICustomizationMigrationAvailabilityService } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationAvailabilityService.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -87,7 +86,6 @@ interface INewChatWidgetFixtureOptions {
 	readonly withAutoModel?: boolean;
 	readonly primaryToolbarWidth?: number;
 	readonly phoneLayout?: boolean;
-	readonly migrationCount?: number;
 	readonly withChatBackground?: boolean;
 }
 
@@ -173,7 +171,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withAutoModel = false,
 		primaryToolbarWidth,
 		phoneLayout = false,
-		migrationCount = 0,
 		withChatBackground = false,
 	} = options;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
@@ -297,10 +294,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onDidChangeSlashCommands = Event.None;
 				override async getSlashCommands() { return []; }
 			}());
-			reg.defineInstance(ICustomizationMigrationAvailabilityService, {
-				_serviceBrand: undefined,
-				candidateCount: observableValue('customizationMigrationCount', migrationCount),
-			});
 			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
 				sessionsService,
 				new class extends mock<IChatWidgetService>() {
@@ -439,9 +432,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionDefault: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left above the chat input. Customize is aligned separately to the right edge of the input, with a yellow migration indicator and no chevron.'],
-		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 3 }),
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { withWorkspace: true }),
 	}),
 	NewSessionChatBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
@@ -464,17 +456,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left, with Customize aligned to the right edge of the input. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker. Pill and dropdown labels use the same body text size, and their leading icons use the same base icon size.'],
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker. Pill and dropdown labels use the same body text size, and their leading icons use the same base icon size.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openWorkspacePicker: true }),
 	}),
 	NewSessionGitHubContextPicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills aligned to the left, with Customize aligned to the right edge of the input. The Issue/PR pill has the active treatment after opening its picker.'],
+		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills. The Issue/PR pill has the active treatment after opening its picker.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openGitHubContextPicker: true }),
 	}),
 	NewSessionAttachedContext: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session workspace row shows Copilot, microsoft/vscode with a count badge showing 2, and Issue/PR with a count badge showing 1 aligned to the left, with Customize aligned to the right edge of the input. The composer attachment row shows removable docs, microsoft/typescript, and microsoft/vscode#333053 context pills with compact dismiss icons. The input expands upward for the attachment row while its bottom controls remain aligned with the default new-session composer. The folder icon is fully visible without cropping, and the GitHub issue pill includes an issue icon.'],
+		expectedVisualDescriptions: ['The new-session workspace row shows Copilot, microsoft/vscode with a count badge showing 2, and Issue/PR with a count badge showing 1. The composer attachment row shows removable docs, microsoft/typescript, and microsoft/vscode#333053 context pills with compact dismiss icons. The input expands upward for the attachment row while its bottom controls remain aligned with the default new-session composer. The folder icon is fully visible without cropping, and the GitHub issue pill includes an issue icon.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAttachedContext: true }),
 	}),
 	NewSessionPhoneAttachedContext: defineComponentFixture({
@@ -484,7 +476,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session composer shows Copilot and devbox · microsoft/vscode pills aligned to the left, with Customize aligned to the right edge of the input. No Issue/PR pill is visible because the remote workspace has no associated GitHub repository metadata.'],
+		expectedVisualDescriptions: ['The new-session composer shows Copilot and devbox · microsoft/vscode pills. No Issue/PR pill is visible because the remote workspace has no associated GitHub repository metadata.'],
 		render: context => renderNewChatWidget(context, { withRemoteWorkspace: true }),
 	}),
 	NewSessionNarrow: defineComponentFixture({
