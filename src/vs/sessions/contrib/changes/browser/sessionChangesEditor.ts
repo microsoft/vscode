@@ -500,7 +500,7 @@ class ChangesetReviewActionViewItem extends CheckboxActionViewItem {
 		container.classList.add('changeset-review-action', 'multi-diff-action-always-visible');
 	}
 
-	override updateChecked(): void {
+	protected override updateChecked(): void {
 		super.updateChecked();
 
 		this.element?.classList.toggle('checked', !!this.action.checked);
@@ -508,7 +508,7 @@ class ChangesetReviewActionViewItem extends CheckboxActionViewItem {
 		this.updateTooltip();
 	}
 
-	override getTooltip(): string {
+	protected override getTooltip(): string {
 		return this.action.checked
 			? localize('changeset.viewed.tooltip', "Mark as Not Viewed")
 			: localize('changeset.notViewed.tooltip', "Mark as Viewed");
