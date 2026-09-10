@@ -108,6 +108,7 @@ const CODEX_AUTO_REVIEW_MODEL = 'codex-auto-review';
 type ICodexProxyRuntime = ILoopbackProxyRuntime<ICodexProxyState>;
 
 const PROXY_USER_FACING_NAME = 'CodexProxyService';
+const PORTABLE_HISTORY_HEARTBEAT_INTERVAL_MS = 15_000;
 
 /**
  * User-agent prefix applied to outbound CAPI requests so the codex proxy's
@@ -166,6 +167,7 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
+		private readonly _now: () => number = () => performance.now(),
 		@ILogService logService: ILogService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 	) {
@@ -364,7 +366,7 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 				? fs.createWriteStream(join(dumpDir, `res-${dumpSeq}-${Date.now()}.txt`))
 				: undefined;
 			const eventCounts: Record<string, number> = {};
-			let eventsWritten = 0;
+			let lastWriteTime = this._now();
 			const parser = contentType.startsWith('text/event-stream') ? new SSEParser(event => {
 				eventCounts[event.type] = (eventCounts[event.type] ?? 0) + 1;
 				if (portableHistory) {
@@ -377,7 +379,7 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 					}
 					fields.push(...makeCodexHistoryPortable(event.data).split('\n').map(line => `data: ${line}`));
 					res.write(`${fields.join('\n')}\n\n`);
-					eventsWritten++;
+					lastWriteTime = this._now();
 				}
 			}) : undefined;
 			try {
@@ -397,10 +399,10 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 						if (resDumpStream) {
 							resDumpStream.write(buf);
 						}
-						const before = eventsWritten;
 						parser?.feed(value);
-						if (portableHistory && parser && before === eventsWritten) {
+						if (portableHistory && parser && this._now() - lastWriteTime >= PORTABLE_HISTORY_HEARTBEAT_INTERVAL_MS) {
 							res.write(': keep-alive\n\n');
+							lastWriteTime = this._now();
 						}
 					}
 				}
