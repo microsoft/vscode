@@ -417,6 +417,8 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 
 ### Codex (`node/codex/codexAgent.ts`)
 
+Client-synced skills are delivered only through each thread's `selectedCapabilityRoots`, alongside its workspace skill roots. Never register those cache directories with the process-global `skills/extraRoots/set`: workspace-specific bundles and concurrently retained revisions would leak into unrelated sessions and be rediscovered as duplicate native user skills. The native `skills/list` catalog remains separate from the session's client-plugin customization projection.
+
 Codex supports multiple chats per session. Each conversation — the session's default chat and every additional chat — is a distinct top-level Codex thread, explicitly bound to the concrete chat URI AH supplies:
 - `_sessions: Map<string, ICodexSession>` owns provider-native thread/runtime state. `_sessionIdByChatUri` maps exact chat URIs to those runtime keys and is never used to recover AH membership.
 - `_sessionIdByChatUri: Map<string, string>` is the exact chat-operation routing index; unbound chat URIs are rejected.

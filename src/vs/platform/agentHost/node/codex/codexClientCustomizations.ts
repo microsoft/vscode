@@ -34,17 +34,16 @@ export const CODEX_FILE_LINK_INSTRUCTIONS = [
  * from the `.agents`/`.codex` files it discovers itself. This module holds the
  * per-session store for those synced+parsed plugins plus the pure mappers that
  * project them into (a) the AHP {@link PluginCustomization} surface, (b) codex
- * per-thread `thread/start.config.mcp_servers`, and (c) process-global
- * `skills/extraRoots/set` roots.
+ * per-thread `thread/start.config.mcp_servers`, and (c) per-thread
+ * `selectedCapabilityRoots`.
  *
  * Feeding strategy (see the phase investigation):
  *  - MCP servers are attached **per session** via `thread/start.config`
  *    (verified: codex starts the server for that thread only), so a plugin's
  *    server only runs for sessions that enable it.
- *  - Skills are process-global in codex (`skills/extraRoots/set` replaces a
- *    single shared root list), so the store exposes the union of enabled skill
- *    roots and the agent sets it across all live sessions. This matches the
- *    semantics of client customizations, which are global user choices.
+ *  - Skills are attached **per session** through selected capability roots.
+ *    Registering the synced copies as process-global extra roots would expose
+ *    other sessions' bundles and revisions and duplicate the native catalog.
  */
 
 /** A single client-pushed plugin: its sync result plus the parsed components (when the sync succeeded). */
@@ -225,7 +224,7 @@ export function codexMcpServersFromDefinitions(definitions: readonly IMcpServerD
  * Derives the codex skill roots (absolute fsPaths) for a set of client
  * plugins: the parent directory of each skill's `<name>/SKILL.md`, i.e. the
  * plugin's `skills` root, which codex scans for `<name>/SKILL.md` entries.
- * De-duplicated and sorted for a stable `skills/extraRoots/set` payload.
+ * De-duplicated and sorted for a stable `selectedCapabilityRoots` payload.
  */
 export function codexSkillRootsFromPlugins(plugins: readonly ICodexClientPlugin[]): string[] {
 	const roots = new Set<string>();

@@ -226,7 +226,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
 	agent['_refreshSkillHookCustomizations'] = async () => { };
-	agent['_refreshSkillExtraRoots'] = async () => { };
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
 	await agent.refreshModels();
 	return agent;
@@ -2559,7 +2558,6 @@ suite('CodexAgent chat backing durability', () => {
 	function connect(agent: CodexAgent, peer: ITestPeer): void {
 		connectPeer(agent, peer);
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 	}
 
 	/**
