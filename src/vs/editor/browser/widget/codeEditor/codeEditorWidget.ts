@@ -1675,7 +1675,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		const top = CodeEditorWidget._getVerticalOffsetForPosition(this._modelData, position.lineNumber, position.column) - this.getScrollTop();
-		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this.getScrollLeft();
+		const left = this._modelData.view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.contentLeft - this.getScrollLeft();
 		const height = this.getLineHeightForPosition(position);
 		return {
 			top: top,

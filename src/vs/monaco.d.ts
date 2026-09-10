@@ -4596,6 +4596,11 @@ declare namespace monaco.editor {
 		 * Spacing between bottom edge of editor and last line.
 		 */
 		bottom?: number;
+		/**
+		 * Maximum text viewport width in CSS pixels, excluding gutters, minimap, and scrollbar.
+		 * Extra space is split evenly on either side of the text. Defaults to 0 (no limit).
+		 */
+		maxEditorCanvasWidth?: number;
 	}
 
 	/**

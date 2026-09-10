@@ -70,6 +70,10 @@
 	white-space: nowrap;
 }
 
+.monaco-editor .lines-content > :not(.contentWidgets) {
+	clip-path: var(--editor-canvas-clip, none);
+}
+
 .monaco-editor .view-line {
 	box-sizing: border-box;
 	position: absolute;

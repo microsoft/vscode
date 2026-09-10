@@ -674,6 +674,13 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
 		this._linesContent.setTop(-adjustedScrollTop);
 		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft();
+		const clip = options.get(EditorOption.padding).maxEditorCanvasWidth > 0
+			? `inset(${adjustedScrollTop}px calc(100% - ${scrollLeft + Math.max(0, layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth)}px) calc(100% - ${adjustedScrollTop + layoutInfo.height}px) ${scrollLeft}px)`
+			: 'none';
+		this._linesContent.domNode.style.setProperty('--editor-canvas-clip', clip);
 	}
 
 	// --- width

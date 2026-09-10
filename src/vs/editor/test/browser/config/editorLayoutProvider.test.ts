@@ -36,6 +36,8 @@ interface IEditorLayoutProviderOpts {
 	readonly minimapMaxColumn: number;
 	minimapSize?: 'proportional' | 'fill' | 'fit';
 	readonly pixelRatio: number;
+	readonly maxEditorCanvasWidth?: number;
+	readonly wordWrap?: 'off' | 'on';
 }
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
@@ -43,12 +45,16 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
+		assert.deepStrictEqual(computeLayout(input), expected);
+	}
+
+	function computeLayout(input: IEditorLayoutProviderOpts): EditorLayoutInfo {
 		const options = new ComputedEditorOptions();
 		options._write(EditorOption.glyphMargin, input.showGlyphMargin);
 		options._write(EditorOption.lineNumbersMinChars, input.lineNumbersMinChars);
 		options._write(EditorOption.lineDecorationsWidth, input.lineDecorationsWidth);
 		options._write(EditorOption.folding, false);
-		options._write(EditorOption.padding, { top: 0, bottom: 0 });
+		options._write(EditorOption.padding, EditorOptions.padding.validate({ maxEditorCanvasWidth: input.maxEditorCanvasWidth }));
 		const minimapOptions: EditorMinimapOptions = {
 			enabled: input.minimap,
 			autohide: 'none',
@@ -88,13 +94,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		};
 		options._write(EditorOption.lineNumbers, lineNumbersOptions);
 
-		options._write(EditorOption.wordWrap, 'off');
+		options._write(EditorOption.wordWrap, input.wordWrap ?? 'off');
 		options._write(EditorOption.wordWrapColumn, 80);
 		options._write(EditorOption.wordWrapOverride1, 'inherit');
 		options._write(EditorOption.wordWrapOverride2, 'inherit');
 		options._write(EditorOption.accessibilitySupport, 'auto');
 
-		const actual = EditorLayoutInfoComputer.computeLayout(options, {
+		return EditorLayoutInfoComputer.computeLayout(options, {
 			memory: null,
 			outerWidth: input.outerWidth,
 			outerHeight: input.outerHeight,
@@ -107,8 +113,77 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			pixelRatio: input.pixelRatio,
 			glyphMarginDecorationLaneCount: 1,
 		});
-		assert.deepStrictEqual(actual, expected);
 	}
+
+	suite('canvas padding', () => {
+		const input: IEditorLayoutProviderOpts = {
+			outerWidth: 1200,
+			outerHeight: 800,
+			showGlyphMargin: true,
+			lineHeight: 20,
+			showLineNumbers: true,
+			lineNumbersMinChars: 3,
+			lineNumbersDigitCount: 3,
+			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
+			maxDigitWidth: 10,
+			verticalScrollbarWidth: 14,
+			verticalScrollbarHasArrows: false,
+			scrollbarArrowSize: 0,
+			horizontalScrollbarHeight: 10,
+			minimap: false,
+			minimapSide: 'right',
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 1,
+			wordWrap: 'on'
+		};
+
+		test('validates the cap and preserves vertical padding', () => {
+			assert.deepStrictEqual([
+				EditorOptions.padding.validate(undefined),
+				EditorOptions.padding.validate({ maxEditorCanvasWidth: -1 }),
+				EditorOptions.padding.validate({ top: 12, bottom: 18, maxEditorCanvasWidth: 600.9 }),
+				EditorOptions.padding.validate({ maxEditorCanvasWidth: 20000 })
+			], [
+				{ top: 0, bottom: 0, maxEditorCanvasWidth: 0 },
+				{ top: 0, bottom: 0, maxEditorCanvasWidth: 0 },
+				{ top: 12, bottom: 18, maxEditorCanvasWidth: 600 },
+				{ top: 0, bottom: 0, maxEditorCanvasWidth: 10000 }
+			]);
+		});
+
+		for (const minimap of [false, true]) {
+			for (const minimapSide of ['left', 'right'] as const) {
+				test(`centers the text without moving gutters or minimap (${minimap}, ${minimapSide})`, () => {
+					const baseline = computeLayout({ ...input, minimap, minimapSide });
+					const padded = computeLayout({ ...input, minimap, minimapSide, maxEditorCanvasWidth: 600 });
+					assert.deepStrictEqual(padded, {
+						...baseline,
+						contentLeft: baseline.contentLeft + Math.floor((baseline.contentWidth - 614) / 2),
+						contentWidth: 614,
+						viewportColumn: 59,
+						wrappingColumn: 59
+					});
+				});
+			}
+		}
+
+		test('uses available width below the cap and restores the default when disabled', () => {
+			for (const outerWidth of [0, 400, 674, 1200]) {
+				const baseline = computeLayout({ ...input, outerWidth });
+				assert.deepStrictEqual(computeLayout({ ...input, outerWidth, maxEditorCanvasWidth: 0 }), baseline);
+				if (outerWidth <= 674) {
+					assert.deepStrictEqual(computeLayout({ ...input, outerWidth, maxEditorCanvasWidth: 600 }), baseline);
+				}
+			}
+		});
+
+		test('does not enable word wrapping', () => {
+			const padded = computeLayout({ ...input, wordWrap: 'off', maxEditorCanvasWidth: 600 });
+			assert.deepStrictEqual([padded.contentWidth, padded.isViewportWrapping, padded.wrappingColumn], [614, false, -1]);
+		});
+	});
 
 	test('EditorLayoutProvider 1', () => {
 		doTest({
