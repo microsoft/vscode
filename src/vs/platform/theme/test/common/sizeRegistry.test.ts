@@ -85,6 +85,27 @@ suite('Size Registry', () => {
 		});
 	});
 
+	test('spacing size tokens should use the expected scale', () => {
+		assert.deepStrictEqual(getSizeTokenDefaults('spacing.'), {
+			'spacing.sizeNone': sizeForAllThemes(0, 'px'),
+			'spacing.size10': sizeForAllThemes(1, 'px'),
+			'spacing.size20': sizeForAllThemes(2, 'px'),
+			'spacing.size30': sizeForAllThemes(3, 'px'),
+			'spacing.size40': sizeForAllThemes(4, 'px'),
+			'spacing.size60': sizeForAllThemes(6, 'px'),
+			'spacing.size80': sizeForAllThemes(8, 'px'),
+			'spacing.size100': sizeForAllThemes(10, 'px'),
+			'spacing.size120': sizeForAllThemes(12, 'px'),
+			'spacing.size160': sizeForAllThemes(16, 'px'),
+			'spacing.size200': sizeForAllThemes(20, 'px'),
+			'spacing.size240': sizeForAllThemes(24, 'px'),
+			'spacing.size280': sizeForAllThemes(28, 'px'),
+			'spacing.size320': sizeForAllThemes(32, 'px'),
+			'spacing.size360': sizeForAllThemes(36, 'px'),
+			'spacing.size400': sizeForAllThemes(40, 'px'),
+		});
+	});
+
 	test('sizeForAllThemes should create same value for all themes', () => {
 		const sizeDefaults = sizeForAllThemes(10, 'px');
 		assert.deepStrictEqual(sizeDefaults.light, { value: 10, unit: 'px' });

@@ -149,9 +149,17 @@ export const spacingNone = registerSize('spacing.sizeNone',
 	sizeForAllThemes(0, 'px'),
 	nls.localize('spacingNone', "No spacing (0px)."));
 
+export const spacingSize10 = registerSize('spacing.size10',
+	sizeForAllThemes(1, 'px'),
+	nls.localize('spacingSize10', "Spacing of 1px."));
+
 export const spacingSize20 = registerSize('spacing.size20',
 	sizeForAllThemes(2, 'px'),
 	nls.localize('spacingSize20', "Spacing of 2px."));
+
+export const spacingSize30 = registerSize('spacing.size30',
+	sizeForAllThemes(3, 'px'),
+	nls.localize('spacingSize30', "Spacing of 3px."));
 
 export const spacingSize40 = registerSize('spacing.size40',
 	sizeForAllThemes(4, 'px'),
