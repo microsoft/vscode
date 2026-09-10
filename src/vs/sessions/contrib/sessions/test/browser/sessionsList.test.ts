@@ -2828,6 +2828,68 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('compact presentation', () => {
+
+		test('uses a single line with prioritized metadata and preserves the accessible label', () => {
+			const session = createTestSession('Implement compact view', {
+				workspaceLabel: 'vscode',
+				changesSummary: { files: 2, additions: 12, deletions: 3 },
+			}).session;
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			let compact = true;
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => compact,
+				onSessionOpen: () => { },
+			}));
+			list.layout(500, 400);
+
+			const readPresentation = () => {
+				const item = container.querySelector<HTMLElement>('.session-item');
+				const row = item?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(item);
+				assert.ok(row);
+				return {
+					compactClass: list.element.classList.contains('compact'),
+					height: row.style.height,
+					workspace: item.querySelector('.session-badge')?.textContent,
+					diff: item.querySelector('.session-diff')?.textContent,
+					time: item.querySelector('.session-time')?.textContent,
+					ariaLabel: row.getAttribute('aria-label'),
+				};
+			};
+
+			const compactPresentation = readPresentation();
+			compact = false;
+			list.setCompact();
+			const defaultPresentation = readPresentation();
+
+			assert.deepStrictEqual({
+				compact: compactPresentation,
+				default: defaultPresentation,
+			}, {
+				compact: {
+					compactClass: true,
+					height: '30px',
+					workspace: undefined,
+					diff: '+12-3',
+					time: undefined,
+					ariaLabel: 'Implement compact view, updated now, State: Completed, in vscode',
+				},
+				default: {
+					compactClass: false,
+					height: '56px',
+					workspace: 'vscode',
+					diff: '+12-3',
+					time: 'now',
+					ariaLabel: 'Implement compact view, updated now, State: Completed, in vscode',
+				},
+			});
+		});
+	});
+
 	suite('computeReorderSortChanges', () => {
 		const NOW = 1_000_000;
 		const STEP = 60_000;

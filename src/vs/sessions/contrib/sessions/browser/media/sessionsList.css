@@ -433,6 +433,48 @@
 	}
 }
 
+.sessions-list-control.compact {
+	.session-item:not(.quick-chat) {
+		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+
+		.session-main {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 40%);
+			align-items: center;
+		}
+
+		.session-title-row {
+			padding-bottom: 0;
+			line-height: var(--vscode-spacing-size160);
+		}
+
+		.session-details-row {
+			margin-left: var(--vscode-spacing-size80);
+			justify-content: flex-end;
+			line-height: var(--vscode-spacing-size160);
+			max-height: var(--vscode-spacing-size160);
+		}
+
+		.session-approval-row,
+		.session-ci-row {
+			grid-column: 1 / -1;
+		}
+	}
+
+	.monaco-list-row:hover .session-item:not(.quick-chat),
+	.monaco-list-row.focused .session-item:not(.quick-chat),
+	.session-item.pinned:not(.quick-chat) {
+		.session-title-row {
+			grid-column: 1 / -1;
+		}
+
+		.session-details-row {
+			display: none;
+		}
+	}
+
+}
+
 /* Approval prompt shown when a chat is waiting for the user to allow a pending
 	tool action. Rendered on the session row (for the session's main chat) and on
 	each nested/side chat row (for that chat), so it is scoped to neither. */

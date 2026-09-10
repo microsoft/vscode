@@ -285,6 +285,7 @@ const DEFAULT_APPROVAL_ROW_MAX_LINES = 3;
 
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
+	private static readonly ITEM_HEIGHT_COMPACT = 28;
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
 	private static readonly CHAT_ITEM_HEIGHT = 28;
@@ -312,6 +313,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	constructor(
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly _isPhone: () => boolean,
+		private readonly _isCompact: () => boolean,
 		private readonly _approvalRowMaxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES,
 		private readonly _ciFixModel: ISessionCIFixModel | undefined = undefined,
 		private readonly _useCompactQuickChatRows = true,
@@ -359,6 +361,8 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_PHONE;
 		} else if (this._useCompactQuickChatRows && isQuickChatSession(element as ISession)) {
 			height = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
+		} else if (this._isCompact()) {
+			height = SessionsTreeDelegate.ITEM_HEIGHT_COMPACT;
 		} else {
 			height = SessionsTreeDelegate.ITEM_HEIGHT;
 		}
@@ -754,7 +758,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 		},
@@ -1037,6 +1041,55 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			const parts: HTMLElement[] = [];
+			let insertions = 0;
+			let deletions = 0;
+			if (changesSummary) {
+				insertions = changesSummary.additions;
+				deletions = changesSummary.deletions;
+			} else {
+				for (const change of changes) {
+					insertions += change.insertions;
+					deletions += change.deletions;
+				}
+			}
+
+			const statusMessage = getSessionStatusMessage(sessionStatus, description);
+			if (this.options.compact()) {
+				if (statusMessage !== undefined) {
+					timeDisposable.clear();
+					const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
+					if (typeof statusMessage === 'string') {
+						descriptionDisposable.clear();
+						statusEl.textContent = statusMessage;
+					} else {
+						descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
+					}
+				} else if (insertions > 0 || deletions > 0) {
+					descriptionDisposable.clear();
+					timeDisposable.clear();
+					const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
+					DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${insertions}`;
+					DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${deletions}`;
+				} else if (timeDate) {
+					descriptionDisposable.clear();
+					const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
+					const definiteTimeDate = timeDate;
+					const formatTime = () => {
+						const seconds = Math.round((Date.now() - definiteTimeDate.getTime()) / 1000);
+						return seconds < 60 ? localize('secondsDuration', "now") : fromNow(definiteTimeDate, true);
+					};
+					timeEl.textContent = formatTime();
+					const targetWindow = DOM.getWindow(timeEl);
+					const interval = targetWindow.setInterval(() => {
+						timeEl.textContent = formatTime();
+					}, 60_000);
+					timeDisposable.value = toDisposable(() => targetWindow.clearInterval(interval));
+				} else {
+					descriptionDisposable.clear();
+					timeDisposable.clear();
+				}
+				return;
+			}
 
 			if (sessionStatus !== SessionStatus.InProgress) {
 				let icon: ThemeIcon;
@@ -1071,18 +1124,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			// Diff stats
 			if (!isQuickChat && !hideDetails && (changesSummary || changes.length > 0)) {
-				let insertions = 0, deletions = 0;
-
-				if (changesSummary) {
-					insertions = changesSummary.additions;
-					deletions = changesSummary.deletions;
-				} else if (changes.length > 0) {
-					for (const change of changes) {
-						insertions += change.insertions;
-						deletions += change.deletions;
-					}
-				}
-
 				if (insertions > 0 || deletions > 0) {
 					if (parts.length > 0) {
 						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
@@ -1094,7 +1135,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				}
 			}
 
-			const statusMessage = getSessionStatusMessage(sessionStatus, description);
 			if (statusMessage !== undefined) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
@@ -2312,6 +2352,7 @@ export interface ISessionsListControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
+	readonly compact?: () => boolean;
 	readonly findWidgetContainer?: HTMLElement;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
 
@@ -2352,6 +2393,7 @@ export interface ISessionsList {
 	hasFocusOrSelection(): boolean;
 	setVisible(visible: boolean): void;
 	layout(height: number, width: number): void;
+	setCompact(): void;
 	focus(): void;
 	update(expandAll?: boolean): void;
 	openFind(): void;
@@ -2532,6 +2574,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
+		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
 		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
 			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}));
@@ -2580,6 +2623,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
 				useCompactQuickChatRows: true,
+				compact: () => this.options.compact?.() ?? false,
 				approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES,
 				aggregateChatApprovals: false,
 				toolbarMenuId: SessionItemToolbarMenuId,
@@ -2640,6 +2684,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const delegate = new SessionsTreeDelegate(
 			approvalModel,
 			() => !!IsPhoneLayoutContext.getValue(contextKeyService),
+			() => this.options.compact?.() ?? false,
 			DEFAULT_APPROVAL_ROW_MAX_LINES,
 			undefined,
 			true /* useCompactQuickChatRows */,
@@ -3557,6 +3602,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	layout(height: number, width: number): void {
 		this.tree.layout(height, width);
+	}
+
+	setCompact(): void {
+		this.listContainer.classList.toggle('compact', this.options.compact?.() ?? false);
+		this.update();
 	}
 
 	focus(): void {
@@ -4707,6 +4757,7 @@ export class SessionsFlatList extends Disposable {
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
 				useCompactQuickChatRows,
+				compact: () => false,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
 				// This list renders no nested chat rows, so the session row is the
 				// only place an approval on any of its chats can surface.
@@ -4731,7 +4782,7 @@ export class SessionsFlatList extends Disposable {
 			voicePlaybackService,
 		);
 
-		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,

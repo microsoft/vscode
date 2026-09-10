@@ -51,6 +51,7 @@ const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
+const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
@@ -59,6 +60,7 @@ export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMe
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
 export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
+export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 
 export interface ISessionsHeaderElements {
@@ -111,8 +113,10 @@ export class SessionsView extends ViewPane {
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
+	private currentCompact = false;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
+	private compactContextKey: IContextKey<boolean> | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
 	private currentBodyHeight = 0;
@@ -154,12 +158,15 @@ export class SessionsView extends ViewPane {
 		if (storedSorting && Object.values(SessionsSorting).includes(storedSorting as SessionsSorting)) {
 			this.currentSorting = storedSorting as SessionsSorting;
 		}
+		this.currentCompact = this.storageService.getBoolean(COMPACT_STORAGE_KEY, StorageScope.PROFILE, false);
 
 		// Ensure context keys reflect restored state immediately
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.currentGrouping);
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
+		this.compactContextKey = SessionsViewCompactContext.bindTo(contextKeyService);
+		this.compactContextKey.set(this.currentCompact);
 
 		// Bind workspace group capped context key (will be synced with persisted state in renderBody)
 		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
@@ -223,6 +230,7 @@ export class SessionsView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
+			compact: () => this.currentCompact && !isPhoneLayout(this.layoutService),
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const onOpened = () => {
@@ -760,5 +768,20 @@ export class SessionsView extends ViewPane {
 		this.storageService.store(SORTING_STORAGE_KEY, this.currentSorting, StorageScope.PROFILE, StorageTarget.USER);
 		this.sortingContextKey?.set(this.currentSorting);
 		this.sessionsControl?.update();
+	}
+
+	setCompact(compact: boolean): void {
+		if (this.currentCompact === compact) {
+			return;
+		}
+
+		this.currentCompact = compact;
+		this.storageService.store(COMPACT_STORAGE_KEY, compact, StorageScope.PROFILE, StorageTarget.USER);
+		this.compactContextKey?.set(compact);
+		this.sessionsControl?.setCompact();
+	}
+
+	toggleCompact(): void {
+		this.setCompact(!this.currentCompact);
 	}
 }
