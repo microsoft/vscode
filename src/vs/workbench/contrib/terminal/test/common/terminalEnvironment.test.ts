@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
-import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI as Uri } from '../../../../../base/common/uri.js';
 import { addTerminalEnvironmentKeys, createTerminalEnvironment, getUriLabelForShell, getCwd, getLangEnvVariable, getWorkspaceForTerminal, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from '../../common/terminalEnvironment.js';
 import { GeneralShellType, PosixShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
@@ -320,6 +320,42 @@ suite('Workbench - TerminalEnvironment', () => {
 				await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', { foo: 'bar', empty: '' }),
 				{ foo: 'bar', empty: '', ...commonVariables }
 			);
+		});
+		test('should restore NODE_OPTIONS from VSCODE_NODE_OPTIONS on Windows and macOS', async () => {
+			if (!isWindows && !isMacintosh) {
+				return;
+			}
+			const env = {
+				VSCODE_NODE_OPTIONS: '--max-old-space-size=8192'
+			};
+			const result = await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', env);
+			strictEqual(result['NODE_OPTIONS'], '--max-old-space-size=8192');
+			strictEqual(result['VSCODE_NODE_OPTIONS'], undefined);
+		});
+		test('should restore NODE_REPL_EXTERNAL_MODULE from VSCODE_NODE_REPL_EXTERNAL_MODULE on Windows and macOS', async () => {
+			if (!isWindows && !isMacintosh) {
+				return;
+			}
+			const env = {
+				VSCODE_NODE_REPL_EXTERNAL_MODULE: 'some-module'
+			};
+			const result = await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', env);
+			strictEqual(result['NODE_REPL_EXTERNAL_MODULE'], 'some-module');
+			strictEqual(result['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined);
+		});
+		test('should restore both NODE env vars from VSCODE variants on Windows and macOS', async () => {
+			if (!isWindows && !isMacintosh) {
+				return;
+			}
+			const env = {
+				VSCODE_NODE_OPTIONS: '--max-old-space-size=8192',
+				VSCODE_NODE_REPL_EXTERNAL_MODULE: 'repl-module'
+			};
+			const result = await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', env);
+			strictEqual(result['NODE_OPTIONS'], '--max-old-space-size=8192');
+			strictEqual(result['NODE_REPL_EXTERNAL_MODULE'], 'repl-module');
+			strictEqual(result['VSCODE_NODE_OPTIONS'], undefined);
+			strictEqual(result['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined);
 		});
 	});
 	suite('getWorkspaceForTerminal', () => {
