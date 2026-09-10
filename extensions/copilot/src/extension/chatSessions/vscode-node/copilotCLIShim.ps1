@@ -82,10 +82,15 @@ function Find-RealCopilot {
     # Check if the copilot command would point to this script
     $CurrentScriptResolved = if ($CurrentScript) { (Resolve-Path $CurrentScript -ErrorAction SilentlyContinue).Path } else { $null }
     $CopilotPathResolved = if ($CopilotPath) { (Resolve-Path $CopilotPath -ErrorAction SilentlyContinue).Path } else { $null }
+    # Split-Path cannot bind a null path, so only take the directory when there is one.
+    # $CopilotPath is null whenever `copilot` is not on PATH, which is exactly the
+    # bootstrap case this function has to survive.
+    $CurrentScriptDir = if ($CurrentScript) { Split-Path $CurrentScript -Parent } else { $null }
+    $CopilotPathDir = if ($CopilotPath) { Split-Path $CopilotPath -Parent } else { $null }
 
-    if ($CurrentScript -eq $CopilotPath -or (Split-Path $CurrentScript -Parent) -eq (Split-Path $CopilotPath -Parent) -or ($CurrentScriptResolved -and $CopilotPathResolved -and $CurrentScriptResolved -eq $CopilotPathResolved)) {
+    if ($CurrentScript -eq $CopilotPath -or ($CurrentScriptDir -and $CopilotPathDir -and $CurrentScriptDir -eq $CopilotPathDir) -or ($CurrentScriptResolved -and $CopilotPathResolved -and $CurrentScriptResolved -eq $CopilotPathResolved)) {
         # The copilot in PATH is this script, find the real one by temporarily removing this script's directory from PATH
-        $ScriptDir = Split-Path $CurrentScript -Parent
+        $ScriptDir = $CurrentScriptDir
         $OldPath = $env:PATH
         # Use appropriate path delimiter based on OS
         $PathDelimiter = if ($IsWindows -or $env:OS -eq "Windows_NT") { ';' } else { ':' }
