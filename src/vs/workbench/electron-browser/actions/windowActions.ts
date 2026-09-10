@@ -33,8 +33,6 @@ import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } fr
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
 import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
-import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
-import { isEqual } from '../../../base/common/resources.js';
 
 export class CloseWindowAction extends Action2 {
 
@@ -260,7 +258,6 @@ abstract class BaseSwitchWindow extends Action2 {
 		const modelService = accessor.get(IModelService);
 		const languageService = accessor.get(ILanguageService);
 		const nativeHostService = accessor.get(INativeHostService);
-		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		const currentWindowId = getActiveWindow().vscodeWindowId;
 
@@ -300,13 +297,12 @@ abstract class BaseSwitchWindow extends Action2 {
 
 			const resource = window.filename ? URI.file(window.filename) : isSingleFolderWorkspaceIdentifier(window.workspace) ? window.workspace.uri : isWorkspaceIdentifier(window.workspace) ? window.workspace.configPath : undefined;
 			const fileKind = window.filename ? FileKind.FILE : isSingleFolderWorkspaceIdentifier(window.workspace) ? FileKind.FOLDER : isWorkspaceIdentifier(window.workspace) ? FileKind.ROOT_FOLDER : FileKind.FILE;
-			const isAgentsWindow = isWorkspaceIdentifier(window.workspace) && isEqual(window.workspace.configPath, environmentService.agentSessionsWorkspace);
 			const pick: IWindowPickItem = {
 				windowId: window.id,
 				label: window.title,
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
-				iconPath: isAgentsWindow ? { dark: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg') } : undefined,
-				iconClasses: isAgentsWindow ? undefined : getIconClasses(modelService, languageService, resource, fileKind),
+				iconPath: window.isSessionsWindow ? { dark: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg') } : undefined,
+				iconClasses: window.isSessionsWindow ? undefined : getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
 				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};

@@ -92,6 +92,7 @@ interface IOpenedWindow {
 export interface IOpenedMainWindow extends IOpenedWindow {
 	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
+	readonly isSessionsWindow: boolean;
 }
 
 export interface IOpenedAuxiliaryWindow extends IOpenedWindow {

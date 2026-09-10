@@ -70,6 +70,7 @@ function createWindow(id: number): IOpenedMainWindow {
 		id,
 		title: `Window ${id}`,
 		dirty: false,
+		isSessionsWindow: false,
 	};
 }
 

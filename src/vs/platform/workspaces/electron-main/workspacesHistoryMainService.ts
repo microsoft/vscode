@@ -393,7 +393,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					description: localize('openAgentsWindowDesc', "Opens the Agents Window"),
 					program: process.execPath,
 					args: '--agents',
-					iconPath: join(this.environmentMainService.appRoot, 'resources/win32/agents.ico'),
+					iconPath: join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico'),
 					iconIndex: 0
 				}
 			]
