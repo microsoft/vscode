@@ -8,10 +8,10 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
-import { readSessionArtifacts, SESSION_ARTIFACT_TYPES, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SESSION_ARTIFACT_TYPES, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { parseRequiredSessionUriFromChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
-import type { AgentHostStateManager } from '../agentHostStateManager.js';
-import type { IServerToolDisplay, IServerToolExecutionContext, IServerToolGroup } from './agentServerToolHost.js';
+import type { IServerToolDisplay, IServerToolGroup } from './agentServerToolHost.js';
+import { SessionArtifacts } from './sessionArtifacts.js';
 
 const artifactClassification = 'An issue or pull request you create or attempt to fix, change, or unblock is an artifact; inspection or review alone makes it a reference.';
 
@@ -90,7 +90,7 @@ export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
 	/** Persists a session's artifacts and references so they survive a host restart. */
-	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void;
+	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
 }
 
 /** The noun an entry is described by, so every message names what it acted on. */
@@ -121,33 +121,6 @@ function artifactDisplayInputs(args: unknown): readonly IArtifactDisplayInput[] 
 function describeArtifact(artifact: ISessionArtifact): string {
 	const value = artifact.link ?? artifact.uri ?? artifact.commitHash ?? '';
 	return `${artifact.id} (${artifact.type}, ${entryNoun(artifact.isArtifact)}) ${artifact.label}${value ? ` — ${value}` : ''}`;
-}
-
-/**
- * Reads, mutates and republishes the artifacts and references of the session
- * that owns the executing chat. They live on the session's `_meta` bag, so a
- * change reaches subscribed clients through the regular action envelope.
- */
-class SessionArtifacts {
-
-	private readonly _session: string;
-
-	constructor(
-		private readonly _stateManager: AgentHostStateManager,
-		context: IServerToolExecutionContext,
-	) {
-		this._session = parseRequiredSessionUriFromChatUri(context.chatUri);
-	}
-
-	read(): SessionArtifactCollection {
-		return new SessionArtifactCollection(readSessionArtifacts(this._stateManager.getSessionState(this._session)?._meta));
-	}
-
-	write(artifacts: readonly ISessionArtifact[], accessor: IArtifactServerToolAccessor): void {
-		const meta = this._stateManager.getSessionState(this._session)?._meta;
-		this._stateManager.setSessionMeta(this._session, withSessionArtifacts(meta, artifacts));
-		accessor.persist(this._session, artifacts);
-	}
 }
 
 export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAccessor): IServerToolGroup {
@@ -200,12 +173,12 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					return undefined;
 			}
 		},
-		execute(stateManager, context, toolName, rawArgs): string {
+		async execute(stateManager, context, toolName, rawArgs): Promise<string> {
 			if (!accessor) {
 				throw new Error(`${toolName} is unavailable in this host.`);
 			}
 
-			const artifacts = new SessionArtifacts(stateManager, context);
+			const artifacts = new SessionArtifacts(stateManager, parseRequiredSessionUriFromChatUri(context.chatUri), accessor.persist);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
 					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
@@ -214,32 +187,28 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 							throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);
 						}
 					}
-					let collection = artifacts.read();
-					let changed = false;
-					const messages: string[] = [];
-					for (const input of inputs) {
-						const result = collection.add(input, generateUuid);
-						collection = new SessionArtifactCollection(result.artifacts);
-						changed ||= result.added;
-						messages.push(result.added
-							? `Added ${entryNoun(result.artifact.isArtifact)}: ${describeArtifact(result.artifact)}`
-							: `Already recorded: ${describeArtifact(result.artifact)}`);
-					}
-					if (changed) {
-						artifacts.write(collection.artifacts, accessor);
-					}
-					return messages.join('\n');
+					const result = await artifacts.mutate(collection => {
+						const messages: string[] = [];
+						for (const input of inputs) {
+							const result = collection.add(input, generateUuid);
+							collection = new SessionArtifactCollection(result.artifacts);
+							messages.push(result.added
+								? `Added ${entryNoun(result.artifact.isArtifact)}: ${describeArtifact(result.artifact)}`
+								: `Already recorded: ${describeArtifact(result.artifact)}`);
+						}
+						return { artifacts: collection.artifacts, messages };
+					});
+					return result.messages.join('\n');
 				}
 				case ArtifactServerToolName.RemoveArtifactOrReference: {
 					const id = (rawArgs as { id?: unknown } | undefined)?.id;
 					if (typeof id !== 'string' || id.length === 0) {
 						throw new Error(`Invalid ${ArtifactServerToolName.RemoveArtifactOrReference} input: id must be a non-empty string.`);
 					}
-					const result = artifacts.read().remove(id);
+					const result = await artifacts.mutate(collection => collection.remove(id));
 					if (!result.removed) {
 						return `No artifact or reference with id ${id}.`;
 					}
-					artifacts.write(result.artifacts, accessor);
 					const message = result.removed.isArtifact ? REMOVED_ARTIFACT_MESSAGE : REMOVED_REFERENCE_MESSAGE;
 					return `${message}: ${describeArtifact(result.removed)}`;
 				}
