@@ -323,7 +323,7 @@ Use a representation-neutral icon-size role from the registry for rendered geome
 
 ### Codicon compatibility — icon `font-size`
 
-Use the dedicated Codicon font-size tokens from the registry rather than an arbitrary generic icon-box size.
+Follow the [Codicon compatibility guidance](../../instructions/design-tokens.instructions.md#codicon-compatibility--icon-font-size) for standard versus purpose-specific sizes; do not infer the allowed roles from this skill.
 
 **Compact-glyph convention:** when selecting the compact Codicon role, also swap the registered glyph to its `*Compact` variant when one exists. CSS `font-size` alone only scales the icon; it does not select the optically tuned glyph. Only swap the glyph when no CSS selector targets the original glyph class, otherwise update that selector too or size through a glyph-independent wrapper.
 

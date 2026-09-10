@@ -227,7 +227,7 @@ Text styles are **roles**, not arbitrary sizes: `heading1–3`, `body1–2`, `la
 Icons use the representation-neutral size roles currently registered in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts).
 
 - **Decision rule:** choose a registered role from the **density and rank of the context**, independent of whether the source is a Codicon, product icon, file icon, SVG, or raster image. Optical correction happens inside the rendered icon geometry and must not move adjacent content.
-- **Codicon rule:** use the dedicated Codicon font-size tokens from the registry. When selecting the compact role, use the corresponding `*Compact` glyph when one exists so the icon is tuned for that size rather than only scaled.
+- **Codicon rule:** follow the [Codicon compatibility guidance](../../instructions/design-tokens.instructions.md#codicon-compatibility--icon-font-size) for standard versus purpose-specific sizes. When selecting the compact role, use the corresponding `*Compact` glyph when one exists so the icon is tuned for that size rather than only scaled.
 - **Serves:** *One thing leads* (4), *Sameness signals sameness* (6).
 
 <a id="one-stroke"></a>
