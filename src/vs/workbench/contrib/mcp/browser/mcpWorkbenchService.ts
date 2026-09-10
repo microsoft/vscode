@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { createCommandUri, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -36,7 +36,8 @@ import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkben
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { McpServerInstallData, McpServerInstallClassification } from '../common/mcpServer.js';
-import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionProvenance, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { McpResourceFormat, WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { ContributionEnablementState } from '../../chat/common/enablement.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
@@ -406,14 +407,14 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._onChange.fire(undefined);
 	}
 
-	private areSameMcpServers(a: { name: string; scope: LocalMcpServerScope } | undefined, b: { name: string; scope: LocalMcpServerScope } | undefined): boolean {
+	private areSameMcpServers(a: { name: string; scope: LocalMcpServerScope; mcpResource: URI } | undefined, b: { name: string; scope: LocalMcpServerScope; mcpResource: URI } | undefined): boolean {
 		if (a === b) {
 			return true;
 		}
 		if (!a || !b) {
 			return false;
 		}
-		return a.name === b.name && a.scope === b.scope;
+		return a.name === b.name && a.scope === b.scope && this.uriIdentityService.extUri.isEqual(a.mcpResource, b.mcpResource);
 	}
 
 	private onDidUninstallMcpServer(e: DidUninstallWorkbenchMcpServerEvent) {
@@ -429,8 +430,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private onDidInstallMcpServers(e: readonly IWorkbenchMcpServerInstallResult[]) {
 		let needsRegistrySync = false;
-		for (const { local, name, source } of e) {
-			let server = this.installing.find(server => server.local && local ? this.areSameMcpServers(server.local, local) : server.name === name);
+		for (const { local, source } of e) {
+			let server = local ? this.installing.find(server => this.areSameMcpServers(server.local, local)) : undefined;
 			this.installing = server ? this.installing.filter(e => e !== server) : this.installing;
 			if (local) {
 				const trustedGallery = this.getTrustedGallerySource(source) ?? this.getTrustedGallerySource(server?.gallery);
@@ -632,6 +633,10 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		const workspace: IWorkbenchLocalMcpServer[] = [];
 
 		for (const server of this.local) {
+			// Root servers are published independently; exclude them before resolving installed-name precedence.
+			if (server.local?.format === McpResourceFormat.WorkspaceRoot) {
+				continue;
+			}
 			const enablementStatus = this.getEnablementStatus(server);
 			if (enablementStatus && enablementStatus.state !== McpServerEnablementState.Enabled) {
 				continue;
@@ -727,8 +732,14 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		this._onChange.fire(server);
 
 		try {
-			await installTask();
-			const result = await this.waitAndGetInstalledMcpServer(server);
+			const local = await installTask();
+			let result = this.local.find(candidate => this.areSameMcpServers(candidate.local, local));
+			if (!result) {
+				result = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), local, this.getTrustedGallerySource(server.gallery), undefined);
+				this.addServer(result);
+				this._onChange.fire(result);
+				this.scheduleRegistrySync();
+			}
 
 			// Track successful installation
 			this.telemetryService.publicLog2<McpServerInstallData, McpServerInstallClassification>('mcp/serverInstall', {
@@ -758,19 +769,6 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this._onChange.fire(server);
 			}
 		}
-	}
-
-	private async waitAndGetInstalledMcpServer(server: McpWorkbenchServer): Promise<IWorkbenchMcpServer> {
-		let installed = this.local.find(local => local.name === server.name);
-		if (!installed) {
-			await Event.toPromise(Event.filter(this.onChange, e => !!e && this.local.some(local => local.name === server.name)));
-		}
-		installed = this.local.find(local => local.name === server.name);
-		if (!installed) {
-			// This should not happen
-			throw new Error('Extension should have been installed');
-		}
-		return installed;
 	}
 
 	getMcpConfigPath(localMcpServer: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
@@ -853,6 +851,23 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		const workspaceFolders = workspace.folders;
 		for (let index = 0; index < workspaceFolders.length; index++) {
 			const workspaceFolder = workspaceFolders[index];
+			if (this.uriIdentityService.extUri.isEqual(workspaceFolder.toResource(WORKSPACE_ROOT_MCP_CONFIG_FILE), mcpResource)) {
+				const collectionId = `${WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX}${workspaceFolder.index}`;
+				return {
+					id: collectionId,
+					collectionId,
+					format: McpResourceFormat.WorkspaceRoot,
+					provenance: McpCollectionProvenance.WorkspaceDotMcp,
+					key: 'workspaceFolderValue',
+					target: ConfigurationTarget.WORKSPACE_FOLDER,
+					label: `${workspaceFolder.name}/${WORKSPACE_ROOT_MCP_CONFIG_FILE}`,
+					scope: StorageScope.WORKSPACE,
+					remoteAuthority: this.environmentService.remoteAuthority,
+					order: McpCollectionSortOrder.WorkspaceFolder + 1,
+					uri: mcpResource,
+					workspaceFolder,
+				};
+			}
 			if (this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]), mcpResource)) {
 				return {
 					id: `${WORKSPACE_FOLDER_CONFIG_ID_PREFIX}${index}`,
@@ -971,10 +986,10 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	}
 
 	private getInstallState(extension: McpWorkbenchServer): McpServerInstallState {
-		if (this.installing.some(i => i.name === extension.name)) {
+		if (this.installing.some(server => server === extension || server.local && extension.local && this.areSameMcpServers(server.local, extension.local))) {
 			return McpServerInstallState.Installing;
 		}
-		if (this.uninstalling.some(e => e.name === extension.name)) {
+		if (this.uninstalling.some(server => server === extension || server.local && extension.local && this.areSameMcpServers(server.local, extension.local))) {
 			return McpServerInstallState.Uninstalling;
 		}
 		const local = this.local.find(e => e === extension);
@@ -1036,7 +1051,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		if (accessValue === McpAccessValue.Registry) {
-			if (!mcpServer.gallery) {
+			if (mcpServer.local.format === McpResourceFormat.WorkspaceRoot || !mcpServer.gallery) {
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {
