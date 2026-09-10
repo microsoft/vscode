@@ -1929,20 +1929,23 @@ export class AgentService extends Disposable implements IAgentService {
 			if (identity.external && !readSessionEhcliAdoptable(metadata._meta) && this._isExternalSessionOlderThanMaxAge(metadata.modifiedTime, Date.now())) {
 				continue;
 			}
+			const wasRegistered = existing.has(identity.session.toString());
 			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
 			if (registered) {
 				this._invalidateSessionList();
-				if (identity.external && existing.get(identity.session.toString()) !== true) {
-					await this._initializeExternalSessionReadState(identity.session);
-				}
 				existing.set(identity.session.toString(), identity.external);
-				if (identity.external && !metadata.summary) {
-					untitledExternal.push(metadata);
-				}
-				if (identity.external && !readSessionEhcliAdoptable(metadata._meta)) {
-					registeredExternal = true;
-				} else {
-					await this._announceSurfacedSession({ ...metadata, _meta: withSessionExternal(metadata._meta, identity.external) }, provider.id);
+				if (!wasRegistered) {
+					if (identity.external) {
+						await this._initializeExternalSessionReadState(identity.session);
+						if (!metadata.summary) {
+							untitledExternal.push(metadata);
+						}
+					}
+					if (identity.external && !readSessionEhcliAdoptable(metadata._meta)) {
+						registeredExternal = true;
+					} else {
+						await this._announceSurfacedSession({ ...metadata, _meta: withSessionExternal(metadata._meta, identity.external) }, provider.id);
+					}
 				}
 			}
 		}

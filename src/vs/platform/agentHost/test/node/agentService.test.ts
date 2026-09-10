@@ -4737,6 +4737,82 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('restoring an unregistered session does not re-announce existing sessions from a completed legacy migration', async () => {
+			const database = new TransientRegistryWriteDatabase();
+			const sessionData = createPerSessionDataService();
+			const session = AgentSession.uri('copilot', 'existing-legacy');
+			const missingSession = AgentSession.uri('copilot', 'missing');
+			await Promise.all([
+				sessionData.database(session).setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false'),
+				sessionData.database(session).setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true'),
+				sessionData.database(session).setMetadata('customTitle', 'Persisted title'),
+				database.registerSession(session.toString(), {
+					provider: 'copilot',
+					startTime: 1,
+					modifiedTime: 2,
+					source: 'explicit',
+				}, { checkTombstone: true }),
+				database.markProviderBackfilled('copilot'),
+			]);
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+			svc.primeMigrateLegacyGate();
+			const agent = disposables.add(new class extends MockAgent {
+				legacyCalls = 0;
+
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					this.legacyCalls++;
+					return [{
+						chat: URI.parse(buildDefaultChatUri(session)),
+						startTime: 1,
+						modifiedTime: 2,
+						summary: 'Stale provider title',
+					}];
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
+					return chat.toString() === buildDefaultChatUri(session) ? {
+						chat,
+						startTime: 1,
+						modifiedTime: 2,
+						summary: 'Stale provider title',
+					} : undefined;
+				}
+				async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+					return { adopted: false, eligible: false };
+				}
+			}('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const before = await svc.listSessions();
+			const catalogState = svc as unknown as {
+				_readableProviderCatalogs: Set<string>;
+				_deferredProviderMigrations: Set<string>;
+			};
+			const beforeRestore = {
+				providerBackfilled: await svc.isProviderRegistryBackfilled('copilot'),
+				readable: catalogState._readableProviderCatalogs.has('copilot'),
+				deferred: catalogState._deferredProviderMigrations.has('copilot'),
+			};
+			const notifications: INotification[] = [];
+			disposables.add(getStateManager(svc).onDidEmitNotification(notification => notifications.push(notification)));
+
+			await assert.rejects(svc.restoreSession(missingSession), /Session is not an adoptable legacy chat/);
+			const after = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				beforeRestore,
+				legacyCalls: agent.legacyCalls,
+				before: before.map(item => ({ title: item.summary, status: item.status })),
+				after: after.map(item => ({ title: item.summary, status: item.status })),
+				sessionAdded: notifications.filter(notification => notification.type === NotificationType.SessionAdded),
+			}, {
+				beforeRestore: { providerBackfilled: true, readable: false, deferred: false },
+				legacyCalls: 1,
+				before: [{ title: 'Persisted title', status: SessionStatus.Idle | SessionStatus.IsArchived }],
+				after: [{ title: 'Persisted title', status: SessionStatus.Idle | SessionStatus.IsArchived }],
+				sessionAdded: [],
+			});
+		});
+
 		test('legacy migration and external discovery use separate provider catalogs and signals', async () => {
 			class SeparateCatalogAgent extends MockAgent {
 				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
