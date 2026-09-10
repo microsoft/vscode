@@ -274,6 +274,100 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
+	test('restores an unlisted model when no models from its provider are available', async () => {
+		const copilotModels = [{ id: 'other-client-model', name: 'Other Client Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
+		const agent = createAgent(disposables, async () => copilotModels);
+		agent['_githubToken'] = 'token';
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		await agent.refreshModels();
+		const selectedModel = { id: toCodexModelSelectionId('openai', 'other-client-model') };
+		const session = { model: selectedModel };
+
+		const resolved = await agent['_resolveModel'](session as never);
+
+		assert.deepStrictEqual({ resolved, sessionModel: session.model }, {
+			resolved: selectedModel,
+			sessionModel: selectedModel,
+		});
+	});
+
+	test('restores an unavailable model using its provider default instead of the global default', async () => {
+		const copilotModels = [{ id: 'other-client-model', name: 'Other Client Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
+		const agent = createAgent(disposables, async () => copilotModels);
+		const connection = createChatGPTConnection();
+		agent['_githubToken'] = 'token';
+		agent['_refreshProviderConfiguration'] = async () => { };
+		agent['_ensureConnection'] = async () => {
+			agent['_connection'] = connection as never;
+			return connection as never;
+		};
+		agent['_activate']();
+		const session = { model: { id: toCodexModelSelectionId('openai', 'other-client-model'), config: { thinkingLevel: 'high' } } };
+
+		const resolved = await agent['_resolveModel'](session as never);
+
+		assert.deepStrictEqual({ resolved, sessionModel: session.model, globalDefault: agent.models.get()[0].id }, {
+			resolved: { id: toCodexModelSelectionId('openai', 'gpt-5.6-sol') },
+			sessionModel: { id: toCodexModelSelectionId('openai', 'gpt-5.6-sol') },
+			globalDefault: toCodexModelSelectionId('vscode-proxy', 'other-client-model'),
+		});
+	});
+
+	test('restored model waits for native discovery even when Copilot models are already loaded', async () => {
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
+		const agent = createAgent(disposables, async () => copilotModels);
+		agent['_githubToken'] = 'token';
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		await agent.refreshModels();
+		const selectedModel = { id: toCodexModelSelectionId('openai', 'native-model'), config: { thinkingLevel: 'high' } };
+		const refreshStarted = new DeferredPromise<void>();
+		const releaseRefresh = new DeferredPromise<void>();
+		agent['_refreshProviderConfiguration'] = async () => { };
+		agent['_refreshCodexModels'] = async () => {
+			await refreshStarted.complete();
+			await releaseRefresh.p;
+			agent['_codexModels'] = [{ ...agent.models.get()[0], id: selectedModel.id }];
+		};
+		agent['_activate']();
+		await refreshStarted.p;
+		const session = { model: selectedModel };
+		let resolved = false;
+		const resolution = agent['_resolveModel'](session as never).then(model => {
+			resolved = true;
+			return model;
+		});
+		await new Promise<void>(resolve => setImmediate(resolve));
+		const resolvedBeforeDiscovery = resolved;
+		await releaseRefresh.complete();
+
+		assert.deepStrictEqual({ resolvedBeforeDiscovery, model: await resolution, sessionModel: session.model }, {
+			resolvedBeforeDiscovery: false,
+			model: selectedModel,
+			sessionModel: selectedModel,
+		});
+	});
+
+	test('restores a saved model even when discovery returns an empty catalog', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		const selectedModel = { id: toCodexModelSelectionId('openai', 'other-client-model'), config: { reasoningEffort: 'high' } };
+		const session = { model: selectedModel };
+
+		const resolved = await agent['_resolveModel'](session as never);
+
+		assert.deepStrictEqual({ resolved, sessionModel: session.model }, {
+			resolved: selectedModel,
+			sessionModel: selectedModel,
+		});
+	});
+
+	test('model resolution still rejects an empty catalog without a saved model', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+
+		await assert.rejects(agent['_resolveModel']({ model: undefined } as never), /Codex has no available models/);
+	});
+
 	test('starts host-requested chat discovery when Codex activates', async () => {
 		const agent = createAgent(disposables, async () => [], { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 		const requests: string[] = [];
@@ -978,9 +1072,17 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
-	test('uses the reasoning efforts advertised by Copilot models', async () => {
+	test('uses the model configuration advertised by Copilot models', async () => {
 		const model: CCAModel = {
-			billing: { is_premium: true, multiplier: 1, restricted_to: [] },
+			billing: {
+				is_premium: true,
+				multiplier: 1,
+				restricted_to: [],
+				token_prices: {
+					default: { context_max: 272_000, input_price: 1 },
+					long_context: { context_max: 1_000_000, input_price: 2 },
+				},
+			},
 			capabilities: {
 				family: 'gpt-5.6',
 				limits: { max_context_window_tokens: 272_000, max_output_tokens: 32_000, max_prompt_tokens: 240_000 },
@@ -1014,11 +1116,21 @@ suite('CodexAgent model refresh', () => {
 				enum: model.configSchema.properties.thinkingLevel.enum,
 				default: model.configSchema.properties.thinkingLevel.default,
 			},
+			contextSize: model.configSchema?.properties.contextSize && {
+				enum: model.configSchema.properties.contextSize.enum,
+				default: model.configSchema.properties.contextSize.default,
+				labels: model.configSchema.properties.contextSize.enumLabels,
+			},
 		})), [{
 			id: toCodexModelSelectionId('vscode-proxy', 'gpt-5.6-sol'),
 			thinkingLevel: {
 				enum: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
 				default: 'medium',
+			},
+			contextSize: {
+				enum: [272_000, 1_000_000],
+				default: 272_000,
+				labels: ['272K', '1M'],
 			},
 		}]);
 	});

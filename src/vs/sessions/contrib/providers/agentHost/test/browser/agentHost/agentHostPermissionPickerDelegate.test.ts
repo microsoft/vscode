@@ -4,6 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { AgentHostPermissionPickerActionItem } from '../../../browser/agentHostPermissionPickerActionItem.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -15,6 +31,7 @@ import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../.
 import { getAgentHostCopilotSandboxSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../browser/agentHostPermissionPickerDelegate.js';
@@ -24,6 +41,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
+import { IChatPhoneInputPresenter } from '../../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -33,6 +51,12 @@ function makeWellKnownConfig(value: string | undefined, levels: readonly string[
 		schema: {
 			type: 'object',
 			properties: {
+				[SessionConfigKey.SandboxEnabled]: {
+					title: 'Sandbox',
+					type: 'string',
+					enum: ['default', 'on', 'off'],
+					sessionMutable: true,
+				},
 				autoApprove: {
 					title: 'Auto Approve',
 					description: '',
@@ -54,12 +78,13 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	readonly onDidChangeRootConfig = this._onDidChangeRoot.event;
 
 	config: ResolveSessionConfigResult | undefined;
+	readonly sessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	rootConfig: RootConfigState | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
 	readonly resolving = observableValue<boolean>('resolving', false);
 
-	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
-		return this.config;
+	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
+		return this.sessionConfigs.get(sessionId) ?? this.config;
 	}
 	getRootConfig(): RootConfigState | undefined {
 		return this.rootConfig;
@@ -69,6 +94,11 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
+		const config = this.sessionConfigs.get(sessionId);
+		if (config) {
+			config.values[property] = value;
+			this.fireChange(sessionId);
+		}
 	}
 	fireChange(sessionId: string = SESSION_ID): void {
 		this._onDidChange.fire(sessionId);
@@ -83,6 +113,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 }
 
 interface ITestRig {
+	readonly instantiationService: TestInstantiationService;
 	readonly delegate: AgentHostPermissionPickerDelegate;
 	readonly provider: FakeProvider;
 	readonly activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
@@ -110,6 +141,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	let assistedPermissionsEnabled = true;
 	let customTerminalToolEnabled = false;
 	const configurationService = new class extends mock<IConfigurationService>() {
+		override readonly onDidChangeConfiguration = Event.None;
 		override getValue<T>(): T;
 		override getValue<T>(section: string): T;
 		override getValue<T>(overrides: IConfigurationOverrides): T;
@@ -130,6 +162,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	insta.set(ISessionsService, sessionsManagementService);
 	insta.set(ISessionsProvidersService, sessionsProvidersService);
 	insta.set(IConfigurationService, configurationService);
+	insta.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 	insta.set(IAgentHostEnablementService, {
 		_serviceBrand: undefined,
 		enabled: constObservable(true),
@@ -139,6 +172,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 
 	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
 	return {
+		instantiationService: insta,
 		delegate,
 		provider,
 		activeSessionObs,
@@ -155,6 +189,71 @@ function makeActiveSession(sessionType = 'copilotcli'): IActiveSession {
 suite('AgentHostPermissionPickerDelegate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('running-session picker renders sandbox status as an icon and writes only session choices', async () => {
+		const { instantiationService, provider, activeSessionObs, setManagedSandboxEnforced } = setup(store, makeActiveSession(), 'autoApprove');
+		const config = makeWellKnownConfig('autoApprove');
+		config.values[SessionConfigKey.SandboxEnabled] = 'off';
+		provider.sessionConfigs.set(SESSION_ID, config);
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
+		const settingId = getAgentHostCopilotSandboxSettingId(false);
+		await configurationService.setUserConfiguration(settingId, 'on');
+		let toggle: IActionListItemInlineToggle | undefined;
+		let onHide: (() => void) | undefined;
+		let menuUpdates = 0;
+		instantiationService.set(IConfigurationService, configurationService);
+		instantiationService.set(IContextKeyService, store.add(new ContextKeyService(configurationService)));
+		instantiationService.set(IKeybindingService, new MockKeybindingService());
+		instantiationService.set(ICommandService, new class extends mock<ICommandService>() { }());
+		instantiationService.set(IDialogService, new class extends mock<IDialogService>() { }());
+		instantiationService.set(IOpenerService, new class extends mock<IOpenerService>() { }());
+		instantiationService.set(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.set(ITelemetryService, NullTelemetryService);
+		instantiationService.set(IHoverService, new class extends mock<IHoverService>() {
+			override setupDelayedHover() { return { dispose: () => { } }; }
+		}());
+		instantiationService.set(IActionWidgetService, new class extends mock<IActionWidgetService>() {
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				toggle = items.find(item => item.standaloneToggle)?.standaloneToggle;
+				onHide = delegate.onHide;
+			}
+			override updateItems(): void { menuUpdates++; }
+			override hide(): void { }
+		}());
+		const action = instantiationService.createInstance(MenuItemAction, { id: 'test.permissions', title: 'Permissions' }, undefined, undefined, undefined, undefined);
+		const compact = observableValue('compact', false);
+		const picker = store.add(instantiationService.createInstance(AgentHostPermissionPickerActionItem, action, { compact }, activeSessionObs));
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('a.action-label');
+		assert.ok(trigger);
+		const readPresentation = () => ({
+			label: trigger.querySelector('.chat-input-picker-label')?.textContent,
+			sandboxIcon: !!trigger.querySelector('.chat-input-picker-sandbox-icon'),
+			accessibleSandboxed: trigger.ariaLabel?.includes('(sandboxed)'),
+		});
+		const initial = readPresentation();
+		picker.show();
+		assert.ok(toggle);
+		toggle.onChange(true);
+		const enabled = readPresentation();
+		toggle.onChange(false);
+		const disabled = readPresentation();
+		setManagedSandboxEnforced(true);
+		const managed = readPresentation();
+		toggle.onChange(false);
+		onHide?.();
+		assert.deepStrictEqual({ initial, enabled, disabled, managed, writes: provider.setCalls, global: configurationService.getValue(settingId), menuUpdates }, {
+			initial: { label: 'Allow all', sandboxIcon: false, accessibleSandboxed: false },
+			enabled: { label: 'Allow all', sandboxIcon: true, accessibleSandboxed: true },
+			disabled: { label: 'Allow all', sandboxIcon: false, accessibleSandboxed: false },
+			managed: { label: 'Allow all', sandboxIcon: true, accessibleSandboxed: true },
+			writes: [[SESSION_ID, SessionConfigKey.SandboxEnabled, 'on'], [SESSION_ID, SessionConfigKey.SandboxEnabled, 'off']],
+			global: 'on',
+			menuUpdates: 0,
+		});
+	});
+
 	test('returns Default when there is no active session', () => {
 		const { delegate } = setup(store, undefined);
 
@@ -165,11 +264,9 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		const { delegate, activeSessionObs, setCustomTerminalToolEnabled } = setup(store, makeActiveSession(), 'default');
 
 		assert.deepStrictEqual({
-			presentation: delegate.sandboxTogglePresentation,
 			copilotApplicable: delegate.isSandboxToggleApplicable(),
 			sdkSetting: delegate.getSandboxToggleSettingId(),
 		}, {
-			presentation: 'standalone',
 			copilotApplicable: true,
 			sdkSetting: getAgentHostCopilotSandboxSettingId(false),
 		});
@@ -194,6 +291,57 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		setManagedSandboxEnforced(true);
 
 		assert.deepStrictEqual({ before, after: delegate.managedSandboxEnforced.get() }, { before: false, after: true });
+	});
+
+	test('sandbox choices are retained by the selected session', () => {
+		const { delegate, provider, activeSessionObs } = setup(store, makeActiveSession(), 'default');
+		const secondSessionId = 'local-agent-host:s2';
+		provider.sessionConfigs.set(SESSION_ID, makeWellKnownConfig('default'));
+		provider.sessionConfigs.set(secondSessionId, makeWellKnownConfig('default'));
+
+		delegate.setSandboxEnabled(false);
+		const firstSessionValue = delegate.sandboxEnabled.get();
+		activeSessionObs.set({ ...makeActiveSession(), sessionId: secondSessionId }, undefined);
+		delegate.setSandboxEnabled(true);
+		const secondSessionValue = delegate.sandboxEnabled.get();
+		activeSessionObs.set(makeActiveSession(), undefined);
+
+		assert.deepStrictEqual({
+			writes: provider.setCalls,
+			firstSessionValue,
+			secondSessionValue,
+			restoredFirstSessionValue: delegate.sandboxEnabled.get(),
+		}, {
+			writes: [
+				[SESSION_ID, SessionConfigKey.SandboxEnabled, 'off'],
+				[secondSessionId, SessionConfigKey.SandboxEnabled, 'on'],
+			],
+			firstSessionValue: false,
+			secondSessionValue: true,
+			restoredFirstSessionValue: false,
+		});
+	});
+
+	test('reads restored sandbox choices and follows session changes', () => {
+		const { delegate, provider, activeSessionObs } = setup(store, makeActiveSession(), 'default');
+		const values = [delegate.sandboxEnabled.get()];
+		for (const value of ['off', 'on', 'default']) {
+			provider.config!.values[SessionConfigKey.SandboxEnabled] = value;
+			provider.fireChange();
+			values.push(delegate.sandboxEnabled.get());
+		}
+		activeSessionObs.set(undefined, undefined);
+		values.push(delegate.sandboxEnabled.get());
+		assert.deepStrictEqual(values, [undefined, false, true, undefined, undefined]);
+	});
+
+	test('does not expose a global fallback toggle for older hosts', () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		delete provider.config!.schema.properties[SessionConfigKey.SandboxEnabled];
+		provider.fireChange();
+		assert.strictEqual(delegate.isSandboxToggleApplicable(), false);
+		assert.throws(() => delegate.setSandboxEnabled(false), /Sandbox configuration is unavailable/);
+		assert.deepStrictEqual(provider.setCalls, []);
 	});
 
 	test('returns Default when the active session has no config seeded yet', () => {

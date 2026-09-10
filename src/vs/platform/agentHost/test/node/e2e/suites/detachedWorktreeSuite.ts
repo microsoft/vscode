@@ -230,16 +230,21 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'archiving a detached worktree removes its checkout and unarchiving recreates it', async function () {
 		const workspace = createGitWorkspace('ahp-detached-archive-');
+		const remote = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-detached-archive-remote-')));
+		tempDirs.push(remote);
+		execFileSync('git', ['init', '--bare', '-q'], { cwd: remote });
+		git(workspace, 'remote', 'add', 'origin', remote);
 		const sessionUri = await createUnstartedWorktreeSession(workspace, 'detached-archive');
 
 		const created = await createDetachedWorktree(sessionUri, 'archive and restore this checkout');
 		const worktreePath = URI.parse(created.resource).fsPath;
 		const branchName = git(worktreePath, 'rev-parse', '--abbrev-ref', 'HEAD');
+		git(worktreePath, 'push', '-q', '--set-upstream', 'origin', branchName);
 
 		// Archiving reclaims the disk a dormant checkout is holding, but it must
-		// preserve the branch: that branch is the only thing that makes the
-		// checkout reconstructible, so dropping it would turn "archive" into
-		// "discard".
+		// preserve the branch and first confirm it has no local-only work. That
+		// branch is the only thing that makes the checkout reconstructible, so
+		// dropping an unsynced branch would turn "archive" into "discard".
 		await setDetachedWorktreeArchived(created.handle, true);
 		const archived = {
 			existsOnDisk: existsSync(worktreePath),

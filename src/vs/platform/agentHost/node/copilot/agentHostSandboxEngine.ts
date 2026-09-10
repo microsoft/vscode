@@ -5,8 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { FileAccess } from '../../../../base/common/network.js';
-import { dirname } from '../../../../base/common/path.js';
+import { basename, dirname } from '../../../../base/common/path.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createHash } from 'crypto';
@@ -16,8 +15,10 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ISandboxHelperService, type ISandboxDependencyStatus, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import { getAppNodeModulesDirName } from '../appNodeModules.js';
+import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
+import { getSessionSandboxOverrides } from '../sessionSandbox.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
@@ -43,7 +44,10 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 	) {
 		super();
 		this._sandboxHelper = sandboxHelper;
-		this.onDidChangeSandboxSettings = this._agentConfigurationService.onDidRootConfigChange;
+		this.onDidChangeSandboxSettings = Event.any(
+			this._agentConfigurationService.onDidRootConfigChange,
+			Event.map(Event.filter(this._agentConfigurationService.onDidSessionConfigChange, event => event.session === resolveAgentHostSession(URI.parse(this._sessionId)).toString()), () => undefined),
+		);
 	}
 
 	setWorkingDirectory(workingDirectory: URI): void {
@@ -56,13 +60,10 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 	}
 
 	async getRuntimeInfo(): Promise<ITerminalSandboxRuntimeInfo> {
-		const appRoot = dirname(FileAccess.asFileUri('').path);
+		const nodeModulesUri = getAppNodeModulesUri();
+		const appRoot = dirname(nodeModulesUri.fsPath);
 		const runAsNode = !!process.versions['electron'];
-		// In the desktop app the native binaries (ripgrep-universal, mxc-sdk) are
-		// unpacked from the ASAR archive into `node_modules.asar.unpacked`; in dev
-		// and on the server (which has no ASAR) they remain in a plain
-		// `node_modules`.
-		const nativeModulesDir = getAppNodeModulesDirName();
+		const nativeModulesDir = basename(nodeModulesUri.fsPath);
 		return { appRoot, execPath: process.execPath, runAsNode, nativeModulesDir };
 	}
 
@@ -122,7 +123,10 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		if (innerKey === undefined) {
 			return undefined;
 		}
-		const sandbox = this._agentConfigurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
+		const sandbox = {
+			...this._agentConfigurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
+			...getSessionSandboxOverrides(this._agentConfigurationService, this._sessionId),
+		};
 		return sandbox?.[innerKey] as T | undefined;
 	}
 }

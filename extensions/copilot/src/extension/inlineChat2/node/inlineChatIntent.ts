@@ -506,6 +506,7 @@ class InlineChatToolCalling {
 							const result = await this._toolsService.invokeToolWithEndpoint(toolCall.name, {
 								input,
 								toolInvocationToken: request.toolInvocationToken,
+								chatSessionResource: request.sessionResource,
 								// Split on `__vscode` so it's the chat stream id
 								// TODO @lramos15 - This is a gross hack
 								chatStreamToolCallId: toolCall.id.split('__vscode')[0],
