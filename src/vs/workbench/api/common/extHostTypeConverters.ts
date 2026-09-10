@@ -815,12 +815,14 @@ export namespace SymbolTag {
 	export function from(kind: types.SymbolTag): languages.SymbolTag {
 		switch (kind) {
 			case types.SymbolTag.Deprecated: return languages.SymbolTag.Deprecated;
+			case types.SymbolTag.Exported: return languages.SymbolTag.Exported;
 		}
 	}
 
 	export function to(kind: languages.SymbolTag): types.SymbolTag {
 		switch (kind) {
 			case languages.SymbolTag.Deprecated: return types.SymbolTag.Deprecated;
+			case languages.SymbolTag.Exported: return types.SymbolTag.Exported;
 		}
 	}
 }

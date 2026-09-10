@@ -3518,7 +3518,12 @@ declare module 'vscode' {
 		/**
 		 * Render a symbol as obsolete, usually using a strike-out.
 		 */
-		Deprecated = 1
+		Deprecated = 1,
+
+		/**
+		 * Render a symbol as exported from the given file
+		 */
+		Exported = 2,
 	}
 
 	/**

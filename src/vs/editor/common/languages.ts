@@ -1662,6 +1662,7 @@ export function getAriaLabelForSymbol(symbolName: string, kind: SymbolKind): str
 
 export const enum SymbolTag {
 	Deprecated = 1,
+	Exported = 2
 }
 
 /**

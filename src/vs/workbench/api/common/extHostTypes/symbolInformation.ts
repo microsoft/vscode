@@ -38,7 +38,8 @@ export enum SymbolKind {
 }
 
 export enum SymbolTag {
-	Deprecated = 1
+	Deprecated = 1,
+	Exported = 2
 }
 
 @es5ClassCompat
