@@ -190,7 +190,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): void {
+	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean }): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const activeSession = sessionsService.activeSession.get();
@@ -202,8 +202,9 @@ class NewChatInSessionsWindowAction extends Action2 {
 		// Inherit the active session's harness so the new session defaults to
 		// the kind the user is working in — but only while the folder still
 		// offers it (see `inheritableSessionTarget`).
-		sessionsService.openNewSession({
+		await sessionsService.openNewSession({
 			folderUri,
+			toSide: options?.toSide,
 			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
 		});
 	}

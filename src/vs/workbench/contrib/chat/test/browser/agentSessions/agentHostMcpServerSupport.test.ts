@@ -5,14 +5,18 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { ISettableObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { autorun, ISettableObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IConfigurationService, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, assessMcpServersForCopilotAgentHost, COPILOT_CHAT_GITHUB_MCP_COLLECTION_ID, mergeInstalledMcpServersIntoAgentHostSupportAssessment } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { AgentHostMcpServerSupportScope } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupportScope.js';
@@ -22,6 +26,23 @@ import { IMcpConfigPath, IMcpServer, IMcpService, IMcpWorkbenchService, IWorkben
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+
+class TestMcpSupportConfigurationService extends TestConfigurationService {
+	setAndFire(section: string, value: unknown): void {
+		void this.setUserConfiguration(section, value);
+		const event: IConfigurationChangeEvent = {
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([section]),
+			change: { keys: [section], overrides: [] },
+			affectsConfiguration: candidate => candidate === section,
+		};
+		this.onDidChangeConfigurationEmitter.fire(event);
+	}
+
+	dispose(): void {
+		this.onDidChangeConfigurationEmitter.dispose();
+	}
+}
 
 suite('agentHostMcpServerSupport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -262,6 +283,14 @@ suite('agentHostMcpServerSupport', () => {
 			applicability: AgentHostMcpServerApplicability.Applicable,
 			delivery: AgentHostMcpServerDelivery.ClientForwarded,
 			compatibility: { kind: 'supported' },
+			projectedConfiguration: {
+				type: McpServerType.LOCAL,
+				command: 'server',
+				args: undefined,
+				env: undefined,
+				envFile: undefined,
+				cwd: undefined,
+			},
 		});
 	});
 
@@ -487,6 +516,242 @@ suite('agentHostMcpServerSupport', () => {
 			serverIds: ['mcp.config.usrlocal.delayed'],
 		});
 	});
+
+	test('marks queued enablement and policy changes unresolved until refreshed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const enablement = observableValue('enablement', ContributionEnablementState.EnabledProfile);
+		const server = makeMcpServer({
+			id: 'mcp.config.usrlocal.reactive',
+			collectionId: 'mcp.config.usrlocal',
+			provenance: McpCollectionProvenance.UserProfile,
+			enablementObservable: enablement,
+		});
+		const mcpService = {
+			servers: observableValue<readonly IMcpServer[]>('mcpServers', [server]),
+			lazyCollectionState: observableValue('lazyCollectionState', { state: LazyCollectionState.AllKnown, collections: [] }),
+		} as Partial<IMcpService> as IMcpService;
+		const mcpWorkbenchService = {
+			local: [],
+			onChange: Event.None,
+			whenInitialLocalMcpServersLoaded: Promise.resolve(),
+		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService;
+		const configurationService = store.add(new TestMcpSupportConfigurationService({
+			[mcpAccessConfig]: McpAccessValue.All,
+			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG]: false,
+		}));
+		const owner = new AgentHostMcpServerSupportScope(
+			'agent-host-copilotcli',
+			[],
+			() => { },
+			mcpService,
+			mcpWorkbenchService,
+			makeConfigurationResolverService(),
+			configurationService,
+		);
+		const scope = store.add(owner.acquire());
+		await scope.whenResolved();
+		const initialState = scope.support.get().servers[0].enablement.state;
+
+		enablement.set(ContributionEnablementState.DisabledWorkspace, undefined);
+		const unresolvedAfterEnablement = scope.isResolved.get();
+		await scope.whenResolved();
+		configurationService.setAndFire(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+		const unresolvedAfterPolicy = scope.isResolved.get();
+		await scope.whenResolved();
+
+		assert.deepStrictEqual({
+			initialState,
+			unresolvedAfterEnablement,
+			stateAfterEnablement: scope.support.get().servers[0].enablement.state,
+			unresolvedAfterPolicy,
+			coverage: scope.support.get().coverage,
+		}, {
+			initialState: AgentHostMcpServerEnablementState.EnabledProfile,
+			unresolvedAfterEnablement: false,
+			stateAfterEnablement: AgentHostMcpServerEnablementState.DisabledWorkspace,
+			unresolvedAfterPolicy: false,
+			coverage: {
+				restrictedByMcpAccess: false,
+				restrictedByCustomizationPolicy: true,
+			},
+		});
+	}));
+
+	test('does not publish an assessment superseded while in flight', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
+		const root = URI.file('/workspace');
+		const enablement = observableValue('enablement', ContributionEnablementState.EnabledProfile);
+		const server = makeMcpServer({
+			id: 'mcp.config.ws0.server',
+			collectionId: 'mcp.config.ws0',
+			provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+			configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
+			collectionOrigin: URI.joinPath(root, '.vscode', 'mcp.json'),
+			launch: stdioLaunch('${workspaceFolder}'),
+			enablementObservable: enablement,
+		});
+		const mcpService = {
+			servers: observableValue<readonly IMcpServer[]>('mcpServers', [server]),
+			lazyCollectionState: observableValue('lazyCollectionState', { state: LazyCollectionState.AllKnown, collections: [] }),
+		} as Partial<IMcpService> as IMcpService;
+		const mcpWorkbenchService = {
+			local: [],
+			onChange: Event.None,
+			whenInitialLocalMcpServersLoaded: Promise.resolve(),
+		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService;
+		let resolveCalls = 0;
+		const firstResolveStarted = new DeferredPromise<void>();
+		const releaseFirstResolve = new DeferredPromise<void>();
+		const secondResolveStarted = new DeferredPromise<void>();
+		const releaseSecondResolve = new DeferredPromise<void>();
+		const configurationResolverService = {
+			async resolveAsync(_folder: unknown, config: unknown) {
+				const call = ++resolveCalls;
+				if (call === 1) {
+					firstResolveStarted.complete();
+					await releaseFirstResolve.p;
+				} else {
+					secondResolveStarted.complete();
+					await releaseSecondResolve.p;
+				}
+				const expression = ConfigurationResolverExpression.parse(config as object);
+				for (const replacement of expression.unresolved()) {
+					expression.resolve(replacement, call === 1 ? '/old' : '/new');
+				}
+				return expression.toObject();
+			},
+		} as unknown as IConfigurationResolverService;
+		const configurationService = store.add(new TestMcpSupportConfigurationService({
+			[mcpAccessConfig]: McpAccessValue.All,
+			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG]: false,
+		}));
+		const owner = new AgentHostMcpServerSupportScope(
+			'agent-host-copilotcli',
+			[root],
+			() => { },
+			mcpService,
+			mcpWorkbenchService,
+			configurationResolverService,
+			configurationService,
+		);
+		const scope = store.add(owner.acquire());
+		const publishedStates: AgentHostMcpServerEnablementState[] = [];
+		store.add(autorun(reader => {
+			const assessedServer = scope.support.read(reader).servers[0];
+			if (assessedServer) {
+				publishedStates.push(assessedServer.enablement.state);
+			}
+		}));
+
+		await firstResolveStarted.p;
+		enablement.set(ContributionEnablementState.DisabledWorkspace, undefined);
+		releaseFirstResolve.complete();
+		await secondResolveStarted.p;
+		releaseSecondResolve.complete();
+		await scope.whenResolved();
+
+		assert.deepStrictEqual({
+			resolveCalls,
+			publishedStates,
+			finalState: scope.support.get().servers[0].enablement.state,
+		}, {
+			resolveCalls: 2,
+			publishedStates: [AgentHostMcpServerEnablementState.DisabledWorkspace],
+			finalState: AgentHostMcpServerEnablementState.DisabledWorkspace,
+		});
+	}));
+
+	test('fails closed after assessment failures and releases disposed waiters', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const server = makeMcpServer({
+			id: 'mcp.config.usrlocal.server',
+			collectionId: 'mcp.config.usrlocal',
+			provenance: McpCollectionProvenance.UserProfile,
+		});
+		const mcpService = {
+			servers: observableValue<readonly IMcpServer[]>('mcpServers', [server]),
+			lazyCollectionState: observableValue('lazyCollectionState', { state: LazyCollectionState.AllKnown, collections: [] }),
+		} as Partial<IMcpService> as IMcpService;
+		let failInventory = false;
+		const onChange = store.add(new Emitter<void>());
+		const mcpWorkbenchService = {
+			get local() {
+				if (failInventory) {
+					throw new Error('Inventory unavailable');
+				}
+				return [];
+			},
+			onChange: onChange.event,
+			getMcpConfigPath: getUndefinedMcpConfigPath,
+			whenInitialLocalMcpServersLoaded: Promise.resolve(),
+		} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService;
+		const configurationService = store.add(new TestMcpSupportConfigurationService({
+			[mcpAccessConfig]: McpAccessValue.All,
+			[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG]: false,
+		}));
+		const owner = new AgentHostMcpServerSupportScope(
+			'agent-host-copilotcli',
+			[],
+			() => { },
+			mcpService,
+			mcpWorkbenchService,
+			makeConfigurationResolverService(),
+			configurationService,
+		);
+		const scope = store.add(owner.acquire());
+		await scope.whenResolved();
+		const initialServers = scope.support.get().servers.map(assessedServer => assessedServer.id);
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(() => { /* expected */ });
+		try {
+			failInventory = true;
+			onChange.fire();
+			const unresolvedAfterFailureQueued = scope.isResolved.get();
+			await scope.whenResolved();
+			const failedSnapshot = scope.support.get();
+
+			const neverReady = new DeferredPromise<void>();
+			const blockedOwner = new AgentHostMcpServerSupportScope(
+				'agent-host-copilotcli',
+				[],
+				() => { },
+				mcpService,
+				{
+					local: [],
+					onChange: Event.None,
+					whenInitialLocalMcpServersLoaded: neverReady.p,
+				} as Partial<IMcpWorkbenchService> as IMcpWorkbenchService,
+				makeConfigurationResolverService(),
+				configurationService,
+			);
+			const blockedScope = blockedOwner.acquire();
+			const disposedWaiter = blockedScope.whenResolved();
+			blockedScope.dispose();
+			await disposedWaiter;
+
+			assert.deepStrictEqual({
+				initialServers,
+				unresolvedAfterFailureQueued,
+				failedSnapshot: {
+					servers: failedSnapshot.servers,
+					discoveryComplete: failedSnapshot.discoveryComplete,
+					coverage: failedSnapshot.coverage,
+				},
+				disposedResolved: blockedScope.isResolved.get(),
+			}, {
+				initialServers: ['mcp.config.usrlocal.server'],
+				unresolvedAfterFailureQueued: false,
+				failedSnapshot: {
+					servers: [],
+					discoveryComplete: false,
+					coverage: {
+						restrictedByMcpAccess: false,
+						restrictedByCustomizationPolicy: false,
+					},
+				},
+				disposedResolved: false,
+			});
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+	}));
 
 	test('reports incomplete discovery without fabricating unknown servers', async () => {
 		const result = await assessMcpServersForCopilotAgentHost(

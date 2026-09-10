@@ -8,7 +8,8 @@ import * as vscode from 'vscode';
 import { AccountLinks } from '../common/accountLinks';
 import { IGitHubUserInfo } from '../common/gitHubAccount';
 import { Log } from '../common/logger';
-import { EntraTokenExchangeError, EntraTokenExchangeFailure, IEntraRenewal, IEntraRenewedToken } from '../entraTokenExchange';
+import { EntraTokenExchangeError, EntraTokenExchangeFailure, IEntraExchangedToken, IEntraLoginOptions, IEntraRenewal, IEntraRenewedToken } from '../entraTokenExchange';
+import { GitHubSignInProvider } from '../flows';
 import { AuthProviderType, GitHubAuthenticationProvider } from '../github';
 import { TestMemento } from './testMemento';
 
@@ -128,6 +129,7 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		_microsoftGeneration: number;
 		_microsoft: { getAccounts(): Promise<vscode.AuthenticationSessionAccountInformation[]> };
 		_githubServer: {
+			loginWithMicrosoft(scopes: readonly string[], options?: IEntraLoginOptions): Promise<IEntraExchangedToken>;
 			renewWithMicrosoft(renewal: IEntraRenewal): Promise<IEntraRenewedToken>;
 			sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
 		};
@@ -140,6 +142,8 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		readonly accountLinks: AccountLinks;
 		/** Every renewal the provider put on the wire, in order. */
 		readonly renewals: IEntraRenewal[];
+		/** Every interactive Microsoft exchange the provider put on the wire, in order. */
+		readonly logins: Array<{ readonly scopes: readonly string[]; readonly options: IEntraLoginOptions | undefined }>;
 		/** What the provider told VS Code changed, as `verb account` for each session. */
 		readonly announced: string[];
 		/** The sessions still held in memory, as `account until` for each. */
@@ -163,8 +167,10 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		/** Sessions already held in memory, and how long each has left in milliseconds. */
 		transient?: readonly (readonly [vscode.AuthenticationSession, number])[];
 		microsoftAccounts?: (call: number) => vscode.AuthenticationSessionAccountInformation[];
+		login?: (call: number, scopes: readonly string[], options: IEntraLoginOptions | undefined) => Promise<IEntraExchangedToken>;
 		renew?: (call: number, renewal: IEntraRenewal) => Promise<IEntraRenewedToken>;
 	} = {}): IHarness {
+		const logins: Array<{ scopes: readonly string[]; options: IEntraLoginOptions | undefined }> = [];
 		const renewals: IEntraRenewal[] = [];
 		const announced: string[] = [];
 		const accountLinks = new AccountLinks(new TestMemento(), STORAGE_KEY, logger);
@@ -186,6 +192,12 @@ suite('GitHub Microsoft-brokered sessions', () => {
 				getAccounts: async () => overrides.microsoftAccounts?.(microsoftReads++) ?? [MICROSOFT_ACCOUNT]
 			},
 			_githubServer: {
+				loginWithMicrosoft: async (scopes, options) => {
+					logins.push({ scopes, options });
+					return overrides.login
+						? await overrides.login(logins.length - 1, scopes, options)
+						: { token: `gho_login_${logins.length}`, expiresIn: 7200, account: GITHUB_ACCOUNT };
+				},
 				renewWithMicrosoft: async renewal => {
 					renewals.push(renewal);
 					return overrides.renew
@@ -210,6 +222,7 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			provider: provider as GitHubAuthenticationProvider,
 			state: provider as IProviderState,
 			accountLinks,
+			logins,
 			renewals,
 			announced,
 			heldSessions: () => [...transientSessions.values()]
@@ -217,6 +230,24 @@ suite('GitHub Microsoft-brokered sessions', () => {
 				.sort()
 		};
 	}
+
+	test('publishes the lifetime reported by an interactive Microsoft exchange', async () => {
+		const harness = createHarness();
+
+		const session = await harness.provider.createSession(SCOPES, { provider: GitHubSignInProvider.Microsoft });
+
+		assert.deepStrictEqual({
+			token: session.accessToken,
+			expiresIn: session.expiresIn,
+			logins: harness.logins,
+			announced: harness.announced,
+		}, {
+			token: 'gho_login_1',
+			expiresIn: 7200,
+			logins: [{ scopes: SCOPES, options: { microsoftAccount: undefined } }],
+			announced: ['added mona_contoso'],
+		});
+	});
 
 	async function withLink(harness: IHarness): Promise<IHarness> {
 		await harness.accountLinks.link(MICROSOFT_ACCOUNT.label, { id: GITHUB_ACCOUNT.id, label: GITHUB_ACCOUNT.accountName });
@@ -235,14 +266,27 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			scopes: sessions.map(session => session.scopes),
 			renewals: harness.renewals,
 			announced: harness.announced,
-			held: harness.heldSessions()
+			held: harness.heldSessions(),
+			expiresIn: sessions.map(session => session.expiresIn),
 		}, {
 			accounts: ['mona_contoso'],
 			scopes: [SCOPES],
 			renewals: [{ scopes: SCOPES, gitHubAccountId: '42', microsoftAccount: MICROSOFT_ACCOUNT }],
 			announced: ['added mona_contoso'],
-			held: ['mona_contoso live']
+			held: ['mona_contoso live'],
+			expiresIn: [3600]
 		});
+	});
+
+	test('recomputes the remaining lifetime of a cached Microsoft-brokered session', async () => {
+		const session = sessionFor('mona_contoso', 'cached', 'gho_cached');
+		const harness = createHarness({
+			transient: [[session, 2 * 60 * 60 * 1000]]
+		});
+
+		const [resolved] = await harness.provider.getSessions(SCOPES);
+
+		assert.ok(resolved.expiresIn !== undefined && resolved.expiresIn > 3600 && resolved.expiresIn <= 7200);
 	});
 
 	test('keeps what the user agreed to when a restore fails for a reason that says nothing about who they are', async () => {
@@ -315,29 +359,54 @@ suite('GitHub Microsoft-brokered sessions', () => {
 		});
 	});
 
-	test('settles every session whose token has run out, not only when there is nothing to hand back', async () => {
+	test('renews every session in the renewal window, not only when there is nothing else to hand back', async () => {
 		const harness = await withLink(createHarness({
 			// Another account, signed in the ordinary way, so it has no expiry and is always usable.
 			persisted: [sessionFor('hubot', 'persisted', 'gho_persisted')],
-			transient: [[sessionFor('mona_contoso', 'expired', 'gho_stale'), -1000]]
+			transient: [[sessionFor('mona_contoso', 'expiring', 'gho_stale'), 60 * 60 * 1000]]
 		}));
 
 		const sessions = await harness.provider.getSessions(SCOPES);
 
 		assert.deepStrictEqual({
 			accounts: sessions.map(session => session.account.label).sort(),
-			// An expired session left unprocessed is never handed out, never renewed and never
+			// A stale session left unprocessed is never handed out, never renewed and never
 			// reported as removed, but stays a candidate on every read for the life of the window.
 			held: harness.heldSessions(),
 			// Renewed in place, so it keeps its id and is reported as changed rather than as one
 			// account going away and another arriving.
 			announced: harness.announced,
-			tokens: sessions.map(session => session.accessToken).sort()
+			tokens: sessions.map(session => session.accessToken).sort(),
+			expirations: sessions.map(session => [session.account.label, session.expiresIn]).sort(),
 		}, {
 			accounts: ['hubot', 'mona_contoso'],
 			held: ['mona_contoso live'],
 			announced: ['changed mona_contoso'],
-			tokens: ['gho_1', 'gho_persisted']
+			tokens: ['gho_1', 'gho_persisted'],
+			expirations: [['hubot', undefined], ['mona_contoso', 3600]]
+		});
+	});
+
+	test('keeps a still-valid session when proactive renewal fails', async () => {
+		const harness = await withLink(createHarness({
+			transient: [[sessionFor('mona_contoso', 'expiring', 'gho_still_valid'), 60 * 60 * 1000]],
+			renew: async () => { throw new EntraTokenExchangeError(EntraTokenExchangeFailure.Network, 'offline'); }
+		}));
+
+		const sessions = await harness.provider.getSessions(SCOPES);
+
+		assert.deepStrictEqual({
+			tokens: sessions.map(session => session.accessToken),
+			hasUsableLifetime: sessions.every(session => session.expiresIn !== undefined && session.expiresIn > 0 && session.expiresIn <= 3600),
+			held: harness.heldSessions(),
+			announced: harness.announced,
+			renewals: harness.renewals.length
+		}, {
+			tokens: ['gho_still_valid'],
+			hasUsableLifetime: true,
+			held: ['mona_contoso live'],
+			announced: [],
+			renewals: 1
 		});
 	});
 });

@@ -13,6 +13,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -25,7 +26,8 @@ import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tun
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -222,6 +224,7 @@ export class WorkspacePicker extends Disposable {
 	 */
 	private readonly _connectionStatusWatch = this._register(new MutableDisposable());
 	private readonly _gitHubInfoWatch = this._register(new MutableDisposable());
+	private readonly _providerSessionTypesWatch = this._register(new MutableDisposable());
 	private readonly _localBrowseAction: ISessionWorkspaceBrowseAction = {
 		label: localize('workspacePicker.browseSelectLocal', "Select..."),
 		group: SESSION_WORKSPACE_GROUP_LOCAL,
@@ -360,6 +363,16 @@ export class WorkspacePicker extends Disposable {
 		return this._preselectionSource;
 	}
 
+	matchesSelectedWorkspace(workspace: ISessionWorkspace): boolean {
+		const folderUri = workspace.folders[0]?.root;
+		if (folderUri && this._selectedFolderUri && this.uriIdentityService.extUri.isEqual(folderUri, this._selectedFolderUri)) {
+			return true;
+		}
+
+		const selectedRepositoryId = this._getCurrentRepositoryId();
+		return selectedRepositoryId !== undefined && selectedRepositoryId === this._getRepositoryId(workspace);
+	}
+
 	constructor(
 		protected readonly options: IWorkspacePickerOptions,
 		@IActionWidgetService protected readonly actionWidgetService: IActionWidgetService,
@@ -376,6 +389,8 @@ export class WorkspacePicker extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IFileService private readonly fileService: IFileService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -392,6 +407,7 @@ export class WorkspacePicker extends Disposable {
 				isProviderUnavailable: providerId => this._isProviderUnavailable(providerId),
 				resolveWorkspace: (folderUri, preferredProviderId) => this._resolveFolder(folderUri, preferredProviderId),
 			}));
+		this._watchProviderSessionTypes();
 		if (this._sessionWorkspaceFallback) {
 			this._register(this._sessionWorkspaceFallback.onDidChange(() => this._restoreAutomaticSelection()));
 		}
@@ -410,6 +426,7 @@ export class WorkspacePicker extends Disposable {
 		// from storage so we upgrade from any fallback to the user's actual
 		// stored selection once its provider arrives.
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
+			this._watchProviderSessionTypes();
 			this._sessionWorkspaceFallback?.refreshProviders();
 			if (this._selectedFolderUri) {
 				// Re-resolve in case the previous resolving provider was removed.
@@ -939,6 +956,9 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _getRepositoryId(workspace: ISessionWorkspace): string | undefined {
+		for (const folder of workspace.folders) {
+			folder.gitRepository?.resolveGitHubInfo?.();
+		}
 		const info = workspace.folders
 			.map(folder => folder.gitRepository?.gitHubInfo.get())
 			.find(candidate => candidate !== undefined);
@@ -952,6 +972,19 @@ export class WorkspacePicker extends Disposable {
 		return pathSegments?.[0] && pathSegments[1]
 			? `${pathSegments[0]}/${pathSegments[1]}`.toLowerCase()
 			: undefined;
+	}
+
+	private _watchProviderSessionTypes(): void {
+		const store = new DisposableStore();
+		this._providerSessionTypesWatch.value = store;
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			store.add(provider.onDidChangeSessionTypes(() => {
+				const activeTrigger = this._activeTriggerElement;
+				if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
+					this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+				}
+			}));
+		}
 	}
 
 	private _getCurrentRepositoryId(): string | undefined {
@@ -1231,6 +1264,21 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private async _canSelectWorkspace(folderUri: URI, providerId: string | undefined): Promise<boolean> {
+		if (folderUri.scheme === Schemas.file && this.fileService.hasProvider(folderUri)) {
+			const generation = this._selectionGeneration;
+			const exists = await this.fileService.exists(folderUri);
+			if (generation !== this._selectionGeneration) {
+				return false;
+			}
+			if (!exists) {
+				this._removeRecentWorkspace(folderUri);
+				await this.dialogService.info(
+					localize('pathNotExistTitle', "Path does not exist"),
+					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", folderUri.fsPath),
+				);
+				return false;
+			}
+		}
 		return !this.options.canSelectWorkspace
 			|| await this.options.canSelectWorkspace(folderUri, providerId);
 	}
@@ -1253,6 +1301,18 @@ export class WorkspacePicker extends Disposable {
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {
 		return this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
+	}
+
+	private _getWorkspaceIcon(workspace: ISessionWorkspace): ThemeIcon {
+		if (this._useConsolidatedRemoteWorkspaces()) {
+			if (workspace.group === SESSION_WORKSPACE_GROUP_LOCAL) {
+				return Codicon.folder;
+			}
+			if (workspace.group === SESSION_WORKSPACE_GROUP_GITHUB) {
+				return Codicon.repo;
+			}
+		}
+		return workspace.icon;
 	}
 
 	private _getTabGroup(group: string | undefined): string | undefined {
@@ -1362,14 +1422,36 @@ export class WorkspacePicker extends Disposable {
 				.filter(w => providerIds.has(w.providerId))
 				.filter(w => !tabFilter || tabFilter(w))
 				.filter(w => !workspaceGroupAction?.hideWorkspaceItems || w.workspace.group !== workspaceGroupActionGroup);
+		const localRepositoryIds = this._useConsolidatedRemoteWorkspaces()
+			? new Set(recentWorkspaces
+				.filter(({ workspace }) => workspace.group === SESSION_WORKSPACE_GROUP_LOCAL)
+				.map(workspace => this._getRepositoryIdForResolvedWorkspace(workspace))
+				.filter(repositoryId => repositoryId !== undefined))
+			: undefined;
 
-		// Build flat list in recency order (no source grouping)
-		for (const { workspace, providerId } of recentWorkspaces) {
+		const recentWorkspaceEntries = recentWorkspaces
+			.map(resolved => ({
+				...resolved,
+				repositoryId: this._getRepositoryIdForResolvedWorkspace(resolved),
+			}))
+			.filter(({ workspace, repositoryId }) =>
+				workspace.group !== SESSION_WORKSPACE_GROUP_GITHUB
+				|| !repositoryId
+				|| !localRepositoryIds?.has(repositoryId));
+		const orderedRecentWorkspaceEntries = this._useConsolidatedRemoteWorkspaces()
+			? [
+				...recentWorkspaceEntries.filter(({ workspace }) => !ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
+				...recentWorkspaceEntries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
+			]
+			: recentWorkspaceEntries;
+
+		let previousRecentWorkspaceIsRepository: boolean | undefined;
+		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
 			}
-			const repositoryId = this._getRepositoryIdForResolvedWorkspace({ workspace, providerId });
+			const icon = this._getWorkspaceIcon(workspace);
 			const selected = this._isSelectedFolder(folderUri)
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
@@ -1384,17 +1466,22 @@ export class WorkspacePicker extends Disposable {
 					run: () => setRemotePickerItem({ folderUri, providerId }),
 				});
 				Object.assign(submenuAction, {
-					icon: workspace.icon,
+					icon,
 					onRemove: () => this._removeRecentWorkspace(folderUri),
 				});
 				remoteSubmenuActions.push(submenuAction);
 				continue;
 			}
+			const recentWorkspaceIsRepository = ThemeIcon.isEqual(icon, Codicon.repo);
+			if (previousRecentWorkspaceIsRepository !== undefined && previousRecentWorkspaceIsRepository !== recentWorkspaceIsRepository) {
+				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			previousRecentWorkspaceIsRepository = recentWorkspaceIsRepository;
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: workspace.label,
 				description: workspace.description,
-				group: { title: '', icon: workspace.icon },
+				group: { title: '', icon },
 				disabled: this._isProviderUnavailable(providerId),
 				item: { folderUri, providerId, checked: selected || attached || undefined },
 				onRemove: () => this._removeRecentWorkspace(folderUri),
@@ -1437,7 +1524,7 @@ export class WorkspacePicker extends Disposable {
 			const actionLabel = action === this._localBrowseAction
 				&& this._useConsolidatedRemoteWorkspaces()
 				&& this._directPickerAttachesContext !== true
-				? localize('workspacePicker.openFolder', "Open Folder")
+				? localize('workspacePicker.chooseFolder', "Choose Folder")
 				: this._useConsolidatedRemoteWorkspaces()
 					? action.label.replace(/(?:\.\.\.|…)$/, '')
 					: action.label;
@@ -1691,10 +1778,11 @@ export class WorkspacePicker extends Disposable {
 				&& this._getCurrentRepositoryId() === undefined;
 			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
+			const workspaceIcon = workspace ? this._getWorkspaceIcon(workspace) : undefined;
 			const icon = noWorkspaceSelected
 				? this._useConsolidatedRemoteWorkspaces() ? Codicon.comment : Codicon.commentDiscussion
-				: (reflectsWorkspace ? workspace?.icon : undefined)
-				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspace.icon : options.icon));
+				: (reflectsWorkspace ? workspaceIcon : undefined)
+				?? (relatedGitHubInfo ? Codicon.repo : (isSelectedCategory && workspace ? workspaceIcon : options.icon));
 			if (!icon || (options.hideIconWhenAttached === true && badgeCount > 0)) {
 				contents.icon?.remove();
 				contents.icon = undefined;

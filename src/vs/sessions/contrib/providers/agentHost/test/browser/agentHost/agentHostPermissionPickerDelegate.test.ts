@@ -24,6 +24,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
+import { IChatPhoneInputPresenter } from '../../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
@@ -110,6 +111,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	let assistedPermissionsEnabled = true;
 	let customTerminalToolEnabled = false;
 	const configurationService = new class extends mock<IConfigurationService>() {
+		override readonly onDidChangeConfiguration = Event.None;
 		override getValue<T>(): T;
 		override getValue<T>(section: string): T;
 		override getValue<T>(overrides: IConfigurationOverrides): T;
@@ -130,6 +132,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	insta.set(ISessionsService, sessionsManagementService);
 	insta.set(ISessionsProvidersService, sessionsProvidersService);
 	insta.set(IConfigurationService, configurationService);
+	insta.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 	insta.set(IAgentHostEnablementService, {
 		_serviceBrand: undefined,
 		enabled: constObservable(true),

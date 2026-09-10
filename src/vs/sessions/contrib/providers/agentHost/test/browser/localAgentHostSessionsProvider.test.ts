@@ -1223,6 +1223,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('session metadata marks a folder workspace as a repository', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('git-folder-meta', {
+			summary: 'Git Folder Session',
+			workingDirectory: URI.parse('file:///Users/me/project'),
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0]!;
+		const before = session.workspace.get()!.folders[0].gitRepository?.isRepository?.get();
+
+		fireSessionMetaChanged(agentHost, 'git-folder-meta', {
+			git: {
+				branchName: 'feature/worktree',
+			},
+		});
+
+		assert.deepStrictEqual({
+			before,
+			after: session.workspace.get()!.folders[0].gitRepository?.isRepository?.get(),
+		}, {
+			before: false,
+			after: true,
+		});
+	}));
+
 	test('session metadata exposes its creation reference', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('created'));
 
@@ -5759,6 +5786,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				'agent-host-copilotcli',
 				'copilotcli',
 				options,
+				constObservable(false),
 			)));
 			const sessionUri = AgentSession.uri('copilotcli', 'lazy-capabilities-0').toString();
 			const defaultChat = buildDefaultChatUri(sessionUri);
@@ -6898,19 +6926,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.loading.get(), true);
 	});
 
-	test('cached session loading reflects authenticationPending', async () => {
-		agentHost.setAuthenticationPending(true);
+	test('visible cached session stays loading until its chat catalog hydrates', () => {
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
 		agentHost.addSession(createSession('cached-auth-loading', { summary: 'Cached' }));
 
-		const provider = createProvider(disposables, agentHost);
-		provider.getSessions();
-		await timeout(0);
+		const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+		fireSessionAdded(agentHost, 'cached-auth-loading', { title: 'Cached' });
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Cached');
 		assert.ok(session);
+		assert.strictEqual(session!.loading.get(), false);
+
+		const visibleSession = new class extends mock<IActiveSession>() {
+			override readonly resource = session!.resource;
+		}();
+		visibleSessions.set([visibleSession], undefined);
+		provider.getSessionConfig(session!.sessionId);
 		assert.strictEqual(session!.loading.get(), true);
 
-		agentHost.setAuthenticationPending(false);
+		const sessionUri = AgentSession.uri('copilotcli', 'cached-auth-loading').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		agentHost.setSessionState('cached-auth-loading', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Cached',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			chats: [{
+				resource: defaultChat,
+				title: '',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			}],
+		});
 		assert.strictEqual(session!.loading.get(), false);
 	});
 

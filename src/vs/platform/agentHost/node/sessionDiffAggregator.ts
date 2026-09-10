@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { Promises } from '../../../base/common/async.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import type { IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import type { IDiffComputeService } from '../common/diffComputeService.js';
@@ -304,7 +305,7 @@ export async function computeUnionedDiffs(
 	// Load every source's edits in parallel, then concatenate in source order so
 	// the identity graph sees a deterministic session-first ordering while each
 	// source keeps its own insertion order.
-	const perSourceEdits = await Promise.all(sources.map(source => source.db.getAllFileEdits()));
+	const perSourceEdits = await Promises.settled(sources.map(source => source.db.getAllFileEdits()));
 
 	const pathToIdentityKey = new Map<string, string>();
 	const identities = new Map<string, IFileIdentity>();
@@ -390,7 +391,7 @@ export async function computeUnionedDiffs(
 		})());
 	}
 
-	await Promise.allSettled(diffPromises);
+	await Promises.settled(diffPromises);
 
 	return results;
 }

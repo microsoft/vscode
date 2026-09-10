@@ -6,8 +6,11 @@
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
+import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -17,6 +20,8 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -25,10 +30,12 @@ import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
 import { resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
+import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -49,6 +56,9 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
@@ -139,6 +149,12 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		await this.lifecycleService.when(LifecyclePhase.Restored);
 		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Restored');
 
+		const backendSession = parseOpenSessionLinkUri(sessionResource);
+		if (backendSession) {
+			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession));
+			return;
+		}
+
 		// Fast path — already on the target session.
 		const current = this.sessionsService.activeSession.get();
 		if (current && current.resource.toString() === sessionResource.toString()) {
@@ -150,6 +166,63 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		// appear in the providers and open it, so the window doesn't just sit on
 		// its restored state until the target session pops in.
 		await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSession(sessionResource));
+	}
+
+	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI): Promise<void> {
+		const session = await this.waitForSessionLinkAvailable(backendSession);
+		if (!session) {
+			this.logService.warn('[AgentsHandoff] linked session never appeared in providers; aborting');
+			const externalLink = buildExternalOpenSessionLinkUri(
+				this.productService.urlProtocol,
+				backendSession,
+				parseOpenSessionLinkChatId(sessionLink),
+				parseOpenSessionLinkTurnId(sessionLink),
+			);
+			this.notificationService.error(localize('agentsHandoff.sessionNotFound', "The linked session could not be found: {0}", externalLink));
+			return;
+		}
+
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (provider && isAgentHostProvider(provider) && provider.connect && !this.agentHostConnectionsService.resolveSessionResource(session.resource)) {
+			try {
+				await provider.connect();
+			} catch (error) {
+				// Still reveal the seeded session so its connection recovery UI can surface the failure.
+				this.logService.warn('[AgentsHandoff] linked session provider failed to connect on demand', error);
+			}
+		}
+
+		const chatId = parseOpenSessionLinkChatId(sessionLink);
+		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		this.logService.info(`[AgentsHandoff] linked session available; opening ${chatResource.toString()}`);
+		await this.sessionsService.openChat(session, chatResource, { source: 'link' });
+	}
+
+	private waitForSessionLinkAvailable(backendSession: URI, timeoutMs = 15_000): Promise<ReturnType<typeof findSessionForOpenSessionLink>> {
+		const findSession = () => findSessionForOpenSessionLink(backendSession, this.sessionsManagementService, this.agentHostConnectionsService);
+		const existing = findSession();
+		if (existing) {
+			return Promise.resolve(existing);
+		}
+
+		return new Promise(resolve => {
+			const store = new DisposableStore();
+			const done = (session: ReturnType<typeof findSession>) => {
+				store.dispose();
+				resolve(session);
+			};
+			const tryFind = () => {
+				const session = findSession();
+				if (session) {
+					done(session);
+				}
+			};
+			const timer = setTimeout(() => done(findSession()), timeoutMs);
+			store.add({ dispose: () => clearTimeout(timer) });
+			store.add(this.sessionsManagementService.onDidChangeSessions(tryFind));
+			store.add(this.agentHostConnectionsService.onDidChangeSessionResolution(tryFind));
+			tryFind();
+		});
 	}
 
 	private async resolveAndOpenSession(sessionResource: URI): Promise<void> {

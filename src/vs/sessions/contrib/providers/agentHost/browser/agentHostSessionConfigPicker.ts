@@ -162,7 +162,10 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		const uncommittedChanges = property === SessionConfigKey.Branch
 			? getBranchUncommittedChanges(item.value, repositoryBranchName, repositoryUncommittedChanges)
 			: undefined;
-		const uncommittedChangesDescription = uncommittedChanges !== undefined ? formatUncommittedChanges(uncommittedChanges) : undefined;
+		const uncommittedChangesDescription = uncommittedChanges !== undefined
+			? formatUncommittedChanges(uncommittedChanges)
+			: undefined;
+
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
@@ -173,7 +176,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			ariaDescription: uncommittedChangesDescription,
 			disabled,
 			item: { ...item, checked },
-			toolbarActions: uncommittedChanges !== undefined && onShowChanges
+			toolbarActions: property === SessionConfigKey.Branch && item.value === repositoryBranchName && onShowChanges
 				? [toAction({
 					id: 'sessions.agentHost.showBranchChanges',
 					label: localize('agentHostSessionConfig.branchItemShowChanges', "Show Changes"),
@@ -1347,6 +1350,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 interface IConfigPickerWidget extends IDisposable {
 	render(container: HTMLElement): HTMLElement | void;
+	focus?(): void;
 	showPicker?(anchor: HTMLElement, onHide?: () => void): boolean | void;
 }
 
@@ -1368,7 +1372,9 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 	}
 
 	override focus(): void {
-		if (this._focusableElement) {
+		if (this._picker.focus) {
+			this._picker.focus();
+		} else if (this._focusableElement) {
 			this._focusableElement.focus();
 		} else if (this.element) {
 			this._focusFirstTabStop(this.element);
