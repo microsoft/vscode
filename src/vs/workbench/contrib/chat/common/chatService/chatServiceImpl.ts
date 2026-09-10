@@ -40,7 +40,7 @@ import { awaitStatsForSession } from '../chat.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, getRestoredChatRequestSource, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
@@ -62,7 +62,7 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
-import { CustomizationMigrationHintTarget, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
@@ -128,6 +128,18 @@ class CancellableRequest implements IDisposable {
 
 const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
+
+type CustomizationMigrationAssessmentEvent = {
+	category: CustomizationMigrationType;
+	count: number;
+};
+
+type CustomizationMigrationAssessmentClassification = {
+	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The category of customization migration finding.' };
+	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations in the finding.' };
+	owner: 'digitarald';
+	comment: 'Tracks aggregate customization migration findings without collecting customization names, paths, or content.';
+};
 
 /**
  * Preserve the picker state from `stateToApply`, only recovering a custom agent mode from
@@ -943,6 +955,7 @@ export class ChatService extends Disposable implements IChatService {
 					message.isHidden,
 					message.origin,
 					message.isRequestHidden,
+					getRestoredChatRequestSource(message, requestText),
 				);
 			} else {
 				// response
@@ -1008,7 +1021,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, requestSource, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
 					if (resume) {
 						const request = model.getRequests().find(request => request.id === id);
 						if (!request?.response) {
@@ -1049,6 +1062,7 @@ export class ChatService extends Disposable implements IChatService {
 						isHidden,
 						origin,
 						isRequestHidden,
+						requestSource,
 					);
 
 					// Reset progress tracking for the new turn
@@ -1610,6 +1624,12 @@ export class ChatService extends Disposable implements IChatService {
 				try {
 					const hint = await this._customizationMigrationHintProvider(sessionResource, token);
 					if (hint && !token.isCancellationRequested) {
+						for (const { type, count } of hint.counts) {
+							this.telemetryService.publicLog2<CustomizationMigrationAssessmentEvent, CustomizationMigrationAssessmentClassification>('chat.customizationMigrationAssessment', {
+								category: type,
+								count,
+							});
+						}
 						return hint;
 					}
 					return undefined;
@@ -1736,6 +1756,7 @@ export class ChatService extends Disposable implements IChatService {
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							agentHostSessionConfig: options?.agentHostSessionConfig,
+							metadata: options?.metadata,
 							userSelectedModelId: options?.userSelectedModelId,
 							modelConfiguration: options?.userSelectedModelConfiguration ?? (options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined),
 							userSelectedTools: options?.userSelectedTools?.get(),

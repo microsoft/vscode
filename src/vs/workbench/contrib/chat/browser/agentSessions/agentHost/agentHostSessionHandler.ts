@@ -117,7 +117,7 @@ import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
 export { toolDataToDefinition };
@@ -331,6 +331,7 @@ function getMcpAuthenticationRequiredServers(sessionResource: URI, state: ISessi
 
 interface IStartServerRequestOptions {
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: IChatSessionServerRequest['requestSource'];
 	readonly systemInitiatedLabel?: string;
 	readonly isHidden?: boolean;
 	readonly isRequestHidden?: boolean;
@@ -364,10 +365,12 @@ function getSubagentTiming(state: ISessionWithDefaultChat): { startedAt: number 
 	return { startedAt, duration: endedAt !== undefined ? Math.max(0, endedAt - startedAt) : undefined };
 }
 
-function userOriginMessage(text: string, attachments: readonly MessageAttachment[] | undefined): Message {
-	return attachments?.length
-		? { text, origin: { kind: MessageKind.User }, attachments: [...attachments] }
-		: { text, origin: { kind: MessageKind.User } };
+function userOriginMessage(text: string, attachments: readonly MessageAttachment[] | undefined, metadata?: Record<string, unknown>): Message {
+	return {
+		text, origin: { kind: MessageKind.User },
+		...(attachments?.length ? { attachments: [...attachments] } : {}),
+		...(metadata ? { _meta: metadata } : {}),
+	};
 }
 
 /** Whether `err` reports that the host has no such resource (AHP `NotFound`). */
@@ -837,6 +840,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			prompt,
 			variableData,
 			isSystemInitiated: options?.isSystemInitiated,
+			requestSource: options?.requestSource,
 			systemInitiatedLabel: options?.systemInitiatedLabel,
 			isHidden: options?.isHidden,
 			isRequestHidden: options?.isRequestHidden,
@@ -1567,6 +1571,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								...(isMessageHiddenFromTranscript(sessionState.activeTurn.message) ? { isHidden: true } : {}),
 								...(isMessageRequestHiddenFromTranscript(sessionState.activeTurn.message) ? { isRequestHidden: true } : {}),
 								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
+								requestSource: messageToRequestSource(sessionState.activeTurn.message),
 								origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId, this._config.provider),
 							});
 							history.push({
@@ -2116,7 +2121,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const variables = p.request.variableData?.variables ?? [];
 			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text);
 			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
-			const snapshot: IPendingSnapshot = { id: p.request.id, message: userOriginMessage(p.request.message.text, attachments) };
+			const snapshot: IPendingSnapshot = { id: p.request.id, message: userOriginMessage(p.request.message.text, attachments, p.sendOptions.metadata) };
 			if (p.kind === ChatRequestQueueKind.Steering) {
 				currentSteering = snapshot;
 			} else {
@@ -2465,6 +2470,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
 				{
 					isSystemInitiated: activeTurn.message.origin.kind === MessageKind.SystemNotification,
+					requestSource: messageToRequestSource(activeTurn.message),
 					systemInitiatedLabel: readMessageSystemInitiatedLabel(activeTurn.message),
 					isHidden: isMessageHiddenFromTranscript(activeTurn.message),
 					isRequestHidden: isMessageRequestHiddenFromTranscript(activeTurn.message),
@@ -3089,7 +3095,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			turnId,
 			startedAt: new Date().toISOString(),
 			message: withMessageHiddenFromTranscript({
-				...userOriginMessage(request.message, messageAttachments),
+				...userOriginMessage(request.message, messageAttachments, request.metadata),
 				...(selectedModel ? { model: selectedModel } : {}),
 				...(requestedAgentUri ? { agent: { uri: requestedAgentUri } } : {}),
 			}, request.hideFromTranscript),

@@ -357,6 +357,9 @@ export interface IEditorTabBarFixtureOptions {
 	readonly active?: boolean;
 	readonly dropTargetBetweenTabs?: boolean;
 	readonly showHeader?: boolean;
+	readonly useModernUITabs?: boolean;
+	readonly reserveHeaderSpace?: boolean;
+	readonly headerWidth?: number;
 	readonly headerMenuIds?: IEditorGroupMenuIds;
 	readonly colorCustomizations?: Readonly<Record<string, string>>;
 	readonly forcedHoverTab?: number;
@@ -536,13 +539,15 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		model,
 		options.headerMenuIds,
 		options.showHeader ?? false,
+		options.reserveHeaderSpace ? () => true : undefined,
+		options.useModernUITabs ?? false,
 	));
 
 	const layout = () => {
 		titleControl.layout({
 			container: new Dimension(width, titleControl.getHeight().total),
 			available: new Dimension(width, 200),
-		});
+		}, options.headerWidth);
 	};
 	groupView.relayoutFn = layout;
 
@@ -572,7 +577,8 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 		Default: defineComponentFixture({ render: render(modernUI, {}), additionalThemes }),
 
 		// showTabs
-		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }) }),
+		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }), additionalThemes }),
+		ShowTabsSingleCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single', tabHeight: 'compact' }, breadcrumbs: {} }), additionalThemes }),
 		ShowTabsNone: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'none' } }) }),
 
 		// pinnedTabsOnSeparateRow

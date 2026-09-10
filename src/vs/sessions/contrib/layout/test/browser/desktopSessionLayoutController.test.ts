@@ -1928,7 +1928,7 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[single-pane] hides the side pane once when switching to Quick Chat', async () => {
+	test('[single-pane] preserves the side pane when switching to an editorless Quick Chat', async () => {
 		createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
 		await timeout(0);
 		harness.activeSessionObs.set(makeSession(URI.parse('session:workspace')), undefined);
@@ -1950,14 +1950,44 @@ suite('LayoutController (desktop)', () => {
 			hideOrder: harness.setPartHiddenCalls.filter(call =>
 				call.hidden && (call.part === Parts.EDITOR_PART || call.part === Parts.AUXILIARYBAR_PART)),
 		}, {
-			editorVisible: false,
-			auxiliaryBarVisible: false,
-			hideOrder: [
-				{ part: Parts.EDITOR_PART, hidden: true },
-				{ part: Parts.AUXILIARYBAR_PART, hidden: true },
-			],
+			editorVisible: true,
+			auxiliaryBarVisible: true,
+			hideOrder: [],
 		});
 	});
+
+	for (const composition of [
+		{ editor: false, auxiliaryBar: true },
+		{ editor: true, auxiliaryBar: true },
+		{ editor: true, auxiliaryBar: false },
+		{ editor: false, auxiliaryBar: false },
+	]) {
+		test(`[single-pane] draft replacement preserves ${JSON.stringify(composition)} after managed tabs settle`, async () => {
+			createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
+			const workspace = makeSession(URI.parse('session:workspace'), { isCreated: false, status: SessionStatus.Untitled });
+			const quickChat = makeSession(URI.parse('session:quick'), { isQuickChat: true, isCreated: false, status: SessionStatus.Untitled });
+			const replacement = makeSession(URI.parse('session:replacement'), { isCreated: false, status: SessionStatus.Untitled });
+			harness.activeSessionObs.set(workspace, undefined);
+			await timeout(0);
+			harness.partVisibility.set(Parts.EDITOR_PART, composition.editor);
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, composition.auxiliaryBar);
+			harness.setPartHiddenCalls.length = 0;
+
+			harness.activeSessionObs.set(quickChat, undefined);
+			await timeout(0);
+			harness.activeSessionObs.set(replacement, undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				editor: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBar: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+				visibilityChanges: harness.setPartHiddenCalls,
+			}, {
+				...composition,
+				visibilityChanges: [],
+			});
+		});
+	}
 
 	test('[single-pane] restores the existing-session side pane profile after leaving a quick chat before managed tabs settle', async () => {
 		createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
@@ -2599,7 +2629,7 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[D7 single-pane] contributes Toggle Details before Maximize with the editor title layout actions', () => {
+	test('[D7 single-pane] contributes Toggle Details after Maximize with the editor title layout actions', () => {
 		createSinglePaneController();
 
 		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
@@ -2616,15 +2646,15 @@ suite('LayoutController (desktop)', () => {
 			group: items[0].group,
 			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
 			order: items[0].order,
-			beforeMaximize: (items[0].order ?? 0) < (maximizeItem.order ?? 0),
+			afterMaximize: (items[0].order ?? 0) > (maximizeItem.order ?? 0),
 			hasToggled: !!items[0].command.toggled,
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 		}, {
 			group: 'navigation',
 			icon: Codicon.listSelection.id,
-			order: 9,
-			beforeMaximize: true,
+			order: 10,
+			afterMaximize: true,
 			hasToggled: true,
 			gatedOnEditorArea: true,
 			gatedOnDockedDetails: true,
@@ -2820,10 +2850,12 @@ suite('LayoutController (desktop)', () => {
 		const filesTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
 		assert.deepStrictEqual({
 			hasChangesTab: hasChangesTab(),
-			filesResource: filesTab?.resource?.toString()
+			filesResource: filesTab?.resource,
+			filesWorkingDirectory: filesTab?.workspace?.folders[0]?.workingDirectory.toString()
 		}, {
 			hasChangesTab: true,
-			filesResource: URI.file('/repo').toString()
+			filesResource: undefined,
+			filesWorkingDirectory: URI.file('/repo').toString()
 		});
 	});
 
@@ -2858,7 +2890,13 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 
 		const filesTabs = harness.activeGroupEditors.filter(e => e instanceof EmptyFileEditorInput);
-		assert.deepStrictEqual(filesTabs.map(editor => editor.resource?.toString()), [URI.file('/repo/second').toString()]);
+		assert.deepStrictEqual(filesTabs.map(editor => ({
+			resource: editor.resource,
+			workingDirectory: editor.workspace?.folders[0]?.workingDirectory.toString()
+		})), [{
+			resource: undefined,
+			workingDirectory: URI.file('/repo/second').toString()
+		}]);
 	});
 
 	test('[managed tabs / Changes pill] reveals the editor area before opening the managed Changes editor', async () => {

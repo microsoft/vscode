@@ -139,10 +139,9 @@ export class ShellManager extends Disposable {
 	 */
 	getOrCreateSandboxEngine(): TerminalSandboxEngine {
 		if (!this._sandboxEngine) {
-			const sessionId = this._sessionUri.path.split('/').pop() ?? generateUuid();
 			const sandboxEngine = this._instantiationService.createInstance(
 				AgentHostSandboxEngine,
-				sessionId,
+				this._sessionUri.toString(),
 				this._workingDirectory,
 			);
 			this._register(sandboxEngine);

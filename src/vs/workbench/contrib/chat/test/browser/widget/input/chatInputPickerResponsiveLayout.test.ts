@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../browser/widget/input/chatInputPickerResponsiveLayout.js';
 import '../../../../browser/widget/input/modelPicker/media/modelPicker.css';
@@ -504,11 +505,60 @@ suite('ChatInputPickerResponsiveLayout', () => {
 				icon: { width: 12, height: 12, x: 5, y: 5 },
 			},
 			secondary: {
-				expandedOffset: 8,
+				expandedOffset: 6,
 				action: { width: 22, height: 22 },
 				icon: { width: 12, height: 12, x: 5, y: 5 },
 			},
 		});
+	});
+
+	test('keeps icon-only model pickers at the toolbar control size regardless of stylesheet order', async () => {
+		host.classList.add('monaco-workbench', 'interactive-session');
+		host.style.setProperty('--vscode-spacing-size60', '6px');
+		host.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+
+		await timeout(0);
+		const splitPickerRule = [...document.styleSheets, ...document.adoptedStyleSheets]
+			.flatMap(sheet => Array.from(sheet.cssRules))
+			.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
+			.find(rule => rule instanceof CSSStyleRule && rule.selectorText === '.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split');
+		assert.ok(splitPickerRule);
+		// Load the real split-picker rule last to exercise the conflicting stylesheet order.
+		dom.append(host, dom.$('style')).textContent = splitPickerRule.cssText;
+
+		const toolbar = dom.append(host, dom.$('.chat-input-toolbar'));
+		const item = dom.append(toolbar, dom.$('.chat-input-picker-item.model-picker-item.compact-picker'));
+		item.style.width = '22px';
+		const actionLabel = dom.append(item, dom.$('div.action-label.model-picker-split.compact.icon-only'));
+		const button = dom.append(actionLabel, dom.$('a.model-picker-section.model-picker-name'));
+		button.style.minWidth = '22px';
+		const icon = dom.append(button, dom.$('span.codicon'));
+
+		const measure = () => {
+			const actionBounds = actionLabel.getBoundingClientRect();
+			const buttonBounds = button.getBoundingClientRect();
+			const iconBounds = icon.getBoundingClientRect();
+			return {
+				action: { width: actionBounds.width, height: actionBounds.height },
+				button: { width: buttonBounds.width, height: buttonBounds.height },
+				icon: {
+					width: iconBounds.width,
+					height: iconBounds.height,
+					x: iconBounds.left - buttonBounds.left,
+					y: iconBounds.top - buttonBounds.top,
+				},
+			};
+		};
+
+		const compact = measure();
+		actionLabel.classList.add('minimal');
+		const minimal = measure();
+		const expected = {
+			action: { width: 22, height: 22 },
+			button: { width: 22, height: 22 },
+			icon: { width: 12, height: 12, x: 5, y: 5 },
+		};
+		assert.deepStrictEqual({ compact, minimal }, { compact: expected, minimal: expected });
 	});
 
 });

@@ -26,6 +26,7 @@ import { ToolName } from '../../../../tools/common/toolNames';
 import { IToolsService, type IToolValidationResult } from '../../../../tools/common/toolsService';
 import { renderPromptElement } from '../../base/promptRenderer';
 import { ChatToolCalls } from '../toolCalling';
+import { URI } from 'vscode-uri';
 
 class CapturingChatHookService implements IChatHookService {
 	declare readonly _serviceBrand: undefined;
@@ -327,12 +328,13 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		};
 
 		const conversation = { sessionId: 'session-123' } as unknown as Conversation;
+		const sessionResource = URI.parse('vscode-chat://session/session-123');
 		const promptContext: IBuildPromptContext = {
 			query: 'test',
 			history: [],
 			chatVariables: new ChatVariablesCollection(),
 			conversation,
-			request: { hooks } as unknown as vscode.ChatRequest,
+			request: { hooks, sessionResource } as unknown as vscode.ChatRequest,
 			tools: {
 				toolReferences: [],
 				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
@@ -360,6 +362,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		// Tool invoked with updatedInput from hook
 		expect(toolsService.lastInvocation?.name).toBe(toolName);
 		expect(toolsService.lastInvocation?.options.input).toEqual(updatedInput);
+		expect(toolsService.lastInvocation?.options.chatSessionResource?.toString()).toBe(sessionResource.toString());
 		expect(toolsService.lastInvocation?.options.subAgentInvocationId).toBe('execution-parent-call');
 		expect(toolsService.lastInvocation?.options.preToolUseResult).toEqual({
 			permissionDecision: 'ask',
