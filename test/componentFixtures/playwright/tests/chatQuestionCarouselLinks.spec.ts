@@ -38,6 +38,25 @@ async function focusLinkWithKeyboard(page: Page): Promise<void> {
 	throw new Error('Could not focus the carousel link using the keyboard');
 }
 
+async function getActiveLinkStyles(page: Page): Promise<LinkStyles> {
+	const linkSelector = '.chat-question-carousel-message a';
+	const link = page.locator(linkSelector).first();
+	await link.hover();
+	await page.mouse.down();
+	try {
+		await page.mouse.move(0, 0);
+		const pseudoState = await link.evaluate(element => ({
+			active: element.matches(':active'),
+			hover: element.matches(':hover'),
+		}));
+		expect(pseudoState).toEqual({ active: true, hover: false });
+		const styles = await getLinkStyles(page);
+		return styles;
+	} finally {
+		await page.mouse.up();
+	}
+}
+
 for (const theme of [
 	{ id: 'Dark', highContrast: false },
 	{ id: 'Light', highContrast: false },
@@ -53,11 +72,8 @@ for (const theme of [
 		await link.hover();
 		const hover = await getLinkStyles(page);
 
-		await page.mouse.down();
-		const active = await getLinkStyles(page);
-		await page.mouse.up();
+		const active = await getActiveLinkStyles(page);
 
-		await page.mouse.move(0, 0);
 		await focusLinkWithKeyboard(page);
 		const keyboardFocus = await getLinkStyles(page);
 		const focusBorder = await link.evaluate(element => {
