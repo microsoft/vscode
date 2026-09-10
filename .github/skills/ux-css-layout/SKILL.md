@@ -268,7 +268,7 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 
 ## 10. Design-System Size Tokens (spacing, radius, font, codicon, stroke)
 
-VS Code ships design-system size tokens from `src/vs/platform/theme/common/sizes/baseSizes.ts`, which is the source of truth for current IDs, values, and descriptions. For the spacing and icon-size families changed by this proposal, read the current values there instead of copying them into this skill. The auto-injected `.github/instructions/design-tokens.instructions.md` contains CSS authoring guidance; this section captures layout-specific decision logic.
+VS Code ships design-system size tokens from `src/vs/platform/theme/common/sizes/baseSizes.ts`, which is the source of truth for current IDs, values, and descriptions. Read current values there instead of copying them into this skill. The auto-injected `.github/instructions/design-tokens.instructions.md` contains CSS authoring guidance; this section captures layout-specific decision logic.
 
 > Every `--vscode-*` size var you reference must already exist in `build/lib/stylelint/vscode-known-variables.json` (`"sizes"` array, alphabetically sorted) or stylelint/hygiene fails. Adding a *new* token means adding it both in `baseSizes.ts` and that JSON file.
 
@@ -319,11 +319,11 @@ The legacy Agents-specific `--vscode-agents-fontSize-*` and `--vscode-agents-fon
 
 ### Icon size
 
-Use a representation-neutral icon-size role from the registry for rendered geometry. Choose it from the density and prominence of the context rather than the source format. Image and SVG sources should contain-fit inside the selected area without distorting their aspect ratio. Optical transforms stay inside that area and do not affect surrounding layout.
+The current proposal registers only `iconSize.small`, a representation-neutral 16px box for shared-control geometry. Image and SVG sources should contain-fit inside the selected area without distorting their aspect ratio. Optical transforms stay inside that area and do not affect surrounding layout. Do not infer a broader icon-size scale from this pilot.
 
 ### Codicon compatibility — icon `font-size`
 
-Follow the [Codicon compatibility guidance](../../instructions/design-tokens.instructions.md#codicon-compatibility--icon-font-size) for standard versus purpose-specific sizes; do not infer the allowed roles from this skill.
+Follow the Codicon compatibility section in [design-token guidance](../../instructions/design-tokens.instructions.md) for standard versus purpose-specific sizes; do not infer the allowed roles from this skill.
 
 **Compact-glyph convention:** when selecting the compact Codicon role, also swap the registered glyph to its `*Compact` variant when one exists. CSS `font-size` alone only scales the icon; it does not select the optically tuned glyph. Only swap the glyph when no CSS selector targets the original glyph class, otherwise update that selector too or size through a glyph-independent wrapper.
 

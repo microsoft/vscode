@@ -222,12 +222,12 @@ Text styles are **roles**, not arbitrary sizes: `heading1–3`, `body1–2`, `la
 - **Serves:** *One thing leads* (4), *Sameness signals sameness* (6).
 
 <a id="icon-sizes"></a>
-### Icon sizes - semantic roles chosen by context
+### Icon boxes - explicit geometry
 
-Icons use the representation-neutral size roles currently registered in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts).
+The current proposal adds only `iconSize.small`, a representation-neutral 16px box for shared-control geometry. Do not infer a broader size scale from this pilot.
 
-- **Decision rule:** choose a registered role from the **density and rank of the context**, independent of whether the source is a Codicon, product icon, file icon, SVG, or raster image. Optical correction happens inside the rendered icon geometry and must not move adjacent content.
-- **Codicon rule:** follow the [Codicon compatibility guidance](../../instructions/design-tokens.instructions.md#codicon-compatibility--icon-font-size) for standard versus purpose-specific sizes. When selecting the compact role, use the corresponding `*Compact` glyph when one exists so the icon is tuned for that size rather than only scaled.
+- **Decision rule:** use the registered box when equivalent icon sources must occupy the same layout area. Optical correction happens inside the box and must not move adjacent content.
+- **Codicon rule:** follow the Codicon compatibility section in [design-token guidance](../../instructions/design-tokens.instructions.md) for standard versus purpose-specific sizes. When selecting the compact role, use the corresponding `*Compact` glyph when one exists so the icon is tuned for that size rather than only scaled.
 - **Serves:** *One thing leads* (4), *Sameness signals sameness* (6).
 
 <a id="one-stroke"></a>
