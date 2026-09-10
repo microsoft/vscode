@@ -5,7 +5,7 @@
 
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { assertNever } from '../../../../../base/common/assert.js';
-import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { encodeBase64 } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -67,6 +67,7 @@ interface IToolEntry {
 
 interface ITrackedCall {
 	store: IDisposable;
+	completion: DeferredPromise<void>;
 }
 
 export const enum AutoApproveStorageKeys {
@@ -525,7 +526,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (!this._callsByRequestId.has(requestId)) {
 				this._callsByRequestId.set(requestId, []);
 			}
-			const trackedCall: ITrackedCall = { store };
+			const trackedCall: ITrackedCall = { store, completion: new DeferredPromise<void>() };
 			this._callsByRequestId.get(requestId)!.push(trackedCall);
 
 			const source = new CancellationTokenSource();
@@ -541,20 +542,36 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}));
 			token = source.token;
 		}
+		const cleanupTrackedCall = () => {
+			if (store) {
+				this.cleanupCallDisposables(requestId, store);
+				store = undefined;
+			}
+		};
 
 		// Handle preToolUse hook denial
 		const preToolUseHookResult = dto.preToolUseResult;
 		if (preToolUseHookResult?.permissionDecision === 'deny') {
-			const denialResult = this._handlePreToolUseDenial(dto, preToolUseHookResult, toolData, toolInvocation, request);
-			if (pendingToolCallKey) {
-				this._pendingToolCalls.delete(pendingToolCallKey);
+			try {
+				const denialResult = this._handlePreToolUseDenial(dto, preToolUseHookResult, toolData, toolInvocation, request);
+				if (pendingToolCallKey) {
+					this._pendingToolCalls.delete(pendingToolCallKey);
+				}
+				return denialResult;
+			} finally {
+				cleanupTrackedCall();
 			}
-			return denialResult;
 		}
 
 		// Apply updatedInput from preToolUse hook if provided, after validating against the tool's input schema
 		if (preToolUseHookResult?.updatedInput) {
-			const validationError = await this._validateUpdatedInput(dto.toolId, toolData, preToolUseHookResult.updatedInput);
+			let validationError: string | undefined;
+			try {
+				validationError = await this._validateUpdatedInput(dto.toolId, toolData, preToolUseHookResult.updatedInput);
+			} catch (error) {
+				cleanupTrackedCall();
+				throw error;
+			}
 			if (validationError) {
 				this._logService.warn(`[LanguageModelToolsService#invokeTool] Tool ${dto.toolId} updatedInput from preToolUse hook failed schema validation: ${validationError}`);
 			} else {
@@ -574,15 +591,22 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
 		let tool = this._tools.get(dto.toolId);
 		if (!tool) {
+			cleanupTrackedCall();
 			throw new Error(`Tool ${dto.toolId} was not contributed`);
 		}
 
 		if (!tool.impl) {
-			await this._extensionService.activateByEvent(`onLanguageModelTool:${dto.toolId}`);
+			try {
+				await this._extensionService.activateByEvent(`onLanguageModelTool:${dto.toolId}`);
+			} catch (error) {
+				cleanupTrackedCall();
+				throw error;
+			}
 
 			// Extension should activate and register the tool implementation
 			tool = this._tools.get(dto.toolId);
 			if (!tool?.impl) {
+				cleanupTrackedCall();
 				throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
 			}
 		}
@@ -599,6 +623,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let invocationTimeWatch: StopWatch | undefined;
 		let preparedInvocation: IPreparedToolInvocation | undefined;
 		let activeTool = tool;
+
 		try {
 			if (dto.context) {
 				if (!model) {
@@ -802,9 +827,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw err;
 		} finally {
 			toolInvocation?.didExecuteTool(toolResult, true);
-			if (store) {
-				this.cleanupCallDisposables(requestId, store);
-			}
+			cleanupTrackedCall();
 		}
 	}
 
@@ -1526,6 +1549,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (disposables) {
 				const index = disposables.findIndex(d => d.store === store);
 				if (index > -1) {
+					disposables[index].completion.complete();
 					disposables.splice(index, 1);
 				}
 				if (disposables.length === 0) {
@@ -1537,11 +1561,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		store.dispose();
 	}
 
+	async waitForToolCallsForRequest(requestId: string): Promise<void> {
+		let calls: readonly ITrackedCall[] | undefined;
+		while ((calls = this._callsByRequestId.get(requestId))?.length) {
+			await Promise.all(calls.map(call => call.completion.p));
+		}
+	}
+
 	cancelToolCallsForRequest(requestId: string): void {
 		const calls = this._callsByRequestId.get(requestId);
 		if (calls) {
 			calls.forEach(call => call.store.dispose());
-			this._callsByRequestId.delete(requestId);
 		}
 
 		// Clean up any pending tool calls that belong to this request

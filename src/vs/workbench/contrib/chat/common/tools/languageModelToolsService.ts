@@ -681,6 +681,10 @@ export interface ILanguageModelToolsService {
 	updateToolStream(toolCallId: string, partialInput: unknown, token: CancellationToken): Promise<void>;
 
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	/**
+	 * Resolves after all tool calls currently associated with the request have settled.
+	 */
+	waitForToolCallsForRequest(requestId: string): Promise<void>;
 	cancelToolCallsForRequest(requestId: string): void;
 	/** Flush any pending tool updates to the extension hosts. */
 	flushToolUpdates(): void;
