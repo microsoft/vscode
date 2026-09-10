@@ -10,4 +10,3 @@ export const CHANGES_OUTSIDE_CARD_CLASS = 'outside-card';
 export function getChangesButtonBarIconLabelSpacing(container: HTMLElement): 'compact' | 'default' {
 	return container.classList.contains(CHANGES_OUTSIDE_CARD_CLASS) ? 'default' : 'compact';
 }
-
