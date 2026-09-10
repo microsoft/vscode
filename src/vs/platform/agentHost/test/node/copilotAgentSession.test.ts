@@ -9908,6 +9908,12 @@ Use the attached image as context.
 			await timeout(0);
 			mockSession.fire('session.background_tasks_changed', {});
 			await timeout(0);
+			mockSession.fire('assistant.message', {
+				messageId: 'late-child-message',
+				content: 'Late child message',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
 
 			assert.deepStrictEqual({
 				beforeIdle,
@@ -9920,7 +9926,7 @@ Use the attached image as context.
 				afterIdle: ['tc-subagent', 'tc-subagent'],
 				resumed: ['tc-subagent'],
 				parentCompleted: false,
-				listCalls: 4,
+				listCalls: 5,
 			});
 		});
 

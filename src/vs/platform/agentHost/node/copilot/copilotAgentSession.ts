@@ -839,6 +839,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
+	private readonly _completedSubagentAgentIds = new Set<string>();
 	private _subagentTaskStatusRevision = 0;
 	private readonly _subagentTaskStatusRefreshThrottler = this._register(new Throttler());
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
@@ -1456,11 +1457,14 @@ export class CopilotAgentSession extends Disposable {
 		return e.agentId ? this._parentToolCallIdsByAgentId.get(e.agentId) : undefined;
 	}
 
-	private _resumeSubagentForEvent(e: { readonly agentId?: string }, message?: Message): void {
+	private _resumeSubagentForEvent(e: { readonly agentId?: string }, message?: Message, isTurnStart = false): void {
 		if (this._dropLateRootTurnEvents) {
 			return;
 		}
 		if (!e.agentId || this._activeSubagentAgentIds.has(e.agentId)) {
+			return;
+		}
+		if (!isTurnStart && this._completedSubagentAgentIds.has(e.agentId)) {
 			return;
 		}
 		const parentToolCallId = this._parentToolCallIdsByAgentId.get(e.agentId);
@@ -1470,6 +1474,7 @@ export class CopilotAgentSession extends Disposable {
 		if (this._currentTurn.value) {
 			this._rootTurnIdBySubagentToolCallId.set(parentToolCallId, this._currentTurn.value.id);
 		}
+		this._completedSubagentAgentIds.delete(e.agentId);
 		this._activeSubagentAgentIds.add(e.agentId);
 		this._subagentObservedTokenUsage.set(parentToolCallId, new ObservedTokenUsage());
 		this._subagentTaskStatusRevision++;
@@ -1486,6 +1491,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!this._activeSubagentAgentIds.delete(agentId)) {
 				return;
 			}
+			this._completedSubagentAgentIds.add(agentId);
 		} else if (!toolCallId) {
 			return;
 		}
@@ -4972,7 +4978,7 @@ export class CopilotAgentSession extends Disposable {
 		//    pin the wrong event to the turn.
 		this._register(wrapper.onUserMessage(e => {
 			if (e.agentId) {
-				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
+				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } }, true);
 				return;
 			}
 			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
@@ -5215,7 +5221,7 @@ export class CopilotAgentSession extends Disposable {
 			if (streamed?.toolName && streamed.toolName !== e.data.toolName) {
 				this._logService.warn(`[Copilot:${sessionId}] Tool call ${e.data.toolCallId} started as ${e.data.toolName} after streaming as ${streamed.toolName}`);
 			}
-			this._resumeSubagentForEvent(e);
+			this._resumeSubagentForEvent(e, undefined, true);
 			if (!streamed?.started && this._shouldDropUnmappedSubagentEvent(e, 'tool.execution_start')) {
 				this._unroutableSubagentToolCallIds.add(e.data.toolCallId);
 				return;
@@ -5621,6 +5627,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (e.agentId) {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
+				this._completedSubagentAgentIds.delete(e.agentId);
 				this._activeSubagentAgentIds.add(e.agentId);
 			}
 			if (this._currentTurn.value) {
