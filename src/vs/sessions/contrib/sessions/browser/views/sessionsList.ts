@@ -19,7 +19,7 @@ import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/fi
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -103,6 +103,7 @@ import { AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../auto
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
+import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 
 const $ = DOM.$;
 
@@ -1298,23 +1299,32 @@ interface ISessionHeaderTemplate {
 	readonly elementDisposables: DisposableStore;
 }
 
-function getSessionHeaderStatus(sessions: readonly ISession[], reader: IReader): SessionStatus | undefined {
+const enum SessionHeaderStatus {
+	NeedsInput,
+	FailingCI,
+	Unread,
+}
+
+function getSessionHeaderStatus(sessions: readonly ISession[], reader: IReader, sessionsWithFailingCI: ReadonlySet<string> | undefined): SessionHeaderStatus | undefined {
+	let hasFailingCI = false;
 	let hasUnread = false;
 	for (const session of sessions) {
 		if (session.isArchived.read(reader)) {
 			continue;
 		}
-		if (session.status.read(reader) === SessionStatus.NeedsInput) {
-			return SessionStatus.NeedsInput;
+		const status = session.status.read(reader);
+		if (status === SessionStatus.NeedsInput) {
+			return SessionHeaderStatus.NeedsInput;
 		}
+		hasFailingCI ||= status !== SessionStatus.InProgress && sessionsWithFailingCI?.has(session.sessionId) === true;
 		hasUnread ||= !session.isRead.read(reader);
 	}
-	return hasUnread ? SessionStatus.Completed : undefined;
+	return hasFailingCI ? SessionHeaderStatus.FailingCI : hasUnread ? SessionHeaderStatus.Unread : undefined;
 }
 
-function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: readonly ISession[], icon: ThemeIcon | undefined, showUnreadInCollapsedSections: IObservable<boolean>, instantiationService: IInstantiationService): void {
+function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: readonly ISession[], icon: ThemeIcon | undefined, showUnreadInCollapsedSections: IObservable<boolean>, sessionsWithFailingCI: IObservable<ReadonlySet<string>>, instantiationService: IInstantiationService): void {
 	const headerStatus = derived(reader => template.collapsed.read(reader) && showUnreadInCollapsedSections.read(reader)
-		? getSessionHeaderStatus(sessions, reader)
+		? getSessionHeaderStatus(sessions, reader, sessionsWithFailingCI.read(reader))
 		: undefined);
 	template.elementDisposables.add(autorun(reader => {
 		const status = headerStatus.read(reader);
@@ -1323,7 +1333,12 @@ function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: rea
 		template.icon.style.display = status !== undefined || icon ? '' : 'none';
 		if (status !== undefined) {
 			const statusIcon = reader.store.add(instantiationService.createInstance(SessionStatusIcon, template.icon));
-			statusIcon.setStatus(status, status !== SessionStatus.Completed, false);
+			statusIcon.setStatus(
+				status === SessionHeaderStatus.NeedsInput ? SessionStatus.NeedsInput : SessionStatus.Completed,
+				status !== SessionHeaderStatus.Unread,
+				false,
+				status === SessionHeaderStatus.FailingCI ? { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') } : undefined,
+			);
 		} else if (icon) {
 			template.icon.classList.add(...ThemeIcon.asClassNameArray(icon));
 		}
@@ -1389,6 +1404,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly hideSectionCount: boolean,
 		private readonly select: (element: ISessionSection, event: MouseEvent) => void,
 		private readonly showUnreadInCollapsedSections: IObservable<boolean>,
+		private readonly sessionsWithFailingCI: IObservable<ReadonlySet<string>>,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
@@ -1522,7 +1538,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				}
 			}));
 		} else {
-			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.instantiationService);
+			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
 		}
 
 		template.label.textContent = element.label;
@@ -1623,6 +1639,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 	constructor(
 		private readonly delegate: ISessionGroupRendererDelegate,
 		private readonly showUnreadInCollapsedSections: IObservable<boolean>,
+		private readonly sessionsWithFailingCI: IObservable<ReadonlySet<string>>,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 	) { }
@@ -1661,7 +1678,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 		template.label.textContent = element.group.name;
 		this.updateChevron(template, node.collapsible, node.collapsed);
-		renderSessionHeaderIcon(template, element.sessions, Codicon.folderLibrary, this.showUnreadInCollapsedSections, this.instantiationService);
+		renderSessionHeaderIcon(template, element.sessions, Codicon.folderLibrary, this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
 		SessionGroupHasVisibleSessionsContext.bindTo(template.contextKeyService).set(element.sessions.length > 0);
 		SessionGroupIsEmptyContext.bindTo(template.contextKeyService).set(element.isEmpty);
 
@@ -1838,6 +1855,7 @@ interface ISessionsAccessibilityProviderOptions {
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
+	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
 	readonly deriveStatusFromMainChat?: boolean;
 }
@@ -1941,11 +1959,13 @@ class SessionsAccessibilityProvider {
 
 	private getSectionAriaLabel(label: string, sessions: readonly ISession[]): IObservable<string> {
 		return derived(this, reader => {
-			const status = this.options?.showUnreadInCollapsedSections?.read(reader) ? getSessionHeaderStatus(sessions, reader) : undefined;
+			const status = this.options?.showUnreadInCollapsedSections?.read(reader) ? getSessionHeaderStatus(sessions, reader, this.options.sessionsWithFailingCI?.read(reader)) : undefined;
 			switch (status) {
-				case SessionStatus.NeedsInput:
+				case SessionHeaderStatus.NeedsInput:
 					return localize('sessionSectionNeedsInputAria', "{0}, {1}, session needs input", label, sessions.length);
-				case SessionStatus.Completed:
+				case SessionHeaderStatus.FailingCI:
+					return localize('sessionSectionFailingCIAria', "{0}, {1}, session has failing CI checks", label, sessions.length);
+				case SessionHeaderStatus.Unread:
 					return localize('sessionSectionUnreadAria', "{0}, {1}, unread sessions", label, sessions.length);
 				default:
 					return localize('sessionSectionAria', "{0}, {1}", label, sessions.length);
@@ -2697,11 +2717,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
 		};
-		const showUnreadInCollapsedSections = observableConfigValue(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, true, this.configurationService);
+		const showUnreadInCollapsedSections = observableConfigValue(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, false, this.configurationService);
+		const blockedSessions = derived(this, reader => showUnreadInCollapsedSections.read(reader)
+			? reader.store.add(instantiationService.createInstance(BlockedSessions))
+			: undefined);
+		const sessionsWithFailingCI = derived(this, reader => new Set(
+			blockedSessions.read(reader)?.blockedSessionsWithReasons.read(reader)
+				.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
+				.map(blocked => blocked.session.sessionId)
+		));
 		const sectionRenderer = new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
 			showUnreadInCollapsedSections,
+			sessionsWithFailingCI,
 			instantiationService,
 			contextKeyService,
 			this.automationService,
@@ -2716,7 +2745,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
-		}, showUnreadInCollapsedSections, instantiationService, contextKeyService);
+		}, showUnreadInCollapsedSections, sessionsWithFailingCI, instantiationService, contextKeyService);
 		this._groupRenderer = groupRenderer;
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
@@ -2755,6 +2784,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					deriveStatusFromMainChat: true,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
 					showUnreadInCollapsedSections,
+					sessionsWithFailingCI,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),

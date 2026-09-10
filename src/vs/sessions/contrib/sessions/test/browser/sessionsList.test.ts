@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
-import { constObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -53,6 +53,7 @@ import '../../browser/views/sessionsViewActions.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
+import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -124,6 +125,7 @@ suite('Sessions - SessionsList', () => {
 				true,
 				section => selectedSections.push(section),
 				constObservable(true),
+				constObservable(new Set<string>()),
 				instantiationService,
 				contextKeyService,
 				automationService,
@@ -178,6 +180,7 @@ suite('Sessions - SessionsList', () => {
 				true,
 				() => { },
 				constObservable(true),
+				constObservable(new Set<string>()),
 				instantiationService,
 				contextKeyService,
 				automationService,
@@ -237,6 +240,7 @@ suite('Sessions - SessionsList', () => {
 				true,
 				() => { },
 				constObservable(true),
+				constObservable(new Set<string>()),
 				instantiationService,
 				contextKeyService,
 				automationService,
@@ -413,6 +417,7 @@ suite('Sessions - SessionsList', () => {
 				true,
 				() => { },
 				constObservable(true),
+				constObservable(new Set<string>()),
 				new class extends mock<IInstantiationService>() { },
 				new class extends mock<IContextKeyService>() { },
 				automationService,
@@ -482,6 +487,7 @@ suite('Sessions - SessionsList', () => {
 				true,
 				() => { },
 				constObservable(true),
+				constObservable(new Set<string>()),
 				new class extends mock<IInstantiationService>() { },
 				new class extends mock<IContextKeyService>() { },
 				automationService,
@@ -525,11 +531,23 @@ suite('Sessions - SessionsList', () => {
 	suite('collapsed section status indicators', () => {
 		const group: ISessionGroup = { id: 'group-a', name: 'Group A', createdAt: 1 };
 
-		function renderList(sessions: ISession[], options: IListHarnessOptions = {}, reducedMotion = false) {
+		function renderList(sessions: ISession[], options: IListHarnessOptions & { useDefaultSetting?: boolean } = {}, reducedMotion = false) {
 			const harness = createListHarness(disposables, sessions, options);
+			if (!options.useDefaultSetting) {
+				(harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, true);
+			}
 			harness.instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
 			harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 				override isMotionReduced(): boolean { return reducedMotion; }
+			}());
+			const failingCISessions = observableValue<readonly ISession[]>('failingCISessions', []);
+			harness.instantiationService.stubInstance(BlockedSessions, new class extends mock<BlockedSessions>() {
+				override readonly blockedSessionsWithReasons = derived(reader => failingCISessions.read(reader).map(session => ({
+					session,
+					reason: BlockedSessionReason.FailingCI,
+					occurrenceId: 'failingCI:head',
+				})));
+				override dispose(): void { }
 			}());
 			const container = harness.createContainer(400, 700);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -538,7 +556,7 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(700, 400);
-			return { ...harness, list, container };
+			return { ...harness, list, container, failingCISessions };
 		}
 
 		function unreadSections(container: HTMLElement): string[] {
@@ -559,6 +577,32 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(header, `Expected section ${label}`);
 			return header;
 		}
+
+		test('keeps normal section icons and labels when the setting is unset', () => {
+			const unread = createTestSession('Unread', { workspaceLabel: 'Unread workspace', isRead: false }).session;
+			const failingCI = createTestSession('Failing CI', { workspaceLabel: 'CI workspace' }).session;
+			const needsInput = createTestSession('Needs input', { status: SessionStatus.NeedsInput }).session;
+			const { list, container, failingCISessions } = renderList([unread, failingCI, needsInput], {
+				groups: [group],
+				memberships: new Map([[needsInput.sessionId, group.id]]),
+				useDefaultSetting: true,
+			});
+			failingCISessions.set([failingCI], undefined);
+			list.collapseAllSections();
+
+			assert.deepStrictEqual([group.name, 'CI workspace', 'Unread workspace'].map(label => {
+				const header = getHeader(container, label);
+				return {
+					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
+					icon: header.querySelector('.session-section-icon')?.className,
+					indicator: !!header.querySelector('.codicon-circle-filled, .monaco-pixel-spinner'),
+				};
+			}), [
+				{ ariaLabel: 'Group A, 1', icon: 'session-section-icon codicon codicon-folder-library', indicator: false },
+				{ ariaLabel: 'CI workspace, 1', icon: 'session-section-icon codicon codicon-folder', indicator: false },
+				{ ariaLabel: 'Unread workspace, 1', icon: 'session-section-icon codicon codicon-folder', indicator: false },
+			]);
+		});
 
 		test('marks the group containing an unread session, not the session workspace', () => {
 			const grouped = createTestSession('Grouped unread', { workspaceLabel: 'Workspace B', isRead: false }).session;
@@ -611,8 +655,93 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
+		test('shows CI failures only in their containing sections and respects filters and pins', () => {
+			const grouped = createTestSession('Grouped CI failure', { workspaceLabel: 'Workspace B', status: SessionStatus.Error }).session;
+			const read = createTestSession('Workspace read', { workspaceLabel: 'Workspace B' }).session;
+			const failingCI = createTestSession('Workspace CI failure', { workspaceLabel: 'Workspace C', status: SessionStatus.Error }).session;
+			const pinnedSessionIds = new Set<string>();
+			const { list, container, failingCISessions } = renderList([grouped, read, failingCI], {
+				groups: [group],
+				memberships: new Map([[grouped.sessionId, group.id]]),
+				pinnedSessionIds,
+			});
+			failingCISessions.set([grouped, failingCI, createTestSession('Outside the list').session], undefined);
+			const markedSections = () => [...container.querySelectorAll('.session-section')]
+				.filter(header => header.querySelector<HTMLElement>('.session-section-icon .codicon-circle-filled')?.style.color === 'var(--vscode-list-warningForeground)')
+				.map(header => header.querySelector('.session-section-label')?.textContent);
+			list.collapseAllSections();
+			const states = [markedSections()];
+			list.setStatusExcluded(SessionStatus.Error, true);
+			states.push(markedSections());
+			list.setStatusExcluded(SessionStatus.Error, false);
+			states.push(markedSections());
+			pinnedSessionIds.add(grouped.sessionId);
+			list.update();
+			states.push(markedSections());
+
+			assert.deepStrictEqual(states, [
+				[group.name, 'Workspace C'],
+				[],
+				[group.name, 'Workspace C'],
+				['Pinned', 'Workspace C'],
+			]);
+		});
+
 		for (const grouped of [false, true]) {
 			const kind = grouped ? 'group' : 'workspace';
+
+			test(`prioritizes input, inactive CI failures, then unread in a ${kind}`, () => {
+				const unread = createTestSession('Unread', { isRead: false });
+				const failingCI = createTestSession('Failing CI');
+				const needsInput = createTestSession('Needs input');
+				const sessions = [unread.session, ...Array.from({ length: 4 }, (_, index) => createTestSession(`Read ${index}`).session), failingCI.session, needsInput.session]
+					.map((session, index) => ({ ...session, createdAt: new Date(Date.now() - index * 1000) }));
+				const { list, container, failingCISessions } = renderList(sessions, grouped ? {
+					groups: [group],
+					memberships: new Map(sessions.map(session => [session.sessionId, group.id])),
+				} : {});
+				failingCISessions.set([failingCI.session], undefined);
+				const label = grouped ? group.name : 'Workspace';
+				const header = getHeader(container, label);
+				const getStatus = () => {
+					if (header.querySelector('.monaco-pixel-spinner-ring')) {
+						return 'needsInput';
+					}
+					const dot = header.querySelector<HTMLElement>('.codicon-circle-filled');
+					return dot ? dot.style.color === 'var(--vscode-list-warningForeground)' ? 'failingCI' : 'unread' : 'none';
+				};
+				const hiddenCI = !list.getVisibleSessions().some(session => session.sessionId === failingCI.session.sessionId);
+				const states = [getStatus()];
+				list.collapseAllSections();
+				states.push(getStatus());
+				const ciAria = header.closest('.monaco-list-row')?.getAttribute('aria-label');
+				needsInput.status.set(SessionStatus.NeedsInput, undefined);
+				states.push(getStatus());
+				needsInput.isArchived.set(true, undefined);
+				states.push(getStatus());
+				failingCI.status.set(SessionStatus.InProgress, undefined);
+				states.push(getStatus());
+				unread.isRead.set(true, undefined);
+				states.push(getStatus());
+				failingCI.status.set(SessionStatus.Completed, undefined);
+				states.push(getStatus());
+				failingCI.isArchived.set(true, undefined);
+				states.push(getStatus());
+				failingCI.isArchived.set(false, undefined);
+				states.push(getStatus());
+				failingCISessions.set([], undefined);
+				states.push(getStatus());
+				unread.isRead.set(false, undefined);
+				states.push(getStatus());
+				unread.isArchived.set(true, undefined);
+				states.push(getStatus());
+
+				assert.deepStrictEqual({ hiddenCI, states, ciAria }, {
+					hiddenCI: true,
+					states: ['none', 'failingCI', 'needsInput', 'failingCI', 'unread', 'none', 'failingCI', 'none', 'failingCI', 'none', 'unread', 'none'],
+					ciAria: `${label}, 7, session has failing CI checks`,
+				});
+			});
 
 			test(`prioritizes needs-input behind show more and reacts to status changes in a ${kind}`, () => {
 				const unread = createTestSession('Unread', { isRead: false });
@@ -816,6 +945,57 @@ suite('Sessions - SessionsList', () => {
 				color: 'var(--vscode-list-warningForeground)',
 				ariaLabel: 'Workspace, 1, session needs input',
 			});
+		});
+
+		test('never shows status indicators for archived sessions', () => {
+			const unread = createTestSession('Archived unread', { isRead: false, isArchived: true }).session;
+			const needsInput = createTestSession('Archived needs input', { status: SessionStatus.NeedsInput, isArchived: true }).session;
+			const failingCI = createTestSession('Archived CI failure', { isArchived: true }).session;
+			const read = createTestSession('Read').session;
+			const { list, container, failingCISessions } = renderList([unread, needsInput, failingCI, read], {
+				groups: [group],
+				memberships: new Map([unread, needsInput, failingCI].map(session => [session.sessionId, group.id])),
+			});
+			failingCISessions.set([failingCI], undefined);
+			list.setExcludeArchived(false);
+			list.collapseAllSections();
+
+			assert.deepStrictEqual([group.name, 'Workspace', 'Archived'].map(label => {
+				const header = getHeader(container, label);
+				return {
+					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
+					indicator: !!header.querySelector('.codicon-circle-filled, .monaco-pixel-spinner'),
+				};
+			}), [
+				{ ariaLabel: 'Group A, 0', indicator: false },
+				{ ariaLabel: 'Workspace, 1', indicator: false },
+				{ ariaLabel: 'Archived, 3', indicator: false },
+			]);
+		});
+
+		test('reacts to setting changes while a session has failing CI', async () => {
+			const { session } = createTestSession('Failing CI');
+			const { list, container, instantiationService, failingCISessions } = renderList([session]);
+			failingCISessions.set([session], undefined);
+			list.collapseAllSections();
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			const states = [];
+			for (const enabled of [false, true]) {
+				await configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: key => key === SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING,
+				}));
+				const header = getHeader(container, 'Workspace');
+				states.push({
+					color: header.querySelector<HTMLElement>('.codicon-circle-filled')?.style.color,
+					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				});
+			}
+
+			assert.deepStrictEqual(states, [
+				{ color: undefined, ariaLabel: 'Workspace, 1' },
+				{ color: 'var(--vscode-list-warningForeground)', ariaLabel: 'Workspace, 1, session has failing CI checks' },
+			]);
 		});
 
 		test('reacts to setting changes while a session needs input', async () => {

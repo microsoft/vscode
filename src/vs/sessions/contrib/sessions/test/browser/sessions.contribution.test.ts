@@ -14,7 +14,7 @@ import '../../browser/sessions.contribution.js';
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('enables collapsed section unread indicators by default with automatic experiments', () => {
+	test('disables collapsed section status indicators by default with automatic experiments', () => {
 		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING];
 		assert.deepStrictEqual({
 			type: property.type,
@@ -22,7 +22,7 @@ suite('Sessions Contribution', () => {
 			experiment: property.experiment,
 		}, {
 			type: 'boolean',
-			default: true,
+			default: false,
 			experiment: { mode: 'auto' },
 		});
 	});

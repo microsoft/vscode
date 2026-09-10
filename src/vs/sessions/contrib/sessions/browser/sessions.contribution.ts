@@ -74,8 +74,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],
-			description: localize('sessions.list.showUnreadInCollapsedSections', "Controls whether collapsed groups and workspace sections in the sessions list show unread or needs-input indicators for the sessions they contain."),
-			default: true,
+			description: localize('sessions.list.showUnreadInCollapsedSections', "Controls whether collapsed groups and workspace sections in the sessions list show needs-input, CI-failure, or unread indicators for the unarchived sessions they contain."),
+			default: false,
 			experiment: { mode: 'auto' }
 		},
 		[SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING]: {
