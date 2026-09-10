@@ -268,7 +268,7 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 
 ## 10. Design-System Size Tokens (spacing, radius, font, codicon, stroke)
 
-VS Code ships design-system size tokens from `src/vs/platform/theme/common/sizes/baseSizes.ts`, which is the source of truth for current IDs, values, and descriptions. Read the relevant family there instead of copying its current values into this skill. The auto-injected `.github/instructions/design-tokens.instructions.md` contains CSS authoring guidance; this section captures layout-specific decision logic.
+VS Code ships design-system size tokens from `src/vs/platform/theme/common/sizes/baseSizes.ts`, which is the source of truth for current IDs, values, and descriptions. For the spacing and icon-size families changed by this proposal, read the current values there instead of copying them into this skill. The auto-injected `.github/instructions/design-tokens.instructions.md` contains CSS authoring guidance; this section captures layout-specific decision logic.
 
 > Every `--vscode-*` size var you reference must already exist in `build/lib/stylelint/vscode-known-variables.json` (`"sizes"` array, alphabetically sorted) or stylelint/hygiene fails. Adding a *new* token means adding it both in `baseSizes.ts` and that JSON file.
 
