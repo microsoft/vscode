@@ -144,6 +144,81 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('renders recorded issue titles in editor and panel pills', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const issueUrl = 'https://github.com/microsoft/vscode/issues/335383';
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
+			[StateComponents.Session, {
+				defaultChat: buildDefaultChatUri(backendSession),
+				chats: [],
+				_meta: withSessionArtifacts(undefined, [{
+					id: 'issue',
+					type: SessionArtifactType.Issue,
+					label: 'Agent Window issue pill discards the recorded issue title',
+					link: issueUrl,
+					isGitHub: true,
+					isArtifact: true,
+				}]),
+			} as unknown as SessionState],
+		]));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+		));
+
+		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
+		assert.deepStrictEqual({
+			label: button?.querySelector('.chat-pill-label')?.textContent,
+			ariaLabel: button?.getAttribute('aria-label'),
+			ariaDescription: button?.getAttribute('aria-description'),
+		}, {
+			label: 'Issue #335383: Agent Window issue pill discards the recorded issue title',
+			ariaLabel: 'Open Issue #335383: Agent Window issue pill discards the recorded issue title',
+			ariaDescription: issueUrl,
+		});
+	});
+
 	test('resolves the configured session changeset and ignores templated entries', () => {
 		const backendSession = URI.parse('ahp-session:/session');
 		const changesets: readonly Changeset[] = [
