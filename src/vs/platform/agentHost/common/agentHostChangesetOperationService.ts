@@ -143,9 +143,8 @@ export interface IAgentHostChangesetOperationService extends IDisposable {
 	 */
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable;
 	/**
-	 * Recomputes and publishes operations for the changesets for a given
-	 * session. If `gitState` is not provided, the current git state will
-	 * be used.
+	 * Recomputes operations using the provided or current Git state.
+	 * Without Git state, clears cached operations but defers initial publication.
 	 */
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void;
 

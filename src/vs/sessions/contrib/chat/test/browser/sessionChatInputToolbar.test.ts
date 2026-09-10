@@ -27,7 +27,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { GitHubIssueState, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
@@ -95,56 +95,77 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	for (const activation of ['click', 'Enter', 'Space'] as const) {
-		test(`opens Session Changes from the changes pill with ${activation}`, () => {
-			const { instantiationService } = createServices();
-			const session = upcastPartial<IActiveSession>({
-				sessionId: 'provider:session',
-				capabilities: constObservable({ supportsMultipleChats: false }),
-				resource: URI.parse('session:1'),
-				chats: constObservable([]),
-				workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
-				changesets: constObservable([]),
-				changes: constObservable([{
-					modifiedUri: URI.file('/session-change.ts'),
-					insertions: 10,
-					deletions: 4,
-				}]),
-			});
-			const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
-			instantiationService.stub(ISessionsService, 'setActive', (session: IActiveSession | undefined) => {
-				calls.push({ action: 'activate', resource: session?.resource });
-			});
-			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
-				revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
-			}));
-			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
-				openChangesEditor: async (resource, options) => {
-					calls.push({ action: 'open', resource, options });
-					return undefined;
-				},
-			}));
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
-			toolbar.setSession(session, undefined);
-			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
-			assert.ok(pill);
-
-			if (activation === 'click') {
-				pill.click();
-			} else {
-				pill.dispatchEvent(new KeyboardEvent('keydown', {
-					key: activation === 'Enter' ? 'Enter' : ' ',
-					keyCode: activation === 'Enter' ? 13 : 32,
-					bubbles: true,
+	for (const worktree of [false, true]) {
+		for (const activation of ['click', 'Enter', 'Space'] as const) {
+			test(`opens ${worktree ? 'Branch' : 'Session'} Changes from the pill with ${activation} and follows workspace updates`, () => {
+				const { instantiationService } = createServices();
+				const root = URI.file('/repo');
+				const createWorkspace = (worktree: boolean) => upcastPartial<ISessionWorkspace>({
+					folders: [{
+						root,
+						name: 'repo',
+						description: undefined,
+						workingDirectory: worktree ? URI.file('/worktrees/repo') : root,
+						gitRepository: {
+							uri: root,
+							workTreeUri: worktree ? URI.file('/worktrees/repo') : undefined,
+							baseBranchName: 'main',
+							gitHubInfo: constObservable(undefined),
+						},
+					}],
+				});
+				const workspace = observableValue('workspace', createWorkspace(worktree));
+				const session = upcastPartial<IActiveSession>({
+					sessionId: 'provider:session',
+					capabilities: constObservable({ supportsMultipleChats: false }),
+					resource: URI.parse('session:1'),
+					chats: constObservable([]),
+					workspace,
+					changesets: constObservable([]),
+					changes: constObservable([{
+						modifiedUri: URI.file('/session-change.ts'),
+						insertions: 10,
+						deletions: 4,
+					}]),
+				});
+				const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
+				instantiationService.stub(ISessionsService, 'setActive', (session: IActiveSession | undefined) => {
+					calls.push({ action: 'activate', resource: session?.resource });
+				});
+				instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+					revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
 				}));
-			}
+				instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+					openChangesEditor: async (resource, options) => {
+						calls.push({ action: 'open', resource, options });
+						return undefined;
+					},
+				}));
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+				toolbar.setSession(session, undefined);
+				for (const currentWorktree of [worktree, !worktree]) {
+					workspace.set(createWorkspace(currentWorktree), undefined);
+					const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
+					assert.ok(pill);
 
-			assert.deepStrictEqual(calls, [
-				{ action: 'activate', resource: session.resource },
-				{ action: 'reveal' },
-				{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: SESSION_CHANGES_CHANGESET_ID } } },
-			]);
-		});
+					if (activation === 'click') {
+						pill.click();
+					} else {
+						pill.dispatchEvent(new KeyboardEvent('keydown', {
+							key: activation === 'Enter' ? 'Enter' : ' ',
+							keyCode: activation === 'Enter' ? 13 : 32,
+							bubbles: true,
+						}));
+					}
+				}
+
+				assert.deepStrictEqual(calls, [worktree, !worktree].flatMap(currentWorktree => [
+					{ action: 'activate', resource: session.resource },
+					{ action: 'reveal' },
+					{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: currentWorktree ? BRANCH_CHANGES_CHANGESET_ID : SESSION_CHANGES_CHANGESET_ID } } },
+				]));
+			});
+		}
 	}
 
 	test('adds rich GitHub hovers only when live details are available', async () => {
