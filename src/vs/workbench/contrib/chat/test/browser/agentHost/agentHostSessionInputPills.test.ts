@@ -7,7 +7,6 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
-import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -69,12 +68,12 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 }
 
 class TestOpenerService extends mock<IOpenerService>() {
-	readonly opened: { readonly resource: URI; readonly openExternal: boolean | undefined }[] = [];
+	readonly opened: { readonly resource: URI; readonly options: Parameters<IOpenerService['open']>[1] }[] = [];
 
 	override async open(resource: URI | string, options?: Parameters<IOpenerService['open']>[1]): Promise<boolean> {
 		this.opened.push({
 			resource: typeof resource === 'string' ? URI.parse(resource) : resource,
-			openExternal: options && hasKey(options, { openExternal: true }) ? options.openExternal : undefined,
+			options,
 		});
 		return true;
 	}
@@ -273,7 +272,7 @@ suite('AgentHostSessionInputPills', () => {
 				ariaLabel: issueButton?.getAttribute('aria-label'),
 				ariaDescription: issueButton?.getAttribute('aria-description'),
 			},
-			opened: openerService.opened.map(({ resource, openExternal }) => ({ resource: resource.toString(true), openExternal })),
+			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
 		}, {
 			pullRequests: {
 				label: '2 Pull Requests',
@@ -289,7 +288,10 @@ suite('AgentHostSessionInputPills', () => {
 				ariaLabel: 'Open Issue #335383: Agent Window issue pill discards the recorded issue title',
 				ariaDescription: issueUrl,
 			},
-			opened: [{ resource: issueUrl, openExternal: true }],
+			opened: [{
+				resource: issueUrl,
+				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
+			}],
 		});
 	});
 
@@ -691,7 +693,7 @@ suite('AgentHostSessionInputPills', () => {
 			multiple,
 			filteredLabel,
 			single,
-			opened: openerService.opened.map(({ resource, openExternal }) => ({ resource: resource.toString(true), openExternal })),
+			opened: openerService.opened.map(({ resource, options }) => ({ resource: resource.toString(true), options })),
 			filteredOnly: persistentContent.querySelector('.chat-dropdown-pill-button'),
 			canConfigure: persistentContent.querySelector('.chat-pills-row')?.classList.contains('empty'),
 		}, {
@@ -710,7 +712,10 @@ suite('AgentHostSessionInputPills', () => {
 				iconColor: 'var(--vscode-charts-purple)',
 				hasChevron: false,
 			},
-			opened: [{ resource: 'https://github.com/microsoft/vscode/pull/1', openExternal: true }],
+			opened: [{
+				resource: 'https://github.com/microsoft/vscode/pull/1',
+				options: { openExternal: true, allowContributedOpeners: true, fromUserGesture: true },
+			}],
 			filteredOnly: null,
 			canConfigure: true,
 		});
