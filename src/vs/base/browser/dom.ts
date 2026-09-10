@@ -1085,7 +1085,7 @@ export function getActiveWindow(): CodeWindow {
 interface IMutationObserver {
 	users: number;
 	readonly observer: MutationObserver;
-	readonly onDidMutate: event.Event<MutationRecord[]>;
+	readonly emitter: event.Emitter<MutationRecord[]>;
 }
 
 export const sharedMutationObserver = new class {
@@ -1106,32 +1106,33 @@ export const sharedMutationObserver = new class {
 			const observer = new MutationObserver(mutations => onDidMutate.fire(mutations));
 			observer.observe(target, options);
 
-			const resolvedMutationObserverPerOptions = mutationObserverPerOptions = {
+			mutationObserverPerOptions = {
 				users: 1,
 				observer,
-				onDidMutate: onDidMutate.event
+				emitter: onDidMutate
 			};
-
-			disposables.add(toDisposable(() => {
-				resolvedMutationObserverPerOptions.users -= 1;
-
-				if (resolvedMutationObserverPerOptions.users === 0) {
-					onDidMutate.dispose();
-					observer.disconnect();
-
-					mutationObserversPerTarget?.delete(optionsHash);
-					if (mutationObserversPerTarget?.size === 0) {
-						this.mutationObservers.delete(target);
-					}
-				}
-			}));
 
 			mutationObserversPerTarget.set(optionsHash, mutationObserverPerOptions);
 		} else {
 			mutationObserverPerOptions.users += 1;
 		}
 
-		return mutationObserverPerOptions.onDidMutate;
+		const resolvedMutationObserverPerOptions = mutationObserverPerOptions;
+		disposables.add(toDisposable(() => {
+			resolvedMutationObserverPerOptions.users -= 1;
+
+			if (resolvedMutationObserverPerOptions.users === 0) {
+				resolvedMutationObserverPerOptions.emitter.dispose();
+				resolvedMutationObserverPerOptions.observer.disconnect();
+
+				mutationObserversPerTarget?.delete(optionsHash);
+				if (mutationObserversPerTarget?.size === 0) {
+					this.mutationObservers.delete(target);
+				}
+			}
+		}));
+
+		return resolvedMutationObserverPerOptions.emitter.event;
 	}
 };
 
