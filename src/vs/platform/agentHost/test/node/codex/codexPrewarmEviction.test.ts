@@ -80,8 +80,9 @@ interface ITestWireRequest {
 		readonly extraRoots?: readonly string[];
 		readonly permissions?: string;
 		readonly config?: Record<string, unknown>;
+		readonly effort?: string;
 		readonly developerInstructions?: string;
-		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
+		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null; readonly reasoning_effort?: string | null } };
 	};
 }
 
