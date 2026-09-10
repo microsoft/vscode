@@ -953,7 +953,8 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.ai-customization-management-editor .prompts-content-container {
+.ai-customization-management-editor .prompts-content-container,
+.ai-customization-management-editor .prompt-migration-content-container {
 	padding-inline: var(--vscode-spacing-sizeNone);
 }
 
@@ -974,15 +975,18 @@ per-word capitalization does not survive translation. */
 	flex: 1;
 	min-height: 0;
 	width: 100%;
-	max-width: 840px;
-	margin-inline: auto;
+}
+
+.ai-customization-management-editor .prompt-migration-list-scrollable > .prompt-migration-scroll-container {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
 }
 
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-header,
 .ai-customization-management-editor .prompt-migration-content-container > .customization-migration-banner,
-.ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-list-scrollable,
 .ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-footer {
-	width: min(100%, 840px);
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
 	margin-inline: auto;
 	box-sizing: border-box;
 }
@@ -1131,8 +1135,10 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .prompt-migration-list {
-	position: absolute;
-	inset: 0;
+	height: 100%;
+	min-height: 0;
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
+	margin-inline: auto;
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;

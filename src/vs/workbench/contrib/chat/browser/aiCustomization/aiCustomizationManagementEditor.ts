@@ -1118,13 +1118,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.migrationBannerContainer = DOM.append(this.migrationContentContainer, $('.customization-migration-banner'));
 		this.migrationBannerContainer.style.display = 'none';
 
-		this.migrationListContainer = $('.prompt-migration-list.list-container.distributed-section-layout');
-		this.migrationListScrollable = this.editorDisposables.add(new DomScrollableElement(this.migrationListContainer, {
+		const migrationScrollContainer = $('.prompt-migration-scroll-container');
+		this.migrationListContainer = DOM.append(migrationScrollContainer, $('.prompt-migration-list.list-container.distributed-section-layout'));
+		const migrationListScrollable = this.migrationListScrollable = this.editorDisposables.add(new DomScrollableElement(migrationScrollContainer, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
 		}));
-		const migrationListScrollableNode = this.migrationListScrollable.getDomNode();
+		this.editorDisposables.add(DOM.addDisposableListener(migrationScrollContainer, DOM.EventType.SCROLL, () => {
+			migrationListScrollable.setScrollPosition({ scrollTop: migrationScrollContainer.scrollTop });
+		}));
+		const migrationListScrollableNode = migrationListScrollable.getDomNode();
 		migrationListScrollableNode.classList.add('prompt-migration-list-scrollable');
 		this.migrationContentContainer.appendChild(migrationListScrollableNode);
 
