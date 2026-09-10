@@ -54,7 +54,7 @@ import { IChat, ISession, ISessionChangesSummary, ISessionFolder, ISessionWorksp
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../../sessions/common/sessionCommands.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -132,6 +132,7 @@ interface ISessionSpec {
 	readonly minutesAgo: number;
 	readonly changesSummary?: ISessionChangesSummary;
 	readonly group?: string;
+	readonly isRead?: boolean;
 	/** Nested (non-main) chats shown as child rows under the session. */
 	readonly chats?: readonly IChatSpec[];
 	/** Terminal command awaiting approval on the session's main chat (renders on the session row). */
@@ -206,7 +207,7 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(spec.workspace ? createWorkspace(spec.workspace) : undefined);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!spec.workspace);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
-		override readonly isRead: IObservable<boolean> = constObservable(true);
+		override readonly isRead: IObservable<boolean> = constObservable(spec.isRead ?? true);
 		override readonly changes: IObservable<readonly never[]> = constObservable([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable(spec.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
@@ -228,6 +229,8 @@ interface IRenderOptions {
 	readonly sessions: readonly ISessionSpec[];
 	readonly groups?: readonly ISessionGroup[];
 	readonly grouping?: SessionsGrouping;
+	readonly collapsed?: boolean;
+	readonly showUnreadInCollapsedSections?: boolean;
 	readonly width?: number;
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
@@ -441,6 +444,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	if (options.automationBadgeStyle) {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, options.automationBadgeStyle);
 	}
+	if (options.showUnreadInCollapsedSections !== undefined) {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, options.showUnreadInCollapsedSections);
+	}
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	// Phone layout is driven by both a CSS class (visual) and a context key (row
@@ -480,6 +486,9 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		approvalModel,
 	}));
 	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
+	if (options.collapsed) {
+		list.collapseAllSections();
+	}
 	if (options.archiveOnboarding) {
 		listHost.style.width = `${width}px`;
 		const reveal = disposableStore.add(list.revealArchiveAction(sessions[0]));
@@ -583,6 +592,11 @@ const GROUPED_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'b', title: 'Add reconnect backoff', workspace: 'agent-host-protocol', minutesAgo: 64, group: GROUP.id },
 	{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 },
 ];
+const COLLAPSED_SECTION_SESSIONS: readonly ISessionSpec[] = [
+	{ id: 'grouped-unread', title: 'Unread session in the group only', workspace: 'vscode', minutesAgo: 12, group: GROUP.id, isRead: false },
+	{ id: 'workspace-read', title: 'Read session in the workspace', workspace: 'vscode', minutesAgo: 24 },
+	{ id: 'workspace-unread', title: 'Unread session in the workspace', workspace: 'vscode-docs', minutesAgo: 36, isRead: false },
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_ArchiveOnboarding: defineComponentFixture({
@@ -596,6 +610,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CustomGroup: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, groups: [GROUP] }),
+	}),
+	SessionsList_CollapsedUnreadSections: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed. Filled unread indicators replace the icons for Release work and vscode-docs. The vscode section retains its folder icon because its unread session appears only in Release work.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_SECTION_SESSIONS, groups: [GROUP], collapsed: true }),
+	}),
+	SessionsList_CollapsedUnreadSections_Disabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed and retain their normal group or folder icons despite containing unread sessions, because collapsed-section unread indicators are disabled.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_SECTION_SESSIONS, groups: [GROUP], collapsed: true, showUnreadInCollapsedSections: false }),
 	}),
 	SessionsList_CustomGroup_LongWorkspaceNarrow: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, {

@@ -20,7 +20,7 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../plat
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -38,17 +38,17 @@ import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.j
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionItemToolbarMenuId, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
-import { createListHarness, createTestSession, ISortChangeRecord } from './sessionsListTestUtils.js';
+import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
@@ -123,6 +123,7 @@ suite('Sessions - SessionsList', () => {
 			const renderer = new SessionSectionRenderer(
 				true,
 				section => selectedSections.push(section),
+				constObservable(true),
 				instantiationService,
 				contextKeyService,
 				automationService,
@@ -176,6 +177,7 @@ suite('Sessions - SessionsList', () => {
 			const renderer = new SessionSectionRenderer(
 				true,
 				() => { },
+				constObservable(true),
 				instantiationService,
 				contextKeyService,
 				automationService,
@@ -234,6 +236,7 @@ suite('Sessions - SessionsList', () => {
 			const renderer = new SessionSectionRenderer(
 				true,
 				() => { },
+				constObservable(true),
 				instantiationService,
 				contextKeyService,
 				automationService,
@@ -409,6 +412,7 @@ suite('Sessions - SessionsList', () => {
 			const renderer = new SessionSectionRenderer(
 				true,
 				() => { },
+				constObservable(true),
 				new class extends mock<IInstantiationService>() { },
 				new class extends mock<IContextKeyService>() { },
 				automationService,
@@ -477,6 +481,7 @@ suite('Sessions - SessionsList', () => {
 			const renderer = new SessionSectionRenderer(
 				true,
 				() => { },
+				constObservable(true),
 				new class extends mock<IInstantiationService>() { },
 				new class extends mock<IContextKeyService>() { },
 				automationService,
@@ -514,6 +519,216 @@ suite('Sessions - SessionsList', () => {
 
 			needsInputStatus.set(SessionStatus.InProgress, undefined);
 			assert.strictEqual(renderer.automationStatus.get(), SessionStatus.InProgress);
+		});
+	});
+
+	suite('collapsed section unread indicators', () => {
+		const group: ISessionGroup = { id: 'group-a', name: 'Group A', createdAt: 1 };
+
+		function renderList(sessions: ISession[], options: IListHarnessOptions = {}) {
+			const harness = createListHarness(disposables, sessions, options);
+			harness.instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
+			const container = harness.createContainer(400, 700);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(700, 400);
+			return { ...harness, list, container };
+		}
+
+		function unreadSections(container: HTMLElement): string[] {
+			return [...container.querySelectorAll('.session-section')]
+				.filter(header => header.querySelector('.session-section-icon .codicon-circle-filled'))
+				.map(header => header.querySelector('.session-section-label')!.textContent!);
+		}
+
+		function getHeader(container: HTMLElement, label: string): HTMLElement {
+			const header = [...container.querySelectorAll<HTMLElement>('.session-section')]
+				.find(header => header.querySelector('.session-section-label')?.textContent === label);
+			assert.ok(header, `Expected section ${label}`);
+			return header;
+		}
+
+		test('marks the group containing an unread session, not the session workspace', () => {
+			const grouped = createTestSession('Grouped unread', { workspaceLabel: 'Workspace B', isRead: false }).session;
+			const read = createTestSession('Workspace read', { workspaceLabel: 'Workspace B' }).session;
+			const unread = createTestSession('Workspace unread', { workspaceLabel: 'Workspace C', isRead: false }).session;
+			const { list, container } = renderList([grouped, read, unread], {
+				groups: [group, { id: 'empty', name: 'Empty group', createdAt: 2 }],
+				memberships: new Map([[grouped.sessionId, group.id]]),
+			});
+			list.collapseAllSections();
+
+			assert.deepStrictEqual({
+				unreadSections: unreadSections(container),
+				groupAria: getHeader(container, group.name).closest('.monaco-list-row')?.getAttribute('aria-label'),
+				workspaceAria: getHeader(container, 'Workspace B').closest('.monaco-list-row')?.getAttribute('aria-label'),
+				color: getHeader(container, group.name).querySelector<HTMLElement>('.codicon-circle-filled')?.style.color,
+			}, {
+				unreadSections: [group.name, 'Workspace C'],
+				groupAria: 'Group A, 1, unread sessions',
+				workspaceAria: 'Workspace B, 1',
+				color: 'var(--vscode-textLink-foreground)',
+			});
+		});
+
+		for (const grouped of [false, true]) {
+			const kind = grouped ? 'group' : 'workspace';
+
+			test(`reacts to collapse, read, and archive changes in a ${kind}`, () => {
+				const { session, isRead, isArchived } = createTestSession('Unread', { isRead: false });
+				const { list, container } = renderList([session], grouped ? {
+					groups: [group],
+					memberships: new Map([[session.sessionId, group.id]]),
+				} : {});
+				const label = grouped ? group.name : 'Workspace';
+				const states = [unreadSections(container)];
+
+				list.collapseAllSections();
+				states.push(unreadSections(container));
+				isRead.set(true, undefined);
+				states.push(unreadSections(container));
+				isRead.set(false, undefined);
+				states.push(unreadSections(container));
+				isArchived.set(true, undefined);
+				states.push(unreadSections(container));
+				isArchived.set(false, undefined);
+				states.push(unreadSections(container));
+				getHeader(container, label).click();
+				states.push(unreadSections(container));
+
+				assert.deepStrictEqual({
+					states,
+					expanded: getHeader(container, label).closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+					restoredIcon: !!getHeader(container, label).querySelector(grouped ? '.codicon-folder-library' : '.codicon-folder'),
+				}, {
+					states: [[], [label], [], [label], [], [label], []],
+					expanded: 'true',
+					restoredIcon: true,
+				});
+			});
+
+			test(`includes unread sessions behind show more in a collapsed ${kind}`, () => {
+				const sessions = Array.from({ length: 6 }, (_, index) => ({
+					...createTestSession(`Session ${index}`, { isRead: index !== 5 }).session,
+					createdAt: new Date(Date.now() - index * 1000),
+				}));
+				const { list, container } = renderList(sessions, grouped ? {
+					groups: [group],
+					memberships: new Map(sessions.map(session => [session.sessionId, group.id])),
+				} : {});
+				const visibleTitles = [...container.querySelectorAll('.session-title')].map(title => title.textContent);
+
+				list.collapseAllSections();
+
+				assert.deepStrictEqual({
+					visibleTitles,
+					unreadSections: unreadSections(container),
+				}, {
+					visibleTitles: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4'],
+					unreadSections: [grouped ? group.name : 'Workspace'],
+				});
+			});
+		}
+
+		test('updates membership and does not retain unread state when headers are reused', () => {
+			const { session: unread, isRead } = createTestSession('Unread', { workspaceLabel: 'Workspace B', isRead: false });
+			const read = createTestSession('Read', { workspaceLabel: 'Workspace B' }).session;
+			const memberships = new Map<string, string>();
+			const { list, container, managementService } = renderList([unread, read], { groups: [group], memberships });
+			list.collapseAllSections();
+			const states = [unreadSections(container)];
+
+			memberships.set(unread.sessionId, group.id);
+			list.update();
+			states.push(unreadSections(container));
+			memberships.delete(unread.sessionId);
+			list.update();
+			states.push(unreadSections(container));
+			managementService.sessions = [read];
+			list.refresh();
+			isRead.set(true, undefined);
+			isRead.set(false, undefined);
+			states.push(unreadSections(container));
+
+			assert.deepStrictEqual(states, [['Workspace B'], [group.name], ['Workspace B'], []]);
+		});
+
+		test('respects pinned, archived, and automation placement before aggregating unread sessions', () => {
+			const pinned = createTestSession('Pinned unread', { workspaceLabel: 'Workspace B', isRead: false }).session;
+			const archived = createTestSession('Archived unread', { workspaceLabel: 'Workspace B', isRead: false, isArchived: true }).session;
+			const automation: ISession = {
+				...createTestSession('Automation unread', { workspaceLabel: 'Workspace B', isRead: false }).session,
+				isAutomation: constObservable(true),
+			};
+			const read = createTestSession('Read', { workspaceLabel: 'Workspace B' }).session;
+			const { list, container } = renderList([pinned, archived, automation, read], {
+				groups: [group],
+				memberships: new Map([pinned, archived, automation].map(session => [session.sessionId, group.id])),
+				pinnedSessionIds: new Set([pinned.sessionId]),
+			});
+			list.setExcludeArchived(false);
+			list.collapseAllSections();
+
+			assert.deepStrictEqual({
+				unreadSections: unreadSections(container),
+				groupAria: getHeader(container, group.name).closest('.monaco-list-row')?.getAttribute('aria-label'),
+				workspaceAria: getHeader(container, 'Workspace B').closest('.monaco-list-row')?.getAttribute('aria-label'),
+			}, {
+				unreadSections: ['Pinned'],
+				groupAria: 'Group A, 0',
+				workspaceAria: 'Workspace B, 1',
+			});
+		});
+
+		test('does not count unread sessions excluded by list filters', () => {
+			const grouped = createTestSession('Grouped unread', { isRead: false, status: SessionStatus.Error }).session;
+			const unread = createTestSession('Workspace unread', { isRead: false, status: SessionStatus.Error }).session;
+			const read = createTestSession('Read').session;
+			const { list, container } = renderList([grouped, unread, read], {
+				groups: [group],
+				memberships: new Map([[grouped.sessionId, group.id]]),
+			});
+			list.collapseAllSections();
+			list.setStatusExcluded(SessionStatus.Error, true);
+			const filtered = unreadSections(container);
+			list.setStatusExcluded(SessionStatus.Error, false);
+
+			assert.deepStrictEqual({ filtered, restored: unreadSections(container) }, {
+				filtered: [],
+				restored: [group.name, 'Workspace'],
+			});
+		});
+
+		test('reacts to setting changes without refreshing the list', async () => {
+			const grouped = createTestSession('Grouped unread', { isRead: false }).session;
+			const unread = createTestSession('Workspace unread', { isRead: false }).session;
+			const { list, container, instantiationService } = renderList([grouped, unread], {
+				groups: [group],
+				memberships: new Map([[grouped.sessionId, group.id]]),
+			});
+			list.collapseAllSections();
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			const states = [];
+			for (const enabled of [false, true]) {
+				await configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: key => key === SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING,
+				}));
+				states.push({
+					unreadSections: unreadSections(container),
+					groupIcon: !!getHeader(container, group.name).querySelector('.codicon-folder-library'),
+					workspaceIcon: !!getHeader(container, 'Workspace').querySelector('.codicon-folder'),
+					groupAria: getHeader(container, group.name).closest('.monaco-list-row')?.getAttribute('aria-label'),
+				});
+			}
+
+			assert.deepStrictEqual(states, [
+				{ unreadSections: [], groupIcon: true, workspaceIcon: true, groupAria: 'Group A, 1' },
+				{ unreadSections: [group.name, 'Workspace'], groupIcon: false, workspaceIcon: false, groupAria: 'Group A, 1, unread sessions' },
+			]);
 		});
 	});
 
