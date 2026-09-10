@@ -524,6 +524,7 @@ suite('Sessions rename', () => {
 				hasDevContainerExecution: content.includes('run the session on an Agent Host inside that folder\'s Dev Container'),
 				hasNoBackgroundOption: content.includes('choose no background'),
 				hasPetAchievements: content.includes('View Achievements'),
+				hasSidebarCustomizations: content.includes('Chat Customizations section at the bottom of the left sidebar'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
@@ -540,6 +541,7 @@ suite('Sessions rename', () => {
 				hasDevContainerExecution: true,
 				hasNoBackgroundOption: true,
 				hasPetAchievements: true,
+				hasSidebarCustomizations: true,
 				activeElement: origin,
 				fallbackFocusCount: 0,
 			});
