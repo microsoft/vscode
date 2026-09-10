@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { raceCancellation } from '../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { equals } from '../../../../../base/common/objects.js';
@@ -79,12 +80,24 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			}
 			case CustomizationMigrationType.AgentFiles: {
 				const agentFiles = await this.promptsService.listPromptFiles(PromptsType.agent, token);
-				const candidates = (await Promise.all(agentFiles
+				const parsedAgentFiles = await Promise.all(agentFiles
 					.filter(file => file.storage === PromptsStorage.local || file.storage === PromptsStorage.user)
-					.map(async file => ({
-						file,
-						parsed: await this.promptsService.parseNew(file.uri, token),
-					}))))
+					.map(async file => {
+						try {
+							return {
+								file,
+								parsed: await this.promptsService.parseNew(file.uri, token),
+							};
+						} catch (error) {
+							if (isCancellationError(error)) {
+								throw error;
+							}
+							this.logService.error(`[Customization Migration] Failed to parse agent file: ${file.uri.toString()}`, error);
+							return undefined;
+						}
+					}));
+				const candidates = parsedAgentFiles
+					.filter(candidate => candidate !== undefined)
 					.filter(({ parsed }) => parsed.header?.getAttribute(PromptHeaderAttributes.handOffs) !== undefined)
 					.map(({ file }) => ({ ...file, hasLocalHandoffs: true }));
 				return { type, files: candidates.map(candidate => candidate.uri), candidates };

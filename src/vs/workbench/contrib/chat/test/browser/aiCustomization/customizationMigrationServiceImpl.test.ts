@@ -51,6 +51,14 @@ class TestPromptsService extends MockPromptsService {
 	}
 }
 
+class TestLogService extends NullLogService {
+	readonly errors: (string | Error)[] = [];
+
+	override error(message: string | Error): void {
+		this.errors.push(message);
+	}
+}
+
 class SupportChangingFileSystemProvider extends InMemoryFileSystemProvider {
 	targetUri: URI | undefined;
 	afterTargetWrite: (() => void) | undefined;
@@ -456,6 +464,50 @@ suite('CustomizationMigrationService', () => {
 			requestedSessionType: SessionType.AgentHostCopilot,
 			requestedRoots: ['/workspace'],
 			supportScopeDisposed: true,
+		});
+	});
+
+	test('skips agent files that fail to parse', async () => {
+		const validAgent = URI.file('/home/test/.copilot/agents/valid.agent.md');
+		const missingAgent = URI.file('/home/test/.copilot/agents/missing.agent.md');
+		const promptsService = store.add(new class extends TestPromptsService {
+			override async parseNew(uri: URI) {
+				if (isEqual(uri, missingAgent)) {
+					throw new Error('File not found');
+				}
+				return super.parseNew(uri);
+			}
+		}([
+			{ uri: validAgent, storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
+			{ uri: missingAgent, storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
+		], new Map([
+			[validAgent.path, [
+				'---',
+				'name: valid',
+				'handoffs:',
+				'  - agent: implementer',
+				'---',
+			].join('\n')],
+		])));
+		const harnessService = new TestCustomizationHarnessService();
+		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+			override acquireMcpServerSupportScope() { return undefined; }
+		}();
+		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override readonly onDidChangeCustomizations = Event.None;
+			override getClientWorkingDirectoryUris() { return []; }
+		}();
+		const logService = new TestLogService();
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, logService, store.add(createMigrationConfiguration())));
+
+		const migration = await service.computeMigration(harnessService.activeSessionResource.get(), CustomizationMigrationType.AgentFiles);
+
+		assert.deepStrictEqual({
+			files: migration.files.map(file => file.path),
+			errors: logService.errors.map(String),
+		}, {
+			files: [validAgent.path],
+			errors: [`[Customization Migration] Failed to parse agent file: ${missingAgent.toString()}`],
 		});
 	});
 
