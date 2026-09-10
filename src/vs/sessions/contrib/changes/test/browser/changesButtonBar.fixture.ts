@@ -10,7 +10,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { WorkbenchButtonBar } from '../../../../../platform/actions/browser/buttonbar.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { getChangesButtonBarIconLabelSpacing } from '../../browser/changesButtonBar.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 	ButtonBar: defineComponentFixture({
@@ -48,7 +47,7 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 						return {
 							showIcon: true,
 							showLabel: true,
-							iconLabelSpacing: getChangesButtonBarIconLabelSpacing(actions),
+							iconLabelSpacing: 'default',
 						};
 				}
 				return undefined;
