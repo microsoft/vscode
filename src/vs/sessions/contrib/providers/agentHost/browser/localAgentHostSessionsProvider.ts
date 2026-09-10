@@ -124,6 +124,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	private readonly _devContainerAvailableDrafts = new Set<string>();
 	private readonly _devContainerDrafts = new Set<string>();
 	private readonly _pendingDevContainerEnablement = new Set<string>();
+	readonly onDidChangeDevContainerAvailability: Event<void>;
 	override get order(): number {
 		return -1;
 	}
@@ -191,6 +192,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IPathService pathService: IPathService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
+		this.onDidChangeDevContainerAvailability = this._devContainerAgentHostService.onDidChangeAvailability;
 		const legacyAutomations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
 		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, legacyAutomations, {
 			toHost: resource => resource,

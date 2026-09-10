@@ -1023,6 +1023,9 @@ export class WorkspacePicker extends Disposable {
 					this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
 				}
 			}));
+			if (isAgentHostProvider(provider) && provider.onDidChangeDevContainerAvailability) {
+				store.add(provider.onDidChangeDevContainerAvailability(() => this._clearDevContainerAvailability(true)));
+			}
 		}
 	}
 

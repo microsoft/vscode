@@ -89,6 +89,7 @@ function createMockProvider(id: string, opts?: {
 	getSessions?: () => ISession[];
 	onDidChangeSessions?: Event<ISessionChangeEvent>;
 	group?: string;
+	onDidChangeDevContainerAvailability?: Event<void>;
 	isDevContainerWorkspaceAvailable?: (workspaceUri: URI) => Promise<boolean>;
 }): ISessionsProvider {
 	const pathPrefix = MOCK_PROVIDER_PATH_PREFIXES[id];
@@ -144,7 +145,7 @@ function createMockProvider(id: string, opts?: {
 		createSideChat: async () => { throw new Error('Not implemented'); },
 		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },
 	};
-	if (opts?.connectionStatus || opts?.isDevContainerWorkspaceAvailable) {
+	if (opts?.connectionStatus || opts?.isDevContainerWorkspaceAvailable || opts?.onDidChangeDevContainerAvailability) {
 		return {
 			...base,
 			canConnectOnDemand: opts.canConnectOnDemand,
@@ -152,6 +153,7 @@ function createMockProvider(id: string, opts?: {
 			connectionStatus: opts.connectionStatus,
 			onDidReportConnectProgress: opts.onDidReportConnectProgress,
 			remoteAddress: opts.remoteAddress,
+			onDidChangeDevContainerAvailability: opts.onDidChangeDevContainerAvailability,
 			isDevContainerWorkspaceAvailable: opts.isDevContainerWorkspaceAvailable,
 			onDidChangeSessionConfig: Event.None,
 			getSessionConfig: () => undefined,
@@ -597,12 +599,14 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
-	test('caches Dev Container availability across picker opens and invalidates when providers change', async () => {
+	test('caches Dev Container availability across picker opens and invalidates when connector availability changes', async () => {
 		const folderUri = URI.file('/agent-host/project');
 		let available = true;
 		let availabilityChecks = 0;
+		const onDidChangeDevContainerAvailability = disposables.add(new Emitter<void>());
 		const provider = createMockProvider('local-agent-host', {
 			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			onDidChangeDevContainerAvailability: onDidChangeDevContainerAvailability.event,
 			isDevContainerWorkspaceAvailable: async () => {
 				availabilityChecks++;
 				return available;
@@ -623,22 +627,21 @@ suite('WorkspacePicker - Connection Status', () => {
 		picker.showPicker();
 		await timeout(0);
 		const availableAfterReopen = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
-		providersService.setProviders([]);
-		providersService.setProviders([provider]);
+		onDidChangeDevContainerAvailability.fire();
 		picker.getItems();
 		await timeout(0);
-		const availableAfterProviderChange = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
+		const availableAfterConnectorChange = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
 
 		assert.deepStrictEqual({
 			availabilityChecks,
 			initiallyAvailable,
 			availableAfterReopen,
-			availableAfterProviderChange,
+			availableAfterConnectorChange,
 		}, {
 			availabilityChecks: 2,
 			initiallyAvailable: true,
 			availableAfterReopen: true,
-			availableAfterProviderChange: false,
+			availableAfterConnectorChange: false,
 		});
 	});
 
