@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, getWindow } from '../../../../../base/browser/dom.js';
+import { $, Dimension } from '../../../../../base/browser/dom.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -556,12 +556,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	const tabs = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab');
 	if (options.modernUI && partOptions.pinnedTabSizing === 'compact') {
 		const compactLabels = titleContainer.querySelectorAll<HTMLElement>('.tab.sticky-compact .monaco-icon-label');
-		const compactIconStyles = Array.from(compactLabels, label => getWindow(label).getComputedStyle(label, '::before'));
-		if (
-			compactLabels.length === 0
-			|| Array.from(compactLabels).some(label => !label.classList.contains('monaco-icon-label-spacing-none'))
-			|| compactIconStyles.some(style => style.boxSizing !== 'border-box' || style.paddingRight !== '0px' || style.marginInlineEnd !== '0px')
-		) {
+		if (compactLabels.length === 0 || Array.from(compactLabels).some(label => !label.classList.contains('monaco-icon-label-spacing-none'))) {
 			throw new Error('Modern UI compact pinned tabs did not select icon-only label spacing.');
 		}
 	}

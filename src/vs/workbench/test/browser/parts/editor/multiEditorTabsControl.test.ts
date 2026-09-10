@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, Dimension, EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { $, Dimension, EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,6 +22,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { TestFileEditorInput, TestHostService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import '../../../../browser/media/style.css';
 
 suite('MultiEditorTabsControl', () => {
 
@@ -50,7 +52,11 @@ suite('MultiEditorTabsControl', () => {
 
 		model = disposables.add(instantiationService.createInstance(EditorGroupModel, undefined));
 		for (let i = 0; i < 2; i++) {
-			const editor = disposables.add(new TestFileEditorInput(URI.file(`/path/file${i}.txt`), 'testEditorInput'));
+			const editor = disposables.add(i === 0
+				? new class extends TestFileEditorInput {
+					override getIcon() { return Codicon.symbolFile; }
+				}(URI.file(`/path/file${i}.txt`), 'testEditorInput')
+				: new TestFileEditorInput(URI.file(`/path/file${i}.txt`), 'testEditorInput'));
 			model.openEditor(editor, { pinned: true, active: i === 0 });
 		}
 
@@ -220,12 +226,29 @@ suite('MultiEditorTabsControl', () => {
 		workbench.classList.add('modern-ui-tabs');
 		control.layout({ container: new Dimension(500, 35), available: new Dimension(500, 35) });
 		variants.push(iconLabel.classList.contains('monaco-icon-label-spacing-none'));
+		const pseudoStyle = getWindow(iconLabel).getComputedStyle(iconLabel, '::before');
 
 		workbench.classList.remove('modern-ui-tabs');
 		control.layout({ container: new Dimension(500, 35), available: new Dimension(500, 35) });
 		variants.push(iconLabel.classList.contains('monaco-icon-label-spacing-none'));
 
-		assert.deepStrictEqual(variants, [false, true, false]);
+		assert.deepStrictEqual({
+			variants,
+			themeIconGeometry: {
+				boxSizing: pseudoStyle.boxSizing,
+				paddingRight: pseudoStyle.paddingRight,
+				marginInlineEnd: pseudoStyle.marginInlineEnd,
+				width: pseudoStyle.width,
+			},
+		}, {
+			variants: [false, true, false],
+			themeIconGeometry: {
+				boxSizing: 'border-box',
+				paddingRight: '0px',
+				marginInlineEnd: '0px',
+				width: '16px',
+			},
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
