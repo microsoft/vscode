@@ -154,15 +154,23 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<OpenAIEndpoint> {
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
-		const apiTypeOverride = modelConfiguration?.apiType ?? model.configuration?.apiType;
-		const url = resolveCustomEndpointUrl(model.id, model.url, apiTypeOverride);
-		const apiType: CustomEndpointApiType = apiTypeOverride ?? inferApiTypeFromUrl(url);
+		let url = modelConfiguration?.url || model.url;
+		let apiType: CustomEndpointApiType;
+
+		if (hasExplicitApiPath(url)) {
+			apiType = inferApiTypeFromUrl(url);
+		} else {
+			const apiTypeOverride = modelConfiguration?.apiType ?? model.configuration?.apiType;
+			url = resolveCustomEndpointUrl(model.id, url, apiTypeOverride);
+			apiType = apiTypeOverride ?? inferApiTypeFromUrl(url);
+		}
+
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
 			contextWindow: modelConfiguration?.contextWindow,
-			toolCalling: !!model.capabilities?.toolCalling || false,
-			vision: !!model.capabilities?.imageInput || false,
+			toolCalling: !!model.capabilities?.toolCalling,
+			vision: !!model.capabilities?.imageInput,
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,
