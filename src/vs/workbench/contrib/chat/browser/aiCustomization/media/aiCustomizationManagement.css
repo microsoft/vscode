@@ -2475,6 +2475,46 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
+.mcp-server-item.has-error {
+	align-items: flex-start;
+	padding-top: var(--vscode-spacing-size120);
+	padding-bottom: var(--vscode-spacing-size120);
+}
+
+.mcp-server-item .mcp-server-description.error {
+	color: var(--vscode-errorForeground);
+	margin-top: var(--vscode-spacing-size80);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	overflow: visible;
+	text-overflow: clip;
+}
+
+.mcp-server-item .mcp-server-description.error:not(.expanded) {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	max-height: 3lh;
+	overflow: hidden;
+}
+
+.mcp-server-item .mcp-server-error-toggle.monaco-button {
+	align-self: flex-start;
+	width: auto;
+	min-width: 0;
+	padding: 0;
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-textLink-foreground);
+	font-size: var(--vscode-fontSize-body2);
+	border: 0;
+	background: transparent;
+}
+
+.mcp-server-item .mcp-server-error-toggle.monaco-button:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
 .mcp-server-item .mcp-server-actions {
 	flex-shrink: 0;
 	display: flex;
@@ -2501,19 +2541,6 @@ per-word capitalization does not survive translation. */
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.mcp-server-item .mcp-server-status-action.monaco-button {
-	min-width: var(--vscode-spacing-size240);
-	min-height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-size40);
-	border: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	background-color: transparent;
-}
-
-.mcp-server-item .mcp-server-status-action.monaco-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
 .mcp-server-item .mcp-server-status.running {
 	color: var(--vscode-charts-green);
 }
@@ -2524,10 +2551,6 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-status.auth-required {
 	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
-}
-
-.mcp-server-item .mcp-server-status.error {
-	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
 }
 
 .mcp-server-item.disabled {

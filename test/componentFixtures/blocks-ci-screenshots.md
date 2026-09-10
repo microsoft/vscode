@@ -55,10 +55,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/83f74ecd73ce774dc3810cda0e41da17d236d5142cd154d049379069ae0845c9)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/McpServersTab/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/2bded6b417fd2f051de0d7aaeab4a8d374be55593f57e1378be9a74b8e54a1c4)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/74816468f3c35ec7e14595f37015fac6e7ab3aebf5eeb4605cd534f42e74aefa)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/McpServersTab/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/531b495efef0532149418b19c74f972738f7f56b4cb6a091786f6bfd288a63cf)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3d832d5587083b9d6733d9a143fac25f157c484cd122961b4b57e035e27b14bf)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PluginCatalogHome/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/282ec779a768e37695b177b564753ec05db824c6a4d6d2be6e22840567eb38b2)
