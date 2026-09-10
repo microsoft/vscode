@@ -207,6 +207,12 @@
 	overflow: visible;
 }
 
+.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown a[data-href]:focus-visible:not(.chat-rich-link),
+.agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown a[data-href]:focus-visible:not(.chat-rich-link) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block),
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block) {
 	max-width: 100%;
