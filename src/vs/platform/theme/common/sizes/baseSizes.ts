@@ -87,9 +87,25 @@ export const codiconFontSizeCompact = registerSize('codiconFontSize.compact',
 
 // ------ Icon sizes
 
+export const iconSizeXSmall = registerSize('iconSize.xSmall',
+	sizeForAllThemes(12, 'px'),
+	nls.localize('iconSizeXSmall', "Extra small icon size."));
+
 export const iconSizeSmall = registerSize('iconSize.small',
 	sizeForAllThemes(16, 'px'),
 	nls.localize('iconSizeSmall', "Small icon size."));
+
+export const iconSizeMedium = registerSize('iconSize.medium',
+	sizeForAllThemes(20, 'px'),
+	nls.localize('iconSizeMedium', "Medium icon size."));
+
+export const iconSizeLarge = registerSize('iconSize.large',
+	sizeForAllThemes(24, 'px'),
+	nls.localize('iconSizeLarge', "Large icon size."));
+
+export const iconSizeXLarge = registerSize('iconSize.xLarge',
+	sizeForAllThemes(32, 'px'),
+	nls.localize('iconSizeXLarge', "Extra large icon size."));
 
 // ------ Corner Radii
 

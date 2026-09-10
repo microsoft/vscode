@@ -9,6 +9,12 @@ import { getSizeRegistry, registerSize, size, sizeForAllThemes, sizeValueToCss, 
 // Import baseSizes to ensure base size tokens are registered
 import { bodyFontSize, bodyFontSizeSmall, codiconFontSize, cornerRadiusMedium, cornerRadiusSmall, cornerRadiusLarge, iconSizeSmall, strokeThickness } from '../../common/sizes/baseSizes.js';
 
+function getSizeTokenDefaults(prefix: string) {
+	return Object.fromEntries(getSizeRegistry().getSizes()
+		.filter(size => size.id.startsWith(prefix))
+		.map(size => [size.id, size.defaults]));
+}
+
 suite('Size Registry', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,6 +73,16 @@ suite('Size Registry', () => {
 		assert.ok(sizes.find(s => s.id === cornerRadiusLarge), 'cornerRadius.large should be registered');
 		assert.ok(sizes.find(s => s.id === iconSizeSmall), 'iconSize.small should be registered');
 		assert.ok(sizes.find(s => s.id === strokeThickness), 'strokeThickness should be registered');
+	});
+
+	test('icon size tokens should use the expected scale', () => {
+		assert.deepStrictEqual(getSizeTokenDefaults('iconSize.'), {
+			'iconSize.xSmall': sizeForAllThemes(12, 'px'),
+			'iconSize.small': sizeForAllThemes(16, 'px'),
+			'iconSize.medium': sizeForAllThemes(20, 'px'),
+			'iconSize.large': sizeForAllThemes(24, 'px'),
+			'iconSize.xLarge': sizeForAllThemes(32, 'px'),
+		});
 	});
 
 	test('sizeForAllThemes should create same value for all themes', () => {
