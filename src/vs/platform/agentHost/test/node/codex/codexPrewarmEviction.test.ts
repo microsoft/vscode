@@ -1503,7 +1503,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const { session } = await createSession(agent, { workingDirectories: [workspace] });
 		const chat = defaultChatOf(session);
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
-		const nativeSkill = { name: 'website', description: 'Native website', path: skillUri.fsPath, scope: 'repo' as const, enabled: true };
+		const nativeSkill = { name: 'website', description: 'Native website', path: skillUri.fsPath, scope: 'repo' as const, enabled: true, pluginId: null };
 		let catalog = codexSkillsToContainers({ data: [{ cwd: workspace.fsPath, skills: [nativeSkill, { ...nativeSkill, path: nativeSkillUri.fsPath }], errors: [] }] });
 		const nativeContainerId = catalog[0].id;
 		agent['_fetchSkillHookContainers'] = async () => catalog;
