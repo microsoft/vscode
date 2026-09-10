@@ -80,6 +80,7 @@ interface ITestWireRequest {
 		readonly model?: string;
 		readonly modelProvider?: string;
 		readonly approvalPolicy?: string;
+		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 		readonly approvalsReviewer?: string;
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
 		readonly extraRoots?: readonly string[];
@@ -96,7 +97,6 @@ interface ITestWireRequest {
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
 const OPENAI_TEST_MODEL = toCodexModelSelectionId('openai', 'gpt-5.6-sol');
-const PLUGIN_SKILLS_ROOT = URI.file('/plugin/skills').fsPath;
 
 interface ITestPeer {
 	readonly transport: ICodexAppServerTransport;
@@ -302,7 +302,6 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 		child: { kill: () => true },
 	} as never;
 	agent['_refreshSkillHookCustomizations'] = async () => { };
-	agent['_refreshSkillExtraRoots'] = async () => { };
 
 	const folder = URI.file('/repo/folder');
 	const worktree = URI.file('/repo/worktree');
@@ -409,7 +408,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -440,6 +438,7 @@ suite('CodexAgent prewarm eviction', () => {
 			return {
 				config: {},
 				developerInstructions: 'Use current instructions.',
+				clientSkillInstructions: 'No client skills are currently available.',
 				selectedCapabilityRoots: [],
 				signature: entry.materializedCustomizationsSig ?? '',
 			};
@@ -718,8 +717,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		let skillRootRefreshes = 0;
-		agent['_refreshSkillExtraRoots'] = async () => { skillRootRefreshes++; };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -785,7 +782,6 @@ suite('CodexAgent prewarm eviction', () => {
 			customizationsEmpty: entry.clientCustomizations.isEmpty() && parentEntry.clientCustomizations.isEmpty(),
 			needsResume: entry.needsResume,
 			unsubscribeBeforeResume: entry.unsubscribeBeforeResume,
-			skillRootRefreshes,
 		}, {
 			actions: [
 				{ resource: parent.session.toString(), type: ActionType.SessionCustomizationUpdated, name: 'owner-plugin' },
@@ -796,7 +792,6 @@ suite('CodexAgent prewarm eviction', () => {
 			customizationsEmpty: true,
 			needsResume: true,
 			unsubscribeBeforeResume: true,
-			skillRootRefreshes: 2,
 		});
 	});
 
@@ -967,7 +962,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const metadataWrite = new DeferredPromise<void>();
 		agent['_metadataStore'].write = async () => metadataWrite.p;
 		const peer = disposables.add(createTestPeer());
@@ -1581,31 +1575,16 @@ suite('CodexAgent prewarm eviction', () => {
 		const unrelatedLaunch = await agent['_buildCustomizationLaunch'](agent['_sessions'].get(AgentSession.id(unrelated.session))!);
 		const unrelatedChat = defaultChatOf(unrelated.session);
 		const unrelatedCustomizations = await agent.getChatCustomizations(unrelatedChat, chatContext(unrelated.session, unrelatedChat));
-		const peer = disposables.add(createTestPeer());
-		const client = disposables.add(new CodexAppServerClient(peer.transport));
 
-		try {
-			const applying = agent['_applySkillExtraRoots'](client);
-			const request = await readNextRequest(peer.outbound);
-			peer.push({ id: request.id, result: {} });
-			await applying;
-
-			assert.deepStrictEqual({
-				ownerRoots: ownerLaunch.selectedCapabilityRoots.map(root => root.location.path),
-				unrelatedRoots: unrelatedLaunch.selectedCapabilityRoots,
-				unrelatedCustomizations,
-				method: request.method,
-				processGlobalRoots: request.params.extraRoots,
-			}, {
-				ownerRoots: [skillRoot.fsPath],
-				unrelatedRoots: [],
-				unrelatedCustomizations: [],
-				method: 'skills/extraRoots/set',
-				processGlobalRoots: [],
-			});
-		} finally {
-			peer.exit();
-		}
+		assert.deepStrictEqual({
+			ownerRoots: ownerLaunch.selectedCapabilityRoots.map(root => root.location.path),
+			unrelatedRoots: unrelatedLaunch.selectedCapabilityRoots,
+			unrelatedCustomizations,
+		}, {
+			ownerRoots: [skillRoot.fsPath],
+			unrelatedRoots: [],
+			unrelatedCustomizations: [],
+		});
 	});
 
 	test('skill catalog refresh publishes one update for a shared validation diagnostic', async () => {
@@ -1798,79 +1777,58 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 	});
 
-	test('skill extra-root updates are serialized and recompute the latest union before sending', async () => {
-		const agent = await createAgent(disposables);
-		const { session } = await createSession(agent);
-		const entry = agent['_sessions'].get(AgentSession.id(session))!;
-		let includeSkill = true;
-		agent['_enabledClientPlugins'] = () => includeSkill ? [{
-			parsed: { skills: [{ uri: URI.file('/plugin/skills/example/SKILL.md') }] },
-		}] as never : [];
-		const firstStarted = new DeferredPromise<void>();
-		const releaseFirst = new DeferredPromise<void>();
-		const requests: string[][] = [];
-		agent['_connection'] = {
-			kind: 'ready',
-			client: {
-				request: async (method: string, params: { readonly extraRoots: string[] }) => {
-					assert.strictEqual(method, 'skills/extraRoots/set');
-					requests.push(params.extraRoots);
-					if (requests.length === 1) {
-						firstStarted.complete();
-						await releaseFirst.p;
-					}
-					return {};
-				},
-			},
-			proxyHandle: { dispose() { } },
-			child: { kill: () => true },
-		} as never;
-
-		const first = agent['_refreshSkillExtraRoots']();
-		await firstStarted.p;
-		includeSkill = false;
-		const second = agent['_refreshSkillExtraRoots']();
-		await new Promise(resolve => setImmediate(resolve));
-		const requestsWhileFirstPending = requests.length;
-		releaseFirst.complete();
-		await Promise.all([first, second]);
-
-		assert.deepStrictEqual({
-			requestsWhileFirstPending,
-			requests,
-			runtime: entry.sessionId,
-		}, {
-			requestsWhileFirstPending: 1,
-			requests: [[PLUGIN_SKILLS_ROOT], []],
-			runtime: AgentSession.id(session),
-		});
-	});
-
-	test('every persistent app-server receives the current skill extra roots before it is returned', async () => {
+	test('client skills stay session-scoped across bundle revisions and workspaces', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
-		await createSession(agent);
-		agent['_enabledClientPlugins'] = () => [{
-			parsed: { skills: [{ uri: URI.file('/plugin/skills/example/SKILL.md') }] },
-		}] as never;
+		const scopes = [
+			{ workspace: '/repo', bundle: 'repo', revision: 'old' },
+			{ workspace: '/repo', bundle: 'repo', revision: 'new' },
+			{ workspace: '/other', bundle: 'other', revision: 'new' },
+		];
+		const sessions = await Promise.all(scopes.map(async scope => {
+			const pluginDir = URI.file(`/plugins/${scope.bundle}/${scope.revision}`);
+			const skillRoot = URI.joinPath(pluginDir, 'skills');
+			const skillUri = URI.joinPath(skillRoot, 'act-on-feedback', 'SKILL.md');
+			const customization = { type: CustomizationType.Skill, id: skillUri.toString(), uri: skillUri.toString(), name: 'act-on-feedback' } as const;
+			const bundleUri = URI.from({ scheme: 'vscode-synced-customization', path: `/${scope.bundle}` }).toString();
+			const { session } = await createSession(agent, { workingDirectories: [URI.file(scope.workspace)] });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.clientCustomizations.setClient('client', [{
+				synced: { customization: { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data' }, pluginDir },
+				parsed: { format: PluginFormat.OpenPlugin, hooks: [], agents: [], instructions: [], mcpServers: [], skills: [{ uri: skillUri, name: customization.name, customization }] },
+			}]);
+			return { session, entry, skillRoot, skillUri };
+		}));
 		const rootsByConnection: string[][][] = [];
 		agent['_startConnection'] = (async () => {
-			const roots: string[][] = [];
-			rootsByConnection.push(roots);
+			const updates: string[][] = [];
+			rootsByConnection.push(updates);
+			let registeredRoots: readonly string[] = [];
 			return {
 				client: {
-					request: async (method: string, params: { readonly extraRoots?: string[] }) => {
-						if (method === 'skills/extraRoots/set') {
-							roots.push(params.extraRoots ?? []);
-							return {};
+					request: async (method: string, params: { readonly extraRoots?: string[]; readonly cwds?: string[] }) => {
+						switch (method) {
+							case 'skills/extraRoots/set':
+								registeredRoots = params.extraRoots ?? [];
+								updates.push([...registeredRoots]);
+								return {};
+							case 'skills/list':
+								return {
+									data: [{
+										cwd: params.cwds?.[0], errors: [], skills: sessions
+											.filter(candidate => registeredRoots.includes(candidate.skillRoot.fsPath))
+											.map(candidate => ({ name: 'act-on-feedback', description: 'Act on feedback', path: candidate.skillUri.fsPath, scope: 'user', enabled: true }))
+									}]
+								};
+							case 'hooks/list':
+								return { data: [] };
+							case 'account/read':
+								return { account: null, requiresOpenaiAuth: true };
+							case 'mcpServerStatus/list':
+								return { data: [], nextCursor: null };
+							default:
+								throw new Error(`Unexpected request: ${method}`);
 						}
-						if (method === 'account/read') {
-							return { account: null, requiresOpenaiAuth: true };
-						}
-						if (method === 'mcpServerStatus/list') {
-							return { data: [], nextCursor: null };
-						}
-						throw new Error(`Unexpected request: ${method}`);
 					},
 					dispose() { },
 				},
@@ -1880,13 +1838,46 @@ suite('CodexAgent prewarm eviction', () => {
 		}) as never;
 
 		await agent['_ensureConnection']();
+		const launches = await Promise.all(sessions.map(candidate => agent['_buildCustomizationLaunch'](candidate.entry)));
+		const configurationService = agent['_configurationService'];
+		assert.ok(configurationService instanceof TestCodexConfigurationService);
+		configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
+		const fullAccessLaunch = await agent['_buildCustomizationLaunch'](sessions[0].entry);
+		sessions[0].entry.agentMergeTurn = true;
+		const agentMergeLaunch = await agent['_buildCustomizationLaunch'](sessions[0].entry);
+		sessions[0].entry.agentMergeTurn = false;
+		configurationService.setSessionConfig({ [CodexSessionConfigKey.SandboxMode]: 'read-only' });
+		const readOnlyLaunch = await agent['_buildCustomizationLaunch'](sessions[0].entry);
+		configurationService.setSessionConfig({});
+		const catalogs = await Promise.all(sessions.map(candidate => {
+			const chat = defaultChatOf(candidate.session);
+			return agent.getChatCustomizations(chat, chatContext(candidate.session, chat));
+		}));
 		agent['_disposeConnection']();
 		await agent['_ensureConnection']();
 
-		assert.deepStrictEqual(rootsByConnection, [
-			[[PLUGIN_SKILLS_ROOT]],
-			[[PLUGIN_SKILLS_ROOT]],
-		]);
+		assert.deepStrictEqual({
+			permissionProfiles: [launches[0], fullAccessLaunch, agentMergeLaunch, readOnlyLaunch].map(launch => launch.skillPermissionProfile),
+			permissionChangesReload: [fullAccessLaunch, readOnlyLaunch].map(launch => launch.signature !== launches[0].signature),
+			agentMergeRestoresSandbox: agentMergeLaunch.signature === launches[0].signature,
+			launchRoots: launches.map(launch => launch.selectedCapabilityRoots.map(root => root.location.path)),
+			launchSkills: launches.map(launch => sessions
+				.filter(candidate => launch.clientSkillInstructions.includes(candidate.skillUri.fsPath))
+				.map(candidate => candidate.skillUri.toString())),
+			catalogSkills: catalogs.map(catalog => catalog
+				.flatMap(customization => customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory ? customization.children ?? [] : [])
+				.filter(child => child.type === CustomizationType.Skill)
+				.map(skill => skill.uri)),
+			rootsByConnection,
+		}, {
+			permissionProfiles: ['vscode-workspace', ':danger-full-access', 'vscode-workspace', 'vscode-workspace-read-only'],
+			permissionChangesReload: [true, true],
+			agentMergeRestoresSandbox: true,
+			launchRoots: sessions.map(() => []),
+			launchSkills: sessions.map(candidate => [candidate.skillUri.toString()]),
+			catalogSkills: sessions.map(candidate => [candidate.skillUri.toString()]),
+			rootsByConnection: [[], []],
+		});
 	});
 
 	test('disposing a released workspace-less peer removes its managed directory', async () => {
@@ -1934,7 +1925,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -1981,7 +1971,6 @@ suite('CodexAgent prewarm eviction', () => {
 			const agent = await createAgent(disposables);
 			agent['_schedulePrewarm'] = () => { };
 			agent['_refreshSkillHookCustomizations'] = async () => { };
-			agent['_refreshSkillExtraRoots'] = async () => { };
 			const peer = disposables.add(createTestPeer());
 			agent['_connection'] = {
 				kind: 'ready',
@@ -2184,7 +2173,6 @@ suite('CodexAgent prewarm eviction', () => {
 			const agent = await createAgent(disposables, { database, telemetryService });
 			agent['_schedulePrewarm'] = () => { };
 			agent['_refreshSkillHookCustomizations'] = async () => { };
-			agent['_refreshSkillExtraRoots'] = async () => { };
 			await database.setMetadata('codex.threadId', 'native-chatgpt-thread');
 			await database.setMetadata('codex.model', COPILOT_TEST_MODEL);
 			const peer = disposables.add(createTestPeer());
@@ -2290,7 +2278,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -2399,7 +2386,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2433,7 +2419,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2477,7 +2462,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2545,7 +2529,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 
 		const chatGPTModel = toCodexModelSelectionId('openai', 'gpt-test');
 		agent['_models'].set([
@@ -2645,7 +2628,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2693,7 +2675,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 
 		try {
 			const send = agent.chats.sendMessage(chat, 'Create a Hello World website.', [workspace], undefined, 'turn-1');
@@ -2724,7 +2705,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2775,6 +2755,7 @@ suite('CodexAgent prewarm eviction', () => {
 			mcp: start.params.config?.['mcp_servers'],
 			agentDescription: agents.Reviewer.description,
 			developerInstructions: start.params.developerInstructions,
+			clientSkill: turn.params.additionalContext?.['vscode.clientSkills']?.value.includes(`- greet: Greets (file: ${skillUri.fsPath})`),
 			turnDeveloperInstructions: turn.params.collaborationMode?.settings.developer_instructions,
 			capabilityPaths: start.params.selectedCapabilityRoots?.map(root => root.location.path),
 			roleFile,
@@ -2783,8 +2764,9 @@ suite('CodexAgent prewarm eviction', () => {
 			mcp: { local: { command: 'node', args: ['server.js'] } },
 			agentDescription: 'Reviews changes',
 			developerInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			clientSkill: true,
 			turnDeveloperInstructions: `Run focused tests.\n\nReview carefully.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
-			capabilityPaths: [URI.file('/plugin/skills').fsPath],
+			capabilityPaths: undefined,
 			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
 			roleFileUsesHostGeneratedRoot: true,
 		});
@@ -2795,7 +2777,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2866,7 +2847,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 		const repoC = URI.file('/repo-c');
@@ -2923,7 +2903,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 		const repoBAgentsSkills = URI.joinPath(repoB, '.agents', 'skills');
@@ -2970,7 +2949,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 		const repoBAgentsSkills = URI.joinPath(repoB, '.agents', 'skills');
@@ -3028,7 +3006,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const configurationService = agent['_configurationService'];
 		assert.ok(configurationService instanceof TestCodexConfigurationService);
 		const repo = URI.file('/repo');
@@ -3095,7 +3072,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 		const duplicateRepoA = URI.file(`${repoA.fsPath}${sep}`);
@@ -3238,7 +3214,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 		const repoC = URI.file('/repo-c');
@@ -3312,7 +3287,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 
@@ -3362,7 +3336,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repo = URI.file('/repo');
 
 		try {
@@ -3438,7 +3411,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 		const requestedA = URI.file('/requested-a');
@@ -3529,7 +3501,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const repo = URI.file('/repo');
 		const requested = URI.file('/requested');
 
@@ -3605,7 +3576,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 
 		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const sourceChat = defaultChatOf(source.session);
@@ -3819,7 +3789,6 @@ suite('CodexAgent prewarm eviction', () => {
 		disposables.add(client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
 		disposables.add(client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		agent['_refreshMcpInventory'] = async () => { };
 		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const sourceChat = defaultChatOf(source.session);
@@ -3901,7 +3870,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agentA['_refreshSkillHookCustomizations'] = async () => { };
-		agentA['_refreshSkillExtraRoots'] = async () => { };
 		let peerB: ITestPeer | undefined;
 
 		try {
@@ -3930,7 +3898,6 @@ suite('CodexAgent prewarm eviction', () => {
 				child: { kill: () => true },
 			} as never;
 			agentB['_refreshSkillHookCustomizations'] = async () => { };
-			agentB['_refreshSkillExtraRoots'] = async () => { };
 
 			const restoredChat = defaultChatOf(created.session);
 			const metadataPromise = agentB.getChatMetadata(restoredChat, { configurationResource: created.session, resource: restoredChat });
@@ -4038,7 +4005,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const client = disposables.add(new CodexAppServerClient(peer.transport));
 		agent['_connection'] = { kind: 'ready', client, usageSource: 'github', child: { kill: () => true } } as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const session = AgentSession.uri('codex', 'desktop-thread');
 		const chat = defaultChatOf(session);
 		const context = chatContext(session, chat);
@@ -4149,7 +4115,6 @@ suite('CodexAgent prewarm eviction', () => {
 			child: { kill: () => true },
 		} as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const session = AgentSession.uri('codex', 'desktop-thread');
 		const chat = defaultChatOf(session);
 		const context = { configurationResource: session, resource: chat };
@@ -4317,7 +4282,6 @@ suite('CodexAgent baseline checkpoint', () => {
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = { kind: 'ready', client, usageSource: 'github', child: { kill: () => true } } as never;
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 
 		const folder = URI.file('/repo/baseline-folder');
 		const { session } = await createSession(agent, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
@@ -4436,7 +4400,6 @@ suite('CodexAgent managed working directory ownership', () => {
 	test('adopting a host-supplied working directory abandons a stale managed folder left behind by a failed thread start, and never touches the newly adopted folder', async () => {
 		const agent = await createAgent(disposables);
 		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',

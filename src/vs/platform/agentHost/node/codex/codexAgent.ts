@@ -47,7 +47,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
-import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
+import { CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -90,7 +90,7 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
@@ -808,7 +808,7 @@ interface ICodexSession {
 	/**
 	 * Store of client-pushed ("Open Plugin") customizations synced to this
 	 * session. Their MCP servers are attached per-thread at `thread/start`
-	 * and their skills feed codex's process-global `skills/extraRoots/set`.
+	 * and their skill catalog is supplied through per-turn application context.
 	 */
 	readonly clientCustomizations: CodexClientCustomizationStore;
 }
@@ -891,6 +891,8 @@ class CodexConnectionReplacedError extends Error {
 interface ICodexCustomizationLaunch {
 	readonly config: Record<string, JsonValue>;
 	readonly developerInstructions?: string;
+	readonly clientSkillInstructions: string;
+	readonly skillPermissionProfile?: string;
 	readonly selectedCapabilityRoots: SelectedCapabilityRoot[];
 	readonly signature: string;
 }
@@ -1174,7 +1176,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _customizationReconcileSequencers = new WeakMap<ICodexSession, Sequencer>();
 	private readonly _directoryCustomizationSequencers = new WeakMap<ICodexSession, Sequencer>();
 	private readonly _workingDirectoryMutations = new WeakMap<ICodexSession, ICodexWorkingDirectoryChange>();
-	private readonly _skillExtraRootsSequencer = new Sequencer();
 	private readonly _sessionMcpDiscoveries = new Map<string, { readonly rootsSignature: string; readonly discovery: SessionMcpDiscovery; dispose(): void }>();
 	private readonly _pendingMcpStartupStatuses = new Map<string, Array<{ readonly client: ICodexAppServerClient; readonly name: string; readonly status: McpServerStartupState; readonly error: string | null }>>();
 	/**
@@ -1319,7 +1320,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			for (const configurationResource of affectedConfigurations.values()) {
 				this._publishClientCustomizationsForConfiguration(configurationResource);
 			}
-			void this._refreshSkillExtraRoots();
 		}));
 
 		this._register(this._configurationService.onDidRootConfigChange(() => {
@@ -1938,7 +1938,17 @@ export class CodexAgent extends Disposable implements IAgent {
 			customization.developerInstructions,
 			session.managedWorkingDirectory ? AGENT_HOST_WORKSPACELESS_INSTRUCTIONS : '',
 		].filter(instruction => instruction.length > 0).join('\n\n');
-		const config: Record<string, JsonValue> = {};
+		const skillReadRoots = distinctAbsolutePaths(plugins
+			.flatMap(plugin => plugin.parsed?.skills.map(skill => dirname(skill.uri.fsPath)) ?? [])).sort();
+		const config: Record<string, JsonValue> = skillReadRoots.length ? codexPermissionProfileReadRoots(skillReadRoots) : {};
+		let skillPermissionProfile: string | undefined;
+		if (skillReadRoots.length) {
+			const sessionConfig = this._readSessionConfig(session.configurationResource);
+			const { sandboxMode } = this._resolveSessionPermissions(session.configurationResource);
+			skillPermissionProfile = this._permissionProfile(sessionConfig,
+				session.agentMergeTurn && sandboxMode === 'danger-full-access' ? 'workspace-write' : sandboxMode,
+				session.agentMergeTurn ? false : undefined);
+		}
 		if (customization.agentRoles.length > 0) {
 			const root = session.customizationDirectory?.fsPath
 				?? await fs.promises.mkdtemp(join(os.tmpdir(), 'vscode-agent-codex-customizations-'));
@@ -1959,20 +1969,20 @@ export class CodexAgent extends Disposable implements IAgent {
 				id: container.id,
 				location: { type: 'environment', environmentId: 'local', path: URI.parse(container.uri).fsPath },
 			})),
-			...codexSkillCapabilityRoots(plugins).map((uri, index): SelectedCapabilityRoot => ({
-				id: `client-plugin-skills-${index}-${uri.fsPath}`,
-				location: { type: 'environment', environmentId: 'local', path: uri.fsPath },
-			})),
 		];
 		const signature = JSON.stringify({
 			agent: session.agent?.uri,
 			agentRoles: customization.agentRoles,
 			developerInstructions,
+			skillReadRoots,
+			skillPermissionProfile,
 			selectedCapabilityRoots: selectedCapabilityRoots.map(root => root.location.path),
 		});
 		return {
 			config,
 			...(developerInstructions ? { developerInstructions } : {}),
+			clientSkillInstructions: codexClientSkillInstructions(plugins),
+			...(skillPermissionProfile ? { skillPermissionProfile } : {}),
 			selectedCapabilityRoots,
 			signature,
 		};
@@ -2371,21 +2381,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._throwIfShuttingDown();
 			return this._startConnection(generation, cancellation.token);
 		})();
-		const promise = startPromise.then(async ready => {
+		const promise = startPromise.then(ready => {
 			if (generation !== this._connectionGeneration) {
 				this._disposeConnectionResources(ready);
 				throw new CodexConnectionReplacedError('Codex app-server was replaced while starting');
 			}
 			// Authentication can complete while the connection is starting; apply the latest token before publishing ready.
 			ready.proxyHandle.setToken(this._githubToken ?? '');
-			// Skill roots are process-global app-server state. Seed every new process
-			// before exposing it to thread/start or thread/resume, including a
-			// replacement process after an unexpected disconnect.
-			await this._queueSkillExtraRootsForClient(ready.client);
-			if (generation !== this._connectionGeneration) {
-				this._disposeConnectionResources(ready);
-				throw new CodexConnectionReplacedError('Codex app-server was replaced while starting');
-			}
 			this._connection = { kind: 'ready', ...ready };
 			void this._refreshAccount(ready.client);
 			void this._refreshMcpInventory(ready.client, null);
@@ -5490,7 +5492,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			model: resolvedModel.modelId,
 			modelProvider: resolvedModel.modelProvider,
 			approvalPolicy,
-			permissions,
+			permissions: customizationLaunch.skillPermissionProfile ?? permissions,
 			approvalsReviewer,
 			config: threadConfig,
 			developerInstructions: customizationLaunch.developerInstructions,
@@ -5529,9 +5531,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		// working directory in the Customizations view now that the connection is
 		// ready and the cwd is known. Best-effort and fire-and-forget.
 		void this._refreshSkillHookCustomizations(session);
-		// Re-apply the client-plugin skill roots against the now-ready
-		// connection (they may have been synced before it came up).
-		void this._refreshSkillExtraRoots();
 	}
 
 	/**
@@ -5925,11 +5924,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				input: resolvedInput.input.slice(),
 				model: resolvedModel.modelId,
 				...turnOptions,
-				...(hostInstructions?.length ? {
-					additionalContext: {
-						'vscode.agentHost': { kind: 'application', value: hostInstructions.join('\n\n') },
-					},
-				} : {}),
+				permissions: currentCustomizationLaunch.skillPermissionProfile ? undefined : turnOptions.permissions,
+				additionalContext: {
+					...(hostInstructions?.length ? { 'vscode.agentHost': { kind: 'application' as const, value: hostInstructions.join('\n\n') } } : {}),
+					'vscode.clientSkills': { kind: 'application', value: currentCustomizationLaunch.clientSkillInstructions },
+				},
 			}, this._traceContext(session));
 			// The thread now has committed history; client tools are locked to
 			// what was registered at `thread/start` and won't be re-applied.
@@ -6235,11 +6234,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.mcpController?.dispose();
 		this._sessionMcpDiscoveries.get(sessionId)?.dispose();
 		this._sessionMcpDiscoveries.delete(sessionId);
-		// If the session contributed client-plugin skills, drop them from the
-		// process-global skill-root union now that it is gone.
-		if (!session.clientCustomizations.isEmpty()) {
-			void this._refreshSkillExtraRoots();
-		}
 		// Remove the managed temp folder created for a session that had no
 		// client-supplied working directory. Best-effort; the OS temp dir is
 		// reclaimed anyway, but clean up proactively so it doesn't accumulate.
@@ -7231,8 +7225,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link IAgentPluginManager} copies each plugin to local disk (nonce
 	 * cached), we parse the resulting directory into its
 	 * {@link IParsedPlugin | components}, publish the customization surface,
-	 * and refresh the process-global skill roots. MCP servers are attached
-	 * per-thread at the next {@link _materialize}.
+	 * and reconcile the per-thread skill catalog and MCP servers at the next
+	 * {@link _materialize}.
 	 */
 	private async _syncClientCustomizations(sessionUri: URI, clientId: string, customizations: readonly ClientPluginCustomization[], options?: { readonly quiet?: boolean; readonly isCurrent?: () => boolean }): Promise<void> {
 		const session = this._sessions.get(AgentSession.id(sessionUri));
@@ -7265,7 +7259,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				...session.clientCustomizations.toCustomizations().map(customization => customization.id),
 			]));
 		}
-		await this._refreshSkillExtraRoots();
 		await this._reconcileMaterializedCustomizations(session);
 	}
 
@@ -7280,7 +7273,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!removed) {
 			return;
 		}
-		await this._refreshSkillExtraRoots();
 		await this._reconcileMaterializedCustomizations(session);
 	}
 
@@ -7389,8 +7381,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (this._connection.kind !== 'ready' || this._connection.client !== client) {
 			return;
 		}
-		// One extra-roots update can produce several catalog notifications. Coalesce
-		// them before issuing the cwd-scoped skills/list and hooks/list requests.
+		// Coalesce native catalog notifications before issuing the cwd-scoped
+		// skills/list and hooks/list requests.
 		this._skillHookCustomizationRefresh.value = disposableTimeout(() => {
 			if (this._connection.kind !== 'ready' || this._connection.client !== client) {
 				return;
@@ -7403,45 +7395,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 			}
 		}, 100);
-	}
-
-	/**
-	 * Recompute the process-global skill roots from every live session's
-	 * enabled client plugins and push them to codex via `skills/extraRoots/set`.
-	 * codex's extra skill roots are a single shared list (there is no per-thread
-	 * equivalent), so we send the union across all sessions — which matches the
-	 * global nature of client plugin choices. No-op when the connection is not
-	 * ready; the next {@link _materialize} re-applies.
-	 */
-	private async _refreshSkillExtraRoots(): Promise<void> {
-		return this._skillExtraRootsSequencer.queue(async () => {
-			if (this._connection.kind !== 'ready') {
-				return;
-			}
-			await this._applySkillExtraRoots(this._connection.client);
-		});
-	}
-
-	private _queueSkillExtraRootsForClient(client: ICodexAppServerClient): Promise<void> {
-		return this._skillExtraRootsSequencer.queue(() => this._applySkillExtraRoots(client));
-	}
-
-	private async _applySkillExtraRoots(client: ICodexAppServerClient): Promise<void> {
-		const plugins: ICodexClientPlugin[] = [];
-		for (const session of this._sessions.values()) {
-			if (!session.disposed) {
-				plugins.push(...this._enabledClientPlugins(session));
-			}
-		}
-		const roots = codexSkillRootsFromPlugins(plugins);
-		try {
-			await client.request<'skills/extraRoots/set'>('skills/extraRoots/set', { extraRoots: roots });
-			if (roots.length > 0) {
-				this._logService.info(`[Codex] applied ${roots.length} client-plugin skill root(s)`);
-			}
-		} catch (err) {
-			this._logService.warn(`[Codex] skills/extraRoots/set failed: ${err instanceof Error ? err.message : String(err)}`);
-		}
 	}
 
 	// ---- MCP servers -------------------------------------------------------

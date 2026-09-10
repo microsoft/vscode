@@ -16,17 +16,21 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ActionType, type RootAgentsChangedAction } from '../../../common/state/sessionActions.js';
 import { AgentHostCodexEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../common/agent.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type McpServerCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
+import { driveTurnToCompletion } from '../e2e/harness/agentHostE2ETestHarness.js';
 
 const AGENT_MARKER = 'CODEX_CUSTOM_AGENT_INSTRUCTION_MARKER';
 const WORKSPACE_AGENT_MARKER = 'CODEX_WORKSPACE_AGENT_INSTRUCTION_MARKER';
 const RULE_MARKER = 'CODEX_PLUGIN_RULE_MARKER';
 const SKILL_MARKER = 'CODEX_PLUGIN_SKILL_DESCRIPTION_MARKER';
+const SKILL_BODY_MARKER = 'CODEX_CLIENT_SKILL_BODY_READ_SUCCEEDED';
+const NATIVE_SKILL_MARKER = 'CODEX_NATIVE_SKILL_DESCRIPTION_MARKER';
 const MCP_MARKER = 'CODEX_PLUGIN_MCP_TOOL_MARKER';
 const nodeRequire = createRequire(import.meta.url);
 
@@ -52,9 +56,7 @@ async function waitForParsedPlugin(client: TestProtocolClient, sessionUri: strin
 			&& customization.uri === pluginUri
 		);
 		lastPlugin = plugin;
-		if (plugin
-			&& (plugin.children?.length ?? 0) >= 4
-			&& plugin.children?.some((child): child is McpServerCustomization => child.type === CustomizationType.McpServer) === true) {
+		if (plugin && (plugin.children?.length ?? 0) > 0) {
 			return plugin;
 		}
 		await new Promise<void>(resolve => setTimeout(resolve, 100));
@@ -84,6 +86,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 	let server: IServerHandle;
 	let client: TestProtocolClient;
 	let userHomeDir: string;
+	let skillCommand = '';
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
 
@@ -92,15 +95,28 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		if (!CODEX_SDK_ROOT) {
 			this.skip();
 		}
-		userHomeDir = await mkdtemp(join(tmpdir(), 'codex-customizations-home-'));
+		userHomeDir = await mkdtemp(join(process.cwd(), '.build', 'codex-customizations-home-'));
 		const codexHomeDir = join(userHomeDir, '.codex');
 		await mkdir(codexHomeDir, { recursive: true });
+		const nativeSkillDirectory = join(userHomeDir, '.agents', 'skills', 'native-skill');
+		await mkdir(nativeSkillDirectory, { recursive: true });
+		await writeFile(join(nativeSkillDirectory, 'SKILL.md'), `---\nname: native-skill\ndescription: ${NATIVE_SKILL_MARKER}\n---\nUse this native skill when requested.`);
 		server = await startRealServer({
 			mockLlm: true,
 			codexSdkRoot: CODEX_SDK_ROOT,
 			codexHomeDir,
 			homeDir: userHomeDir,
 			userDataDir: join(userHomeDir, 'user-data'),
+			mockScenarios: [{
+				id: 'codex-client-skill-access',
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^(shell|exec_command)$/, arguments: () => ({ command: ['/bin/sh', '-c', skillCommand], cmd: skillCommand, max_output_tokens: 1500 }) }] },
+						{ kind: 'content', chunks: [{ content: 'Skill access checked.', delayMs: 0 }] },
+					],
+				},
+			}],
 		});
 	});
 
@@ -256,6 +272,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
 			120_000,
 		);
+		assert.deepStrictEqual(client.receivedNotifications(notification => isActionNotification(notification, 'chat/error')), [], 'Codex must complete the turn without errors');
 		const rolloutRoot = join(userHomeDir, '.codex', 'sessions');
 		const rolloutFiles = (await readdir(rolloutRoot, { recursive: true })).filter(file => file.endsWith('.jsonl'));
 		const rolloutContents = await Promise.all(rolloutFiles.map(file => readFile(join(rolloutRoot, file), 'utf8')));
@@ -270,6 +287,129 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		assert.ok(developerText.includes(RULE_MARKER), 'plugin instructions must reach the Codex developer message');
 		assert.ok(requestText.includes(SKILL_MARKER), 'plugin skills must be advertised in the Codex model request');
 		assert.ok(requestText.includes(MCP_MARKER), 'plugin MCP tools must be advertised in the Codex model request');
+	});
+
+	test('client skill additions and removals after the first turn stay isolated from other sessions', async function () {
+		this.timeout(180_000);
+		const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-skill-updates-workspace-'));
+		const otherWorkspaceDir = await mkdtemp(join(tmpdir(), 'codex-skill-updates-other-workspace-'));
+		const pluginDir = await mkdtemp(join(tmpdir(), 'codex-skill-updates-plugin-'));
+		tempDirs.push(workspaceDir, otherWorkspaceDir, pluginDir);
+		await mkdir(join(pluginDir, '.plugin'), { recursive: true });
+		await mkdir(join(pluginDir, 'skills', 'client-skill'), { recursive: true });
+		await writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'skill-updates', version: '1.0.0' }));
+		await writeFile(join(pluginDir, 'skills', 'client-skill', 'SKILL.md'), `---\nname: client-skill\ndescription: ${SKILL_MARKER}\n---\n${SKILL_BODY_MARKER}`);
+		const pluginUri = URI.file(pluginDir).toString();
+		const pluginCustomization: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: customizationId(pluginUri),
+			uri: pluginUri as ProtocolURI,
+			name: 'Skill Updates',
+			nonce: '1',
+		};
+		const clientId = 'codex-skill-updates-client';
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
+		const sessions: string[] = [];
+		for (const directory of [workspaceDir, otherWorkspaceDir]) {
+			const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
+			await client.call('createSession', {
+				channel: sessionUri,
+				provider: 'codex',
+				workingDirectories: [URI.file(directory).toString()],
+				config: { isolation: 'folder' },
+				activeClient: { clientId, tools: [], customizations: [] },
+			}, 30_000);
+			createdSessions.push(sessionUri);
+			sessions.push(sessionUri);
+			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		}
+		const [sessionUri, otherSessionUri] = sessions;
+		const latestCatalog = (request: ICapturedRequest): string => developerInputText(request.body).match(/<client_skills>[\s\S]*?<\/client_skills>/g)?.at(-1) ?? '';
+		let clientSeq = 1;
+		const send = async (session: string, turnId: string, command?: string): Promise<ICapturedRequest> => {
+			const requestCount = server.mockLlm?.getRequests?.().length ?? 0;
+			skillCommand = command ?? '';
+			await driveTurnToCompletion(client, session, turnId, command ? '[scenario:codex-client-skill-access] Check skill file access.' : 'Reply exactly READY.', clientSeq++);
+			const requests = (server.mockLlm?.getRequests?.() ?? []) as readonly ICapturedRequest[];
+			const request = requests.slice(requestCount).reverse().find(request => request.path.includes('/responses'));
+			assert.ok(request, 'each turn must make a fresh Codex model request');
+			assert.ok(JSON.stringify(request.body).includes(NATIVE_SKILL_MARKER), 'native user skills must remain available');
+			return request;
+		};
+		const toolOutput = (request: ICapturedRequest): string => {
+			const body = request.body as { readonly input: readonly { readonly type?: string; readonly output?: string }[] };
+			const output = body.input.filter(item => item.type === 'function_call_output').at(-1)?.output;
+			assert.ok(output, 'the native shell must return a tool result');
+			return output;
+		};
+		const updateSkills = (customizations: ClientPluginCustomization[]) => {
+			client.clearReceived();
+			client.dispatch({
+				channel: sessionUri,
+				clientSeq: clientSeq++,
+				action: { type: ActionType.SessionActiveClientSet, activeClient: { clientId, tools: [], customizations } },
+			});
+		};
+
+		const first = await send(sessionUri, 'before-skill-addition');
+		assert.ok(!JSON.stringify(first.body).includes(SKILL_MARKER));
+		updateSkills([pluginCustomization]);
+		const parsedPlugin = await waitForParsedPlugin(client, sessionUri, pluginUri);
+		const added = await send(sessionUri, 'after-skill-addition');
+		assert.strictEqual(latestCatalog(added).split(SKILL_MARKER).length - 1, 1, 'the added skill must be advertised once');
+		const skill = parsedPlugin.children?.find(child => child.type === CustomizationType.Skill);
+		assert.ok(skill);
+		assert.ok(latestCatalog(added).includes(JSON.stringify(URI.parse(skill.uri).fsPath).slice(1, -1)), 'the catalog must point to the synced skill file');
+		const skillFile = URI.parse(skill.uri).fsPath;
+		const readSkillCommand = `cat ${JSON.stringify(skillFile)}`;
+		if (process.platform !== 'win32') {
+			const unrelatedFile = join(userHomeDir, 'unrelated.txt');
+			const workspaceFile = join(workspaceDir, 'skill-access.txt');
+			await writeFile(unrelatedFile, 'UNRELATED_FILE_MUST_NOT_BE_READ');
+			const access = await send(sessionUri, 'read-active-skill', [
+				readSkillCommand,
+				`cat ${JSON.stringify(unrelatedFile)}`,
+				`printf unexpected > ${JSON.stringify(skillFile)}`,
+				`printf workspace-write-allowed > ${JSON.stringify(workspaceFile)}`,
+			].join('; '));
+			assert.ok(toolOutput(access).includes(SKILL_BODY_MARKER), 'the active skill must be readable outside the workspace and temp directory');
+			assert.ok(!toolOutput(access).includes('UNRELATED_FILE_MUST_NOT_BE_READ'), 'unrelated files must stay unreadable');
+			assert.ok((await readFile(skillFile, 'utf8')).includes(SKILL_BODY_MARKER), 'skill read access must not grant write access');
+			assert.strictEqual(await readFile(workspaceFile, 'utf8'), 'workspace-write-allowed', 'workspace permissions must be preserved');
+			client.clearReceived();
+			client.dispatch({ channel: sessionUri, clientSeq: clientSeq++, action: { type: ActionType.SessionConfigChanged, config: { [CodexSessionConfigKey.NetworkAccessEnabled]: true } } });
+			await client.waitForNotification(notification => isActionNotification(notification, ActionType.SessionConfigChanged), 60_000);
+			const changedPermissions = await send(sessionUri, 'read-skill-after-permission-change', readSkillCommand);
+			assert.ok(toolOutput(changedPermissions).includes(SKILL_BODY_MARKER), 'changing the permission profile must preserve active skill read access');
+		}
+
+		const other = await send(otherSessionUri, 'other-session-without-client-skills', process.platform !== 'win32' ? readSkillCommand : undefined);
+		assert.ok(!JSON.stringify(other.body).includes(SKILL_MARKER), 'client skills must not leak into another workspace');
+		const otherState = await fetchSessionWithChat(client, otherSessionUri);
+		assert.ok(!JSON.stringify(otherState.customizations).includes('client-skill'), 'client skills must not leak into the native customization catalog');
+		if (process.platform !== 'win32') {
+			assert.ok(!toolOutput(other).includes(SKILL_BODY_MARKER), 'other sessions must not inherit skill read access');
+		}
+
+		updateSkills([]);
+		await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, 'session/customizationRemoved')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === sessionUri
+				&& envelope.action.type === ActionType.SessionCustomizationRemoved
+				&& envelope.action.id === pluginCustomization.id;
+		}, 60_000);
+		const removed = await send(sessionUri, 'after-skill-removal', process.platform !== 'win32' ? readSkillCommand : undefined);
+		assert.ok(latestCatalog(removed).includes('No client skills are currently available.'), 'removal must explicitly clear the current catalog');
+		assert.ok(!latestCatalog(removed).includes(SKILL_MARKER), 'removed skills must not remain in the current catalog');
+		if (process.platform !== 'win32') {
+			assert.ok((await readFile(skillFile, 'utf8')).includes(SKILL_BODY_MARKER), 'the cached skill must still exist for the revocation check');
+			assert.ok(!toolOutput(removed).includes(SKILL_BODY_MARKER), 'removing a skill must revoke its read access');
+		}
 	});
 
 	test('workspace agent is exposed and selected without client customization sync', async function () {
