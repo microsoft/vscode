@@ -14,7 +14,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 	ButtonBar: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A production-style Changes view outside-card action row shows one full-width primary "Commit" button with a leading commit icon and one compact icon-only secondary action. Both controls are 26px tall and aligned in a single row.'],
+		expectedVisualDescriptions: ['A production-style Changes view outside-card action row shows one full-width primary "Commit" button with a leading commit icon, 26px tall.'],
 		render: renderChangesButtonBar,
 	}),
 });
@@ -34,12 +34,16 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 	const changesView = dom.append(container, dom.$('.changes-view-body'));
 	const actions = dom.append(changesView, dom.$('.chat-editing-session-actions.outside-card'));
 	const commit = action('fixture.commit', 'Commit', Codicon.gitCommit);
-	const viewChanges = action('fixture.viewChanges', 'View All Changes', Codicon.diffMultiple);
 
+	// Both production call sites of this outside-card composition pass
+	// `renderSecondaryActions: false`, which caps the bar at a single button
+	// (see `WorkbenchButtonBar.update`). Match that here so the fixture cannot
+	// claim geometry the real Changes view never renders.
 	const bar = disposableStore.add(instantiationService.createInstance(
 		WorkbenchButtonBar,
 		actions,
 		{
+			renderSecondaryActions: false,
 			buttonConfigProvider: action => {
 				switch (action.id) {
 					case commit.id:
@@ -48,15 +52,13 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 							showLabel: true,
 							iconLabelSpacing: 'default',
 						};
-					case viewChanges.id:
-						return { showIcon: true, showLabel: false, isSecondary: true };
 				}
 				return undefined;
 			},
 		},
 	));
 
-	bar.update([commit, viewChanges], []);
+	bar.update([commit], []);
 }
 
 function action(id: string, label: string, icon?: ThemeIcon): IAction {
