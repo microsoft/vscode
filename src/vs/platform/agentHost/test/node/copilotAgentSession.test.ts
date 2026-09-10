@@ -1000,6 +1000,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// visible through `getEffectiveValue` alone so tests can prove a
 		// consumer does not fall through to root or parent config.
 		getSessionConfigValues: (session: string) => session === sessionUri.toString() ? configValues : undefined,
+		getSessionSandboxPolicy: () => undefined,
+		setSessionSandboxPolicy: () => { },
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
 		updateRootConfig: () => { /* no-op */ },
@@ -5775,6 +5777,7 @@ suite('CopilotAgentSession', () => {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
 			});
+
 			await session.send('hello', undefined, 'turn-1');
 
 			setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
@@ -5796,6 +5799,23 @@ suite('CopilotAgentSession', () => {
 					buildSandboxConfigForSdk('linux', sandbox),
 				],
 			});
+		});
+
+		test('session sandbox override updates a peer SDK and stays pinned across root changes', async () => {
+			const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+			const peer = URI.parse(buildChatUri(sessionUri, 'sandbox-peer'));
+			const { session, mockSession, setConfigValue, fireSessionConfigChange, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				sessionUri, chatChannelUri: peer, resource: peer,
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { enabled: 'on' } },
+			});
+			await session.send('hello', undefined, 'sandbox-turn');
+			setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+			fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+			await timeout(0);
+			setRootValue(AgentHostSandboxConfigKey.Sandbox, { enabled: 'on', allowNetwork: false });
+			fireRootConfigChange();
+			await timeout(0);
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.slice(1), [{ enabled: false }, { enabled: false }]);
 		});
 
 		test('ignores approval changes for other sessions', async () => {
@@ -13836,18 +13856,15 @@ Use the attached image as context.
 			mockSession.sandboxConfigUpdateSuccess = false;
 			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
 
-			await session.send('go', undefined, 'turn-1', 'interactive');
-
-			// Best-effort: the turn still runs, just without the script. The file
-			// is written before the grant, so only registration is withheld.
+			await assert.rejects(() => session.send('go', undefined, 'turn-1', 'interactive'), /rejected sandbox config/);
 			assert.deepStrictEqual({
 				registered: mockSession.shellInitScriptUpdates,
 				materialized: [...storedFileContents.keys()].some(key => key.includes('/agentHost/shellInit/')),
 				sends: mockSession.sendRequests.length,
 			}, {
 				registered: [],
-				materialized: true,
-				sends: 1,
+				materialized: false,
+				sends: 0,
 			});
 		});
 
