@@ -168,8 +168,7 @@ export function equals(one: any, other: any): boolean {
  *  "Uncaught TypeError: Converting circular structure to JSON"
  */
 export function safeStringify(obj: any): string {
-	// Only track the current ancestor path, so a value that is shared across
-	// sibling branches is serialized in full rather than reported as circular.
+	// Track only current ancestors so shared sibling references are serialized in full.
 	const ancestors: unknown[] = [];
 	return JSON.stringify(obj, function (this: unknown, key: string, value: unknown) {
 		if (typeof value === 'object' && value !== null) {
