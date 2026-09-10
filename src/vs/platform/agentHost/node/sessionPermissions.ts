@@ -461,7 +461,9 @@ export class SessionPermissionManager extends Disposable {
 				riskAssessment: state.riskAssessment,
 				edits: state.edits,
 				editable: state.editable,
-				...((state._meta || e.requestSandboxBypass) ? { _meta: { ...state._meta, [SANDBOX_BYPASS_META_KEY]: e.requestSandboxBypass === true } } : {}),
+				...(e.requestSandboxBypass
+					? { _meta: { ...state._meta, [SANDBOX_BYPASS_META_KEY]: true } }
+					: state._meta ? { _meta: state._meta } : {}),
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
