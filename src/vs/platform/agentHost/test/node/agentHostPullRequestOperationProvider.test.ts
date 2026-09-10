@@ -25,6 +25,7 @@ const nullGitStateService = new class implements IAgentHostGitStateService {
 	readonly onDidRefreshSessionGitState = Event.None;
 	readonly onDidChangeSessionGitHubState = Event.None;
 	async refreshSessionGitState(): Promise<void> { }
+	getMaterializedWorktreeMeta(): undefined { return undefined; }
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
@@ -39,6 +40,7 @@ function createStatusService(status?: IAgentHostPullRequestStatus, onDidChangePu
 		getPullRequestStatus: () => status,
 		markPullRequestMerged: () => { },
 		refresh: async () => { },
+		resolveForLifecycle: async () => status,
 		dispose: () => { },
 	};
 }

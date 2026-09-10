@@ -14,13 +14,14 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileType, IFileDeleteOptions, IFileWriteOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { CustomizationMigrationType, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { createSkillFileUri, migrateAgentFileForAgentHost, migrateAgentFilesForAgentHost, migrateCustomizations, migratePromptFileToSkill, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
-import { MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 
 class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
 	deleteFailureResource: URI | undefined;
@@ -68,7 +69,7 @@ suite('customizationMigration', () => {
 			{ uri: URI.file('/workspace/custom-skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.ConfigWorkspace },
 		];
 		const candidatesFor = (id: CustomizationMigrationCategoryId) => customizations
-			.filter(customization => getCustomizationMigrationCategory(id).isCandidate(customization))
+			.filter(customization => getCustomizationMigrationCategory(id).isCandidate?.(customization) === true)
 			.map(customization => customization.uri.path);
 
 		assert.deepStrictEqual({
@@ -76,7 +77,7 @@ suite('customizationMigration', () => {
 			userData: candidatesFor(CustomizationMigrationCategoryId.UserData),
 			agentFiles: candidatesFor(CustomizationMigrationCategoryId.AgentFiles),
 			configuredLocations: candidatesFor(CustomizationMigrationCategoryId.ConfiguredLocations),
-			sourceTypes: CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => [category.id, [...category.sourceTypes]]),
+			sourceTypes: CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => [category.id, [...(category.sourceTypes ?? [])]]),
 		}, {
 			promptFiles: [
 				'/workspace/.github/prompts/review.prompt.md',
@@ -99,6 +100,7 @@ suite('customizationMigration', () => {
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
 				[CustomizationMigrationCategoryId.AgentFiles, [PromptsType.agent]],
 				[CustomizationMigrationCategoryId.ConfiguredLocations, [PromptsType.agent, PromptsType.instructions, PromptsType.skill]],
+				[CustomizationMigrationCategoryId.McpServers, []],
 			],
 		});
 	});
@@ -188,12 +190,52 @@ suite('customizationMigration', () => {
 		assert.deepStrictEqual(category.group([agent]).map(group => ({
 			key: group.key,
 			label: group.label,
-			files: group.customizations.map(customization => customization.uri.path),
+			files: group.customizations
+				.filter(customization => !isMcpServerCustomizationMigrationCandidate(customization))
+				.map(customization => customization.uri.path),
 		})), [{
 			key: PromptsType.agent,
 			label: 'Agents',
 			files: ['/workspace/.custom/agents/super.agent.md'],
 		}]);
+	});
+
+	test('presents MCP source-to-target migration without file-only behavior', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		const candidate = {
+			type: CustomizationMigrationType.McpServers,
+			id: 'server',
+			name: 'Server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		} as const;
+
+		assert.deepStrictEqual({
+			presentation: category.getCandidatePresentation(candidate, uri => uri.path),
+			description: category.getPageDescription([candidate], 'Copilot'),
+			confirmation: category.getConfirmation([candidate], 'Copilot'),
+			failure: category.getMcpServerFailureMessage?.([{
+				id: candidate.id,
+				name: candidate.name,
+				sourceUri: candidate.sourceUri,
+				targetUri: candidate.targetUri,
+				reason: McpServerCustomizationMigrationFailureReason.TargetConflict,
+			}]),
+		}, {
+			presentation: {
+				name: 'Server',
+				selectionAriaLabel: 'Select Server from /workspace/.vscode/mcp.json',
+				pathLabel: '/workspace/.vscode/mcp.json to /workspace/.mcp.json',
+			},
+			description: 'Select the supported MCP server to move so Copilot can discover it directly. Unsupported and unselected servers stay in .vscode/mcp.json.',
+			confirmation: {
+				message: 'Migrate 1 MCP server to .mcp.json?',
+				detail: 'Selected entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Unsupported and unselected entries stay in place.',
+				primaryButton: 'Migrate',
+			},
+			failure: 'Could not migrate \'Server\' because .mcp.json already contains a different server with that name.',
+		});
 	});
 
 	test('configured locations banner links to affected settings', () => {
@@ -224,6 +266,28 @@ suite('customizationMigration', () => {
 			value: `The settings ${settingsLinks[0]} and ${settingsLinks[1]} are no longer read by Copilot. Move the customizations into supported harness folders so both VS Code and Copilot can use them.`,
 			isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
 			consequence: 'The option to clear unused location settings after migration is selected by default.',
+		});
+	});
+
+	test('explains cross-root MCP conflicts and prioritizes rollback guidance', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		const failure = {
+			id: 'demo',
+			name: 'demo',
+			sourceUri: URI.file('/secondary/.vscode/mcp.json'),
+			targetUri: URI.file('/secondary/.mcp.json'),
+			conflictingUri: URI.file('/primary/.mcp.json'),
+			reason: McpServerCustomizationMigrationFailureReason.CrossRootConflict,
+		};
+
+		assert.deepStrictEqual({
+			single: category.getMcpServerFailureMessage?.([failure]),
+			multiple: category.getMcpServerFailureMessage?.([failure, { ...failure, name: 'other' }]),
+			rollback: category.getMcpServerFailureMessage?.([failure, { ...failure, reason: McpServerCustomizationMigrationFailureReason.RollbackFailed }]),
+		}, {
+			single: 'Could not migrate \'demo\' because another workspace root defines an MCP server with the same name. Rename or remove the duplicate before migrating.',
+			multiple: 'Some MCP servers could not be migrated because their names conflict across workspace roots. Rename or remove the duplicates before migrating.',
+			rollback: 'Some MCP server migrations could not be safely completed or rolled back. Review the affected source and destination MCP configuration files.',
 		});
 	});
 

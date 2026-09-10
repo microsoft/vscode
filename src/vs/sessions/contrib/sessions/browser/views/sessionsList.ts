@@ -18,7 +18,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable, IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -28,12 +28,12 @@ import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
-import { RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -55,6 +55,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions } from '../../../../browser/sessionActionViewItem.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -66,6 +67,7 @@ import { ISessionSectionOrderService } from '../../../../services/sessions/brows
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 // =============================================================================
 // TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
 // -----------------------------------------------------------------------------
@@ -678,6 +680,7 @@ interface ISessionItemTemplate {
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
+	readonly renderedSession: ISettableObservable<ISession | undefined>;
 	readonly pendingVoiceIndicator: HTMLElement;
 	readonly detailsRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
@@ -757,6 +760,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
+			archiveOnboardingSession?: IObservable<ISession | undefined>;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -859,15 +863,33 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const supportsDeleteContext = SessionSupportsDeleteContext.bindTo(contextKeyService);
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
+		const renderedSession = observableValue<ISession | undefined>('renderedSession', undefined);
 		if (this.options.toolbarMenuId) {
 			const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions, this.options.handleToolbarAction));
+			const actionViewItemProvider = createSessionActionViewItemProvider(scopedInstantiationService, this.configurationService);
 			titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, this.options.toolbarMenuId, {
 				menuOptions: { shouldForwardArgs: true },
 				actionRunner,
+				actionViewItemProvider: (action, options) => {
+					if (action.id !== ARCHIVE_SESSION_COMMAND_ID || !(action instanceof MenuItemAction) || !this.options.archiveOnboardingSession) {
+						return actionViewItemProvider(action, options);
+					}
+					return scopedInstantiationService.createInstance(class extends MenuEntryActionViewItem {
+						override render(container: HTMLElement): void {
+							super.render(container);
+							this._register(autorun(reader => {
+								const session = renderedSession.read(reader);
+								if (session && this.label) {
+									reader.store.add(markOnboardingTarget(this.label, getSessionArchiveOnboardingTargetId(session)));
+								}
+							}));
+						}
+					}, action, getSessionArchiveActionViewItemOptions(options, this.configurationService) ?? options);
+				},
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -880,6 +902,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
+		template.renderedSession.set(element, undefined);
+		template.elementDisposables.add(toDisposable(() => {
+			template.renderedSession.set(undefined, undefined);
+			template.container.classList.remove('archive-onboarding');
+		}));
+		if (this.options.archiveOnboardingSession) {
+			template.elementDisposables.add(autorun(reader => {
+				template.container.classList.toggle('archive-onboarding', this.options.archiveOnboardingSession?.read(reader)?.sessionId === element.sessionId);
+			}));
+		}
 
 		if (this.options.onDidRequestRename) {
 			template.elementDisposables.add(DOM.addDisposableListener(template.title.element, DOM.EventType.DBLCLICK, (event: MouseEvent) => {
@@ -1235,6 +1267,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	disposeTemplate(template: ISessionItemTemplate): void {
 		template.disposables.dispose();
 	}
+}
+
+export function getSessionArchiveOnboardingTargetId(session: ISession): string {
+	return `sessions.archiveAction.${session.sessionId}`;
 }
 
 function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
@@ -2440,6 +2476,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return ids;
 	});
 	private visible = true;
+	private readonly archiveOnboardingSession = observableValue<ISession | undefined>(this, undefined);
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
 	private _excludeArchived: boolean;
@@ -2588,6 +2625,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 				activeGuideSessionIds: this.activeGuideSessionIds,
 				deriveStatusFromMainChat: true,
+				archiveOnboardingSession: this.archiveOnboardingSession,
 			},
 			approvalModel,
 			undefined,
@@ -3074,6 +3112,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	update(expandAll?: boolean): void {
 		const activeSession = this._sessionsService.activeSession.get();
+		const archiveOnboardingSession = this.archiveOnboardingSession.get();
 
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
@@ -3097,10 +3136,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Keep the active user-facing session visible even when another filter excludes it.
-		if (activeSession && !filtered.some(s => s.sessionId === activeSession.sessionId)) {
-			const match = this.sessions.find(s => s.sessionId === activeSession.sessionId && !isAutomationSession(s));
-			if (match) {
-				filtered = [...filtered, match];
+		for (const revealedSession of [activeSession, archiveOnboardingSession]) {
+			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
+				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && !isAutomationSession(s));
+				if (match) {
+					filtered = [...filtered, match];
+				}
 			}
 		}
 
@@ -3205,7 +3246,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 
 				for (const section of workspaceSections) {
-					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id)) {
+					if (!meetsCriteria(section) && section.id !== fallbackId && !this._sessionSectionOrderService.isPromoted(section.id) && !section.sessions.some(session => session.sessionId === archiveOnboardingSession?.sessionId)) {
 						moreFolderSectionIds.add(section.id);
 					}
 				}
@@ -3235,6 +3276,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				expanded: this.expandedSessionGroups.has(sectionId),
 				sectionId,
 				sectionLabel,
+				revealSessionId: archiveOnboardingSession?.sessionId,
 			});
 			const children = toSessionChildren(limited.sessions);
 			if (limited.showMore) {
@@ -3460,11 +3502,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.map(node => node.element)
 			.find(element => !!element && isSessionChatItem(element) && this.uriIdentityService.extUri.isEqual(element.chat.resource, activeChat.resource));
 		if (!chatItem || !isSessionChatItem(chatItem)) {
+			this.tree.setFocus([session]);
 			this.tree.setSelection([session]);
 			return;
 		}
 		this.tree.expand(session);
 		this.tree.reveal(chatItem, 0.5);
+		this.tree.setFocus([chatItem]);
 		this.tree.setSelection([chatItem]);
 	}
 
@@ -3513,6 +3557,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		return false;
+	}
+
+	/** Reveals a session and keeps its archive action visible until the caller releases it. */
+	revealArchiveAction(session: ISession): IDisposable & { readonly targetId: string } {
+		this.customViewService.hideCustomView();
+		this.closeFind();
+		this.archiveOnboardingSession.set(session, undefined);
+		const release = toDisposable(() => {
+			this.archiveOnboardingSession.set(undefined, undefined);
+			if (!this._store.isDisposed) {
+				this.update();
+			}
+		});
+		try {
+			this.update();
+			if (!this.reveal(session.resource)) {
+				throw new Error(localize('sessionsList.archiveOnboardingUnavailable', "The session could not be revealed in the sessions list. Try again."));
+			}
+		} catch (error) {
+			release.dispose();
+			throw error;
+		}
+		return { targetId: getSessionArchiveOnboardingTargetId(session), dispose: () => release.dispose() };
 	}
 
 	clearFocus(): void {
@@ -4344,7 +4411,13 @@ export interface ISessionLimitResult {
 export function limitSessionsForList(
 	sessions: readonly ISession[],
 	limit: number,
-	options: { readonly enabled: boolean; readonly expanded: boolean; readonly sectionId: string; readonly sectionLabel: string },
+	options: {
+		readonly enabled: boolean;
+		readonly expanded: boolean;
+		readonly sectionId: string;
+		readonly sectionLabel: string;
+		readonly revealSessionId?: string;
+	},
 ): ISessionLimitResult {
 	if (!options.enabled || sessions.length <= limit) {
 		return { sessions, showMore: undefined };
@@ -4364,16 +4437,25 @@ export function limitSessionsForList(
 		};
 	}
 
+	const visibleSessions = sessions.slice(0, limit);
+	if (options.revealSessionId !== undefined) {
+		const revealIndex = sessions.findIndex(session => session.sessionId === options.revealSessionId);
+		if (revealIndex >= limit) {
+			visibleSessions.push(sessions[revealIndex]);
+		}
+	}
+	const remainingCount = sessions.length - visibleSessions.length;
+
 	return {
-		sessions: sessions.slice(0, limit),
-		showMore: {
+		sessions: visibleSessions,
+		showMore: remainingCount > 0 ? {
 			showMore: true,
 			kind: 'sessions',
 			mode: 'more',
 			sectionId: options.sectionId,
 			sectionLabel: options.sectionLabel,
-			remainingCount: sessions.length - limit,
-		},
+			remainingCount,
+		} : undefined,
 	};
 }
 

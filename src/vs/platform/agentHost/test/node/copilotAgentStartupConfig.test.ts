@@ -24,7 +24,7 @@ suite('CopilotAgentStartupConfig', () => {
 			same: true,
 			changed: false,
 			proxyTargetChanged: true,
-			description: 'sessionSync=true, multiTurnContextRouting=true, copilotSdkLogLevel=trace, enterpriseHost=github.example.com, systemProxy=false, githubMcpServer=false, managedSettingsPermissions',
+			description: 'sessionSync=true, claudeAdvisor=true, copilotSdkLogLevel=trace, enterpriseHost=github.example.com, systemProxy=false, githubMcpServer=false, managedSettingsPermissions',
 		});
 	});
 });

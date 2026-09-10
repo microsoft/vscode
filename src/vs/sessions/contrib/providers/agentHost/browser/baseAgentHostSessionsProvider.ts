@@ -24,6 +24,7 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
@@ -289,7 +290,9 @@ function deserializeStatus(raw: ISerializedSessionMetadata): ProtocolSessionStat
 }
 
 function isRememberedSessionConfigKey(property: string): boolean {
-	return property !== SessionConfigKey.Branch && !UNSAFE_SESSION_CONFIG_KEYS.has(property);
+	return property !== SessionConfigKey.Branch
+		&& property !== SessionConfigKey.SandboxEnabled
+		&& !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
 
 function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
@@ -970,6 +973,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		resourceScheme: string,
 		logicalSessionType: string,
 		private readonly _options: IAgentHostAdapterOptions,
+		chatCatalogLoading: IObservable<boolean>,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
@@ -1078,7 +1082,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.worktreePending = derived(this, reader =>
 			this._worktreeIsolation.read(reader)
 			&& !this.workspace.read(reader)?.folders.some(folder => !!folder.gitRepository?.workTreeUri));
-		this.loading = _options.loading;
+		this.loading = derived(this, reader => {
+			const visible = _sessionsService.visibleSessions.read(reader).some(session => isEqual(session?.resource, this.resource));
+			return _options.loading.read(reader) || (visible && chatCatalogLoading.read(reader));
+		});
 		this.description = derivedOpts<IMarkdownString | undefined>({ owner: this, equalsFn: markdownStringEquals }, reader => {
 			const status = this.status.read(reader);
 			if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
@@ -1168,7 +1175,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const agentCapabilities = this._options.agentCapabilities.read(reader)?.get(this.agentProvider);
+			this._options.connectionStatus?.read(reader);
+			const connection = this._options.getConnection();
 			return {
+				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
@@ -2294,6 +2304,7 @@ class NewSession extends Disposable {
 				...primaryFolder,
 				gitRepository: {
 					...currentRepository,
+					isRepository: constObservable(true),
 					branchName: gitState?.branchName ?? currentRepository.branchName,
 					baseBranchName: gitState?.baseBranchName ?? currentRepository.baseBranchName,
 					hasGitHubRemote: gitState?.hasGitHubRemote ?? currentRepository.hasGitHubRemote,
@@ -2921,6 +2932,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * state can be evicted on the agent host. Keyed by session ID.
 	 */
 	protected readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _chatCatalogLoading = new Map<string, ISettableObservable<boolean>>();
 	private readonly _agentMergeSessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _agentMergeSessionStateIdleTimers = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _agentMergeSessionStateObservables = new Map<string, IObservable<IAgentMergeClientState | undefined>>();
@@ -3121,8 +3133,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
-		this._metaByRawId.set(AgentSession.id(meta.session), meta);
-		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options);
+		const rawId = AgentSession.id(meta.session);
+		this._metaByRawId.set(rawId, meta);
+		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options, this._getChatCatalogLoading(rawId));
+	}
+
+	private _getChatCatalogLoading(rawId: string): ISettableObservable<boolean> {
+		let loading = this._chatCatalogLoading.get(rawId);
+		if (!loading) {
+			loading = observableValue(`chatCatalogLoading-${rawId}`, false);
+			this._chatCatalogLoading.set(rawId, loading);
+		}
+		return loading;
 	}
 
 	protected updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
@@ -4777,6 +4799,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	async removeSessionArtifact(sessionId: string, artifactId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!cached || !connection?.removeSessionArtifact || !supportsAgentHostArtifactRemoval(connection.initializeResult.get())) {
+			throw new Error(localize('removeSessionArtifactUnavailable', "Removing artifacts is unavailable for this session."));
+		}
+		await connection.removeSessionArtifact(cached.backendUri, artifactId);
+	}
+
 	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		const chatId = chatUri.fragment;
 		if (!chatId) {
@@ -5493,10 +5525,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
+		const chatCatalogLoading = this._getChatCatalogLoading(rawId);
+		if (!this._lastSessionStates.has(sessionId)) {
+			chatCatalogLoading.set(true, undefined);
+		}
 		const sessionUri = cached.backendUri;
 		const ref = connection.getSubscription(StateComponents.Session, sessionUri, 'BaseAgentHostSessionsProvider.summary');
 		// Do not cache failures, so a later pin can retry sessions addressed before host creation.
 		if (ref.object.value instanceof Error) {
+			chatCatalogLoading.set(false, undefined);
 			ref.dispose();
 			return;
 		}
@@ -5509,6 +5546,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const onDidError = ref.object.onDidError;
 		if (onDidError) {
 			store.add(onDidError(() => {
+				chatCatalogLoading.set(false, undefined);
 				if (this._sessionStateSubscriptions.get(sessionId) === store) {
 					this._sessionStateSubscriptions.deleteAndDispose(sessionId);
 				}
@@ -5628,6 +5666,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetadataFromState(sessionId, state, previous);
 		this._applyChatCatalogFromState(sessionId, state);
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (rawId) {
+			this._chatCatalogLoading.get(rawId)?.set(false, undefined);
+		}
 
 		if (!previous) {
 			// This is the first time we've seen this session and the initial
@@ -6249,6 +6291,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		this._metaByRawId.delete(rawId);
+		this._chatCatalogLoading.delete(rawId);
 		const stateOwner = cached ?? expected;
 		if (!stateOwner) {
 			return undefined;

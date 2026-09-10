@@ -151,6 +151,10 @@ export function effectiveChatInteractivity(isArchived: boolean, interactivity: C
 }
 
 export interface ISessionGitRepository {
+	/** Whether the folder is a Git repository. */
+	readonly isRepository?: IObservable<boolean>;
+	/** Starts resolving repository information when it is exposed lazily. */
+	readonly resolveRepository?: () => void;
 	/** The source repository URI. */
 	readonly uri: URI;
 	/** The working directory URI (e.g., a git worktree or checkout path). */
@@ -842,6 +846,8 @@ export function toSessionId(providerId: string, resource: URI): string {
  * Consumers check these before surfacing session-specific features in the UI.
  */
 export interface ISessionCapabilities {
+	/** Whether recorded artifacts can be removed from this session. */
+	readonly supportsRemoveArtifacts?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**
@@ -1100,6 +1106,7 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 	}
 	return isEqual(a.uri, b.uri)
 		&& isEqual(a.workTreeUri, b.workTreeUri)
+		&& a.isRepository?.get() === b.isRepository?.get()
 		&& a.branchName === b.branchName
 		&& a.baseBranchName === b.baseBranchName
 		&& a.baseBranchProtected === b.baseBranchProtected

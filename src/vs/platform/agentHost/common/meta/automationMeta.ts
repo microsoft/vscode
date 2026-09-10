@@ -30,6 +30,5 @@ export function isAgentHostLegacyAutomationImportPending(source: IHasAutomationM
 }
 
 function readAutomationMetaSlot(source: IHasAutomationMeta, key: string): unknown {
-	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned reader for validated Automation metadata slots.
 	return source._meta?.[key];
 }

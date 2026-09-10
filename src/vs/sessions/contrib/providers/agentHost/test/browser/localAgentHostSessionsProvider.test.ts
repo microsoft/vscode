@@ -18,6 +18,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -49,7 +50,7 @@ import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -115,6 +116,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public createDetachedWorktreeCalls: { session: URI; prompt: string }[] = [];
 	public claimedDetachedWorktrees: string[] = [];
 	public deletedDetachedWorktrees: string[] = [];
+	public removedArtifacts: { session: URI; artifactId: string }[] = [];
+	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		this.removedArtifacts.push({ session, artifactId });
+	}
 	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
@@ -1220,6 +1225,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 			branchName: 'feature/worktree',
 			uncommittedChanges: 4,
 			changedEvents: [[true]],
+		});
+	}));
+
+	test('session metadata marks a folder workspace as a repository', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('git-folder-meta', {
+			summary: 'Git Folder Session',
+			workingDirectory: URI.parse('file:///Users/me/project'),
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0]!;
+		const before = session.workspace.get()!.folders[0].gitRepository?.isRepository?.get();
+
+		fireSessionMetaChanged(agentHost, 'git-folder-meta', {
+			git: {
+				branchName: 'feature/worktree',
+			},
+		});
+
+		assert.deepStrictEqual({
+			before,
+			after: session.workspace.get()!.folders[0].gitRepository?.isRepository?.get(),
+		}, {
+			before: false,
+			after: true,
 		});
 	}));
 
@@ -3164,7 +3196,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
 	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -3547,6 +3579,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('switches incompatible worktree isolation to folder when enabling a preferred Dev Container', async () => {
+		const configurationService = new TestConfigurationService({
+			[DevContainerWorktreeEnabledSettingId]: false,
+		});
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService,
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> {
+					return true;
+				}
+			}(),
+		});
+		const session = provider.createNewSession(
+			URI.file('/home/user/project'),
+			provider.sessionTypes[0].id,
+		);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values[SessionConfigKey.Isolation] === 'worktree');
+		provider.preferDevContainer(session.sessionId);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values[SessionConfigKey.Isolation] === 'folder');
+
+		assert.deepStrictEqual({
+			enabled: provider.isDevContainerEnabled(session.sessionId),
+			isolation: provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.Isolation],
+			forwardedIsolation: agentHost.resolveSessionConfigRequests.at(-1)?.config?.[SessionConfigKey.Isolation],
+		}, {
+			enabled: true,
+			isolation: 'folder',
+			forwardedIsolation: 'folder',
+		});
+	});
+
 	test('does not enable a preferred Dev Container when unavailable or canceled', async () => {
 		const unavailable = new DeferredPromise<boolean>();
 		const canceled = new DeferredPromise<boolean>();
@@ -3911,17 +3974,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
 			[SessionConfigKey.Branch]: 'legacy-branch',
+			[SessionConfigKey.SandboxEnabled]: 'off',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
 
+		const initialSandbox = agentHost.resolveSessionConfigRequests.at(-1)?.config?.[SessionConfigKey.SandboxEnabled];
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, 'off');
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
 		await provider.setSessionConfigValue(session.sessionId, '__proto__', 'polluted');
 
 		assert.deepStrictEqual(
-			storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
-			{ [SessionConfigKey.Isolation]: 'folder' },
+			{
+				initialSandbox,
+				remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+			},
+			{ initialSandbox: undefined, remembered: { [SessionConfigKey.Isolation]: 'folder' } },
 		);
 	});
 
@@ -5759,6 +5828,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				'agent-host-copilotcli',
 				'copilotcli',
 				options,
+				constObservable(false),
 			)));
 			const sessionUri = AgentSession.uri('copilotcli', 'lazy-capabilities-0').toString();
 			const defaultChat = buildDefaultChatUri(sessionUri);
@@ -6898,19 +6968,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.loading.get(), true);
 	});
 
-	test('cached session loading reflects authenticationPending', async () => {
-		agentHost.setAuthenticationPending(true);
+	test('visible cached session stays loading until its chat catalog hydrates', () => {
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
 		agentHost.addSession(createSession('cached-auth-loading', { summary: 'Cached' }));
 
-		const provider = createProvider(disposables, agentHost);
-		provider.getSessions();
-		await timeout(0);
+		const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+		fireSessionAdded(agentHost, 'cached-auth-loading', { title: 'Cached' });
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Cached');
 		assert.ok(session);
+		assert.strictEqual(session!.loading.get(), false);
+
+		const visibleSession = new class extends mock<IActiveSession>() {
+			override readonly resource = session!.resource;
+		}();
+		visibleSessions.set([visibleSession], undefined);
+		provider.getSessionConfig(session!.sessionId);
 		assert.strictEqual(session!.loading.get(), true);
 
-		agentHost.setAuthenticationPending(false);
+		const sessionUri = AgentSession.uri('copilotcli', 'cached-auth-loading').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		agentHost.setSessionState('cached-auth-loading', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Cached',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			chats: [{
+				resource: defaultChat,
+				title: '',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			}],
+		});
 		assert.strictEqual(session!.loading.get(), false);
 	});
 
@@ -7812,6 +7903,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 			],
 		});
 	}));
+
+	test('gates artifact removal on the host capability and routes the backend session URI', async () => {
+		agentHost.addSession(createSession('remove-artifact'));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const supported: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => supported.push(session.capabilities.read(reader).supportsRemoveArtifacts)));
+		await assert.rejects(() => provider.removeSessionArtifact(session.sessionId, 'artifact'), /unavailable/);
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: getAgentHostExtensionInitializeResultMeta() }, undefined);
+		await provider.removeSessionArtifact(session.sessionId, 'artifact');
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: {} }, undefined);
+		await assert.rejects(() => provider.removeSessionArtifact(session.sessionId, 'artifact'), /unavailable/);
+		assert.deepStrictEqual({
+			supported,
+			removed: agentHost.removedArtifacts.map(call => ({ session: call.session.toString(), artifactId: call.artifactId })),
+		}, {
+			supported: [false, true, false],
+			removed: [{ session: AgentSession.uri('copilotcli', 'remove-artifact').toString(), artifactId: 'artifact' }],
+		});
+	});
 
 	test('preserves recorded artifacts as GitHub repository metadata hydrates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {
