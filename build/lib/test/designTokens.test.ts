@@ -20,4 +20,22 @@ suite('design tokens', () => {
 			message: '5px 7px is off the spacing scale -> nearest: 6px 8px (var(--vscode-spacing-size60) var(--vscode-spacing-size80))'
 		}]);
 	});
+
+	test('snaps subpixel spacing toward zero, and rounds an exact tie up', () => {
+		const css = [
+			'.near-zero { margin: 0.4px; }',
+			'.tie { margin: 0.5px; }',
+		].join('\n');
+
+		assert.deepStrictEqual(validateSpacingTokens(css), [
+			{
+				line: 1,
+				message: '0.4px is off the spacing scale -> nearest: 0px (var(--vscode-spacing-sizeNone))'
+			},
+			{
+				line: 2,
+				message: '0.5px is off the spacing scale -> nearest: 1px (var(--vscode-spacing-size10))'
+			},
+		]);
+	});
 });
