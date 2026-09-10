@@ -233,6 +233,11 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('renderGutterMenu', "When enabled, the diff editor shows a special gutter for revert and stage actions."),
 			agentsWindow: { default: false },
 		},
+		'diffEditor.hideOriginalLineNumbers': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('hideOriginalLineNumbers', "When enabled, the diff editor does not show the line numbers of the file before changes when the inline view is used."),
+		},
 		'diffEditor.ignoreTrimWhitespace': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.ignoreTrimWhitespace,
