@@ -183,12 +183,12 @@ suite('registerAgentHostClientChannels', () => {
 		disposables.add(service.onDidReinitialize(() => events.push('didReinitialize')));
 		service.startAgentHost();
 
-		onWillReinitialize.fire();
 		onDidChangeConnectionState.fire(AgentHostClientState.Reconnecting);
+		onWillReinitialize.fire();
 		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
 		onDidReinitialize.fire();
 
-		assert.deepStrictEqual(events, ['willReinitialize', 'exit', 'start', 'didReinitialize']);
+		assert.deepStrictEqual(events, ['exit', 'willReinitialize', 'start', 'didReinitialize']);
 	});
 
 	suite('LocalAgentHostManagementConnection', () => {

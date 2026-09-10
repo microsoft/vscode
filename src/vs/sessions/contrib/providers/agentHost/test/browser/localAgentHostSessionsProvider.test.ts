@@ -7024,8 +7024,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const recreated = new DeferredPromise<void>();
 		agentHost.onCreateSession = () => recreated.complete();
-		agentHost.fireWillReinitializeAgentHost();
 		agentHost.fireAgentHostExit();
+		agentHost.fireWillReinitializeAgentHost();
 		agentHost.fireAgentHostStart();
 		agentHost.fireDidReinitializeAgentHost();
 		await recreated.p;
@@ -7064,8 +7064,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const recreated = new DeferredPromise<void>();
 		agentHost.onCreateSession = () => recreated.complete();
-		agentHost.fireWillReinitializeAgentHost();
 		agentHost.fireAgentHostExit();
+		agentHost.fireWillReinitializeAgentHost();
 		agentHost.fireAgentHostStart();
 		agentHost.fireDidReinitializeAgentHost();
 		await recreated.p;

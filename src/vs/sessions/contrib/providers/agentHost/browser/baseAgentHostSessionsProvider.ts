@@ -6200,14 +6200,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	// -- AHP notification / action handlers ----------------------------------
 
+	protected _attachConnectionReinitializationListeners(connection: IAgentConnection, store: DisposableStore): void {
+		store.add(connection.onWillReinitialize(() => this._prepareNewSessionsForAgentHostReinitialize()));
+		store.add(connection.onDidReinitialize(() => this._resumeNewSessionAfterAuthenticationSettles()));
+	}
+
 	/**
 	 * Wire AHP notification and action listeners on the given connection.
 	 * Subclasses call this from their constructor (local) or `setConnection`
 	 * (remote), passing a store that bounds the listeners' lifetime.
 	 */
 	protected _attachConnectionListeners(connection: IAgentConnection, store: DisposableStore): void {
-		store.add(connection.onWillReinitialize(() => this._prepareNewSessionsForAgentHostReinitialize()));
-		store.add(connection.onDidReinitialize(() => this._resumeNewSessionAfterAuthenticationSettles()));
 		store.add(connection.onDidNotification(n => {
 			if (n.type === NotificationType.SessionAdded) {
 				this._handleSessionAdded(n.summary);
