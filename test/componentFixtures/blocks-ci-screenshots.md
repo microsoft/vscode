@@ -336,6 +336,18 @@
 #### sessions/chat/view/chatView/AssistantResponsePlain/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/247814f062d556d98a5474ef65d2040128237d94c1616e379fd37a26fb616b13)
 
+#### sessions/chat/view/chatView/CheckpointControlsBackground/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c4cd4623bc9375200a9ee15b4c7e466539d638d788c4f2ab8967539b2b177c95)
+
+#### sessions/chat/view/chatView/CheckpointControlsBackground/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0a8bd48a36b3a11a06d11d02788e195af77ab08598585be0a77659ee40e7f3c8)
+
+#### sessions/chat/view/chatView/RequestAttachmentBackground/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1d307915aa7037b6c24b6bfdbd3639f5b4d2db2e2a7d4b8b8c9ee2d50725f325)
+
+#### sessions/chat/view/chatView/RequestAttachmentBackground/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6d74cdd3edb6fea60ae08e233a168d1ab2862b5b283206e27f77ce980e8bc79c)
+
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Accent/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/75cb51ad8b1f6ecb8c3891c2ee1d260a45d293c502bef1c33ce0df915c543aa0)
 
