@@ -1879,22 +1879,18 @@ suite('SessionsTerminalContribution', () => {
 		const sessionA = makeAgentSession({ sessionId: 'test:session-a', worktree: cwdA, providerType: AgentSessionProviders.Background });
 		const sessionB = makeAgentSession({ sessionId: 'test:session-b', worktree: cwdB, providerType: AgentSessionProviders.Background });
 
-		// 1. Session A is activated; its terminal (id 1) is created and set active
 		activeSessionObs.set(sessionA, undefined);
 		await tick();
 		assert.strictEqual(activeInstanceSet.at(-1), 1, 'terminal 1 should be active for session A');
 
-		// 2. Session B is activated; its terminal (id 2) is created and set active
 		activeSessionObs.set(sessionB, undefined);
 		await tick();
 		assert.strictEqual(activeInstanceSet.at(-1), 2, 'terminal 2 should be active for session B');
 
-		// 3. Switch back to session A (neither terminal has executed commands)
 		activeSessionObs.set(sessionA, undefined);
 		await tick();
 		assert.strictEqual(activeInstanceSet.at(-1), 1, 'terminal 1 should become active when switching back to session A');
 
-		// 4. Switch back to session B
 		activeSessionObs.set(sessionB, undefined);
 		await tick();
 		assert.strictEqual(activeInstanceSet.at(-1), 2, 'terminal 2 should become active when switching back to session B');
