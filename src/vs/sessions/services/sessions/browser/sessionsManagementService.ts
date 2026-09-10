@@ -616,7 +616,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			: options?.automationConfiguration;
 		return {
 			metadata: options?.metadata,
-			createdBySession: options?.createdBySession,
+			...(options?.createdBySession ? { createdBySession: options.createdBySession } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}

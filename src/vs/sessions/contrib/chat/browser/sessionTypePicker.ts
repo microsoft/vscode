@@ -615,13 +615,13 @@ export class SessionTypePicker extends Disposable {
 							? localize('sessionTypePicker.comparisonRequiresWorktree', "Comparisons require worktree isolation")
 							: modelUnavailable
 								? localize('sessionTypePicker.comparisonModelUnavailable', "Selected model is not available")
-							: getSessionTypeUnavailableDescription(availability),
+								: getSessionTypeUnavailableDescription(availability),
 						hover: {
 							content: worktreeUnavailable
 								? localize('sessionTypePicker.comparisonRequiresWorktreeHover', "This harness cannot run an isolated comparison attempt because it does not support worktree configuration.")
 								: modelUnavailable
 									? localize('sessionTypePicker.comparisonModelUnavailableHover', "This harness does not advertise the model currently selected for the comparison.")
-								: getSessionTypeUnavailableHover(availability),
+									: getSessionTypeUnavailableHover(availability),
 						},
 					} : {}),
 					group: {
@@ -833,8 +833,8 @@ export class SessionTypePicker extends Disposable {
 		this._triggerElement.ariaLabel = this._comparisonMode
 			? localize('sessionTypePicker.comparisonTriggerAriaLabel', "Pick Agents to Compare, {0} selected", this._comparisonPicks.length)
 			: disabled
-			? localize('sessionTypePicker.disabledTriggerAriaLabel', "Session Type, {0}", modeLabel)
-			: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
+				? localize('sessionTypePicker.disabledTriggerAriaLabel', "Session Type, {0}", modeLabel)
+				: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 
 	private _updateComparisonToggle(): void {
