@@ -227,6 +227,12 @@ suite('MultiEditorTabsControl', () => {
 		control.layout({ container: new Dimension(500, 35), available: new Dimension(500, 35) });
 		variants.push(iconLabel.classList.contains('monaco-icon-label-spacing-none'));
 		const pseudoStyle = getWindow(iconLabel).getComputedStyle(iconLabel, '::before');
+		const themeIconGeometry = {
+			boxSizing: pseudoStyle.boxSizing,
+			paddingRight: pseudoStyle.paddingRight,
+			marginInlineEnd: pseudoStyle.marginInlineEnd,
+			width: pseudoStyle.width,
+		};
 
 		workbench.classList.remove('modern-ui-tabs');
 		control.layout({ container: new Dimension(500, 35), available: new Dimension(500, 35) });
@@ -234,12 +240,7 @@ suite('MultiEditorTabsControl', () => {
 
 		assert.deepStrictEqual({
 			variants,
-			themeIconGeometry: {
-				boxSizing: pseudoStyle.boxSizing,
-				paddingRight: pseudoStyle.paddingRight,
-				marginInlineEnd: pseudoStyle.marginInlineEnd,
-				width: pseudoStyle.width,
-			},
+			themeIconGeometry,
 		}, {
 			variants: [false, true, false],
 			themeIconGeometry: {
