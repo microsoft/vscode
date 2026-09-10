@@ -272,6 +272,77 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('does not subscribe to an untitled Agent Host session', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const untitledResource = URI.parse('agent-host-claude:/untitled-session');
+		const realResource = URI.parse('agent-host-claude:/session');
+		const backendSession = URI.parse('claude:/session');
+		const connection = new StaticAgentConnection(new Map([
+			[StateComponents.Session, {
+				defaultChat: buildDefaultChatUri(backendSession),
+				chats: [],
+				changesets: [],
+			} as unknown as SessionState],
+		]));
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		let viewModel = upcastPartial<ChatViewModel>({ sessionResource: untitledResource });
+		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: viewModelChanged.event,
+			get viewModel() { return viewModel; },
+			setPersistentContentHeight: () => { },
+		});
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+		));
+		assert.strictEqual(connection.requested.length, 0);
+
+		viewModel = upcastPartial<ChatViewModel>({ sessionResource: realResource });
+		viewModelChanged.fire({ previousSessionResource: untitledResource, currentSessionResource: realResource });
+
+		assert.deepStrictEqual(connection.requested.map(request => ({
+			kind: request.kind,
+			resource: request.resource.toString(),
+		})), [{
+			kind: StateComponents.Session,
+			resource: backendSession.toString(),
+		}]);
+	});
+
 	test('marks floating persistent content visible when Agent Host pills have data', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const sessionResource = URI.parse('agent-host-copilot:/session');
