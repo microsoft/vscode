@@ -484,6 +484,11 @@ import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';
 import './contrib/github/browser/github.contribution.js';
 import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
+import './contrib/worktrees/browser/worktreeDashboardService.js';
+import './contrib/worktrees/browser/agentsDashboardHistoryService.js';
+import './contrib/worktrees/browser/agentsDashboardEditor.contribution.js';
+import './contrib/worktrees/browser/agentsDashboardActions.js';
+import './contrib/worktrees/browser/agentsDashboardDemoProvider.js';
 import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
 import './contrib/configuration/browser/configuration.contribution.js';
 import './contrib/browserView/browser/sessionBrowserView.contribution.js';

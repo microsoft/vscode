@@ -6,10 +6,11 @@
 import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IDispatchedAction, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDatabase, ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType, isChatAction, type ChatAction } from '../../../common/state/sessionActions.js';
-import { chatStorageUri, hasReportedUsage, isAhpChatChannel, isSubagentChatUri, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
+import { chatStorageUri, hasReportedUsage, isAhpChatChannel, isSubagentChatUri, parseRequiredSessionUriFromChatUri, withAccumulatedSessionUsage, withCompletedSessionUsageTurn, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /** Owns persisted per-turn usage in both directions, recording it live and re-attaching it to restored turns. */
 export class PersistedTurnUsageContribution extends Disposable implements IAgentHostChatContribution {
@@ -21,6 +22,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 	}
@@ -35,6 +37,17 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		}
 		if (isAhpChatChannel(dispatched.channel) && isChatAction(dispatched.action)) {
 			this._trackTurnUsage(dispatched.channel, dispatched.action);
+		}
+	}
+
+	onTurnEnd(turn: ITurnEnd): void {
+		if (!turn.turnId || isSubagentChatUri(turn.channel)) {
+			return;
+		}
+		const summary = this._stateManager.getSessionSummary(turn.session);
+		const meta = withCompletedSessionUsageTurn(summary?._meta, turn.channel, turn.turnId);
+		if (meta !== summary?._meta) {
+			this._stateManager.setSessionMeta(turn.session, meta);
 		}
 	}
 
@@ -144,6 +157,13 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		// prune path can remove it, so it would be a permanent orphan row.
 		if (!action.turnId) {
 			return;
+		}
+		if (this._stateManager.getChatState(channel)?.activeTurn?.id === action.turnId) {
+			const session = parseRequiredSessionUriFromChatUri(channel);
+			const summary = this._stateManager.getSessionSummary(session);
+			if (summary) {
+				this._stateManager.setSessionMeta(session, withAccumulatedSessionUsage(summary._meta, channel, action.turnId, action.usage));
+			}
 		}
 		// Agents key their storage by the chat's own URI, which is where the
 		// `turns` rows that `getTurnUsages` joins against live.

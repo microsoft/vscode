@@ -769,6 +769,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/worktrees",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/aquarium",
 			"project": "vscode-sessions"
 		},

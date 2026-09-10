@@ -1409,10 +1409,196 @@ export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 
+export const SESSION_META_USAGE_KEY = 'vscode.usage';
+
 /** Reserved key for whether a session was first discovered in a provider-native catalog. */
 export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
+const MAX_RETAINED_ACTIVE_TURN_USAGE = 32;
+
+/** Aggregate resource usage retained with an Agent Host session. */
+export interface ISessionUsageSummary {
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly cacheReadTokens?: number;
+	readonly totalNanoAiu?: number;
+}
+
+interface IActiveTurnUsage extends ISessionUsageSummary {
+	readonly key: string;
+}
+
+interface IChatCreditUsage {
+	readonly chat: string;
+	readonly totalNanoAiu: number;
+}
+
+interface IPersistedSessionUsage extends ISessionUsageSummary {
+	readonly activeTurns?: readonly IActiveTurnUsage[];
+	readonly chatCredits?: readonly IChatCreditUsage[];
+}
+
+/** Reads the validated aggregate resource usage from session metadata. */
+export function readSessionUsage(meta: SessionMeta | undefined): ISessionUsageSummary | undefined {
+	const usage = readPersistedSessionUsage(meta);
+	if (!usage) {
+		return undefined;
+	}
+	const totalNanoAiu = usage.chatCredits?.reduce((total, entry) => total + entry.totalNanoAiu, 0) ?? usage.totalNanoAiu;
+	const result: ISessionUsageSummary = {
+		...(usage.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
+		...(usage.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
+		...(usage.cacheReadTokens !== undefined ? { cacheReadTokens: usage.cacheReadTokens } : {}),
+		...(totalNanoAiu !== undefined ? { totalNanoAiu } : {}),
+	};
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/** Accumulates one chat turn's latest usage snapshot into session metadata. */
+export function withAccumulatedSessionUsage(meta: SessionMeta | undefined, chat: string, turnId: string, usage: UsageInfo): SessionMeta {
+	const current = readPersistedSessionUsage(meta) ?? {};
+	const key = `${chat}\n${turnId}`;
+	const previousTurn = current.activeTurns?.find(entry => entry.key === key);
+	const nextTurn = readTurnUsage(usage, key);
+	const activeTurns = [
+		...(current.activeTurns?.filter(entry => entry.key !== key) ?? []),
+		nextTurn,
+	].slice(-MAX_RETAINED_ACTIVE_TURN_USAGE);
+	const usageMeta = readUsageInfoMeta(usage);
+	const sessionTotalNanoAiu = validUsageNumber(usageMeta.copilotUsage?.sessionTotalNanoAiu);
+	let chatCredits = current.chatCredits;
+	let totalNanoAiu = current.totalNanoAiu;
+	if (sessionTotalNanoAiu !== undefined) {
+		chatCredits = [
+			...(chatCredits?.filter(entry => entry.chat !== chat) ?? []),
+			{ chat, totalNanoAiu: sessionTotalNanoAiu },
+		];
+		totalNanoAiu = undefined;
+	} else {
+		const creditDelta = usageDelta(nextTurn.totalNanoAiu, previousTurn?.totalNanoAiu);
+		if (creditDelta !== undefined) {
+			const previousChatTotal = chatCredits?.find(entry => entry.chat === chat)?.totalNanoAiu ?? totalNanoAiu ?? 0;
+			chatCredits = [
+				...(chatCredits?.filter(entry => entry.chat !== chat) ?? []),
+				{ chat, totalNanoAiu: previousChatTotal + creditDelta },
+			];
+			totalNanoAiu = undefined;
+		}
+	}
+	const inputTokens = addUsageDelta(current.inputTokens, nextTurn.inputTokens, previousTurn?.inputTokens);
+	const outputTokens = addUsageDelta(current.outputTokens, nextTurn.outputTokens, previousTurn?.outputTokens);
+	const cacheReadTokens = addUsageDelta(current.cacheReadTokens, nextTurn.cacheReadTokens, previousTurn?.cacheReadTokens);
+	const persisted: IPersistedSessionUsage = {
+		...(inputTokens !== undefined ? { inputTokens } : {}),
+		...(outputTokens !== undefined ? { outputTokens } : {}),
+		...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+		...(totalNanoAiu !== undefined ? { totalNanoAiu } : {}),
+		...(activeTurns.length > 0 ? { activeTurns } : {}),
+		...(chatCredits && chatCredits.length > 0 ? { chatCredits } : {}),
+	};
+	return { ...meta, [SESSION_META_USAGE_KEY]: persisted };
+}
+
+/** Clears the transient snapshot retained for a finished chat turn. */
+export function withCompletedSessionUsageTurn(meta: SessionMeta | undefined, chat: string, turnId: string): SessionMeta | undefined {
+	const current = readPersistedSessionUsage(meta);
+	if (!current?.activeTurns?.length) {
+		return meta;
+	}
+	const key = `${chat}\n${turnId}`;
+	const activeTurns = current.activeTurns.filter(entry => entry.key !== key);
+	if (activeTurns.length === current.activeTurns.length) {
+		return meta;
+	}
+	return {
+		...meta,
+		[SESSION_META_USAGE_KEY]: {
+			...current,
+			...(activeTurns.length > 0 ? { activeTurns } : { activeTurns: undefined }),
+		},
+	};
+}
+
+function readPersistedSessionUsage(meta: SessionMeta | undefined): IPersistedSessionUsage | undefined {
+	const value = meta?.[SESSION_META_USAGE_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const activeTurns = readUsageEntries(raw.activeTurns, 'key');
+	const chatCreditEntries = readUsageEntries(raw.chatCredits, 'chat');
+	const chatCredits: IChatCreditUsage[] | undefined = chatCreditEntries?.flatMap(entry =>
+		entry.totalNanoAiu === undefined ? [] : [{ chat: entry.key, totalNanoAiu: entry.totalNanoAiu }]);
+	return {
+		...(validUsageNumber(raw.inputTokens) !== undefined ? { inputTokens: validUsageNumber(raw.inputTokens) } : {}),
+		...(validUsageNumber(raw.outputTokens) !== undefined ? { outputTokens: validUsageNumber(raw.outputTokens) } : {}),
+		...(validUsageNumber(raw.cacheReadTokens) !== undefined ? { cacheReadTokens: validUsageNumber(raw.cacheReadTokens) } : {}),
+		...(validUsageNumber(raw.totalNanoAiu) !== undefined ? { totalNanoAiu: validUsageNumber(raw.totalNanoAiu) } : {}),
+		...(activeTurns ? { activeTurns } : {}),
+		...(chatCredits ? { chatCredits } : {}),
+	};
+}
+
+function readUsageEntries(value: unknown, keyProperty: 'key' | 'chat'): IActiveTurnUsage[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const result: IActiveTurnUsage[] = [];
+	for (const entry of value) {
+		if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+			continue;
+		}
+		const raw = entry as Record<string, unknown>;
+		const key = raw[keyProperty];
+		if (typeof key !== 'string') {
+			continue;
+		}
+		result.push({
+			key,
+			...(validUsageNumber(raw.inputTokens) !== undefined ? { inputTokens: validUsageNumber(raw.inputTokens) } : {}),
+			...(validUsageNumber(raw.outputTokens) !== undefined ? { outputTokens: validUsageNumber(raw.outputTokens) } : {}),
+			...(validUsageNumber(raw.cacheReadTokens) !== undefined ? { cacheReadTokens: validUsageNumber(raw.cacheReadTokens) } : {}),
+			...(validUsageNumber(raw.totalNanoAiu) !== undefined ? { totalNanoAiu: validUsageNumber(raw.totalNanoAiu) } : {}),
+		});
+	}
+	return result;
+}
+
+function readTurnUsage(usage: UsageInfo, key: string): IActiveTurnUsage {
+	const usageMeta = readUsageInfoMeta(usage);
+	const tokenTotals = usageMeta.turnTokenTotals;
+	const totalNanoAiu = validUsageNumber(usageMeta.copilotUsage?.totalNanoAiu);
+	if (tokenTotals?.length) {
+		return {
+			key,
+			inputTokens: tokenTotals.reduce((total, entry) => total + entry.inputTokens, 0),
+			outputTokens: tokenTotals.reduce((total, entry) => total + entry.outputTokens, 0),
+			cacheReadTokens: tokenTotals.reduce((total, entry) => total + entry.cachedTokens, 0),
+			...(totalNanoAiu !== undefined ? { totalNanoAiu } : {}),
+		};
+	}
+	return {
+		key,
+		...(validUsageNumber(usage.inputTokens) !== undefined ? { inputTokens: validUsageNumber(usage.inputTokens) } : {}),
+		...(validUsageNumber(usage.outputTokens) !== undefined ? { outputTokens: validUsageNumber(usage.outputTokens) } : {}),
+		...(validUsageNumber(usage.cacheReadTokens) !== undefined ? { cacheReadTokens: validUsageNumber(usage.cacheReadTokens) } : {}),
+		...(totalNanoAiu !== undefined ? { totalNanoAiu } : {}),
+	};
+}
+
+function validUsageNumber(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function usageDelta(current: number | undefined, previous: number | undefined): number | undefined {
+	return current === undefined ? undefined : Math.max(0, current - (previous ?? 0));
+}
+
+function addUsageDelta(total: number | undefined, current: number | undefined, previous: number | undefined): number | undefined {
+	const delta = usageDelta(current, previous);
+	return delta === undefined ? total : (total ?? 0) + delta;
+}
 
 /** Multi-root workspace provenance attached by the creating client. */
 export interface ISessionMultiRootMetadata {

@@ -10,7 +10,7 @@ import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionUsage, readUsageInfoMeta, withAccumulatedSessionUsage, withCompletedSessionUsageTurn, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
@@ -391,6 +391,46 @@ suite('Agent host _meta readers', () => {
 			// consumption on their own would make the restore path skip merging the
 			// richer persisted usage over a token-less stub.
 			assert.strictEqual(hasReportedUsage(usage({ turnTokenTotals: [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }] })), false);
+		});
+	});
+
+	suite('session usage', () => {
+		test('replaces live turn snapshots and sums chat credit totals', () => {
+			const chatOne = 'ahp-chat://chat/session-one';
+			const chatTwo = 'ahp-chat://chat/session-two';
+			let meta = withAccumulatedSessionUsage(undefined, chatOne, 'turn-one', {
+				_meta: {
+					turnTokenTotals: [{ model: 'gpt-5', inputTokens: 100, cachedTokens: 20, outputTokens: 30 }],
+					copilotUsage: { totalNanoAiu: 1_000_000_000, sessionTotalNanoAiu: 1_500_000_000 },
+				},
+			});
+			meta = withAccumulatedSessionUsage(meta, chatOne, 'turn-one', {
+				_meta: {
+					turnTokenTotals: [{ model: 'gpt-5', inputTokens: 150, cachedTokens: 25, outputTokens: 40 }],
+					copilotUsage: { totalNanoAiu: 1_250_000_000, sessionTotalNanoAiu: 2_000_000_000 },
+				},
+			});
+			meta = withAccumulatedSessionUsage(meta, chatTwo, 'turn-two', {
+				inputTokens: 10,
+				cacheReadTokens: 2,
+				outputTokens: 4,
+				_meta: { copilotUsage: { totalNanoAiu: 500_000_000, sessionTotalNanoAiu: 500_000_000 } },
+			});
+
+			assert.deepStrictEqual(readSessionUsage(meta), {
+				inputTokens: 160,
+				outputTokens: 44,
+				cacheReadTokens: 27,
+				totalNanoAiu: 2_500_000_000,
+			});
+			assert.deepStrictEqual(
+				readSessionUsage(withCompletedSessionUsageTurn(meta, chatOne, 'turn-one')),
+				readSessionUsage(meta),
+			);
+		});
+
+		test('ignores malformed persisted values', () => {
+			assert.strictEqual(readSessionUsage({ 'vscode.usage': { inputTokens: -1, totalNanoAiu: 'bad' } }), undefined);
 		});
 	});
 

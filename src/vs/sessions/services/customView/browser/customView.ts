@@ -28,6 +28,12 @@ export interface ICustomViewDescriptor {
 	readonly ctor: SyncDescriptor<AbstractCustomView>;
 
 	readonly actions?: ICustomViewActions;
+
+	/** Whether the shared custom-view header chrome is hidden. */
+	readonly hideHeader?: boolean;
+
+	/** Title shown by the standard Agents command-center control while this view is active. */
+	readonly commandCenterTitle?: string;
 }
 
 /**

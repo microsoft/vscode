@@ -29,7 +29,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionUsage, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -2461,6 +2461,23 @@ suite('AgentSideEffects', () => {
 			// No ChatTurnComplete/Cancelled/Error — the rows are already durable.
 			await new Promise(r => setTimeout(r, 10));
 			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', JSON.stringify(usage)]]);
+		});
+
+		test('publishes aggregate usage on the session summary', () => {
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			createUsageSideEffects(db);
+			startTurn('turn-1');
+
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 50, outputTokens: 10, _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } } });
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatUsage, turnId: 'turn-1', usage });
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 10 });
+
+			assert.deepStrictEqual(readSessionUsage(stateManager.getSessionSummary(sessionUri.toString())?._meta), {
+				inputTokens: 100,
+				outputTokens: 20,
+				totalNanoAiu: 5_000_000_000,
+			});
 		});
 
 		test('does not persist usage reported on a subagent chat', async () => {

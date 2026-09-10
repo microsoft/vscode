@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { coalesce, DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
+import { coalesce, DiagnosticSeverityConfig, dispose, fromNow, getFolderSize, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -1107,6 +1107,47 @@ export class CommandCenter {
 		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
 		const result = await repo.exec(['merge', branch, '--no-edit']);
 		return result.stdout.trim();
+	}
+
+	@command('_git.deleteWorktree')
+	async deleteWorktreeByPath(repositoryPath: string, worktreePath: string, force?: boolean): Promise<{ ok: true } | { ok: false; reason: 'dirty' }> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		try {
+			await repo.deleteWorktree(worktreePath, force ? { force: true } : undefined);
+			return { ok: true };
+		} catch (err) {
+			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+				return { ok: false, reason: 'dirty' };
+			}
+			throw err;
+		}
+	}
+
+	@command('_git.getFolderSize')
+	async getFolderSize(path: string): Promise<number> {
+		return getFolderSize(path);
+	}
+
+	@command('_git.listWorktrees')
+	async listWorktrees(repositoryPath: string): Promise<readonly { name: string; path: string; branchName: string | undefined }[]> {
+		try {
+			const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+			const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+			const worktrees = await repo.getWorktrees();
+			return worktrees
+				.filter(worktree => !worktree.main)
+				.map(worktree => ({
+					name: worktree.name,
+					path: worktree.path,
+					branchName: worktree.detached ? undefined : worktree.ref.replace(/^refs\/heads\//, ''),
+				}));
+		} catch (error) {
+			if (error instanceof GitError && error.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+				return [];
+			}
+			throw error;
+		}
 	}
 
 	@command('git.init')

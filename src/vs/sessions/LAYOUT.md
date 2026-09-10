@@ -88,6 +88,12 @@ A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxilia
 
 Explicit session and chat open actions dismiss the active custom view. Reactive fallback opens driven by session or chat lifecycle changes preserve the custom view while reconciling the hidden Sessions grid. On phone layouts, custom views participate in mobile navigation so platform back navigation dismisses them.
 
+Custom views normally use the shared title, description and actions header. A descriptor may hide that chrome when the surface provides its own section structure and supply `commandCenterTitle`; the standard workspace/session command-center control remains in place and substitutes only that title while the view is active.
+
+The Agents Dashboard (`contrib/worktrees/browser/agentsDashboardEditor.ts`) is a full-width, headerless custom view with Statistics and Sessions tabs and a right-aligned Refresh action in the shared tab bar. While it is active, the standard command-center control remains in place without a leading workspace icon and substitutes **Agents Dashboard** as its title. Statistics is the initial tab and combines the operational summary with Today, 7-day, and 30-day graphs for session throughput, pull-request outcomes, completion time, total worktree disk usage, and median versus largest per-session worktree storage. The Sessions tab directly contains a compact table with title, every working-directory path and its folder or worktree icon, on-disk worktree size, billed credits, session status, and per-row archive, unarchive, and delete actions. Window-wide management surfaces belong in the user menu; the sessions-list header is reserved for actions that directly operate on that list.
+
+Development builds may opt into the permanent mock provider with `--agents-dashboard-demo`. The provider contributes deterministic session rows and a non-persisted 30-day history overlay for dashboard development and visual validation; built products ignore the flag.
+
 ## Part lifecycle
 
 The workbench:

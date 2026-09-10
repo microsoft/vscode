@@ -870,3 +870,38 @@ export function getStashDescription(stash: Stash): string | undefined {
 export function isCopilotWorktreeFolder(path: string): boolean {
 	return basename(path).startsWith('copilot-') || basename(path).startsWith('agents-');
 }
+
+/**
+ * Recursively sums the size in bytes of every regular file under `path`
+ * (symlinks are not followed). Used to report a worktree's on-disk footprint;
+ * since a git worktree's `.git` entry is a file pointing at the shared common
+ * git directory (not a nested `.git` folder), this naturally excludes the
+ * repository's shared object store and only reflects the worktree's own
+ * working-tree files.
+ */
+export async function getFolderSize(path: string): Promise<number> {
+	let total = 0;
+
+	let entries;
+	try {
+		entries = await fs.readdir(path, { withFileTypes: true });
+	} catch {
+		return 0;
+	}
+
+	await Promise.all(entries.map(async entry => {
+		const entryPath = `${path}/${entry.name}`;
+		if (entry.isDirectory()) {
+			total += await getFolderSize(entryPath);
+		} else if (entry.isFile()) {
+			try {
+				const stat = await fs.stat(entryPath);
+				total += stat.size;
+			} catch {
+				// File may have been removed concurrently; ignore.
+			}
+		}
+	}));
+
+	return total;
+}

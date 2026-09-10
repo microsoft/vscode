@@ -32,9 +32,9 @@ import { safeIntl } from '../../../base/common/date.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { Menus } from '../menus.js';
-import { IsNewChatSessionContext } from '../../common/contextkeys.js';
+import { ActiveCustomViewIdContext, IsNewChatSessionContext } from '../../common/contextkeys.js';
 
-const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
+const commandCenterContextKeys = new Set([IsNewChatSessionContext.key, ActiveCustomViewIdContext.key]);
 
 /**
  * Simplified agent sessions titlebar part.

@@ -29,6 +29,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsBlockedSessionsVisibleContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -164,6 +165,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private _workspaceInfo: ISessionWorkspaceDisplayInfo | undefined;
 	private _isQuickChat = false;
 	private readonly _sessionTitle: string | undefined;
+	private _customViewTitle: string | undefined;
 
 	/** The currently open blocked-sessions dropdown, if any. */
 	private _openContextView: IOpenContextView | undefined;
@@ -191,6 +193,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@ICustomViewService customViewService: ICustomViewService,
 	) {
 		super(undefined, action, options);
 
@@ -210,6 +213,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const sessionData = this.sessionsService.activeSession.read(reader);
 			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, reader);
 			this._isQuickChat = sessionData?.isQuickChat?.read(reader) ?? false;
+			this._customViewTitle = customViewService.activeCustomView.read(reader)?.commandCenterTitle;
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -280,8 +284,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			// The transient "Approved N sessions" confirmation takes precedence over the
 			// requires-input state while it is showing.
-			const showApproved = approvedCount > 0;
-			const showRequiresInput = requiresInput && !showApproved;
+			const showApproved = !this._customViewTitle && approvedCount > 0;
+			const showRequiresInput = !this._customViewTitle && requiresInput && !showApproved;
 
 			// The attention blink fires only when the indicator model reports a
 			// *genuinely new* blocked session while the requires-input state is shown —
@@ -298,7 +302,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			} else if (showRequiresInput) {
 				renderState = `blocked|${blockedCount}|${requiresInputKind ?? 'mixed'}`;
 			} else {
-				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._workspaceInfo?.label ?? ''}|${this._isQuickChat}`;
+				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._workspaceInfo?.label ?? ''}|${this._isQuickChat}|${this._customViewTitle ?? ''}`;
 			}
 
 			// Skip re-render if state hasn't changed
@@ -354,8 +358,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _renderActiveSession(): void {
 		const container = this._container!;
-		container.setAttribute('aria-label', this._sessionTitle
-			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", this._sessionTitle)
+		const displayTitle = this._customViewTitle ?? this._sessionTitle;
+		container.setAttribute('aria-label', displayTitle
+			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", displayTitle)
 			: localize('agentSessionsShowSessions', "Show Sessions"));
 
 		const workspaceInfo = this._workspaceInfo;
@@ -367,26 +372,30 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		const centerGroup = $('div.agent-sessions-titlebar-center');
 
 		if (workspaceInfo) {
-			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' });
-			centerGroup.appendChild(workspaceIconEl);
+			if (!this._customViewTitle) {
+				const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(workspaceInfo.icon)}`, { 'aria-hidden': 'true' });
+				centerGroup.appendChild(workspaceIconEl);
+			}
 
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
-			workspaceEl.textContent = this._sessionTitle ?? workspaceInfo.label;
+			workspaceEl.textContent = displayTitle ?? workspaceInfo.label;
 			centerGroup.appendChild(workspaceEl);
 			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceEl.textContent }));
 		} else if (this._isQuickChat) {
-			const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
-			centerGroup.appendChild(workspaceIconEl);
+			if (!this._customViewTitle) {
+				const workspaceIconEl = $(`div.agent-sessions-titlebar-workspace-icon${ThemeIcon.asCSSSelector(Codicon.commentDiscussion)}`, { 'aria-hidden': 'true' });
+				centerGroup.appendChild(workspaceIconEl);
+			}
 
 			const workspaceEl = $('div.agent-sessions-titlebar-workspace');
 			workspaceEl.textContent = this._sessionTitle ?? localize('noWorkspace', "No workspace");
 			centerGroup.appendChild(workspaceEl);
 			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: workspaceEl.textContent }));
-		} else if (this._sessionTitle) {
+		} else if (displayTitle) {
 			const titleElement = $('div.agent-sessions-titlebar-workspace');
-			titleElement.textContent = this._sessionTitle;
+			titleElement.textContent = displayTitle;
 			centerGroup.appendChild(titleElement);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(titleElement, { content: this._sessionTitle }));
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(titleElement, { content: displayTitle }));
 		}
 
 		sessionPill.appendChild(centerGroup);

@@ -55,6 +55,7 @@ export class CustomViewNode extends Disposable {
 		this.element.setAttribute('data-view-id', descriptor.id);
 
 		this._headerEl = $('.custom-view-header');
+		this._headerEl.classList.toggle('hidden', descriptor.hideHeader === true);
 		this.element.appendChild(this._headerEl);
 
 		this._headerBandEl = $('.custom-view-header-band');

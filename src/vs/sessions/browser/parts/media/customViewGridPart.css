@@ -37,6 +37,10 @@
 	flex-shrink: 0;
 }
 
+.custom-view-header.hidden {
+	display: none;
+}
+
 .custom-view-header-band {
 	box-sizing: border-box;
 	margin: 0 auto;

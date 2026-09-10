@@ -38,6 +38,8 @@ export const Menus = {
 
 	/** Header actions of the test custom view. */
 	CustomViewTest: new MenuId('SessionsCustomViewTest'),
+	/** Actions rendered at the right of the Agents Dashboard tab bar. */
+	AgentsDashboardTabs: new MenuId('SessionsAgentsDashboardTabs'),
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),

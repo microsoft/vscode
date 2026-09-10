@@ -712,6 +712,14 @@ export function getChatCapabilities(chat: IChat, session: ISession | undefined, 
 	return own;
 }
 
+/** Provider-neutral aggregate resource usage for a session. */
+export interface ISessionUsage {
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly cacheReadTokens?: number;
+	readonly credits?: number;
+}
+
 /**
  * A session groups one or more chats together.
  * All {@link ISessionData} fields are propagated from the primary (first) chat.
@@ -761,6 +769,8 @@ export interface ISession {
 	readonly completedStateIcon?: IObservable<ThemeIcon | undefined>;
 	/** Summary of file changes produced by the session. */
 	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
+	/** Aggregate model usage retained by the provider, when available. */
+	readonly usage?: IObservable<ISessionUsage | undefined>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
