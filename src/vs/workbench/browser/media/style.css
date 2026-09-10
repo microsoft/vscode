@@ -210,6 +210,11 @@ body {
 	padding-right: 3px;
 }
 
+.monaco-workbench .monaco-icon-label.predefined-file-icon::before {
+	box-sizing: border-box;
+	padding-right: 0;
+}
+
 .predefined-file-icon::before { /* do add additional specificity to this selector, so it can be overridden by product themes */
 	font-family: 'codicon';
 }

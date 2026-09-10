@@ -31,11 +31,11 @@
 }
 
 .monaco-icon-label.monaco-icon-label-spacing-none::before {
-	padding-inline-end: var(--vscode-spacing-sizeNone, 0px);
+	margin-inline-end: var(--vscode-spacing-sizeNone, 0px);
 }
 
 .monaco-icon-label.monaco-icon-label-spacing-default::before {
-	padding-inline-end: var(--vscode-spacing-size60, 6px);
+	margin-inline-end: var(--vscode-spacing-size60, 6px);
 }
 
 .monaco-icon-label-iconpath {

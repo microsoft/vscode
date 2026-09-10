@@ -102,7 +102,7 @@ suite('IconLabel', () => {
 		assert.deepStrictEqual({
 			pseudoClasses: pseudoLabel.element.className,
 			pseudoWidth: pseudoStyle.width,
-			pseudoSpacing: pseudoStyle.paddingInlineEnd,
+			pseudoSpacing: pseudoStyle.marginInlineEnd,
 			pseudoAriaLabel: pseudoLabel.element.getAttribute('aria-label'),
 			pathClasses: pathLabel.element.className,
 			pathWidth: pathStyle.width,
@@ -133,7 +133,7 @@ suite('IconLabel', () => {
 		const pathStyle = getWindow(pathLabel.element).getComputedStyle(iconPath);
 		assert.deepStrictEqual({
 			pseudoWidth: pseudoStyle.width,
-			pseudoSpacing: pseudoStyle.paddingInlineEnd,
+			pseudoSpacing: pseudoStyle.marginInlineEnd,
 			pathWidth: pathStyle.width,
 			pathSpacing: pathStyle.marginInlineEnd,
 		}, {
@@ -141,6 +141,23 @@ suite('IconLabel', () => {
 			pseudoSpacing: '6px',
 			pathWidth: '16px',
 			pathSpacing: '6px',
+		});
+	});
+
+	test('keeps pseudo-element spacing outside the painted box in RTL', () => {
+		const label = createLabel();
+		label.element.dir = 'rtl';
+		label.setLabel('Pseudo icon', undefined, { extraClasses: ['file-icon'] });
+
+		const pseudoStyle = getWindow(label.element).getComputedStyle(label.element, '::before');
+		assert.deepStrictEqual({
+			inlineEnd: pseudoStyle.marginInlineEnd,
+			left: pseudoStyle.marginLeft,
+			right: pseudoStyle.marginRight,
+		}, {
+			inlineEnd: '6px',
+			left: '6px',
+			right: '0px',
 		});
 	});
 
