@@ -15,7 +15,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { whenEditorClosed } from '../../../../browser/editor.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -425,6 +425,35 @@ suite('Workbench editor utils', () => {
 
 		enforcedOverride.dispose();
 		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
+	});
+
+	test('disposes an editor input when a different matching input is already open', async () => {
+		const accessor = await createServices();
+		const resource = URI.file('/matching-input.txt');
+		const openedInput = disposables.add(new TestFileEditorInput(resource, 'testTypeId'));
+		const matchingInput = disposables.add(new TestFileEditorInput(resource, 'testTypeId'));
+
+		await accessor.editorService.openEditor(openedInput, { pinned: true });
+		await accessor.editorService.openEditor(matchingInput, { pinned: true });
+
+		assert.strictEqual(openedInput.gotDisposed, false);
+		assert.strictEqual(matchingInput.gotDisposed, true);
+	});
+
+	test('does not dispose a matching editor input that is open in another group', async () => {
+		const accessor = await createServices();
+		const firstGroup = accessor.editorGroupService.activeGroup;
+		const secondGroup = accessor.editorGroupService.addGroup(firstGroup, GroupDirection.RIGHT);
+		const resource = URI.file('/matching-input.txt');
+		const firstInput = disposables.add(new TestFileEditorInput(resource, 'testTypeId'));
+		const secondInput = disposables.add(new TestFileEditorInput(resource, 'testTypeId'));
+
+		await firstGroup.openEditor(firstInput, { pinned: true });
+		await secondGroup.openEditor(secondInput, { pinned: true });
+		await secondGroup.openEditor(firstInput, { pinned: true });
+
+		assert.strictEqual(firstInput.gotDisposed, false);
+		assert.strictEqual(secondInput.gotDisposed, false);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {
