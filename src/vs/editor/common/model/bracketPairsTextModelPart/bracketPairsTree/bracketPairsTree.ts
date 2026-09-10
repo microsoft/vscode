@@ -175,6 +175,9 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public hasUnmatchedClosingBracketAfter(position: Position, openingBracket: OpeningBracketKind): boolean {
+		if (!this.textModel.tokenization.hasAccurateTokensForLine(this.textModel.getLineCount())) {
+			return false;
+		}
 		this.flushQueue();
 		const openingBracketToken = this.brackets.getToken(openingBracket.bracketText, openingBracket.languageId);
 		if (!openingBracketToken || openingBracketToken.kind !== TokenKind.OpeningBracket) {
