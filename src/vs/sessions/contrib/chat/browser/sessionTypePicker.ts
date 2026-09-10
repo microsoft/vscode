@@ -455,7 +455,7 @@ export class SessionTypePicker extends Disposable {
 			}
 		}
 		this._renderDisposables.add({ dispose: () => slot.remove() });
-		if (this._options?.showComparisonToggle) {
+		if (this._options?.showComparisonToggle === true) {
 			this._comparisonToggle = this._renderDisposables.add(new Button(slot, {
 				...defaultButtonStyles,
 				secondary: true,
