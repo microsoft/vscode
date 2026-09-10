@@ -6,6 +6,9 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+// The hover host styles every codicon it renders, so its stylesheet has to be in
+// play for the promo card icon size test to exercise the real cascade.
+import '../../../../../base/browser/ui/hover/hoverWidget.css';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
