@@ -155,6 +155,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 	constructor(
 		container: HTMLElement,
 		hasGitOperationInProgressObs: IObservable<boolean>,
+		iconLabelSpacing: 'compact' | 'default',
 		@IMenuService menuService: IMenuService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -204,7 +205,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 					buttonConfigProvider: (action, index) => {
 						const configuration = this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs);
 						return index === 0
-							? { ...configuration, showIcon: true, showLabel: true, iconLabelSpacing: 'default' }
+							? { ...configuration, showIcon: true, showLabel: true, iconLabelSpacing }
 							: configuration;
 					}
 				},
@@ -310,6 +311,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 	constructor(
 		container: HTMLElement,
+		iconLabelSpacing: 'compact' | 'default',
 		@IMenuService menuService: IMenuService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -343,7 +345,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				renderSecondaryActions: false,
 				buttonConfigProvider: (action, index) => {
 					return index === 0
-						? { showIcon: true, showLabel: true, customLabel: primaryCustomLabel ?? stripIcons(action.label), showSpinner: primaryIsBusy, iconLabelSpacing: 'default' }
+						? { showIcon: true, showLabel: true, customLabel: primaryCustomLabel ?? stripIcons(action.label), showSpinner: primaryIsBusy, iconLabelSpacing }
 						: { showIcon: true, showLabel: false };
 				}
 			}
@@ -608,8 +610,8 @@ export class ChangesActionsBar extends Disposable {
 			dom.clearNode(container);
 
 			const widget = isAgentHostSessionObs.read(reader)
-				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container)
-				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
+				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, 'compact')
+				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs, 'compact');
 			reader.store.add(widget);
 			currentWidget = widget;
 			reader.store.add(widget.onDidChangeActions(() => updateVisibility()));
@@ -1662,8 +1664,8 @@ export class ChangesViewPane extends ViewPane {
 			const isAgentHostSession = isAgentHostSessionObs.read(reader);
 
 			const widget = isAgentHostSession
-				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!)
-				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs);
+				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, 'default')
+				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs, 'default');
 			reader.store.add(widget);
 		}));
 	}

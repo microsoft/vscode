@@ -43,9 +43,7 @@ suite('WorkbenchButtonBar', () => {
 		}());
 
 		const container = $('div');
-		// Resolve the tokens buttonbar.css depends on so computed-style
-		// assertions can verify the actual pair-specific margin, not just the
-		// class names that are supposed to produce it.
+		// Resolves the spacing tokens buttonbar.css reads, for computed-style assertions.
 		container.style.cssText = `
 			--vscode-spacing-size40: 4px;
 			--vscode-spacing-size60: 6px;
@@ -185,11 +183,7 @@ suite('WorkbenchButtonBar', () => {
 			{ classes: '', text: 'Ready' },
 		]);
 
-		// The pair-specific spacing rule in buttonbar.css only targets the
-		// leading icon; the inline icon inside the label keeps its ordinary,
-		// symmetric codicon margin. A regression that widens column-gap, or
-		// that makes the pair-specific rule apply too broadly, shows up here
-		// even though the class list above wouldn't catch it.
+		// The pair-specific margin must stay on the leading icon only, not spread to the inline icon.
 		const [leadingIcon, , inlineIcon] = Array.from(button.children) as HTMLElement[];
 		const leadingStyle = getWindow(button).getComputedStyle(leadingIcon);
 		const inlineStyle = getWindow(button).getComputedStyle(inlineIcon);
