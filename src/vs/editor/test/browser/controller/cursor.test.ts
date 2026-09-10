@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { generateDataToCopyAndStoreInMemory } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../browser/coreCommands.js';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
@@ -2267,6 +2268,55 @@ suite('Editor Controller', () => {
 				'line2',
 				'line3'
 			].join('\n'));
+		});
+	});
+
+	test('copy from multiple empty selections should not add blank lines when pasted into a single cursor', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			]
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [
+				new Selection(1, 1, 1, 1),
+				new Selection(2, 1, 2, 1),
+				new Selection(3, 1, 3, 1)
+			]);
+
+			const { dataToCopy } = generateDataToCopyAndStoreInMemory(viewModel, undefined, false);
+			assert.deepStrictEqual(dataToCopy.multicursorText, ['line1\n', 'line2\n', 'line3\n']);
+			assert.strictEqual(dataToCopy.text, 'line1\nline2\nline3\n');
+
+			editor.setValue('');
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+			viewModel.paste(dataToCopy.text, false, null);
+
+			assert.strictEqual(model.getValue(), [
+				'line1',
+				'line2',
+				'line3'
+			].join('\n'));
+		});
+	});
+
+	test('copy from mixed non-empty and empty selections should preserve line breaks in clipboard text', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			]
+		}, (_editor, _model, viewModel) => {
+			viewModel.setSelections('test', [
+				new Selection(2, 2, 2, 6),
+				new Selection(3, 2, 3, 2)
+			]);
+
+			const { dataToCopy } = generateDataToCopyAndStoreInMemory(viewModel, undefined, false);
+			assert.deepStrictEqual(dataToCopy.multicursorText, ['ine2', 'line3\n']);
+			assert.strictEqual(dataToCopy.text, 'ine2\nline3\n');
 		});
 	});
 
