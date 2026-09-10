@@ -57,7 +57,6 @@ registerThemingParticipant((theme, collector) => {
 
 	addColorVariable(declarations, '--modern-ui-editor-tab-active-background', activeBackground);
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-active-background', unfocusedActiveBackground);
-	addColorVariable(declarations, '--modern-ui-connected-tab-surface', activeBackground ? flattenTabBackground(activeBackground, editorBackgroundColor) : undefined);
 	addColorVariable(declarations, '--modern-ui-editor-tab-inactive-background', inactiveBackground);
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-inactive-background', unfocusedInactiveBackground);
 	addColorVariable(declarations, '--modern-ui-editor-tab-hover-background', hoverBackground);

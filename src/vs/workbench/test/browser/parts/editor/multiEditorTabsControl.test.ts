@@ -156,6 +156,31 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('connected tabs fill row edges without inter-tab gutters', () => {
+		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
+		mainWindow.document.body.appendChild(root);
+		disposables.add(toDisposable(() => root.remove()));
+		const editor = $('.part.editor');
+		const content = $('.content');
+		const group = $('.editor-group-container.active');
+		root.appendChild(editor);
+		editor.appendChild(content);
+		content.appendChild(group);
+		group.appendChild(container);
+
+		const [activeTab, inactiveTab] = container.querySelectorAll<HTMLElement>('.tabs-container > .tab');
+		const activeFillStyle = mainWindow.getComputedStyle(activeTab.querySelector<HTMLElement>('.tab-fill')!);
+		const inactiveFillStyle = mainWindow.getComputedStyle(inactiveTab.querySelector<HTMLElement>('.tab-fill')!);
+
+		assert.deepStrictEqual({
+			active: { left: activeFillStyle.left, right: activeFillStyle.right },
+			inactive: { left: inactiveFillStyle.left, right: inactiveFillStyle.right },
+		}, {
+			active: { left: '0px', right: '0px' },
+			inactive: { left: '0px', right: '0px' },
+		});
+	});
+
 	test('keeps the connected outline inside the visible scroll area', async () => {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-editor-background: #ffffff; --modern-ui-connected-tab-surface: #333333;';

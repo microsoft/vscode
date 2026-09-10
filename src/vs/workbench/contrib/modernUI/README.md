@@ -16,7 +16,7 @@ The Modern UI colors below are experimental and require a build that supports th
 
 Changes apply immediately, including in auxiliary editor windows. This setting does not enable Modern UI by itself and does not change the Agents window's pill tabs. High contrast themes keep their explicit selection and focus borders.
 
-The connected design uses `modernEditorTab.activeBackground` for the active tab, its outside stroke, both shoulders, and the strip separator so they read as one surface. Translucent active backgrounds are composited over `editor.background` once to keep every join uniform. The strip and inactive tabs use `panel.background`, and their hover fill is derived from `foreground` over `panel.background`. Existing tab foreground customizations continue to apply.
+The connected design uses `editor.background` for the active tab, its outside stroke, both shoulders, and the strip separator so the selected tab and editor body read as one document well. The strip and inactive tabs use `editorGroupHeader.tabsBackground`, and their hover fill is derived from `foreground` over that background. Existing tab foreground customizations continue to apply. `modernEditorTab.activeBackground` remains available to the pill style.
 
 ## Colors
 

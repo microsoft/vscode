@@ -1865,7 +1865,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('flattens modern tab backgrounds for the connected surface', () => {
+	test('uses the editor background for the connected surface', () => {
 		const backgrounds = [
 			{ editor: '#1f1f1f', tab: '#ffffff17' },
 			{ editor: '#ffffff', tab: '#2468ac' },
@@ -1879,10 +1879,10 @@ suite('ModernUIContribution', () => {
 			return /--modern-ui-connected-tab-surface: (?<background>[^;]+);/.exec(css)?.groups?.background;
 		});
 
-		assert.deepStrictEqual(backgrounds, ['#333333', '#2468ac', '#1f1f1f']);
+		assert.deepStrictEqual(backgrounds, ['#1f1f1f', '#ffffff', '#1f1f1f']);
 	});
 
-	test('uses the modern tab background for the connected surface and stroke', () => {
+	test('uses the editor background for the connected surface and the editor group header background for the strip', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-spacing-size20', '2px');
@@ -1910,6 +1910,7 @@ suite('ModernUIContribution', () => {
 			const theme = ColorThemeData.createUnloadedTheme('vs', {
 				[editorBackground]: '#ffffff',
 				'editorGroup.border': '#123456',
+				'editorGroupHeader.tabsBackground': '#eeeeee',
 				[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: '#abcdef',
 			});
 			theme.setCustomColors({ [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: color });
@@ -1923,14 +1924,15 @@ suite('ModernUIContribution', () => {
 					targetWindow.getComputedStyle(row, '::after').backgroundColor,
 					targetWindow.getComputedStyle(actions).backgroundColor,
 				],
+				strip: targetWindow.getComputedStyle(row).backgroundColor,
 				editorSplitBorder: theme.getColor('editorGroup.border')?.toString(),
 			};
 		});
 
 		assert.deepStrictEqual(results, [
-			{ surface: Array(6).fill('rgb(36, 104, 172)'), editorSplitBorder: '#123456' },
-			{ surface: Array(6).fill('rgb(255, 126, 126)'), editorSplitBorder: '#123456' },
-			{ surface: Array(6).fill('rgb(255, 255, 255)'), editorSplitBorder: '#123456' },
+			{ surface: Array(6).fill('rgb(255, 255, 255)'), strip: 'rgb(238, 238, 238)', editorSplitBorder: '#123456' },
+			{ surface: Array(6).fill('rgb(255, 255, 255)'), strip: 'rgb(238, 238, 238)', editorSplitBorder: '#123456' },
+			{ surface: Array(6).fill('rgb(255, 255, 255)'), strip: 'rgb(238, 238, 238)', editorSplitBorder: '#123456' },
 		]);
 	});
 
@@ -1987,7 +1989,7 @@ suite('ModernUIContribution', () => {
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: connected ? [1, 1, 1] : [0, 0, 0],
+							fillExpansion: connected ? [1, 0, 0] : [0, 0, 0],
 							topRadius: connected ? '5px' : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));
 					}

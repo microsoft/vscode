@@ -5,9 +5,9 @@
 
 /* The connected tab setting is scoped to Modern UI; other modern tabs retain their pills. */
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs {
-	--modern-ui-editor-tab-inactive-background: var(--vscode-panel-background);
-	--modern-ui-editor-tab-unfocused-inactive-background: var(--vscode-panel-background);
-	--modern-ui-editor-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-panel-background));
+	--modern-ui-editor-tab-inactive-background: var(--vscode-editorGroupHeader-tabsBackground);
+	--modern-ui-editor-tab-unfocused-inactive-background: var(--vscode-editorGroupHeader-tabsBackground);
+	--modern-ui-editor-tab-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editorGroupHeader-tabsBackground));
 	--modern-ui-editor-tab-unfocused-hover-background: var(--modern-ui-editor-tab-hover-background);
 	--modern-ui-editor-tab-action-hover-background: var(--modern-ui-editor-tab-hover-background);
 	--modern-ui-editor-tab-action-unfocused-hover-background: var(--modern-ui-editor-tab-hover-background);
@@ -18,16 +18,20 @@
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
-	background-color: var(--vscode-panel-background);
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container {
 	padding-bottom: var(--vscode-strokeThickness);
 }
 
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-fill {
+	inset-inline: 0;
+}
+
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .sticky-tabs-background,
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tabs-bar-add-tab {
-	background-color: var(--vscode-panel-background);
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
 }
 
 /* Occlude scrolling connected fills beneath sticky tabs while preserving the final separator row. */
@@ -69,7 +73,7 @@
 	--modern-ui-editor-tab-active-border: transparent;
 	--modern-ui-editor-tab-unfocused-active-border: transparent;
 	top: calc(-1 * var(--vscode-strokeThickness));
-	inset-inline: calc(var(--vscode-spacing-size20) - var(--vscode-strokeThickness));
+	inset-inline: 0;
 	bottom: calc(-1 * var(--modern-ui-connected-tab-gutter));
 	z-index: 1;
 	background-color: var(--modern-ui-connected-tab-surface);
@@ -115,7 +119,7 @@
 	display: block;
 	position: absolute;
 	top: calc(-1 * var(--vscode-strokeThickness));
-	inset-inline: calc(var(--vscode-spacing-size20) - var(--vscode-strokeThickness));
+	inset-inline: 0;
 	bottom: calc(-1 * var(--modern-ui-connected-tab-gutter));
 	z-index: 8;
 	pointer-events: none;

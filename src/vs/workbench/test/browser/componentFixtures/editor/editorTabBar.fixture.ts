@@ -871,8 +871,8 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			render: renderConnectedSurface(),
 			additionalThemes: ['darkHighContrast'],
 			expectedVisualDescriptions: [
-				'The active main.ts tab uses the Modern UI active-tab background for its fill, outside stroke, curved shoulders and strip separator so they read as one continuous surface. Inactive tabs sit on the panel-colored strip. High contrast retains explicit focus and selection borders.',
-				'The surface color remains uniform through the cap, shoulders and separator, including themes with translucent active-tab backgrounds. There are no gaps, vertical protrusions, darker seams or brighter overlaps at the tangent joins.',
+				'The active main.ts tab uses the editor background for its fill, outside stroke, curved shoulders and strip separator so the tab and editor body read as one continuous document well. Inactive tabs sit on the editor-group header strip. High contrast retains explicit focus and selection borders.',
+				'The editor surface color remains uniform through the cap, shoulders and separator. There are no gaps, vertical protrusions, darker seams or brighter overlaps at the tangent joins.',
 				'In standard themes, the concave shoulder radii are reduced by the outward stroke offset while the convex cap radii grow. The lower gutter reserves an extra pixel for the separator so the visible gap matches the upper gutter.',
 			],
 		}),
@@ -894,6 +894,12 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 			additionalThemes: ['darkHighContrast'],
 			expectedVisualDescriptions: [
 				'The first active tab has a straight left edge meeting the strip separator, with no clipped outer shoulder. The right shoulder still curves into the separator. High contrast retains explicit selection borders.',
+			],
+		}),
+		FirstTabActiveAdjacentHover: defineComponentFixture({
+			render: renderConnectedSurface(0, 1),
+			expectedVisualDescriptions: [
+				'The first active tab is flush with the editor body left edge. The adjacent hovered tab begins immediately at the active tab boundary without an inter-tab gutter, while the active tab shoulder remains visible over the shared boundary.',
 			],
 		}),
 		LastTabActive: defineComponentFixture({
