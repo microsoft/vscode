@@ -35,10 +35,7 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 	const actions = dom.append(changesView, dom.$('.chat-editing-session-actions.outside-card'));
 	const commit = action('fixture.commit', 'Commit', Codicon.gitCommit);
 
-	// Both production call sites of this outside-card composition pass
-	// `renderSecondaryActions: false`, which caps the bar at a single button
-	// (see `WorkbenchButtonBar.update`). Match that here so the fixture cannot
-	// claim geometry the real Changes view never renders.
+	// Matches production: both changesView.ts call sites cap this bar at one button.
 	const bar = disposableStore.add(instantiationService.createInstance(
 		WorkbenchButtonBar,
 		actions,

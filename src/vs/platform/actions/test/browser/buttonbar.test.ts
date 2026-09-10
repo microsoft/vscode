@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../base/browser/dom.js';
+import { $, getWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Separator, SubmenuAction, toAction, type IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import '../../browser/buttonbar.css';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextMenuService } from '../../../contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
@@ -41,6 +43,15 @@ suite('WorkbenchButtonBar', () => {
 		}());
 
 		const container = $('div');
+		// Resolve the tokens buttonbar.css depends on so computed-style
+		// assertions can verify the actual pair-specific margin, not just the
+		// class names that are supposed to produce it.
+		container.style.cssText = `
+			--vscode-spacing-size40: 4px;
+			--vscode-spacing-size60: 6px;
+		`;
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
 		const bar = disposables.add(instantiationService.createInstance(WorkbenchButtonBar, container, { buttonConfigProvider }));
 		return { bar, container };
 	}
@@ -173,6 +184,33 @@ suite('WorkbenchButtonBar', () => {
 			{ classes: 'codicon codicon-check', text: '' },
 			{ classes: '', text: 'Ready' },
 		]);
+
+		// The pair-specific spacing rule in buttonbar.css only targets the
+		// leading icon; the inline icon inside the label keeps its ordinary,
+		// symmetric codicon margin. A regression that widens column-gap, or
+		// that makes the pair-specific rule apply too broadly, shows up here
+		// even though the class list above wouldn't catch it.
+		const [leadingIcon, , inlineIcon] = Array.from(button.children) as HTMLElement[];
+		const leadingStyle = getWindow(button).getComputedStyle(leadingIcon);
+		const inlineStyle = getWindow(button).getComputedStyle(inlineIcon);
+		assert.strictEqual(leadingStyle.marginInlineEnd, '6px');
+		assert.strictEqual(inlineStyle.marginInlineEnd, inlineStyle.marginInlineStart);
+		assert.notStrictEqual(inlineStyle.marginInlineEnd, leadingStyle.marginInlineEnd);
+	});
+
+	test('switches the leading icon margin to the compact spacing token', () => {
+		const { bar } = createButtonBar(() => ({
+			showLabel: true,
+			showIcon: true,
+			iconLabelSpacing: 'compact',
+		}));
+
+		bar.update([iconAction('commit')], []);
+		const button = bar.buttons[0].element;
+		const leadingIcon = button.querySelector<HTMLElement>('.monaco-button-leading-icon');
+		assert.ok(leadingIcon);
+
+		assert.strictEqual(getWindow(button).getComputedStyle(leadingIcon).marginInlineEnd, '4px');
 	});
 
 	test('the spinner stands in for the icon of an icon-only button', () => {
