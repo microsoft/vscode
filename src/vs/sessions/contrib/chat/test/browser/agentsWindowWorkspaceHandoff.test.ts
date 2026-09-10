@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,7 +24,7 @@ import { ISessionsSetUpService } from '../../../../browser/sessionsSetUpService.
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionNavigationRequest, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { WorkspaceHandoffState } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { AgentsWindowWorkspaceHandoff, WORKSPACE_HANDOFF_TIMEOUT_MS } from '../../browser/agentsWindowWorkspaceHandoff.js';
@@ -38,6 +39,7 @@ suite('Agents Window workspace handoff', () => {
 		const composerService = disposables.add(new NewSessionComposerService());
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const initialRestoreComplete = observableValue('restored', true);
+		const navigationRequest = observableValue<ISessionNavigationRequest | undefined>('navigationRequest', undefined);
 		const onWillSend = disposables.add(new Emitter<ISession>());
 		const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
 		const notifications: (IPromptChoice | IPromptChoiceWithMenu)[][] = [];
@@ -49,15 +51,20 @@ suite('Agents Window workspace handoff', () => {
 		let defaultAllowed = true;
 		let welcome = Promise.resolve();
 		let resolutionError: Error | undefined;
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+		const sessionsService = upcastPartial<ISessionsService>({
 			activeSession,
 			initialRestoreComplete,
-			openNewSession: async options => {
+			navigationRequest,
+			openNewSession: async (options, token = CancellationToken.None) => {
+				if (!options?.preserveNavigation) {
+					navigationRequest.set({ token }, undefined);
+				}
 				openingOptions.push(!!options?.cancelRestore);
 				activeSession.set(undefined, undefined);
 				return { session: undefined, trustDeclined: false };
 			},
-		}));
+		});
+		instantiationService.stub(ISessionsService, sessionsService);
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onWillSendRequest: onWillSend.event,
 			resolveWorkspace: () => {
@@ -67,7 +74,7 @@ suite('Agents Window workspace handoff', () => {
 				return providerReady ? { providerId: 'local', workspace: upcastPartial({}) } : undefined;
 			},
 		}));
-		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+		const sessionsPartService = upcastPartial<ISessionsPartService>({
 			getSessionView: () => viewReady ? upcastPartial<SessionView>({
 				selectWorkspace: (folder, options) => {
 					if (options?.isDefault && !defaultAllowed) {
@@ -77,7 +84,8 @@ suite('Agents Window workspace handoff', () => {
 					return applies ? 'applied' : 'notReady';
 				},
 			}) : undefined,
-		}));
+		});
+		instantiationService.stub(ISessionsPartService, sessionsPartService);
 		instantiationService.stub(ISessionsSetUpService, upcastPartial<ISessionsSetUpService>({ whenWelcomeDone: () => welcome }));
 		instantiationService.stub(INewSessionComposerService, composerService);
 		disposables.add(composerService.registerComposer({
@@ -97,7 +105,7 @@ suite('Agents Window workspace handoff', () => {
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { }, error: () => { } }));
 		const handoff = disposables.add(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
 		return {
-			handoff, composerService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions,
+			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions,
 			set providerReady(value: boolean) { providerReady = value; },
 			set viewReady(value: boolean) { viewReady = value; },
 			set applies(value: boolean) { applies = value; },
@@ -168,6 +176,38 @@ suite('Agents Window workspace handoff', () => {
 				openings: 0,
 				selections: 0,
 				notifications: 0,
+			});
+		});
+	}
+
+	for (const waitingFor of ['setup', 'provider'] as const) {
+		test(`direct remote workspace navigation cancels a handoff waiting for ${waitingFor}`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const harness = createHarness();
+				const welcome = new DeferredPromise<void>();
+				harness.welcome = waitingFor === 'setup' ? welcome.p : Promise.resolve();
+				harness.providerReady = waitingFor !== 'provider';
+				const opening = harness.open();
+				await timeout(100);
+
+				const remoteFolder = URI.parse('vscode-remote://ssh-remote+host/project');
+				await harness.sessionsService.openNewSession();
+				harness.sessionsPartService.getSessionView(harness.activeSession.get()?.sessionId)?.selectWorkspace(remoteFolder);
+
+				harness.providerReady = true;
+				await welcome.complete();
+				await opening;
+				assert.deepStrictEqual({
+					state: harness.states.at(-1),
+					folders: harness.selections.map(selection => selection.folder.toString()),
+					workspaceChoices: harness.composerService.userWorkspaceSelectionVersion.get(),
+					navigationChoices: harness.composerService.userNavigationVersion.get(),
+				}, {
+					state: 'userChanged',
+					folders: [remoteFolder.toString()],
+					workspaceChoices: 0,
+					navigationChoices: 0,
+				});
 			});
 		});
 	}

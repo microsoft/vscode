@@ -83,9 +83,12 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		}));
 		const selectionVersion = this.composerService.userWorkspaceSelectionVersion.get();
 		const navigationVersion = this.composerService.userNavigationVersion.get();
+		const navigationRequest = this.sessionsService.navigationRequest.get();
 		store.add(autorun(reader => {
+			const currentNavigation = this.sessionsService.navigationRequest.read(reader);
 			if (this.composerService.userWorkspaceSelectionVersion.read(reader) !== selectionVersion
-				|| this.composerService.userNavigationVersion.read(reader) !== navigationVersion) {
+				|| this.composerService.userNavigationVersion.read(reader) !== navigationVersion
+				|| (currentNavigation !== navigationRequest && currentNavigation?.token !== source.token)) {
 				cancel('userChanged');
 			}
 		}));

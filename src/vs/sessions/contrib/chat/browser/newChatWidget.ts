@@ -76,6 +76,7 @@ export class NewChatWidget extends Disposable {
 	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
 	private readonly _newSessionCreation = new MutableDisposable<IDisposable>();
+	private _createdSessionId: string | undefined;
 	private _preferredDevContainerFolderUri: URI | undefined;
 
 	/**
@@ -147,7 +148,6 @@ export class NewChatWidget extends Disposable {
 			}
 			return activeSession;
 		});
-		const hasRestoredDraft = this._session.get() !== undefined;
 
 		// A quick chat is workspace-less; the composer hides the workspace picker
 		// (nothing to pick) and surfaces the session-type picker in the controls.
@@ -231,7 +231,7 @@ export class NewChatWidget extends Disposable {
 				? { ...this._workspacePicker.selectionSnapshot, folderUri: undefined, origin: WorkspaceSelectionOrigin.None, state: 'noWorkspace' }
 				: this._workspacePicker.selectionSnapshot,
 			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
-			canApplyWorkspaceDefault: () => !hasRestoredDraft,
+			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			canSubmitWithoutSession,
@@ -696,6 +696,9 @@ export class NewChatWidget extends Disposable {
 		}
 		const isCurrentCreation = this._newSessionCreation.value === creationLifecycle;
 		if (isCurrentCreation) {
+			if (result.session) {
+				this._createdSessionId = result.session.sessionId;
+			}
 			this._newSessionCreation.clear();
 		} else {
 			return result;
@@ -747,6 +750,7 @@ export class NewChatWidget extends Disposable {
 		try {
 			return await this.sessionsService.openNewSession({
 				folderUri,
+				preserveNavigation: true,
 				...(preferredPick
 					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
 					: fallbackProviderId
@@ -1157,8 +1161,16 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.attach(uris);
 	}
 
+	private _canApplyWorkspaceDefault(): boolean {
+		const session = this._session.get();
+		return !session || session.sessionId === this._createdSessionId;
+	}
+
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		if (options?.isDefault) {
+			if (this._newSessionCreation.value) {
+				return 'notReady';
+			}
 			const selection = this._workspacePicker.selectionSnapshot;
 			if (!this._newChatInput.canApplyWorkspaceDefault || this._isQuickChatComposer.get()
 				|| selection.state === 'noWorkspace'

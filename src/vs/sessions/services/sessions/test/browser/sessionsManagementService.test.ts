@@ -707,6 +707,58 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('publishes navigation requests even when the empty composer is already active', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const { view } = createSessionsManagementService(session, disposables);
+		const request = disposables.add(new CancellationTokenSource());
+		const tokens: CancellationToken[] = [];
+		disposables.add(autorun(reader => {
+			const navigation = view.navigationRequest.read(reader);
+			if (navigation) {
+				tokens.push(navigation.token);
+			}
+		}));
+
+		await view.openNewSession(undefined, request.token);
+		await view.openNewSession();
+		await view.openNewSession();
+
+		assert.deepStrictEqual({ tokens, activeSession: view.activeSession.get() }, {
+			tokens: [request.token, CancellationToken.None, CancellationToken.None],
+			activeSession: undefined,
+		});
+	});
+
+	test('creating a composer draft preserves navigation while an explicit opening replaces it', async () => {
+		const folderUri = URI.file('/test/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: folderUri, label: 'workspace', icon: Codicon.vm,
+			folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+			requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+		};
+		const session = stubSession({
+			sessionId: 'draft', providerId: 'test', workspace: constObservable(workspace), status: constObservable(SessionStatus.Untitled),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+		}(session);
+		const { view } = createSessionsManagementService(session, disposables, provider);
+		await view.openNewSession();
+		const initialNavigation = view.navigationRequest.get();
+
+		await view.openNewSession({ folderUri, preserveNavigation: true });
+		const draftCreation = {
+			sessionId: view.activeSession.get()?.sessionId,
+			preservedNavigation: view.navigationRequest.get() === initialNavigation,
+		};
+		await view.openNewSession();
+
+		assert.deepStrictEqual({ draftCreation, explicitNavigation: view.navigationRequest.get() !== initialNavigation }, {
+			draftCreation: { sessionId: 'draft', preservedNavigation: true },
+			explicitNavigation: true,
+		});
+	});
+
 	test('does not change active session when added session is not displayed in any widget', async () => {
 		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
