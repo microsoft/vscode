@@ -7,6 +7,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -73,7 +74,7 @@ class TestOpenerService extends mock<IOpenerService>() {
 	override async open(resource: URI | string, options?: Parameters<IOpenerService['open']>[1]): Promise<boolean> {
 		this.opened.push({
 			resource: typeof resource === 'string' ? URI.parse(resource) : resource,
-			openExternal: options && 'openExternal' in options ? options.openExternal : undefined,
+			openExternal: options && hasKey(options, { openExternal: true }) ? options.openExternal : undefined,
 		});
 		return true;
 	}
