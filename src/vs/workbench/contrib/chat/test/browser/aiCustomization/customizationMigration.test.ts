@@ -59,7 +59,7 @@ suite('customizationMigration', () => {
 		const customizations: MigratableConfiguration[] = [
 			{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
 			{ uri: URI.file('/user-data/prompts/release.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.UserData },
-			{ uri: URI.file('/user-data/prompts/reviewer.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
+			{ uri: URI.file('/user-data/prompts/reviewer.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData, hasLocalHandoffs: true },
 			{ uri: URI.file('/user-data/prompts/style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.UserData },
 			{ uri: URI.file('/home/test/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
 			{ uri: URI.file('/workspace/.github/skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.GitHubWorkspace },
@@ -407,7 +407,7 @@ suite('customizationMigration', () => {
 		assert.ok(migrated.content.includes('argument-hint: diff'));
 	});
 
-	test('migrates mixed customizations and continues after per-file failures', async () => {
+	test('migrates mixed customizations, rewrites agent handoffs, and continues after per-file failures', async () => {
 		const customizations: IPromptPath[] = [
 			{
 				uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -452,7 +452,16 @@ suite('customizationMigration', () => {
 		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
 		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 		await fileService.writeFile(customizations[0].uri, VSBuffer.fromString(['---', 'name: "Review Prompt"', 'mode: code', '---', 'Review body'].join('\n')));
-		await fileService.writeFile(customizations[1].uri, VSBuffer.fromString('---\ndescription: Plan work\n---\nPlan.'));
+		await fileService.writeFile(customizations[1].uri, VSBuffer.fromString([
+			'---',
+			'description: Plan work',
+			'handoffs:',
+			'  - agent: implementer',
+			'    label: Implement',
+			'    prompt: Implement the plan',
+			'---',
+			'Plan.',
+		].join('\n')));
 		await fileService.writeFile(customizations[2].uri, VSBuffer.fromString('---\ndescription: Use tabs\n---\nUse tabs.'));
 		await fileService.writeFile(URI.joinPath(userAgentRoot.uri, 'planner.agent.md'), VSBuffer.fromString('existing'));
 
@@ -485,7 +494,15 @@ suite('customizationMigration', () => {
 				],
 			},
 			migratedSkillHasManualInvocation: true,
-			migratedAgentContent: '---\ndescription: Plan work\n---\nPlan.',
+			migratedAgentContent: [
+				'---',
+				'description: Plan work',
+				'---',
+				'Plan.',
+				'',
+				'After completing the task, offer to hand off to the `implementer` agent for "Implement" with the prompt "Implement the plan".',
+				'',
+			].join('\n'),
 			migratedInstructionsContent: '---\ndescription: Use tabs\n---\nUse tabs.',
 			originalsExist: [false, false, false],
 			migrationErrorCount: 1,

@@ -206,7 +206,9 @@ export async function migrateCustomizations(
 				}
 
 				let targetUri: URI;
-				let migratedContent = content;
+				let migratedContent = customization.type === PromptsType.agent
+					? migrateAgentFileForAgentHost(customization, content)
+					: content;
 				if (customization.type === PromptsType.prompt) {
 					const migratedPrompt = migratePromptFileToSkill(customization, content);
 					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);

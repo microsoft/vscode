@@ -64,6 +64,7 @@ export function isConfiguredLocationMigrationCandidate(customization: Migratable
 export function isAgentFileMigrationCandidate(customization: MigratableConfiguration): boolean {
 	return customization.type === PromptsType.agent
 		&& customization.hasLocalHandoffs === true
+		&& !isUserDataMigrationCandidate(customization)
 		&& (customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
 }
 
