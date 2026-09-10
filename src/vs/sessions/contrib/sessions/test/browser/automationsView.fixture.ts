@@ -185,6 +185,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, pluginTemplate: true }),
 	}),
+	PluginTemplatesPopulated: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, pluginTemplate: true }),
+	}),
 	DropTarget: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: true, showDropTarget: true }),

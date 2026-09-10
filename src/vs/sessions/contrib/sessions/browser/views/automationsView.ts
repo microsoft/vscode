@@ -125,6 +125,15 @@ interface IAutomationTemporaryRunRow extends IDisposable {
 	readonly title: HTMLElement;
 }
 
+interface IAutomationTemplateSectionOptions {
+	readonly className: string;
+	readonly title: string;
+	readonly description: string;
+	readonly templates: readonly IAutomationTemplate[];
+	readonly expanded: boolean;
+	readonly onDidToggle: (expanded: boolean) => void;
+}
+
 type AutomationDropData =
 	| { readonly kind: 'resource'; readonly resource: URI }
 	| { readonly kind: 'file'; readonly file: File }
@@ -237,6 +246,10 @@ class AutomationCardsSection extends Disposable {
 	private readonly templateAriaId = generateUuid();
 	private emptyStateRendered = false;
 	private renderedTemplates: readonly IAutomationTemplate[] = [];
+	private builtInTemplatesSection: HTMLDetailsElement | undefined;
+	private builtInTemplatesExpanded: boolean | undefined;
+	private builtInTemplatesUserToggled = false;
+	private pluginTemplatesExpanded = true;
 	private emptyCreateButton: IButton | undefined;
 	private readonly loadingCreateButton: IButton;
 	private readonly unavailableCreateButton: IButton;
@@ -402,15 +415,25 @@ class AutomationCardsSection extends Disposable {
 			index++;
 		}
 
-		const showTemplates = automations.length === 0;
-		if (showTemplates) {
-			if (!areAutomationTemplatesEqual(this.renderedTemplates, templates)) {
-				this.renderTemplates(templates);
-				this.renderedTemplates = templates;
-			}
-			this.templatesContainer.style.display = '';
+		if (!areAutomationTemplatesEqual(this.renderedTemplates, templates)) {
+			this.renderTemplates(templates);
+			this.renderedTemplates = templates;
 		}
-		const nextContainer = showTemplates ? this.getEmptyStateContainer(catalogueState) : this.container;
+
+		if (!this.builtInTemplatesUserToggled) {
+			const defaultExpanded = automations.length === 0;
+			if (this.builtInTemplatesExpanded !== defaultExpanded) {
+				this.builtInTemplatesExpanded = defaultExpanded;
+				if (this.builtInTemplatesSection) {
+					this.builtInTemplatesSection.open = defaultExpanded;
+				}
+			}
+		}
+
+		const showTemplateSections = templates.length > 0;
+		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
+
+		const nextContainer = automations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
 		const previousContainer = this.visibleContainer;
 		if (previousContainer !== nextContainer) {
 			nextContainer.style.display = '';
@@ -420,18 +443,25 @@ class AutomationCardsSection extends Disposable {
 
 		// Move focus before hiding its previous container.
 		if (!this.focusPendingAutomation() && contentOwnedFocus && DOM.isHTMLElement(activeElement)) {
-			if (!nextContainer.contains(activeElement) && !(showTemplates && this.templatesContainer.contains(activeElement))) {
+			if (!nextContainer.contains(activeElement) && !(showTemplateSections && this.isVisibleTemplateElement(activeElement))) {
 				this.focusVisibleState(automations, catalogueState);
 			} else if (!DOM.isActiveElement(activeElement)) {
 				activeElement.focus();
 			}
 		}
+
 		if (previousContainer && previousContainer !== nextContainer) {
 			previousContainer.style.display = 'none';
 		}
-		if (!showTemplates) {
-			this.templatesContainer.style.display = 'none';
+	}
+
+	private isVisibleTemplateElement(element: HTMLElement): boolean {
+		if (!this.templatesContainer.contains(element)) {
+			return false;
 		}
+		const section = element.closest<HTMLDetailsElement>('details.automations-template-section');
+		const summary = element.closest<HTMLElement>('summary');
+		return !section || section.open || summary?.parentElement === section;
 	}
 
 	private getEmptyStateContainer(catalogueState: AutomationCatalogueState): HTMLElement {
@@ -656,17 +686,59 @@ class AutomationCardsSection extends Disposable {
 	private renderTemplates(templates: readonly IAutomationTemplate[]): void {
 		this.templateDisposables.clear();
 		DOM.clearNode(this.templatesContainer);
-		const templatesTitle = DOM.append(this.templatesContainer, $('h3.automations-templates-title'));
-		templatesTitle.id = 'automations-templates-title';
-		templatesTitle.textContent = localize('automationTemplatesTitle', "Start with a template");
-		const templatesDescription = DOM.append(this.templatesContainer, $('p.automations-templates-description'));
-		templatesDescription.textContent = localize('automationTemplatesDescription', "Choose a starting point, then review and customize it before creating.");
-		const templatesGrid = DOM.append(this.templatesContainer, $('.automations-templates-grid'));
-		templatesGrid.setAttribute('role', 'group');
-		templatesGrid.setAttribute('aria-labelledby', templatesTitle.id);
-		for (const template of templates) {
-			this.renderTemplateCard(templatesGrid, template);
+		const builtInTemplates = templates.filter(template => !template.source);
+		const pluginTemplates = templates.filter(template => !!template.source);
+
+		this.builtInTemplatesSection = this.renderTemplateSection({
+			className: 'automations-built-in-templates',
+			title: localize('automationBuiltInTemplatesTitle', "Built-in Templates"),
+			description: localize('automationBuiltInTemplatesDescription', "Choose a starting point, then review and customize it before creating."),
+			templates: builtInTemplates,
+			expanded: this.builtInTemplatesExpanded ?? false,
+			onDidToggle: expanded => {
+				if (expanded !== this.builtInTemplatesExpanded) {
+					this.builtInTemplatesExpanded = expanded;
+					this.builtInTemplatesUserToggled = true;
+				}
+			},
+		});
+
+		if (pluginTemplates.length > 0) {
+			this.renderTemplateSection({
+				className: 'automations-plugin-templates',
+				title: localize('automationPluginTemplatesTitle', "Templates from Plugins"),
+				description: localize('automationPluginTemplatesDescription', "Templates provided by enabled plugins start disabled."),
+				templates: pluginTemplates,
+				expanded: this.pluginTemplatesExpanded,
+				onDidToggle: expanded => this.pluginTemplatesExpanded = expanded,
+			});
 		}
+	}
+
+	private renderTemplateSection(options: IAutomationTemplateSectionOptions): HTMLDetailsElement {
+		const section = DOM.append(this.templatesContainer, $<HTMLDetailsElement>(`details.automations-template-section.${options.className}`));
+		section.open = options.expanded;
+		const summary = DOM.append(section, $('summary.automations-template-section-summary'));
+		const chevron = DOM.append(summary, $('span.automations-template-section-chevron'));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.setAttribute('aria-hidden', 'true');
+		const title = DOM.append(summary, $('span.automations-template-section-title'));
+		title.id = `${options.className}-${this.templateAriaId}`;
+		title.setAttribute('role', 'heading');
+		title.setAttribute('aria-level', '3');
+		title.textContent = options.title;
+		const count = DOM.append(summary, $('span.automations-template-section-count'));
+		count.textContent = String(options.templates.length);
+		this.templateDisposables.add(DOM.addDisposableListener(section, 'toggle', () => options.onDidToggle(section.open)));
+		const description = DOM.append(section, $('p.automations-templates-description'));
+		description.textContent = options.description;
+		const grid = DOM.append(section, $('.automations-templates-grid'));
+		grid.setAttribute('role', 'group');
+		grid.setAttribute('aria-labelledby', title.id);
+		for (const template of options.templates) {
+			this.renderTemplateCard(grid, template);
+		}
+		return section;
 	}
 
 	private renderLoadingState(): IButton {

@@ -885,7 +885,8 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('shows enabled plugin Automation templates and opens them disabled by default', async () => {
-		const { agentPluginService, automationDialogService, widget } = setup();
+		const { agentPluginService, automationDialogService, automationService, widget } = setup();
+		automationService.setCatalogueState('ready');
 		const pluginEnablement = observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile);
 		agentPluginService.setPlugins([upcastPartial<IAgentPlugin>({
 			uri: URI.file('/plugins/review'),
@@ -911,6 +912,8 @@ suite('AutomationsCardsWidget', () => {
 		const sourceBadge = cards[cards.length - 1].querySelector('.automations-template-card-badge')?.textContent;
 		const sourceLabel = cards[cards.length - 1].querySelector('.automations-template-card-source')?.textContent;
 		const initialValues = getCreateInitialValues(automationDialogService.lastOptions);
+		const builtInSection = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates');
+		const pluginSection = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
 
 		pluginEnablement.set(ContributionEnablementState.DisabledProfile, undefined);
 		const disabledNames = Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent);
@@ -920,6 +923,16 @@ suite('AutomationsCardsWidget', () => {
 			sourceBadge,
 			sourceLabel,
 			initialValues,
+			builtInSection: {
+				label: builtInSection?.querySelector('.automations-template-section-title')?.textContent,
+				count: builtInSection?.querySelector('.automations-template-section-count')?.textContent,
+				open: builtInSection?.open,
+			},
+			pluginSection: {
+				label: pluginSection?.querySelector('.automations-template-section-title')?.textContent,
+				count: pluginSection?.querySelector('.automations-template-section-count')?.textContent,
+				open: pluginSection?.open,
+			},
 			disabledNames,
 		}, {
 			enabledNames: ['Catch up on main', 'Issue triage', 'Find bugs', 'Weekly review'],
@@ -931,7 +944,59 @@ suite('AutomationsCardsWidget', () => {
 				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
 				enabled: false,
 			},
+			builtInSection: {
+				label: 'Built-in Templates',
+				count: String(AUTOMATION_TEMPLATES.length),
+				open: true,
+			},
+			pluginSection: {
+				label: 'Templates from Plugins',
+				count: '1',
+				open: true,
+			},
 			disabledNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
+		});
+	});
+
+	test('keeps template disclosure choices when saved automations update', () => {
+		const { agentPluginService, automationService, widget } = setup();
+		agentPluginService.setPlugins([upcastPartial<IAgentPlugin>({
+			uri: URI.file('/plugins/review'),
+			label: 'Review plugin',
+			enablement: observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile),
+			automations: observableValue('pluginAutomations', [{
+				uri: URI.file('/plugins/review/automations/weekly-review.automation.md'),
+				blueprint: {
+					version: 1,
+					id: 'weekly-review',
+					name: 'Weekly review',
+					description: 'Review the past week.',
+					prompt: 'Review the workspace for the past week.',
+					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				},
+			}]),
+		})]);
+		automationService.setAutomations([automation()]);
+
+		const builtInSection = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates');
+		const pluginSection = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
+		assert.ok(builtInSection);
+		assert.ok(pluginSection);
+		pluginSection.querySelector<HTMLElement>('summary')?.click();
+		automationService.setAutomations([automation({ name: 'Updated review' })]);
+
+		assert.deepStrictEqual({
+			builtInDisplay: builtInSection.style.display,
+			builtInSectionOpen: builtInSection.open,
+			pluginContainerDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
+			pluginTemplateNames: Array.from(pluginSection.querySelectorAll('.automations-template-card-name-text'), element => element.textContent),
+			pluginSectionOpen: pluginSection.open,
+		}, {
+			builtInDisplay: '',
+			builtInSectionOpen: false,
+			pluginContainerDisplay: '',
+			pluginTemplateNames: ['Weekly review'],
+			pluginSectionOpen: false,
 		});
 	});
 
@@ -1109,7 +1174,7 @@ suite('AutomationsCardsWidget', () => {
 			unavailableMessage: 'Some automations are unavailable.',
 			errorMessage: 'Some automations could not be loaded.',
 			savedCards: 1,
-			templatesDisplay: 'none',
+			templatesDisplay: '',
 		});
 	});
 
@@ -1123,7 +1188,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(automationDialogService.showCalls, 1);
 	});
 
-	test('hides templates when saved automations become available', () => {
+	test('collapses built-in templates when saved automations become available', () => {
 		const { automationService, widget } = setup();
 
 		automationService.setAutomations([automation()]);
@@ -1132,9 +1197,11 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			savedCards: widget.element.querySelectorAll('.automations-card').length,
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
+			builtInOpen: widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')?.open,
 		}, {
 			savedCards: 1,
-			templatesDisplay: 'none',
+			templatesDisplay: '',
+			builtInOpen: false,
 		});
 	});
 
@@ -1220,10 +1287,12 @@ suite('AutomationsCardsWidget', () => {
 			createCalls: automationService.createCalls,
 			activeElementLabel: document.activeElement?.getAttribute('aria-label'),
 			templateVisible: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
+			builtInOpen: widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')?.open,
 		}, {
 			createCalls: [submitted],
 			activeElementLabel: 'Edit automation Customized issue triage',
-			templateVisible: 'none',
+			templateVisible: '',
+			builtInOpen: false,
 		});
 	});
 
@@ -1255,13 +1324,15 @@ suite('AutomationsCardsWidget', () => {
 				createCalls: automationService.createCalls,
 				catalogueState: automationService.catalogueState.get(),
 				templateDisplay: templates.style.display,
+				builtInOpen: widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')?.open,
 				cardLabel: widget.element.querySelector('.automations-card-main')?.getAttribute('aria-label'),
 				warningVisible: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display === '',
 			}, {
 				beforeCreate: { templatesVisible: true, emptyClaimVisible: false, catalogueStatusVisible: true },
 				createCalls: [submitted],
 				catalogueState,
-				templateDisplay: 'none',
+				templateDisplay: '',
+				builtInOpen: false,
 				cardLabel: 'Edit automation Local review',
 				warningVisible: true,
 			});
@@ -2423,30 +2494,53 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('accessible view shows built-in and plugin templates with saved automations', () => {
+		const pluginTemplate = {
+			...AUTOMATION_TEMPLATES[0],
+			id: 'plugin-template',
+			name: 'Plugin review',
+			source: { label: 'Review plugin', uri: URI.file('/plugins/review/automations/review.automation.md') },
+			enabled: false,
+		};
+		const content = buildAutomationsAccessibleContent([automation()], [], 'ready', [...AUTOMATION_TEMPLATES, pluginTemplate]);
+
+		assert.deepStrictEqual({
+			includesPluginSection: content.includes('Templates from Plugins'),
+			includesPluginTemplate: content.includes('Plugin review') && content.includes('From Review plugin.'),
+			includesBuiltInSection: content.includes('\nBuilt-in Templates\n'),
+			includesBuiltInTemplate: content.includes(AUTOMATION_TEMPLATES[1].name),
+		}, {
+			includesPluginSection: true,
+			includesPluginTemplate: true,
+			includesBuiltInSection: true,
+			includesBuiltInTemplate: true,
+		});
+	});
+
 	test('accessibility help describes visible templates independently of catalogue completeness', () => {
 		const { automationService, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
-		const describesTemplates = () => {
+		const describesBuiltInTemplates = () => {
 			const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
 			assert.ok(provider);
 			disposables.add(provider);
-			return provider.provideContent().includes('Tab to a template');
+			return provider.provideContent().includes('Built-in Templates section');
 		};
 		const states: readonly AutomationCatalogueState[] = ['loading', 'unavailable', 'error', 'ready'];
 		const emptyCatalogueHelp = states.map(state => {
 			automationService.setCatalogueState(state);
-			return describesTemplates();
+			return describesBuiltInTemplates();
 		});
 		automationService.setAutomations([automation()]);
 
 		assert.deepStrictEqual({
 			emptyCatalogueHelp,
-			populatedCatalogueHelp: describesTemplates(),
+			populatedCatalogueHelp: describesBuiltInTemplates(),
 		}, {
 			emptyCatalogueHelp: [true, true, true, true],
-			populatedCatalogueHelp: false,
+			populatedCatalogueHelp: true,
 		});
 	});
 
