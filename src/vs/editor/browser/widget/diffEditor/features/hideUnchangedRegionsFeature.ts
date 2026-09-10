@@ -311,13 +311,14 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 	private readonly _nodes = h('div.diff-hidden-lines', [
 		h('div.top@top', { title: localize('diff.hiddenLines.top', 'Click or drag to show more above') }),
 		h('div.center@content', { style: { display: 'flex' } }, [
+			h('div.card-toggle@cardToggle'),
 			h('div.first@first', { style: { display: 'flex', alignItems: 'center', flexShrink: '0' } },
 				[
 					h('span.line-number-control@lineNumberControl', { 'aria-hidden': 'true' }),
 					$('a.default-control', { title: localize('showUnchangedRegion', 'Show Unchanged Region'), role: 'button', onclick: () => { this._unchangedRegion.showAll(undefined); } },
 						...renderLabelWithIcons('$(unfold)'))]
 			),
-			h('div@others', { style: { display: 'flex', flex: '1', minWidth: '0', justifyContent: 'center', alignItems: 'center' } }),
+			h('div.content-row@others', { style: { display: 'flex', flex: '1', minWidth: '0', justifyContent: 'center', alignItems: 'center' } }),
 		]),
 		h('div.bottom@bottom', { title: localize('diff.bottom', 'Click or drag to show more below'), role: 'button' }),
 	]);
@@ -353,10 +354,10 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 		}
 
 		if (this._useCardControl && !this._hide) {
-			this._nodes.content.tabIndex = 0;
-			this._nodes.content.setAttribute('role', 'button');
-			this._register(addDisposableListener(this._nodes.content, EventType.CLICK, () => this._toggleAll()));
-			this._register(addDisposableListener(this._nodes.content, EventType.KEY_DOWN, e => {
+			this._nodes.cardToggle.tabIndex = 0;
+			this._nodes.cardToggle.setAttribute('role', 'button');
+			this._register(addDisposableListener(this._nodes.cardToggle, EventType.CLICK, () => this._toggleAll()));
+			this._register(addDisposableListener(this._nodes.cardToggle, EventType.KEY_DOWN, e => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
 					this._toggleAll();
@@ -392,9 +393,9 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 				const actionLabel = isFullyRevealed
 					? localize('diff.hiddenLines.collapse', 'Collapse unchanged lines')
 					: localize('diff.hiddenLines.expand', 'Show {0} hidden lines', this._unchangedRegion.getHiddenModifiedRange(reader).length);
-				this._nodes.content.setAttribute('aria-expanded', String(isFullyRevealed));
-				this._nodes.content.setAttribute('aria-label', actionLabel);
-				this._nodes.content.title = actionLabel;
+				this._nodes.cardToggle.setAttribute('aria-expanded', String(isFullyRevealed));
+				this._nodes.cardToggle.setAttribute('aria-label', actionLabel);
+				this._nodes.cardToggle.title = actionLabel;
 				this._nodes.top.title = isFullyRevealed ? actionLabel : localize('diff.hiddenLines.top', 'Click or drag to show more above');
 				this._nodes.bottom.title = isFullyRevealed ? actionLabel : localize('diff.bottom', 'Click or drag to show more below');
 				reset(this._nodes.lineNumberControl, ...renderLabelWithIcons(isFullyRevealed ? '$(fold)' : '$(unfold)'));
@@ -518,17 +519,31 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 						}, [
 							renderIcon(icon),
 							'\u00a0',
-							item.name,
+							h('span.breadcrumb-label', undefined, item.name).root,
 							...(i === items.length - 1
 								? []
 								: [renderIcon(Codicon.chevronRight)]
 							)
 						]).root;
 						children.push(divItem);
-						divItem.onclick = e => {
-							e.stopPropagation();
+						const revealBreadcrumb = (event: Event) => {
+							event.stopPropagation();
 							this._revealModifiedHiddenLine(item.startLineNumber);
 						};
+						if (this._useCardControl) {
+							const breadcrumbLabel = localize('diff.hiddenLines.breadcrumb', 'Go to {0}', item.name);
+							divItem.tabIndex = 0;
+							divItem.setAttribute('role', 'button');
+							divItem.setAttribute('aria-label', breadcrumbLabel);
+							divItem.title = breadcrumbLabel;
+							divItem.onkeydown = e => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									revealBreadcrumb(e);
+								}
+							};
+						}
+						divItem.onclick = revealBreadcrumb;
 					}
 				}
 			}

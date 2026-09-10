@@ -21,6 +21,7 @@ import { emptyProgressRunner, IEditorProgressService } from '../../../../platfor
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
+import { HideUnchangedRegionsFeature } from '../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
 import { getMultiDiffEditorVariantConfiguration, MultiDiffEditorVariant } from '../../../browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
@@ -29,6 +30,7 @@ import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEdi
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { SymbolKind } from '../../../common/languages.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../testCodeEditor.js';
@@ -36,9 +38,15 @@ import { createCodeEditorServices } from '../testCodeEditor.js';
 suite('MultiDiffEditorWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const resetBreadcrumbsSourceFactory = () => HideUnchangedRegionsFeature.setBreadcrumbsSourceFactory(() => ({
+		dispose() { },
+		getBreadcrumbItems: () => [],
+		getAt: () => [],
+	}));
 
 	teardown(() => {
 		sinon.restore();
+		resetBreadcrumbsSourceFactory();
 	});
 
 	test('uses closed variant configurations', () => {
@@ -94,6 +102,12 @@ suite('MultiDiffEditorWidget', () => {
 		const unchangedLines = Array.from({ length: 20 }, (_, index) => `const unchanged${index} = ${index};`).join('\n');
 		const originalUri = URI.parse('inmemory://original/card-control.js');
 		const modifiedUri = URI.parse('inmemory://modified/card-control.js');
+		const breadcrumb = { name: 'unchangedFunction', kind: SymbolKind.Function, startLineNumber: 10 };
+		HideUnchangedRegionsFeature.setBreadcrumbsSourceFactory(() => ({
+			dispose() { },
+			getBreadcrumbItems: () => [breadcrumb],
+			getAt: () => [breadcrumb],
+		}));
 		const original = disposables.add(instantiateTextModel(instantiationService, `const value = 1;\n${unchangedLines}`, undefined, undefined, originalUri));
 		const modified = disposables.add(instantiateTextModel(instantiationService, `const value = 2;\n${unchangedLines}`, undefined, undefined, modifiedUri));
 		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
@@ -118,14 +132,25 @@ suite('MultiDiffEditorWidget', () => {
 			widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
 			await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate === true);
 			const editor = widget.getActiveControl()!;
-			const getControl = () => widget.getRootElement().querySelector<HTMLElement>('.diff-hidden-lines-card .center[role="button"]')!;
+			const getControl = () => widget.getRootElement().querySelector<HTMLElement>('.diff-hidden-lines-card .card-toggle[role="button"]')!;
+			const getContent = () => getControl().parentElement!.querySelector<HTMLElement>('.card-content')!;
+			const breadcrumbControl = getContent().querySelector<HTMLElement>('.breadcrumb-item[role="button"]')!;
+			const textBeforeBreadcrumbNavigation = getContent().textContent;
+			breadcrumbControl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			const breadcrumbState = {
+				ariaLabel: breadcrumbControl.getAttribute('aria-label'),
+				tabIndex: breadcrumbControl.tabIndex,
+				isNestedInToggle: getControl().contains(breadcrumbControl),
+				remainingCollapsed: !editor.allUnchangedRegionsShown.get(),
+				changedVisibleRange: getContent().textContent !== textBeforeBreadcrumbNavigation,
+			};
 			getControl().click();
 			const expandedControl = getControl();
 			const expandedState = {
 				allUnchangedRegionsShown: editor.allUnchangedRegionsShown.get(),
 				isInWidget: widget.getRootElement().contains(expandedControl),
 				ariaExpanded: expandedControl.getAttribute('aria-expanded'),
-				text: expandedControl.querySelector('.card-content')?.textContent,
+				text: getContent().textContent,
 			};
 			expandedControl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 			const collapsedControl = getControl();
@@ -133,15 +158,23 @@ suite('MultiDiffEditorWidget', () => {
 				allUnchangedRegionsShown: editor.allUnchangedRegionsShown.get(),
 				isInWidget: widget.getRootElement().contains(collapsedControl),
 				ariaExpanded: collapsedControl.getAttribute('aria-expanded'),
-				hasHiddenLinesLabel: collapsedControl.querySelector('.card-content')?.textContent?.includes('hidden lines'),
+				hasHiddenLinesLabel: getContent().textContent.includes('hidden lines'),
 			};
 			collapsedControl.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
 
 			assert.deepStrictEqual({
+				breadcrumbState,
 				expandedState,
 				collapsedState,
 				expandedWithSpace: editor.allUnchangedRegionsShown.get(),
 			}, {
+				breadcrumbState: {
+					ariaLabel: 'Go to unchangedFunction',
+					tabIndex: 0,
+					isNestedInToggle: false,
+					remainingCollapsed: true,
+					changedVisibleRange: true,
+				},
 				expandedState: {
 					allUnchangedRegionsShown: true,
 					isInWidget: true,
