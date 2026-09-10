@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -25,8 +25,8 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
-import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, getModelContextSize } from '../../common/agentModelConfiguration.js';
-import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
+import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
+import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
@@ -244,6 +244,80 @@ const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
 const CODEX_COPILOT_MODEL_GROUP = 'copilot';
 const CODEX_OPENAI_MODEL_PROVIDER = 'openai';
 const CODEX_MODEL_SELECTION_PREFIX = '@provider=';
+const CODEX_MODEL_CATALOG_TIMEOUT_MS = 15_000;
+const CODEX_MODEL_CATALOG_MAX_BUFFER = 8 * 1024 * 1024;
+
+interface ICodexModelContextWindow {
+	readonly defaultSize: number;
+	readonly maxSize: number;
+}
+
+interface ICodexRawModelCatalog {
+	readonly models?: readonly {
+		readonly slug?: string;
+		readonly context_window?: number;
+		readonly max_context_window?: number;
+	}[];
+}
+
+/** Retains only global configuration flags that another Codex subcommand can consume. */
+function codexConfigArgs(args: readonly string[]): string[] {
+	const result: string[] = [];
+	for (let index = 0; index < args.length; index++) {
+		const argument = args[index];
+		if (argument === '-c' || argument === '--config' || argument === '--enable' || argument === '--disable') {
+			const value = args[index + 1];
+			if (value !== undefined) {
+				result.push(argument, value);
+				index++;
+			}
+		} else if (argument.startsWith('--config=') || argument.startsWith('--enable=') || argument.startsWith('--disable=')) {
+			result.push(argument);
+		}
+	}
+	return result;
+}
+
+/**
+ * Reads context limits from Codex's JSON view of its raw model catalog.
+ *
+ * App-server `model/list` remains authoritative for the models this account can
+ * select, but its public response currently omits `context_window` and
+ * `max_context_window`. `debug models` exposes those fields from the same Codex
+ * catalog. It refreshes online only when needed; calling it after
+ * `model/list` normally reuses the catalog the live app-server just refreshed.
+ */
+function readCodexModelContextWindows(binaryPath: string, args: readonly string[], env: NodeJS.ProcessEnv): Promise<ReadonlyMap<string, ICodexModelContextWindow>> {
+	return new Promise((resolvePromise, rejectPromise) => {
+		execFile(binaryPath, ['debug', 'models', ...codexConfigArgs(args)], {
+			env,
+			encoding: 'utf8',
+			maxBuffer: CODEX_MODEL_CATALOG_MAX_BUFFER,
+			timeout: CODEX_MODEL_CATALOG_TIMEOUT_MS,
+			windowsHide: true,
+		}, (error, stdout) => {
+			if (error) {
+				rejectPromise(error);
+				return;
+			}
+			try {
+				const catalog = JSON.parse(stdout) as ICodexRawModelCatalog;
+				const result = new Map<string, ICodexModelContextWindow>();
+				for (const model of catalog.models ?? []) {
+					if (typeof model.slug !== 'string'
+						|| typeof model.context_window !== 'number' || !Number.isSafeInteger(model.context_window) || model.context_window <= 0
+						|| typeof model.max_context_window !== 'number' || !Number.isSafeInteger(model.max_context_window) || model.max_context_window <= 0) {
+						continue;
+					}
+					result.set(model.slug, { defaultSize: model.context_window, maxSize: model.max_context_window });
+				}
+				resolvePromise(result);
+			} catch (error) {
+				rejectPromise(error);
+			}
+		});
+	});
+}
 
 /**
  * The Codex harness relies on OpenAI Responses semantics beyond the endpoint
@@ -796,6 +870,8 @@ interface IConnectionReady {
 	readonly client: ICodexAppServerClient;
 	readonly proxyHandle: ICodexProxyHandle;
 	readonly child: ChildProcessWithoutNullStreams;
+	/** Reads context limits from the same Codex SDK and configuration as this app-server. */
+	readonly readModelContextWindows?: () => Promise<ReadonlyMap<string, ICodexModelContextWindow>>;
 	/** Event/request registrations owned by this particular persistent client. */
 	readonly subscriptions?: DisposableStore;
 }
@@ -1713,6 +1789,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		declaredDefault?: string,
 		modelId?: string,
 		billing?: ICAPIModelBilling,
+		contextWindow?: ICodexModelContextWindow,
 	): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
 		if (supportedEfforts?.length) {
@@ -1727,7 +1804,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				enumDescriptions: supportedEfforts.map(option => option.description || getReasoningEffortDescription(option.reasoningEffort) || ''),
 			};
 		}
-		const contextSize = createContextSizeConfigSchemaProperty(billing);
+		const contextSize = contextWindow
+			? createContextSizeConfigSchemaPropertyFromLimits(contextWindow.defaultSize, contextWindow.maxSize)
+			: createContextSizeConfigSchemaProperty(billing);
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
 		}
@@ -1758,28 +1837,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._configurationService.getSessionConfigValues(configResource.toString()),
 			codexSessionConfigDefaults,
 		);
-	}
-
-	private _withCopilotContextSize(model: IAgentModelInfo): IAgentModelInfo {
-		if (readAgentModelSourceId(model) !== CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID) {
-			return model;
-		}
-		const modelId = parseCodexModelSelection(model).modelId;
-		const copilotModel = this._copilotModels.find(candidate => parseCodexModelSelection(candidate).modelId === modelId);
-		const contextSize = copilotModel?.configSchema?.properties[ContextSizeConfigKey];
-		if (!contextSize) {
-			return model;
-		}
-		return {
-			...model,
-			configSchema: {
-				type: 'object',
-				properties: {
-					...model.configSchema?.properties,
-					[ContextSizeConfigKey]: contextSize,
-				},
-			},
-		};
 	}
 
 	/**
@@ -1990,7 +2047,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (generation !== this._modelCatalogGeneration || this._isShuttingDown || this._store.isDisposed) {
 			return;
 		}
-		this._models.set([...this._copilotModels, ...this._codexModels.map(model => this._withCopilotContextSize(model))], undefined);
+		this._models.set([...this._copilotModels, ...this._codexModels], undefined);
 		// Last, never first: announcing `ready` before the catalog lands is how the
 		// window renders "no account found".
 		this._sdkSetupChannel.refresh();
@@ -2140,19 +2197,34 @@ export class CodexAgent extends Disposable implements IAgent {
 				data.push(...response.data);
 				cursor = response.nextCursor;
 			} while (cursor !== null);
+			let contextWindows: ReadonlyMap<string, ICodexModelContextWindow> | undefined;
+			if (usesChatGPTSubscription && connection.readModelContextWindows) {
+				try {
+					contextWindows = await connection.readModelContextWindows();
+					if (!this._isCurrentConnection(connection)) {
+						return;
+					}
+				} catch (error) {
+					this._logService.warn(`[Codex] Failed to read ChatGPT model context limits: ${error instanceof Error ? error.message : String(error)}`);
+				}
+			}
 			const models = data
 				.sort((left, right) => Number(right.isDefault) - Number(left.isDefault))
-				.map((model): IAgentModelInfo => ({
-					provider: CODEX_AGENT_PROVIDER_ID,
-					id: toCodexModelSelectionId(modelProvider, model.model),
-					name: model.displayName,
-					supportsVision: model.inputModalities.includes('image'),
-					configSchema: this._createModelConfigSchema(model.supportedReasoningEfforts, model.defaultReasoningEffort, model.model),
-					_meta: {
-						...createAgentModelSourceMeta(usesChatGPTSubscription ? CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID : undefined),
-						...createAgentModelGroupMeta(pickerProvider),
-					},
-				}));
+				.map((model): IAgentModelInfo => {
+					const contextWindow = contextWindows?.get(model.model);
+					return {
+						provider: CODEX_AGENT_PROVIDER_ID,
+						id: toCodexModelSelectionId(modelProvider, model.model),
+						name: model.displayName,
+						maxContextWindow: contextWindow?.maxSize,
+						supportsVision: model.inputModalities.includes('image'),
+						configSchema: this._createModelConfigSchema(model.supportedReasoningEfforts, model.defaultReasoningEffort, model.model, undefined, contextWindow),
+						_meta: {
+							...createAgentModelSourceMeta(usesChatGPTSubscription ? CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID : undefined),
+							...createAgentModelGroupMeta(pickerProvider),
+						},
+					};
+				});
 			if (this._isCurrentConnection(connection)) {
 				this._codexModels = models;
 			}
@@ -2477,7 +2549,12 @@ export class CodexAgent extends Disposable implements IAgent {
 				throw new CancellationError();
 			}
 			client.notify<'initialized'>('initialized', undefined as never);
-			return { client, proxyHandle, child };
+			return {
+				client,
+				proxyHandle,
+				child,
+				readModelContextWindows: () => readCodexModelContextWindows(binaryPath, args, env),
+			};
 		} catch (err) {
 			client?.dispose();
 			proxyHandle.dispose();

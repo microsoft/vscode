@@ -1926,6 +1926,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 	test('applies context size and thinking level for Copilot and ChatGPT models', async () => {
 		const runScenario = async (source: 'copilot' | 'chatgpt', selectedModelId: string) => {
+			const longContextSize = source === 'copilot' ? 1_000_000 : 872_000;
 			const agent = await createAgent(disposables);
 			agent['_schedulePrewarm'] = () => { };
 			agent['_refreshSkillHookCustomizations'] = async () => { };
@@ -1945,14 +1946,14 @@ suite('CodexAgent prewarm eviction', () => {
 					type: 'object',
 					properties: {
 						thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'], default: 'low' },
-						contextSize: { type: 'number', title: 'Context Size', enum: [272_000, 1_000_000], default: 272_000 },
+						contextSize: { type: 'number', title: 'Context Size', enum: [272_000, longContextSize], default: 272_000 },
 					},
 				},
 			}], undefined);
 
 			const threadId = `${source}-context-size-thread`;
 			const folder = URI.file(`/repo/context-size-${source}`);
-			const longContextModel = { id: selectedModelId, config: { thinkingLevel: 'low', contextSize: 1_000_000 } };
+			const longContextModel = { id: selectedModelId, config: { thinkingLevel: 'low', contextSize: longContextSize } };
 			const created = await createSession(agent, { workingDirectories: [folder], model: longContextModel });
 			const chat = defaultChatOf(created.session);
 			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
@@ -2008,7 +2009,7 @@ suite('CodexAgent prewarm eviction', () => {
 			turn: { method: 'turn/start', thinkingLevel: 'high', collaborationThinkingLevel: 'high' },
 		}, {
 			source: 'chatgpt',
-			start: { method: 'thread/start', model: 'gpt-5.6-sol', modelProvider: 'openai', contextSize: 1_000_000 },
+			start: { method: 'thread/start', model: 'gpt-5.6-sol', modelProvider: 'openai', contextSize: 872_000 },
 			unsubscribe: { method: 'thread/unsubscribe', threadId: 'chatgpt-context-size-thread' },
 			resume: { method: 'thread/resume', model: 'gpt-5.6-sol', modelProvider: 'openai', contextSize: 272_000 },
 			turn: { method: 'turn/start', thinkingLevel: 'high', collaborationThinkingLevel: 'high' },
