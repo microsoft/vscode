@@ -29,6 +29,7 @@ import {
 } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -96,6 +97,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	const copilotCustomAgentTest = config.provider === 'copilotcli' && config.supportsSubagents;
+	const behaviorSnapshot = { profile: 'behavior' } as const;
 
 	for (const initiallySelected of [true, false]) {
 		const title = initiallySelected
@@ -289,6 +291,89 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				&& envelope.action.turnId === 'turn-after-custom-agent';
 		}, 90_000);
 		assert.match(getMarkdownResponseText(context.client), /PARENT_RECOVERED/);
+	});
+
+	(copilotCustomAgentTest ? test : test.skip)('retained background subagent completes repeated follow-up turns', async function () {
+		this.timeout(300_000);
+
+		const workspace = mkdtempSync(join(tmpdir(), 'ahp-retained-subagent-'));
+		tempDirs.push(workspace);
+		const sessionUri = await createRealSession(context.client, config, 'retained-subagent-followups', createdSessions, URI.file(workspace));
+		const parentChat = buildDefaultChatUri(sessionUri);
+
+		context.client.beginAhpSnapshotRound();
+		const initial = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-retained-initial',
+			'Use the task tool exactly once with agent_type "general-purpose" and mode "background". '
+			+ 'Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. '
+			+ 'Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.',
+			2,
+		);
+		assert.match(initial.responseText.trim(), /PARENT_INITIAL_DONE$/);
+		const subagentChat = subagentChatFromReceived(parentChat);
+		assert.ok(subagentChat, 'the task tool should expose the retained subagent chat');
+
+		async function readCompletedChild(expectedTurnCount: number): Promise<ChatState> {
+			let child: ChatState | undefined;
+			await retry(async () => {
+				const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+				child = snapshot.snapshot?.state as ChatState | undefined;
+				if (child?.activeTurn || child?.turns.length !== expectedTurnCount || child.turns.some(turn => turn.state !== TurnState.Complete)) {
+					throw new Error(`retained child has not completed ${expectedTurnCount} turns`);
+				}
+			}, 50, 100);
+			assert.ok(child);
+			return child;
+		}
+
+		const states: Array<{ responses: string[]; states: TurnState[]; active: boolean }> = [];
+		const recordChildState = (child: ChatState) => {
+			states.push({
+				responses: child.turns.map(turn => markdownText({ turns: [turn] }).trim()),
+				states: child.turns.map(turn => turn.state),
+				active: child.activeTurn !== undefined,
+			});
+		};
+		recordChildState(await readCompletedChild(1));
+
+		for (const [index, childResponse, parentResponse] of [
+			[1, 'CHILD_FOLLOWUP_ONE_DONE', 'PARENT_FOLLOWUP_ONE_DONE'],
+			[2, 'CHILD_FOLLOWUP_TWO_DONE', 'PARENT_FOLLOWUP_TWO_DONE'],
+		] as const) {
+			context.client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(
+				context.client,
+				sessionUri,
+				`turn-retained-followup-${index}`,
+				`Use write_agent exactly once to send the same retained subagent this message: `
+				+ `"Reply exactly ${childResponse} and do not use tools." `
+				+ `Wait for its completion notification, call read_agent with wait true, then reply exactly "${parentResponse}". Do not start or stop a subagent.`,
+				2 + index,
+			);
+			assert.match(result.responseText.trim(), new RegExp(`${parentResponse}$`));
+			recordChildState(await readCompletedChild(index + 1));
+		}
+
+		assert.deepStrictEqual(states, [
+			{
+				responses: ['CHILD_INITIAL_DONE'],
+				states: [TurnState.Complete],
+				active: false,
+			},
+			{
+				responses: ['CHILD_INITIAL_DONE', 'CHILD_FOLLOWUP_ONE_DONE'],
+				states: [TurnState.Complete, TurnState.Complete],
+				active: false,
+			},
+			{
+				responses: ['CHILD_INITIAL_DONE', 'CHILD_FOLLOWUP_ONE_DONE', 'CHILD_FOLLOWUP_TWO_DONE'],
+				states: [TurnState.Complete, TurnState.Complete, TurnState.Complete],
+				active: false,
+			},
+		]);
+		await assertRecordedAhpSnapshot(this.test!, context.client, behaviorSnapshot);
 	});
 
 	(config.supportsSubagents ? test : test.skip)('subagent tool calls are routed to the subagent session, not flat in the parent', async function () {

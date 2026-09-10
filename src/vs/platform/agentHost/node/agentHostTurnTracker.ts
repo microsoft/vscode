@@ -10,12 +10,13 @@ import { Disposable, DisposableMap, toDisposable } from '../../../base/common/li
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
-import type { AgentModelCallFinishedOutcome, AgentSubagentTaskModelSource, IAgent, IAgentTurnDiagnosticSnapshot } from '../common/agent.js';
+import type { AgentModelCallFinishedOutcome, AgentSubagentTaskModelSource, IAgent, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { ILogService } from '../../log/common/log.js';
+import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import type { ITurnTokenTotal, ToolCallContributor } from '../common/state/sessionState.js';
@@ -59,11 +60,14 @@ interface ITurnTiming {
 	readonly stopWatch: StopWatch;
 	readonly agent: IAgent;
 	readonly session: string;
+	readonly providerChat: URI;
 	readonly turnId: string;
 	readonly parentTurnId: string | undefined;
 	readonly parentToolCallId: string | undefined;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	readonly selectedModel: string | undefined;
+	readonly selectedModelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
 	readonly interactionMode: SessionMode | undefined;
@@ -171,17 +175,20 @@ export class AgentHostTurnTracker extends Disposable {
 		}));
 	}
 
-	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource): void {
+	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session)): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
 			agent,
 			session,
+			providerChat,
 			turnId,
 			parentTurnId,
 			parentToolCallId,
 			model,
 			modelTelemetryKind,
+			selectedModel: model,
+			selectedModelTelemetryKind: modelTelemetryKind,
 			modelSelectionKind,
 			permissionLevel,
 			interactionMode,
@@ -416,7 +423,23 @@ export class AgentHostTurnTracker extends Disposable {
 		if (!timing) {
 			return false;
 		}
+		// Capture terminal timing before collecting or reporting additional telemetry.
+		const totalTime = timing.stopWatch.elapsed();
+		const timeAfterHangMs = timing.lastHangStopWatch?.elapsed() ?? 0;
 		const usage = this._turnUsages.get(key);
+		let summaries: readonly IAgentTokenUsageSummary[] | undefined;
+		if (timing.agent.getTurnTokenUsage) {
+			let snapshot: IAgentTurnTokenUsage | undefined;
+			try {
+				snapshot = timing.agent.getTurnTokenUsage(timing.providerChat, turnId, timing.parentToolCallId);
+			} catch (error) {
+				this._logService.error(`[AgentHostTurnTracker] Failed to collect provider token usage for provider=${timing.agent.id}: ${getErrorMessage(error)}`, error);
+			}
+			summaries = snapshot?.summaries.length ? snapshot.summaries : [{
+				usageScope: 'direct-model', usageStatus: 'notReported',
+				usageRecordCount: 0, inputKnownRecordCount: 0, outputKnownRecordCount: 0, cacheKnownRecordCount: 0,
+			}];
+		}
 		this._disposeTurn(key, timing);
 
 		this._reporter.turnCompleted({
@@ -429,7 +452,7 @@ export class AgentHostTurnTracker extends Disposable {
 			timeToFirstProgress: timing.firstProgressMs,
 			timeToFirstEditMs: timing.timeToFirstEditMs,
 			timeToFirstEditClassifierVersion: timing.timeToFirstEditClassifierVersion,
-			totalTime: timing.stopWatch.elapsed(),
+			totalTime,
 			result,
 			model: timing.model,
 			modelTelemetryKind: timing.modelTelemetryKind,
@@ -461,9 +484,22 @@ export class AgentHostTurnTracker extends Disposable {
 				hangReason: timing.lastHangReason,
 				result,
 				hangReportCount: timing.hangReportCount,
-				totalTimeMs: timing.stopWatch.elapsed(),
-				timeAfterHangMs: timing.lastHangStopWatch?.elapsed() ?? 0,
+				totalTimeMs: totalTime,
+				timeAfterHangMs,
 			});
+		}
+		for (const summary of summaries ?? []) {
+			try {
+				this._reporter.requestTokenUsage({
+					clientContext: timing.clientContext, provider: timing.agent.id,
+					session, requestId: turnId, parentTurnId: timing.parentTurnId, parentToolCallId: timing.parentToolCallId,
+					selectedModel: timing.selectedModel, selectedModelTelemetryKind: timing.selectedModelTelemetryKind,
+					modelTelemetryKind: summary.model ? getModelTelemetryContext(timing.agent, summary.model).modelTelemetryKind : undefined,
+					result, summary,
+				});
+			} catch (error) {
+				this._logService.error(`[AgentHostTurnTracker] Failed to report provider token usage for provider=${timing.agent.id}: ${getErrorMessage(error)}`, error);
+			}
 		}
 		return true;
 	}

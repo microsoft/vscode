@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatBackground.css';
-import { clearNode, DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
+import { $, clearNode, DisposableResizeObserver, getWindow } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -80,13 +80,11 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 	constructor(private readonly element: HTMLElement) {
 		super();
 
-		this.backgroundLayer = element.ownerDocument.createElement('div');
-		this.backgroundLayer.className = 'sessions-chat-background';
+		this.backgroundLayer = $('.sessions-chat-background');
 		this.backgroundLayer.ariaHidden = 'true';
 		this.backgroundLayer.hidden = true;
 
-		this.codiconLayer = element.ownerDocument.createElement('div');
-		this.codiconLayer.className = 'sessions-chat-codicon-background';
+		this.codiconLayer = $('.sessions-chat-codicon-background');
 		this.codiconLayer.ariaHidden = 'true';
 		this.codiconLayer.hidden = true;
 		this.backgroundLayer.appendChild(this.codiconLayer);
@@ -143,7 +141,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 		}
 		this.codiconGridSize = gridSize;
 
-		const fragment = this.element.ownerDocument.createDocumentFragment();
+		const newIcons: HTMLElement[] = [];
 		const visibleCells = new Set<string>();
 		for (let row = 0; row < rows; row++) {
 			for (let column = 0; column < columns; column++) {
@@ -167,7 +165,7 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 				icon.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
 				icon.style.opacity = `${0.65 + (hashCodiconCell(row, column, 5) % 36) / 100}`;
 				this.codiconCells.set(cell, icon);
-				fragment.append(icon);
+				newIcons.push(icon);
 			}
 		}
 
@@ -177,6 +175,54 @@ export class SessionsChatBackgroundRenderer extends Disposable {
 				this.codiconCells.delete(cell);
 			}
 		}
-		this.codiconLayer.append(fragment);
+		this.codiconLayer.append(...newIcons);
+	}
+}
+
+export class SessionsChatBackgroundReplica extends Disposable {
+
+	private readonly viewport: HTMLElement;
+	private readonly element: HTMLElement;
+	private readonly renderer: SessionsChatBackgroundRenderer;
+
+	constructor(
+		private readonly source: HTMLElement,
+		private readonly container: HTMLElement,
+	) {
+		super();
+
+		this.viewport = $('.sessions-chat-background-replica-viewport');
+		this.viewport.ariaHidden = 'true';
+		this.viewport.hidden = true;
+		this.element = $('.sessions-chat-background-replica');
+		this.element.ariaHidden = 'true';
+		this.viewport.appendChild(this.element);
+		this.container.prepend(this.viewport);
+		this._register(toDisposable(() => this.viewport.remove()));
+		this.layout();
+
+		this.renderer = this._register(new SessionsChatBackgroundRenderer(this.element));
+
+		const resizeObserver = this._register(new DisposableResizeObserver(
+			'SessionsChatBackgroundReplica',
+			() => this.layout(),
+			getWindow(source)
+		));
+		this._register(resizeObserver.observe(source));
+		this._register(resizeObserver.observe(container));
+	}
+
+	setBackground(background: ISessionsChatBackground | undefined): void {
+		this.viewport.hidden = !background;
+		this.renderer.setBackground(background);
+	}
+
+	layout(): void {
+		const sourceBounds = this.source.getBoundingClientRect();
+		const containerBounds = this.container.getBoundingClientRect();
+		this.element.style.left = `${sourceBounds.left - containerBounds.left}px`;
+		this.element.style.top = `${sourceBounds.top - containerBounds.top}px`;
+		this.element.style.width = `${sourceBounds.width}px`;
+		this.element.style.height = `${sourceBounds.height}px`;
 	}
 }

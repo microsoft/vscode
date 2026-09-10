@@ -1123,7 +1123,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[] }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown> }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1135,6 +1135,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		modelConfiguration: overrides.modelConfiguration,
 		agentHostSessionConfig: overrides.agentHostSessionConfig,
 		acceptedConfirmationData: overrides.acceptedConfirmationData,
+		metadata: overrides.metadata,
 	});
 }
 
@@ -1164,6 +1165,7 @@ async function startTurn(
 		modelConfiguration: Record<string, unknown>;
 		agentHostSessionConfig: Record<string, string>;
 		cancellationToken: CancellationToken;
+		metadata: Record<string, unknown>;
 		agentId: string;
 		beforeInvoke: () => void;
 	}>,
@@ -1193,6 +1195,7 @@ async function startTurn(
 			modelConfiguration: overrides?.modelConfiguration,
 			agentHostSessionConfig: overrides?.agentHostSessionConfig,
 			agentId,
+			metadata: overrides?.metadata,
 		}),
 		(parts) => collected.push(parts),
 		[],
@@ -4039,6 +4042,20 @@ suite('AgentHostChatContribution', () => {
 	// ---- Session ID resolution in _invokeAgent --------------------------
 
 	suite('session ID resolution', () => {
+
+		test('carries request metadata on the host turn instead of applying session configuration early', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const metadata = { 'test.request': { enabled: true } };
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hello', metadata });
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			const action = agentHostService.turnActions[0].action;
+			assert.ok(action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual({
+				message: action.message,
+				configWrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionConfigChanged),
+			}, { message: { text: 'Hello', origin: { kind: MessageKind.User }, _meta: metadata }, configWrites: [] });
+		}));
 
 		test('requests backend session for provider-owned new resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -12282,7 +12299,8 @@ suite('AgentHostChatContribution', () => {
 					}],
 				},
 			});
-			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: {} });
+			const metadata = { 'test.request': { enabled: true } };
+			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: { metadata } });
 			chatModel.firePendingRequestsChanged();
 
 			const dispatch = agentHostService.dispatchedActions.find(dispatched => dispatched.action.type === ActionType.ChatPendingMessageSet);
@@ -12307,6 +12325,7 @@ suite('AgentHostChatContribution', () => {
 					message: {
 						text,
 						origin: { kind: MessageKind.User },
+						_meta: metadata,
 						attachments: [{
 							type: MessageAttachmentKind.Simple,
 							label: 'button#submit',

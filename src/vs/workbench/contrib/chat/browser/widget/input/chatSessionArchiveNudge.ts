@@ -16,6 +16,8 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -32,6 +34,7 @@ export interface IChatSessionArchiveNudgeOptions {
 	readonly pullRequestCount: number;
 	readonly onArchive: () => Promise<void>;
 	readonly onDismiss: () => void;
+	readonly onOpenCleanupSettings: () => Promise<unknown>;
 }
 
 /** A session-scoped suggestion whose owner decides when archiving is appropriate. */
@@ -41,8 +44,11 @@ export class ChatSessionArchiveNudge extends Disposable {
 	private readonly iconElement: HTMLElement;
 	private readonly titleElement: HTMLElement;
 	private readonly descriptionElement: HTMLElement;
+	private readonly detailsLabelElement: HTMLElement;
+	private readonly recoveryElement: HTMLElement;
 	private readonly worktreeElement: HTMLElement;
 	private readonly archiveButton: Button;
+	private readonly cleanupSettingsButton: Button;
 	private readonly dismissAction: Action;
 	private archiving = false;
 	private titleTreatment: string | undefined;
@@ -54,6 +60,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -75,20 +82,28 @@ export class ChatSessionArchiveNudge extends Disposable {
 			() => this.dismiss(),
 		));
 		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, actions, {
-			ariaLabel: localize('chat.sessionArchiveNudge.actions', "Archive suggestion actions"),
+			ariaLabel: localize('chat.sessionArchiveNudge.sessionActions', "Session suggestion actions"),
 		}));
 		toolbar.setActions([this.dismissAction]);
 
 		const body = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-body'));
-		this.descriptionElement = dom.append(body, dom.$('.chat-session-archive-nudge-description', { id: `${id}-description` }));
-		dom.append(this.descriptionElement, dom.$('p', undefined, localize('chat.sessionArchiveNudge.overview', "Archive this session to keep your session list focused.")));
-		dom.append(this.descriptionElement, dom.$('p', undefined, localize('chat.sessionArchiveNudge.recovery', "Your conversation stays available to you and your agents. Find it with the session list filter and unarchive anytime.")));
-		this.worktreeElement = dom.append(body, dom.$('p.chat-session-archive-nudge-worktree', { id: `${id}-worktree` }, localize('chat.sessionArchiveNudge.worktree', "The worktree is cleaned up when you archive and recreated when you unarchive.")));
+		this.descriptionElement = dom.append(body, dom.$('p.chat-session-archive-nudge-description', { id: `${id}-description` }));
+		const details = dom.append(body, dom.$('details.chat-session-archive-nudge-details'));
+		const summary = dom.append(details, dom.$('summary.chat-session-archive-nudge-summary'));
+		this.detailsLabelElement = dom.append(summary, dom.$('span'));
+		const chevron = dom.append(summary, renderIcon(Codicon.chevronRightCompact));
+		chevron.classList.add('chat-session-archive-nudge-chevron');
+		chevron.setAttribute('aria-hidden', 'true');
+		this.recoveryElement = dom.append(details, dom.$('p'));
+		this.worktreeElement = dom.append(details, dom.$('p.chat-session-archive-nudge-worktree'));
 
 		const footer = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-footer'));
-		this.archiveButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
-		this.archiveButton.label = localize('chat.sessionArchiveNudge.archive', "Archive");
+		this.archiveButton = this._register(new Button(footer, defaultButtonStyles));
+		this.archiveButton.element.setAttribute('aria-describedby', this.descriptionElement.id);
 		this._register(this.archiveButton.onDidClick(() => this.archive()));
+		this.cleanupSettingsButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
+		this.cleanupSettingsButton.label = localize('chat.sessionArchiveNudge.configureAutomaticCleanup', "Configure Automatic Cleanup");
+		this._register(this.cleanupSettingsButton.onDidClick(() => void this.openCleanupSettings()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.equals(KeyCode.Escape)) {
@@ -99,6 +114,12 @@ export class ChatSessionArchiveNudge extends Disposable {
 		}, true));
 
 		this.setOptions(options);
+		this.updateContent();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+				this.updateContent();
+			}
+		}));
 		this._register(this.assignmentService.onDidRefetchAssignments(() => void this.updateTreatments()));
 		void this.updateTreatments();
 	}
@@ -107,18 +128,52 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.options = options;
 		this.updateTitle();
 		this.worktreeElement.hidden = !options.hasWorktree;
-		this.archiveButton.element.setAttribute('aria-describedby', options.hasWorktree
-			? `${this.descriptionElement.id} ${this.worktreeElement.id}`
-			: this.descriptionElement.id);
 	}
 
 	private updateTitle(): void {
-		const title = this.titleTreatment ?? (this.options.pullRequestCount > 1
-			? localize('chat.sessionArchiveNudge.archiveQuestionAll', "All PRs merged. Archive this session?")
-			: localize('chat.sessionArchiveNudge.archiveQuestion', "PR merged. Archive this session?"));
+		const title = this.titleTreatment ?? (this.markAsDone
+			? this.options.pullRequestCount > 1
+				? localize('chat.sessionArchiveNudge.doneQuestionAll', "All PRs merged. Mark this session as done?")
+				: localize('chat.sessionArchiveNudge.doneQuestion', "PR merged. Mark this session as done?")
+			: this.options.pullRequestCount > 1
+				? localize('chat.sessionArchiveNudge.archiveQuestionAll', "All PRs merged. Archive this session?")
+				: localize('chat.sessionArchiveNudge.archiveQuestion', "PR merged. Archive this session?"));
 		if (this.titleElement.textContent !== title) {
 			this.titleElement.textContent = title;
 		}
+	}
+
+	private get markAsDone(): boolean {
+		return getChatSessionArchiveActionWording(this.configurationService) === ChatSessionArchiveActionWording.MarkAsDone;
+	}
+
+	private updateContent(): void {
+		const wording = getChatSessionArchiveActionWording(this.configurationService);
+		const actionLabel = getChatSessionArchiveActionPresentation(wording).archive.title.value;
+		const sectionLabel = getChatSessionArchivedSectionLabel(wording);
+		this.updateTitle();
+		this.descriptionElement.textContent = this.markAsDone
+			? localize('chat.sessionArchiveNudge.doneOverview', "Mark this session as done to hide it from the sessions list and focus on your remaining tasks.")
+			: localize('chat.sessionArchiveNudge.overview', "Archive this session to hide it from the sessions list and focus on your remaining tasks.");
+		this.detailsLabelElement.textContent = localize('chat.sessionArchiveNudge.actionDetails', "What Does \"{0}\" Do?", actionLabel);
+		this.recoveryElement.textContent = this.markAsDone
+			? localize('chat.sessionArchiveNudge.doneRecovery', "The session is not deleted. Ask your agent to find it, or look in the \"{0}\" section of the sessions list. You can restore it anytime.", sectionLabel)
+			: localize('chat.sessionArchiveNudge.recovery', "The session is not deleted. Ask your agent to find it, or look in the \"{0}\" section of the sessions list. You can unarchive it anytime.", sectionLabel);
+		this.worktreeElement.textContent = this.markAsDone
+			? localize('chat.sessionArchiveNudge.doneWorktree', "The worktree created for this session will be deleted. You can recreate it by restoring the session.")
+			: localize('chat.sessionArchiveNudge.worktree', "The worktree created for this session will be deleted. You can recreate it by unarchiving the session.");
+		this.dismissAction.label = this.markAsDone
+			? localize('chat.sessionArchiveNudge.dismissDone', "Dismiss Mark as Done Suggestion")
+			: localize('chat.sessionArchiveNudge.dismiss', "Dismiss Archive Suggestion");
+		this.updateButtonLabel();
+	}
+
+	private updateButtonLabel(): void {
+		this.archiveButton.label = this.archiving
+			? this.markAsDone
+				? localize('chat.sessionArchiveNudge.markingDone', "Marking as Done...")
+				: localize('chat.sessionArchiveNudge.archiving', "Archiving...")
+			: getChatSessionArchiveActionPresentation(getChatSessionArchiveActionWording(this.configurationService)).archive.title.value;
 	}
 
 	private async updateTreatments(): Promise<void> {
@@ -165,7 +220,9 @@ export class ChatSessionArchiveNudge extends Disposable {
 		try {
 			await this.options.onArchive();
 		} catch (error) {
-			this.notificationService.error(localize('chat.sessionArchiveNudge.archiveError', "Unable to archive the session: {0}", toErrorMessage(error)));
+			this.notificationService.error(this.markAsDone
+				? localize('chat.sessionArchiveNudge.doneError', "Unable to mark the session as done: {0}", toErrorMessage(error))
+				: localize('chat.sessionArchiveNudge.archiveError', "Unable to archive the session: {0}", toErrorMessage(error)));
 		} finally {
 			if (!this._store.isDisposed) {
 				this.setArchiving(false);
@@ -173,13 +230,20 @@ export class ChatSessionArchiveNudge extends Disposable {
 		}
 	}
 
+	private async openCleanupSettings(): Promise<void> {
+		try {
+			await this.options.onOpenCleanupSettings();
+		} catch (error) {
+			this.notificationService.error(localize('chat.sessionArchiveNudge.openCleanupSettingsError', "Unable to open automatic cleanup settings: {0}", toErrorMessage(error)));
+		}
+	}
+
 	private setArchiving(archiving: boolean): void {
 		this.archiving = archiving;
 		this.domNode.setAttribute('aria-busy', String(archiving));
 		this.archiveButton.enabled = !archiving;
+		this.cleanupSettingsButton.enabled = !archiving;
 		this.dismissAction.enabled = !archiving;
-		this.archiveButton.label = archiving
-			? localize('chat.sessionArchiveNudge.archiving', "Archiving...")
-			: localize('chat.sessionArchiveNudge.archive', "Archive");
+		this.updateButtonLabel();
 	}
 }

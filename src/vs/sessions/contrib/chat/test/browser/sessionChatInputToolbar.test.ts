@@ -8,13 +8,17 @@ import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { constObservable, derived } from '../../../../../base/common/observable.js';
+import { ImmortalReference } from '../../../../../base/common/lifecycle.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import type { IAction } from '../../../../../base/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
@@ -23,11 +27,13 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { GitHubIssueState, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
+import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 
 suite('SessionChatInputToolbar', () => {
@@ -43,6 +49,7 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			visibleSessions: constObservable([]),
 			activeSession: constObservable(undefined),
@@ -93,6 +100,7 @@ suite('SessionChatInputToolbar', () => {
 			const { instantiationService } = createServices();
 			const session = upcastPartial<IActiveSession>({
 				sessionId: 'provider:session',
+				capabilities: constObservable({ supportsMultipleChats: false }),
 				resource: URI.parse('session:1'),
 				chats: constObservable([]),
 				workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
@@ -281,6 +289,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 		const session = upcastPartial<IActiveSession>({
 			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: true }),
 			resource: URI.parse('session:1'),
 			chats: constObservable([chat, subagentChat, forkedChat]),
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
@@ -337,5 +346,128 @@ suite('SessionChatInputToolbar', () => {
 		).flatMap(section => section.entries);
 
 		assert.deepStrictEqual(entries.map(entry => entry.pullRequestState), ['draft', 'closed', 'open', 'closed', 'merged', 'merged', 'open']);
+	});
+
+	test('offers removal only for matching PR artifacts including legacy records and keeps open and copy actions', async () => {
+		const ref = (number: number): IGitHubPullRequestRef => ({
+			owner: 'microsoft', repo: 'vscode', number,
+			uri: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`),
+		});
+		const refs = [ref(1), ref(2), ref(3), ref(4), ref(5)];
+		const artifacts: ISessionArtifact[] = refs.slice(0, 3).map((ref, index) => ({
+			id: `artifact-${ref.number}`,
+			kind: index === 2 ? SessionArtifactKind.Issue : SessionArtifactKind.PullRequest,
+			label: `PR ${ref.number}`,
+			isArtifact: index !== 1,
+			isGitHub: true,
+			link: ref.uri,
+		}));
+		artifacts[0] = { ...artifacts[0], link: URI.parse('https://github.com/Microsoft/VSCode/pull/1/') };
+		artifacts.push({ ...artifacts[0], id: 'duplicate', link: refs[0].uri });
+		artifacts.push({ id: 'legacy', kind: SessionArtifactKind.PullRequest, label: 'Legacy PR', isArtifact: true, link: refs[4].uri });
+		const removed: string[] = [];
+		const copied: string[] = [];
+		const opened: object[] = [];
+		const pullRequests = refs.map(ref => ({ ref, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }));
+		const commandService = upcastPartial<ICommandService>({
+			executeCommand: async (_command, arg) => {
+				assert.ok(arg && typeof arg === 'object');
+				opened.push(arg);
+				return undefined;
+			},
+		});
+		const clipboardService = upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } });
+		const openerService = upcastPartial<IOpenerService>({});
+		const sessionsService = upcastPartial<ISessionsService>({});
+		const entries = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService, {
+			artifacts,
+			remove: async ids => { removed.push(...ids); },
+		})[0].entries;
+		const unsupported = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService)[0].entries;
+		await entries[0].removeAction?.run();
+		await entries[4].removeAction?.run();
+		await entries[0].toolbarActions?.[0].run();
+		entries[0].open();
+
+		assert.deepStrictEqual({
+			removable: entries.map(entry => !!entry.removeAction),
+			unsupported: unsupported.map(entry => !!entry.removeAction),
+			removed, copied, opened,
+		}, {
+			removable: [true, false, false, false, true],
+			unsupported: [false, false, false, false, false],
+			removed: ['artifact-1', 'duplicate', 'legacy'],
+			copied: [refs[0].uri.toString(true)],
+			opened: [{ pullRequest: refs[0] }],
+		});
+	});
+
+	test('removal reacts to capabilities, targets the owning session, and reports errors without hiding the artifact', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const ref: IGitHubPullRequestRef = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1') };
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [{
+			id: 'pr-artifact', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true, link: ref.uri,
+		}]);
+		const capabilities = observableValue('capabilities', { supportsMultipleChats: false, supportsRemoveArtifacts: false });
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'owning-session', resource: URI.parse('session:owning'), artifacts, capabilities,
+			chats: constObservable([chat]), changesets: constObservable([]), changes: constObservable([]),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root: URI.file('/repo'), workingDirectory: URI.file('/repo'), name: 'repo', description: undefined,
+					gitRepository: { uri: URI.file('/repo'), workTreeUri: undefined, baseBranchName: 'main', gitHubInfo: constObservable({ owner: ref.owner, repo: ref.repo, pullRequests: [ref] }) },
+				}],
+			})),
+		});
+		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None, getKnownBrowserViews: () => new Map(),
+		}));
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
+		}));
+		instantiationService.stub(ISessionChatPillVisibilityService, store.add(instantiationService.createInstance(SessionChatPillVisibility)));
+		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			visibleSessions: constObservable([]), activeSession: constObservable(undefined),
+		}));
+		const calls: { owningSession: boolean; artifactId: string }[] = [];
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			removeSessionArtifact: async (target, artifactId) => {
+				calls.push({ owningSession: target === session, artifactId });
+				if (calls.length === 1) {
+					throw new Error('offline');
+				}
+				artifacts.set([], undefined);
+			},
+		}));
+		const errors: string[] = [];
+		instantiationService.stub(INotificationService, { error: error => { errors.push(String(error)); } });
+		let menu: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const removal = () => {
+			toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			return menu.find(action => action.id.startsWith('sessionChatPills.removePullRequest.'));
+		};
+		const unavailable = !!removal();
+		capabilities.set({ supportsMultipleChats: false, supportsRemoveArtifacts: true }, undefined);
+		await removal()?.run();
+		const afterFailure = { removable: !!removal(), artifacts: artifacts.get().map(artifact => artifact.id) };
+		await removal()?.run();
+
+		assert.deepStrictEqual({
+			unavailable, afterFailure, errors,
+			calls,
+			afterSuccess: { removable: !!removal(), artifacts: artifacts.get(), label: toolbar.element.querySelector('.chat-pill-label')?.textContent },
+		}, {
+			unavailable: false,
+			afterFailure: { removable: true, artifacts: ['pr-artifact'] },
+			errors: ['Could not remove pull request artifact: offline'],
+			calls: [{ owningSession: true, artifactId: 'pr-artifact' }, { owningSession: true, artifactId: 'pr-artifact' }],
+			afterSuccess: { removable: false, artifacts: [], label: '#1' },
+		});
 	});
 });

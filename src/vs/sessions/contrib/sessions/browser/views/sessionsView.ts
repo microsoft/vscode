@@ -6,7 +6,7 @@
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
@@ -45,7 +45,6 @@ import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobil
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -137,11 +136,6 @@ export class SessionsView extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
-		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.CustomizationEntryPoints)) {
-				this.updateCustomizationsPane();
-			}
-		}));
 
 		// Restore persisted grouping
 		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
@@ -374,15 +368,15 @@ export class SessionsView extends ViewPane {
 		if (!this.sidebarSplitView || !this.sidebarSplitViewContainer) {
 			return;
 		}
-		const enabled = this.configurationService.getValue<boolean>(ChatConfiguration.CustomizationEntryPoints);
-		if (enabled === !this._customizationsWidget) {
+		if (isPhoneLayout(this.layoutService)) {
+			if (this._customizationsWidget) {
+				this.sidebarSplitView.removeView(1, Sizing.Distribute);
+				this._customizationsWidget = undefined;
+				this.customizationsPaneDisposables.clear();
+			}
 			return;
 		}
-		if (enabled) {
-			this.sidebarSplitView.removeView(1, Sizing.Distribute);
-			this._customizationsWidget = undefined;
-			this.customizationsPaneDisposables.clear();
-			this.layoutSidebarSplitView();
+		if (this._customizationsWidget) {
 			return;
 		}
 
@@ -390,17 +384,21 @@ export class SessionsView extends ViewPane {
 		this.customizationsPaneDisposables.value = store;
 		const customizationsSection = DOM.append(this.sidebarSplitViewContainer, $('.agent-sessions-customizations-section'));
 		store.add(toDisposable(() => customizationsSection.remove()));
+		const customizationsSizeChange = store.add(new Emitter<void>());
 		const customizationsWidget = this._customizationsWidget = store.add(this.instantiationService.createInstance(AICustomizationShortcutsWidget, customizationsSection, {
-			onDidChangeLayout: () => this.layoutSidebarSplitView(),
+			onDidChangeLayout: () => {
+				customizationsSizeChange.fire();
+				this.layoutSidebarSplitView();
+			},
 		}));
 		const customizationsPane: IView = {
 			element: customizationsSection,
 			get minimumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : CUSTOMIZATIONS_MIN_HEIGHT; },
 			get maximumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : Math.max(CUSTOMIZATIONS_MIN_HEIGHT, customizationsWidget.desiredHeight); },
-			onDidChange: Event.map(customizationsWidget.onDidChangeHeight, () => this.getCustomizationsPaneHeight()),
+			onDidChange: Event.map(Event.any(customizationsWidget.onDidChangeHeight, customizationsSizeChange.event), () => this.getCustomizationsPaneHeight()),
 			layout: height => {
 				customizationsSection.style.height = `${height}px`;
-				this._customizationsWidget?.layout(height, this.currentBodyWidth);
+				customizationsWidget.layout(height, this.currentBodyWidth);
 			},
 		};
 		this.sidebarSplitView.addView(customizationsPane, this.getCustomizationsPaneHeight(), 1, true);
@@ -422,11 +420,12 @@ export class SessionsView extends ViewPane {
 			this.layoutSidebarSplitView();
 		}));
 		this.didInitializePaneSizes = false;
-		this.layoutSidebarSplitView();
 	}
 
 	focusCustomizations(): void {
-		this._customizationsWidget?.focus();
+		if (!isPhoneLayout(this.layoutService)) {
+			this._customizationsWidget?.focus();
+		}
 	}
 
 	private restoreLastSelectedSession(): void {
@@ -604,6 +603,7 @@ export class SessionsView extends ViewPane {
 		this.currentBodyHeight = height;
 		this.currentBodyWidth = width;
 		this.updateHeaderLayout();
+		this.updateCustomizationsPane();
 		this.layoutSidebarSplitView();
 
 		if (this.sidebarSplitView || !this.sessionsControl || !this.sessionsControlContainer) {

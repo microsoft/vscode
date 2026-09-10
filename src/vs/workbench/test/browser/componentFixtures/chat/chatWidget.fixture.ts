@@ -13,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenuItem, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -31,6 +31,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
+import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../../contrib/chat/common/promptTimeline.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
@@ -39,6 +40,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
 import { ChatPetWidget } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
+import type { IChatRequestVariableEntry } from '../../../../contrib/chat/common/attachments/chatVariableEntries.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -54,6 +56,7 @@ export interface IFixtureFileChange {
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
+	readonly variables?: readonly IChatRequestVariableEntry[];
 	readonly timestamp?: number;
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
@@ -91,6 +94,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly responseFooterAction?: boolean;
 	/** Whether to show request and response timing details. */
 	readonly verbose?: boolean;
+	readonly checkpointsEnabled?: boolean;
 	/**
 	 * When `false`, registers a stub `IChatToolRiskAssessmentService` whose
 	 * `isEnabled()` returns `false`, exercising the "feature off" code path.
@@ -111,6 +115,7 @@ export interface IChatWidgetFixtureOptions {
 	 */
 	readonly agentHostSession?: boolean;
 	readonly linkPresentationService?: ILinkPresentationService;
+	readonly menuItems?: ReadonlyArray<{ readonly menuId: MenuId; readonly item: IMenuItem }>;
 	/** Registers fixture-specific services after the shared chat service graph. */
 	readonly additionalServices?: (registration: ServiceRegistration) => void;
 	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
@@ -118,6 +123,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
 	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
 	readonly persistentContentHeight?: number;
+	/** Enables or disables both settings required by the real tree-based sticky-scroll path. */
+	readonly stickyScroll?: boolean;
 }
 
 interface IChatWidgetFixtureHandle {
@@ -234,14 +241,31 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		},
 	});
 
+	if (options.menuItems?.length) {
+		const menuService = instantiationService.get(IMenuService);
+		if (!(menuService instanceof FixtureMenuService)) {
+			throw new Error('Fixture menu items require FixtureMenuService');
+		}
+		for (const { menuId, item } of options.menuItems) {
+			menuService.addItem(menuId, item);
+		}
+	}
+
 	const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 	configService.setUserConfiguration('chat', {
 		editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'default', lineHeight: 0, wordWrap: 'off' },
 	});
 	configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
 	configService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+	if (options.checkpointsEnabled !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, options.checkpointsEnabled);
+	}
 	if (options.verbose !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.Verbose, options.verbose);
+	}
+	if (options.stickyScroll !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, options.stickyScroll);
+		configService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, options.stickyScroll);
 	}
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
 	// real ChatViewModel + ChatListWidget — the same components used in production.
@@ -262,7 +286,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	for (const message of options.messages) {
 		const request = model.addRequest(
 			makeUserMessage(message.user),
-			{ variables: [] },
+			{ variables: message.variables ?? [] },
 			0,
 			undefined,
 			undefined,

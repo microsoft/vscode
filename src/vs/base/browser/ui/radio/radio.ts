@@ -40,7 +40,7 @@ export interface IRadioOptions {
 	readonly hoverDelegate?: IHoverDelegate;
 	/** Accessible name of the radio group. */
 	readonly ariaLabel?: string;
-	/** Extra class added to {@link Radio.domNode}, e.g. `segmented` for the pill appearance. */
+	/** Extra class added to {@link Radio.domNode}, e.g. `segmented` for rounded-rectangle segments. */
 	readonly className?: string;
 	/**
 	 * How arrow keys behave. `select` (default) moves focus and selects, matching the

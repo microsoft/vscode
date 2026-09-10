@@ -14,13 +14,16 @@ const CODEX_VSCODE_WORKSPACE_NETWORK_PERMISSION_PROFILE = 'vscode-workspace-netw
 const CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE = 'vscode-workspace-read-only';
 
 export function codexPermissionProfileOverrides(platform: NodeJS.Platform = process.platform): string[] {
+	// Codex materializes its Linux sandbox helper below /tmp before entering bwrap.
+	// Keep it executable from inside the sandbox without granting shared temp write access.
+	const slashTmpAccess = platform === 'linux' ? 'read' : 'deny';
 	const fileSystemOverride = platform === 'win32'
 		? ''
 		: `, filesystem = { ${[
 			`":root" = "deny"`,
 			`":minimal" = "read"`,
 			`":tmpdir" = "write"`,
-			`":slash_tmp" = "deny"`,
+			`":slash_tmp" = "${slashTmpAccess}"`,
 		].join(', ')} }`;
 	const readOnlyProfile = platform === 'win32'
 		? `permissions.${CODEX_VSCODE_WORKSPACE_READ_ONLY_PERMISSION_PROFILE}={ extends = ":read-only" }`

@@ -60,6 +60,7 @@ suite('ModelCard', () => {
 		const values = { ...configuration };
 		const writes: IStringDictionary<unknown>[] = [];
 		const changes: Parameters<NonNullable<IModelCardOptions['onDidChangeConfiguration']>>[] = [];
+		const selectedModels: string[] = [];
 		let accepted = 0;
 		const configurationAccess: IModelConfigurationAccess = options.configurationAccess ?? {
 			getModelConfiguration: () => values,
@@ -69,16 +70,18 @@ suite('ModelCard', () => {
 			},
 			getModelConfigurationActions: () => [],
 		};
-		const card = disposables.add(new ModelCard({
+		let cardOptions: IModelCardOptions = {
 			model: createModel(),
 			configurationAccess,
 			isUBB: true,
 			openerService: NullOpenerService,
 			pricingDisclosure: createDisclosure(),
 			onDidChangeConfiguration: (...change) => changes.push(change),
+			onSelect: model => selectedModels.push(model.identifier),
 			onDidAccept: () => accepted++,
 			...options,
-		}));
+		};
+		const card = disposables.add(new ModelCard(cardOptions));
 		card.element.classList.add('monaco-reduce-motion');
 		card.element.style.cssText = `
 			position: absolute;
@@ -100,7 +103,14 @@ suite('ModelCard', () => {
 		`;
 		mainWindow.document.body.appendChild(card.element);
 		disposables.add(toDisposable(() => card.element.remove()));
-		return { card, values, writes, changes, configurationAccess, get accepted() { return accepted; } };
+		return {
+			card, values, writes, changes, selectedModels, configurationAccess,
+			get accepted() { return accepted; },
+			update: (options: Partial<IModelCardOptions>) => {
+				cardOptions = { ...cardOptions, ...options };
+				card.update(cardOptions);
+			},
+		};
 	}
 
 	function element(container: ParentNode, selector: string): HTMLElement {
@@ -396,6 +406,172 @@ suite('ModelCard', () => {
 		});
 	}
 
+	for (const isUBB of [false, true]) {
+		test(`header actions stay grouped at the trailing edge ${isUBB ? 'without' : 'with'} a header badge`, () => {
+			const { card } = createCard({ effort: 'high' }, { isUBB, onTogglePin: () => { } });
+			const header = element(card.element, '.chat-model-card-header').getBoundingClientRect();
+			const actions = element(card.element, '.chat-model-card-actions').getBoundingClientRect();
+			const badge = card.element.querySelector('.chat-model-card-header .chat-model-card-badge')?.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				actionsAtEnd: Math.abs(header.right - actions.right) < 1,
+				adjacentBadge: badge ? Math.abs(actions.left - badge.right - 8) < 1 : undefined,
+			}, { actionsAtEnd: true, adjacentBadge: isUBB ? undefined : true });
+		});
+	}
+
+	test('updating pin state keeps the same card and keyboard focus on its pin action', () => {
+		const result = createCard({}, { onTogglePin: () => { } });
+		const pin = element(result.card.element, '[aria-label="Pin Model"]');
+		pin.focus();
+		const before = result.card.element.getBoundingClientRect();
+		result.update({ isPinned: true });
+		const unpin = element(result.card.element, '[aria-label="Unpin Model"]');
+		const pinned = { focused: document.activeElement === unpin, pressed: unpin.getAttribute('aria-pressed') };
+		result.update({ isPinned: false });
+		const after = result.card.element.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			pinned,
+			unpinned: { focused: document.activeElement === element(result.card.element, '[aria-label="Pin Model"]'), pressed: element(result.card.element, '[aria-label="Pin Model"]').getAttribute('aria-pressed') },
+			sameBounds: before.x === after.x && before.y === after.y && before.width === after.width && before.height === after.height,
+		}, {
+			pinned: { focused: true, pressed: 'true' },
+			unpinned: { focused: true, pressed: 'false' },
+			sameBounds: true,
+		});
+	});
+
+	test('updating a speed variant retains focus on the speed control', () => {
+		const standard = createModel();
+		const fast = { ...standard, identifier: 'copilot/test-model-fast', metadata: { ...standard.metadata, name: 'Fast Model', priceCategory: 'very_high' } };
+		const result = createCard({}, { speedVariants: { standard, fast } });
+		const speed = element(result.card.element, '[role="radiogroup"][aria-label="Speed"]');
+		speed.querySelectorAll<HTMLElement>('[role="radio"]')[1].focus();
+		result.update({ model: fast });
+		assert.deepStrictEqual({
+			name: element(result.card.element, '.chat-model-card-name').textContent,
+			selected: element(result.card.element, '[role="radiogroup"][aria-label="Speed"] [aria-checked="true"]').textContent,
+			focused: document.activeElement === element(result.card.element, '[role="radiogroup"][aria-label="Speed"] [aria-checked="true"]'),
+		}, { name: 'Fast Model', selected: 'Fast', focused: true });
+	});
+
+	test('updating the card model does not retarget pending writes or reselect the old model', async () => {
+		const saved = new DeferredPromise<void>();
+		const standard = createModel();
+		const fast = { ...standard, identifier: 'copilot/test-model-fast', metadata: { ...standard.metadata, name: 'Fast Model' } };
+		const writes: string[] = [];
+		const result = createCard({}, {
+			model: standard,
+			configurationAccess: {
+				getModelConfiguration: () => undefined,
+				setModelConfiguration: async id => {
+					writes.push(id);
+					await saved.p;
+				},
+				getModelConfigurationActions: () => [],
+			},
+		});
+		element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')[2].click();
+		result.update({ model: fast });
+		await saved.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			writes,
+			selectedModels: result.selectedModels,
+			accepted: result.accepted,
+			name: element(result.card.element, '.chat-model-card-name').textContent,
+			changes: result.changes,
+		}, {
+			writes: [standard.identifier],
+			selectedModels: [],
+			accepted: 0,
+			name: 'Fast Model',
+			changes: [['navigation', 'effort', 'medium', 'high']],
+		});
+	});
+
+	test('queued configuration changes use the original model schema and latest saved values', async () => {
+		const started = new DeferredPromise<void>();
+		const saved = new DeferredPromise<void>();
+		const standard = createModel();
+		const fast = {
+			...createModel({
+				name: 'Fast Model',
+				configurationSchema: {
+					properties: {
+						fastEffort: { type: 'string', group: 'navigation', enum: ['low', 'high'], default: 'high' },
+					},
+				},
+			}),
+			identifier: 'copilot/test-model-fast',
+		};
+		const configurations = new Map<string, IStringDictionary<unknown>>([
+			[standard.identifier, { effort: 'medium' }],
+			[fast.identifier, { fastEffort: 'low' }],
+		]);
+		const writes: { modelId: string; values: IStringDictionary<unknown> }[] = [];
+		const result = createCard({}, {
+			model: standard,
+			configurationAccess: {
+				getModelConfiguration: modelId => configurations.get(modelId),
+				setModelConfiguration: async (modelId, values) => {
+					writes.push({ modelId, values });
+					if (writes.length === 1) {
+						await started.complete();
+						await saved.p;
+					}
+					configurations.set(modelId, { ...configurations.get(modelId), ...values });
+				},
+				getModelConfigurationActions: () => [],
+			},
+		});
+		const options = element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]');
+		options[0].click();
+		await started.p;
+		options[2].click();
+		result.update({ model: fast });
+		await saved.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			writes,
+			changes: result.changes,
+			standardConfiguration: configurations.get(standard.identifier),
+			fastConfiguration: configurations.get(fast.identifier),
+			selectedModels: result.selectedModels,
+		}, {
+			writes: [
+				{ modelId: standard.identifier, values: { effort: 'low' } },
+				{ modelId: standard.identifier, values: { effort: 'high' } },
+			],
+			changes: [['navigation', 'effort', 'medium', 'low'], ['navigation', 'effort', 'low', 'high']],
+			standardConfiguration: { effort: 'high' },
+			fastConfiguration: { fastEffort: 'low' },
+			selectedModels: [],
+		});
+	});
+
+	test('replacing the pricing disclosure releases the old subscription', () => {
+		const previousEmitter = disposables.add(new Emitter<void>());
+		const previous: IPricingDisclosure = { isExpanded: () => false, setExpanded: () => previousEmitter.fire(), onDidChange: previousEmitter.event };
+		const next = createDisclosure(true);
+		const result = createCard({}, { pricingDisclosure: previous });
+		const toggle = element(result.card.element, '.chat-model-card-pricing-toggle');
+		toggle.focus();
+		result.update({ pricingDisclosure: next });
+		previous.setExpanded(false);
+		const expanded = element(result.card.element, '.chat-model-card-pricing-toggle').getAttribute('aria-expanded');
+		next.setExpanded(false);
+		assert.deepStrictEqual({
+			expanded,
+			collapsed: element(result.card.element, '.chat-model-card-pricing-body').inert,
+			focused: document.activeElement === element(result.card.element, '.chat-model-card-pricing-toggle'),
+			previousSubscribed: previousEmitter.hasListeners(),
+		}, { expanded: 'true', collapsed: true, focused: true, previousSubscribed: false });
+	});
+
 	test('reset restores both defaults in one write, preserves other settings and pinning, and accepts once', async () => {
 		const result = createCard({ effort: 'high', context: 1000000, unrelated: true }, { isPinned: true, onTogglePin: () => { } });
 		const reset = element(result.card.element, '[aria-label="Reset to Default"]');
@@ -408,6 +584,7 @@ suite('ModelCard', () => {
 			values: result.values,
 			changes: result.changes,
 			accepted: result.accepted,
+			selectedModels: result.selectedModels,
 			selected: selectedOptions(result.card),
 			summary: getModelConfigSummary(createModel(), result.configurationAccess),
 			reset: !!result.card.element.querySelector('[aria-label="Reset to Default"]'),
@@ -418,6 +595,7 @@ suite('ModelCard', () => {
 			values: { effort: 'medium', context: 264000, unrelated: true },
 			changes: [['navigation', 'effort', 'high', 'medium'], ['tokens', 'context', 1000000, 264000]],
 			accepted: 1,
+			selectedModels: ['copilot/test-model'],
 			selected: ['Medium', '264K'],
 			summary: undefined,
 			reset: false,
@@ -548,14 +726,91 @@ suite('ModelCard', () => {
 		result.card.dispose();
 		await saved.complete();
 		await timeout(0);
-		assert.deepStrictEqual({ accepted: result.accepted, sameControl: group === element(result.card.element, '[role="radiogroup"]') }, { accepted: 0, sameControl: true });
+		assert.deepStrictEqual({
+			accepted: result.accepted,
+			selectedModels: result.selectedModels,
+			sameControl: group === element(result.card.element, '[role="radiogroup"]'),
+		}, { accepted: 0, selectedModels: [], sameControl: true });
+	});
+
+	for (const interaction of ['effort', 'reset'] as const) {
+		test(`a pending ${interaction} save cannot override a newer speed choice but still reports its changes`, async () => {
+			const saved = new DeferredPromise<void>();
+			const standard = createModel();
+			const fast = { ...standard, identifier: 'copilot/test-model-fast' };
+			const values: IStringDictionary<unknown> = { effort: 'high', context: 1000000 };
+			const result = createCard({}, {
+				speedVariants: { standard, fast },
+				configurationAccess: {
+					getModelConfiguration: () => values,
+					setModelConfiguration: async (_modelId, next) => {
+						await saved.p;
+						Object.assign(values, next);
+					},
+					getModelConfigurationActions: () => [],
+				},
+			});
+			if (interaction === 'reset') {
+				element(result.card.element, '[aria-label="Reset to Default"]').click();
+			} else {
+				element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+			}
+			element(result.card.element, '[role="radiogroup"][aria-label="Speed"]').querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
+			await timeout(0);
+			const beforeSave = { selectedModels: [...result.selectedModels], changes: [...result.changes], accepted: result.accepted };
+			await saved.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				beforeSave,
+				selectedModels: result.selectedModels,
+				changes: result.changes,
+				accepted: result.accepted,
+				selectedSpeed: element(result.card.element, '[role="radiogroup"][aria-label="Speed"] [aria-checked="true"]').textContent,
+			}, {
+				beforeSave: { selectedModels: [fast.identifier], changes: [], accepted: 1 },
+				selectedModels: [fast.identifier],
+				changes: interaction === 'reset'
+					? [['navigation', 'effort', 'high', 'medium'], ['tokens', 'context', 1000000, 264000]]
+					: [['navigation', 'effort', 'high', 'low']],
+				accepted: 1,
+				selectedSpeed: 'Fast',
+			});
+		});
+	}
+
+	test('a configuration change after a speed choice selects the configured model once saved', async () => {
+		const saved = new DeferredPromise<void>();
+		const standard = createModel();
+		const fast = { ...standard, identifier: 'copilot/test-model-fast' };
+		const result = createCard({}, {
+			speedVariants: { standard, fast },
+			configurationAccess: {
+				getModelConfiguration: () => undefined,
+				setModelConfiguration: () => saved.p,
+				getModelConfigurationActions: () => [],
+			},
+		});
+		element(result.card.element, '[role="radiogroup"][aria-label="Speed"]').querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
+		element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')[2].click();
+		await timeout(0);
+		const beforeSave = { selectedModels: [...result.selectedModels], accepted: result.accepted };
+		await saved.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({ beforeSave, selectedModels: result.selectedModels, changes: result.changes, accepted: result.accepted }, {
+			beforeSave: { selectedModels: [fast.identifier], accepted: 0 },
+			selectedModels: [fast.identifier, standard.identifier],
+			changes: [['navigation', 'effort', 'medium', 'high']],
+			accepted: 1,
+		});
 	});
 
 	test('speed changes apply immediately and accept after the selection animation', async () => {
 		const standard = createModel();
 		const fast = { ...standard, identifier: 'copilot/test-model-fast' };
 		const selected: string[] = [];
-		const result = createCard({}, { speedVariants: { standard, fast }, onSelectVariant: model => selected.push(model.identifier) });
+		const result = createCard({}, { speedVariants: { standard, fast }, onSelect: model => selected.push(model.identifier) });
 		const group = element(result.card.element, '[role="radiogroup"][aria-label="Speed"]');
 		const animation = element(group, '.monaco-radio-selection').animate([{ opacity: 1 }, { opacity: 0.9 }], { duration: 160 });
 		disposables.add(toDisposable(() => animation.cancel()));
