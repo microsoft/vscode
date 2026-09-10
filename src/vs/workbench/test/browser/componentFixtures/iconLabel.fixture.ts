@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IconLabel, IIconLabelValueOptions } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
@@ -26,7 +27,7 @@ function renderIconLabels({ container, disposableStore }: ComponentFixtureContex
 	container.style.gap = '12px';
 	container.style.backgroundColor = 'var(--vscode-editor-background)';
 	container.style.color = 'var(--vscode-foreground)';
-	container.style.fontFamily = 'var(--vscode-font-family)';
+	container.style.fontFamily = DEFAULT_FONT_FAMILY;
 	container.style.fontSize = 'var(--vscode-fontSize-label1)';
 
 	addLabel('Pseudo-element icon', 'File label', {
