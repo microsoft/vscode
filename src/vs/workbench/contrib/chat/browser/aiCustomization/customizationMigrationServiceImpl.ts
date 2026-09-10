@@ -11,12 +11,11 @@ import { equals } from '../../../../../base/common/objects.js';
 import { extUriBiasedIgnorePathCase, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -86,6 +85,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService);
@@ -284,7 +284,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		}
 
 		const sessionType = getChatSessionType(sessionResource);
-		const target = isRemoteAgentHostSessionType(sessionType) ? parseRemoteAgentHostHarness(sessionType) ?? 'unknown' : sessionType;
+		const target = this.chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId ?? 'unknown';
 		for (const { customizationType, source, nativeCount, mappedCount, unsupportedCount } of assessment.counts) {
 			this.telemetryService.publicLog2<CustomizationMigrationAssessmentEvent, CustomizationMigrationAssessmentClassification>('chat.customizationMigrationAssessment', {
 				target,

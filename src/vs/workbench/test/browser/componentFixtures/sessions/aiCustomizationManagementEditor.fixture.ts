@@ -863,6 +863,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const promptsService = createMockPromptsService(fixtureFiles, agentInstructions, fileContents, promptFilesDidChangeEmitter.event);
 			reg.defineInstance(IPromptsService, promptsService);
 			const agentHostCustomizationService = createMockAgentHostCustomizationService(options.activeSessionMcpServers);
+			const chatSessionsService = new class extends mock<IChatSessionsService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override async getCustomizations() { return undefined; }
+				override getRegisteredChatSessionItemProviders() { return []; }
+				override hasCustomizationsProvider() { return false; }
+			}();
 			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
 				promptsService,
 				harnessService,
@@ -908,6 +914,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new NullLogService(),
 				configurationService,
 				NullTelemetryService,
+				chatSessionsService,
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
@@ -930,12 +937,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			// in the editor. Register the real implementation — it will resolve
 			// items via the mock prompts service / harness service above.
 			reg.define(IAICustomizationItemsModel, AICustomizationItemsModel);
-			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
-				override readonly onDidChangeCustomizations = Event.None;
-				override async getCustomizations() { return undefined; }
-				override getRegisteredChatSessionItemProviders() { return []; }
-				override hasCustomizationsProvider() { return false; }
-			}());
+			reg.defineInstance(IChatSessionsService, chatSessionsService);
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = constObservable([]);
 				override readonly runs = constObservable([]);
