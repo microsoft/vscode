@@ -123,6 +123,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			})],
 			...getChatPillResourceLocation(ref.uri, label),
 			ariaDescription: localize('sessionChatPills.pullRequestDescription', "{0}. {1}", stateDescription, ref.uri.toString(true)),
+			...(!pullRequest && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
 			...(pullRequest ? {
 				pillHover: {
 					element: () => createPullRequestHoverElement({
@@ -153,8 +154,9 @@ interface IResolvedSessionIssue {
 /** Builds Agents Window issue pill entries, enriching them when live details are available. */
 export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPillSection[] {
 	const entries = issues.map(({ ref, issue }) => {
-		const label = issue?.title
-			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, issue.title)
+		const title = issue?.title ?? ref.title;
+		const label = title
+			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, title)
 			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
 		return {
 			id: ref.uri.toString(),
@@ -168,6 +170,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			})],
 			...getChatPillResourceLocation(ref.uri, label),
+			...(!issue && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
 			...(issue ? {
 				pillHover: {
 					element: () => createIssueHoverElement({
