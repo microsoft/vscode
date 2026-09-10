@@ -522,12 +522,15 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('collapsed section unread indicators', () => {
+	suite('collapsed section status indicators', () => {
 		const group: ISessionGroup = { id: 'group-a', name: 'Group A', createdAt: 1 };
 
-		function renderList(sessions: ISession[], options: IListHarnessOptions = {}) {
+		function renderList(sessions: ISession[], options: IListHarnessOptions = {}, reducedMotion = false) {
 			const harness = createListHarness(disposables, sessions, options);
 			harness.instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
+			harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return reducedMotion; }
+			}());
 			const container = harness.createContainer(400, 700);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
@@ -541,6 +544,12 @@ suite('Sessions - SessionsList', () => {
 		function unreadSections(container: HTMLElement): string[] {
 			return [...container.querySelectorAll('.session-section')]
 				.filter(header => header.querySelector('.session-section-icon .codicon-circle-filled'))
+				.map(header => header.querySelector('.session-section-label')!.textContent!);
+		}
+
+		function needsInputSections(container: HTMLElement): string[] {
+			return [...container.querySelectorAll('.session-section')]
+				.filter(header => header.querySelector('.session-section-icon .monaco-pixel-spinner-ring'))
 				.map(header => header.querySelector('.session-section-label')!.textContent!);
 		}
 
@@ -574,8 +583,98 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('shows needs-input only in the containing section and respects filters and pins', () => {
+			const grouped = createTestSession('Grouped needs input', { workspaceLabel: 'Workspace B', status: SessionStatus.NeedsInput }).session;
+			const read = createTestSession('Workspace read', { workspaceLabel: 'Workspace B' }).session;
+			const needsInput = createTestSession('Workspace needs input', { workspaceLabel: 'Workspace C', status: SessionStatus.NeedsInput }).session;
+			const pinnedSessionIds = new Set<string>();
+			const { list, container } = renderList([grouped, read, needsInput], {
+				groups: [group],
+				memberships: new Map([[grouped.sessionId, group.id]]),
+				pinnedSessionIds,
+			});
+			list.collapseAllSections();
+			const states = [needsInputSections(container)];
+			list.setStatusExcluded(SessionStatus.NeedsInput, true);
+			states.push(needsInputSections(container));
+			list.setStatusExcluded(SessionStatus.NeedsInput, false);
+			states.push(needsInputSections(container));
+			pinnedSessionIds.add(grouped.sessionId);
+			list.update();
+			states.push(needsInputSections(container));
+
+			assert.deepStrictEqual(states, [
+				[group.name, 'Workspace C'],
+				[],
+				[group.name, 'Workspace C'],
+				['Pinned', 'Workspace C'],
+			]);
+		});
+
 		for (const grouped of [false, true]) {
 			const kind = grouped ? 'group' : 'workspace';
+
+			test(`prioritizes needs-input behind show more and reacts to status changes in a ${kind}`, () => {
+				const unread = createTestSession('Unread', { isRead: false });
+				const needsInput = createTestSession('Needs input', { status: SessionStatus.NeedsInput });
+				const sessions = [unread.session, ...Array.from({ length: 4 }, (_, index) => createTestSession(`Read ${index}`).session), needsInput.session]
+					.map((session, index) => ({ ...session, createdAt: new Date(Date.now() - index * 1000) }));
+				const { list, container } = renderList(sessions, grouped ? {
+					groups: [group],
+					memberships: new Map(sessions.map(session => [session.sessionId, group.id])),
+				} : {});
+				const label = grouped ? group.name : 'Workspace';
+				const header = getHeader(container, label);
+				const getStatus = () => header.querySelector('.monaco-pixel-spinner-ring') ? 'needsInput' : header.querySelector('.codicon-circle-filled') ? 'unread' : 'none';
+				const states = [getStatus()];
+				const hiddenNeedsInput = !list.getVisibleSessions().some(session => session.sessionId === needsInput.session.sessionId);
+
+				list.collapseAllSections();
+				states.push(getStatus());
+				const spinner = header.querySelector<HTMLElement>('.monaco-pixel-spinner-ring');
+				const needsInputAria = header.closest('.monaco-list-row')?.getAttribute('aria-label');
+				unread.isRead.set(true, undefined);
+				unread.isRead.set(false, undefined);
+				const preservesSpinner = !!spinner && spinner === header.querySelector('.monaco-pixel-spinner-ring');
+				needsInput.status.set(SessionStatus.Completed, undefined);
+				states.push(getStatus());
+				const unreadAria = header.closest('.monaco-list-row')?.getAttribute('aria-label');
+				needsInput.status.set(SessionStatus.NeedsInput, undefined);
+				states.push(getStatus());
+				needsInput.isArchived.set(true, undefined);
+				states.push(getStatus());
+				needsInput.isArchived.set(false, undefined);
+				states.push(getStatus());
+				header.click();
+				states.push(getStatus());
+				const expandedPulse = !!header.querySelector('.session-icon-pulse');
+				list.collapseAllSections();
+				states.push(getStatus());
+				needsInput.status.set(SessionStatus.Completed, undefined);
+				states.push(getStatus());
+				unread.isRead.set(true, undefined);
+				states.push(getStatus());
+
+				assert.deepStrictEqual({
+					hiddenNeedsInput,
+					states,
+					preservesSpinner,
+					color: spinner?.style.color,
+					needsInputAria,
+					unreadAria,
+					expandedPulse,
+					clearedPulse: !!header.querySelector('.session-icon-pulse'),
+				}, {
+					hiddenNeedsInput: true,
+					states: ['none', 'needsInput', 'unread', 'needsInput', 'unread', 'needsInput', 'none', 'needsInput', 'unread', 'none'],
+					preservesSpinner: true,
+					color: 'var(--vscode-list-warningForeground)',
+					needsInputAria: `${label}, 6, session needs input`,
+					unreadAria: `${label}, 6, unread sessions`,
+					expandedPulse: false,
+					clearedPulse: false,
+				});
+			});
 
 			test(`reacts to collapse, read, and archive changes in a ${kind}`, () => {
 				const { session, isRead, isArchived } = createTestSession('Unread', { isRead: false });
@@ -700,6 +799,48 @@ suite('Sessions - SessionsList', () => {
 				filtered: [],
 				restored: [group.name, 'Workspace'],
 			});
+		});
+
+		test('uses the existing orange needs-input fallback with reduced motion', () => {
+			const { session } = createTestSession('Needs input', { status: SessionStatus.NeedsInput });
+			const { list, container } = renderList([session], {}, true);
+			list.collapseAllSections();
+			const header = getHeader(container, 'Workspace');
+
+			assert.deepStrictEqual({
+				hasSpinner: !!header.querySelector('.monaco-pixel-spinner'),
+				color: header.querySelector<HTMLElement>('.codicon-circle-filled')?.style.color,
+				ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			}, {
+				hasSpinner: false,
+				color: 'var(--vscode-list-warningForeground)',
+				ariaLabel: 'Workspace, 1, session needs input',
+			});
+		});
+
+		test('reacts to setting changes while a session needs input', async () => {
+			const { session } = createTestSession('Needs input', { status: SessionStatus.NeedsInput });
+			const { list, container, instantiationService } = renderList([session]);
+			list.collapseAllSections();
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			const states = [];
+			for (const enabled of [false, true]) {
+				await configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: key => key === SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING,
+				}));
+				const header = getHeader(container, 'Workspace');
+				states.push({
+					needsInputSections: needsInputSections(container),
+					workspaceIcon: !!header.querySelector('.codicon-folder'),
+					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				});
+			}
+
+			assert.deepStrictEqual(states, [
+				{ needsInputSections: [], workspaceIcon: true, ariaLabel: 'Workspace, 1' },
+				{ needsInputSections: ['Workspace'], workspaceIcon: false, ariaLabel: 'Workspace, 1, session needs input' },
+			]);
 		});
 
 		test('reacts to setting changes without refreshing the list', async () => {

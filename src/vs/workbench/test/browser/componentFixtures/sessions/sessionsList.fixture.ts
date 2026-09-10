@@ -15,6 +15,8 @@ import { ExtUri } from '../../../../../base/common/resources.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -231,6 +233,7 @@ interface IRenderOptions {
 	readonly grouping?: SessionsGrouping;
 	readonly collapsed?: boolean;
 	readonly showUnreadInCollapsedSections?: boolean;
+	readonly reducedMotion?: boolean;
 	readonly width?: number;
 	readonly phone?: boolean;
 	readonly revealHierarchyGuides?: boolean;
@@ -272,6 +275,12 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IProductService, TestProductService);
+			const reducedMotion = options.reducedMotion;
+			if (reducedMotion !== undefined) {
+				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return reducedMotion; }
+				}());
+			}
 			if (options.showFocusedToolbar || options.focusSelectedSession) {
 				const archiveAction = new class extends mock<MenuItemAction>() {
 					override readonly id = 'sessions.fixture.archive';
@@ -597,6 +606,11 @@ const COLLAPSED_SECTION_SESSIONS: readonly ISessionSpec[] = [
 	{ id: 'workspace-read', title: 'Read session in the workspace', workspace: 'vscode', minutesAgo: 24 },
 	{ id: 'workspace-unread', title: 'Unread session in the workspace', workspace: 'vscode-docs', minutesAgo: 36, isRead: false },
 ];
+const COLLAPSED_NEEDS_INPUT_SESSIONS: readonly ISessionSpec[] = [
+	...COLLAPSED_SECTION_SESSIONS,
+	{ id: 'grouped-needs-input', title: 'Needs input in the group only', workspace: 'vscode', minutesAgo: 48, group: GROUP.id, status: SessionStatus.NeedsInput },
+	{ id: 'workspace-needs-input', title: 'Needs input in the workspace', workspace: 'vscode-docs', minutesAgo: 60, status: SessionStatus.NeedsInput },
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_ArchiveOnboarding: defineComponentFixture({
@@ -622,6 +636,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['All sections are collapsed and retain their normal group or folder icons despite containing unread sessions, because collapsed-section unread indicators are disabled.'],
 		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_SECTION_SESSIONS, groups: [GROUP], collapsed: true, showUnreadInCollapsedSections: false }),
+	}),
+	SessionsList_CollapsedNeedsInputSections: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All sections are collapsed. Orange ring pixel spinners replace the icons for Release work and vscode-docs, taking priority over unread indicators. The vscode section retains its folder icon because its needs-input session appears only in Release work.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_NEEDS_INPUT_SESSIONS, groups: [GROUP], collapsed: true, reducedMotion: false }),
+	}),
+	SessionsList_CollapsedNeedsInputSections_Disabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['All collapsed sections retain their normal group or folder icons despite containing unread and needs-input sessions, because collapsed-section indicators are disabled.'],
+		render: ctx => renderSessionsList(ctx, { sessions: COLLAPSED_NEEDS_INPUT_SESSIONS, groups: [GROUP], collapsed: true, showUnreadInCollapsedSections: false, reducedMotion: false }),
 	}),
 	SessionsList_CustomGroup_LongWorkspaceNarrow: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, {

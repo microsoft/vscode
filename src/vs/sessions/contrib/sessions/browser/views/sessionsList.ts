@@ -1298,19 +1298,32 @@ interface ISessionHeaderTemplate {
 	readonly elementDisposables: DisposableStore;
 }
 
-function hasUnreadSessions(sessions: readonly ISession[], reader: IReader): boolean {
-	return sessions.some(session => !session.isRead.read(reader) && !session.isArchived.read(reader));
+function getSessionHeaderStatus(sessions: readonly ISession[], reader: IReader): SessionStatus | undefined {
+	let hasUnread = false;
+	for (const session of sessions) {
+		if (session.isArchived.read(reader)) {
+			continue;
+		}
+		if (session.status.read(reader) === SessionStatus.NeedsInput) {
+			return SessionStatus.NeedsInput;
+		}
+		hasUnread ||= !session.isRead.read(reader);
+	}
+	return hasUnread ? SessionStatus.Completed : undefined;
 }
 
 function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: readonly ISession[], icon: ThemeIcon | undefined, showUnreadInCollapsedSections: IObservable<boolean>, instantiationService: IInstantiationService): void {
+	const headerStatus = derived(reader => template.collapsed.read(reader) && showUnreadInCollapsedSections.read(reader)
+		? getSessionHeaderStatus(sessions, reader)
+		: undefined);
 	template.elementDisposables.add(autorun(reader => {
-		const showUnread = template.collapsed.read(reader) && showUnreadInCollapsedSections.read(reader) && hasUnreadSessions(sessions, reader);
+		const status = headerStatus.read(reader);
 		DOM.clearNode(template.icon);
 		template.icon.className = 'session-section-icon';
-		template.icon.style.display = showUnread || icon ? '' : 'none';
-		if (showUnread) {
+		template.icon.style.display = status !== undefined || icon ? '' : 'none';
+		if (status !== undefined) {
 			const statusIcon = reader.store.add(instantiationService.createInstance(SessionStatusIcon, template.icon));
-			statusIcon.setStatus(SessionStatus.Completed, false, false);
+			statusIcon.setStatus(status, status !== SessionStatus.Completed, false);
 		} else if (icon) {
 			template.icon.classList.add(...ThemeIcon.asClassNameArray(icon));
 		}
@@ -1927,9 +1940,17 @@ class SessionsAccessibilityProvider {
 	}
 
 	private getSectionAriaLabel(label: string, sessions: readonly ISession[]): IObservable<string> {
-		return derived(this, reader => this.options?.showUnreadInCollapsedSections?.read(reader) && hasUnreadSessions(sessions, reader)
-			? localize('sessionSectionUnreadAria', "{0}, {1}, unread sessions", label, sessions.length)
-			: localize('sessionSectionAria', "{0}, {1}", label, sessions.length));
+		return derived(this, reader => {
+			const status = this.options?.showUnreadInCollapsedSections?.read(reader) ? getSessionHeaderStatus(sessions, reader) : undefined;
+			switch (status) {
+				case SessionStatus.NeedsInput:
+					return localize('sessionSectionNeedsInputAria', "{0}, {1}, session needs input", label, sessions.length);
+				case SessionStatus.Completed:
+					return localize('sessionSectionUnreadAria', "{0}, {1}, unread sessions", label, sessions.length);
+				default:
+					return localize('sessionSectionAria', "{0}, {1}", label, sessions.length);
+			}
+		});
 	}
 }
 
