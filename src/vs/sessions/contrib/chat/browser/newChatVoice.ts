@@ -13,7 +13,6 @@ import { localize } from '../../../../nls.js';
 import { MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { SegmentedVoiceInputModePillInactive } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -40,6 +39,11 @@ export const NEW_CHAT_VOICE_SENTINEL = URI.from({ scheme: 'sessions-voice', auth
 /** Whether the shared voice transport belongs to the new-session composer. */
 export function isNewChatVoiceSessionActive(connected: boolean, connecting: boolean, targetSession: URI | undefined, hasDraftTarget: boolean): boolean {
 	return (connected || connecting) && targetSession === undefined && hasDraftTarget;
+}
+
+/** Whether the new-session composer should replace its standalone voice action with the segmented control. */
+export function isNewChatVoiceInputModePillActive(dictationAvailable: boolean, voiceAvailable: boolean, voiceSessionActive: boolean): boolean {
+	return voiceAvailable && (dictationAvailable || voiceSessionActive);
 }
 
 /** New-session composer APIs used by voice mode. */
@@ -177,16 +181,13 @@ const WHEN_LISTENING = ContextKeyExpr.equals('agentsVoiceListening', true);
 const WHEN_CONNECTED = ContextKeyExpr.equals('agentsVoiceConnected', true);
 const WHEN_INITIATED_HERE = ContextKeyExpr.equals('agentsVoiceInitiatedHere', true);
 const WHEN_VOICE_SURFACE = ContextKeyExpr.equals('newChatVoiceSurface', true);
+const WHEN_NO_SEGMENTED_PILL = ContextKeyExpr.equals('newChatVoiceInputModePillActive', false);
 // Hide Voice Mode while dictation is active (recording or the model is loading)
 // so the two mic affordances never compete, mirroring `MenuId.ChatExecute`.
 const WHEN_NOT_DICTATING = ContextKeyExpr.and(
 	ContextKeyExpr.has('chatSpeechToTextRecording').negate(),
 	ContextKeyExpr.has('chatSpeechToTextPreparing').negate(),
 );
-
-// Hide the standalone voice controls when the segmented voice/dictation pill applies
-// on this composer — the pill supersedes them.
-const WHEN_NO_SEGMENTED_PILL = SegmentedVoiceInputModePillInactive;
 
 MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
 	command: { id: 'agentsVoice.connecting', title: localize('agentsVoice.connecting', "Connecting..."), icon: Codicon.loadingCompact },
@@ -230,6 +231,8 @@ export interface INewChatVoiceControllerOptions {
 	readonly inputContainer: HTMLElement;
 	/** Composer driven by voice. */
 	readonly composer: INewChatVoiceComposer;
+	/** Whether this composer currently presents the segmented voice input control. */
+	readonly voiceInputModePillActive: IObservable<boolean>;
 	/** Called with the number of rendered voice actions when they change. */
 	readonly onDidChangeActions?: (actionCount: number) => void;
 }
@@ -265,6 +268,7 @@ export class NewChatVoiceController extends Disposable {
 		const voiceSurfaceKey = scopedContextKeyService.createKey<boolean>('newChatVoiceSurface', false);
 		// True when voice is active on this composer.
 		const initiatedHereKey = scopedContextKeyService.createKey<boolean>('agentsVoiceInitiatedHere', false);
+		const voiceInputModePillActiveKey = scopedContextKeyService.createKey<boolean>('newChatVoiceInputModePillActive', false);
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
 		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
@@ -311,6 +315,7 @@ export class NewChatVoiceController extends Disposable {
 		this._register(autorun(reader => {
 			voiceSurfaceKey.set(isVoiceSurface.read(reader));
 			initiatedHereKey.set(isVoiceTarget.read(reader));
+			voiceInputModePillActiveKey.set(options.voiceInputModePillActive.read(reader));
 		}));
 
 		this._register(setupVoiceInputDecorations({
