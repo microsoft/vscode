@@ -463,6 +463,7 @@ export class SessionTypePicker extends Disposable {
 				ariaLabel: localize('sessionTypePicker.compareAgents', "Compare Agents"),
 			}));
 			this._comparisonToggle.label = localize('sessionTypePicker.compareAgents', "Compare Agents");
+			this._comparisonToggle.element.classList.add('sessions-chat-comparison-toggle');
 			this._renderDisposables.add(this._comparisonToggle.onDidClick(() => this.setComparisonMode(!this._comparisonMode)));
 			this._renderDisposables.add({
 				dispose: () => this._comparisonToggle = undefined,

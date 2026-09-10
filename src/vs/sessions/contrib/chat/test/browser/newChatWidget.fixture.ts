@@ -377,6 +377,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	await nextFrame();
 	await nextFrame();
+	for (let attempt = 0; attempt < 30 && !view.element.querySelector('.sessions-chat-comparison-toggle'); attempt++) {
+		await nextFrame();
+	}
+	assert(!!view.element.querySelector('.sessions-chat-comparison-toggle'));
 	if (phoneLayout && withAttachedContext) {
 		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
 		assert(!!content);
