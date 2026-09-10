@@ -190,6 +190,7 @@ export class BracketPairsTree extends Disposable {
 	public getFirstBracketAfter(position: Position): IFoundBracket | null {
 		this.flushQueue();
 
+		// Prefer the provisional tree until tokenization completes to avoid bracket flicker.
 		const node = this.initialAstWithoutTokens || this.astWithTokens!;
 		return getFirstBracketAfter(node, lengthZero, node.length, positionToLength(position));
 	}
