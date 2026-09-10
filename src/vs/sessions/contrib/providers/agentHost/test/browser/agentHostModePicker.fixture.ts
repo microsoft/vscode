@@ -11,7 +11,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { getAgentHostCopilotSandboxSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { getAgentHostCopilotSandboxSettingId, IAgentConnection, IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { getAgentHostOperatingSystem } from '../../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -108,8 +110,18 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		override readonly providerId = provider.id;
 		override readonly sessionId = 'fixture';
 		override readonly sessionType = 'copilotcli';
+		override readonly resource = URI.parse('agent-host-copilotcli:/fixture');
 	}());
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, additionalServices: registerWorkbenchServices });
+	const connection = new class extends mock<IAgentConnection>() {
+		override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+			return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+		}
+	}();
+	instantiationService.stub(IAgentHostConnectionsService, {
+		onDidChangeSessionResolution: Event.None,
+		resolveSessionResource: resource => ({ connection, connectionAuthority: 'local', backendSession: resource }),
+	});
 	instantiationService.set(IConfigurationService, configuration);
 	instantiationService.set(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override readonly onDidChangeProviders = Event.None;
@@ -151,7 +163,10 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		const subscriptions: { [K in StateComponents]?: IAgentSubscription<ComponentToState[K]> } = {
 			[StateComponents.Session]: { value: state, verifiedValue: state, onDidChange: changed.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
 		};
-		instantiationService.set(IAgentHostService, new class extends mock<IAgentHostService>() {
+		const hostService = new class extends mock<IAgentHostService>() {
+			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+				return connection.getNetworkDiagnosticsInfo();
+			}
 			override getSubscription<T extends StateComponents>(kind: T): IReference<IAgentSubscription<ComponentToState[T]>> {
 				const subscription = subscriptions[kind];
 				if (!subscription) {
@@ -165,7 +180,8 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 					changed.fire(state);
 				}
 			}
-		}());
+		}();
+		instantiationService.set(IAgentHostService, hostService);
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => config, refreshResolvedConfig: async () => { } });
@@ -177,9 +193,11 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		}();
 		const picker = disposableStore.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, 'mode'));
 		picker.render(actionItem);
+		await getAgentHostOperatingSystem(hostService);
 	} else {
 		const picker = disposableStore.add(instantiationService.createInstance(AgentHostModePicker, session));
 		picker.render(actionItem);
+		await getAgentHostOperatingSystem(connection);
 	}
 	if (openPermissions || editor || openMode) {
 		await new Promise<void>(resolve => dom.getWindow(toolbar).requestAnimationFrame(() => resolve()));

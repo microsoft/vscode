@@ -11,11 +11,12 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem, IActionListItemInlineToggle, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -84,7 +85,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		return { container, widget };
 	}
 
-	function setup(combined = true) {
+	function setup(combined = true, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] })) {
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
 			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
@@ -146,7 +147,14 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const settingsRequests: IOpenSettingsOptions[] = [];
 		const hoverTargets: HTMLElement[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
+		let diagnosticsRequests = 0;
+		const logErrors: (string | Error)[] = [];
+		instantiationService.stub(ILogService, { error: message => logErrors.push(message) });
 		instantiationService.stub(IAgentHostService, {
+			getNetworkDiagnosticsInfo: () => {
+				diagnosticsRequests++;
+				return getHostInfo();
+			},
 			dispatch: (_session, action) => {
 				if (action.type === ActionType.SessionConfigChanged) {
 					dispatches.push(action);
@@ -188,12 +196,104 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const permissionContainer = dom.$('div');
 		modePicker.render(modeContainer);
 		permissionPicker.render(permissionContainer);
-		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, dispatches, settingsRequests, hoverTargets, onDidShow: onDidShow.event };
+		const sandboxReady = () => Promise.all([modePicker['_hostOperatingSystemRequest'], permissionPicker['_hostOperatingSystemRequest']]);
+		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, dispatches, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, logErrors, diagnosticsRequests: () => diagnosticsRequests };
 	}
 
 	test('uses one shared tooltip for the combined label', () => {
 		const { modeContainer, hoverTargets } = setup();
 		assert.deepStrictEqual(hoverTargets.map(target => target === modeContainer.querySelector('.action-label')), [true]);
+	});
+
+	for (const os of ['linux', 'win32']) {
+		test(`uses the ${os} host sandbox setting after the shared lookup resolves`, async () => {
+			const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+			const { modePicker, permissionPicker, configuration, modeContainer, actionWidget, sandboxReady, diagnosticsRequests } = setup(true, () => pending.p);
+			const fallbackSettingId = getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false)!;
+			await configuration.setUserConfiguration(getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true)!, 'on');
+			await configuration.setUserConfiguration(fallbackSettingId, 'off');
+			await modePicker['_showPicker'](document.createElement('div'));
+			const pendingState = {
+				settings: [modePicker['_getSandboxSettingId'](), permissionPicker['_getSandboxSettingId']()],
+				checked: actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle?.checked,
+				menuOpen: actionWidget.isVisible,
+			};
+
+			await pending.complete({ version: '1', os, arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] });
+			await sandboxReady();
+			const expectedSettingId = getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, os === 'win32');
+
+			assert.deepStrictEqual({
+				pendingState,
+				settings: [modePicker['_getSandboxSettingId'](), permissionPicker['_getSandboxSettingId']()],
+				checked: modePicker['_getSandboxStandaloneToggle'](SessionConfigKey.AutoApprove)?.checked,
+				shield: !!modeContainer.querySelector('.agent-host-mode-sandbox-icon'),
+				menuOpen: actionWidget.isVisible,
+				requests: diagnosticsRequests(),
+			}, {
+				pendingState: { settings: [fallbackSettingId, fallbackSettingId], checked: false, menuOpen: true },
+				settings: [expectedSettingId, expectedSettingId],
+				checked: os === 'win32',
+				shield: os === 'win32',
+				menuOpen: false,
+				requests: 1,
+			});
+		});
+	}
+
+	test('uses the non-Windows setting after a failed host OS lookup without retrying', async () => {
+		const { modePicker, permissionPicker, configuration, actionWidget, sandboxReady, diagnosticsRequests, logErrors } = setup(true, async () => {
+			throw new Error('Host diagnostics unavailable');
+		});
+		const fallbackSettingId = getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false)!;
+		await configuration.setUserConfiguration(fallbackSettingId, 'on');
+		await configuration.setUserConfiguration(getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true)!, 'off');
+		permissionPicker['_getSandboxSettingId']();
+		await sandboxReady();
+		await modePicker['_showPicker'](document.createElement('div'));
+		assert.deepStrictEqual({
+			settings: [modePicker['_getSandboxSettingId'](), permissionPicker['_getSandboxSettingId']()],
+			checked: actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle?.checked,
+			menuOpen: actionWidget.isVisible,
+			requests: diagnosticsRequests(),
+			errors: logErrors.length,
+		}, { settings: [fallbackSettingId, fallbackSettingId], checked: true, menuOpen: true, requests: 1, errors: 2 });
+	});
+
+	test('ignores host OS results after the pickers are disposed', async () => {
+		const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+		const { modePicker, permissionPicker, sandboxReady } = setup(true, () => pending.p);
+		permissionPicker['_getSandboxSettingId']();
+		modePicker.dispose();
+		permissionPicker.dispose();
+		await pending.complete({ version: '1', os: 'win32', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] });
+		await sandboxReady();
+		assert.deepStrictEqual([modePicker['_hostOperatingSystem'], permissionPicker['_hostOperatingSystem']], [undefined, undefined]);
+	});
+
+	test('caches the host OS without disturbing a different harness after a session switch', async () => {
+		const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+		const { modePicker, widget, config, actionWidget, sandboxReady, diagnosticsRequests } = setup(true, () => pending.p);
+		const originalViewModel = widget.viewModel;
+		const sessionResource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/second-session' });
+		widget.viewModel = new class extends mock<IChatViewModel>() {
+			override readonly sessionResource = sessionResource;
+		}();
+		modePicker['_initialResolved'] = { sessionResource, result: config };
+		await modePicker['_showPicker'](document.createElement('div'));
+		await pending.complete({ version: '1', os: 'win32', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] });
+		await sandboxReady();
+		const switchedState = { setting: modePicker['_getSandboxSettingId'](), menuOpen: actionWidget.isVisible };
+		widget.viewModel = originalViewModel;
+		assert.deepStrictEqual({
+			switchedState,
+			restoredSetting: modePicker['_getSandboxSettingId'](),
+			requests: diagnosticsRequests(),
+		}, {
+			switchedState: { setting: undefined, menuOpen: true },
+			restoredSetting: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true),
+			requests: 1,
+		});
 	});
 
 	test('uses compact mode glyphs and evenly splits the inner gap between picker buttons', () => {
@@ -501,7 +601,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	});
 
 	test('always shows the shield on the sandbox toggle row', async () => {
-		const { modePicker, modeContainer, configuration, actionWidget } = setup();
+		const { modePicker, modeContainer, configuration, actionWidget, sandboxReady } = setup();
+		await sandboxReady();
 		const states = [];
 		const settingId = getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false)!;
 		for (const enabled of [false, true]) {
@@ -515,7 +616,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	});
 
 	test('combined sandbox toggle writes session choices and reconciles external changes', async () => {
-		const { modePicker, modeContainer, configuration, config, actionWidget, dispatches } = setup();
+		const { modePicker, modeContainer, configuration, config, actionWidget, dispatches, sandboxReady } = setup();
+		await sandboxReady();
 		const settingId = getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false)!;
 		await configuration.setUserConfiguration(settingId, AgentSandboxEnabledValue.Off);
 		await modePicker['_showPicker'](modeContainer.querySelector<HTMLElement>('.action-label')!);
@@ -730,6 +832,9 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			widget,
 			SessionConfigKey.AutoApprove,
 			new class extends mock<IAgentHostService>() {
+				override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+					return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+				}
 				override dispatch(channel: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
 					writes.push({ channel, action });
 				}
@@ -755,6 +860,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 				override readonly enabled = constObservable(false);
 			}(),
 			new class extends mock<IPreferencesService>() { }(),
+			store.add(new NullLogService()),
 		));
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
@@ -773,6 +879,8 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			},
 		};
 
+		picker['_getSandboxSettingId']();
+		await picker['_hostOperatingSystemRequest'];
 		for (const managed of [false, true]) {
 			managedSandboxEnforced.set(managed, undefined);
 			for (const bypass of [undefined, false, true]) {
@@ -933,16 +1041,12 @@ suite('AgentHostChatInputPicker - list options', () => {
 
 	test('resolves the Copilot Agent Host sandbox setting', () => {
 		assert.deepStrictEqual({
-			sdk: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false, false),
-			sdkWindows: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false, true),
-			customTerminal: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true, false),
-			customTerminalWindows: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true, true),
-			claude: getAgentHostSandboxSettingId(SessionType.AgentHostClaude, false, false),
+			nonWindows: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false),
+			windows: getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true),
+			claude: getAgentHostSandboxSettingId(SessionType.AgentHostClaude, false),
 		}, {
-			sdk: AgentSandboxSettingId.AgentSandboxEnabled,
-			sdkWindows: AgentSandboxSettingId.AgentSandboxWindowsEnabled,
-			customTerminal: AgentSandboxSettingId.AgentSandboxEnabled,
-			customTerminalWindows: AgentSandboxSettingId.AgentSandboxWindowsEnabled,
+			nonWindows: AgentSandboxSettingId.AgentSandboxEnabled,
+			windows: AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 			claude: undefined,
 		});
 	});

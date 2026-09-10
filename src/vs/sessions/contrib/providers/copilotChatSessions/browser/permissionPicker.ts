@@ -89,6 +89,8 @@ export interface IPermissionPickerDelegate {
 	getPermissionLevelHover?(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined;
 	readonly isSandboxToggleApplicable?: () => boolean;
 	readonly getSandboxToggleSettingId?: () => string | undefined;
+	/** Tracks asynchronous setting ID changes, including agent host switches. */
+	readonly sandboxToggleSettingId?: IObservable<string | undefined>;
 	readonly getSandboxToggleProvider?: () => string | undefined;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
 	setSandboxEnabled?(enabled: boolean): void;
@@ -255,6 +257,7 @@ export class PermissionPicker extends Disposable {
 			this._delegate.isApplicable?.read(reader);
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
+			this._delegate.sandboxToggleSettingId?.read(reader);
 			this.agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
 			this._updateTriggerLabel(trigger);
 		}));
@@ -416,8 +419,9 @@ export class PermissionPicker extends Disposable {
 
 	watchSandboxToggle<T>(items: readonly IActionListItem<T>[]): IDisposable {
 		const sandboxToggle = items.find(item => item.standaloneToggle)?.standaloneToggle;
+		const settingId = this._delegate.getSandboxToggleSettingId?.();
 		let previousToggle = sandboxToggle;
-		if (!sandboxToggle) {
+		if (!sandboxToggle && !this._delegate.sandboxToggleSettingId) {
 			return Disposable.None;
 		}
 		const disposables = new DisposableStore();
@@ -427,6 +431,11 @@ export class PermissionPicker extends Disposable {
 			}
 		}));
 		disposables.add(autorun(reader => {
+			this._delegate.sandboxToggleSettingId?.read(reader);
+			if (this._delegate.getSandboxToggleSettingId?.() !== settingId) {
+				this.actionWidgetService.hide();
+				return;
+			}
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._sandboxDefaultChanged.read(reader);

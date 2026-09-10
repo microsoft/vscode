@@ -7,13 +7,17 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { getAgentHostCopilotSandboxSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { getAgentHostCopilotSandboxSettingId, IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService, IConfigurationValue, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -80,6 +84,7 @@ suite('AgentHostModePicker', () => {
 			override readonly providerId = provider.id;
 			override readonly sessionId = 'test-session';
 			override readonly sessionType = 'copilotcli';
+			override readonly resource = URI.parse('agent-host-copilotcli:/test-session');
 		}());
 		const phone = observableValue('phone', false);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
@@ -130,6 +135,16 @@ suite('AgentHostModePicker', () => {
 			}
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
+		const connection = new class extends mock<IAgentConnection>() {
+			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+				return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+			}
+		}();
+		instantiationService.stub(IAgentHostConnectionsService, {
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResource: resource => ({ connection, connectionAuthority: 'local', backendSession: resource }),
+		});
+		instantiationService.set(ILogService, store.add(new NullLogService()));
 		const settingsRequests: IOpenSettingsOptions[] = [];
 		const hoverTargets: HTMLElement[] = [];
 		instantiationService.set(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -173,8 +188,9 @@ suite('AgentHostModePicker', () => {
 		assert.deepStrictEqual(hoverTargets.map(target => target === trigger), [true]);
 	});
 
-	test('reconciles external sandbox changes without refreshing matching session echoes', () => {
+	test('reconciles external sandbox changes without refreshing matching session echoes', async () => {
 		const { picker, trigger, config, configChanged, actionWidget, writes } = setup();
+		await timeout(0);
 		picker.showPicker(trigger);
 		const toggle = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle;
 		assert.ok(toggle);
@@ -240,8 +256,9 @@ suite('AgentHostModePicker', () => {
 		})));
 	});
 
-	test('combines labels with one icon and places expandable permissions below the modes', () => {
+	test('combines labels with one icon and places expandable permissions below the modes', async () => {
 		const { trigger, actionWidget, permissionDelegate } = setup();
+		await timeout(0);
 		trigger.click();
 		assert.deepStrictEqual({
 			mode: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
@@ -468,8 +485,9 @@ suite('AgentHostModePicker', () => {
 		assert.deepStrictEqual(writes, []);
 	});
 
-	test('preserves enterprise policy restrictions in the permission choices', () => {
+	test('preserves enterprise policy restrictions in the permission choices', async () => {
 		const { trigger, actionWidget, managedSandboxEnforced } = setup(true, true, true);
+		await timeout(0);
 		managedSandboxEnforced.set(true, undefined);
 		trigger.click();
 		const items = actionWidget.items;
@@ -488,6 +506,7 @@ suite('AgentHostModePicker', () => {
 
 	test('always shows the shield on the sandbox toggle row', async () => {
 		const { trigger, actionWidget, configuration } = setup();
+		await timeout(0);
 		const states = [];
 		for (const enabled of [false, true]) {
 			await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), enabled ? 'on' : 'off');
@@ -501,6 +520,7 @@ suite('AgentHostModePicker', () => {
 
 	test('refreshes inherited sandbox defaults without overriding an explicit session choice', async () => {
 		const { trigger, actionWidget, configuration, config, configChanged, writes } = setup();
+		await timeout(0);
 		const settingId = getAgentHostCopilotSandboxSettingId(false);
 		const states = [];
 		trigger.click();
@@ -518,8 +538,9 @@ suite('AgentHostModePicker', () => {
 		});
 	});
 
-	test('closes on managed policy changes and rejects stale sandbox callbacks', () => {
+	test('closes on managed policy changes and rejects stale sandbox callbacks', async () => {
 		const { trigger, actionWidget, managedSandboxEnforced, writes } = setup();
+		await timeout(0);
 		trigger.click();
 		const toggle = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle;
 		assert.ok(toggle);
@@ -555,6 +576,7 @@ suite('AgentHostModePicker', () => {
 
 	test('announces sandboxing and disables activation while configuration resolves', async () => {
 		const { trigger, configuration, managedSandboxEnforced, resolving, actionWidget } = setup();
+		await timeout(0);
 		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), 'on');
 		managedSandboxEnforced.set(true, undefined);
 		resolving.set(true, undefined);

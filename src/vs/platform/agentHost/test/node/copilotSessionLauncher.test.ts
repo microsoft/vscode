@@ -8,6 +8,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
@@ -15,6 +16,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
@@ -35,6 +37,7 @@ import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBr
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
@@ -174,6 +177,25 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		for (const selection of ['on', 'off']) {
+			test(`${kind} applies SDK sandbox ${selection} when the custom terminal tool is enabled`, async () => {
+				const fixture = setup(kind);
+				fixture.configuration.updateRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true });
+				fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: selection });
+				const engine = new class extends mock<TerminalSandboxEngine>() {
+					override async isEnabled(): Promise<boolean> { return false; }
+				}();
+				const shellManager = new class extends mock<ShellManager>() {
+					override async getResolvedExecutable(): Promise<string> { return '/bin/bash'; }
+					override getOrCreateSandboxEngine(): TerminalSandboxEngine { return engine; }
+				}();
+
+				store.add(await fixture.launcher.launch({ ...fixture.plan, shellManager }, testRuntime));
+
+				assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled), [selection === 'on']);
+			});
+		}
+
 		test(`${kind} applies a persistent off selection after the authoritative startup snapshot`, async () => {
 			const fixture = setup(kind);
 			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
