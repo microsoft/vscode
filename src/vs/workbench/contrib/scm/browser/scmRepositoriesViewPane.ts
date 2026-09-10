@@ -528,8 +528,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.visibilityDisposables);
 				this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.visibilityDisposables);
 				for (const repository of this.scmService.repositories) {
-					// Existing repositories are only re-registered, the parent repository
-					// must not be expanded as that would override the user's collapse state
+					// Re-registration only, expanding would override the user's collapse state
 					this.onDidAddRepository(repository, false);
 				}
 
@@ -799,8 +798,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			return;
 		}
 
-		// Only expand the parent repository when it gets its first child repository. If the
-		// parent repository already had children, the user might have collapsed it on purpose.
+		// Already collapsible means this is not the first child, so it may have been collapsed by the user
 		const parentWasCollapsible = this.tree.hasNode(parentRepository) && this.tree.isCollapsible(parentRepository);
 
 		await this.updateChildren(parentRepository);
