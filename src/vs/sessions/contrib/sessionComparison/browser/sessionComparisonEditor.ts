@@ -221,121 +221,121 @@ export class SessionComparisonEditor extends EditorPane {
 		appendFileList(section, localize('sessionComparisonEditor.attemptSpecificFiles', "Attempt-Specific Files"), specific);
 	}
 
-			private _renderJudge(container: HTMLElement, comparison: ISessionComparison): void {
-				const judge = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge);
-				const section = dom.append(container, dom.$('section.session-comparison-section'));
-				dom.append(section, dom.$('h2')).textContent = localize('sessionComparisonEditor.judge', "Judge");
-				if (!judge) {
-					dom.append(section, dom.$('p.session-comparison-subtitle')).textContent =
-						localize('sessionComparisonEditor.judgeWaiting', "The Judge starts after all attempts finish.");
-					return;
-				}
-				if (judge.launchError) {
-					dom.append(section, dom.$('p.session-comparison-error')).textContent = judge.launchError;
-					return;
-				}
-				const judgeSession = judge.sessionResource ? this.sessionsManagementService.getSession(judge.sessionResource) : undefined;
-				if (!comparison.verdict) {
-					dom.append(section, dom.$('p')).textContent = judgeSession
-						? localize('sessionComparisonEditor.judgeStatus', "Status: {0}", sessionStatusLabel(judgeSession.status.get()))
-						: localize('sessionComparisonEditor.statusUnknown', "Unknown");
-				} else {
-					const recommendation = comparison.participants.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
-					dom.append(section, dom.$('p.session-comparison-recommendation')).textContent =
-						localize('sessionComparisonEditor.recommendation', "Recommended: {0}", recommendation?.harness.label ?? localize('sessionComparisonEditor.unknown', "Unknown"));
-					dom.append(section, dom.$('p')).textContent = comparison.verdict.explanation;
-					if (comparison.verdict.conflicts.length > 0) {
-						dom.append(section, dom.$('h3')).textContent = localize('sessionComparisonEditor.conflicts', "Conflicts to Resolve");
-						const conflicts = dom.append(section, dom.$('ul'));
-						for (const conflict of comparison.verdict.conflicts) {
-							dom.append(conflicts, dom.$('li')).textContent = conflict;
-						}
-					}
-				}
-				if (judge.sessionResource) {
-					this._appendOpenSessionButton(section, judge.sessionResource, localize('sessionComparisonEditor.openJudge', "Open Judge"));
+	private _renderJudge(container: HTMLElement, comparison: ISessionComparison): void {
+		const judge = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge);
+		const section = dom.append(container, dom.$('section.session-comparison-section'));
+		dom.append(section, dom.$('h2')).textContent = localize('sessionComparisonEditor.judge', "Judge");
+		if (!judge) {
+			dom.append(section, dom.$('p.session-comparison-subtitle')).textContent =
+				localize('sessionComparisonEditor.judgeWaiting', "The Judge starts after all attempts finish.");
+			return;
+		}
+		if (judge.launchError) {
+			dom.append(section, dom.$('p.session-comparison-error')).textContent = judge.launchError;
+			return;
+		}
+		const judgeSession = judge.sessionResource ? this.sessionsManagementService.getSession(judge.sessionResource) : undefined;
+		if (!comparison.verdict) {
+			dom.append(section, dom.$('p')).textContent = judgeSession
+				? localize('sessionComparisonEditor.judgeStatus', "Status: {0}", sessionStatusLabel(judgeSession.status.get()))
+				: localize('sessionComparisonEditor.statusUnknown', "Unknown");
+		} else {
+			const recommendation = comparison.participants.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
+			dom.append(section, dom.$('p.session-comparison-recommendation')).textContent =
+				localize('sessionComparisonEditor.recommendation', "Recommended: {0}", recommendation?.harness.label ?? localize('sessionComparisonEditor.unknown', "Unknown"));
+			dom.append(section, dom.$('p')).textContent = comparison.verdict.explanation;
+			if (comparison.verdict.conflicts.length > 0) {
+				dom.append(section, dom.$('h3')).textContent = localize('sessionComparisonEditor.conflicts', "Conflicts to Resolve");
+				const conflicts = dom.append(section, dom.$('ul'));
+				for (const conflict of comparison.verdict.conflicts) {
+					dom.append(conflicts, dom.$('li')).textContent = conflict;
 				}
 			}
+		}
+		if (judge.sessionResource) {
+			this._appendOpenSessionButton(section, judge.sessionResource, localize('sessionComparisonEditor.openJudge', "Open Judge"));
+		}
+	}
 
-			private _renderSynthesis(container: HTMLElement, comparison: ISessionComparison): void {
-				const section = dom.append(container, dom.$('section.session-comparison-section'));
-				dom.append(section, dom.$('h2')).textContent = localize('sessionComparisonEditor.synthesis', "Synthesis");
-				const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
-				if (!synthesis) {
-					dom.append(section, dom.$('p.session-comparison-subtitle')).textContent =
-						localize('sessionComparisonEditor.synthesisDescription', "Create a new isolated attempt that combines the strongest parts without changing the originals.");
-					if (comparison.verdict || comparison.selectedParticipantId) {
-						const actions = dom.append(section, dom.$('.session-comparison-actions'));
-						const button = this._contentStore.value?.add(new Button(actions, {
-							...defaultButtonStyles,
-							ariaLabel: localize('sessionComparisonEditor.synthesizeAriaLabel', "Synthesize a new attempt"),
-						}));
-						if (button) {
-							button.label = localize('sessionComparisonEditor.synthesize', "Synthesize");
-							this._contentStore.value?.add(button.onDidClick(async () => {
-								button.enabled = false;
-								try {
-									await this.sessionComparisonService.synthesize(comparison.id);
-								} catch (error) {
-									this.notificationService.error(error);
-									button.enabled = true;
-								}
-							}));
-						}
-					}
-					return;
-				}
-				if (synthesis.launchError) {
-					dom.append(section, dom.$('p.session-comparison-error')).textContent = synthesis.launchError;
-					return;
-				}
-				if (!synthesis.sessionResource) {
-					return;
-				}
-				const synthesisSession = this.sessionsManagementService.getSession(synthesis.sessionResource);
-				dom.append(section, dom.$('p')).textContent = synthesisSession
-					? localize('sessionComparisonEditor.synthesisStatus', "Status: {0}", sessionStatusLabel(synthesisSession.status.get()))
-					: localize('sessionComparisonEditor.statusUnknown', "Unknown");
-				this._appendOpenSessionButton(section, synthesis.sessionResource, localize('sessionComparisonEditor.openSynthesis', "Open Synthesis"));
-				if (synthesisSession?.status.get() === SessionStatus.Completed) {
-					const actions = dom.append(section, dom.$('.session-comparison-actions'));
-					const discard = this._contentStore.value?.add(new Button(actions, {
-						...defaultButtonStyles,
-						ariaLabel: localize('sessionComparisonEditor.discardOriginalsAriaLabel', "Discard original attempts"),
-					}));
-					if (discard) {
-						discard.label = localize('sessionComparisonEditor.discardOriginals', "Discard Original Attempts");
-						this._contentStore.value?.add(discard.onDidClick(async () => {
-							const confirmation = await this.dialogService.confirm({
-								message: localize('sessionComparisonEditor.confirmDiscard', "Discard the original implementation attempts?"),
-								detail: localize('sessionComparisonEditor.confirmDiscardDetail', "This deletes their sessions and isolated worktrees. The synthesis and Judge are kept."),
-								primaryButton: localize('sessionComparisonEditor.confirmDiscardButton', "Discard Attempts"),
-							});
-							if (!confirmation.confirmed) {
-								return;
-							}
-							const failures = await this.sessionComparisonService.discardOriginalAttempts(comparison.id);
-							if (failures.length > 0) {
-								this.notificationService.notify({
-									severity: Severity.Error,
-									message: localize('sessionComparisonEditor.discardFailures', "Some original attempts could not be discarded: {0}", failures.join('; ')),
-								});
-							}
-						}));
-					}
-				}
-			}
-
-			private _appendOpenSessionButton(container: HTMLElement, resource: NonNullable<ISessionComparisonParticipant['sessionResource']>, label: string): void {
-				const actions = dom.append(container, dom.$('.session-comparison-actions'));
+	private _renderSynthesis(container: HTMLElement, comparison: ISessionComparison): void {
+		const section = dom.append(container, dom.$('section.session-comparison-section'));
+		dom.append(section, dom.$('h2')).textContent = localize('sessionComparisonEditor.synthesis', "Synthesis");
+		const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
+		if (!synthesis) {
+			dom.append(section, dom.$('p.session-comparison-subtitle')).textContent =
+				localize('sessionComparisonEditor.synthesisDescription', "Create a new isolated attempt that combines the strongest parts without changing the originals.");
+			if (comparison.verdict || comparison.selectedParticipantId) {
+				const actions = dom.append(section, dom.$('.session-comparison-actions'));
 				const button = this._contentStore.value?.add(new Button(actions, {
 					...defaultButtonStyles,
-					ariaLabel: label,
+					ariaLabel: localize('sessionComparisonEditor.synthesizeAriaLabel', "Synthesize a new attempt"),
 				}));
 				if (button) {
-					button.label = label;
-					this._contentStore.value?.add(button.onDidClick(() => this.sessionsService.openSession(resource, { source: 'chat' })));
+					button.label = localize('sessionComparisonEditor.synthesize', "Synthesize");
+					this._contentStore.value?.add(button.onDidClick(async () => {
+						button.enabled = false;
+						try {
+							await this.sessionComparisonService.synthesize(comparison.id);
+						} catch (error) {
+							this.notificationService.error(error);
+							button.enabled = true;
+						}
+					}));
 				}
+			}
+			return;
+		}
+		if (synthesis.launchError) {
+			dom.append(section, dom.$('p.session-comparison-error')).textContent = synthesis.launchError;
+			return;
+		}
+		if (!synthesis.sessionResource) {
+			return;
+		}
+		const synthesisSession = this.sessionsManagementService.getSession(synthesis.sessionResource);
+		dom.append(section, dom.$('p')).textContent = synthesisSession
+			? localize('sessionComparisonEditor.synthesisStatus', "Status: {0}", sessionStatusLabel(synthesisSession.status.get()))
+			: localize('sessionComparisonEditor.statusUnknown', "Unknown");
+		this._appendOpenSessionButton(section, synthesis.sessionResource, localize('sessionComparisonEditor.openSynthesis', "Open Synthesis"));
+		if (synthesisSession?.status.get() === SessionStatus.Completed) {
+			const actions = dom.append(section, dom.$('.session-comparison-actions'));
+			const discard = this._contentStore.value?.add(new Button(actions, {
+				...defaultButtonStyles,
+				ariaLabel: localize('sessionComparisonEditor.discardOriginalsAriaLabel', "Discard original attempts"),
+			}));
+			if (discard) {
+				discard.label = localize('sessionComparisonEditor.discardOriginals', "Discard Original Attempts");
+				this._contentStore.value?.add(discard.onDidClick(async () => {
+					const confirmation = await this.dialogService.confirm({
+						message: localize('sessionComparisonEditor.confirmDiscard', "Discard the original implementation attempts?"),
+						detail: localize('sessionComparisonEditor.confirmDiscardDetail', "This deletes their sessions and isolated worktrees. The synthesis and Judge are kept."),
+						primaryButton: localize('sessionComparisonEditor.confirmDiscardButton', "Discard Attempts"),
+					});
+					if (!confirmation.confirmed) {
+						return;
+					}
+					const failures = await this.sessionComparisonService.discardOriginalAttempts(comparison.id);
+					if (failures.length > 0) {
+						this.notificationService.notify({
+							severity: Severity.Error,
+							message: localize('sessionComparisonEditor.discardFailures', "Some original attempts could not be discarded: {0}", failures.join('; ')),
+						});
+					}
+				}));
+			}
+		}
+	}
+
+	private _appendOpenSessionButton(container: HTMLElement, resource: NonNullable<ISessionComparisonParticipant['sessionResource']>, label: string): void {
+		const actions = dom.append(container, dom.$('.session-comparison-actions'));
+		const button = this._contentStore.value?.add(new Button(actions, {
+			...defaultButtonStyles,
+			ariaLabel: label,
+		}));
+		if (button) {
+			button.label = label;
+			this._contentStore.value?.add(button.onDidClick(() => this.sessionsService.openSession(resource, { source: 'chat' })));
+		}
 	}
 
 	private _promptToDiscardOriginals(comparisonId: string): void {

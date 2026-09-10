@@ -41,7 +41,7 @@ import { ChatMode, CustomChatMode, IChatMode, IChatModes, IChatModeService } fro
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
@@ -188,6 +188,14 @@ class MockAgentSessionsModel {
 interface IExecutedCommand {
 	readonly id: string;
 	readonly args: readonly unknown[];
+}
+
+function serializeCreationReference(reference: ISessionCreationReference | undefined) {
+	return reference ? {
+		session: reference.session.toString(),
+		chat: reference.chat?.toString(),
+		turnId: reference.turnId,
+	} : undefined;
 }
 
 interface ICreateProviderOptions {
@@ -3025,16 +3033,16 @@ suite('CopilotChatSessionsProvider', () => {
 		}
 
 		assert.deepStrictEqual({
-			createdBySession: committedSession.createdBySession?.get(),
+			createdBySession: serializeCreationReference(committedSession.createdBySession?.get()),
 			untitledRemoved: removals.includes(untitledResource.toString()),
 		}, {
-			createdBySession,
+			createdBySession: serializeCreationReference(createdBySession),
 			untitledRemoved: false,
 		});
 
 		const restoredProvider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }), { storageService });
 		const restoredSession = restoredProvider.getSessions().find(candidate => candidate.resource.toString() === committedResource.toString());
-		assert.deepStrictEqual(restoredSession?.createdBySession?.get(), createdBySession);
+		assert.deepStrictEqual(serializeCreationReference(restoredSession?.createdBySession?.get()), serializeCreationReference(createdBySession));
 	});
 	suite('cloud sandbox send path', () => {
 		// A browsed GitHub workspace root carries a ref (`/<owner>/<repo>/HEAD`), which is what
