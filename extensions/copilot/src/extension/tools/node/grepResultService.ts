@@ -26,7 +26,7 @@ export interface IGrepResultService {
 	readonly onDidRemoveGrepResult: Event<string>;
 
 	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void;
-	getGrepResult(sessionUri: vscode.Uri, requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined;
+	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined;
 }
 
 export class NullGrepResultService implements IGrepResultService {
@@ -37,7 +37,7 @@ export class NullGrepResultService implements IGrepResultService {
 		// No-op
 	}
 
-	getGrepResult(sessionUri: vscode.Uri, requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
+	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
 		return undefined;
 	}
 }
@@ -76,7 +76,7 @@ class SessionMatches {
 			}
 
 			for (const match of fileMatches) {
-				if (match.start.line < startLine || match.start.line > endLine) {
+				if (match.end.line < startLine || match.start.line > endLine) {
 					continue;
 				}
 
@@ -123,7 +123,7 @@ export class GrepResultService extends Disposable implements IGrepResultService 
 		}
 	}
 
-	getGrepResult(sessionUri: vscode.Uri, requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
+	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
 		const matches = this.cache.get(sessionUri.toString());
 		if (!matches) {
 			return undefined;

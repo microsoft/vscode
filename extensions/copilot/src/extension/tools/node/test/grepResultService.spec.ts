@@ -24,17 +24,18 @@ suite('GrepResultService', () => {
 		};
 	}
 
-	test('returns all ranges within the inclusive line bounds', () => {
+	test('returns all ranges overlapping the inclusive line bounds', () => {
 		const before = new Range(3, 0, 3, 1);
+		const overlappingStart = new Range(3, 2, 4, 1);
 		const first = new Range(4, 2, 4, 5);
 		const second = new Range(8, 1, 8, 7);
 		const after = new Range(9, 0, 9, 1);
 		const service = new GrepResultService();
 		service.addGrepResult(sessionUri, 'request', {
-			files: [{ uri, matches: [before, first, second, after].map(createMatch) }]
+			files: [{ uri, matches: [before, overlappingStart, first, second, after].map(createMatch) }]
 		});
 
-		expect(service.getGrepResult(sessionUri, 'request', uri, 4, 8)).toEqual([first, second]);
+		expect(service.getGrepResult(sessionUri, uri, 4, 8)).toEqual([overlappingStart, first, second]);
 	});
 
 	test('returns unique ranges starting with the latest grep result', () => {
@@ -49,7 +50,7 @@ suite('GrepResultService', () => {
 			files: [{ uri, matches: [duplicate, latest].map(createMatch) }]
 		});
 
-		expect(service.getGrepResult(sessionUri, 'second-request', uri, 0, 10)).toEqual([duplicate, latest, older]);
+		expect(service.getGrepResult(sessionUri, uri, 0, 10)).toEqual([duplicate, latest, older]);
 	});
 
 	test('fires the request ID when the oldest grep result is removed', () => {
@@ -68,7 +69,7 @@ suite('GrepResultService', () => {
 	test('returns undefined when no results are available', () => {
 		const service = new GrepResultService();
 
-		expect(service.getGrepResult(sessionUri, 'unknown', uri, 0, 10)).toBeUndefined();
-		expect(new NullGrepResultService().getGrepResult(sessionUri, 'request', uri, 0, 10)).toBeUndefined();
+		expect(service.getGrepResult(sessionUri, uri, 0, 10)).toBeUndefined();
+		expect(new NullGrepResultService().getGrepResult(sessionUri, uri, 0, 10)).toBeUndefined();
 	});
 });
