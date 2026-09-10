@@ -72,6 +72,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	public static readonly OPERATION_CREATE_PR_AUTO_SQUASH = 'create-pr-auto-squash';
 	public static readonly OPERATION_CREATE_PR_AUTO_REBASE = 'create-pr-auto-rebase';
 	public static readonly OPERATION_CREATE_PR_AGENT_MERGE = 'create-pr-agent-merge';
+	public static readonly OPERATION_CREATE_DRAFT_PR_AGENT_MERGE = 'create-draft-pr-agent-merge';
 
 	constructor(
 		private readonly _draft: boolean,
@@ -337,7 +338,9 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		if (this._enableAgentMerge) {
 			return isExisting
 				? localize('agentHost.changeset.pr.existing.agentMerge', "Pull request [#{0}]({1}) already exists; enabled Agent Merge.", pr.number, pr.url)
-				: localize('agentHost.changeset.pr.created.agentMerge', "Created pull request [#{0}]({1}) and enabled Agent Merge.", pr.number, pr.url);
+				: this._draft
+					? localize('agentHost.changeset.pr.createdDraft.agentMerge', "Created draft pull request [#{0}]({1}) and enabled Agent Merge.", pr.number, pr.url)
+					: localize('agentHost.changeset.pr.created.agentMerge', "Created pull request [#{0}]({1}) and enabled Agent Merge.", pr.number, pr.url);
 		}
 
 		let mergeMethodLabel: string | undefined;

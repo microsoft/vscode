@@ -39,6 +39,7 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { IMarker, IMarkerData, IMarkerService } from '../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { MultiDiffEditorWidget } from '../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { MultiDiffEditorVariant } from '../../browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
 
 /**
@@ -102,7 +103,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneD
 
 export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices) {
 	const instantiationService = StandaloneServices.initialize(override || {});
-	return new MultiDiffEditorWidget(domElement, {}, undefined, instantiationService);
+	return new MultiDiffEditorWidget(domElement, {}, { variant: MultiDiffEditorVariant.Standard }, instantiationService);
 }
 
 /**

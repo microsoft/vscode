@@ -239,6 +239,8 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 			group?: string;
 			/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
 			enumItemLabels?: string[];
+			/** When `true`, the property is displayed but cannot be modified by the user. */
+			readOnly?: boolean;
 		};
 	};
 }
@@ -543,6 +545,15 @@ export interface ILanguageModelsGroup {
 	};
 }
 
+/** Read/write access to model-specific configuration, globally or within one conversation. */
+export interface IModelConfigurationAccess {
+	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
+	getModelConfigurationActions(modelId: string): IAction[];
+	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */
+	readonly onDidChange?: Event<string>;
+}
+
 export interface ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;
@@ -758,6 +769,12 @@ export function getLanguageModelDisplayNameWithProvider(model: ILanguageModelCha
 export interface IModelControlEntry {
 	readonly label: string;
 	readonly featured?: boolean;
+	/**
+	 * Keeps the model out of the shortlist the picker leads with, even when it is the
+	 * newest of its line. For a line that has been replaced by another rather than by a
+	 * newer version of itself, which no rule can work out on its own.
+	 */
+	readonly demoted?: boolean;
 	readonly minVSCodeVersion?: string;
 	readonly exists: boolean;
 }
@@ -2493,7 +2510,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!entry || !isObject(entry)) {
 					continue;
 				}
-				free[entry.id] = { label: entry.label, featured: entry.featured, exists: this._modelCache.has(`copilot/${entry.id}`) };
+				free[entry.id] = { label: entry.label, featured: entry.featured, demoted: entry.demoted, exists: this._modelCache.has(`copilot/${entry.id}`) };
 			}
 		}
 
@@ -2503,7 +2520,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!entry || !isObject(entry)) {
 					continue;
 				}
-				paid[entry.id] = { label: entry.label, featured: entry.featured, minVSCodeVersion: entry.minVSCodeVersion, exists: this._modelCache.has(`copilot/${entry.id}`) };
+				paid[entry.id] = { label: entry.label, featured: entry.featured, demoted: entry.demoted, minVSCodeVersion: entry.minVSCodeVersion, exists: this._modelCache.has(`copilot/${entry.id}`) };
 			}
 		}
 

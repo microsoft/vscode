@@ -73,7 +73,6 @@ suite('ChatListWidget', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		configure?.(configurationService);
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -291,8 +290,8 @@ suite('ChatListWidget', () => {
 	// The bottom padding counts towards the scroll height, so `scrollToEnd` has to
 	// scroll through it or the list never reports being at the bottom - which both
 	// streaming auto-scroll and the scroll-down button depend on.
-	test('scrolls through the bottom padding to reach the end', async () => {
-		const { disposables, model, widget } = createWidget({ paddingBottom: 30 });
+	test('updates bottom padding while keeping the list at the end', async () => {
+		const { disposables, model, widget } = createWidget();
 		for (let i = 0; i < 10; i++) {
 			const text = `question ${i}`;
 			const request = model.addRequest({
@@ -307,14 +306,51 @@ suite('ChatListWidget', () => {
 		await waitForStableLayout(widget);
 		widget.scrollToEnd();
 		await waitForStableLayout(widget);
+		const scrollHeightWithoutPadding = widget.scrollHeight;
+
+		widget.setPaddingBottom(30);
+		await waitForStableLayout(widget);
 
 		assert.deepStrictEqual({
 			// Guards the test from passing vacuously on a list that cannot scroll.
 			overflows: widget.scrollHeight > widget.renderHeight,
+			paddingAdded: widget.scrollHeight - scrollHeightWithoutPadding,
 			atBottom: widget.isScrolledToBottom,
 		}, {
 			overflows: true,
+			paddingAdded: 30,
 			atBottom: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('keeps request content tabbable when the transcript root is removed from the tab order', async () => {
+		const { disposables, model, container, widget } = createWidget({ tabIndex: -1 });
+		const text = 'question';
+		model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const transcriptRoot = container.querySelector<HTMLElement>('.monaco-list');
+		const requestContent = container.querySelector<HTMLElement>('.interactive-request .chat-markdown-part');
+		assert.ok(transcriptRoot);
+		assert.ok(requestContent);
+		widget.focus();
+
+		assert.deepStrictEqual({
+			transcriptTabIndex: transcriptRoot.tabIndex,
+			requestTabIndex: requestContent.tabIndex,
+			programmaticallyFocused: mainWindow.document.activeElement === transcriptRoot,
+		}, {
+			transcriptTabIndex: -1,
+			requestTabIndex: 0,
+			programmaticallyFocused: true,
 		});
 
 		disposables.dispose();

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatGroupsView.css';
-import { $, size } from '../../../base/browser/dom.js';
+import { $, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
 import { Color } from '../../../base/common/color.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -19,7 +19,7 @@ import { agentsPanelBorder } from '../../common/theme.js';
 import { IChat } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChatViewOptions } from './chatView.js';
+import { IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { IDraggedSessionChat, isSessionChatDrag } from '../dnd.js';
@@ -96,8 +96,6 @@ export class ChatGroupsView extends Themable {
 	private _restoreAssignment: Map<string, number> | undefined;
 	/** Saved tab order (resource string -> ordinal) used to restore tab order across groups. */
 	private _restoreOrder: Map<string, number> | undefined;
-	/** The session's chat ids present when restore began, used to detect when the catalog has loaded. */
-	private _restoreInitialIds: Set<string> | undefined;
 	/** Whether a persisted layout is still being restored (saved chats may not have loaded yet). */
 	private _restorePending = false;
 	private _lastSessionActiveChatId: string | undefined;
@@ -140,7 +138,6 @@ export class ChatGroupsView extends Themable {
 		this._activeGroup = undefined;
 		this._restoreAssignment = undefined;
 		this._restoreOrder = undefined;
-		this._restoreInitialIds = undefined;
 		this._restorePending = false;
 		this._lastSessionActiveChatId = undefined;
 		this._setGroupCount(1);
@@ -244,7 +241,6 @@ export class ChatGroupsView extends Themable {
 		this._groups = groups;
 		this._restoreAssignment = assignment;
 		this._restoreOrder = order;
-		this._restoreInitialIds = new Set(session.visibleChatTabs.get().map(c => c.resource.toString()));
 		this._restorePending = true;
 		this._activeGroup = indexToEntry.get(saved.activeGroupIndex) ?? groups[0];
 		for (const group of this._groups) {
@@ -403,13 +399,11 @@ export class ChatGroupsView extends Themable {
 		// a home; once restore completes, any group left empty is collapsed.
 		if (this._restorePending) {
 			const allSavedPresent = this._restoreAssignment ? [...this._restoreAssignment.keys()].every(id => validIds.has(id)) : true;
-			const catalogChanged = !this._restoreInitialIds || orderedIds.length !== this._restoreInitialIds.size || orderedIds.some(id => !this._restoreInitialIds!.has(id));
 			const catalogSettled = !session.loading.read(reader);
-			if (allSavedPresent || catalogChanged || catalogSettled) {
+			if (allSavedPresent || catalogSettled) {
 				this._restorePending = false;
 				this._restoreAssignment = undefined;
 				this._restoreOrder = undefined;
-				this._restoreInitialIds = undefined;
 			}
 		}
 
@@ -669,6 +663,19 @@ export class ChatGroupsView extends Themable {
 		this._persistLayout();
 	}
 
+	getFocusedChat(): IChat | undefined {
+		const group = this._getFocusedGroup();
+		if (!group) {
+			return undefined;
+		}
+		const activeResource = group.activeResourceId.get();
+		return group.chats.get().find(chat => chat.resource.toString() === activeResource);
+	}
+
+	private _getFocusedGroup(): IGroupEntry | undefined {
+		return this._groups.find(group => isAncestorOfActiveElement(group.view.element));
+	}
+
 	/**
 	 * Handles focus entering a group: promotes it to the active group and, when
 	 * that group is currently collapsed to its minimum size in a split, expands it
@@ -792,8 +799,12 @@ export class ChatGroupsView extends Themable {
 		return this._activeGroup?.view.submitInput() ?? Promise.resolve(false);
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._activeGroup?.view.selectWorkspace(folderUri, providerId);
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
+		this._activeGroup?.view.selectWorkspace(folderUri, options);
+	}
+
+	selectNoWorkspace(): void {
+		this._activeGroup?.view.selectNoWorkspace();
 	}
 
 	prefillInput(text: string): void {

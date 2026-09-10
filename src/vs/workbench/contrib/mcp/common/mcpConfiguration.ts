@@ -26,6 +26,7 @@ export const mcpActivationEvent = (contributedCollectionId: string) =>
 
 export const enum ExternalDiscoverySource {
 	ClaudeDesktop = 'claude-desktop',
+	Copilot = 'copilot',
 	Windsurf = 'windsurf',
 	CursorGlobal = 'cursor-global',
 	CursorWorkspace = 'cursor-workspace',
@@ -33,6 +34,7 @@ export const enum ExternalDiscoverySource {
 
 export const allDiscoverySources = Object.keys({
 	[ExternalDiscoverySource.ClaudeDesktop]: true,
+	[ExternalDiscoverySource.Copilot]: true,
 	[ExternalDiscoverySource.Windsurf]: true,
 	[ExternalDiscoverySource.CursorGlobal]: true,
 	[ExternalDiscoverySource.CursorWorkspace]: true,
@@ -40,12 +42,14 @@ export const allDiscoverySources = Object.keys({
 
 export const discoverySourceLabel: Record<ExternalDiscoverySource, string> = {
 	[ExternalDiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
+	[ExternalDiscoverySource.Copilot]: localize('mcp.discovery.source.copilot', "GitHub Copilot CLI"),
 	[ExternalDiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf', "Windsurf"),
 	[ExternalDiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
 	[ExternalDiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
 };
 export const discoverySourceSettingsLabel: Record<ExternalDiscoverySource, string> = {
 	[ExternalDiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop.config', "Claude Desktop configuration (`claude_desktop_config.json`)"),
+	[ExternalDiscoverySource.Copilot]: localize('mcp.discovery.source.copilot.config', "GitHub Copilot CLI configuration (`mcp-config.json` in `COPILOT_HOME`, or `~/.copilot/mcp-config.json` when unset)"),
 	[ExternalDiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf.config', "Windsurf configurations (`~/.codeium/windsurf/mcp_config.json`)"),
 	[ExternalDiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global.config', "Cursor global configuration (`~/.cursor/mcp.json`)"),
 	[ExternalDiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace.config', "Cursor workspace configuration (`.cursor/mcp.json`)"),

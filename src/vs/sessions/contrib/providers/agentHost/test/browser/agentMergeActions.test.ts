@@ -59,6 +59,18 @@ suite('Agent Merge Actions', () => {
 		});
 	});
 
+	test('Agent Merge owns a draft pull request until CI and review comments are ready', () => {
+		assert.deepStrictEqual({
+			agentMergeMarkReady: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.MarkReadyWithAgentMerge, agentMergeEnabled: true }),
+			staleAgentMergeMarkReady: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.MarkReadyWithAgentMerge, agentMergeEnabled: false }),
+			normalMarkReady: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.MarkReady, agentMergeEnabled: true }),
+		}, {
+			agentMergeMarkReady: true,
+			staleAgentMergeMarkReady: false,
+			normalMarkReady: false,
+		});
+	});
+
 	test('Agent Merge leaves the primary button to the operation that moves the pull request along', () => {
 		assert.deepStrictEqual({
 			markReady: ownsPrimaryButton({ primaryOperation: AgentHostPullRequestOperationId.MarkReady, agentMergeEnabled: true }),

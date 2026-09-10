@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { timeout } from '../../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -27,8 +28,9 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	private readonly symbolicLinks = new ResourceSet();
 	private readonly statFailures = new ResourceSet();
 	private statDelay = 0;
-	private activeStats = 0;
+	activeStats = 0;
 	maxActiveStats = 0;
+	statCalls = 0;
 
 	markSymbolicLink(resource: URI): void {
 		this.symbolicLinks.add(resource);
@@ -43,6 +45,7 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	}
 
 	override async stat(resource: URI): Promise<IStat> {
+		this.statCalls++;
 		this.activeStats++;
 		this.maxActiveStats = Math.max(this.maxActiveStats, this.activeStats);
 		try {
@@ -317,6 +320,71 @@ suite('SyncedCustomizationBundler', () => {
 		await bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
 
 		assert.strictEqual(memFs.maxActiveStats, 10);
+	});
+
+	test('cancels while queued skill operations drain after disposal', async () => {
+		const bundler = createBundler();
+		const skill = await seedFile('/skills/disposed/SKILL.md', 'skill content');
+		for (let index = 0; index < 20; index++) {
+			await seedFile(`/skills/disposed/references/${index}.md`, `reference ${index}`);
+		}
+		memFs.delayStats(20);
+
+		const bundle = bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		while (memFs.maxActiveStats < 10) {
+			await timeout(0);
+		}
+		const statCallsAtDisposal = memFs.statCalls;
+		bundler.dispose();
+
+		await assert.rejects(bundle, error => isCancellationError(error));
+		await assert.rejects(bundler.bundle([{ uri: skill, type: PromptsType.skill }]), error => isCancellationError(error));
+		while (memFs.activeStats > 0) {
+			await timeout(0);
+		}
+		assert.strictEqual(memFs.statCalls, statCallsAtDisposal);
+	});
+
+	test('normalizes an in-flight provider failure after disposal to cancellation', async () => {
+		const bundler = createBundler();
+		const resource = await seedFile('/test/unavailable.md', 'content');
+		memFs.delayStats(20);
+		memFs.failStat(resource);
+
+		const bundle = bundler.bundle([{ uri: resource, type: PromptsType.instructions }]);
+		while (memFs.activeStats === 0) {
+			await timeout(0);
+		}
+		bundler.dispose();
+
+		await assert.rejects(bundle, error => isCancellationError(error));
+	});
+
+	test('serializes replacement bundles for the same authority', async () => {
+		const disposedBundler = createBundler('shared-agent');
+		const replacementBundler = createBundler('shared-agent');
+		const skill = await seedFile('/skills/replaced/SKILL.md', 'old skill content');
+		for (let index = 0; index < 20; index++) {
+			await seedFile(`/skills/replaced/references/${index}.md`, `reference ${index}`);
+		}
+		const replacement = await seedFile('/replacement.md', 'replacement content');
+		memFs.delayStats(50);
+
+		const disposedBundle = disposedBundler.bundle([{ uri: skill, type: PromptsType.skill }]);
+		while (memFs.maxActiveStats < 10) {
+			await timeout(0);
+		}
+		disposedBundler.dispose();
+		const replacementBundle = replacementBundler.bundle([{ uri: replacement, type: PromptsType.instructions }]);
+		await timeout(0);
+
+		assert.strictEqual(memFs.activeStats, 10);
+		await assert.rejects(disposedBundle, error => isCancellationError(error));
+		await replacementBundle;
+		assert.strictEqual(
+			(await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/shared-agent/rules/replacement.md' }))).value.toString(),
+			'replacement content'
+		);
 	});
 
 	test('skips unreadable nested skill resources', async () => {

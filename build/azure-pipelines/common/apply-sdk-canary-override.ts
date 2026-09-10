@@ -17,19 +17,9 @@ import { execFileSync } from 'child_process';
  * node_modules cache key, derived from these manifests + lockfiles, naturally
  * misses).
  *
- * Driven by environment variables so it is a no-op in normal builds:
- *   VSCODE_SDK_CANARY_VERSION - version to pin `@github/copilot-sdk` to (empty =
- *                               no override / normal build). The sentinel
- *                               `latest-canary` resolves to the newest
- *                               `@github/copilot-sdk` canary on the feed here,
- *                               inside the build.
- *   VSCODE_CLI_CANARY_VERSION - version to pin `@github/copilot` to. When empty
- *                               (and an SDK version is set) the CLI version is
- *                               inferred from the SDK's own `@github/copilot`
- *                               dependency so the two stay compatible. When set
- *                               explicitly, it is validated against that same
- *                               dependency range and the build fails fast on a
- *                               confirmed incompatible SDK/CLI pair.
+ * Driven by environment variables so SDK and runtime overrides can be applied
+ * independently. Product builds use an exact checked-in runtime parameter
+ * default while retaining the SDK version from the OSS manifest.
  *
  * npm registry + auth must already be configured in the ambient environment
  * (the orchestrator authenticates to the private feed before invoking this).
@@ -150,9 +140,7 @@ function assertCliSatisfiesSdk(sdkVersion: string, cliVersion: string): void {
  * orchestrator that queues the build never needs feed-read access.
  *
  * Canary versions look like `X.Y.Z-canary.<N>.g<sha>`; "newest" is the highest
- * `[X, Y, Z, N]` tuple (numeric, so `canary.9` < `canary.10`). The resolved
- * concrete version is also emitted as an ADO build tag (`sdk-canary=<version>`)
- * so the orchestrator can read it back for accurate Slack reporting.
+ * `[X, Y, Z, N]` tuple (numeric, so `canary.9` < `canary.10`).
  */
 function resolveLatestCanary(): string {
 	const versionsRaw = execFileSync(NPM, ['view', '@github/copilot-sdk', 'versions', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
@@ -189,9 +177,7 @@ function resolveLatestCanary(): string {
 
 function collectOverrides(): Override[] {
 	let sdkVersion = (process.env['VSCODE_SDK_CANARY_VERSION'] ?? '').trim();
-	if (!sdkVersion) {
-		return [];
-	}
+	const explicitCli = (process.env['VSCODE_CLI_CANARY_VERSION'] ?? '').trim();
 	// `latest-canary` sentinel: resolve the newest published @github/copilot-sdk
 	// canary here, inside the build, where private-feed npm auth already exists —
 	// so the GitHub-side orchestrator that queues this build never needs
@@ -199,18 +185,20 @@ function collectOverrides(): Override[] {
 	if (sdkVersion === 'latest-canary') {
 		sdkVersion = resolveLatestCanary();
 	}
-	assertSafeSpec('SDK canary version', sdkVersion);
-	const overrides: Override[] = [{ name: '@github/copilot-sdk', version: sdkVersion }];
+	const overrides: Override[] = [];
+	if (sdkVersion) {
+		assertSafeSpec('SDK canary version', sdkVersion);
+		overrides.push({ name: '@github/copilot-sdk', version: sdkVersion });
+	}
 
-	// Explicit CLI version wins (but must be compatible with the SDK); empty
-	// means "infer a compatible CLI from the SDK".
-	const explicitCli = (process.env['VSCODE_CLI_CANARY_VERSION'] ?? '').trim();
 	let cliVersion: string | undefined;
 	if (explicitCli) {
 		assertSafeSpec('CLI canary version', explicitCli);
-		assertCliSatisfiesSdk(sdkVersion, explicitCli);
+		if (sdkVersion) {
+			assertCliSatisfiesSdk(sdkVersion, explicitCli);
+		}
 		cliVersion = explicitCli;
-	} else {
+	} else if (sdkVersion) {
 		cliVersion = inferCliVersion(sdkVersion);
 	}
 	if (cliVersion) {
