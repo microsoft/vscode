@@ -274,7 +274,7 @@ VS Code ships design-system size tokens from `src/vs/platform/theme/common/sizes
 
 ### Spacing — `padding`, `margin`, `gap`
 
-Use the registered spacing family for padding, margin, and gap. What matters is selecting an intentional step rather than introducing an arbitrary relationship. Use the design-token validator for current on-ramp values and nearest-step guidance. Leave structural percentages and relative units, and deliberate `var()`/`calc()` expressions, to case-by-case review.
+Use the registered spacing family for padding, margin, and gap. What matters is selecting an intentional step rather than introducing an arbitrary relationship. Use the design-token validator (`npm run stylelint -- <path>`) for current on-ramp values and nearest-step guidance; the default `npm run stylelint` run only emits these suggestions under `src/vs/sessions`, so pass the path explicitly for CSS elsewhere in `src/vs`. Leave structural percentages and relative units, and deliberate `var()`/`calc()` expressions, to case-by-case review.
 
 ### Corner radius — `border-radius`
 
