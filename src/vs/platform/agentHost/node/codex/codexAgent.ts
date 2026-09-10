@@ -78,7 +78,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
-import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
+import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isGitHubMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangeOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageModelCallCompleted, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, type ICodexSessionMapState } from './codexMapAppServerEvents.js';
@@ -149,6 +149,7 @@ import type { GuardianWarningNotification } from './protocol/generated/v2/Guardi
 import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/generated/v2/ThreadApproveGuardianDeniedActionResponse.js';
 import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
+import { ensurePortableCodexProxyProvider } from './codexProviderConfiguration.js';
 import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
 import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
 
@@ -670,6 +671,7 @@ interface ICodexSession {
 	materializedCustomizationsSig: string | undefined;
 	/** Model provider backing the current materialized thread. */
 	materializedModelProvider: string | undefined;
+	hasNativeHistory?: boolean;
 	/** True once a turn has been started on the (materialized) thread. */
 	firstTurnSent: boolean;
 	model: ModelSelection | undefined;
@@ -1411,34 +1413,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			requiresOpenaiAuth: state.requiresOpenaiAuth,
 			rateLimit: state.authType === 'chatgpt' ? this._openAIAccountRateLimit : undefined,
 		};
-	}
-
-	private async _resetSessionForModelProviderChange(session: ICodexSession, modelProvider: string): Promise<void> {
-		if (session.threadId === undefined) {
-			return;
-		}
-		const oldThreadId = session.threadId;
-		this._logService.info(`[Codex:${session.sessionId}] replacing thread ${oldThreadId} with a fresh ${modelProvider} thread`);
-		this._removeThreadRouteIfOwned(oldThreadId, session.sessionId);
-		this._mcpInventory.deleteThread(oldThreadId);
-		session.threadId = undefined;
-		this._applyMcpInventoryToSession(session);
-		session.materializePromise = undefined;
-		session.materializedToolsSig = undefined;
-		session.materializedMcpSig = undefined;
-		session.materializedCustomizationsSig = undefined;
-		session.materializedModelProvider = undefined;
-		session.needsResume = false;
-		session.hostTurnIdByAppTurnId.clear();
-		session.codexTurnIdByHostTurnId.clear();
-		const connection = this._connection;
-		if (connection.kind === 'ready') {
-			try {
-				await connection.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId: oldThreadId });
-			} catch (error) {
-				this._logService.info(`[Codex:${oldThreadId}] thread/unsubscribe during model-provider change failed: ${error instanceof Error ? error.message : String(error)}`);
-			}
-		}
 	}
 
 	// #region Auth
@@ -3556,6 +3530,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedMcpSig: undefined,
 			materializedCustomizationsSig: undefined,
 			materializedModelProvider: parent.materializedModelProvider,
+			hasNativeHistory: parent.hasNativeHistory,
 			firstTurnSent: true,
 			model: parent.model,
 			agent: parent.agent,
@@ -4683,6 +4658,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedMcpSig: undefined,
 			materializedCustomizationsSig: undefined,
 			materializedModelProvider: undefined,
+			hasNativeHistory: false,
 			firstTurnSent: false,
 			model,
 			agent: options?.agent,
@@ -4999,6 +4975,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedMcpSig: undefined,
 			materializedCustomizationsSig: undefined,
 			materializedModelProvider,
+			hasNativeHistory: materializedModelProvider ? materializedModelProvider === CODEX_OPENAI_MODEL_PROVIDER : undefined,
 			firstTurnSent: true,
 			model,
 			agent,
@@ -5096,6 +5073,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			?? this._models.get().find(candidate => parseCodexModelSelection(candidate).modelProvider === sourceRead.thread.modelProvider);
 		const model = this._resolveCreationModel(options?.model, inheritedModel);
 		const resolvedModel = model ? parseCodexModelSelection(model) : undefined;
+		const hasNativeHistory = sourceSession?.hasNativeHistory || sourceRead.rolloutMetadata?.originModelProvider === CODEX_OPENAI_MODEL_PROVIDER || sourceRead.thread.modelProvider === CODEX_OPENAI_MODEL_PROVIDER;
 		// Inherit the source session's effective permissions so forking an
 		// auto-review / full-access / read-only session doesn't silently reset the
 		// fork back to the Default preset. Fork callers typically pass an empty
@@ -5131,6 +5109,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			forkConnection = sourceSession
 				? (await this._ensureThreadConnection(sourceSession)).connection
 				: await this._ensureConnection();
+			if (hasNativeHistory && resolvedModel?.modelProvider === CODEX_COPILOT_MODEL_PROVIDER) {
+				await this._ensurePortableProxyConfiguration(forkConnection);
+				this._assertCurrentConnection(forkConnection);
+			}
 			forkResult = await forkConnection.client.request<'thread/fork', ThreadForkResponse>('thread/fork', {
 				threadId: sourceThreadId,
 				...(forkManagedWorkingDirectory ? {
@@ -5142,6 +5124,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
 				config: {
 					...this._modelContextConfigOverrides(model),
+					...this._portableHistoryConfig(hasNativeHistory),
 					[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 					'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 				},
@@ -5202,6 +5185,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			options?.agent ?? sourceSession?.agent,
 			forkResult.thread.modelProvider ?? resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider,
 		);
+		session.hasNativeHistory ||= hasNativeHistory;
 		session.managedWorkingDirectory = forkManagedWorkingDirectory;
 		this._sessions.set(sessionId, session);
 		this._sessionIdByThreadId.set(newThreadId, sessionId);
@@ -5420,6 +5404,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.materializedCustomizationsSig = customizationLaunch.signature;
 		session.materializedToolsSig = toolsSignature(session.clientToolSet.merged());
 		session.materializedModelProvider = resolvedModel.modelProvider;
+		session.hasNativeHistory = resolvedModel.modelProvider === CODEX_OPENAI_MODEL_PROVIDER;
 		this._sessionIdByThreadId.set(session.threadId, session.sessionId);
 		this._flushPendingMcpStartupStatuses(session.threadId);
 		this._applyMcpInventoryToSession(session);
@@ -6205,15 +6190,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const previousContextSize = getModelContextSize(session.model);
 		const nextContextSize = getModelContextSize(supported);
-		const previousProvider = session.materializedModelProvider ?? (session.model ? parseCodexModelSelection(session.model).modelProvider : undefined);
+		const previousSelectedProvider = session.model ? parseCodexModelSelection(session.model).modelProvider : undefined;
+		const previousProvider = session.materializedModelProvider ?? previousSelectedProvider;
 		const nextProvider = parseCodexModelSelection(supported).modelProvider;
 		session.model = supported;
-		if (previousProvider !== undefined && previousProvider !== nextProvider) {
-			await this._resetSessionForModelProviderChange(session, nextProvider);
-		} else if (session.threadId !== undefined && previousContextSize !== nextContextSize) {
-			// Context-window overrides are launch configuration rather than a
+		if (session.threadId !== undefined && (previousProvider !== nextProvider || (session.resumePromise !== undefined && previousSelectedProvider !== nextProvider) || previousContextSize !== nextContextSize)) {
+			// Provider and context-window overrides are launch configuration rather than a
 			// turn setting. Reload before the next turn so app-server applies the
-			// new compaction boundary without losing the thread's history.
+			// new provider and compaction boundary without losing the thread's history.
 			this._markSessionForReload(session);
 		}
 		await this._persistSessionModel(session);
@@ -6386,6 +6370,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._persistMaterializedSession(session);
 	}
 
+	private _portableHistoryConfig(hasNativeHistory: boolean | undefined): Record<string, JsonValue> {
+		return hasNativeHistory ? { [`model_providers.vscode-proxy.http_headers.${CODEX_PORTABLE_HISTORY_HEADER}`]: 'true' } : {};
+	}
+
+	private async _ensurePortableProxyConfiguration(connection: IConnectionReady): Promise<void> {
+		const setup = this._providerConfigurationWrite.then(async () => {
+			this._assertCurrentConnection(connection);
+			await ensurePortableCodexProxyProvider(connection.client);
+		});
+		this._providerConfigurationWrite = setup.catch(() => { });
+		await setup;
+	}
+
 	private async _resumeSession(session: ICodexSession, connection?: IConnectionReady): Promise<void> {
 		while (session.needsResume || session.resumePromise) {
 			if (session.resumePromise) {
@@ -6418,14 +6415,12 @@ export class CodexAgent extends Disposable implements IAgent {
 					? preferredConnection
 					: await this._ensureConnection();
 				resumeConnection = conn;
+				if (session.hasNativeHistory === undefined) {
+					await this._readSession(session.sessionUri, false);
+					this._assertCurrentConnection(conn);
+				}
 				await this._refreshSessionMcpDiscovery(session);
 				this._assertCurrentConnection(conn);
-				if (unsubscribeBeforeResume) {
-					// `thread/resume` deliberately rejoins a loaded subscribed thread and
-					// ignores conflicting overrides. Unsubscribe first so app-server
-					// reloads the persisted history with the current launch-only config.
-					await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
-				}
 				const mcpServers = this._buildSessionMcpServers(session);
 				const customizationLaunch = await this._buildCustomizationLaunch(session);
 				const config = this._readSessionConfig(session.configurationResource);
@@ -6435,10 +6430,24 @@ export class CodexAgent extends Disposable implements IAgent {
 				const permissions = this._permissionProfile(config, sandboxMode, session.agentMergeTurn ? false : undefined);
 				const runtimeWorkspaceRoots = this._permissionRuntimeWorkspaceRoots(this._runtimeWorkspaceRoots(session), config, sandboxMode);
 				const resolvedModel = parseCodexModelSelection(await this._resolveModel(session));
+				session.hasNativeHistory ||= session.materializedModelProvider === CODEX_OPENAI_MODEL_PROVIDER || resolvedModel.modelProvider === CODEX_OPENAI_MODEL_PROVIDER;
+				if (session.materializedModelProvider === CODEX_OPENAI_MODEL_PROVIDER && resolvedModel.modelProvider === CODEX_COPILOT_MODEL_PROVIDER) {
+					await this._ensurePortableProxyConfiguration(conn);
+				}
 				if (session.disposed) {
 					throw new CancellationError();
 				}
 				this._assertCurrentConnection(conn);
+				if (unsubscribeBeforeResume) {
+					// `thread/resume` deliberately rejoins a loaded subscribed thread and
+					// ignores conflicting overrides. Unsubscribe first so app-server
+					// reloads the persisted history with the current launch-only config.
+					await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
+					if (session.disposed) {
+						throw new CancellationError();
+					}
+					this._assertCurrentConnection(conn);
+				}
 				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
 					'thread/resume',
 					{
@@ -6447,7 +6456,7 @@ export class CodexAgent extends Disposable implements IAgent {
 							threadId,
 							mcpServers,
 							runtimeWorkspaceRoots,
-							{ ...customizationLaunch.config, ...this._modelContextConfigOverrides(session.model) },
+							{ ...customizationLaunch.config, ...this._modelContextConfigOverrides(session.model), ...this._portableHistoryConfig(session.hasNativeHistory) },
 							customizationLaunch.developerInstructions,
 							this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
 							{ approvalPolicy, approvalsReviewer: resolvedPermissions.approvalsReviewer, permissions },
@@ -6471,6 +6480,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 				session.materializedMcpSig = mcpServersSignature(mcpServers);
 				session.materializedCustomizationsSig = customizationLaunch.signature;
+				session.materializedModelProvider = resolvedModel.modelProvider;
 				void this._refreshMcpInventory(conn.client, threadId);
 			})().catch(err => {
 				if (!session.disposed) {
@@ -6633,6 +6643,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				?? read.rolloutMetadata?.originModelProvider
 				?? read.thread.modelProvider;
 			const restored = this._createResumedSessionEntry(sessionId, threadId, workingDirectory, restoredModel, undefined, metadata.workingDirectories, undefined, overlay.agent, materializedModelProvider);
+			restored.hasNativeHistory ||= read.rolloutMetadata?.originModelProvider === CODEX_OPENAI_MODEL_PROVIDER;
 			// Adopt the backing thread's own timestamps so a later live lookup
 			// reports when the conversation actually started, not when this
 			// process happened to re-attach to it. A thread that reports none
@@ -6652,16 +6663,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._sessions.set(sessionId, restored);
 			this._routeRestoredThreadToSession(threadId, sessionId);
 			if (restoredModel && parseCodexModelSelection(restoredModel).modelProvider !== materializedModelProvider) {
-				this._pendingMcpStartupStatuses.delete(threadId);
-				await this._resetSessionForModelProviderChange(restored, parseCodexModelSelection(restoredModel).modelProvider);
-			} else {
-				this._flushPendingMcpStartupStatuses(threadId);
-				this._applyMcpInventoryToSession(restored);
+				this._markSessionForReload(restored);
 			}
-			// Compatible restored threads skip materialization because the thread
-			// already exists. Incompatible ones rematerialize on the next send.
-			// Either way, advertise server tools now for client-side parity —
-			// on the session the host addressed, which is the only URI it knows.
+			this._flushPendingMcpStartupStatuses(threadId);
+			this._applyMcpInventoryToSession(restored);
 			this._advertiseServerTools(restored, session);
 		}
 		return restoredModel ? { ...metadata, model: restoredModel } : metadata;
@@ -6747,6 +6752,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			const rolloutMetadata = await this._readCodexRolloutMetadata(thread);
 			this._assertCurrentConnection(conn);
+			if (existing?.threadId === candidateThreadId) {
+				const modelProvider = rolloutMetadata?.selectedModel?.modelProvider ?? rolloutMetadata?.originModelProvider ?? thread.modelProvider;
+				existing.materializedModelProvider ??= modelProvider;
+				existing.hasNativeHistory ||= rolloutMetadata?.originModelProvider === CODEX_OPENAI_MODEL_PROVIDER || modelProvider === CODEX_OPENAI_MODEL_PROVIDER;
+			}
 			return { ...response, thread, persistedWorkingDirectories, persistedModelId, rolloutMetadata };
 		};
 		try {

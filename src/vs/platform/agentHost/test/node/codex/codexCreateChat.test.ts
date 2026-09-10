@@ -3069,6 +3069,8 @@ suite('CodexAgent chat backing durability', () => {
 			const turns = await reading;
 			const rematerializationReceiptsAfterRead = receipts.length;
 			const sending = agent.chats.sendMessage(chat, 'continue', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const providerRead = await readNextRequest(peer.outbound);
+			peer.push({ id: providerRead.id, error: { code: -32000, message: 'no rollout found for thread id missing-rollout-thread' } });
 			const unsubscribe = await readNextRequest(peer.outbound);
 			peer.push({ id: unsubscribe.id, result: {} });
 			const resume = await readNextRequest(peer.outbound);
@@ -3086,6 +3088,7 @@ suite('CodexAgent chat backing durability', () => {
 				materializedBeforeReplacement,
 				rematerializationReceiptsAfterRead,
 				rematerializationReceipts: receipts.length,
+				providerRead: { method: providerRead.method, threadId: providerRead.params.threadId },
 				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
 				resume: { method: resume.method, threadId: resume.params.threadId },
 				start: { method: start.method, cwd: start.params.cwd },
@@ -3101,6 +3104,7 @@ suite('CodexAgent chat backing durability', () => {
 				materializedBeforeReplacement: true,
 				rematerializationReceiptsAfterRead: 0,
 				rematerializationReceipts: 1,
+				providerRead: { method: 'thread/read', threadId: 'missing-rollout-thread' },
 				unsubscribe: { method: 'thread/unsubscribe', threadId: 'missing-rollout-thread' },
 				resume: { method: 'thread/resume', threadId: 'missing-rollout-thread' },
 				start: { method: 'thread/start', cwd: folder.fsPath },

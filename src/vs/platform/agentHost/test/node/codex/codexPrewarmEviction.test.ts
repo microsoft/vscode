@@ -55,6 +55,7 @@ import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
+import type { ConfigEdit } from '../../../node/codex/protocol/generated/v2/ConfigEdit.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
@@ -82,6 +83,9 @@ interface ITestWireRequest {
 		readonly config?: Record<string, unknown>;
 		readonly effort?: string;
 		readonly developerInstructions?: string;
+		readonly edits?: readonly ConfigEdit[];
+		readonly expectedVersion?: string;
+		readonly reloadUserConfig?: boolean;
 		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null; readonly reasoning_effort?: string | null } };
 	};
 }
@@ -982,6 +986,8 @@ suite('CodexAgent prewarm eviction', () => {
 		await agent.materializeChat(chat, parent.session, created.providerData);
 		const restoredEntry = agent['_sessions'].get('thread-peer')!;
 		const sending = agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-peer');
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: 'thread-peer', modelProvider: 'vscode-proxy' } } });
 		const reloadUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: reloadUnsubscribe.id, result: {} });
 		const resume = await readNextRequest(peer.outbound);
@@ -1001,6 +1007,7 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.deepStrictEqual({
 			start: { method: start.method, cwd: start.params.cwd },
 			release: { method: releaseUnsubscribe.method, threadId: releaseUnsubscribe.params.threadId },
+			read: { method: read.method, threadId: read.params.threadId },
 			reload: { method: reloadUnsubscribe.method, threadId: reloadUnsubscribe.params.threadId },
 			resume: { method: resume.method, threadId: resume.params.threadId },
 			inventory: { method: inventory.method, threadId: inventory.params.threadId },
@@ -1012,6 +1019,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}, {
 			start: { method: 'thread/start', cwd: managedDirectory.fsPath },
 			release: { method: 'thread/unsubscribe', threadId: 'thread-peer' },
+			read: { method: 'thread/read', threadId: 'thread-peer' },
 			reload: { method: 'thread/unsubscribe', threadId: 'thread-peer' },
 			resume: { method: 'thread/resume', threadId: 'thread-peer' },
 			inventory: { method: 'mcpServerStatus/list', threadId: 'thread-peer' },
@@ -1314,6 +1322,8 @@ suite('CodexAgent prewarm eviction', () => {
 		}]);
 
 		const sending = agent.chats.sendMessage(chat, 'follow up', undefined, undefined, 'turn-1');
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: 'restored-mcp-thread', modelProvider: 'vscode-proxy' } } });
 		const initialUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: initialUnsubscribe.id, result: {} });
 		const resume = await readNextRequest(peer.outbound);
@@ -1334,6 +1344,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		assert.deepStrictEqual({
 			initialUnsubscribe: { method: initialUnsubscribe.method, threadId: initialUnsubscribe.params.threadId },
+			read: { method: read.method, threadId: read.params.threadId },
 			resume: {
 				method: resume.method,
 				threadId: resume.params.threadId,
@@ -1348,6 +1359,7 @@ suite('CodexAgent prewarm eviction', () => {
 			turn: { method: turn.method, threadId: turn.params.threadId },
 		}, {
 			initialUnsubscribe: { method: 'thread/unsubscribe', threadId: 'restored-mcp-thread' },
+			read: { method: 'thread/read', threadId: 'restored-mcp-thread' },
 			resume: {
 				method: 'thread/resume',
 				threadId: 'restored-mcp-thread',
@@ -1986,6 +1998,339 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
+	for (const restorePath of ['metadata', 'materialize'] as const) {
+		test(`retains portable history after restoring a Copilot-selected native thread through ${restorePath}`, async () => {
+			const agent = await createAgent(disposables);
+			agent['_schedulePrewarm'] = () => { };
+			agent['_readCodexRolloutMetadata'] = async () => ({
+				isDesktop: true,
+				originModelProvider: 'openai',
+				selectedModel: { modelProvider: 'vscode-proxy', modelId: 'gpt-test' },
+				modelsByTurnId: new Map(),
+				threadCoordinationByTurnId: new Map(),
+			});
+			const peer = disposables.add(createTestPeer());
+			agent['_connection'] = {
+				kind: 'ready',
+				client: new CodexAppServerClient(peer.transport),
+				usageSource: 'github',
+				child: { kill: () => true },
+			} as never;
+			const requests: ITestWireRequest[] = [];
+			const respond = (chunk: Buffer) => {
+				const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+				requests.push(request);
+				queueMicrotask(() => peer.push({
+					id: request.id,
+					result: request.method === 'mcpServerStatus/list'
+						? { data: [], nextCursor: null }
+						: { thread: { id: 'portable-thread', modelProvider: 'vscode-proxy', cwd: '/repo/portable', turns: [] } },
+				}));
+			};
+			peer.outbound.on('data', respond);
+			const session = AgentSession.uri('codex', 'portable-thread');
+			const chat = defaultChatOf(session);
+			try {
+				if (restorePath === 'metadata') {
+					await agent.getChatMetadata(chat, chatContext(session, chat));
+				} else {
+					await agent.materializeChat(chat, chatContext(session, chat), JSON.stringify({ sessionId: 'portable-thread', model: { id: COPILOT_TEST_MODEL } }));
+				}
+				const entry = agent['_sessions'].get('portable-thread')!;
+				await agent['_resumeSession'](entry);
+				const resume = requests.find(request => request.method === 'thread/resume')!;
+				assert.deepStrictEqual({
+					hasNativeHistory: entry.hasNativeHistory,
+					threadId: resume.params.threadId,
+					provider: resume.params.modelProvider,
+					portableHistory: (resume.params.config as Record<string, string>)['model_providers.vscode-proxy.http_headers.x-vscode-codex-portable-history'],
+					configurationWrites: requests.filter(request => request.method === 'config/batchWrite').length,
+				}, {
+					hasNativeHistory: true,
+					threadId: 'portable-thread',
+					provider: 'vscode-proxy',
+					portableHistory: 'true',
+					configurationWrites: 0,
+				});
+			} finally {
+				peer.outbound.off('data', respond);
+				peer.exit();
+			}
+		});
+	}
+
+	test('restores a saved provider change without replacing or unsubscribing the native thread', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		agent['_schedulePrewarm'] = () => { };
+		await database.setMetadata('codex.threadId', 'native-chatgpt-thread');
+		await database.setMetadata('codex.model', COPILOT_TEST_MODEL);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const requests: string[] = [];
+		const respond = (chunk: Buffer) => {
+			const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+			requests.push(request.method);
+			queueMicrotask(() => peer.push({
+				id: request.id,
+				result: { thread: { id: 'native-chatgpt-thread', modelProvider: 'openai', cwd: '/repo/restored-provider', source: 'cli', turns: [] } },
+			}));
+		};
+		peer.outbound.on('data', respond);
+		const session = AgentSession.uri('codex', 'native-chatgpt-thread');
+		const chat = defaultChatOf(session);
+		try {
+			const metadata = await agent.getChatMetadata(chat, chatContext(session, chat));
+			const entry = agent['_sessions'].get(AgentSession.id(session));
+			assert.deepStrictEqual({
+				requests,
+				model: metadata?.model?.id,
+				threadId: entry?.threadId,
+				needsResume: entry?.needsResume,
+				unsubscribeBeforeResume: entry?.unsubscribeBeforeResume,
+				threadOwner: agent['_sessionIdByThreadId'].get('native-chatgpt-thread'),
+			}, {
+				requests: ['thread/read'],
+				model: COPILOT_TEST_MODEL,
+				threadId: 'native-chatgpt-thread',
+				needsResume: true,
+				unsubscribeBeforeResume: true,
+				threadOwner: 'native-chatgpt-thread',
+			});
+		} finally {
+			peer.outbound.off('data', respond);
+			peer.exit();
+		}
+	});
+
+	for (const initialConfiguration of ['missing', 'conflicting', 'unwritable']) {
+		test(`protects a cold native thread with a saved Copilot selection and ${initialConfiguration} alias configuration`, async () => {
+			const database = new TestSessionDatabase();
+			const agent = await createAgent(disposables, { database });
+			agent['_schedulePrewarm'] = () => { };
+			await database.setMetadata('codex.threadId', 'native-chatgpt-thread');
+			await database.setMetadata('codex.model', COPILOT_TEST_MODEL);
+			const peer = disposables.add(createTestPeer());
+			agent['_connection'] = {
+				kind: 'ready',
+				client: new CodexAppServerClient(peer.transport),
+				usageSource: 'github',
+				child: { kill: () => true },
+			} as never;
+			const requests: string[] = [];
+			let configurationRepaired = false;
+			const respond = (chunk: Buffer) => {
+				const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+				requests.push(request.method);
+				if (request.method === 'config/batchWrite' && initialConfiguration === 'unwritable' && !configurationRepaired) {
+					queueMicrotask(() => peer.push({ id: request.id, error: { code: -32600, message: 'User configuration is read-only' } }));
+					return;
+				}
+				const result = request.method === 'thread/read'
+					? { thread: { id: 'native-chatgpt-thread', modelProvider: 'openai', cwd: '/repo/restored-provider', source: 'cli', turns: [] } }
+					: request.method === 'config/read'
+						? { layers: [{ name: { type: 'user', profile: null, file: '/custom-codex/config.toml' }, version: 'original-version', config: initialConfiguration === 'conflicting' && !configurationRepaired ? { model_providers: { 'vscode-proxy': { name: 'Existing provider' } } } : {} }] }
+						: request.method === 'thread/resume'
+							? { thread: { id: request.params.threadId }, modelProvider: request.params.modelProvider }
+							: request.method === 'mcpServerStatus/list'
+								? { data: [], nextCursor: null }
+								: {};
+				queueMicrotask(() => peer.push({ id: request.id, result }));
+			};
+			peer.outbound.on('data', respond);
+			const session = AgentSession.uri('codex', 'native-chatgpt-thread');
+			const chat = defaultChatOf(session);
+			try {
+				await agent.getChatMetadata(chat, chatContext(session, chat));
+				const entry = agent['_sessions'].get(AgentSession.id(session))!;
+				entry.hostTurnIdByAppTurnId.set('native-turn', 'host-turn');
+				entry.codexTurnIdByHostTurnId.set('host-turn', 'native-turn');
+				if (initialConfiguration !== 'missing') {
+					await assert.rejects(agent['_resumeSession'](entry), /already defines an incompatible|User configuration is read-only/);
+					assert.deepStrictEqual({
+						requests,
+						threadId: entry.threadId,
+						provider: entry.materializedModelProvider,
+						needsResume: entry.needsResume,
+						unsubscribeBeforeResume: entry.unsubscribeBeforeResume,
+					}, {
+						requests: initialConfiguration === 'conflicting' ? ['thread/read', 'config/read'] : ['thread/read', 'config/read', 'config/batchWrite'],
+						threadId: 'native-chatgpt-thread',
+						provider: 'openai',
+						needsResume: true,
+						unsubscribeBeforeResume: true,
+					});
+					configurationRepaired = true;
+					requests.length = 0;
+				}
+				await agent['_resumeSession'](entry);
+				assert.deepStrictEqual({
+					handoff: requests.filter(method => method !== 'thread/read' && method !== 'mcpServerStatus/list'),
+					threadId: entry.threadId,
+					provider: entry.materializedModelProvider,
+					hostTurn: entry.hostTurnIdByAppTurnId.get('native-turn'),
+					nativeTurn: entry.codexTurnIdByHostTurnId.get('host-turn'),
+				}, {
+					handoff: ['config/read', 'config/batchWrite', 'thread/unsubscribe', 'thread/resume'],
+					threadId: 'native-chatgpt-thread',
+					provider: 'vscode-proxy',
+					hostTurn: 'host-turn',
+					nativeTurn: 'native-turn',
+				});
+			} finally {
+				peer.outbound.off('data', respond);
+				peer.exit();
+			}
+		});
+	}
+
+	test('preserves the native thread when switching from ChatGPT to Copilot', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const chatGPTModel = toCodexModelSelectionId('openai', 'gpt-chatgpt-test');
+		agent['_models'].set([
+			{ provider: 'copilot', id: COPILOT_TEST_MODEL, name: 'GPT Test', supportsVision: false },
+			{ provider: 'codex', id: chatGPTModel, name: 'GPT Test', supportsVision: false },
+		], undefined);
+		const created = await createSession(agent, { workingDirectories: [URI.file('/repo/switch-provider')], model: { id: chatGPTModel } });
+		const chat = defaultChatOf(created.session);
+		const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+		const materializing = agent['_materializeIfNeeded'](entry, created.session, false);
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'chatgpt-thread' } } });
+		await materializing;
+		entry.firstTurnSent = true;
+		entry.hostTurnIdByAppTurnId.set('previous-codex-turn', 'previous-host-turn');
+		entry.codexTurnIdByHostTurnId.set('previous-host-turn', 'previous-codex-turn');
+		const requests: ITestWireRequest[] = [];
+		const respond = (chunk: Buffer) => {
+			const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+			requests.push(request);
+			const result = request.method === 'config/read'
+				? { layers: [{ name: { type: 'user', profile: null, file: '/custom-codex/config.toml' }, version: 'original-version', config: {} }] }
+				: request.method === 'thread/start'
+					? { thread: { id: 'replacement-thread' } }
+					: request.method === 'thread/resume'
+						? { thread: { id: request.params.threadId }, modelProvider: request.params.modelProvider }
+						: request.method === 'mcpServerStatus/list'
+							? { data: [], nextCursor: null }
+							: {};
+			queueMicrotask(() => peer.push({ id: request.id, result }));
+		};
+		peer.outbound.on('data', respond);
+		try {
+			await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL }, chatContext(created.session, chat));
+			await agent.chats.sendMessage(chat, 'continue through Copilot', [URI.file('/repo/switch-provider')], undefined, 'next-host-turn', undefined, undefined, chatContext(created.session, chat));
+		} finally {
+			peer.outbound.off('data', respond);
+			peer.exit();
+		}
+		const continuation = requests.find(request => request.method === 'thread/start' || request.method === 'thread/resume')!;
+		const turn = requests.find(request => request.method === 'turn/start')!;
+
+		assert.deepStrictEqual({
+			setup: requests.filter(request => request.method === 'config/batchWrite').map(request => request.params),
+			handoff: requests.filter(request => ['config/batchWrite', 'thread/unsubscribe', 'thread/resume'].includes(request.method)).map(request => request.method),
+			method: continuation.method,
+			threadId: continuation.params.threadId,
+			model: continuation.params.model,
+			provider: continuation.params.modelProvider,
+			currentThread: entry.threadId,
+			turnThread: turn.params.threadId,
+			materializedProvider: entry.materializedModelProvider,
+			portableHistory: (continuation.params.config as Record<string, string>)['model_providers.vscode-proxy.http_headers.x-vscode-codex-portable-history'],
+			previousHostTurn: entry.hostTurnIdByAppTurnId.get('previous-codex-turn'),
+			previousCodexTurn: entry.codexTurnIdByHostTurnId.get('previous-host-turn'),
+		}, {
+			setup: [{
+				edits: [{ keyPath: 'model_providers.vscode-proxy', value: { name: 'OpenAI', wire_api: 'responses', requires_openai_auth: true }, mergeStrategy: 'replace' }],
+				expectedVersion: 'original-version',
+				reloadUserConfig: false,
+			}],
+			handoff: ['config/batchWrite', 'thread/unsubscribe', 'thread/resume'],
+			method: 'thread/resume',
+			threadId: 'chatgpt-thread',
+			model: 'gpt-test',
+			provider: 'vscode-proxy',
+			currentThread: 'chatgpt-thread',
+			turnThread: 'chatgpt-thread',
+			materializedProvider: 'vscode-proxy',
+			portableHistory: 'true',
+			previousHostTurn: 'previous-host-turn',
+			previousCodexTurn: 'previous-codex-turn',
+		});
+	});
+
+	test('honors switching back to ChatGPT while the Copilot handoff is preparing', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_models'].set([
+			{ provider: 'copilot', id: COPILOT_TEST_MODEL, name: 'GPT Test', supportsVision: false },
+			{ provider: 'codex', id: OPENAI_TEST_MODEL, name: 'GPT Test', supportsVision: false },
+		], undefined);
+		const created = await createSession(agent, { workingDirectories: [URI.file('/repo/switch-provider')], model: { id: OPENAI_TEST_MODEL } });
+		const chat = defaultChatOf(created.session);
+		const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+		const materializing = agent['_materializeIfNeeded'](entry, created.session, false);
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'native-chatgpt-thread' } } });
+		await materializing;
+		await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL }, chatContext(created.session, chat));
+		const resuming = agent['_resumeSession'](entry);
+		const readConfig = await readNextRequest(peer.outbound);
+		await agent.chats.changeModel(chat, { id: OPENAI_TEST_MODEL }, chatContext(created.session, chat));
+		const resumedProviders: string[] = [];
+		const respond = (chunk: Buffer) => {
+			const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+			if (request.method === 'thread/resume') {
+				resumedProviders.push(request.params.modelProvider!);
+			}
+			queueMicrotask(() => peer.push({
+				id: request.id,
+				result: request.method === 'thread/resume'
+					? { thread: { id: request.params.threadId }, modelProvider: request.params.modelProvider }
+					: request.method === 'mcpServerStatus/list' ? { data: [], nextCursor: null } : {},
+			}));
+		};
+		peer.outbound.on('data', respond);
+		peer.push({ id: readConfig.id, result: { layers: [{ name: { type: 'user', profile: null, file: '/custom-codex/config.toml' }, version: 'original-version', config: {} }] } });
+		try {
+			await resuming;
+			assert.deepStrictEqual({ resumedProviders, selectedModel: entry.model?.id, provider: entry.materializedModelProvider, threadId: entry.threadId }, {
+				resumedProviders: ['vscode-proxy', 'openai'],
+				selectedModel: OPENAI_TEST_MODEL,
+				provider: 'openai',
+				threadId: 'native-chatgpt-thread',
+			});
+		} finally {
+			peer.outbound.off('data', respond);
+			peer.exit();
+		}
+	});
+
 	test('routes provider-qualified models independently and switches one session', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
@@ -2021,20 +2366,33 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.push({ id: chatGPTStart.id, result: { thread: { id: 'thread-chatgpt' } } });
 		await materializeChatGPT;
 
-		const switchingModel = agent.chats.changeModel(defaultChatOf(copilot.session), { id: chatGPTModel }, chatContext(copilot.session, defaultChatOf(copilot.session)));
+		await agent.chats.changeModel(defaultChatOf(copilot.session), { id: chatGPTModel }, chatContext(copilot.session, defaultChatOf(copilot.session)));
+		const persistedAfterSwitch = await agent['_metadataStore'].read(copilot.session);
+		const resumeCopilot = agent['_resumeSession'](copilotEntry);
 		const unsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: unsubscribe.id, result: {} });
-		await switchingModel;
-		const persistedAfterSwitch = await agent['_metadataStore'].read(copilot.session);
-		const rematerializeCopilot = agent['_materializeIfNeeded'](copilotEntry, copilotEntry.sessionUri, false);
-		const switchedStart = await readNextRequest(peer.outbound);
-		peer.push({ id: switchedStart.id, result: { thread: { id: 'thread-copilot-switched' } } });
-		await rematerializeCopilot;
+		const switchedResume = await readNextRequest(peer.outbound);
+		const refreshingInventory = readNextRequest(peer.outbound);
+		peer.push({ id: switchedResume.id, result: { thread: { id: 'thread-copilot' } } });
+		await resumeCopilot;
+		const inventory = await refreshingInventory;
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+
+		await agent.chats.changeModel(defaultChatOf(copilot.session), { id: COPILOT_TEST_MODEL }, chatContext(copilot.session, defaultChatOf(copilot.session)));
+		const resumeOriginalProvider = agent['_resumeSession'](copilotEntry);
+		const readConfig = await readNextRequest(peer.outbound);
+		peer.push({ id: readConfig.id, result: { layers: [{ name: { type: 'user', profile: null, file: '/custom-codex/config.toml' }, version: 'original-version', config: { model_providers: { 'vscode-proxy': { name: 'OpenAI', wire_api: 'responses', requires_openai_auth: true } } } }] } });
+		const unsubscribeAgain = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribeAgain.id, result: {} });
+		const returnedResume = await readNextRequest(peer.outbound);
+		peer.push({ id: returnedResume.id, result: { thread: { id: 'thread-copilot' } } });
+		await resumeOriginalProvider;
 
 		assert.deepStrictEqual({
 			copilotStart: { model: copilotStart.params.model, provider: copilotStart.params.modelProvider },
 			chatGPTStart: { model: chatGPTStart.params.model, provider: chatGPTStart.params.modelProvider },
-			switchedStart: { model: switchedStart.params.model, provider: switchedStart.params.modelProvider },
+			switchedResume: { method: switchedResume.method, threadId: switchedResume.params.threadId, model: switchedResume.params.model, provider: switchedResume.params.modelProvider },
+			returnedResume: { method: returnedResume.method, threadId: returnedResume.params.threadId, provider: returnedResume.params.modelProvider },
 			copilotThread: copilotEntry.threadId,
 			chatGPTThread: chatGPTEntry.threadId,
 			persistedAfterSwitch: persistedAfterSwitch.modelId,
@@ -2042,8 +2400,9 @@ suite('CodexAgent prewarm eviction', () => {
 		}, {
 			copilotStart: { model: 'gpt-test', provider: 'vscode-proxy' },
 			chatGPTStart: { model: 'gpt-test', provider: 'openai' },
-			switchedStart: { model: 'gpt-test', provider: 'openai' },
-			copilotThread: 'thread-copilot-switched',
+			switchedResume: { method: 'thread/resume', threadId: 'thread-copilot', model: 'gpt-test', provider: 'openai' },
+			returnedResume: { method: 'thread/resume', threadId: 'thread-copilot', provider: 'vscode-proxy' },
+			copilotThread: 'thread-copilot',
 			chatGPTThread: 'thread-chatgpt',
 			persistedAfterSwitch: chatGPTModel,
 			unsubscribedThread: 'thread-copilot',
