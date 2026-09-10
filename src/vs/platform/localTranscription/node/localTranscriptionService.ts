@@ -35,9 +35,8 @@ const FOUNDRY_APP_NAME = 'vscode-dictation';
  * unresolved forever — and since `start`/`pushAudio`/`stop`/`cancel` all await
  * these calls (directly or via the serialized append chain / stream consumer),
  * the renderer would wait indefinitely with no error ever surfacing to the
- * user. Model *download* already reports progress and is not included here;
- * a stalled download is instead caught by its own inactivity timeout inside
- * `ensureFoundryLocalRuntime`.
+ * user. Model download reports progress but exposes no `AbortSignal`;
+ * cancellation is enforced by terminating this utility process.
  */
 const MODEL_CATALOG_TIMEOUT_MS = 30_000;
 const MODEL_LOAD_TIMEOUT_MS = 120_000;
@@ -233,7 +232,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	private _loadedModelId: string | undefined;
 	/** In-flight (or resolved) model download+load for the selected model. */
 	private _modelPromise: Promise<IModel> | undefined;
-	/** Cancellation source for the in-flight model download/load; aborts it when cancelled. */
+	/** Cancellation source for in-flight model preparation. */
 	private _modelPrepareCts: CancellationTokenSource | undefined;
 
 	/**
