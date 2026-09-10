@@ -150,7 +150,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
 		const changesets = changeset
 			? [changeset]
-			: resolveChangesetSubscriptions(sessionKey, this._changesetSubscriptions.getSessionSubscriptions(sessionKey));
+			: resolveChangesetSubscriptions(sessionKey, this._changesetSubscriptions.getSessionSubscriptions(sessionKey), this._stateManager.getSessionState(sessionKey)?.config?.values);
 
 		// Clear the suppressed per-turn / compare-turns changesets FIRST, before
 		// the git-state gate below. A root transition (e.g. the Editor Window
@@ -179,9 +179,6 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
-			if (!gitState) {
-				return;
-			}
 		}
 
 		if (!gitHubState) {
@@ -190,6 +187,10 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		}
 
 		for (const changeset of unsuppressed) {
+			// Defer initial publication without Git state, but clear previously advertised actions.
+			if (!gitState && !this._stateManager.getChangesetState(changeset)?.operations?.length) {
+				continue;
+			}
 			const operations = this.getOperations(sessionKey, changeset, gitState, gitHubState);
 
 			this._stateManager.dispatchServerAction(changeset, {
