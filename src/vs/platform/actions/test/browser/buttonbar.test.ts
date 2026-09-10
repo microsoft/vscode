@@ -116,18 +116,26 @@ suite('WorkbenchButtonBar', () => {
 	});
 
 	test('renders the spinner on the primary half of a dropdown button', () => {
-		const { bar } = createButtonBar(() => ({ showLabel: true, showSpinner: true }));
+		const { bar } = createButtonBar(() => ({ showLabel: true, showSpinner: true, iconLabelSpacing: 'default' }));
 
 		bar.update([new SubmenuAction('id', 'Merge', [action('Merge'), new Separator(), action('Other')])], []);
 		const button = bar.buttons[0].element;
+		const primaryButton = button.querySelector<HTMLElement>('.monaco-button.monaco-text-button')!;
+		const spinner = primaryButton.querySelector<HTMLElement>(SPINNER_SELECTOR)!;
 
 		assert.deepStrictEqual({
 			spinners: button.querySelectorAll(SPINNER_SELECTOR).length,
 			// Not on the dropdown chevron, which is a sibling button.
 			onDropdown: button.querySelector('.monaco-dropdown-button')?.querySelectorAll(SPINNER_SELECTOR).length,
+			primaryOwnsLeadingSpacing: primaryButton.classList.contains('monaco-button-with-leading-icon'),
+			primaryUsesDefaultSpacing: primaryButton.classList.contains('monaco-button-icon-label-spacing-default'),
+			leadingMargin: getWindow(primaryButton).getComputedStyle(spinner).marginInlineEnd,
 		}, {
 			spinners: 1,
 			onDropdown: 0,
+			primaryOwnsLeadingSpacing: true,
+			primaryUsesDefaultSpacing: true,
+			leadingMargin: '6px',
 		});
 	});
 
