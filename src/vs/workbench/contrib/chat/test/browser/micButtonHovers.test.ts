@@ -18,13 +18,16 @@ suite('MicButtonHovers', () => {
 	test('uses user-facing names for supported dictation models', () => {
 		const onDevice = new TestConfigurationService({ [DICTATION_MODEL_SETTING]: DEFAULT_LOCAL_TRANSCRIPTION_MODEL });
 		const cloud = new TestConfigurationService({ [DICTATION_MODEL_SETTING]: DICTATION_MAI_MODEL_ID });
+		const webFallback = new TestConfigurationService({ [DICTATION_MODEL_SETTING]: DEFAULT_LOCAL_TRANSCRIPTION_MODEL });
 
 		assert.deepStrictEqual({
 			onDevice: getDictationHoverMarkdown('Dictate', onDevice).value,
 			cloud: getDictationHoverMarkdown('Dictate', cloud).value,
+			webFallback: getDictationHoverMarkdown('Dictate', webFallback, true).value,
 		}, {
 			onDevice: '**Dictate**\n\nTypes what you say into the input. Transcribes on-device with the Nemotron 3.5 ASR multilingual model.',
 			cloud: '**Dictate**\n\nTypes what you say into the input. Transcribes in the cloud with the MAI speech model.',
+			webFallback: '**Dictate**\n\nTypes what you say into the input. Transcribes in the cloud with the MAI speech model.',
 		});
 	});
 

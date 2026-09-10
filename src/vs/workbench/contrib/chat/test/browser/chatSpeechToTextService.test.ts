@@ -387,13 +387,17 @@ suite('ChatSpeechToTextService', () => {
 
 	test('uses MAI on web and preserves the configured backend on desktop', () => {
 		assert.deepStrictEqual({
-			webWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', true),
-			webWithMai: resolveDictationBackend('mai', true),
-			desktopWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', false),
-			desktopWithMai: resolveDictationBackend('mai', false),
+			webWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', undefined, true),
+			webWithMai: resolveDictationBackend('mai', undefined, true),
+			webWithLocalPolicy: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', 'nemotron-3.5-asr-streaming-0.6b', true),
+			webWithMaiPolicy: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', 'mai', true),
+			desktopWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', undefined, false),
+			desktopWithMai: resolveDictationBackend('mai', undefined, false),
 		}, {
 			webWithLocalModel: 'mai',
 			webWithMai: 'mai',
+			webWithLocalPolicy: 'nemo',
+			webWithMaiPolicy: 'mai',
 			desktopWithLocalModel: 'nemo',
 			desktopWithMai: 'mai',
 		});

@@ -158,8 +158,9 @@ export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: bo
 	return !usesMai || entitlement !== ChatEntitlement.Enterprise || isInternal;
 }
 
-export function resolveDictationBackend(configuredModel: string | undefined, web: boolean): DictationBackend {
-	return web || configuredModel === DICTATION_MAI_MODEL_ID ? 'mai' : 'nemo';
+export function resolveDictationBackend(configuredModel: string | undefined, policyModel: string | undefined, web: boolean): DictationBackend {
+	const model = policyModel ?? configuredModel;
+	return (web && policyModel === undefined) || model === DICTATION_MAI_MODEL_ID ? 'mai' : 'nemo';
 }
 
 /** How long to wait after `ptt_end` for the backend's final transcript before returning what we have. */
@@ -452,6 +453,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private readonly _recordingContextKey: IContextKey<boolean>;
 	private readonly _configuredContextKey: IContextKey<boolean>;
 	private readonly _preparingContextKey: IContextKey<boolean>;
+	private readonly _usesMaiContextKey: IContextKey<boolean>;
 
 	private _mediaStream: MediaStream | undefined;
 	private _audioContext: AudioContext | undefined;
@@ -560,6 +562,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
 		this._configuredContextKey = ChatContextKeys.speechToTextConfigured.bindTo(contextKeyService);
 		this._preparingContextKey = ChatContextKeys.speechToTextPreparing.bindTo(contextKeyService);
+		this._usesMaiContextKey = ChatContextKeys.speechToTextUsesMai.bindTo(contextKeyService);
 		this._updateConfiguredContextKey();
 		void this._refreshGitHubSession();
 		this._register(this._authenticationService.onDidChangeSessions(e => {
@@ -620,7 +623,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	/** Read the configured dictation backend, derived from the selected model. */
 	private _getBackend(): DictationBackend {
-		return resolveDictationBackend(this._configurationService.getValue<string>(DICTATION_MODEL_SETTING), isWeb);
+		return resolveDictationBackend(
+			this._configurationService.getValue<string>(DICTATION_MODEL_SETTING),
+			this._configurationService.inspect<string>(DICTATION_MODEL_SETTING).policyValue,
+			isWeb,
+		);
 	}
 
 	private _isEntitledForBackend(backend: DictationBackend): boolean {
@@ -655,6 +662,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private _updateConfiguredContextKey(): void {
+		this._usesMaiContextKey.set(this._getBackend() === 'mai');
 		this._configuredContextKey.set(this.isConfigured);
 	}
 
