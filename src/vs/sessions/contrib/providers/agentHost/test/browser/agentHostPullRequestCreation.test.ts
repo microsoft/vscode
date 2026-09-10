@@ -10,13 +10,33 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { AgentHostPullRequestCreation } from '../../browser/agentHostPullRequestCreation.js';
 
 suite('AgentHostPullRequestCreation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const channel = URI.parse('changeset:/session-1');
 	const options = { title: 'Title', description: '', draft: false, agentMerge: false };
+	const context = { workingDirectory: 'file:///repo', repository: 'microsoft/vscode', branchName: 'feature/test', baseBranchName: 'main' };
+
+	test('validates through the read-only preparation operation and forwards identity on creation', async () => {
+		const invocations: InvokeChangesetOperationParams[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+				invocations.push(params);
+				return {};
+			}
+		}();
+		const creation = new AgentHostPullRequestCreation(() => connection, () => channel, (operationId, metadata) =>
+			connection.invokeChangesetOperation({ operationId, channel: channel.toString(), _meta: metadata }));
+		await creation.validate(context);
+		await creation.create({ ...options, expectedContext: context });
+		assert.deepStrictEqual(invocations, [
+			{ channel: channel.toString(), operationId: PREPARE_PULL_REQUEST_OPERATION_ID, _meta: createPullRequestValidationMeta(context) },
+			{ channel: channel.toString(), operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...options, expectedContext: context }) },
+		]);
+	});
 
 	test('reports an unavailable connection or channel', async () => {
 		const withoutConnection = new AgentHostPullRequestCreation(() => undefined, () => channel, async () => ({}));
@@ -24,6 +44,7 @@ suite('AgentHostPullRequestCreation', () => {
 
 		await assert.rejects(() => withoutConnection.prepare(CancellationToken.None), /connection or changeset is unavailable/);
 		await assert.rejects(() => withoutChannel.prepare(CancellationToken.None), /connection or changeset is unavailable/);
+		await assert.rejects(() => withoutConnection.validate(context), /connection or changeset is unavailable/);
 	});
 
 	test('discards preparation results when cancelled in flight', async () => {

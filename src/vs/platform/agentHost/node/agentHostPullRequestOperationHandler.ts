@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { equals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -22,7 +23,7 @@ import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js'
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeSessionState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { createPullRequestDetailsResult, readPullRequestOperationMeta, type IPullRequestCreateOptions } from '../common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestDetailsResult, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions } from '../common/meta/agentPullRequestOperationMeta.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
 
 /**
@@ -101,7 +102,11 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 	async prepare(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		return this._withAbortSignal(token, async signal => {
-			const { sessionUri, sessionState, workingDirectory, gitHubState, branchName, baseBranchName, authToken } = await this._resolveContext(params, token);
+			const expectedContext = readPullRequestValidationMeta(params);
+			const { sessionUri, sessionState, workingDirectory, gitHubState, branchName, baseBranchName, authToken, preparationContext } = await this._resolveContext(params, token, expectedContext);
+			if (expectedContext) {
+				return {};
+			}
 			let capabilities: GitHubRepositoryMergeCapabilities;
 			try {
 				capabilities = await this._octoKitService.getRepositoryMergeCapabilities(gitHubState.owner, gitHubState.repo, authToken, signal);
@@ -132,6 +137,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				branchName,
 				baseBranchName,
 				repository: `${gitHubState.owner}/${gitHubState.repo}`,
+				context: preparationContext,
 				...capabilities,
 				agentMergeAvailable,
 				...(configuration ? {
@@ -160,7 +166,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 	}
 
-	private async _resolveContext(params: InvokeChangesetOperationParams, token: CancellationToken) {
+	private async _resolveContext(params: InvokeChangesetOperationParams, token: CancellationToken, expectedContext?: IPullRequestContext) {
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
@@ -190,7 +196,11 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const storedGitState = readSessionGitState(sessionState._meta);
 		const effectiveBaseBranch = await this._resolveBaseBranchName(sessionUri);
 
-		const gitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch) ?? storedGitState;
+		const currentGitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch);
+		if (expectedContext && (!currentGitState?.branchName || currentGitState.isDetachedHead || currentGitState.hasGitHubRemote === false)) {
+			throw this._stalePreparationError();
+		}
+		const gitState = currentGitState ?? storedGitState;
 		const branchName = gitState?.branchName ?? await this._gitService.getCurrentBranch(workingDirectory);
 		if (!branchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine current branch for ${workingDirectory}`);
@@ -200,6 +210,22 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const baseBranchName = effectiveBaseBranch ?? gitState?.baseBranchName ?? defaultBranch?.name;
 		if (!baseBranchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine base branch for ${workingDirectory}`);
+		}
+
+		const repository = {
+			owner: currentGitState?.githubOwner ?? gitHubState.owner,
+			repo: currentGitState?.githubRepo ?? gitHubState.repo,
+		};
+		const preparationContext: IPullRequestContext = {
+			workingDirectory: workingDirectory.toString(),
+			repository: `${repository.owner}/${repository.repo}`,
+			branchName,
+			baseBranchName,
+			...(gitState?.githubHeadOwner ? { headOwner: gitState.githubHeadOwner } : {}),
+			...(gitState?.upstreamBranchName ? { upstreamBranchName: gitState.upstreamBranchName } : {}),
+		};
+		if (expectedContext && !equals(expectedContext, preparationContext)) {
+			throw this._stalePreparationError();
 		}
 
 		const repoResource = this._gitHubEndpointService.getRepoResource();
@@ -218,8 +244,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 		return {
 			sessionUri, sessionState, workingDirectory, effectiveBaseBranch, gitState, branchName, baseBranchName, authToken,
-			gitHubState: { owner: gitHubState.owner, repo: gitHubState.repo },
+			gitHubState: repository, preparationContext,
 		};
+	}
+
+	private _stalePreparationError(): ProtocolError {
+		return new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.pr.stalePreparation', "The repository or branches have changed since this pull request was prepared. Reopen Create PR to review the current details."));
 	}
 
 	private async _invoke(params: InvokeChangesetOperationParams, token: CancellationToken, signal: AbortSignal): Promise<InvokeChangesetOperationResult> {
@@ -231,7 +261,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			agentMerge: this._enableAgentMerge,
 		};
 		this._validateAgentMergeAvailable(options);
-		const context = await this._resolveContext(params, token);
+		const context = await this._resolveContext(params, token, submitted?.expectedContext);
 		const { sessionUri, sessionState, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
 		let { gitState, branchName } = context;
 

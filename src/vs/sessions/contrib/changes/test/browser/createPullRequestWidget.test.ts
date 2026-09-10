@@ -64,6 +64,7 @@ suite('CreatePullRequestWidget', () => {
 		const widget = store.add(new CreatePullRequestWidget({
 			creation: {
 				operationId: 'create-pr',
+				validate: async () => { },
 				prepare: async () => details,
 				create: async options => { submissions.push(options); },
 				...creation,
@@ -151,6 +152,25 @@ suite('CreatePullRequestWidget', () => {
 		const dropdown = element(widget, '.monaco-dropdown-button');
 		dropdown.focus();
 		dropdown.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 13, bubbles: true }));
+	}
+
+	for (const primaryAction of ['create', 'sendToChat'] as const) {
+		test(`${primaryAction} forwards prepared identity without persisting it`, async () => {
+			const context = { workingDirectory: 'file:///repo', repository: details.repository, branchName: details.branchName, baseBranchName: details.baseBranchName };
+			const sent: ISessionPullRequestOptions[] = [];
+			const { widget, submissions, preferences } = createWidget({ prepare: async () => ({ ...details, context }) }, undefined, {
+				preferences: { primaryAction },
+				sendToChat: async options => { sent.push(options); },
+			});
+			await widget.ready;
+			element(widget, '.create-pr-submit').click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				created: submissions.map(options => options.expectedContext),
+				sent: sent.map(options => options.expectedContext),
+				storedContext: Object.hasOwn(preferences.read(), 'expectedContext') || Object.hasOwn(preferences.read(), 'context'),
+			}, { created: primaryAction === 'create' ? [context] : [], sent: primaryAction === 'sendToChat' ? [context] : [], storedContext: false });
+		});
 	}
 
 	function chooseMenuAction(label: string): void {
@@ -285,7 +305,7 @@ suite('CreatePullRequestWidget', () => {
 
 	test('editing preferences is remembered on cancel without remembering PR content', async () => {
 		const { host, anchor, contextView, storage } = createContextView();
-		const creation: ISessionPullRequestCreation = { operationId: 'create-pr', prepare: async () => details, create: async () => assert.fail('Must not create') };
+		const creation: ISessionPullRequestCreation = { operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => assert.fail('Must not create') };
 		contextView.show(anchor, creation);
 		await timeout(0);
 		const title = host.querySelector<HTMLInputElement>('input')!;
@@ -399,7 +419,7 @@ suite('CreatePullRequestWidget', () => {
 		let created = 0;
 		let sent = 0;
 		contextView.show(anchor, {
-			operationId: 'create-pr', prepare: async () => details, create: async () => assert.fail('Must not create directly'),
+			operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => assert.fail('Must not create directly'),
 		}, { sendToChat: async () => { sent++; await completion.p; } }, () => created++);
 		await timeout(0);
 		host.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
@@ -420,7 +440,7 @@ suite('CreatePullRequestWidget', () => {
 			new CreatePullRequestPreferences(storage, store.add(new NullLogService())).update({ primaryAction: 'sendToChat' });
 			const completion = new DeferredPromise<void>();
 			const creation: ISessionPullRequestCreation = {
-				operationId: 'create-pr', prepare: async () => details, create: async () => assert.fail('Must not create directly'),
+				operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => assert.fail('Must not create directly'),
 			};
 			contextView.show(anchor, creation, { sendToChat: () => completion.p });
 			await timeout(0);
@@ -1098,6 +1118,7 @@ suite('CreatePullRequestWidget', () => {
 		anchor.focus();
 		contextView.show(anchor, {
 			operationId: 'create-pr',
+			validate: async () => { },
 			prepare: token => { cancellation = token; return generation.p; },
 			create: async () => { created = true; },
 		});
@@ -1118,7 +1139,7 @@ suite('CreatePullRequestWidget', () => {
 
 	test('Accessibility Help does not discard the form or edits', async () => {
 		const { host, anchor, contextService, contextView } = createContextView();
-		contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, create: async () => { } });
+		contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => { } });
 		await timeout(0);
 		const title = host.querySelector<HTMLInputElement>('input')!;
 		title.value = 'Keep my draft';
@@ -1147,7 +1168,7 @@ suite('CreatePullRequestWidget', () => {
 	test('clicking outside dismisses the form without creating or stealing focus', async () => {
 		const { host, anchor, contextView } = createContextView();
 		let created = false;
-		contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, create: async () => { created = true; } });
+		contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: async () => { created = true; } });
 		await timeout(0);
 		const outside = dom.append(host, dom.$('button', undefined, 'Another action'));
 		outside.focus();
@@ -1163,7 +1184,7 @@ suite('CreatePullRequestWidget', () => {
 		test(`creation ${outcome} cannot close or steal focus from a newer form after a session switch`, async () => {
 			const { host, anchor, contextView, errors } = createContextView();
 			const completion = new DeferredPromise<void>();
-			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, create: () => completion.p });
+			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => details, validate: async () => { }, create: () => completion.p });
 			await timeout(0);
 			const input = host.querySelector<HTMLInputElement>('input')!;
 			input.focus();
@@ -1172,7 +1193,7 @@ suite('CreatePullRequestWidget', () => {
 			outside.click();
 			const visibleWhileSubmitting = !!host.querySelector('[role="dialog"]');
 			contextView.close();
-			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => ({ ...details, title: 'Another session' }), create: async () => { } });
+			contextView.show(anchor, { operationId: 'create-pr', prepare: async () => ({ ...details, title: 'Another session' }), validate: async () => { }, create: async () => { } });
 			await timeout(0);
 			const newInput = host.querySelector<HTMLInputElement>('input')!;
 			newInput.focus();

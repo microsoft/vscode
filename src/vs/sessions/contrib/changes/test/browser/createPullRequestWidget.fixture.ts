@@ -90,6 +90,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	const widget = disposableStore.add(instantiationService.createInstance(CreatePullRequestWidget, {
 		creation: {
 			operationId: 'create-pr',
+			validate: async () => { },
 			prepare: () => options.loading ? generation.p : Promise.resolve({
 				...details,
 				...options.header,

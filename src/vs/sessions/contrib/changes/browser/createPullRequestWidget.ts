@@ -597,6 +597,7 @@ export class CreatePullRequestWidget extends Disposable {
 		const options: ISessionPullRequestOptions = {
 			title: this.titleInput.value.trim(),
 			description: this.descriptionInput.value,
+			...(this.details?.context ? { expectedContext: this.details.context } : {}),
 			draft: this.draftCheckbox.checked,
 			agentMerge: this.mergeMode === 'agent',
 			...(this.mergeMode === 'agent' && this.details?.agentMergeOptions ? {

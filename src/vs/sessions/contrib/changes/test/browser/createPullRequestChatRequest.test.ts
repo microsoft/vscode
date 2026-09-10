@@ -17,7 +17,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ChatInteractivity, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { createPullRequestMessage, CreatePullRequestChatRequest } from '../../browser/createPullRequestChatRequest.js';
-import { ISessionPullRequestOptions } from '../../common/pullRequestCreation.js';
+import { ISessionPullRequestContext, ISessionPullRequestCreation, ISessionPullRequestOptions } from '../../common/pullRequestCreation.js';
 
 suite('CreatePullRequestChatRequest', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,11 +31,19 @@ suite('CreatePullRequestChatRequest', () => {
 		addressReviews: false, fixCI: true, resolveConflicts: false, mergePullRequest: 'ifUnchanged',
 	} as const;
 
-	function setup(config?: { state?: AgentMergeSessionState; send?: () => Promise<void>; configError?: boolean; archived?: boolean; chatArchived?: boolean; interactivity?: ChatInteractivity; providerId?: string; missingProvider?: boolean }) {
+	function setup(config?: { state?: AgentMergeSessionState; send?: () => Promise<void>; validate?: () => Promise<void>; configError?: boolean; archived?: boolean; chatArchived?: boolean; interactivity?: ChatInteractivity; providerId?: string; missingProvider?: boolean }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const calls: string[] = [];
 		const requests: { session: ISession; chat: IChat; options: ISendRequestOptions }[] = [];
 		const warnings: string[] = [];
+		const validatedContexts: ISessionPullRequestContext[] = [];
+		const creation = new class extends mock<ISessionPullRequestCreation>() {
+			override async validate(context: ISessionPullRequestContext): Promise<void> {
+				calls.push('validate');
+				validatedContexts.push(context);
+				await config?.validate?.();
+			}
+		}();
 		let state = config?.state;
 		const chat = upcastPartial<IChat>({
 			resource: URI.parse('agent-host-copilotcli:/original-session'),
@@ -76,7 +84,7 @@ suite('CreatePullRequestChatRequest', () => {
 			},
 		});
 		instantiationService.stub(INotificationService, { warn: (message: string) => warnings.push(message) });
-		return { request: instantiationService.createInstance(CreatePullRequestChatRequest), session, chat, calls, requests, warnings, state: () => state };
+		return { request: instantiationService.createInstance(CreatePullRequestChatRequest), creation, validatedContexts, session, chat, calls, requests, warnings, state: () => state };
 	}
 
 	test('manual prompt includes exact user details without automation instructions', () => {
@@ -86,6 +94,33 @@ suite('CreatePullRequestChatRequest', () => {
 			`Use the following title and description exactly (provided as JSON):\n${JSON.stringify({ title: options.title, description: options.description }, undefined, 2)}`,
 			'Do not merge the pull request or enable GitHub auto-merge.',
 		].join('\n\n'));
+	});
+
+	const expectedContext: ISessionPullRequestContext = {
+		workingDirectory: 'file:///repo', repository: 'microsoft/vscode', branchName: 'feature/test', baseBranchName: 'main',
+	};
+
+	test('validates prepared identity before sending and carries the branch constraints in the message', async () => {
+		const fixture = setup();
+		await fixture.request.send(fixture.session, { ...options, expectedContext }, fixture.creation);
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			validated: fixture.validatedContexts,
+			contextInMessage: fixture.requests[0].options.query.includes('repository microsoft/vscode, current branch feature/test, and base branch main'),
+			stopsOnChanges: fixture.requests[0].options.query.includes('stop and ask me to review it before committing'),
+		}, { calls: ['validate', 'send', 'sent'], validated: [expectedContext], contextInMessage: true, stopsOnChanges: true });
+	});
+
+	test('stale preparation prevents both sending and changing Agent Merge settings', async () => {
+		const state = { enabled: false };
+		const fixture = setup({ state, validate: async () => { throw new Error('Reopen Create PR'); } });
+		await assert.rejects(() => fixture.request.send(fixture.session, { ...options, expectedContext, agentMerge: true, agentMergeOptions }, fixture.creation), /Reopen Create PR/);
+		assert.deepStrictEqual({ calls: fixture.calls, requests: fixture.requests, state: fixture.state() }, { calls: ['validate'], requests: [], state });
+	});
+
+	test('the chat message creates a source branch when preparation was on the base branch', () => {
+		const message = createPullRequestMessage({ ...options, expectedContext: { ...expectedContext, branchName: 'main' } });
+		assert.ok(message.includes('Create and switch to a new source branch before committing changes.'));
 	});
 
 	test('draft and Agent Merge choices never add Agent Merge instructions to the message', () => {
@@ -108,7 +143,7 @@ suite('CreatePullRequestChatRequest', () => {
 	test('sends to the originating main chat and only then enables selected session options', async () => {
 		const completion = new DeferredPromise<void>();
 		const fixture = setup({ state: { enabled: false, overrides: { fixCI: false } }, send: () => completion.p });
-		const invocation = fixture.request.send(fixture.session, { ...options, agentMerge: true, agentMergeOptions });
+		const invocation = fixture.request.send(fixture.session, { ...options, agentMerge: true, agentMergeOptions }, fixture.creation);
 		const beforeSent = [...fixture.calls];
 		await completion.complete();
 		await invocation;
@@ -126,7 +161,7 @@ suite('CreatePullRequestChatRequest', () => {
 	for (const autoMergeMethod of [undefined, 'SQUASH'] as const) {
 		test(`disables previously enabled Agent Merge for ${autoMergeMethod ? 'auto' : 'manual'} merging`, async () => {
 			const fixture = setup({ state: { enabled: true, overrides: agentMergeOptions } });
-			await fixture.request.send(fixture.session, { ...options, autoMergeMethod });
+			await fixture.request.send(fixture.session, { ...options, autoMergeMethod }, fixture.creation);
 			assert.deepStrictEqual({ calls: fixture.calls, state: fixture.state() }, {
 				calls: ['send', 'sent', 'enabled:original-session:false'],
 				state: { enabled: false, overrides: agentMergeOptions },
@@ -137,7 +172,7 @@ suite('CreatePullRequestChatRequest', () => {
 	test('send failure leaves Agent Merge settings untouched', async () => {
 		const initial = { enabled: false, overrides: { fixCI: false } };
 		const fixture = setup({ state: initial, send: async () => { throw new Error('Request rejected'); } });
-		await assert.rejects(() => fixture.request.send(fixture.session, { ...options, agentMerge: true, agentMergeOptions }), /Request rejected/);
+		await assert.rejects(() => fixture.request.send(fixture.session, { ...options, agentMerge: true, agentMergeOptions }, fixture.creation), /Request rejected/);
 		assert.deepStrictEqual({ calls: fixture.calls, state: fixture.state(), warnings: fixture.warnings }, {
 			calls: ['send'], state: initial, warnings: [],
 		});
@@ -145,7 +180,7 @@ suite('CreatePullRequestChatRequest', () => {
 
 	test('preserves existing session overrides when the form does not supply them', async () => {
 		const fixture = setup({ state: { enabled: false, overrides: agentMergeOptions } });
-		await fixture.request.send(fixture.session, { ...options, agentMerge: true });
+		await fixture.request.send(fixture.session, { ...options, agentMerge: true }, fixture.creation);
 		assert.deepStrictEqual({ calls: fixture.calls, state: fixture.state() }, {
 			calls: ['send', 'sent', 'enabled:original-session:true'],
 			state: { enabled: true, overrides: agentMergeOptions },
@@ -154,7 +189,7 @@ suite('CreatePullRequestChatRequest', () => {
 
 	test('reports configuration failure after sending without inviting duplicate submission', async () => {
 		const fixture = setup({ configError: true });
-		await fixture.request.send(fixture.session, { ...options, agentMerge: true });
+		await fixture.request.send(fixture.session, { ...options, agentMerge: true }, fixture.creation);
 		assert.deepStrictEqual({ calls: fixture.calls, warnings: fixture.warnings }, {
 			calls: ['send', 'sent', 'enabled:original-session:true'],
 			warnings: ['The Create PR message was sent, but the session\'s Agent Merge settings could not be updated: Host disconnected'],
@@ -171,7 +206,7 @@ suite('CreatePullRequestChatRequest', () => {
 	]) {
 		test(`does not send or change session settings when unavailable: ${JSON.stringify(config)}`, async () => {
 			const fixture = setup(config);
-			await assert.rejects(() => fixture.request.send(fixture.session, options), /read-only chat|provider is unavailable/);
+			await assert.rejects(() => fixture.request.send(fixture.session, options, fixture.creation), /read-only chat|provider is unavailable/);
 			assert.deepStrictEqual(fixture.calls, []);
 		});
 	}

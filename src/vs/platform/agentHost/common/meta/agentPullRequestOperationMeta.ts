@@ -14,6 +14,15 @@ export const PREPARE_PULL_REQUEST_OPERATION_ID = 'prepare-pull-request';
 const PULL_REQUEST_META_KEY = 'vscode.pullRequest';
 const DETAILS_DATA_URI_PREFIX = 'data:application/json,';
 
+export interface IPullRequestContext {
+	readonly workingDirectory: string;
+	readonly repository: string;
+	readonly branchName: string;
+	readonly baseBranchName: string;
+	readonly headOwner?: string;
+	readonly upstreamBranchName?: string;
+}
+
 export interface IPullRequestCreateOptions {
 	readonly title: string;
 	readonly description: string;
@@ -21,6 +30,7 @@ export interface IPullRequestCreateOptions {
 	readonly agentMerge: boolean;
 	readonly agentMergeOptions?: AgentMergeActions;
 	readonly autoMergeMethod?: 'MERGE' | 'SQUASH' | 'REBASE';
+	readonly expectedContext?: IPullRequestContext;
 }
 
 export interface IPullRequestDetails {
@@ -34,6 +44,7 @@ export interface IPullRequestDetails {
 	readonly agentMergeAvailable: boolean;
 	readonly agentMergeOptions?: AgentMergeActions;
 	readonly generationError?: string;
+	readonly context?: IPullRequestContext;
 }
 
 interface IHasPullRequestOperationMeta {
@@ -46,6 +57,26 @@ function isMergeMethod(value: unknown): value is NonNullable<IPullRequestCreateO
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return isObject(value);
+}
+
+function parseContext(value: unknown): IPullRequestContext {
+	if (!isRecord(value)
+		|| typeof value.workingDirectory !== 'string' || !value.workingDirectory.trim()
+		|| typeof value.repository !== 'string' || !value.repository.trim()
+		|| typeof value.branchName !== 'string' || !value.branchName.trim()
+		|| typeof value.baseBranchName !== 'string' || !value.baseBranchName.trim()
+		|| (value.headOwner !== undefined && (typeof value.headOwner !== 'string' || !value.headOwner.trim()))
+		|| (value.upstreamBranchName !== undefined && (typeof value.upstreamBranchName !== 'string' || !value.upstreamBranchName.trim()))) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidContext', "Invalid pull request preparation context."));
+	}
+	return {
+		workingDirectory: value.workingDirectory,
+		repository: value.repository,
+		branchName: value.branchName,
+		baseBranchName: value.baseBranchName,
+		...(value.headOwner !== undefined ? { headOwner: value.headOwner } : {}),
+		...(value.upstreamBranchName !== undefined ? { upstreamBranchName: value.upstreamBranchName } : {}),
+	};
 }
 
 function parseAgentMergeOptions(value: unknown): AgentMergeActions {
@@ -90,7 +121,29 @@ function parseCreateOptions(value: unknown): IPullRequestCreateOptions {
 		agentMerge: value.agentMerge,
 		...(value.agentMergeOptions !== undefined ? { agentMergeOptions: parseAgentMergeOptions(value.agentMergeOptions) } : {}),
 		...(autoMergeMethod ? { autoMergeMethod } : {}),
+		...(value.expectedContext !== undefined ? { expectedContext: parseContext(value.expectedContext) } : {}),
 	};
+}
+
+export function createPullRequestValidationMeta(context: IPullRequestContext): Record<string, unknown> {
+	return { [PULL_REQUEST_META_KEY]: { validateOnly: true, expectedContext: parseContext(context) } };
+}
+
+export function readPullRequestValidationMeta(source: IHasPullRequestOperationMeta): IPullRequestContext | undefined {
+	if (source._meta === undefined) {
+		return undefined;
+	}
+	if (!isObject(source._meta)) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidMeta', "Invalid pull request operation metadata."));
+	}
+	if (!Object.hasOwn(source._meta, PULL_REQUEST_META_KEY)) {
+		return undefined;
+	}
+	const value = source._meta[PULL_REQUEST_META_KEY];
+	if (!isRecord(value) || value.validateOnly !== true) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.pr.invalidValidation', "Invalid pull request context validation request."));
+	}
+	return parseContext(value.expectedContext);
 }
 
 export function createPullRequestOperationMeta(options: IPullRequestCreateOptions): Record<string, unknown> {
@@ -137,6 +190,7 @@ function parseDetails(value: unknown): IPullRequestDetails {
 		agentMergeAvailable: value.agentMergeAvailable,
 		...(value.agentMergeOptions !== undefined ? { agentMergeOptions: parseAgentMergeOptions(value.agentMergeOptions) } : {}),
 		...(generationError !== undefined ? { generationError } : {}),
+		...(value.context !== undefined ? { context: parseContext(value.context) } : {}),
 	};
 }
 

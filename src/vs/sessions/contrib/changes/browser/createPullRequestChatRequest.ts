@@ -10,7 +10,7 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity, effectiveChatInteractivity, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
+import { ISessionPullRequestCreation, ISessionPullRequestOptions, SessionPullRequestMergeMethod } from '../common/pullRequestCreation.js';
 
 export class CreatePullRequestChatRequest {
 	constructor(
@@ -19,17 +19,19 @@ export class CreatePullRequestChatRequest {
 		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
-	async send(session: ISession, options: ISessionPullRequestOptions): Promise<void> {
+	async send(session: ISession, options: ISessionPullRequestOptions, creation: ISessionPullRequestCreation): Promise<void> {
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
 		if (!provider || !isAgentHostProvider(provider)) {
 			throw new Error(localize('createPR.chat.providerUnavailable', "The session's agent host provider is unavailable."));
 		}
 
+		if (options.expectedContext) {
+			await creation.validate(options.expectedContext);
+		}
 		const chat = session.mainChat.get();
 		if (effectiveChatInteractivity(session.isArchived.get() || chat.isArchived.get(), chat.interactivity.get()) !== ChatInteractivity.Full) {
 			throw new Error(localize('createPR.chat.readOnly', "Cannot send a pull request creation message to a read-only chat."));
 		}
-
 		await this.sessionsManagementService.sendRequest(session, chat, { query: createPullRequestMessage(options) });
 
 		try {
@@ -57,6 +59,10 @@ export function createPullRequestMessage(options: ISessionPullRequestOptions): s
 		options.draft
 			? localize('createPR.message.draft', "Create a draft pull request for this session's changes. Keep it in draft.")
 			: localize('createPR.message.ready', "Create a pull request ready for review for this session's changes."),
+		...(options.expectedContext ? [
+			localize('createPR.message.context', "The prepared context is repository {0}, current branch {1}, and base branch {2}. If this context has changed, stop and ask me to review it before committing, pushing, or creating the pull request.", options.expectedContext.repository, options.expectedContext.branchName, options.expectedContext.baseBranchName),
+			...(options.expectedContext.branchName === options.expectedContext.baseBranchName ? [localize('createPR.message.newBranch', "Create and switch to a new source branch before committing changes.")] : []),
+		] : []),
 		localize('createPR.message.push', "Commit any uncommitted changes and push the source branch as needed."),
 		localize('createPR.message.details', "Use the following title and description exactly (provided as JSON):\n{0}", JSON.stringify({ title: options.title, description: options.description }, undefined, 2)),
 		options.autoMergeMethod

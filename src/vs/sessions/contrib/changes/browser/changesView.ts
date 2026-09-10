@@ -425,7 +425,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 						createPullRequestContextView.show(container, op.pullRequestCreation, {
 							branchName: state?.branchName,
 							baseBranchName: state?.baseBranchName,
-							sendToChat: session ? options => createPullRequestChatRequest.send(session, options) : undefined,
+							sendToChat: session ? options => createPullRequestChatRequest.send(session, options, op.pullRequestCreation) : undefined,
 							onRestoreFocus: () => buttonBar.buttons[0]?.focus(),
 						}, options => {
 							if (!options.draft) {

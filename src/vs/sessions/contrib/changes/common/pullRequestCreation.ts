@@ -8,6 +8,15 @@ import { ISessionChangesetOperation } from '../../../services/sessions/common/se
 
 export type SessionPullRequestMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
 
+export interface ISessionPullRequestContext {
+	readonly workingDirectory: string;
+	readonly repository: string;
+	readonly branchName: string;
+	readonly baseBranchName: string;
+	readonly headOwner?: string;
+	readonly upstreamBranchName?: string;
+}
+
 export interface ISessionPullRequestAgentMergeOptions {
 	readonly addressReviews: boolean;
 	readonly fixCI: boolean;
@@ -22,6 +31,7 @@ export interface ISessionPullRequestOptions {
 	readonly agentMerge: boolean;
 	readonly agentMergeOptions?: ISessionPullRequestAgentMergeOptions;
 	readonly autoMergeMethod?: SessionPullRequestMergeMethod;
+	readonly expectedContext?: ISessionPullRequestContext;
 }
 
 export interface ISessionPullRequestDetails {
@@ -36,12 +46,16 @@ export interface ISessionPullRequestDetails {
 	/** Effective session options; presence also indicates support for configuring them during creation. */
 	readonly agentMergeOptions?: ISessionPullRequestAgentMergeOptions;
 	readonly generationError?: string;
+	/** Repository and branch identity to validate before submitting these details. */
+	readonly context?: ISessionPullRequestContext;
 }
 
 export interface ISessionPullRequestCreation {
 	readonly operationId: string;
 	/** Generates editable details without changing the repository or creating a pull request. */
 	prepare(token: CancellationToken): Promise<ISessionPullRequestDetails>;
+	/** Validates prepared identity without generating details or changing the repository. */
+	validate(context: ISessionPullRequestContext): Promise<void>;
 	/** Returns an optional plain-text outcome, including any post-creation warnings. */
 	create(options: ISessionPullRequestOptions): Promise<string | void>;
 }

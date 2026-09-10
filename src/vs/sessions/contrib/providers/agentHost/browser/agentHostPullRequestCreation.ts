@@ -8,10 +8,10 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { createPullRequestOperationMeta, PREPARE_PULL_REQUEST_OPERATION_ID, readPullRequestDetailsResult } from '../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID, readPullRequestDetailsResult } from '../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ISessionChangesetOperation } from '../../../../services/sessions/common/session.js';
-import { ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOperation, ISessionPullRequestOptions } from '../../../changes/common/pullRequestCreation.js';
+import { ISessionPullRequestContext, ISessionPullRequestCreation, ISessionPullRequestDetails, ISessionPullRequestOperation, ISessionPullRequestOptions } from '../../../changes/common/pullRequestCreation.js';
 
 export class AgentHostPullRequestCreation implements ISessionPullRequestCreation {
 	readonly operationId = 'create-pr';
@@ -32,6 +32,14 @@ export class AgentHostPullRequestCreation implements ISessionPullRequestCreation
 	}
 
 	async prepare(token: CancellationToken): Promise<ISessionPullRequestDetails> {
+		return readPullRequestDetailsResult(await this._invokePreparation(token));
+	}
+
+	async validate(context: ISessionPullRequestContext): Promise<void> {
+		await this._invokePreparation(CancellationToken.None, createPullRequestValidationMeta(context));
+	}
+
+	private async _invokePreparation(token: CancellationToken, metadata?: Record<string, unknown>): Promise<InvokeChangesetOperationResult> {
 		const connection = this._getConnection();
 		const channel = this._getChannel();
 		if (!connection || !channel) {
@@ -43,11 +51,12 @@ export class AgentHostPullRequestCreation implements ISessionPullRequestCreation
 		const result = await connection.invokeChangesetOperation({
 			operationId: PREPARE_PULL_REQUEST_OPERATION_ID,
 			channel: channel.toString(),
+			...(metadata ? { _meta: metadata } : {}),
 		});
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		return readPullRequestDetailsResult(result);
+		return result;
 	}
 
 	async create(options: ISessionPullRequestOptions): Promise<string | void> {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createPullRequestDetailsResult, createPullRequestOperationMeta, readPullRequestDetailsResult, readPullRequestOperationMeta, type IPullRequestCreateOptions, type IPullRequestDetails } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestDetailsResult, createPullRequestOperationMeta, createPullRequestValidationMeta, readPullRequestDetailsResult, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 
@@ -32,8 +32,41 @@ function resultWithData(data: unknown): InvokeChangesetOperationResult {
 	return { followUp: { content: { uri: `data:application/json,${encodeURIComponent(JSON.stringify(data))}`, contentType: 'application/json' } } };
 }
 
+function isInvalidParamsError(error: unknown): boolean {
+	return error instanceof ProtocolError && error.code === JsonRpcErrorCodes.InvalidParams;
+}
+
 suite('Agent pull request operation metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const context: IPullRequestContext = {
+		workingDirectory: 'file:///repo', repository: 'microsoft/vscode', branchName: 'feature/test', baseBranchName: 'main',
+		headOwner: 'contributor', upstreamBranchName: 'fork/topic',
+	};
+
+	test('preserves prepared identity across preparation, validation, and creation', () => {
+		assert.deepStrictEqual({
+			prepared: readPullRequestDetailsResult(createPullRequestDetailsResult({ ...details, context })).context,
+			validated: readPullRequestValidationMeta({ _meta: createPullRequestValidationMeta(context) }),
+			submitted: readPullRequestOperationMeta({ _meta: createPullRequestOperationMeta({ ...createOptions, expectedContext: context }) })?.expectedContext,
+		}, { prepared: context, validated: context, submitted: context });
+	});
+
+	for (const invalidContext of [null, {}, { ...context, repository: '' }, { ...context, branchName: 42 }, { ...context, headOwner: false }, { ...context, upstreamBranchName: '' }]) {
+		test(`rejects malformed prepared identity: ${JSON.stringify(invalidContext)}`, () => {
+			assert.throws(() => readPullRequestOperationMeta({ _meta: { 'vscode.pullRequest': { ...createOptions, expectedContext: invalidContext } } }), /Invalid pull request preparation context/);
+			assert.throws(() => readPullRequestDetailsResult(resultWithData({ ...details, context: invalidContext })), /Invalid pull request preparation context/);
+			assert.throws(() => readPullRequestValidationMeta({ _meta: { 'vscode.pullRequest': { validateOnly: true, expectedContext: invalidContext } } }), /Invalid pull request preparation context/);
+		});
+	}
+
+	test('does not treat malformed validation requests as ordinary preparation', () => {
+		assert.throws(() => readPullRequestValidationMeta({ _meta: { 'vscode.pullRequest': { validateOnly: false, expectedContext: context } } }), /Invalid pull request context validation request/);
+		assert.deepStrictEqual([
+			readPullRequestValidationMeta({}),
+			readPullRequestValidationMeta({ _meta: { unrelated: true } }),
+		], [undefined, undefined]);
+	});
 
 	test('round trips namespaced creation options without altering submitted text', () => {
 		const meta = createPullRequestOperationMeta(createOptions);
@@ -71,8 +104,7 @@ suite('Agent pull request operation metadata', () => {
 		['conflicting automation', { ...createOptions, agentMerge: true }],
 	] as const) {
 		test(`rejects ${name} creation options`, () => {
-			assert.throws(() => readPullRequestOperationMeta({ _meta: { 'vscode.pullRequest': value } }),
-				error => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.InvalidParams);
+			assert.throws(() => readPullRequestOperationMeta({ _meta: { 'vscode.pullRequest': value } }), isInvalidParamsError);
 		});
 	}
 
