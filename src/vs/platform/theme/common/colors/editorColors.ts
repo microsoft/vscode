@@ -266,6 +266,8 @@ export const snippetFinalTabstopHighlightBorder = registerColor('editor.snippetF
 
 export const defaultInsertColor = new Color(new RGBA(155, 185, 85, .2));
 export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, .2));
+export const defaultMoveColor = new Color(new RGBA(0, 100, 200, .2));
+export const defaultMoveActiveColor = new Color(new RGBA(0, 190, 255, .2));
 
 export const diffInserted = registerColor('diffEditor.insertedTextBackground',
 	{ dark: '#9ccc2c33', light: '#9ccc2c40', hcDark: null, hcLight: null },
@@ -284,6 +286,13 @@ export const diffRemovedLine = registerColor('diffEditor.removedLineBackground',
 	{ dark: defaultRemoveColor, light: defaultRemoveColor, hcDark: null, hcLight: null },
 	nls.localize('diffEditorRemovedLines', 'Background color for lines that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);
 
+export const diffMovedLine = registerColor('diffEditor.move.background',
+	{ dark: defaultMoveColor, light: defaultMoveColor, hcDark: null, hcLight: null },
+	nls.localize('diffEditorMovedLines', 'Background color for lines that got moved in the diff editor. The color must not be opaque so as not to hide underlying decorations.'), true);
+
+export const diffMovedActiveLine = registerColor('diffEditor.moveActive.background',
+	{ dark: defaultMoveActiveColor, light: defaultMoveActiveColor, hcDark: null, hcLight: null },
+	nls.localize('diffEditorMovedActiveLines', 'Background color for the active moved text in the diff editor. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const diffInsertedLineGutter = registerColor('diffEditorGutter.insertedLineBackground',
 	null,
@@ -302,6 +311,13 @@ export const diffOverviewRulerRemoved = registerColor('diffEditorOverview.remove
 	null,
 	nls.localize('diffEditorOverviewRemoved', 'Diff overview ruler foreground for removed content.'));
 
+export const diffOverviewRulerMoved = registerColor('diffEditorOverview.movedForeground',
+	null,
+	nls.localize('diffEditorOverviewMoved', 'Diff overview ruler foreground for moved content.'));
+
+export const diffOverviewRulerMovedActive = registerColor('diffEditorOverview.movedActiveForeground',
+	null,
+	nls.localize('diffEditorOverviewMovedActive', 'Diff overview ruler foreground for the active moved content.'));
 
 export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder',
 	{ dark: null, light: null, hcDark: '#33ff2eff', hcLight: '#374E06' },
@@ -311,6 +327,13 @@ export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder',
 	{ dark: null, light: null, hcDark: '#FF008F', hcLight: '#AD0707' },
 	nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
 
+export const diffMoveBorder = registerColor('diffEditor.move.border',
+	'#0038a1',
+	nls.localize('diffEditorMoveBorder', 'Border color for text that got moved in the diff editor.'));
+
+export const diffMoveBorderActive = registerColor('diffEditor.moveActive.border',
+	'#0049cf',
+	nls.localize('diffEditorMoveActiveBorder', 'Active border color for text that got moved in the diff editor.'));
 
 export const diffBorder = registerColor('diffEditor.border',
 	{ dark: null, light: null, hcDark: contrastBorder, hcLight: contrastBorder },
