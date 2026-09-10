@@ -315,6 +315,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			maximum: 50,
 			default: 1
 		},
+		'scm.showInputLineLength': {
+			type: 'boolean',
+			markdownDescription: localize('showInputLineLength', "Controls whether the character count of the current line is shown in the Source Control input."),
+			default: false
+		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),
