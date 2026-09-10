@@ -203,7 +203,7 @@ function createScopedThemingParticipant(scopeSelector: string, scopeRootSelector
 	};
 }
 
-function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
+export function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 	const cachedStyleSheet = themeStyleSheetCache.get(theme);
 	if (cachedStyleSheet) {
 		return cachedStyleSheet;

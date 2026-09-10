@@ -11,11 +11,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import '../../../../editor/browser/viewParts/currentLineHighlight/currentLineHighlight.js';
 import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
-import { ensureGlobalStylesInstalled } from './fixtureUtilsCss.js';
+import type { IColorCustomizations } from '../../../services/themes/common/workbenchThemeService.js';
+import { getThemeStyleSheet } from './fixtureUtilsCss.js';
+
+interface ThemeVariant {
+	readonly selector: ThemeTypeSelector;
+	readonly colors: IColorCustomizations;
+	readonly expected: { readonly border: string; readonly background: string };
+}
 
 suite('Component fixture theme CSS', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const variants = [
+	const variants: readonly ThemeVariant[] = [
 		{
 			selector: ThemeTypeSelector.VS_DARK,
 			colors: { 'editor.lineHighlightBackground': '#242526' },
@@ -39,7 +46,7 @@ suite('Component fixture theme CSS', () => {
 	];
 
 	for (const reverse of [false, true]) {
-		test(`isolates active-line styles in ${reverse ? 'reverse' : 'forward'} theme installation order`, async () => {
+		test(`isolates active-line styles in ${reverse ? 'reverse' : 'forward'} theme installation order`, () => {
 			const originalStyleSheets = [...mainWindow.document.adoptedStyleSheets];
 			disposables.add(toDisposable(() => { mainWindow.document.adoptedStyleSheets = originalStyleSheets; }));
 			const host = mainWindow.document.body.appendChild($('div'));
@@ -56,7 +63,10 @@ suite('Component fixture theme CSS', () => {
 			for (const variant of orderedVariants) {
 				const theme = ColorThemeData.createLoadedEmptyTheme(variant.selector, variant.selector);
 				theme.setCustomColors(variant.colors);
-				await ensureGlobalStylesInstalled(theme);
+				mainWindow.document.adoptedStyleSheets = [
+					...mainWindow.document.adoptedStyleSheets,
+					getThemeStyleSheet(theme),
+				];
 				const root = host.appendChild($('.monaco-workbench'));
 				root.classList.add(...theme.classNames);
 				lines.set(variant.selector, createCurrentLine(root));
