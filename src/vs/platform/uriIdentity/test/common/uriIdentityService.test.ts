@@ -6,17 +6,24 @@
 import assert from 'assert';
 import { UriIdentityService } from '../../common/uriIdentityService.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { IFileService, FileSystemProviderCapabilities } from '../../../files/common/files.js';
+import { IFileService, IFileSystemProvider, IFileSystemProviderCapabilitiesChangeEvent, FileSystemProviderCapabilities } from '../../../files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('URI Identity', function () {
 
 	class FakeFileService extends mock<IFileService>() {
 
-		override onDidChangeFileSystemProviderCapabilities = Event.None;
+		private readonly _onDidChangeFileSystemProviderCapabilities = new Emitter<IFileSystemProviderCapabilitiesChangeEvent>();
+
+		override onDidChangeFileSystemProviderCapabilities = this._onDidChangeFileSystemProviderCapabilities.event;
 		override onDidChangeFileSystemProviderRegistrations = Event.None;
+
+		private readonly provider = new class extends mock<IFileSystemProvider>() {
+			override capabilities = FileSystemProviderCapabilities.None;
+			override onDidChangeCapabilities = Event.None;
+		};
 
 		constructor(readonly data: Map<string, FileSystemProviderCapabilities>) {
 			super();
@@ -28,19 +35,32 @@ suite('URI Identity', function () {
 			const mask = this.data.get(uri.scheme) ?? 0;
 			return Boolean(mask & flag);
 		}
+
+		changeCapabilities(scheme: string, capabilities: FileSystemProviderCapabilities): void {
+			this.data.set(scheme, capabilities);
+			this.provider.capabilities = capabilities;
+			this._onDidChangeFileSystemProviderCapabilities.fire({ provider: this.provider, scheme });
+		}
+
+		override dispose(): void {
+			this._onDidChangeFileSystemProviderCapabilities.dispose();
+		}
 	}
 
 	let _service: UriIdentityService;
+	let _fileService: FakeFileService;
 
 	setup(function () {
-		_service = new UriIdentityService(new FakeFileService(new Map([
+		_fileService = new FakeFileService(new Map([
 			['bar', FileSystemProviderCapabilities.PathCaseSensitive],
 			['foo', FileSystemProviderCapabilities.None]
-		])));
+		]));
+		_service = new UriIdentityService(_fileService);
 	});
 
 	teardown(function () {
 		_service.dispose();
+		_fileService.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,6 +96,20 @@ suite('URI Identity', function () {
 
 		assertCanonical(b, b);
 		assertCanonical(b1, b1); // case sensitive
+	});
+
+	test('asCanonicalUri clears cache when provider path casing changes', function () {
+		const upper = URI.parse('foo://bar/BANG');
+		const lower = URI.parse('foo://bar/bang');
+
+		assert.strictEqual(_service.asCanonicalUri(upper).toString(), upper.toString());
+		assert.strictEqual(_service.asCanonicalUri(lower).toString(), upper.toString());
+		assert.strictEqual(_service.extUri.isEqual(upper, lower), true);
+
+		_fileService.changeCapabilities('foo', FileSystemProviderCapabilities.PathCaseSensitive);
+
+		assert.strictEqual(_service.extUri.isEqual(upper, lower), false);
+		assert.strictEqual(_service.asCanonicalUri(lower).toString(), lower.toString());
 	});
 
 	test('asCanonicalUri (normalization)', function () {
