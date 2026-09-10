@@ -284,6 +284,8 @@ export interface IChatInputPartOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	/** Quick-suggestion behavior for the input editor. Defaults to disabled. */
+	inputEditorQuickSuggestions?: IEditorOptions['quickSuggestions'];
 	deferredNotificationsEnabled?: boolean;
 	/** Whether this input is a transient surface (inline, terminal, or quick chat). */
 	isTransientChat?: boolean;
@@ -3342,7 +3344,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.autoClosingBrackets = this.configurationService.getValue('editor.autoClosingBrackets');
 		options.autoClosingQuotes = this.configurationService.getValue('editor.autoClosingQuotes');
 		options.autoSurround = this.configurationService.getValue('editor.autoSurround');
-		options.quickSuggestions = false;
+		options.quickSuggestions = this.options.inputEditorQuickSuggestions ?? false;
 		options.suggest = {
 			showIcons: true,
 			showSnippets: false,

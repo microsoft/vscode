@@ -191,3 +191,65 @@ suite('NotificationsList AccessibilityProvider', () => {
 		assert.ok(infoLabel.includes('Info: Info message'), 'Info notifications should have Info prefix');
 	});
 });
+
+suite('NotificationsCenter', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('updates dismissal affordances when progress starts, completes, and restarts', () => {
+		const container = document.createElement('div');
+		container.classList.add('monaco-workbench');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const model = store.add(new NotificationsModel());
+		store.add(toDisposable(() => {
+			for (const notification of [...model.notifications]) {
+				notification.close();
+			}
+		}));
+		const center = store.add(instantiationService.createInstance(NotificationsCenter, container, model));
+		const handle = model.addNotification({
+			severity: Severity.Info,
+			message: 'Working...'
+		});
+
+		center.show();
+
+		const clearAllAction = container.querySelector<HTMLElement>('.notifications-center-header-toolbar .codicon-notifications-clear-all');
+		assert.ok(clearAllAction);
+		const states: { closeActionVisible: boolean; clearAllDisabled: boolean }[] = [];
+		const captureState = () => states.push({
+			closeActionVisible: !!container.querySelector('.notification-list-item-toolbar-container .codicon-notifications-clear'),
+			clearAllDisabled: clearAllAction.getAttribute('aria-disabled') === 'true'
+		});
+
+		captureState();
+		const progress = handle.progress;
+		captureState();
+		progress.infinite();
+		captureState();
+		progress.total(100);
+		captureState();
+		progress.done();
+		captureState();
+		progress.infinite();
+		captureState();
+		progress.done();
+		captureState();
+
+		assert.deepStrictEqual(states, [
+			{ closeActionVisible: true, clearAllDisabled: false },
+			{ closeActionVisible: true, clearAllDisabled: false },
+			{ closeActionVisible: false, clearAllDisabled: true },
+			{ closeActionVisible: false, clearAllDisabled: true },
+			{ closeActionVisible: true, clearAllDisabled: false },
+			{ closeActionVisible: false, clearAllDisabled: true },
+			{ closeActionVisible: true, clearAllDisabled: false }
+		]);
+
+		center.clearAll();
+		assert.strictEqual(model.notifications.length, 0);
+	});
+});

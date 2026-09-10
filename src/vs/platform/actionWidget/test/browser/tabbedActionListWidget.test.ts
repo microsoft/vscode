@@ -100,6 +100,42 @@ function createWidget(disposables: DisposableStore, motionReduced = true): { wid
 	return { widget, contextView };
 }
 
+function createSearchableWidget(disposables: DisposableStore, itemIds: readonly string[]) {
+	const { widget, contextView } = createWidget(disposables);
+	const anchor = document.createElement('div');
+	document.body.appendChild(anchor);
+	disposables.add({ dispose: () => anchor.remove() });
+	const selected: string[] = [];
+	const tabChanges: string[] = [];
+	disposables.add(widget.onDidChangeTab(tab => tabChanges.push(tab)));
+	widget.show<ITestItem>({
+		user: 'test',
+		anchor,
+		tabs: [{ id: 'Local' }, { id: 'Remote' }],
+		initialTab: 'Local',
+		filterInTabBar: true,
+		createActionList: () => ({
+			items: itemIds.map(action),
+			listOptions: {
+				showFilter: true,
+				focusFilterOnOpen: true,
+				filterAsCombobox: true,
+				initialFilterValue: 'match',
+			},
+		}),
+		delegate: {
+			onSelect: item => {
+				selected.push(item.id);
+				widget.hide();
+			},
+			onHide: () => { },
+		},
+	});
+	const input = contextView.getContextViewElement().querySelector<HTMLInputElement>('input');
+	assert.ok(input);
+	return { widget, input, selected, tabChanges };
+}
+
 suite('TabbedActionListWidget', () => {
 
 	const disposables = new DisposableStore();
@@ -129,6 +165,98 @@ suite('TabbedActionListWidget', () => {
 
 		widget.hide();
 		assert.strictEqual(widget.isVisible, false);
+	});
+
+	test('items receive pointer input immediately after opening', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('button');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		const selected: string[] = [];
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			createActionList: () => ({ items: [action('first'), action('second')] }),
+			delegate: { onSelect: item => selected.push(item.id), onHide: () => { } },
+		});
+		const container = contextView.getContextViewElement();
+		container.style.cssText = 'position: fixed; top: 20px; left: 20px; z-index: 10000;';
+		const row = container.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		const bounds = row.getBoundingClientRect();
+		assert.ok(row.contains(document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)));
+		row.click();
+		assert.deepStrictEqual(selected, ['second']);
+		widget.hide();
+	});
+
+	for (const matches of [['first match'], ['first match', 'second match']]) {
+		test(`tab-bar search accepts after ArrowDown with ${matches.length} matching results`, () => {
+			const { widget, input, selected } = createSearchableWidget(disposables, [...matches, 'other']);
+			const down = new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true, cancelable: true });
+			input.dispatchEvent(down);
+			const inputFocusedAfterNavigation = document.activeElement === input;
+			const enter = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+			input.dispatchEvent(enter);
+
+			assert.deepStrictEqual({
+				inputFocusedAfterNavigation,
+				downPrevented: down.defaultPrevented,
+				enterPrevented: enter.defaultPrevented,
+				selected,
+				visible: widget.isVisible,
+			}, {
+				inputFocusedAfterNavigation: true,
+				downPrevented: true,
+				enterPrevented: true,
+				selected: [matches[matches.length - 1]],
+				visible: false,
+			});
+		});
+	}
+
+	test('tab-bar search keeps text editing and IME keys out of popup navigation', () => {
+		const { widget, input, selected, tabChanges } = createSearchableWidget(disposables, ['first match', 'second match']);
+		const events = [
+			{ key: 'ArrowLeft', keyCode: 37 },
+			{ key: 'ArrowRight', keyCode: 39 },
+			{ key: 'Home', keyCode: 36 },
+			{ key: 'End', keyCode: 35 },
+			{ key: 'ArrowLeft', keyCode: 37, shiftKey: true },
+			{ key: 'ArrowDown', keyCode: 40, shiftKey: true },
+			{ key: 'a', keyCode: 65, metaKey: true },
+			{ key: 'Enter', keyCode: 13, isComposing: true },
+			{ key: 'Enter', keyCode: 229 },
+		].map(init => {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+			input.dispatchEvent(event);
+			return event;
+		});
+		input.dispatchEvent(new Event('compositionstart'));
+		for (const init of [{ key: 'Enter', keyCode: 13 }, { key: 'Escape', keyCode: 27 }]) {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
+			input.dispatchEvent(event);
+			events.push(event);
+		}
+		input.dispatchEvent(new Event('compositionend'));
+		const visibleBeforeEscape = widget.isVisible;
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({
+			prevented: events.filter(event => event.defaultPrevented).map(event => event.key),
+			tabChanges,
+			selected,
+			visibleBeforeEscape,
+			visibleAfterEscape: widget.isVisible,
+		}, {
+			prevented: [],
+			tabChanges: [],
+			selected: [],
+			visibleBeforeEscape: true,
+			visibleAfterEscape: false,
+		});
 	});
 
 	for (const scenario of [
@@ -217,6 +345,61 @@ suite('TabbedActionListWidget', () => {
 		}, { visible: true, focusInPopup: true, cardClosed: true });
 		widget.hide();
 	});
+
+	for (const motionReduced of [false, true]) {
+		test(`refresh preserves the focused detail control and moves its row with reduced motion ${motionReduced}`, async () => {
+			const { widget, contextView } = createWidget(disposables, motionReduced);
+			const anchor = document.createElement('div');
+			anchor.style.cssText = 'position: fixed; top: 400px; left: 20px; width: 100px; height: 20px;';
+			document.body.appendChild(anchor);
+			disposables.add({ dispose: () => anchor.remove() });
+			const content = document.createElement('div');
+			const button = document.createElement('button');
+			button.textContent = 'Pin Model';
+			content.appendChild(button);
+			let pinned = false;
+			widget.show<ITestItem>({
+				user: 'test',
+				anchor,
+				tabs: [{ id: 'Models' }],
+				initialTab: 'Models',
+				showCheckedItemHover: true,
+				createActionList: () => {
+					const model = { ...action('model'), item: { id: 'model', checked: true }, hover: { content, expandable: true, preserveVerticalPosition: true } };
+					const others = ['one', 'two', 'three'].map(action);
+					return { items: pinned ? [model, ...others] : [...others, model], listOptions: { showFilter: false, persistentHover: true } };
+				},
+				delegate: { onSelect: () => { }, onHide: () => { } },
+			});
+			button.focus();
+			const popup = contextView.getContextViewElement();
+			const panel = popup.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const before = panel.getBoundingClientRect();
+			pinned = true;
+			widget.refreshActiveList({ focusItemId: 'model', preserveHover: true, animateItemMove: true });
+			const moved = Array.from(popup.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.textContent === 'model')!;
+			const animations = moved.getAnimations();
+			const animated = animations.length > 0;
+			animations.forEach(animation => animation.finish());
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+			const after = panel.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				visible: widget.isVisible,
+				sameContent: panel.contains(content),
+				buttonFocused: document.activeElement === button,
+				stationary: Math.abs(before.x - after.x) < 1 && Math.abs(before.y - after.y) < 1,
+				animated,
+			}, {
+				visible: true,
+				sameContent: true,
+				buttonFocused: true,
+				stationary: true,
+				animated: !motionReduced && !mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches,
+			});
+			widget.hide();
+		});
+	}
 
 	test('buildItems is called with the initial tab', () => {
 		const { widget } = createWidget(disposables);

@@ -15,7 +15,7 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
@@ -31,6 +31,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
+import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../../contrib/chat/common/promptTimeline.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
@@ -67,6 +68,7 @@ export interface IFixtureMessage {
 	readonly responseComplete?: boolean;
 	/** Whether the request is a host-initiated turn rendered with its specialized presentation. */
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: ChatRequestSource;
 	/** Whether the request half of the turn stays out of the transcript. */
 	readonly requestHidden?: boolean;
 	/**
@@ -82,6 +84,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	/** Total horizontal padding reserved when laying out response content and embedded editors. */
+	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
 	/** Whether to populate the response footer with an action. */
@@ -115,6 +119,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
 	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
 	readonly persistentContentHeight?: number;
+	/** Enables or disables both settings required by the real tree-based sticky-scroll path. */
+	readonly stickyScroll?: boolean;
 }
 
 interface IChatWidgetFixtureHandle {
@@ -240,6 +246,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	if (options.verbose !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.Verbose, options.verbose);
 	}
+	if (options.stickyScroll !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, options.stickyScroll);
+		configService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, options.stickyScroll);
+	}
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
 	// real ChatViewModel + ChatListWidget — the same components used in production.
 	// The turn changes summary only renders for agent host sessions, whose frontend
@@ -279,6 +289,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			undefined,
 			undefined,
 			message.requestHidden,
+			message.requestSource,
 		);
 		const response = request.response!;
 		if (message.fileChanges) {
@@ -448,6 +459,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			location: ChatAgentLocation.Chat,
 			paddingBottom: options.persistentContentHeight,
 			rendererOptions: {
+				contentHorizontalPadding: options.contentHorizontalPadding,
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 			},
 		},

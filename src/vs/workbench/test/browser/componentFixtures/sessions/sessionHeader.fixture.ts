@@ -70,7 +70,7 @@ function createMockListModelService(): ISessionsListModelService {
 	}();
 }
 
-function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): void {
+function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession, withBackground = false): void {
 	const { container, disposableStore } = ctx;
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
@@ -89,14 +89,27 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 	container.style.setProperty('--session-view-foreground', 'var(--vscode-agentsPanel-foreground, var(--vscode-sideBar-foreground))');
 	container.style.backgroundColor = 'var(--session-view-background)';
 
+	let headerHost = container;
+	if (withBackground) {
+		container.classList.add('agent-sessions-workbench');
+		const sessionsPart = document.createElement('div');
+		sessionsPart.classList.add('part', 'sessionspart', 'has-chat-background');
+		sessionsPart.style.backgroundImage = 'linear-gradient(135deg, var(--vscode-editor-background), var(--vscode-textLink-foreground))';
+		container.appendChild(sessionsPart);
+		headerHost = sessionsPart;
+	}
+
 	const header = disposableStore.add(instantiationService.createInstance(SessionHeader));
 	header.setSession(session);
-	container.appendChild(header.element);
+	headerHost.appendChild(header.element);
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionHeader_Default: defineComponentFixture({
 		render: ctx => renderHeader(ctx, createMockSession({ title: 'Fix login bug' })),
+	}),
+	SessionHeader_Background: defineComponentFixture({
+		render: ctx => renderHeader(ctx, createMockSession({ title: 'Fix login bug' }), true),
 	}),
 	SessionHeader_InProgress: defineComponentFixture({
 		render: ctx => renderHeader(ctx, createMockSession({

@@ -316,7 +316,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		}
 	});
 
-	serverToolTest('server tool: add_artifact_or_reference records a reference in session state', async function () {
+	serverToolTest('server tool: add_artifact_or_reference records artifacts and references in one batch', async function () {
 		try {
 			const session = await createSession('artifact-add', false, () => setRootConfig({
 				[AgentHostArtifactToolsConfigKey]: true,
@@ -324,26 +324,29 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			await driveServerTool(
 				session,
 				'turn-artifact-add',
-				'Call add_artifact_or_reference exactly once with type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host". Then reply with exactly "recorded".',
+				'Call add_artifact_or_reference exactly once with an items array containing two entries: type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host"; then type "file", label "Agent Host report", isArtifact true, and uri "file:///agent-host-report.md". Then reply with exactly "recorded".',
 				ArtifactServerToolName.AddArtifactOrReference,
-				{ result: [/Added reference:/, /Agent Host guide/, /https:\/\/example\.com\/agent-host/] },
+				{ result: [/Added reference:/, /Agent Host guide/, /Added artifact:/, /Agent Host report/] },
 			);
-			const [artifact] = readSessionArtifacts((await sessionState(session.sessionUri))._meta);
+			const artifacts = readSessionArtifacts((await sessionState(session.sessionUri))._meta);
 
 			assert.deepStrictEqual({
-				artifact: artifact && {
-					type: artifact.type,
-					label: artifact.label,
-					isArtifact: artifact.isArtifact,
-					link: artifact.link,
-				},
+				artifacts: artifacts.map(({ id: _id, ...artifact }) => artifact),
 			}, {
-				artifact: {
-					type: 'website',
-					label: 'Agent Host guide',
-					isArtifact: false,
-					link: 'https://example.com/agent-host',
-				},
+				artifacts: [
+					{
+						type: 'website',
+						label: 'Agent Host guide',
+						isArtifact: false,
+						link: 'https://example.com/agent-host',
+					},
+					{
+						type: 'file',
+						label: 'Agent Host report',
+						isArtifact: true,
+						uri: 'file:///agent-host-report.md',
+					},
+				],
 			});
 		} finally {
 			await setRootConfig({ [AgentHostArtifactToolsConfigKey]: false });
@@ -358,7 +361,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			const { tool } = await driveServerTool(
 				session,
 				'turn-artifact-reject-session',
-				'Call add_artifact_or_reference exactly once with type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".',
+				'Call add_artifact_or_reference exactly once with an items array containing one entry: type "resource", label "Spawned session", isArtifact true, and uri "agent-host-session://copilot/spawned". Then reply with exactly "rejected".',
 				ArtifactServerToolName.AddArtifactOrReference,
 				{
 					success: false,
@@ -386,7 +389,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			await driveServerTool(
 				session,
 				'turn-artifact-list-remove-add',
-				'Call add_artifact_or_reference exactly once with type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".',
+				'Call add_artifact_or_reference exactly once with an items array containing one entry: type "website", label "Design notes", isArtifact false, and link "https://example.com/design". Then reply with exactly "added".',
 				ArtifactServerToolName.AddArtifactOrReference,
 			);
 			const [artifact] = readSessionArtifacts((await sessionState(session.sessionUri))._meta);

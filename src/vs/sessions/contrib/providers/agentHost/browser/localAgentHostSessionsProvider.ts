@@ -650,7 +650,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				workingDirectory: repositoryUri,
 				name: folderName,
 				description: undefined,
-				gitRepository: { uri: repositoryUri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				gitRepository: { uri: repositoryUri, workTreeUri: undefined, isRepository: constObservable(false), baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 			}],
 			requiresWorkspaceTrust: true,
 			isVirtualWorkspace: false,
