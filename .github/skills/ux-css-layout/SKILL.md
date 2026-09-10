@@ -71,7 +71,7 @@ The narrow exception is shared focus/active-outline suppression, where `outline:
 
 ### Composition Ownership
 
-Start with **one relationship, one owner** as a composition heuristic, then validate the boundary against the control's actual structure and variants:
+**Candidate guidance:** start with **one relationship, one owner** as a composition heuristic, then validate the boundary against the control's actual structure and variants. Keep treating this as a review hypothesis rather than settled doctrine while the shared-control pilot is under evaluation:
 
 1. Put the relationship in the lowest component contract that understands all participating elements.
 2. Treat ownership as responsibility for the relationship, not the DOM node that receives the CSS property.
