@@ -754,10 +754,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				await this._execution.cancelSession(session);
 				return;
 			}
-			// Clients restore the last turn's model configuration, not the SDK's creation defaults.
-			const message: Message = definition.message.model === undefined && definition.session.model !== undefined
-				? { ...definition.message, model: definition.session.model }
-				: definition.message;
+			// Turn selections override creation defaults in both the provider and restored clients.
+			const message: Message = {
+				...definition.message,
+				...(definition.message.model === undefined && definition.session.model !== undefined ? { model: definition.session.model } : {}),
+				...(definition.message.agent === undefined && definition.session.agent !== undefined ? { agent: definition.session.agent } : {}),
+			};
 			await this._execution.startSession(session, message);
 		} catch (error) {
 			try {

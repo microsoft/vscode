@@ -725,13 +725,16 @@ suite('AgentHostAutomationService', () => {
 		})));
 	});
 
-	for (const hasMessageModel of [false, true]) {
-		test(hasMessageModel ? 'preserves an explicit Automation message model' : 'records the Automation model configuration on its first turn', async () => {
+	for (const messageOverride of ['none', 'model', 'agent', 'both']) {
+		test(`records the Automation session selections on its first turn with ${messageOverride} message overrides`, async () => {
 			const session = URI.parse('mock:/model-configuration-run');
 			const model = { id: 'mock-model', config: { thinkingLevel: 'low', contextSize: 272_000 } };
-			const messageModel = hasMessageModel ? { id: 'other-model', config: { thinkingLevel: 'high' } } : undefined;
+			const agent = { uri: 'file:///workspace/.github/agents/reviewer.agent.md' };
+			const messageModel = messageOverride === 'model' || messageOverride === 'both' ? { id: 'other-model', config: { thinkingLevel: 'high' } } : undefined;
+			const messageAgent = messageOverride === 'agent' || messageOverride === 'both' ? { uri: 'file:///other/agents/reviewer.agent.md' } : undefined;
 			const completed = new DeferredPromise<void>();
 			let createdModel: AutomationDefinition['session']['model'];
+			let createdAgent: AutomationDefinition['session']['agent'];
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
 				if (envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Completed) {
 					void completed.complete();
@@ -740,6 +743,7 @@ suite('AgentHostAutomationService', () => {
 			const service = createService({
 				createSession: async template => {
 					createdModel = template.model;
+					createdAgent = template.agent;
 					stateManager.createSession({
 						resource: session.toString(),
 						provider: 'mock',
@@ -767,8 +771,12 @@ suite('AgentHostAutomationService', () => {
 			});
 			const automation = definition();
 			automation.session.model = model;
+			automation.session.agent = agent;
 			if (messageModel) {
 				automation.message.model = messageModel;
+			}
+			if (messageAgent) {
+				automation.message.agent = messageAgent;
 			}
 			await service.completeMigration();
 			await service.handleCreate({ ...createAction(), definition: automation });
@@ -781,12 +789,24 @@ suite('AgentHostAutomationService', () => {
 
 			assert.deepStrictEqual({
 				createdModel,
+				createdAgent,
 				recordedModel: stateManager.getChatState(buildDefaultChatUri(session))?.turns[0]?.message.model,
+				recordedAgent: stateManager.getChatState(buildDefaultChatUri(session))?.turns[0]?.message.agent,
 				savedModel: stateManager.getAutomationCatalogState()?.entries[0].definition.session.model,
+				savedAgent: stateManager.getAutomationCatalogState()?.entries[0].definition.session.agent,
+				savedMessage: stateManager.getAutomationCatalogState()?.entries[0].definition.message,
 			}, {
 				createdModel: model,
+				createdAgent: agent,
 				recordedModel: messageModel ?? model,
+				recordedAgent: messageAgent ?? agent,
 				savedModel: model,
+				savedAgent: agent,
+				savedMessage: {
+					...definition().message,
+					...(messageModel ? { model: messageModel } : {}),
+					...(messageAgent ? { agent: messageAgent } : {}),
+				},
 			});
 		});
 	}
