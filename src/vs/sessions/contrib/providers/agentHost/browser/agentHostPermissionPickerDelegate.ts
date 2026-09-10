@@ -8,6 +8,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
+import { createAgentHostSandboxToggle } from '../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, getAgentHostCopilotSandboxSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
@@ -23,7 +24,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
-import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
 
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
@@ -76,8 +77,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
 	readonly isResolving: IObservable<boolean>;
-	readonly sandboxTogglePresentation = 'standalone' as const;
 	readonly managedSandboxEnforced: IObservable<boolean>;
+	readonly managedSandboxAllowsBypass: IObservable<boolean>;
 	readonly sandboxEnabled: IObservable<boolean | undefined>;
 	readonly sandboxToggleConfigurationKeys = [
 		AgentHostCustomTerminalToolEnabledSettingId,
@@ -148,6 +149,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	) {
 		super();
 		this.managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced;
+		this.managedSandboxAllowsBypass = agentHostEnablementService.managedSandboxAllowsBypass;
 
 		this._watchProviders(this._sessionsProvidersService.getProviders());
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
@@ -175,6 +177,22 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const provider = this._getProvider(session.providerId);
 			return provider?.isSessionConfigResolving(session.sessionId).read(reader) ?? false;
 		});
+	}
+
+	getSandboxToggle() {
+		if (!this.isSandboxToggleApplicable()) {
+			return undefined;
+		}
+		return createAgentHostSandboxToggle(() => {
+			const settingId = this.getSandboxToggleSettingId();
+			return {
+				provider: this.getSandboxToggleProvider(),
+				sessionEnabled: this.sandboxEnabled.get(),
+				globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
+				managedEnabled: this.managedSandboxEnforced.get(),
+				allowsBypass: this.managedSandboxAllowsBypass.get(),
+			};
+		}, enabled => this.setSandboxEnabled(enabled));
 	}
 
 	setSandboxEnabled(enabled: boolean): void {

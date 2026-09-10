@@ -86,7 +86,6 @@ export interface IPermissionPickerDelegate {
 	 */
 	getPermissionLevelHover?(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined;
 	readonly isSandboxToggleApplicable?: () => boolean;
-	readonly sandboxTogglePresentation?: 'standalone';
 	readonly getSandboxToggleSettingId?: () => string | undefined;
 	readonly getSandboxToggleProvider?: () => string | undefined;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
@@ -250,6 +249,8 @@ export class PermissionPicker extends Disposable {
 			}));
 		}
 		this._renderDisposables.add(autorun(reader => {
+			this._delegate.isResolving?.read(reader);
+			this._delegate.isApplicable?.read(reader);
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this.agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
@@ -472,7 +473,6 @@ export class PermissionPicker extends Disposable {
 
 	private _isSandboxToggleAvailable(): boolean {
 		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true
-			&& this._delegate.sandboxTogglePresentation === 'standalone'
 			&& this._delegate.isSandboxToggleApplicable?.() === true
 			&& this._delegate.setSandboxEnabled !== undefined
 			&& this._delegate.getSandboxToggleSettingId?.() !== undefined;

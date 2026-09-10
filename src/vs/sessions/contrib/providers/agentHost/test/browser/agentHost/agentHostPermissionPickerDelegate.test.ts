@@ -4,6 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { AgentHostPermissionPickerActionItem } from '../../../browser/agentHostPermissionPickerActionItem.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -96,6 +112,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 }
 
 interface ITestRig {
+	readonly instantiationService: TestInstantiationService;
 	readonly delegate: AgentHostPermissionPickerDelegate;
 	readonly provider: FakeProvider;
 	readonly activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
@@ -152,6 +169,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 
 	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
 	return {
+		instantiationService: insta,
 		delegate,
 		provider,
 		activeSessionObs,
@@ -168,6 +186,71 @@ function makeActiveSession(sessionType = 'copilotcli'): IActiveSession {
 suite('AgentHostPermissionPickerDelegate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('running-session picker renders sandbox status as an icon and writes only session choices', async () => {
+		const { instantiationService, provider, activeSessionObs, setManagedSandboxEnforced } = setup(store, makeActiveSession(), 'autoApprove');
+		const config = makeWellKnownConfig('autoApprove');
+		config.values[SessionConfigKey.SandboxEnabled] = 'off';
+		provider.sessionConfigs.set(SESSION_ID, config);
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
+		const settingId = getAgentHostCopilotSandboxSettingId(false);
+		await configurationService.setUserConfiguration(settingId, 'on');
+		let toggle: IActionListItemInlineToggle | undefined;
+		let onHide: (() => void) | undefined;
+		let menuUpdates = 0;
+		instantiationService.set(IConfigurationService, configurationService);
+		instantiationService.set(IContextKeyService, store.add(new ContextKeyService(configurationService)));
+		instantiationService.set(IKeybindingService, new MockKeybindingService());
+		instantiationService.set(ICommandService, new class extends mock<ICommandService>() { }());
+		instantiationService.set(IDialogService, new class extends mock<IDialogService>() { }());
+		instantiationService.set(IOpenerService, new class extends mock<IOpenerService>() { }());
+		instantiationService.set(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.set(ITelemetryService, NullTelemetryService);
+		instantiationService.set(IHoverService, new class extends mock<IHoverService>() {
+			override setupDelayedHover() { return { dispose: () => { } }; }
+		}());
+		instantiationService.set(IActionWidgetService, new class extends mock<IActionWidgetService>() {
+			override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+				toggle = items.find(item => item.standaloneToggle)?.standaloneToggle;
+				onHide = delegate.onHide;
+			}
+			override updateItems(): void { menuUpdates++; }
+			override hide(): void { }
+		}());
+		const action = instantiationService.createInstance(MenuItemAction, { id: 'test.permissions', title: 'Permissions' }, undefined, undefined, undefined, undefined);
+		const compact = observableValue('compact', false);
+		const picker = store.add(instantiationService.createInstance(AgentHostPermissionPickerActionItem, action, { compact }, activeSessionObs));
+		const container = document.createElement('div');
+		picker.render(container);
+		const trigger = container.querySelector<HTMLElement>('a.action-label');
+		assert.ok(trigger);
+		const readPresentation = () => ({
+			label: trigger.querySelector('.chat-input-picker-label')?.textContent,
+			sandboxIcon: !!trigger.querySelector('.chat-input-picker-sandbox-icon'),
+			accessibleSandboxed: trigger.ariaLabel?.includes('(sandboxed)'),
+		});
+		const initial = readPresentation();
+		picker.show();
+		assert.ok(toggle);
+		toggle.onChange(true);
+		const enabled = readPresentation();
+		toggle.onChange(false);
+		const disabled = readPresentation();
+		setManagedSandboxEnforced(true);
+		const managed = readPresentation();
+		toggle.onChange(false);
+		onHide?.();
+		assert.deepStrictEqual({ initial, enabled, disabled, managed, writes: provider.setCalls, global: configurationService.getValue(settingId), menuUpdates }, {
+			initial: { label: 'Allow all', sandboxIcon: false, accessibleSandboxed: false },
+			enabled: { label: 'Allow all', sandboxIcon: true, accessibleSandboxed: true },
+			disabled: { label: 'Allow all', sandboxIcon: false, accessibleSandboxed: false },
+			managed: { label: 'Allow all', sandboxIcon: true, accessibleSandboxed: true },
+			writes: [[SESSION_ID, SessionConfigKey.SandboxEnabled, 'on'], [SESSION_ID, SessionConfigKey.SandboxEnabled, 'off']],
+			global: 'on',
+			menuUpdates: 0,
+		});
+	});
+
 	test('returns Default when there is no active session', () => {
 		const { delegate } = setup(store, undefined);
 
@@ -178,11 +261,9 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		const { delegate, activeSessionObs, setCustomTerminalToolEnabled } = setup(store, makeActiveSession(), 'default');
 
 		assert.deepStrictEqual({
-			presentation: delegate.sandboxTogglePresentation,
 			copilotApplicable: delegate.isSandboxToggleApplicable(),
 			sdkSetting: delegate.getSandboxToggleSettingId(),
 		}, {
-			presentation: 'standalone',
 			copilotApplicable: true,
 			sdkSetting: getAgentHostCopilotSandboxSettingId(false),
 		});

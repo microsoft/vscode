@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createAgentHostSandboxToggle, getAgentHostSandboxToggleState } from '../../browser/agentHostSandboxToggle.js';
+import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxToggleState } from '../../browser/agentHostSandboxToggle.js';
 
 suite('AgentHostSandboxToggle', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -120,6 +120,48 @@ suite('AgentHostSandboxToggle', () => {
 		toggle.onChange(false);
 		toggle.onChange(false);
 		assert.deepStrictEqual({ initialSelection, writes }, { initialSelection: undefined, writes: [true, false] });
+	});
+
+	test('matching session updates do not change the clicked toggle presentation', () => {
+		const state = { provider: 'copilotcli', sessionEnabled: undefined as boolean | undefined, globalEnabled: true, managedEnabled: false, allowsBypass: true };
+		const updates: { enabled: boolean; unchanged: boolean }[] = [];
+		const toggle = createAgentHostSandboxToggle(() => state, enabled => {
+			state.sessionEnabled = enabled;
+			const resolvedToggle = createAgentHostSandboxToggle(() => state, () => { });
+			updates.push({ enabled, unchanged: equalsAgentHostSandboxTogglePresentation(toggle, resolvedToggle) });
+		})!;
+		toggle.onChange(false);
+		toggle.onChange(true);
+		assert.deepStrictEqual(updates, [
+			{ enabled: false, unchanged: true },
+			{ enabled: true, unchanged: true },
+		]);
+	});
+
+	test('consecutive clicks track the displayed value before session updates arrive', () => {
+		const writes: boolean[] = [];
+		const state = { provider: 'copilotcli', sessionEnabled: undefined, globalEnabled: true, managedEnabled: false, allowsBypass: true };
+		const toggle = createAgentHostSandboxToggle(() => state, enabled => writes.push(enabled))!;
+		toggle.onChange(false);
+		toggle.onChange(false);
+		toggle.onChange(true);
+		assert.deepStrictEqual({ checked: toggle.checked, writes }, { checked: true, writes: [false, true] });
+	});
+
+	test('external session and policy changes still change the clicked toggle presentation', () => {
+		const state = { provider: 'copilotcli', sessionEnabled: undefined as boolean | undefined, globalEnabled: true, managedEnabled: false, allowsBypass: true };
+		const toggle = createAgentHostSandboxToggle(() => state, enabled => { state.sessionEnabled = enabled; })!;
+		toggle.onChange(false);
+		state.sessionEnabled = true;
+		const externalToggle = createAgentHostSandboxToggle(() => state, () => { });
+		state.sessionEnabled = false;
+		state.managedEnabled = true;
+		state.allowsBypass = false;
+		const managedToggle = createAgentHostSandboxToggle(() => state, () => { });
+		assert.deepStrictEqual({
+			externalUnchanged: equalsAgentHostSandboxTogglePresentation(toggle, externalToggle),
+			managedUnchanged: equalsAgentHostSandboxTogglePresentation(toggle, managedToggle),
+		}, { externalUnchanged: false, managedUnchanged: false });
 	});
 
 	test('only the Copilot harness exposes a sandbox toggle', () => {

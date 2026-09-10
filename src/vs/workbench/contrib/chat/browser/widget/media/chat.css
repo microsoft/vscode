@@ -2005,6 +2005,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground);
 }
 
+.chat-input-picker-item .chat-input-picker-sandbox-icon {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size60);
+}
+
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.warning {
 	color: var(--vscode-problemsWarningIcon-foreground);
 }

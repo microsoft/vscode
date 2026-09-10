@@ -40,6 +40,7 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 		return undefined;
 	}
 	const { checked, disabled } = toggleState;
+	let displayedChecked = checked;
 	return {
 		label: localize('agentHostSandboxToggle.label', "Sandboxing for terminal"),
 		title: state.managedEnabled
@@ -47,11 +48,12 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 				? localize('agentHostSandboxToggle.requiredTitle', "Sandboxing is required by your organization")
 				: localize('agentHostSandboxToggle.editableManagedTitle', "Sandboxing is enabled by your organization, but you may disable it")
 			: localize('agentHostSandboxToggle.title', "Run this session's terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only."),
-		checked,
+		get checked() { return displayedChecked; },
 		disabled,
 		onChange: enabled => {
 			const currentState = getAgentHostSandboxToggleState(readState());
-			if (currentState && !currentState.disabled && currentState.checked !== enabled) {
+			if (currentState && !currentState.disabled && displayedChecked !== enabled) {
+				displayedChecked = enabled;
 				onChange(enabled);
 			}
 		},
