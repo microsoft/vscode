@@ -434,7 +434,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			let server = local ? this.installing.find(server => this.areSameMcpServers(server.local, local)) : undefined;
 			this.installing = server ? this.installing.filter(e => e !== server) : this.installing;
 			if (local) {
-				const trustedGallery = this.getTrustedGallerySource(source) ?? this.getTrustedGallerySource(server?.gallery);
+				const trustedGallery = this.getTrustedGallerySource(source, local) ?? this.getTrustedGallerySource(server?.gallery, local);
 				if (server) {
 					server.local = local;
 				} else {
@@ -467,7 +467,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				server = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), result.local, undefined, undefined);
 				this.addServer(server);
 			}
-			const trustedGallery = this.getTrustedGallerySource(result.source) ?? this.getTrustedGallerySource(server.gallery);
+			const trustedGallery = this.getTrustedGallerySource(result.source, result.local) ?? this.getTrustedGallerySource(server.gallery, result.local);
 			server.gallery = trustedGallery?.name === result.local.name ? trustedGallery : undefined;
 			needsRegistrySync = true;
 			this._onChange.fire(server);
@@ -479,12 +479,11 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private fromGallery(gallery: IGalleryMcpServer, registryGeneration: number): IWorkbenchMcpServer | undefined {
 		this.rememberGallerySource(gallery, registryGeneration);
-		for (const local of this._local) {
-			if (local.name === gallery.name) {
-				return local;
-			}
-		}
-		return undefined;
+		return this.getInstalledGalleryServer(gallery.name);
+	}
+
+	private getInstalledGalleryServer(name: string): McpWorkbenchServer | undefined {
+		return this._local.find(server => server.local?.format !== McpResourceFormat.WorkspaceRoot && server.name === name);
 	}
 
 	private scheduleRegistrySync(): void {
@@ -498,7 +497,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return;
 		}
 
-		const servers = this.local.flatMap(server => server.local ? [{ server, local: server.local }] : []);
+		const servers = this.local.flatMap(server => server.local && server.local.format !== McpResourceFormat.WorkspaceRoot ? [{ server, local: server.local }] : []);
 		const infosByName = new Map<string, { name: string; id?: string }>();
 		for (const { local } of servers) {
 			const existing = infosByName.get(local.name);
@@ -604,8 +603,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 	}
 
-	private getTrustedGallerySource(gallery: IGalleryMcpServer | undefined): IGalleryMcpServer | undefined {
-		return gallery && this.gallerySourceGenerations.get(gallery) === this.registryGeneration ? gallery : undefined;
+	private getTrustedGallerySource(gallery: IGalleryMcpServer | undefined, local?: IWorkbenchLocalMcpServer): IGalleryMcpServer | undefined {
+		return local?.format !== McpResourceFormat.WorkspaceRoot && gallery && this.gallerySourceGenerations.get(gallery) === this.registryGeneration ? gallery : undefined;
 	}
 
 	private addServer(server: McpWorkbenchServer): void {
@@ -734,8 +733,16 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		try {
 			const local = await installTask();
 			let result = this.local.find(candidate => this.areSameMcpServers(candidate.local, local));
-			if (!result) {
-				result = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), local, this.getTrustedGallerySource(server.gallery), undefined);
+			if (!server.local || !result) {
+				if (!server.local) {
+					const gallery = this.getTrustedGallerySource(result?.gallery, local) ?? this.getTrustedGallerySource(server.gallery, local);
+					this._local = this._local.filter(candidate => candidate !== result);
+					server.local = local;
+					server.gallery = gallery;
+					result = server;
+				} else {
+					result = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), local, this.getTrustedGallerySource(server.gallery, local), undefined);
+				}
 				this.addServer(result);
 				this._onChange.fire(result);
 				this.scheduleRegistrySync();
@@ -925,7 +932,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 					const [galleryServer] = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
 					if (galleryServer) {
 						this.rememberGallerySource(galleryServer, registryGeneration);
-						const local = this.local.find(e => e.name === galleryServer.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, galleryServer, undefined);
+						const local = this.getInstalledGalleryServer(galleryServer.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, galleryServer, undefined);
 						this.open(local);
 						return true;
 					}
@@ -949,7 +956,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this.logService.info(`MCP server '${url}' not found`);
 				return true;
 			}
-			const local = this.local.find(e => e.name === gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
+			const local = this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
 			this.open(local);
 		} catch (e) {
 			// ignore
@@ -967,7 +974,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				return true;
 			}
 			this.rememberGallerySource(gallery, registryGeneration);
-			const local = this.local.find(e => e.name === gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
+			const local = this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
 			this.open(local);
 		} catch (e) {
 			// ignore
