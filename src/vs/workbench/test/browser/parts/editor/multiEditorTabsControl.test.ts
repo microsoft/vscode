@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { $, Dimension, EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -26,11 +26,16 @@ suite('MultiEditorTabsControl', () => {
 
 	let disposables: DisposableStore;
 
+	let workbench: HTMLElement;
 	let container: HTMLElement;
 	let hostService: TestHostService;
+	let model: EditorGroupModel;
+	let control: MultiEditorTabsControl;
+	let pinnedTabSizing = DEFAULT_EDITOR_PART_OPTIONS.pinnedTabSizing;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		pinnedTabSizing = DEFAULT_EDITOR_PART_OPTIONS.pinnedTabSizing;
 
 		// The tabs control resolves the shared modifier key emitter on creation,
 		// so dispose it again to keep each test independent of the Alt state that
@@ -43,7 +48,7 @@ suite('MultiEditorTabsControl', () => {
 
 		hostService = instantiationService.get(IHostService) as TestHostService;
 
-		const model = disposables.add(instantiationService.createInstance(EditorGroupModel, undefined));
+		model = disposables.add(instantiationService.createInstance(EditorGroupModel, undefined));
 		for (let i = 0; i < 2; i++) {
 			const editor = disposables.add(new TestFileEditorInput(URI.file(`/path/file${i}.txt`), 'testEditorInput'));
 			model.openEditor(editor, { pinned: true, active: i === 0 });
@@ -71,7 +76,7 @@ suite('MultiEditorTabsControl', () => {
 		};
 
 		const groupsView = new class extends mock<IEditorGroupsView>() {
-			override get partOptions() { return DEFAULT_EDITOR_PART_OPTIONS; }
+			override get partOptions() { return { ...DEFAULT_EDITOR_PART_OPTIONS, pinnedTabSizing }; }
 			override get activeGroup(): IEditorGroupView { return groupView; }
 			override get groups(): IEditorGroupView[] { return [groupView]; }
 			override readonly onDidChangeEditorPartOptions = Event.None;
@@ -83,15 +88,17 @@ suite('MultiEditorTabsControl', () => {
 			override getGroup() { return groupView; }
 		};
 
+		workbench = $('.monaco-workbench');
 		container = $('.title.tabs');
-		mainWindow.document.body.appendChild(container);
+		workbench.appendChild(container);
+		mainWindow.document.body.appendChild(workbench);
 
-		const control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
+		control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
 		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 	});
 
 	teardown(() => {
-		container.remove();
+		workbench.remove();
 		disposables.dispose();
 	});
 
@@ -199,6 +206,26 @@ suite('MultiEditorTabsControl', () => {
 			['closeOthers', 'close'],
 			['close', 'close']
 		]);
+	});
+
+	test('updates compact icon-label spacing when Modern UI changes', () => {
+		pinnedTabSizing = 'compact';
+		const editor = model.activeEditor!;
+		model.stick(editor);
+		control.stickEditor(editor);
+
+		const iconLabel = container.querySelector<HTMLElement>('.tab.sticky-compact .monaco-icon-label')!;
+		const variants = [iconLabel.classList.contains('monaco-icon-label-spacing-none')];
+
+		workbench.classList.add('modern-ui-tabs');
+		control.layout({ container: new Dimension(500, 35), available: new Dimension(500, 35) });
+		variants.push(iconLabel.classList.contains('monaco-icon-label-spacing-none'));
+
+		workbench.classList.remove('modern-ui-tabs');
+		control.layout({ container: new Dimension(500, 35), available: new Dimension(500, 35) });
+		variants.push(iconLabel.classList.contains('monaco-icon-label-spacing-none'));
+
+		assert.deepStrictEqual(variants, [false, true, false]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

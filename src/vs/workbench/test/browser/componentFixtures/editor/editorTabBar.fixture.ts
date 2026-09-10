@@ -554,6 +554,12 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	titleControl.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 	titleControl.setActive(isGroupActive);
 	const tabs = titleContainer.querySelectorAll<HTMLElement>('.tabs-container > .tab');
+	if (options.modernUI && partOptions.pinnedTabSizing === 'compact') {
+		const compactLabels = titleContainer.querySelectorAll<HTMLElement>('.tab.sticky-compact .monaco-icon-label');
+		if (compactLabels.length === 0 || Array.from(compactLabels).some(label => !label.classList.contains('monaco-icon-label-spacing-none'))) {
+			throw new Error('Modern UI compact pinned tabs did not select icon-only label spacing.');
+		}
+	}
 	if (options.dropTargetBetweenTabs) {
 		tabs[1]?.classList.add('drop-target-left');
 		tabs[2]?.classList.add('drop-target-right');

@@ -136,6 +136,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	};
 
 	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledMultiEditorTabsControlLayout>());
+	private lastModernUITabsEnabled: boolean | undefined;
 	private blockRevealActiveTab: boolean | undefined;
 
 	private path: IPath = isWindows ? win32 : posix;
@@ -1817,7 +1818,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				},
 				icon: editor.getIcon(),
 				hideIcon: options.showIcons === false,
-				iconLabelSpacing: this.useModernUITabs && options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex) ? 'none' : undefined,
+				iconLabelSpacing: this.isModernUITabsEnabled() && options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex) ? 'none' : undefined,
 				namePrefix,
 			}
 		);
@@ -1978,6 +1979,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
+		this.updateIconLabelSpacingForModernUITabs();
 
 		if (this.visible) {
 			if (!this.layoutScheduler.value) {
@@ -2334,16 +2336,34 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getStickyTabWidth(pinnedTabSizing: IEditorPartOptions['pinnedTabSizing']): number {
-		const hasModernUITabs = Boolean(this.parent.closest('.modern-ui-tabs'));
-
 		switch (pinnedTabSizing) {
 			case 'compact':
-				return hasModernUITabs ? MultiEditorTabsControl.MODERN_UI_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
+				return this.isModernUITabsEnabled() ? MultiEditorTabsControl.MODERN_UI_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
 			case 'shrink':
 				return MultiEditorTabsControl.TAB_WIDTH.shrink;
 			default:
 				return 0;
 		}
+	}
+
+	private isModernUITabsEnabled(): boolean {
+		return this.useModernUITabs || Boolean(this.parent.closest('.modern-ui-tabs'));
+	}
+
+	private updateIconLabelSpacingForModernUITabs(): void {
+		const enabled = this.isModernUITabsEnabled();
+		if (this.lastModernUITabsEnabled === undefined) {
+			this.lastModernUITabsEnabled = enabled;
+			return;
+		}
+		if (this.lastModernUITabsEnabled === enabled) {
+			return;
+		}
+
+		this.lastModernUITabsEnabled = enabled;
+		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel) => {
+			this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
+		});
 	}
 
 	private updateTabsControlVisibility(): void {
