@@ -914,6 +914,13 @@ suite('Sessions - Chat View', () => {
 		const secondaryToolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
 		const secondaryAction = dom.append(secondaryToolbar, dom.$('.action-label'));
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
+		const newSessionView = dom.append(part, dom.$('.session-view'));
+		const newSessionViewContent = dom.append(newSessionView, dom.$('.session-view-content'));
+		const productionNewChatView = dom.append(newSessionViewContent, dom.$('.chat-view-new'));
+		const productionNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget'));
+		const productionNewChatContainer = dom.append(productionNewChatWidget, dom.$('.new-chat-widget-container'));
+		const productionBottomContainer = dom.append(productionNewChatContainer, dom.$('.new-chat-bottom-container'));
+		const productionBottomAction = dom.append(productionBottomContainer, dom.$('.action-label'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
@@ -932,6 +939,7 @@ suite('Sessions - Chat View', () => {
 		const workspacePillStyle = dom.getWindow(workspacePill).getComputedStyle(workspacePill);
 		const secondaryActionStyle = dom.getWindow(secondaryAction).getComputedStyle(secondaryAction);
 		const contextUsageStyle = dom.getWindow(contextUsage).getComputedStyle(contextUsage);
+		const productionBottomActionStyle = dom.getWindow(productionBottomAction).getComputedStyle(productionBottomAction);
 		assert.deepStrictEqual({
 			newChatBackgroundColor: newChatStyle.backgroundColor,
 			newChatPadding: newChatStyle.padding,
@@ -947,6 +955,10 @@ suite('Sessions - Chat View', () => {
 			contextUsageBackgroundColor: contextUsageStyle.backgroundColor,
 			contextUsageBackgroundImage: contextUsageStyle.backgroundImage,
 			contextUsageBorderRadius: contextUsageStyle.borderRadius,
+			productionBottomActionBackgroundColor: productionBottomActionStyle.backgroundColor,
+			productionBottomActionBackgroundImage: productionBottomActionStyle.backgroundImage,
+			productionBottomActionBorderColor: productionBottomActionStyle.borderColor,
+			productionBottomActionForeground: productionBottomActionStyle.color,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
 			plainContextUsageBackgroundColor: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).backgroundColor,
@@ -968,6 +980,10 @@ suite('Sessions - Chat View', () => {
 			contextUsageBackgroundColor: 'rgb(255, 255, 255)',
 			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',
+			productionBottomActionBackgroundColor: 'rgb(255, 255, 255)',
+			productionBottomActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
+			productionBottomActionBorderColor: 'rgb(128, 128, 128)',
+			productionBottomActionForeground: 'rgb(32, 32, 32)',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',
