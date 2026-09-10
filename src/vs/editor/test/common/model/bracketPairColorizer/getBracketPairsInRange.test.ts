@@ -140,15 +140,12 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			}));
 			const model = store.add(instantiateTextModel(instantiationService, '} text }', languageId));
 
-			const withoutBracketTree = model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{');
-			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
 			assert.deepStrictEqual([
-				withoutBracketTree,
 				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '{'),
 				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 2), '{'),
 				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 9), '{'),
 				model.bracketPairs.hasUnmatchedClosingBracketAfter(new Position(1, 1), '['),
-			], [false, true, true, false, false]);
+			], [true, true, false, false]);
 		});
 	});
 

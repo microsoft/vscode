@@ -127,6 +127,8 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		if (!openingBracketInfo) {
 			return false;
 		}
+		this.bracketsRequested = true;
+		this.updateBracketPairsTree();
 		return this.bracketPairsTree.value?.object.hasUnmatchedClosingBracketAfter(position, openingBracketInfo) ?? false;
 	}
 
