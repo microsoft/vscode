@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * The hosts that instantiate {@link ChangesWorkbenchButtonBarWidget} /
- * {@link ChangesMenuWorkbenchButtonBarWidget}, each with its own icon/label
- * spacing relationship to the surrounding composition.
+ * CSS class marking a Changes button-bar container as living outside a card
+ * composition (the single-pane editor's action row), already used by
+ * `changesView.css` to switch button styling for that same container.
+ * Shared between the production container markup and the fixture so the
+ * spacing derivation below and the DOM it inspects cannot drift apart.
  */
-export type ChangesButtonBarHost = 'header' | 'outside-card';
+export const CHANGES_OUTSIDE_CARD_CLASS = 'outside-card';
 
 /**
- * Maps a Changes button-bar host to the `iconLabelSpacing` it supplies to the
- * widget constructor. Production call sites and the component fixture both
- * invoke this function (passing their own host identifier) instead of each
- * independently choosing a spacing value, so the two cannot drift apart.
+ * Derives the `iconLabelSpacing` a Changes button-bar host supplies to
+ * {@link ChangesWorkbenchButtonBarWidget} / {@link ChangesMenuWorkbenchButtonBarWidget}
+ * from the container's own composition context, following the existing
+ * convention where {@link CHANGES_OUTSIDE_CARD_CLASS} already switches this
+ * container's button styling in CSS.
  */
-export function getChangesButtonBarIconLabelSpacing(host: ChangesButtonBarHost): 'compact' | 'default' {
-	return host === 'outside-card' ? 'default' : 'compact';
+export function getChangesButtonBarIconLabelSpacing(container: HTMLElement): 'compact' | 'default' {
+	return container.classList.contains(CHANGES_OUTSIDE_CARD_CLASS) ? 'default' : 'compact';
 }

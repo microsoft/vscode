@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { WorkbenchButtonBar } from '../../../../../platform/actions/browser/buttonbar.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { getChangesButtonBarIconLabelSpacing } from '../../browser/changesButtonBarSpacing.js';
+import { CHANGES_OUTSIDE_CARD_CLASS, getChangesButtonBarIconLabelSpacing } from '../../browser/changesButtonBarSpacing.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 	ButtonBar: defineComponentFixture({
@@ -33,7 +33,7 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 	});
 
 	const changesView = dom.append(container, dom.$('.changes-view-body'));
-	const actions = dom.append(changesView, dom.$('.chat-editing-session-actions.outside-card'));
+	const actions = dom.append(changesView, dom.$(`.chat-editing-session-actions.${CHANGES_OUTSIDE_CARD_CLASS}`));
 	const commit = action('fixture.commit', 'Commit', Codicon.gitCommit);
 
 	// Matches production: both changesView.ts call sites cap this bar at one button.
@@ -48,7 +48,7 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 						return {
 							showIcon: true,
 							showLabel: true,
-							iconLabelSpacing: getChangesButtonBarIconLabelSpacing('outside-card'),
+							iconLabelSpacing: getChangesButtonBarIconLabelSpacing(actions),
 						};
 				}
 				return undefined;
