@@ -125,6 +125,8 @@ The names describe a scale, not settled product roles. Choose a step in the owni
 
 Use contain-style fitting for image and SVG sources so their aspect ratio is preserved. Apply optical correction within the selected area; transforms must not change its layout footprint or move adjacent content.
 
+Shared `base` or `editor` CSS that can run in standalone Monaco must include the token's literal default as a fallback because the standalone theme service does not emit registered size variables (for example, `var(--vscode-iconSize-small, 16px)`).
+
 ## Codicon size — icon `font-size`
 
 Codicons are **only ever 16px or 12px**. There is no in-between size — never use `14px` (or any other value) for a codicon. Pick the base or the compact token:
