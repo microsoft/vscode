@@ -26,8 +26,14 @@ export class GitQuickDiffProvider implements QuickDiffProvider {
 			return undefined;
 		}
 
-		// Ignore path that is inside the .git directory (ex: COMMIT_EDITMSG)
-		if (isDescendant(this.repository.dotGit.commonPath ?? this.repository.dotGit.path, uri.fsPath)) {
+		// Ignore path that is inside the .git directory (ex: COMMIT_EDITMSG).
+		// Special case: when a bare repository is used as the common git directory and
+		// worktrees are stored inside the bare repo directory (e.g. repo.git/work/), the
+		// commonPath is an ancestor of repository.root. Files inside repository.root are
+		// working tree files and must NOT be treated as git metadata.
+		const gitDir = this.repository.dotGit.commonPath ?? this.repository.dotGit.path;
+		if (isDescendant(gitDir, uri.fsPath) &&
+			(!isDescendant(this.repository.root, uri.fsPath) || isDescendant(this.repository.root, gitDir))) {
 			this.logger.trace(`[Repository][provideOriginalResource] Resource is inside .git directory: ${uri.toString()}`);
 			return undefined;
 		}
