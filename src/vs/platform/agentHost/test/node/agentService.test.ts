@@ -1157,13 +1157,23 @@ suite('AgentService (node dispatcher)', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('starts catalog reconciliation in the background and exposes an awaitable idle hook', async () => {
+	test('starts catalog reconciliation after host startup and the first listing settle', async () => {
 		registerTestAgentProvider(service, copilotAgent);
-
+		const reconciliation = (service as unknown as { _catalogReconciliationService: { schedule(): void; start(): void } })._catalogReconciliationService;
+		let schedules = 0;
+		reconciliation.schedule = () => {
+			schedules++;
+		};
+		const beforeListing = schedules;
 		const sessions = await service.listSessions();
+		const afterListing = schedules;
+		service.markStartupComplete();
+		await service.whenDeferredWorkSettled();
 		await service.whenCatalogReconciliationIdle();
 
-		assert.deepStrictEqual(sessions, []);
+		assert.deepStrictEqual({ sessions, beforeListing, afterListing, afterStartup: schedules }, {
+			sessions: [], beforeListing: 0, afterListing: 0, afterStartup: 1,
+		});
 	});
 
 	suite('catalog summary synchronization', () => {
@@ -3875,6 +3885,9 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await svc.createSession({ provider: 'copilot' });
 			const stateAfterFailure = getStateManager(svc).getSessionState(session.toString());
 			sessionDatabase.failCatalogWrite = false;
+			await svc.listSessions();
+			svc.markStartupComplete();
+			await svc.whenDeferredWorkSettled();
 			await svc.whenCatalogReconciliationIdle();
 
 			assert.deepStrictEqual({
@@ -5084,6 +5097,9 @@ suite('AgentService (node dispatcher)', () => {
 			const session = agent.addSession('rediscovered-external', Date.now(), undefined, 'Before rediscovery');
 			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
+			svc.markStartupComplete();
+			await svc.whenDeferredWorkSettled();
+			await svc.whenCatalogReconciliationIdle();
 			await db.setMetadata(AH_META_IS_READ_DB_KEY, '');
 			const rediscoveredModifiedTime = Date.now() + 60_000;
 			agent.catalog.set(AgentSession.id(session), { session, modifiedTime: rediscoveredModifiedTime, summary: 'After rediscovery' });
@@ -9771,6 +9787,9 @@ suite('AgentService (node dispatcher)', () => {
 			await service.createSession({ provider: 'copilot' });
 			// The catalog is authoritative for the listing, so a title only the
 			// provider knows surfaces once reconciliation has folded it in.
+			await service.listSessions();
+			service.markStartupComplete();
+			await service.whenDeferredWorkSettled();
 			await service.whenCatalogReconciliationIdle();
 			(service as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
 

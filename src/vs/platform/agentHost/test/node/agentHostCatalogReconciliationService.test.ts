@@ -904,6 +904,44 @@ suite('AgentHostCatalogReconciliationService', () => {
 			schedule: scheduler.schedule,
 		});
 
+		test('automatic maintenance waits for startup permission before scheduling or reading databases', async () => {
+			const harness = await createHarness(['one']);
+			const scheduler = new TestScheduler();
+			let ready = false;
+			const service = harness.createService(undefined, {
+				canSchedule: () => ready,
+				backgroundDelayMs: 10,
+				intervalMs: 300,
+				schedule: scheduler.schedule,
+			});
+			service.schedule();
+			service.start();
+			await service.whenIdle();
+			const beforeStartup = {
+				timers: scheduler.activeDelays,
+				dirtySweeps: harness.central.markAllCalls,
+				databaseOpens: harness.getDatabaseOpenAttempts(),
+			};
+			ready = true;
+			service.schedule();
+			const scheduled = scheduler.activeDelays;
+			scheduler.run(10);
+			await service.whenIdle();
+			assert.deepStrictEqual({
+				beforeStartup,
+				scheduled,
+				dirtySweeps: harness.central.markAllCalls,
+				databaseOpens: harness.getDatabaseOpenAttempts(),
+				periodicTimers: scheduler.activeDelays,
+			}, {
+				beforeStartup: { timers: [], dirtySweeps: 0, databaseOpens: 0 },
+				scheduled: [10],
+				dirtySweeps: 1,
+				databaseOpens: 1,
+				periodicTimers: [300],
+			});
+		});
+
 		service.start();
 		await service.runPass();
 		assert.deepStrictEqual(scheduler.activeDelays, [300]);

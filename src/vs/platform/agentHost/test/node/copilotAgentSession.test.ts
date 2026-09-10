@@ -8501,6 +8501,32 @@ Use the attached image as context.
 				);
 			});
 
+			test('a replacement turn completes without waiting for an aborted turn edit', async () => {
+				const { session, mockSession, signals, writes } = await startEdits();
+				mockSession.fire('session.idle', {});
+				await session.abort();
+				mockSession.fire('session.idle', { aborted: true });
+				session.resetTurnState('replacement');
+				mockSession.fire('user.message', { content: 'Replacement prompt' });
+				mockSession.fire('session.idle', {});
+				await timeout(0);
+				const beforeOldEditSettles = {
+					activeTurn: session.currentTurnId,
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+				};
+				await writes[0].release.complete();
+				await timeout(0);
+				assert.deepStrictEqual({
+					beforeOldEditSettles,
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+					completedTools: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+				}, {
+					beforeOldEditSettles: { activeTurn: undefined, completedTurns: ['replacement'] },
+					completedTurns: ['replacement'],
+					completedTools: [],
+				});
+			});
+
 			for (const ending of ['abort', 'error', 'dispose', 'replace'] as const) {
 				test(`${ending} does not wait for edit persistence or complete a replacement turn`, async () => {
 					const { session, mockSession, signals, writes } = await startEdits();

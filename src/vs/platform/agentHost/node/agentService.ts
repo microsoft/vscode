@@ -817,9 +817,12 @@ export class AgentService extends Disposable implements IAgentService {
 			() => this._listRegisteredSessions(),
 			(registered, database) => this._resolveCatalogReconciliationSource(registered, database),
 			this._logService,
-			options.catalogReconciliationOptions,
+			{
+				...options.catalogReconciliationOptions,
+				canSchedule: () => this._startupSettled.isOpen(),
+			},
 		));
-		this._catalogReconciliationService.schedule();
+		this._runWhenStartupSettled('catalog reconciliation', () => this._catalogReconciliationService.schedule());
 		this._register(core.disposables);
 	}
 
@@ -3301,7 +3304,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _reconcileExternalSessions(previousMode: AgentHostExternalSessionsMode | undefined, forceCatalogRefresh = false): Promise<void> {
 		const startedAt = Date.now();
-		if (this._getExternalSessionsMode() !== AgentHostExternalSessionsMode.None) {
+		if ((forceCatalogRefresh || this._startupSettled.isOpen())
+			&& this._getExternalSessionsMode() !== AgentHostExternalSessionsMode.None) {
 			try {
 				await (forceCatalogRefresh
 					? this._catalogReconciliationService.runFullPass()

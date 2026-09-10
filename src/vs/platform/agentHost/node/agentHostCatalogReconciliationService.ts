@@ -68,6 +68,8 @@ export interface IAgentHostCatalogReconciliationOptions {
 	readonly backgroundDelayMs?: number;
 	readonly schedule?: (callback: () => void, delay: number) => IDisposable;
 	readonly now?: () => number;
+	/** Automatic maintenance may run only after the owner's startup work settles. */
+	readonly canSchedule?: () => boolean;
 }
 
 export class AgentHostCatalogReconciliationService extends Disposable {
@@ -81,6 +83,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private readonly _backgroundDelayMs: number;
 	private readonly _schedule: (callback: () => void, delay: number) => IDisposable;
 	private readonly _now: () => number;
+	private readonly _canSchedule: () => boolean;
 	private readonly _scheduledPass = this._register(new MutableDisposable<IDisposable>());
 	private _scheduledPassKind: ScheduledPassKind | undefined;
 	private _payloadDirtyMark: Promise<void> | undefined;
@@ -109,6 +112,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		this._backgroundDelayMs = this._nonNegativeInteger(options.backgroundDelayMs, DEFAULT_BACKGROUND_DELAY_MS, 'backgroundDelayMs');
 		this._schedule = options.schedule ?? ((callback, delay) => disposableTimeout(callback, delay));
 		this._now = options.now ?? Date.now;
+		this._canSchedule = options.canSchedule ?? (() => true);
 		this._initialPayloadDirtyMarkPending = this._storageService.get<number>(VERIFICATION_VERSION_STORAGE_KEY) !== CATALOG_VERIFICATION_VERSION;
 		const lastVerification = this._storageService.get<number>(LAST_VERIFICATION_STORAGE_KEY);
 		this._lastCompatibilityVerification = typeof lastVerification === 'number' && Number.isFinite(lastVerification) && lastVerification <= this._now() ? lastVerification : 0;
@@ -117,7 +121,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	}
 
 	schedule(): void {
-		if (this._cancellation.token.isCancellationRequested) {
+		if (this._cancellation.token.isCancellationRequested || !this._canSchedule()) {
 			return;
 		}
 		this._periodic = true;
@@ -132,7 +136,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	}
 
 	start(): void {
-		if (this._cancellation.token.isCancellationRequested) {
+		if (this._cancellation.token.isCancellationRequested || !this._canSchedule()) {
 			return;
 		}
 		this._periodic = true;
