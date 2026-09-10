@@ -58,6 +58,11 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 3,
 				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCloud, ChatContextKeys.enabled),
+			}, {
+				id: Menus.NewSessionControl,
+				group: 'navigation',
+				order: 3,
+				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCloud, ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog),
 			}],
 		});
 	}
@@ -149,14 +154,16 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				return new PickerActionViewItem(picker);
 			},
 		));
-		this._register(actionViewItemService.register(
-			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.sandboxPicker',
-			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(SandboxPicker, session);
-				return new PickerActionViewItem(picker);
-			},
-		));
+		for (const menu of [Menus.NewSessionRepositoryConfig, Menus.NewSessionControl]) {
+			this._register(actionViewItemService.register(
+				menu, 'sessions.defaultCopilot.sandboxPicker',
+				(_action, _options, scopedInstantiationService) => {
+					const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+					const picker = scopedInstantiationService.createInstance(SandboxPicker, session);
+					return new PickerActionViewItem(picker);
+				},
+			));
+		}
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.modePicker',
 			(_action, _options, scopedInstantiationService) => {

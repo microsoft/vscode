@@ -12,6 +12,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -37,7 +38,7 @@ import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type C
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
-import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, type IWorktreeMetadata } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
@@ -45,6 +46,7 @@ import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEn
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
+import { IAgentHostGitService } from '../../../common/agentHostGitService.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
@@ -168,6 +170,8 @@ interface ICreateAgentOptions {
 	readonly database?: TestSessionDatabase;
 	readonly checkpointService?: IAgentHostCheckpointService;
 	readonly customizationEnablementService?: IAgentHostCustomizationEnablementService;
+	readonly worktreeIsolation?: IAgentHostWorktreeIsolation;
+	readonly gitService?: Partial<IAgentHostGitService>;
 }
 
 class TestCodexLogService extends NullLogService {
@@ -219,6 +223,14 @@ class TestCodexConfigurationService extends AgentConfigurationService {
 	}
 }
 
+class TestCodexWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+	readonly metadata = new ResourceMap<IWorktreeMetadata>();
+
+	override async readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined> {
+		return this.metadata.get(sessionUri);
+	}
+}
+
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
 	const models = [{ id: 'gpt-test', name: 'GPT Test', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 	const instantiationService = new TestInstantiationService();
@@ -237,7 +249,12 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostWorktreeIsolation, options.worktreeIsolation ?? new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostGitService, {
+		getRepositoryRoot: async () => undefined,
+		getWorktreeRoots: async () => [],
+		...options.gitService,
+	});
 	instantiationService.stub(IAgentHostStateManager, stateManager);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, options.customizationEnablementService ?? createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
@@ -292,7 +309,8 @@ async function createSession(agent: CodexAgent, options: IAgentCreateChatOptions
 }
 
 async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'add'>, completePrewarmBeforeSend: boolean): Promise<void> {
-	const agent = await createAgent(disposables);
+	const worktreeIsolation = new TestCodexWorktreeIsolation();
+	const agent = await createAgent(disposables, { worktreeIsolation });
 	const peer = disposables.add(createTestPeer());
 	const client = new CodexAppServerClient(peer.transport);
 	agent['_connection'] = {
@@ -306,7 +324,12 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 
 	const folder = URI.file('/repo/folder');
 	const worktree = URI.file('/repo/worktree');
-	const { session } = await createSession(agent, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+	const folderAgent = URI.joinPath(folder, '.github', 'agents', 'reviewer.agent.md');
+	const worktreeAgent = URI.joinPath(worktree, '.github', 'agents', 'reviewer.agent.md');
+	await agent['_fileService'].writeFile(folderAgent, VSBuffer.fromString('---\nname: Reviewer\n---\nUse the folder instructions.'));
+	await agent['_fileService'].writeFile(worktreeAgent, VSBuffer.fromString('---\nname: Reviewer\n---\nUse the worktree instructions.'));
+	const { session } = await createSession(agent, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL }, agent: { uri: folderAgent.toString() } });
+	worktreeIsolation.metadata.set(session, { branchName: 'agents/reviewer', repositoryRoot: folder, worktreePath: worktree });
 	const entry = agent['_sessions'].get(AgentSession.id(session))!;
 	const folderStart = await readNextRequest(peer.outbound);
 
@@ -344,6 +367,10 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 			],
 			threadId: entry.threadId,
 			workingDirectory: entry.workingDirectory?.fsPath,
+			selectedAgent: entry.agent,
+			folderInstructions: folderStart.params.developerInstructions,
+			worktreeInstructions: worktreeStart.params.developerInstructions,
+			turnInstructions: turnStart.params.collaborationMode?.settings.developer_instructions,
 			folderThreadRouted: agent['_sessionIdByThreadId'].has('thread-folder'),
 			worktreeThreadRouted: agent['_sessionIdByThreadId'].has('thread-worktree'),
 		}, {
@@ -355,6 +382,10 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 			],
 			threadId: 'thread-worktree',
 			workingDirectory: worktree.fsPath,
+			selectedAgent: { uri: folderAgent.toString() },
+			folderInstructions: `Use the folder instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			worktreeInstructions: `Use the worktree instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
+			turnInstructions: `Use the worktree instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}`,
 			folderThreadRouted: false,
 			worktreeThreadRouted: true,
 		});
@@ -2791,69 +2822,265 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
-	test('resumes an established thread when the selected workspace agent changes', async () => {
-		const agent = await createAgent(disposables);
-		agent['_schedulePrewarm'] = () => { };
-		agent['_refreshSkillHookCustomizations'] = async () => { };
-		agent['_refreshSkillExtraRoots'] = async () => { };
-		const peer = disposables.add(createTestPeer());
-		agent['_connection'] = {
-			kind: 'ready',
-			client: new CodexAppServerClient(peer.transport),
-			usageSource: 'github',
-			child: { kill: () => true },
-		} as never;
+	for (const isolated of [false, true]) {
+		test(`reapplied workspace agent selection keeps updated instructions${isolated ? ' in an isolated worktree' : ''}`, async () => {
+			const worktreeIsolation = new TestCodexWorktreeIsolation();
+			const agent = await createAgent(disposables, { worktreeIsolation });
+			agent['_schedulePrewarm'] = () => { };
+			agent['_refreshSkillHookCustomizations'] = async () => { };
+			agent['_refreshSkillExtraRoots'] = async () => { };
+			const peer = disposables.add(createTestPeer());
+			agent['_connection'] = {
+				kind: 'ready',
+				client: new CodexAppServerClient(peer.transport),
+				usageSource: 'github',
+				child: { kill: () => true },
+			} as never;
 
-		const repo = URI.file('/repo-workspace-agent-edit');
-		const agentUri = URI.joinPath(repo, '.github', 'agents', 'reviewer.agent.md');
-		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the original instructions.'));
-		const { session } = await createSession(agent, {
-			workingDirectories: [repo],
-			model: { id: COPILOT_TEST_MODEL },
-			agent: { uri: agentUri.toString() },
+			const repo = URI.file('/repo-workspace-agent-edit');
+			const workingDirectory = isolated ? URI.file('/repo-workspace-agent-worktree') : repo;
+			const sourceAgentUri = URI.joinPath(repo, '.github', 'agents', 'reviewer.agent.md');
+			const agentUri = URI.joinPath(workingDirectory, '.github', 'agents', 'reviewer.agent.md');
+			const selectedAgent = Object.freeze({ uri: sourceAgentUri.toString() });
+			const firstInstructions = isolated ? 'Use the worktree instructions.' : 'Use the original instructions.';
+			await agent['_fileService'].writeFile(sourceAgentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the original instructions.'));
+			if (isolated) {
+				await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString(`---\nname: Reviewer\ndescription: Reviews changes\n---\n${firstInstructions}`));
+			}
+			const { session } = await createSession(agent, {
+				workingDirectories: [repo],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = chatContext(session, chat);
+			if (isolated) {
+				worktreeIsolation.metadata.set(session, { branchName: 'agents/reviewer', repositoryRoot: repo, worktreePath: workingDirectory });
+			}
+
+			await agent.chats.changeAgent(chat, selectedAgent, context);
+			const firstSend = agent.chats.sendMessage(chat, 'first', [workingDirectory], undefined, 'turn-1');
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-agent' } } });
+			const firstTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: firstTurn.id, result: {} });
+			await firstSend;
+
+			await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the updated instructions.'));
+			await agent.chats.changeAgent(chat, selectedAgent, context);
+			const secondSend = agent.chats.sendMessage(chat, 'second', [workingDirectory], undefined, 'turn-2');
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			const resume = await readNextRequest(peer.outbound);
+			const resumedAgents = resume.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
+			const resumedRoleFile = await fs.promises.readFile(resumedAgents.Reviewer.config_file, 'utf8');
+			peer.push({ id: resume.id, result: { thread: { id: 'thread-workspace-agent', cwd: workingDirectory.fsPath }, cwd: workingDirectory.fsPath } });
+			const inventory = await readNextRequest(peer.outbound);
+			peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+			const secondTurn = await readNextRequest(peer.outbound);
+			peer.push({ id: secondTurn.id, result: {} });
+			await secondSend;
+
+			assert.deepStrictEqual({
+				start: { method: start.method, cwd: start.params.cwd, developerInstructions: start.params.developerInstructions },
+				firstTurn: { method: firstTurn.method, developerInstructions: firstTurn.params.collaborationMode?.settings.developer_instructions },
+				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+				resume: { method: resume.method, developerInstructions: resume.params.developerInstructions },
+				secondTurn: { method: secondTurn.method, developerInstructions: secondTurn.params.collaborationMode?.settings.developer_instructions },
+				resumedRoleFile,
+				selectedAgent: agent['_sessions'].get(AgentSession.id(session))?.agent,
+				needsResume: agent['_sessions'].get(AgentSession.id(session))?.needsResume,
+			}, {
+				start: { method: 'thread/start', cwd: workingDirectory.fsPath, developerInstructions: `${firstInstructions}\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+				firstTurn: { method: 'turn/start', developerInstructions: `${firstInstructions}\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+				unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-workspace-agent' },
+				resume: { method: 'thread/resume', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+				secondTurn: { method: 'turn/start', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+				resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
+				selectedAgent,
+				needsResume: false,
+			});
+			peer.exit();
 		});
-		const chat = URI.parse(buildDefaultChatUri(session));
+	}
 
-		const firstSend = agent.chats.sendMessage(chat, 'first', [repo], undefined, 'turn-1');
-		const start = await readNextRequest(peer.outbound);
-		peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-agent' } } });
-		const firstTurn = await readNextRequest(peer.outbound);
-		peer.push({ id: firstTurn.id, result: {} });
-		await firstSend;
+	for (const { reapplySelection, linkedSource } of [
+		{ reapplySelection: false, linkedSource: false },
+		{ reapplySelection: true, linkedSource: false },
+		{ reapplySelection: false, linkedSource: true },
+		{ reapplySelection: true, linkedSource: true },
+	]) {
+		test(`worktree agent instructions survive provider reload (reapplySelection=${reapplySelection}, linkedSource=${linkedSource})`, async () => {
+			const database = new TestSessionDatabase();
+			const worktreeIsolation = new TestCodexWorktreeIsolation();
+			const repo = URI.file('/repo-restored-agent');
+			const worktree = URI.file('/repo-restored-agent-worktree');
+			const sourceRoot = linkedSource ? URI.file('/repo-restored-agent-linked-source') : repo;
+			const sourceAgentUri = URI.joinPath(sourceRoot, '.github', 'agents', 'reviewer.agent.md');
+			const worktreeAgentUri = URI.joinPath(worktree, '.github', 'agents', 'reviewer.agent.md');
+			const selectedAgent = Object.freeze({ uri: sourceAgentUri.toString() });
+			const gitService: Partial<IAgentHostGitService> = {
+				getRepositoryRoot: async () => sourceRoot,
+				getWorktreeRoots: async () => [repo, sourceRoot, worktree],
+			};
+			const agentA = await createAgent(disposables, { database, worktreeIsolation, gitService });
+			agentA['_schedulePrewarm'] = () => { };
+			agentA['_refreshSkillHookCustomizations'] = async () => { };
+			agentA['_refreshSkillExtraRoots'] = async () => { };
+			const peerA = disposables.add(createTestPeer());
+			agentA['_connection'] = {
+				kind: 'ready',
+				client: new CodexAppServerClient(peerA.transport),
+				usageSource: 'github',
+				child: { kill: () => true },
+			} as never;
+			let peerB: ITestPeer | undefined;
 
-		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the updated instructions.'));
-		const secondSend = agent.chats.sendMessage(chat, 'second', [repo], undefined, 'turn-2');
-		const unsubscribe = await readNextRequest(peer.outbound);
-		peer.push({ id: unsubscribe.id, result: {} });
-		const resume = await readNextRequest(peer.outbound);
-		const resumedAgents = resume.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
-		const resumedRoleFile = await fs.promises.readFile(resumedAgents.Reviewer.config_file, 'utf8');
-		peer.push({ id: resume.id, result: { thread: { id: 'thread-workspace-agent', cwd: repo.fsPath }, cwd: repo.fsPath } });
-		const inventory = await readNextRequest(peer.outbound);
-		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
-		const secondTurn = await readNextRequest(peer.outbound);
-		peer.push({ id: secondTurn.id, result: {} });
-		await secondSend;
+			try {
+				await agentA['_fileService'].writeFile(sourceAgentUri, VSBuffer.fromString('---\nname: Reviewer\n---\nUse the source instructions.'));
+				await agentA['_fileService'].writeFile(worktreeAgentUri, VSBuffer.fromString('---\nname: Reviewer\n---\nUse the worktree instructions.'));
+				const created = await createSession(agentA, { workingDirectories: [sourceRoot], model: { id: COPILOT_TEST_MODEL } });
+				const chat = defaultChatOf(created.session);
+				const context = chatContext(created.session, chat);
+				worktreeIsolation.metadata.set(created.session, { branchName: 'agents/reviewer', repositoryRoot: repo, worktreePath: worktree });
+				await agentA.chats.changeAgent(chat, selectedAgent, context);
 
-		assert.deepStrictEqual({
-			start: { method: start.method, developerInstructions: start.params.developerInstructions },
-			firstTurn: { method: firstTurn.method, developerInstructions: firstTurn.params.collaborationMode?.settings.developer_instructions },
-			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
-			resume: { method: resume.method, developerInstructions: resume.params.developerInstructions },
-			secondTurn: { method: secondTurn.method, developerInstructions: secondTurn.params.collaborationMode?.settings.developer_instructions },
-			resumedRoleFile,
-			needsResume: agent['_sessions'].get(AgentSession.id(session))?.needsResume,
-		}, {
-			start: { method: 'thread/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
-			firstTurn: { method: 'turn/start', developerInstructions: `Use the original instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
-			unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-workspace-agent' },
-			resume: { method: 'thread/resume', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
-			secondTurn: { method: 'turn/start', developerInstructions: `Use the updated instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
-			resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
-			needsResume: false,
+				const firstSend = agentA.chats.sendMessage(chat, 'first', [worktree], undefined, 'turn-1');
+				const start = await readNextRequest(peerA.outbound);
+				peerA.push({ id: start.id, result: { thread: { id: 'thread-restored-worktree-agent' } } });
+				const firstTurn = await readNextRequest(peerA.outbound);
+				peerA.push({ id: firstTurn.id, result: {} });
+				await firstSend;
+				await new Promise(resolve => setImmediate(resolve));
+				const overlay = await agentA['_metadataStore'].read(created.session);
+
+				const agentB = await createAgent(disposables, { database, worktreeIsolation, gitService });
+				agentB['_refreshSkillHookCustomizations'] = async () => { };
+				agentB['_refreshSkillExtraRoots'] = async () => { };
+				peerB = disposables.add(createTestPeer());
+				agentB['_connection'] = {
+					kind: 'ready',
+					client: new CodexAppServerClient(peerB.transport),
+					usageSource: 'github',
+					child: { kill: () => true },
+				} as never;
+				await agentB['_fileService'].writeFile(worktreeAgentUri, VSBuffer.fromString('---\nname: Reviewer\n---\nUse the restored worktree instructions.'));
+				await agentB.materializeChat(chat, context, created.providerData);
+				if (reapplySelection) {
+					await agentB.chats.changeAgent(chat, selectedAgent, context);
+				}
+
+				const secondSend = agentB.chats.sendMessage(chat, 'second', undefined, undefined, 'turn-2', undefined, undefined, context);
+				const read = await readNextRequest(peerB.outbound);
+				peerB.push({ id: read.id, result: { thread: { id: 'thread-restored-worktree-agent', modelProvider: 'vscode-proxy' } } });
+				const unsubscribe = await readNextRequest(peerB.outbound);
+				peerB.push({ id: unsubscribe.id, result: {} });
+				const resume = await readNextRequest(peerB.outbound);
+				peerB.push({ id: resume.id, result: { thread: { id: 'thread-restored-worktree-agent', cwd: worktree.fsPath }, cwd: worktree.fsPath } });
+				const inventory = await readNextRequest(peerB.outbound);
+				peerB.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+				const secondTurn = await readNextRequest(peerB.outbound);
+				peerB.push({ id: secondTurn.id, result: {} });
+				await secondSend;
+
+				assert.deepStrictEqual({
+					overlay: { cwd: overlay.cwd?.toString(), agent: overlay.agent },
+					start: { method: start.method, cwd: start.params.cwd, developerInstructions: start.params.developerInstructions },
+					firstTurn: { method: firstTurn.method, developerInstructions: firstTurn.params.collaborationMode?.settings.developer_instructions },
+					read: { method: read.method, threadId: read.params.threadId },
+					unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+					resume: { method: resume.method, threadId: resume.params.threadId, developerInstructions: resume.params.developerInstructions },
+					secondTurn: { method: secondTurn.method, threadId: secondTurn.params.threadId, developerInstructions: secondTurn.params.collaborationMode?.settings.developer_instructions },
+					selectedAgent: agentB['_sessions'].get(AgentSession.id(created.session))?.agent,
+				}, {
+					overlay: { cwd: worktree.toString(), agent: selectedAgent },
+					start: { method: 'thread/start', cwd: worktree.fsPath, developerInstructions: `Use the worktree instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+					firstTurn: { method: 'turn/start', developerInstructions: `Use the worktree instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+					read: { method: 'thread/read', threadId: 'thread-restored-worktree-agent' },
+					unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-restored-worktree-agent' },
+					resume: { method: 'thread/resume', threadId: 'thread-restored-worktree-agent', developerInstructions: `Use the restored worktree instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+					secondTurn: { method: 'turn/start', threadId: 'thread-restored-worktree-agent', developerInstructions: `Use the restored worktree instructions.\n\n${CODEX_FILE_LINK_INSTRUCTIONS}` },
+					selectedAgent,
+				});
+			} finally {
+				peerA.exit();
+				peerB?.exit();
+			}
 		});
-		peer.exit();
-	});
+	}
+
+	for (const prewarmClaimed of [false, true]) {
+		test(`only recorded workspace agents are resolved across cwd adoption (prewarmClaimed=${prewarmClaimed})`, async () => {
+			const worktreeIsolation = new TestCodexWorktreeIsolation();
+			const repo = URI.file('/repo-workspace-agent');
+			const worktree = URI.file('/repo-workspace-agent-worktree');
+			const linkedSource = URI.file('/repo-workspace-agent-linked');
+			const pluginRoot = URI.joinPath(repo, 'plugins', 'reviewer');
+			const externalRoot = URI.file('/repo-workspace-agent-external');
+			const sourceAgent = URI.joinPath(repo, '.github', 'agents', 'reviewer.agent.md');
+			const worktreeAgent = URI.joinPath(worktree, '.github', 'agents', 'reviewer.agent.md');
+			const linkedAgent = URI.joinPath(linkedSource, '.github', 'agents', 'reviewer.agent.md');
+			const pluginAgent = URI.joinPath(pluginRoot, 'agents', 'reviewer.agent.md');
+			const nestedAgent = URI.joinPath(pluginRoot, '.github', 'agents', 'reviewer.agent.md');
+			const externalAgent = URI.joinPath(externalRoot, '.github', 'agents', 'reviewer.agent.md');
+			const repositoryRoots = new ResourceMap<URI>([[linkedSource, linkedSource], [pluginRoot, repo], [externalRoot, externalRoot]]);
+			const worktreeRoots = new ResourceMap<URI[]>([[linkedSource, [repo, linkedSource, worktree]], [externalRoot, [externalRoot]]]);
+			const agent = await createAgent(disposables, {
+				worktreeIsolation,
+				gitService: {
+					getRepositoryRoot: async directory => repositoryRoots.get(directory),
+					getWorktreeRoots: async directory => worktreeRoots.get(directory) ?? [],
+				},
+			});
+			agent['_schedulePrewarm'] = () => { };
+			const metadata: IWorktreeMetadata = { branchName: 'agents/reviewer', repositoryRoot: repo, worktreePath: worktree };
+			const cases = [
+				{ selected: sourceAgent, expected: worktreeAgent, metadata },
+				{ selected: linkedAgent, expected: worktreeAgent, metadata },
+				{ selected: pluginAgent, expected: pluginAgent, metadata },
+				{ selected: nestedAgent, expected: nestedAgent, metadata },
+				{ selected: externalAgent, expected: externalAgent, metadata },
+				{ selected: worktreeAgent, expected: worktreeAgent, metadata },
+				{ selected: sourceAgent, expected: sourceAgent, metadata: undefined },
+				{ selected: sourceAgent, expected: sourceAgent, metadata: { ...metadata, worktreePath: URI.file('/other-worktree') } },
+				{ selected: undefined, expected: undefined, metadata },
+			];
+			const adopted: Array<{ selectedAgent: string | undefined; resolvedAgent: string | undefined; reappliedAgent: string | undefined; workingDirectory: string | undefined }> = [];
+
+			for (const { selected, metadata } of cases) {
+				const { session } = await createSession(agent, {
+					workingDirectories: [repo],
+					model: { id: COPILOT_TEST_MODEL },
+				});
+				const chat = defaultChatOf(session);
+				const context = chatContext(session, chat);
+				const selectedAgent = selected ? { uri: selected.toString() } : undefined;
+				if (metadata) {
+					worktreeIsolation.metadata.set(session, metadata);
+				}
+				await agent.chats.changeAgent(chat, selectedAgent, context);
+				const entry = agent['_sessions'].get(AgentSession.id(session))!;
+				if (prewarmClaimed) {
+					agent['_claimPrewarm'](entry);
+				}
+				await agent['_adoptWorkingDirectoryBeforeSend'](entry, worktree);
+				const resolvedAgent = await agent['_resolveSelectedAgent'](entry);
+				await agent.chats.changeAgent(chat, selectedAgent, context);
+				adopted.push({
+					selectedAgent: entry.agent?.uri,
+					resolvedAgent: resolvedAgent?.uri,
+					reappliedAgent: (await agent['_resolveSelectedAgent'](entry))?.uri,
+					workingDirectory: entry.workingDirectory?.toString(),
+				});
+			}
+
+			assert.deepStrictEqual(adopted, cases.map(({ selected, expected }) => ({
+				selectedAgent: selected?.toString(),
+				resolvedAgent: expected?.toString(),
+				reappliedAgent: expected?.toString(),
+				workingDirectory: worktree.toString(),
+			})));
+		});
+	}
 
 	test('fresh multi-root start selects only existing secondary skill directories', async () => {
 		const agent = await createAgent(disposables, { multiRootEnabled: true });

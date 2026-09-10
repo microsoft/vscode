@@ -133,6 +133,11 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
 .ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
@@ -145,7 +150,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
+	color: inherit;
 	opacity: 1;
 }
 
@@ -799,8 +804,6 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
-.ai-customization-management-editor .customization-migration-banner .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
 	font-size: var(--vscode-fontSize-body1);
@@ -816,8 +819,6 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:hover,
-.ai-customization-management-editor .customization-migration-banner .section-title-link:hover,
 .mcp-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
@@ -825,8 +826,6 @@ per-word capitalization does not survive translation. */
 
 /* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
 .ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:focus-visible,
-.ai-customization-management-editor .customization-migration-banner .section-title-link:focus-visible,
 .mcp-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
 	outline-offset: -1px;
@@ -1046,25 +1045,21 @@ per-word capitalization does not survive translation. */
 	width: auto;
 }
 
-/* Migration copy is dynamic; don't reserve the two-line section-header height. */
-.ai-customization-management-editor .prompt-migration-content-container .section-title-description {
-	min-height: 0;
+.ai-customization-management-editor .prompt-migration-content-container .section-title-header {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.ai-customization-management-editor .prompt-migration-content-container .section-title-header .section-title-row {
 	margin-bottom: 0;
 }
 
-/* Migration banner — an Inner-tier callout for customizations needing attention. */
 .ai-customization-management-editor .customization-migration-banner {
 	flex-shrink: 0;
-	margin-block: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size120);
-	background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 35%, var(--vscode-agentsPanel-background));
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 70%, var(--vscode-widget-border));
-	border-radius: var(--vscode-cornerRadius-medium);
+	margin: 0 0 var(--vscode-spacing-size240);
+	padding: 0;
+	background: transparent;
+	border: 0;
 	box-sizing: border-box;
-}
-
-.vscode-high-contrast .ai-customization-management-editor .customization-migration-banner {
-	border-color: var(--vscode-contrastBorder);
 }
 
 .ai-customization-management-editor .customization-migration-banner-content {
@@ -1111,6 +1106,22 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .migration-learn-more-link {
 	align-self: flex-start;
 	margin-top: 0;
+}
+
+.ai-customization-management-editor .customization-migration-banner .section-title-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .customization-migration-banner .section-title-link:hover,
+.ai-customization-management-editor .customization-migration-banner .section-title-link:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .customization-migration-page-destinations {
+	margin-top: var(--vscode-spacing-size120);
 }
 
 .ai-customization-management-editor .prompt-migration-list {
@@ -3685,3 +3696,23 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /* Welcome page styles live in the welcome page variant stylesheets. */
+
+/* Migrations dashboard scroll container */
+.ai-customization-management-editor .prompt-migration-content-container.showing-dashboard {
+	padding: 0;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+}
+
+.ai-customization-management-editor .customization-migration-dashboard-container {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	box-sizing: border-box;
+	padding: 0 var(--vscode-spacing-size160) 0 0;
+}
