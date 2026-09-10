@@ -7,6 +7,7 @@ import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -172,6 +173,30 @@ class ConnectorItemRenderer implements IListRenderer<IConnectorItemEntry, IConne
 		const statusClass = getConnectorStatusClass(connector.connectionStatus);
 		if (statusClass) {
 			templateData.status.classList.add(statusClass);
+		}
+		if (connector.connectionStatus === 'error' && connector.connectionErrorMessage) {
+			const hoverText = localize(
+				'connectors.errorHover',
+				"{0} Reconnect to try again.",
+				connector.connectionErrorMessage
+			);
+			templateData.status.setAttribute('aria-label', localize(
+				'connectors.errorStatusAriaLabel',
+				"{0}: {1}",
+				getConnectorStatusLabel(connector.connectionStatus),
+				hoverText
+			));
+			templateData.status.title = hoverText;
+			templateData.status.tabIndex = 0;
+			templateData.elementDisposables.add(this.hoverService.setupManagedHover(
+				getDefaultHoverDelegate('mouse'),
+				templateData.status,
+				hoverText
+			));
+		} else {
+			templateData.status.removeAttribute('aria-label');
+			templateData.status.removeAttribute('tabindex');
+			templateData.status.removeAttribute('title');
 		}
 		const action = getConnectorPrimaryAction(connector.connectionStatus);
 		templateData.action.label = getConnectorActionLabel(action);

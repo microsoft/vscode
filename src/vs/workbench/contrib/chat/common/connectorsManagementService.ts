@@ -43,6 +43,7 @@ export interface IConnectorPresentation {
 	readonly skills?: readonly string[];
 	readonly mcpServers?: readonly IConnectorMcpServerPresentation[];
 	readonly connectionStatus: ConnectorConnectionStatus;
+	readonly connectionErrorMessage?: string;
 }
 
 export interface IConnectorsSnapshot {

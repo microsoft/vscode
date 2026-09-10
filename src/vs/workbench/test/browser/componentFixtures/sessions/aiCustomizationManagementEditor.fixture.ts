@@ -715,6 +715,7 @@ function createFixtureConnector(
 	connectionStatus: ConnectorConnectionStatus,
 	keywords: readonly string[],
 	capabilities: readonly string[],
+	connectionErrorMessage?: string,
 ): IConnectorPresentation {
 	return {
 		id,
@@ -746,6 +747,7 @@ function createFixtureConnector(
 			url: `https://api.github.com/copilot-connectors/api/v1/connectors/${id}/mcp`,
 		}],
 		connectionStatus,
+		connectionErrorMessage,
 	};
 }
 
@@ -797,6 +799,7 @@ const fixtureConnectors: readonly IConnectorPresentation[] = [
 		'error',
 		['files', 'microsoft-onedrive', 'work-iq'],
 		['search'],
+		'Your authorization has expired.',
 	),
 ];
 

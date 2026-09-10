@@ -13,7 +13,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IConnectorPresentation, IConnectorsManagementService } from '../../common/connectorsManagementService.js';
-import { getConnectorActionLabel, getConnectorPrimaryAction, getConnectorStatusClass, getConnectorStatusLabel } from './connectorsListWidget.js';
+import { getConnectorActionLabel, getConnectorPrimaryAction, getConnectorStatusLabel } from './connectorsListWidget.js';
 
 const $ = DOM.$;
 
@@ -136,12 +136,9 @@ export class EmbeddedConnectorDetail extends Disposable {
 		}
 
 		this.nameEl.textContent = connector.displayName;
-		this.statusBadgeEl.textContent = getConnectorStatusLabel(connector.connectionStatus);
+		this.statusBadgeEl.textContent = connector.releaseTag ?? '';
+		this.statusBadgeEl.style.display = connector.releaseTag ? '' : 'none';
 		this.statusBadgeEl.className = 'inline-badge embedded-detail-status-badge';
-		const statusClass = getConnectorStatusClass(connector.connectionStatus);
-		if (statusClass) {
-			this.statusBadgeEl.classList.add(statusClass);
-		}
 		this.descriptionEl.textContent = connector.description;
 
 		DOM.clearNode(this.titleActionsEl);
@@ -159,48 +156,40 @@ export class EmbeddedConnectorDetail extends Disposable {
 		DOM.clearNode(this.containsListEl);
 		DOM.clearNode(this.otherInfoFactsEl);
 		this.detailsEl.style.display = '';
-		this.otherInfoEl.style.display = '';
-		const notProvided = localize('connectorNotProvided', "Not provided");
 		this.appendFact(this.factsEl, localize('connectorStatusFact', "Status"), getConnectorStatusLabel(connector.connectionStatus));
 		this.appendFact(this.factsEl, localize('connectorIdentifierFact', "Identifier"), connector.id);
-		this.appendFact(this.factsEl, localize('connectorVersionFact', "Version"), connector.version || notProvided);
-		this.appendFact(this.factsEl, localize('connectorAuthorFact', "Author"), this.formatAuthor(connector.author) || notProvided);
+		this.appendFact(this.factsEl, localize('connectorVersionFact', "Version"), connector.version);
+		this.appendFact(this.factsEl, localize('connectorAuthorFact', "Author"), this.formatAuthor(connector.author));
 		this.renderContains(connector);
-		this.appendFact(this.otherInfoFactsEl, localize('connectorTierFact', "Tier"), connector.tier || notProvided);
-		this.appendFact(this.otherInfoFactsEl, localize('connectorReleaseFact', "Release"), connector.releaseTag || notProvided);
-		this.appendLinkFact(this.otherInfoFactsEl, localize('connectorAuthorWebsiteFact', "Author Website"), connector.author?.url, notProvided);
-		this.appendFact(
-			this.otherInfoFactsEl,
-			localize('connectorExportSupportedFact', "Export Supported"),
-			connector.isExportSupported === undefined
-				? notProvided
-				: connector.isExportSupported
-					? localize('connectorYes', "Yes")
-					: localize('connectorNo', "No")
-		);
-		this.appendFact(this.otherInfoFactsEl, localize('connectorKeywordsFact', "Keywords"), this.formatList(connector.keywords));
-		this.appendFact(this.otherInfoFactsEl, localize('connectorLicenseFact', "License"), connector.license || notProvided);
-		this.appendLinkFact(this.otherInfoFactsEl, localize('connectorHomepageFact', "Homepage"), connector.homepage, notProvided);
-		this.appendFact(this.otherInfoFactsEl, localize('connectorRepositoryFact', "Repository"), connector.repository || notProvided);
-		this.appendLinkFact(this.otherInfoFactsEl, localize('connectorLogoFact', "Logo"), connector.logo, notProvided);
-		this.appendFact(this.otherInfoFactsEl, localize('connectorScopesFact', "OAuth Scopes"), this.formatList(connector.scopes));
-		this.appendLinkFact(this.otherInfoFactsEl, localize('connectorProtectedResourceMetadataFact', "Protected Resource Metadata"), connector.protectedResourceMetadataUrl, notProvided);
+		let otherInformationCount = 0;
+		otherInformationCount += this.appendLinkFact(this.otherInfoFactsEl, localize('connectorAuthorWebsiteFact', "Author Website"), connector.author?.url) ? 1 : 0;
+		otherInformationCount += this.appendFact(this.otherInfoFactsEl, localize('connectorKeywordsFact', "Keywords"), this.formatList(connector.keywords)) ? 1 : 0;
+		otherInformationCount += this.appendFact(this.otherInfoFactsEl, localize('connectorLicenseFact', "License"), connector.license) ? 1 : 0;
+		otherInformationCount += this.appendLinkFact(this.otherInfoFactsEl, localize('connectorHomepageFact', "Homepage"), connector.homepage) ? 1 : 0;
+		otherInformationCount += this.appendFact(this.otherInfoFactsEl, localize('connectorRepositoryFact', "Repository"), connector.repository) ? 1 : 0;
+		this.otherInfoEl.style.display = otherInformationCount > 0 ? '' : 'none';
 	}
 
-	private appendFact(parent: HTMLElement, label: string, value?: string): HTMLElement {
-		const row = DOM.append(parent, $('.embedded-detail-fact-row'));
-		DOM.append(row, $('.embedded-detail-fact-label')).textContent = label;
-		const valueElement = DOM.append(row, $('.embedded-detail-fact-value'));
-		valueElement.textContent = value ?? '';
+	private appendFact(parent: HTMLElement, label: string, value: string | undefined): HTMLElement | undefined {
+		if (!value) {
+			return undefined;
+		}
+		const valueElement = this.appendFactRow(parent, label);
+		valueElement.textContent = value;
 		return valueElement;
 	}
 
-	private appendLinkFact(parent: HTMLElement, label: string, url: string | undefined, fallback: string): void {
+	private appendFactRow(parent: HTMLElement, label: string): HTMLElement {
+		const row = DOM.append(parent, $('.embedded-detail-fact-row'));
+		DOM.append(row, $('.embedded-detail-fact-label')).textContent = label;
+		return DOM.append(row, $('.embedded-detail-fact-value'));
+	}
+
+	private appendLinkFact(parent: HTMLElement, label: string, url: string | undefined): boolean {
 		if (!url) {
-			this.appendFact(parent, label, fallback);
-			return;
+			return false;
 		}
-		const value = this.appendFact(parent, label);
+		const value = this.appendFactRow(parent, label);
 		const link = DOM.append(value, $('a.embedded-detail-fact-link')) as HTMLAnchorElement;
 		link.href = url;
 		link.textContent = url;
@@ -208,6 +197,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 			event.preventDefault();
 			void this.openerService.open(URI.parse(url));
 		}));
+		return true;
 	}
 
 	private formatAuthor(author: IConnectorPresentation['author']): string {
@@ -217,16 +207,12 @@ export class EmbeddedConnectorDetail extends Disposable {
 		return [author.name, author.email].filter(value => !!value).join(' · ');
 	}
 
-	private formatList(values: readonly string[] | undefined): string {
-		return values?.length ? values.join(', ') : localize('connectorNone', "None");
+	private formatList(values: readonly string[] | undefined): string | undefined {
+		return values?.length ? values.join(', ') : undefined;
 	}
 
 	private renderContains(connector: IConnectorPresentation): void {
 		const entries: readonly IConnectorContainsEntry[] = [
-			{
-				label: localize('connectorCapabilitiesFact', "Capabilities"),
-				items: (connector.capabilities ?? []).map(name => ({ name })),
-			},
 			{
 				label: localize('connectorMcpServersFact', "MCP Servers"),
 				items: (connector.mcpServers ?? []).map(server => ({
