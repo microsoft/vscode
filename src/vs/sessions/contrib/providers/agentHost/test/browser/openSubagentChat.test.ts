@@ -67,7 +67,7 @@ suite('OpenSubagentChatActionViewItem', () => {
 		]);
 	});
 
-	test('disables and hides the action until its peer chat resolves', () => {
+	test('keeps the rich pill visible but disables opening until its peer chat resolves', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ISessionsService, {
 			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
@@ -98,8 +98,8 @@ suite('OpenSubagentChatActionViewItem', () => {
 		}, {
 			enabled: false,
 			sourceActionEnabled: false,
-			hidden: true,
-			ariaHidden: 'true',
+			hidden: false,
+			ariaHidden: 'false',
 			modelHidden: true,
 		});
 	});
@@ -174,6 +174,10 @@ suite('OpenSubagentChatActionViewItem', () => {
 			{},
 			false,
 		));
+		viewItem.trackEnabled((_context, update) => {
+			update(true);
+			return Disposable.None;
+		});
 		const container = document.createElement('div');
 		viewItem.render(container);
 
@@ -223,6 +227,10 @@ suite('OpenSubagentChatActionViewItem', () => {
 			{},
 			false,
 		));
+		viewItem.trackEnabled((_context, update) => {
+			update(true);
+			return Disposable.None;
+		});
 		const container = document.createElement('div');
 
 		viewItem.render(container);
@@ -262,6 +270,10 @@ suite('OpenSubagentChatActionViewItem', () => {
 			{},
 			false,
 		));
+		viewItem.trackEnabled((_context, update) => {
+			update(true);
+			return Disposable.None;
+		});
 		const container = document.createElement('div');
 
 		viewItem.render(container);

@@ -41,6 +41,7 @@ import { getCompactCodicon } from '../../chatIcons.js';
 
 export interface IOpenSubagentChatContext {
 	readonly chatResource: string;
+	readonly isChatAvailable?: boolean;
 	readonly parentSessionResource?: string;
 	readonly title?: string;
 	readonly agentType?: string;
@@ -417,9 +418,11 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	private _setEnabled(enabled: boolean): void {
-		this._action.enabled = enabled;
-		this._sourceAction.enabled = enabled;
+		const canOpen = enabled && asOpenSubagentChatContext(this._context)?.isChatAvailable !== false;
+		this._action.enabled = canOpen;
+		this._sourceAction.enabled = canOpen;
 		this.updateEnabled();
+		this.updateAriaLabel();
 	}
 
 	private _setModelName(modelName: string | undefined): void {
@@ -666,7 +669,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		const details: string[] = [];
-		if (this._confirmationCount > 0) {
+		if (!this._action.enabled) {
+			details.push(localize('chat.subagent.openChat.unavailable', "Subagent chat is not available yet."));
+		} else if (this._confirmationCount > 0) {
 			details.push(this._confirmationCount === 1
 				? localize('chat.subagent.openChat.confirmationTooltip', "Open subagent chat (1 confirmation needed)")
 				: localize('chat.subagent.openChat.confirmationsTooltip', "Open subagent chat ({0} confirmations needed)", this._confirmationCount));
@@ -697,10 +702,11 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		const enabled = this._action.enabled;
+		const hidden = !asOpenSubagentChatContext(this._context);
 		this.element.classList.toggle('disabled', !enabled);
-		this.element.classList.toggle('hidden', !enabled);
+		this.element.classList.toggle('hidden', hidden);
 		this.element.setAttribute('aria-disabled', String(!enabled));
-		this.element.setAttribute('aria-hidden', String(!enabled));
+		this.element.setAttribute('aria-hidden', String(hidden));
 	}
 
 	protected override updateAriaLabel(): void {
@@ -708,7 +714,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		const label = this._resolvedTitle
-			? localize('chat.subagent.openChat.aria', "Open subagent chat: {0}", this._resolvedTitle)
+			? this._action.enabled
+				? localize('chat.subagent.openChat.aria', "Open subagent chat: {0}", this._resolvedTitle)
+				: localize('chat.subagent.pendingChat.aria', "Subagent: {0}", this._resolvedTitle)
 			: this._action.label;
 		const status = this._renderedStatus === 'running'
 			? localize('chat.subagent.status.working', "Subagent is working")

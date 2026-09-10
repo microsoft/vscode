@@ -1909,6 +1909,11 @@ export function getSessionRelatedPullRequestUrls(gitHubState: ISessionGitHubStat
 /** Maximum pull requests retained for a session. */
 export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
 
+/** Normalized key for comparing pull request URLs irrespective of case and trailing slashes. */
+export function getSessionPullRequestUrlKey(url: string): string {
+	return url.trim().replace(/\/+$/, '').toLowerCase();
+}
+
 function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 	const normalizedUrls = urls.map(url => {
 		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
@@ -1917,7 +1922,7 @@ function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
 			: url;
 	});
-	return distinct(normalizedUrls, url => url.toLowerCase()).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+	return distinct(normalizedUrls, getSessionPullRequestUrlKey).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
 }
 
 /** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
@@ -2219,6 +2224,9 @@ export const AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY = 'agentHost.worksp
  * the rename; readers fall back to it when {@link AH_META_IS_ARCHIVED_DB_KEY} is absent.
  */
 export const AH_META_IS_ARCHIVED_DB_KEY = 'isArchived';
+
+/** Timestamp written only when merged-session cleanup automatically archives a session. */
+export const AH_META_AUTO_ARCHIVED_AT_DB_KEY = 'agentHost.autoArchivedAt';
 
 /** Legacy metadata key for the archived flag; see {@link AH_META_IS_ARCHIVED_DB_KEY}. */
 export const AH_META_IS_DONE_DB_KEY = 'isDone';

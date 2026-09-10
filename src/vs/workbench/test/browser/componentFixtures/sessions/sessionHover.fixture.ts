@@ -22,7 +22,7 @@ import { getSessionSummaryHoverData } from '../../../../../sessions/contrib/sess
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../sessions/services/sessions/common/session.js';
+import { IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvider } from '../../../../../sessions/services/sessions/common/sessionsProvider.js';
 import { ISessionSummaryHoverData, SessionSummaryHoverWidget } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHover.js';
@@ -104,6 +104,7 @@ function createSession(spec: ISessionSpec): ISession {
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!!spec.isQuickChat);
 		override readonly isExternal: IObservable<boolean> = constObservable(!!spec.isExternal);
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(changes);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 	}();
 }
 

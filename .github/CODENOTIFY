@@ -13,6 +13,11 @@ src/vs/base/browser/ui/tree/** @benibenj
 
 # Platform
 src/vs/platform/agentHost/node/claude/** @TylerLeonhardt
+src/vs/platform/agentHost/**/*Automation* @ulugbekna
+src/vs/platform/agentHost/**/*automation* @ulugbekna
+src/vs/platform/agentHost/common/state/protocol/channels-automation-run/** @ulugbekna
+src/vs/platform/agentHost/common/state/protocol/channels-automation/** @ulugbekna
+src/vs/platform/agentHost/node/agentService.ts @ulugbekna
 src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
@@ -38,8 +43,12 @@ src/vs/workbench/services/views/** @sandy081 @benibenj
 # Workbench Contributions
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
 src/vs/workbench/contrib/browserView/** @kycutler @jruales
+src/vs/workbench/contrib/chat/**/*Automation* @ulugbekna
+src/vs/workbench/contrib/chat/**/*automation* @ulugbekna
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
+src/vs/workbench/contrib/chat/common/automations/** @ulugbekna
 src/vs/workbench/contrib/chat/electron-browser/builtInTools/fetchPageTool.ts @TylerLeonhardt
+src/vs/workbench/contrib/chat/test/common/automations/** @ulugbekna
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/scm/** @lszomoru
@@ -50,6 +59,22 @@ src/vs/workbench/contrib/preferences/** @rzhao271
 
 # Sessions Contributions
 src/vs/sessions/contrib/browserView/** @kycutler @jruales
+src/vs/sessions/**/*Automation* @ulugbekna
+src/vs/sessions/**/*automation* @ulugbekna
+src/vs/sessions/AUTOMATIONS.md @ulugbekna
+src/vs/sessions/contrib/automations/** @ulugbekna
+src/vs/sessions/contrib/chat/browser/sessionModelSelection.ts @ulugbekna
+src/vs/sessions/contrib/chat/browser/sessionWorkspacePicker.ts @ulugbekna
+src/vs/sessions/contrib/chat/test/browser/sessionModelSelection.test.ts @ulugbekna
+src/vs/sessions/contrib/chat/test/browser/sessionWorkspacePicker.test.ts @ulugbekna
+src/vs/sessions/contrib/providers/agentHost/browser/baseAgentHostSessionsProvider.ts @ulugbekna
+src/vs/sessions/contrib/providers/agentHost/browser/localAgentHostSessionsProvider.ts @ulugbekna
+src/vs/sessions/contrib/providers/agentHost/test/browser/localAgentHostSessionsProvider.test.ts @ulugbekna
+src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsProvider.ts @ulugbekna
+src/vs/sessions/contrib/providers/copilotChatSessions/test/browser/copilotChatSessionsProvider.test.ts @ulugbekna
+src/vs/sessions/contrib/sessions/browser/views/sessionsList.ts @ulugbekna
+src/vs/sessions/contrib/sessions/test/browser/sessionsList.test.ts @ulugbekna
+src/vs/sessions/services/sessions/common/sessionsProvider.ts @ulugbekna
 
 # Build
 build/azure-pipelines/** @lszomoru
@@ -74,6 +99,28 @@ src/vs/workbench/api/browser/mainThreadSecretState.ts @TylerLeonhardt
 # Extensions
 extensions/copilot/src/extension/chatSessions/claude/** @TylerLeonhardt
 extensions/copilot/src/extension/chatSessions/vscode-node/claudeChatSession* @TylerLeonhardt
+extensions/copilot/src/extension/completions-core/** @ulugbekna
+extensions/copilot/src/extension/completions/** @ulugbekna
+extensions/copilot/src/extension/inlineEdits/** @ulugbekna
+extensions/copilot/src/extension/typescriptContext/**/nes.spec.ts @ulugbekna
+extensions/copilot/src/extension/typescriptContext/**/nesRename* @ulugbekna
+extensions/copilot/src/extension/xtab/** @ulugbekna
+extensions/copilot/src/lib/vscode-node/test/getInlineCompletions.* @ulugbekna
+extensions/copilot/src/lib/vscode-node/test/nesProvider.* @ulugbekna
+extensions/copilot/src/platform/inlineEdits/** @ulugbekna
+extensions/copilot/src/platform/nesFetch/** @ulugbekna
+extensions/copilot/test/base/cachingCompletionsFetchService.ts @ulugbekna
+extensions/copilot/test/base/completionsCache.ts @ulugbekna
+extensions/copilot/test/inline/inlineEditCode.stest.ts @ulugbekna
+extensions/copilot/test/simulation/fixtures/inlineEdits/** @ulugbekna
+extensions/copilot/test/simulation/inlineEdit/** @ulugbekna
+extensions/copilot/test/simulation/nesCoffeTests.ts @ulugbekna
+extensions/copilot/test/simulation/nesCoffeTestsTypes.ts @ulugbekna
+extensions/copilot/test/simulation/nesExternalTests.ts @ulugbekna
+extensions/copilot/test/simulation/nesOptionsToConfigurations.ts @ulugbekna
+extensions/copilot/test/simulation/workbench/components/nesExternalModeToolbar.tsx @ulugbekna
+extensions/copilot/test/simulation/workbench/stores/nesExternalOptions.ts @ulugbekna
+extensions/copilot/docs/NES_EXPECTED_EDIT_CAPTURE.md @ulugbekna
 extensions/microsoft-authentication/** @TylerLeonhardt
 extensions/github-authentication/** @TylerLeonhardt
 extensions/git/** @lszomoru

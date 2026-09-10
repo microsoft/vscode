@@ -6,7 +6,7 @@
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { isWindows } from '../../../../base/common/platform.js';
 
-export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = []): Record<string, string | undefined> {
+export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false): Record<string, string | undefined> {
 	const normalizedOmittedKeys = new Set(omittedKeys.map(key => isWindows ? key.toLowerCase() : key));
 	const env: Record<string, string | undefined> = {};
 	for (const [key, value] of Object.entries(environment)) {
@@ -32,9 +32,6 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env['COPILOT_MCP_APPS'] = 'true';
 	env[AiAgentEnvVar] = AiAgentEnvValue;
 	env['AUTO_APPROVAL'] = 'true';
-	// Resolve Auto mode through the CLI's single-call `POST /auto` endpoint. The
-	// runtime gates this on an ExP flag whose local override is the flag name
-	// itself, so VS Code opts its whole population in rather than splitting it.
-	env['AUTO_V2_ENDPOINT'] = 'true';
+	env['ANTHROPIC_ADVISOR'] = String(claudeAdvisorEnabled);
 	return env;
 }

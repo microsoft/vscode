@@ -162,7 +162,10 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		const uncommittedChanges = property === SessionConfigKey.Branch
 			? getBranchUncommittedChanges(item.value, repositoryBranchName, repositoryUncommittedChanges)
 			: undefined;
-		const uncommittedChangesDescription = uncommittedChanges !== undefined ? formatUncommittedChanges(uncommittedChanges) : undefined;
+		const uncommittedChangesDescription = uncommittedChanges !== undefined
+			? formatUncommittedChanges(uncommittedChanges)
+			: undefined;
+
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
@@ -173,7 +176,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			ariaDescription: uncommittedChangesDescription,
 			disabled,
 			item: { ...item, checked },
-			toolbarActions: uncommittedChanges !== undefined && onShowChanges
+			toolbarActions: property === SessionConfigKey.Branch && item.value === repositoryBranchName && onShowChanges
 				? [toAction({
 					id: 'sessions.agentHost.showBranchChanges',
 					label: localize('agentHostSessionConfig.branchItemShowChanges', "Show Changes"),
@@ -348,7 +351,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	protected readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
-	private readonly _devContainerCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
 	private readonly _isolationCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
 	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private readonly _repositoryConfigSequencer = new SequencerByKey<string>();
@@ -433,7 +435,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	render(container: HTMLElement): void {
-		this._devContainerCheckbox.clear();
 		this._isolationCheckbox.clear();
 		this._container = dom.append(container, dom.$('.sessions-chat-agent-host-config'));
 		this._renderConfigPickers();
@@ -446,7 +447,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		this._renderDisposables.clear();
 		const checkboxSlots = new Set([
-			this._devContainerCheckbox.value?.slot,
 			this._isolationCheckbox.value?.slot,
 		]);
 		for (const child of Array.from(this._container.children)) {
@@ -460,7 +460,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const provider = session ? this._getProvider(session.providerId) : undefined;
 		const resolvedConfig = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !resolvedConfig) {
-			this._devContainerCheckbox.clear();
 			this._isolationCheckbox.clear();
 			return;
 		}
@@ -483,6 +482,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		for (const [property, schema] of properties) {
 			if (!this._isPickable(schema)) {
+				continue;
+			}
+			if (property === SessionConfigKey.SandboxEnabled) {
 				continue;
 			}
 			// Hidden carrier properties (see `worktreeBranchTrackProperty` in
@@ -568,15 +570,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		if (!renderedIsolationCheckbox) {
 			this._isolationCheckbox.clear();
-		}
-		if (isPhoneLayout(this._layoutService)) {
-			this._devContainerCheckbox.clear();
-		} else if (provider.isDevContainerAvailable?.(session.sessionId) && provider.isDevContainerEnabled && provider.setDevContainerEnabled) {
-			const isolationSchema = resolvedConfig.schema.properties[SessionConfigKey.Isolation];
-			const isolation = resolvedConfig.values[SessionConfigKey.Isolation] ?? isolationSchema?.default;
-			this._renderDevContainerCheckbox(provider, session.sessionId, isolation === 'worktree');
-		} else {
-			this._devContainerCheckbox.clear();
 		}
 	}
 
@@ -859,37 +852,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		control.update(checked, isReadOnly || combinationDisabled, isLoading, tooltip);
 	}
 
-	private _renderDevContainerCheckbox(provider: IAgentHostSessionsProvider, sessionId: string, worktreeSelected: boolean): void {
-		const label = localize('agentHostSessionConfig.devContainer', "Dev Container");
-		const checked = provider.isDevContainerEnabled?.(sessionId) === true;
-		const combinationDisabled = !this._isDevContainerWorktreeEnabled() && worktreeSelected && !checked;
-		let control = this._devContainerCheckbox.value;
-		if (!control || control.sessionId !== sessionId) {
-			control = new ConfigCheckboxControl(
-				sessionId,
-				label,
-				'sessions-chat-dev-container-checkbox',
-				this._hoverService,
-				enabled => provider.setDevContainerEnabled?.(sessionId, enabled),
-			);
-			this._devContainerCheckbox.value = control;
-		}
-		const isolationSlot = this._isolationCheckbox.value?.slot;
-		if (this._container && isolationSlot?.parentElement === this._container) {
-			this._container.insertBefore(control.slot, isolationSlot);
-		} else {
-			this._container?.prepend(control.slot);
-		}
-		control.update(
-			checked,
-			combinationDisabled,
-			false,
-			combinationDisabled
-				? localize('agentHostSessionConfig.devContainer.worktreeDisabled', "Dev Container execution cannot be combined with New Worktree.")
-				: undefined,
-		);
-	}
-
 	private _isDevContainerWorktreeEnabled(): boolean {
 		return this._configurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true;
 	}
@@ -1008,6 +970,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		this._actionWidgetService.hide();
 		const session = this._session.get();
 		if (this._layoutService.isSinglePaneLayoutEnabled && session) {
+			if ((this._getRepositoryBranchState(session.sessionId).uncommittedChanges ?? 0) > 0) {
+				this._layoutService.revealEditorPartExplicitly();
+			}
 			const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 			try {
 				await this._sessionChangesService.openChangesEditor(session.resource);
@@ -1347,6 +1312,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 
 interface IConfigPickerWidget extends IDisposable {
 	render(container: HTMLElement): HTMLElement | void;
+	focus?(): void;
 	showPicker?(anchor: HTMLElement, onHide?: () => void): boolean | void;
 }
 
@@ -1368,7 +1334,9 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 	}
 
 	override focus(): void {
-		if (this._focusableElement) {
+		if (this._picker.focus) {
+			this._picker.focus();
+		} else if (this._focusableElement) {
 			this._focusableElement.focus();
 		} else if (this.element) {
 			this._focusFirstTabStop(this.element);

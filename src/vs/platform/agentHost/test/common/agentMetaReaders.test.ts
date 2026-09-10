@@ -41,6 +41,13 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(readToolCallMeta(toolCall(undefined)), {});
 		});
 
+		test('validates the sandbox bypass flag', () => {
+			assert.deepStrictEqual(
+				[true, false, 'true', 1, undefined].map(value => readToolCallMeta(toolCall({ 'agentHost.sandboxBypass': value }))),
+				[{ 'agentHost.sandboxBypass': true }, { 'agentHost.sandboxBypass': false }, {}, {}, {}],
+			);
+		});
+
 		test('reads valid keys and drops wrong-typed / unknown keys', () => {
 			const result = readToolCallMeta(toolCall({
 				toolKind: 'terminal',

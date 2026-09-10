@@ -67,16 +67,6 @@
 	z-index: -1;
 }
 
-.context-view-pointerBlock {
-	position: fixed;
-	cursor: initial;
-	left: 0;
-	top: 0;
-	width: 100%;
-	height: 100%;
-	z-index: 2;
-}
-
 .action-widget .monaco-list {
 	user-select: none;
 	-webkit-user-select: none;
@@ -101,7 +91,7 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
-.action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
+.action-widget .monaco-list .monaco-list-row.action:is(.focused, .focus-group-highlighted):not(.option-disabled) {
 	background-color: var(--vscode-list-hoverBackground) !important;
 	color: var(--vscode-list-hoverForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
@@ -224,7 +214,7 @@
 	white-space: nowrap;
 }
 
-.action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) .detail {
+.action-widget .monaco-list .monaco-list-row.action:is(.focused, .focus-group-highlighted):not(.option-disabled) .detail {
 	color: inherit;
 	opacity: 1;
 }
@@ -413,10 +403,13 @@
 	display: none;
 }
 
+.action-widget .monaco-list-row.action.has-toolbar .action-list-item-toolbar {
+	margin-right: var(--vscode-spacing-size100, 10px);
+}
+
 .action-widget .monaco-list-row.action.has-detail.has-toolbar .action-list-item-toolbar {
 	display: flex;
 	visibility: hidden;
-	margin-right: 10px;
 }
 
 .action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
@@ -592,6 +585,10 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	z-index: 50;
 	width: max-content;
+	/* Hug the inner list so rows (and their hover background) fill the panel.
+	 * Otherwise the panel inherits the 100px min-width from `.action-widget`
+	 * and the hover highlight stops short of the right edge. */
+	min-width: 0;
 	outline: none;
 }
 

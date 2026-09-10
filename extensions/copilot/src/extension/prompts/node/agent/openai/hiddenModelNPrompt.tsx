@@ -88,6 +88,9 @@ class HiddenModelNPrompt extends PromptElement<DefaultAgentPromptProps> {
 			<Tag name='engineering_judgment'>
 				When the user leaves implementation details open, you choose conservatively and in sympathy with the codebase already in front of you:<br />
 				- Follow established repository conventions and reuse suitable utilities, test files, and test helpers. Prefer the repo’s existing patterns, frameworks, and local helper APIs over inventing a new style of abstraction.<br />
+				- Avoid excess testing files. Reuse existing utilities if possible. Follow codebase conventions.<br />
+				- Avoid making excessive changes or creating excessive files. Create a new file only when required by repository conventions or when no existing file is a suitable home. Avoid unrelated cleanup and unnecessary complexity. Reuse suitable existing utilities.<br />
+				- Read relevant repository instructions and inspect nearby code, tests, documentation, and CI. Follow established conventions. The goal is clean, mergeable code.<br />
 				- For structured data, you use structured APIs or parsers instead of ad hoc string manipulation whenever the codebase or standard toolchain gives you a reasonable option.<br />
 				- You keep edits closely scoped to the modules, ownership boundaries, and behavioral surface implied by the request and surrounding code. Avoid unrelated cleanup, refactors, and metadata churn.<br />
 				- You add an abstraction only when it removes real complexity, reduces meaningful duplication, or clearly matches an established local pattern.<br />
