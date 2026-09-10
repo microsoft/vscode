@@ -52,9 +52,7 @@ function pipeLoggingToParent(): void {
 		try {
 			const res = JSON.stringify(argsArray, function (this: unknown, key, value: unknown) {
 
-				// Objects get special treatment to prevent circles. Only the current
-				// ancestor path is tracked, so a value that is shared across arguments
-				// or sibling properties is serialized in full rather than as circular.
+				// Track only current ancestors so shared references are serialized in full.
 				if (typeof value === 'object' && value !== null) {
 					// `this` is the object holding `key`, pop the subtrees that are already done
 					while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
