@@ -63,7 +63,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]>;
 	prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<ISessionWorktree | undefined>;
 	removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void>;
-	discardSessionWorktree(sessionUri: URI, sessionId: string, worktree: ISessionWorktree | undefined): Promise<void>;
+	discardSessionWorktree(sessionUri: URI, sessionId: string, worktree: ISessionWorktree | undefined, options?: { readonly preserveWorkingDirectory: boolean }): Promise<void>;
 	cleanupWorktreeOnArchive(sessionUri: URI, sessionId: string): Promise<void>;
 	recreateWorktreeOnUnarchive(sessionUri: URI, sessionId: string): Promise<void>;
 	readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined>;
@@ -1073,7 +1073,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return this._sequencer.queue(sessionId, () => this._removeSessionWorktree(sessionId, worktree));
 	}
 
-	async discardSessionWorktree(sessionUri: URI, sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
+	async discardSessionWorktree(sessionUri: URI, sessionId: string, worktree: ISessionWorktree | undefined, options?: { readonly preserveWorkingDirectory: boolean }): Promise<void> {
 		await this.removeSessionWorktree(sessionId, worktree);
 		const dbRef = this._sessionDataService.openDatabase(sessionUri);
 		try {
@@ -1082,7 +1082,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				WORKTREE_META_PATH,
 				WORKTREE_META_REPOSITORY_ROOT,
 				WORKTREE_META_CREATION_FAILURE,
-				LEGACY_WORKTREE_META_WORKING_DIRECTORY,
+				...(options?.preserveWorkingDirectory ? [] : [LEGACY_WORKTREE_META_WORKING_DIRECTORY]),
 				META_DIFF_BASE_BRANCH,
 			]);
 		} finally {

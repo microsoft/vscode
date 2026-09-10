@@ -15,13 +15,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentWorkingDirectoryChangedError, type IAgent } from '../../common/agent.js';
 import type { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
+import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { isAgentWorkspaceContinuationMessage } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, SessionStatus, TurnState, withSessionWorkspaceless, type ErrorInfo, type Message, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, SessionStatus, TurnState, withSessionWorkspaceless, type ErrorInfo, type Message, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostTurnService, IDeferredAgentHostTurn } from '../../node/agentHostTurnService.js';
@@ -193,7 +194,13 @@ suite('SessionWorkspaceConversionService', () => {
 				refreshedServerTools.push(targetSession);
 			}
 		}();
-		const service = disposables.add(new SessionWorkspaceConversionService(stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService));
+		const gitRefreshes: string[] = [];
+		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
+			override async refreshSessionGitState(_session: string, directory?: URI): Promise<void> {
+				gitRefreshes.push(directory!.toString());
+			}
+		}();
+		const service = disposables.add(new SessionWorkspaceConversionService(stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService, gitStateService));
 		const session = URI.parse('copilot:/workspace-less');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const scratch = URI.file('/tmp/copilot-scratch/workspace-less');
@@ -207,7 +214,7 @@ suite('SessionWorkspaceConversionService', () => {
 			workingDirectories: [scratch.toString()],
 			_meta: withSessionWorkspaceless(undefined, true),
 		});
-		return { service, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, refreshedServerTools };
+		return { service, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, refreshedServerTools, gitRefreshes };
 	}
 
 	function setSessionConfig(harness: ReturnType<typeof createHarness>, values: Record<string, unknown>): void {
@@ -242,6 +249,255 @@ suite('SessionWorkspaceConversionService', () => {
 	function updateSessionWorkspace(harness: ReturnType<typeof createHarness>): Promise<void> {
 		return harness.service.updateSessionWorkspace(harness.chat.toString(), 'turn-1');
 	}
+
+	function makeFolderSession(harness: ReturnType<typeof createHarness>): void {
+		harness.stateManager.dispatchServerAction(harness.session.toString(), { type: ActionType.SessionReady });
+		harness.stateManager.setSessionMeta(harness.session.toString(), withSessionWorkspaceless(undefined, false));
+		const provider: IAgent = harness.agent;
+		provider.setSessionWorkingDirectory = async () => { };
+		setSessionConfig(harness, {
+			[SessionConfigKey.Isolation]: 'folder',
+			[SessionConfigKey.AutoApprove]: 'default',
+			[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
+		});
+	}
+
+	test('isolates the session after all chats finish, preserving history and normal worktree configuration', async () => {
+		const worktree = URI.file('/workspace/project.worktrees/feature');
+		const isolation = new TestWorktreeIsolation(worktree);
+		const harness = createHarness(isolation);
+		makeFolderSession(harness);
+		completePriorTurn(harness.stateManager, harness.chat);
+		const peer = URI.parse(buildChatUri(harness.session, 'peer'));
+		harness.stateManager.addChat(harness.session.toString(), peer.toString(), { title: 'Peer' });
+		startTurn(harness.stateManager, peer, 'peer-turn');
+		startTurn(harness.stateManager, harness.chat);
+		const providerCalls: string[] = [];
+		const provider: IAgent = harness.agent;
+		provider.setSessionWorkingDirectory = async (_session, directory) => { providerCalls.push(directory.toString()); };
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			created: isolation.createdWorktrees,
+			mainBlocked: harness.service.isPending(harness.chat.toString()),
+			peerBlocked: harness.service.isPending(peer.toString()),
+		}, { created: [], mainBlocked: true, peerBlocked: true });
+		completeTurn(harness.stateManager, peer, 'peer-turn');
+		await harness.service.updateSessionWorkspace(peer.toString(), 'peer-turn');
+
+		const state = harness.stateManager.getSessionState(harness.session.toString())!;
+		assert.deepStrictEqual({
+			directories: state.workingDirectories,
+			isolation: state.config?.values[SessionConfigKey.Isolation],
+			approval: state.config?.values[SessionConfigKey.AutoApprove],
+			persistedConfig: JSON.parse((await harness.database.getMetadata('configValues'))!),
+			mainTurnIds: harness.stateManager.getChatState(harness.chat.toString())!.turns.map(turn => turn.id),
+			peerTurnIds: harness.stateManager.getChatState(peer.toString())!.turns.map(turn => turn.id),
+			continuations: harness.continuations.map(entry => entry.chat),
+			providerCalls,
+			gitRefreshes: harness.gitRefreshes,
+			worktreeConfig: isolation.requests[0]?.config,
+			pending: harness.service.isPending(harness.chat.toString()),
+		}, {
+			directories: [worktree.toString()],
+			isolation: 'worktree',
+			approval: 'default',
+			persistedConfig: {
+				isolation: 'worktree', autoApprove: 'default', worktreeIncludeFiles: ['.env'], branch: 'main',
+			},
+			mainTurnIds: ['turn-0', 'turn-1'],
+			peerTurnIds: ['peer-turn'],
+			continuations: [harness.chat.toString()],
+			providerCalls: [worktree.toString()],
+			gitRefreshes: [worktree.toString()],
+			worktreeConfig: {
+				isolation: 'worktree', autoApprove: 'default', worktreeIncludeFiles: ['.env'], branch: 'main',
+			},
+			pending: false,
+		});
+	});
+
+	test('only the main chat active turn may request session isolation', () => {
+		const harness = createHarness(new TestWorktreeIsolation(URI.file('/worktree')));
+		makeFolderSession(harness);
+		startTurn(harness.stateManager, harness.chat);
+		const peer = URI.parse(buildChatUri(harness.session, 'peer'));
+		assert.throws(() => harness.service.requestSessionIsolation(peer, 'peer-turn', 'client-1'), /main chat/);
+		assert.throws(() => harness.service.requestSessionIsolation(harness.chat, 'wrong-turn', 'client-1'), /active turn/);
+		assert.throws(() => harness.service.requestSessionIsolation(harness.chat, 'turn-1', ''), /initiating client/);
+	});
+
+	test('a peer turn finishing before the requesting turn does not start isolation', async () => {
+		const isolation = new TestWorktreeIsolation(URI.file('/worktree'));
+		const harness = createHarness(isolation);
+		makeFolderSession(harness);
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		await harness.service.updateSessionWorkspace(buildChatUri(harness.session, 'peer'), 'peer-turn');
+		assert.strictEqual(isolation.createdWorktrees.length, 0);
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual(isolation.createdWorktrees.map(uri => uri.toString()), ['file:///worktree']);
+	});
+
+	test('does not create a worktree if the folder session is archived while awaiting trust', async () => {
+		const trust = new DeferredPromise<boolean>();
+		const isolation = new TestWorktreeIsolation(URI.file('/worktree'));
+		const harness = createHarness(isolation, () => trust.p);
+		makeFolderSession(harness);
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		const conversion = updateSessionWorkspace(harness);
+		harness.stateManager.dispatchServerAction(harness.session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		trust.complete(true);
+		await conversion;
+		assert.deepStrictEqual(isolation.createdWorktrees, []);
+		assert.match(harness.continuations[0].message.text, /session changed/);
+	});
+
+	test('does not allow the workspace tool to convert an existing folder session', () => {
+		const harness = createHarness();
+		makeFolderSession(harness);
+		startTurn(harness.stateManager, harness.chat);
+		assert.throws(() => harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', harness.scratch, true, 'client-1'), /workspace-less/);
+	});
+
+	test('does not offer session isolation for quick chats or already isolated sessions', () => {
+		const harness = createHarness(new TestWorktreeIsolation(URI.file('/worktree')));
+		assert.strictEqual(harness.service.canIsolateSession(harness.session), false);
+		makeFolderSession(harness);
+		setSessionConfig(harness, { isolation: 'worktree' });
+		assert.strictEqual(harness.service.canIsolateSession(harness.session), false);
+	});
+
+	test('keeps the folder session unchanged when workspace trust is denied', async () => {
+		const isolation = new TestWorktreeIsolation(URI.file('/worktree'));
+		const harness = createHarness(isolation, async () => false);
+		makeFolderSession(harness);
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.match(harness.continuations[0].message.text, /Workspace trust/);
+		assert.deepStrictEqual({
+			directories: harness.stateManager.getSessionState(harness.session.toString())?.workingDirectories,
+			isolation: harness.stateManager.getSessionState(harness.session.toString())?.config?.values.isolation,
+			created: isolation.createdWorktrees,
+			pending: harness.service.isPending(harness.chat.toString()),
+		}, {
+			directories: [harness.scratch.toString()], isolation: 'folder', created: [], pending: false,
+		});
+	});
+
+	test('cleans up a new worktree when folder conversion fails and allows retry', async () => {
+		const isolation = new TestWorktreeIsolation(URI.file('/worktree'));
+		const harness = createHarness(isolation);
+		makeFolderSession(harness);
+		const provider: IAgent = harness.agent;
+		provider.setSessionWorkingDirectory = async () => { throw new Error('provider mutation failed'); };
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.match(harness.continuations[0].message.text, /provider mutation failed/);
+		assert.deepStrictEqual({
+			removed: isolation.removedWorktrees.map(entry => entry.worktree.toString()),
+			isolation: harness.stateManager.getSessionState(harness.session.toString())?.config?.values.isolation,
+			pending: harness.service.isPending(harness.chat.toString()),
+		}, { removed: ['file:///worktree'], isolation: 'folder', pending: false });
+	});
+
+	test('canceling the requesting turn releases the entire session without converting', async () => {
+		const isolation = new TestWorktreeIsolation(URI.file('/worktree'));
+		const harness = createHarness(isolation);
+		makeFolderSession(harness);
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		assert.throws(() => harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1'), /already pending/);
+		harness.service.cancel(harness.chat.toString(), 'turn-1');
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			pending: harness.service.isPending(buildChatUri(harness.session, 'peer')), created: isolation.createdWorktrees,
+		}, { pending: false, created: [] });
+	});
+
+	test('a failed peer turn releases the barrier after the main turn has requested isolation', async () => {
+		const harness = createHarness(new TestWorktreeIsolation(URI.file('/worktree')));
+		makeFolderSession(harness);
+		const peer = buildChatUri(harness.session, 'peer');
+		harness.stateManager.addChat(harness.session.toString(), peer);
+		startTurn(harness.stateManager, URI.parse(peer), 'peer-turn');
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		harness.stateManager.dispatchServerAction(peer, {
+			type: ActionType.ChatError, turnId: 'peer-turn', duration: 0,
+			part: createErrorResponsePart({ errorType: 'test', message: 'Peer failed' }),
+		});
+		harness.service.cancel(peer, 'peer-turn');
+		await harness.service.updateSessionWorkspace(peer, 'peer-turn');
+		assert.deepStrictEqual({
+			directories: harness.stateManager.getSessionState(harness.session.toString())?.workingDirectories,
+			pending: harness.service.isPending(peer),
+			continuationChats: harness.continuations.map(entry => entry.chat),
+		}, { directories: ['file:///worktree'], pending: false, continuationChats: [harness.chat.toString()] });
+	});
+
+	test('an irreversible partial provider conversion quarantines every chat and retains the worktree', async () => {
+		const isolation = new TestWorktreeIsolation(URI.file('/worktree'));
+		const harness = createHarness(isolation);
+		makeFolderSession(harness);
+		const provider: IAgent = harness.agent;
+		provider.setSessionWorkingDirectory = async () => {
+			throw new AgentWorkingDirectoryChangedError(URI.file('/worktree'), 'A peer could not roll back');
+		};
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			quarantined: await harness.database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
+			mainBlocked: harness.service.isPending(harness.chat.toString()),
+			peerBlocked: harness.service.isPending(buildChatUri(harness.session, 'peer')),
+			removed: isolation.removedWorktrees,
+			continued: harness.continuations,
+			failed: harness.failedContinuations.length,
+		}, { quarantined: 'true', mainBlocked: true, peerBlocked: true, removed: [], continued: [], failed: 1 });
+	});
+
+	test('waits for subagent activity and new chats inherit session isolation', async () => {
+		const isolation = new TestWorktreeIsolation(URI.file('/worktree'));
+		const harness = createHarness(isolation);
+		makeFolderSession(harness);
+		const childSession = buildSubagentSessionUri(harness.session, 'worker');
+		const childChat = URI.parse(buildDefaultChatUri(childSession));
+		harness.stateManager.createSession({
+			resource: childSession, provider: 'subagent', title: 'Worker', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+		});
+		startTurn(harness.stateManager, childChat, 'worker-turn');
+		startTurn(harness.stateManager, harness.chat);
+		assert.throws(() => harness.service.requestSessionIsolation(childChat, 'worker-turn', 'client-1'), /main chat/);
+		harness.service.requestSessionIsolation(harness.chat, 'turn-1', 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			createdCount: isolation.createdWorktrees.length,
+			childBlocked: harness.service.isPending(childChat.toString()),
+		}, { createdCount: 0, childBlocked: true });
+		completeTurn(harness.stateManager, childChat, 'worker-turn');
+		await harness.service.updateSessionWorkspace(childChat.toString(), 'worker-turn');
+		const newChat = buildChatUri(harness.session, 'new-peer');
+		harness.stateManager.addChat(harness.session.toString(), newChat);
+		assert.deepStrictEqual({
+			childDirectories: harness.configurationService.getEffectiveWorkingDirectories(childSession),
+			newPeerDirectories: harness.configurationService.getEffectiveWorkingDirectories(newChat),
+			childBlocked: harness.service.isPending(childChat.toString()),
+		}, { childDirectories: ['file:///worktree'], newPeerDirectories: ['file:///worktree'], childBlocked: false });
+	});
 
 	test('keeps a visible continuation in progress while converting after the invoking turn', async () => {
 		const trustDecision = new DeferredPromise<boolean>();

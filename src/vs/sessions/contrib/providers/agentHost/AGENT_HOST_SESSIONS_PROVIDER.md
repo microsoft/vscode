@@ -99,6 +99,16 @@ Automation drafts use the same `NewSession` implementation but are tracked separ
 
 Existing-session requests route by the provider resource and chat resource. Host notifications update adapters and catalog membership reactively.
 
+### Folder-to-worktree conversion
+
+The Agent Host exposes `isolate_session` only to a supported folder session's main chat. It has no workspace argument: isolation changes where the same project is worked on, not the session's project or identity. Peer and subagent chats cannot request isolation.
+
+Peer-chat tool discovery omits the tool. Copilot SDK-native workers can still inherit its definition because the SDK does not expose per-worker tool filtering; execution is rejected for worker and unknown tool-call origins.
+
+The host blocks new turns and peer-chat creation after the request, lets all active chats finish, and then applies one worktree to the whole session. Existing chat identities and histories are preserved, and future chats inherit the isolated directory. The main chat automatically continues the original task after conversion; queued peer messages resume once the transition finishes.
+
+Host state updates rebind the existing session facade, workspace, configuration, and Git state. The original folder is not modified; file inclusion follows ordinary worktree creation. Failures retain the folder session or quarantine an unsafe partial mutation.
+
 ## Persistence and discovery
 
 Startup metadata may seed lightweight session facades before a live connection finishes discovery. Live host state remains authoritative and upgrades or replaces cached state through the normal catalog lifecycle.

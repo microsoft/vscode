@@ -37,6 +37,11 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@ISessionWorkspaceConversionService private readonly _conversionService: ISessionWorkspaceConversionService,
 	) {
 		super();
+		this._register(this._conversionService.onDidChangePendingSession(session => {
+			for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+				this._tryConsumeNextQueuedMessage(chat.resource);
+			}
+		}));
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
@@ -77,7 +82,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	private _syncPendingMessages(channel: ProtocolURI): void {
-		const state = this._stateManager.getSessionState(channel);
+		const state = this._stateManager.getChatState(channel);
 		if (!state) {
 			return;
 		}
@@ -97,7 +102,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		if (this._stateManager.getActiveTurnId(channel)) {
 			return;
 		}
-		const state = this._stateManager.getSessionState(channel);
+		const state = this._stateManager.getChatState(channel);
 		if (!state?.queuedMessages?.length || state.steeringMessage) {
 			return;
 		}

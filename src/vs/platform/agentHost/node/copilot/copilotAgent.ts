@@ -44,7 +44,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
@@ -352,13 +352,12 @@ interface IWorkingDirectoryMetadataSnapshot {
 }
 
 interface IWorkingDirectoryChangeTransactionOptions {
-	readonly resource: URI;
+	readonly resources: readonly { readonly resource: URI; readonly previousMetadata: IWorkingDirectoryMetadataSnapshot }[];
 	readonly activeClient: ActiveClient;
 	readonly workingDirectory: URI;
 	readonly previousWorkingDirectory: URI;
 	readonly previousCustomizationDirectory: URI;
 	readonly previousCustomizationAdditionalDirectories: readonly URI[];
-	readonly previousMetadata: IWorkingDirectoryMetadataSnapshot;
 }
 
 /** Stable empty host-customization snapshot used before the host publishes one. */
@@ -864,7 +863,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessionsPendingRegistration = this._register(new DisposableSet<CopilotAgentSession>());
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
-	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
+	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession | Set<string>>();
 
 	/** Exact chat -> recorded configuration scope, used for fork/restore paths that only know the chat URI. */
 	private readonly _chatScopes = new Map<string, URI>();
@@ -1525,13 +1524,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const previousCustomizationDirectory = activeClient.pluginController.directory ?? previousWorkingDirectory;
 				const previousCustomizationAdditionalDirectories = [...activeClient.pluginController.additionalDirectories];
 				const transaction = this._createWorkingDirectoryChangeTransaction({
-					resource,
+					resources: [{ resource, previousMetadata: storedMetadata.snapshot }],
 					activeClient,
 					workingDirectory,
 					previousWorkingDirectory,
 					previousCustomizationDirectory,
 					previousCustomizationAdditionalDirectories,
-					previousMetadata: storedMetadata.snapshot,
 				});
 				await entry.setWorkingDirectory(workingDirectory, transaction);
 			});
@@ -1542,22 +1540,167 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	async setSessionWorkingDirectory(session: URI, workingDirectory: URI): Promise<void> {
+		if (this._workingDirectoryMutations.has(session)) {
+			throw new Error('Cannot change the session working directory while another working-directory change is active');
+		}
+		const chats = [...this._chatScopes]
+			.filter(([, scope]) => isEqual(scope, session))
+			.map(([chat]) => URI.parse(chat));
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+		if (!chats.some(chat => isEqual(chat, defaultChat)) || !this._chatBackings.has(defaultChat.toString())) {
+			throw new Error('Cannot change the working directory of a session without its owning default chat backing');
+		}
+		if (this._provisionalSessions.has(AgentSession.id(session))) {
+			throw new Error('Cannot change the working directory before the session is materialized');
+		}
+		const mutation = new Set(chats.map(chat => chat.toString()));
+		this._workingDirectoryMutations.set(session, mutation);
+		try {
+			const configurationId = AgentSession.id(session);
+			const backingIds = [...new Set(chats.flatMap(chat => {
+				const backing = this._chatBackings.get(chat.toString());
+				return backing ? [backing.sdkSessionId] : [];
+			}))];
+			const withChatQueues = (index: number): Promise<void> => index === backingIds.length
+				? this._changeSessionWorkingDirectory(session, chats, workingDirectory)
+				: this._queueChat(configurationId, backingIds[index], 'setSessionWorkingDirectory', () => withChatQueues(index + 1));
+			await this._queueSession(configurationId, () => withChatQueues(0));
+		} finally {
+			if (this._workingDirectoryMutations.get(session) === mutation) {
+				this._workingDirectoryMutations.delete(session);
+			}
+		}
+	}
+
+	private async _changeSessionWorkingDirectory(session: URI, chats: readonly URI[], workingDirectory: URI): Promise<void> {
+		if (workingDirectory.scheme !== Schemas.file || !isAbsolute(workingDirectory.fsPath) || !await this._isExistingDirectory(workingDirectory.fsPath)) {
+			throw new Error(`Cannot change the session working directory to '${workingDirectory.toString()}': expected an existing local directory`);
+		}
+		const resources = new ResourceMap<IWorkingDirectoryMetadataSnapshot>();
+		for (const resource of [session, ...chats.map(chat => this._resolveChatStorageScope(chat))]) {
+			if (!resources.has(resource)) {
+				const metadata = await this._readWorkingDirectoryMetadata(resource);
+				if ((metadata.workingDirectories?.length ?? 0) > 1) {
+					throw new Error('Cannot change the working directory of a multi-root session');
+				}
+				if (metadata.workingDirectory && !await this._isExistingDirectory(metadata.workingDirectory.fsPath)) {
+					throw new Error(`Cannot change the session working directory because the original directory '${metadata.workingDirectory.fsPath}' no longer exists`);
+				}
+				resources.set(resource, metadata.snapshot);
+			}
+		}
+		const storedSource = resources.get(session)?.workingDirectory;
+		const sourceDirectory = storedSource ? URI.parse(storedSource) : this._findChatByUri(URI.parse(buildDefaultChatUri(session)))?.workingDirectory;
+		if (!sourceDirectory || !await this._isExistingDirectory(sourceDirectory.fsPath)) {
+			throw new Error('Cannot change the session working directory without an existing original directory');
+		}
+		const entries = new Map<CopilotAgentSession, URI>();
+		for (const chat of chats) {
+			const backing = this._chatBackings.get(chat.toString());
+			// SDK subagent transcripts have no independent backing; their parent is switched instead.
+			if (!backing) {
+				continue;
+			}
+			const context = this._resolveChatContext(chat, { configurationResource: session, resource: this._resolveChatStorageScope(chat) });
+			const wasCold = !this._findChatByUri(chat);
+			let entry: CopilotAgentSession | undefined;
+			try {
+				entry = await this._ensureResolvedChatSession(context);
+				if (!entry || entry.sessionId !== backing.sdkSessionId || !entry.workingDirectory) {
+					throw new Error(`Cannot resume the existing backing for chat '${chat.toString()}'`);
+				}
+				if (wasCold && !isEqual(entry.workingDirectory, sourceDirectory)) {
+					throw new Error(`Resuming chat '${chat.toString()}' did not preserve its original directory '${sourceDirectory.fsPath}'`);
+				}
+			} catch (error) {
+				if (wasCold) {
+					// A failed SDK resume may already have repaired its directory or persisted provider state.
+					throw new AgentWorkingDirectoryChangedError(workingDirectory, `Cannot establish the original state after resuming chat '${chat.toString()}': ${getErrorMessage(error)}`);
+				}
+				throw error;
+			}
+			if (entry.hasActiveTurn || entry.appliedAdditionalDirectories.length > 0) {
+				throw new Error('Cannot change the working directory of a busy or multi-root session');
+			}
+			entries.set(entry, entry.workingDirectory);
+		}
+		const activeClient = this._activeClients.get(session);
+		const previousWorkingDirectory = this._findChatByUri(URI.parse(buildDefaultChatUri(session)))?.workingDirectory;
+		if (!activeClient || !previousWorkingDirectory || activeClient.pluginController.additionalDirectories.length > 0) {
+			throw new Error('Cannot change the working directory without a single-root active client');
+		}
+		if ([...entries.values()].every(directory => isEqual(directory, workingDirectory))) {
+			return;
+		}
+		const transaction = this._createWorkingDirectoryChangeTransaction({
+			resources: [...resources].map(([resource, previousMetadata]) => ({ resource, previousMetadata })),
+			activeClient,
+			workingDirectory,
+			previousWorkingDirectory,
+			previousCustomizationDirectory: activeClient.pluginController.directory ?? previousWorkingDirectory,
+			previousCustomizationAdditionalDirectories: [...activeClient.pluginController.additionalDirectories],
+		});
+		// Shared provider state is prepared once; each backing transaction only aligns its SDK runtime.
+		const backingTransaction: ICopilotWorkingDirectoryChangeTransaction = {
+			prepare: async () => { },
+			rollback: async () => { },
+			reconcile: async () => { },
+		};
+		const changedEntries = new Set<CopilotAgentSession>();
+		try {
+			await transaction.prepare();
+			for (const [entry, previous] of entries) {
+				if (!isEqual(previous, workingDirectory)) {
+					try {
+						await entry.setWorkingDirectory(workingDirectory, backingTransaction);
+						changedEntries.add(entry);
+					} catch (error) {
+						if (error instanceof AgentWorkingDirectoryChangedError) {
+							changedEntries.add(entry);
+						}
+						throw error;
+					}
+				}
+			}
+		} catch (error) {
+			const rollbackErrors: string[] = [];
+			for (const [entry, previous] of [...entries].reverse()) {
+				if (changedEntries.has(entry)) {
+					try {
+						await entry.setWorkingDirectory(previous, backingTransaction);
+					} catch (rollbackError) {
+						rollbackErrors.push(getErrorMessage(rollbackError));
+					}
+				}
+			}
+			try {
+				await transaction.rollback();
+			} catch (rollbackError) {
+				rollbackErrors.push(getErrorMessage(rollbackError));
+			}
+			if (rollbackErrors.length > 0) {
+				throw new AgentWorkingDirectoryChangedError(workingDirectory, `Session working-directory change failed: ${getErrorMessage(error)}; failed to restore all backings and provider state: ${rollbackErrors.join('; ')}`);
+			}
+			throw error instanceof AgentWorkingDirectoryChangedError ? new Error(error.message) : error;
+		}
+	}
+
 	private _createWorkingDirectoryChangeTransaction(options: IWorkingDirectoryChangeTransactionOptions): ICopilotWorkingDirectoryChangeTransaction {
 		const {
-			resource,
+			resources,
 			activeClient,
 			workingDirectory,
 			previousWorkingDirectory,
 			previousCustomizationDirectory,
 			previousCustomizationAdditionalDirectories,
-			previousMetadata,
 		} = options;
 		const metadataFor = (directory: URI): IWorkingDirectoryMetadataSnapshot => ({
 			workingDirectory: directory.toString(),
 			workingDirectories: JSON.stringify([directory.toString()]),
 			customizationDirectory: directory.toString(),
 		});
-		const applyProviderState = async (directory: URI, additionalDirectories: readonly URI[], metadata: IWorkingDirectoryMetadataSnapshot): Promise<void> => {
+		const applyProviderState = async (directory: URI, additionalDirectories: readonly URI[], restore = false): Promise<void> => {
 			const errors: string[] = [];
 			try {
 				activeClient.pluginController.reanchor(directory);
@@ -1569,10 +1712,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} catch (error) {
 				errors.push(`customization additional roots: ${getErrorMessage(error)}`);
 			}
-			try {
-				await this._storeWorkingDirectoryMetadataSnapshot(resource, metadata);
-			} catch (error) {
-				errors.push(`provider metadata: ${getErrorMessage(error)}`);
+			for (const { resource, previousMetadata } of resources) {
+				try {
+					await this._storeWorkingDirectoryMetadataSnapshot(resource, restore ? previousMetadata : metadataFor(directory));
+				} catch (error) {
+					errors.push(`provider metadata: ${getErrorMessage(error)}`);
+				}
 			}
 			if (errors.length > 0) {
 				throw new Error(errors.join('; '));
@@ -1580,11 +1725,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 
 		return {
-			prepare: () => applyProviderState(workingDirectory, [], metadataFor(workingDirectory)),
-			rollback: () => applyProviderState(previousCustomizationDirectory, previousCustomizationAdditionalDirectories, previousMetadata),
+			prepare: () => applyProviderState(workingDirectory, []),
+			rollback: () => applyProviderState(previousCustomizationDirectory, previousCustomizationAdditionalDirectories, true),
 			reconcile: authoritativeWorkingDirectory => isEqual(authoritativeWorkingDirectory, previousWorkingDirectory)
-				? applyProviderState(previousCustomizationDirectory, previousCustomizationAdditionalDirectories, previousMetadata)
-				: applyProviderState(authoritativeWorkingDirectory, [], metadataFor(authoritativeWorkingDirectory)),
+				? applyProviderState(previousCustomizationDirectory, previousCustomizationAdditionalDirectories, true)
+				: applyProviderState(authoritativeWorkingDirectory, []),
 		};
 	}
 
@@ -4974,7 +5119,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _throwIfWorkingDirectoryMutationBlocksChat(configurationResource: URI, chat: URI): void {
 		const mutationOwner = this._workingDirectoryMutations.get(configurationResource);
-		if (mutationOwner && this._findChatByUri(chat) !== mutationOwner) {
+		if (mutationOwner && (mutationOwner instanceof Set ? !mutationOwner.has(chat.toString()) : this._findChatByUri(chat) !== mutationOwner)) {
 			throw new Error(`Cannot create or resume chat '${chat.toString()}' while its configuration working directory is changing`);
 		}
 	}
@@ -5428,7 +5573,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	protected _resumeSession(sessionId: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
 		if (chatChannelUri) {
-			this._chatBackings.set(chatChannelUri.toString(), { sdkSessionId: sessionId });
+			this._chatBackings.set(chatChannelUri.toString(), { ...this._chatBackings.get(chatChannelUri.toString()), sdkSessionId: sessionId });
 		}
 		const lifetime = this._getOrCreateSessionLifetime(sessionId);
 		if (!lifetime) {

@@ -15,6 +15,8 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	 * throwaway surfaces do not pay for session-management tooling.
 	 */
 	readonly enabledForEphemeralSessions?: boolean;
+	/** Only the owning session's default chat may discover or execute this tool. */
+	readonly mainChatOnly?: boolean;
 }
 
 /**
@@ -36,7 +38,7 @@ export interface IAgentServerToolHost {
 	/** Every server tool definition across the contributed groups. */
 	readonly definitions: readonly IAgentServerToolDefinition[];
 	/** Server tools eligible for the given session, honoring ephemeral eligibility. */
-	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[];
+	getDefinitionsForSession(sessionUri: URI, chatUri?: URI): readonly IAgentServerToolDefinition[];
 	/** Names of every server tool across the contributed groups. */
 	readonly toolNames: readonly string[];
 	/** Advertises all server tools on the session's `serverTools`. */

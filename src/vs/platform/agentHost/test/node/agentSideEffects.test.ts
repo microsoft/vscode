@@ -182,6 +182,9 @@ function createTestSideEffects(
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
+		onDidChangePendingSession: Event.None,
+		canIsolateSession: () => false,
+		requestSessionIsolation: () => { },
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => false,
 		cancel: () => { },

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { BrandedService, IConstructorSignature } from '../../../instantiation/common/instantiation.js';
@@ -836,6 +836,9 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
+		onDidChangePendingSession: Event.None,
+		canIsolateSession: () => false,
+		requestSessionIsolation: () => { },
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => false,
 		cancel: () => { },
@@ -885,8 +888,12 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	let conversionPending = false;
+	const conversionChanges = disposables.add(new Emitter<string>());
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
+		onDidChangePendingSession: conversionChanges.event,
+		canIsolateSession: () => false,
+		requestSessionIsolation: () => { },
 		requestSessionWorkspaceUpdate: () => { },
 		isPending: () => conversionPending,
 		cancel: () => { },
@@ -919,7 +926,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
+	return { service, stateManager, session, chat, pendingMessages, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => { conversionPending = pending; conversionChanges.fire(session); } };
 }
 
 function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {
@@ -1140,6 +1147,28 @@ suite('AgentHostChatContributions', () => {
 				stage: 'validation',
 			},
 		});
+	});
+
+	test('session isolation blocks peer requests and resumes each chat own queue on release', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const peer = buildChatUri(queue.session, 'peer');
+		queue.stateManager.addChat(queue.session, peer);
+		queue.setConversionPending(true);
+		for (const [chat, text] of [[queue.chat, 'main queued'], [peer, 'peer queued']]) {
+			const action = queuedMessage(text, text);
+			queue.stateManager.dispatchServerAction(chat, action);
+			queue.service.didApplyClientAction(appliedClientAction(chat, queue.session, action));
+		}
+		const peerAdmission = queue.service.incomingRequest(incomingRequest(queue.session, peer));
+		assert.deepStrictEqual({
+			admitted: queue.admitted.length, peerAdmission: peerAdmission.kind,
+			queued: [queue.chat, peer].map(chat => queue.stateManager.getChatState(chat)?.queuedMessages?.map(message => message.message.text)),
+		}, { admitted: 0, peerAdmission: 'reject', queued: [['main queued'], ['peer queued']] });
+		queue.setConversionPending(false);
+		assert.deepStrictEqual(queue.admitted.map(turn => ({ chat: turn.channel, message: turn.message.text })), [
+			{ chat: queue.chat, message: 'main queued' },
+			{ chat: peer, message: 'peer queued' },
+		]);
 	});
 
 	test('queue drain captures senders, handles pending actions, and honors reordering', () => {

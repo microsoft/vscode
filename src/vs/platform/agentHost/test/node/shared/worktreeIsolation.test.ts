@@ -1128,6 +1128,20 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('discardSessionWorktree preserves restored folder metadata after failed isolation', async () => {
+		const isolation = createIsolation(disposables);
+		await db.setMetadata('copilot.workingDirectory', repoRoot.toString());
+		await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		await isolation.discardSessionWorktree(sessionUri, sessionId, await isolation.prepareSessionDeletion(sessionUri, sessionId), { preserveWorkingDirectory: true });
+		assert.deepStrictEqual(await db.getMetadataObject({
+			'copilot.workingDirectory': true,
+			'copilot.worktree.path': true,
+		}), {
+			'copilot.workingDirectory': repoRoot.toString(),
+			'copilot.worktree.path': undefined,
+		});
+	});
+
 	test('session deletion removes a persisted worktree after a process restart', async () => {
 		const worktree = URI.joinPath(worktreesRoot, 'persisted-worktree');
 		mkdirSync(worktree.fsPath, { recursive: true });

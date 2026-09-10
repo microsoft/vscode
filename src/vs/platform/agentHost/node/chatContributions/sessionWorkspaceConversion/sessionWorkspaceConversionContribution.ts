@@ -29,6 +29,9 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 			void this._conversionService.updateSessionWorkspace(turn.channel, turn.turnId);
 		} else {
 			this._conversionService.cancel(turn.channel, turn.turnId);
+			if (turn.reason.kind !== 'rejected' && this._conversionService.isPending(turn.channel)) {
+				void this._conversionService.updateSessionWorkspace(turn.channel, turn.turnId);
+			}
 		}
 	}
 

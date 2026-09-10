@@ -5,7 +5,7 @@
 
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, isDefaultChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
@@ -185,10 +185,10 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		return this._groups.flatMap(group => group.definitions.filter(definition => group.isEnabled(definition.name)));
 	}
 
-	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
+	getDefinitionsForSession(sessionUri: URI, chatUri: URI = buildDefaultChatUri(sessionUri)): readonly IAgentServerToolDefinition[] {
 		const materializedDefinitions = this._stateManager.getSessionState(sessionUri)?.serverTools;
 		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
-		return this._groups.flatMap(group => {
+		return this._groups.flatMap<IAgentServerToolDefinition>(group => {
 			if (materializedDefinitions && group.materializeDefinitions) {
 				// A session's tool membership is fixed at materialization time, but
 				// each still-current tool's metadata (description, schema) is refreshed
@@ -204,7 +204,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 			}
 			const definitions = group.definitions.filter(definition => group.isEnabled(definition.name) && group.isEnabledForSession(definition.name, sessionUri));
 			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
-		});
+		}).filter(definition => !definition.mainChatOnly || this._isOwningChat(sessionUri, chatUri));
 	}
 
 	get toolNames(): readonly string[] {
@@ -265,11 +265,18 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
-		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, ...definition }) => definition);
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, mainChatOnly: _mainChatOnly, ...definition }) => definition);
+	}
+
+	private _isOwningChat(sessionUri: URI, chatUri: URI): boolean {
+		return !isSubagentSession(sessionUri) && isDefaultChatUri(chatUri) && parseRequiredSessionUriFromChatUri(chatUri) === sessionUri;
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
 		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+		if (group.definitions.find(definition => definition.name === toolName)?.mainChatOnly && !this._isOwningChat(sessionUri, chatUri)) {
+			return false;
+		}
 		if (!group.isEnabledForSession(toolName, sessionUri)) {
 			return false;
 		}

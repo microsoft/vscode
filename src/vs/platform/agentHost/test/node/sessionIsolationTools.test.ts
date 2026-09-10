@@ -1,0 +1,99 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
+import { createSessionIsolationToolGroup } from '../../node/shared/sessionIsolationTools.js';
+import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
+
+suite('Session isolation tool', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createHarness() {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const session = 'copilotcli:/session';
+		const main = buildDefaultChatUri(session);
+		const peer = buildChatUri(session, 'peer');
+		stateManager.createSession({
+			resource: session, provider: 'copilotcli', title: 'Project', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+		});
+		stateManager.addChat(session, peer);
+		const calls: { chat: string; turnId: string }[] = [];
+		let enabled = true;
+		const group = createSessionIsolationToolGroup({
+			canIsolateSession: () => enabled,
+			requestSessionIsolation: (chat, turnId) => calls.push({ chat: chat.toString(), turnId }),
+		});
+		const host = new AgentServerToolHost(stateManager, [group]);
+		host.advertise(session);
+		return { stateManager, host, group, session, main, peer, calls, disable: () => { enabled = false; } };
+	}
+
+	test('only advertises to the owning main chat and rejects peer and subagent calls', () => {
+		const { host, session, main, peer } = createHarness();
+		const childSession = buildSubagentSessionUri(URI.parse(session), 'worker').toString();
+		const child = buildDefaultChatUri(childSession);
+		assert.deepStrictEqual({
+			main: host.getDefinitionsForSession(session, main).map(tool => tool.name),
+			peer: host.getDefinitionsForSession(session, peer),
+			child: host.getDefinitionsForSession(childSession, child),
+		}, { main: [SessionServerToolName.IsolateSession], peer: [], child: [] });
+		assert.throws(() => host.executeTool(peer, SessionServerToolName.IsolateSession, {}), /disabled/);
+		assert.throws(() => host.executeTool(child, SessionServerToolName.IsolateSession, {}), /disabled/);
+	});
+
+	test('requests isolation from an active main-chat turn with no workspace arguments', () => {
+		const { stateManager, host, main, calls } = createHarness();
+		stateManager.dispatchServerAction(main, {
+			type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(),
+			message: { text: 'Continue in isolation', origin: { kind: MessageKind.User } },
+		});
+		assert.throws(() => host.executeTool(main, SessionServerToolName.IsolateSession, { workspace: '/other' }), /no arguments/);
+		const result = host.executeTool(main, SessionServerToolName.IsolateSession, {});
+		assert.deepStrictEqual(calls, [{ chat: main, turnId: 'turn-1' }]);
+		assert.match(String(result), /End this turn.*all active chats.*entire session.*automatically/);
+	});
+
+	test('does not execute outside a turn or after isolation is no longer available', () => {
+		const { host, session, main, disable } = createHarness();
+		assert.throws(() => host.executeTool(main, SessionServerToolName.IsolateSession, {}), /active turn/);
+		disable();
+		host.advertise(session);
+		assert.deepStrictEqual(host.getDefinitionsForSession(session), []);
+		assert.throws(() => host.executeTool(main, SessionServerToolName.IsolateSession, {}), /disabled/);
+	});
+
+	test('refreshes tool availability on an existing session instead of pinning initial membership', () => {
+		const { stateManager, host, session } = createHarness();
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionServerToolsChanged, tools: [] });
+		host.advertise(session);
+		assert.deepStrictEqual(stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name), [SessionServerToolName.IsolateSession]);
+	});
+
+	test('requires confirmation and explains session-wide effects and turn ordering', () => {
+		const { host, group, main } = createHarness();
+		const tool = group.definitions[0];
+		assert.deepStrictEqual({
+			canConfirm: host.canRequireConfirmation(tool.name),
+			confirms: host.requiresConfirmation(main, tool.name),
+			parameters: tool.inputSchema,
+			display: getServerToolDisplay(tool.name, {})?.displayName,
+		}, {
+			canConfirm: true, confirms: true, parameters: { type: 'object', properties: {} }, display: 'Isolate Session',
+		});
+		assert.match(tool.description!, /current session and all its chats/);
+		assert.match(tool.description!, /original folder is unchanged/);
+		assert.match(tool.description!, /blocks new turns.*waits for all active chats/);
+		assert.match(tool.description!, /final tool call.*end the turn/);
+	});
+});

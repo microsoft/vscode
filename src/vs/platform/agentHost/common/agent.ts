@@ -27,7 +27,7 @@ export class AgentHostStartError extends Error {
 	}
 }
 
-/** Reports a provider CWD error after the new directory became irreversible and authoritative. */
+/** Reports an unsafe CWD mutation; the directory must be retained while the host quarantines the session. */
 export class AgentWorkingDirectoryChangedError extends Error {
 	constructor(
 		readonly workingDirectory: URI,
@@ -1175,6 +1175,9 @@ export interface IAgent {
 	 * not advertise the capability MUST reject the call.
 	 */
 	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
+
+	/** Changes every backing in a session without sending turns; callers must gate workspaceConversion and drain/block all session turns and chat creation. */
+	setSessionWorkingDirectory?(session: URI, workingDirectory: URI): Promise<void>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;

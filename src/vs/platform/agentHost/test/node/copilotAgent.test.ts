@@ -7,6 +7,7 @@ import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemet
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { spy } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -43,7 +44,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -4201,6 +4202,298 @@ suite('CopilotAgent', () => {
 				await fs.rm(root, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
+		});
+
+		suite('session-wide working-directory conversion', () => {
+			async function createFixture() {
+				const root = await fs.mkdtemp('./.agent-session-cwd-');
+				const previous = URI.file(join(process.cwd(), root, 'previous'));
+				const next = URI.file(join(process.cwd(), root, 'next'));
+				await Promise.all([fs.mkdir(previous.fsPath), fs.mkdir(next.fsPath)]);
+				const session = AgentSession.uri('copilotcli', 'session-wide');
+				const chats = [defaultChatUri(session), URI.parse(buildChatUri(session, 'live-peer')), URI.parse(buildChatUri(session, 'cold-peer'))];
+				const resources = [session, ...chats.slice(1)];
+				const sdkSessions = [new MockCopilotSession('session-wide'), new MockCopilotSession('live-sdk'), new MockCopilotSession('cold-sdk')];
+				const client = new TestCopilotClient([]);
+				const resumed: { id: string; directory: string | undefined }[] = [];
+				let sends = 0;
+				for (const sdk of sdkSessions) {
+					sdk.send = async () => { sends++; return ''; };
+				}
+				client.resumeSession = async (id, options) => {
+					resumed.push({ id, directory: options.workingDirectory });
+					const sdk = sdkSessions.find(sdk => sdk.sessionId === id);
+					assert.ok(sdk);
+					return sdk as unknown as CopilotSession;
+				};
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const worktreeIsolation = new NullAgentHostWorktreeIsolation();
+				const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation });
+				await agent.authenticate('https://api.github.com', 'token');
+				for (const [index, chat] of chats.entries()) {
+					await agent.materializeChat(chat, exactChatContext(session, chat, resources[index]), JSON.stringify({
+						sdkSessionId: sdkSessions[index].sessionId,
+						model: { id: `model-${index}` },
+					}));
+					const db = sessionDataService.openDatabase(resources[index]);
+					try {
+						await db.object.setMetadata('copilot.workingDirectory', previous.toString());
+						await db.object.setMetadata('copilot.workingDirectories', JSON.stringify([previous.toString()]));
+						await db.object.setMetadata('copilot.customizationDirectory', previous.toString());
+					} finally {
+						db.dispose();
+					}
+				}
+				await agent.chats.getMessages(chats[1], exactChatContext(session, chats[1]));
+				const activeClient = (agent as unknown as {
+					_activeClients: Map<URI, { pluginController: { directory?: URI; reanchor(directory: URI): void } }>;
+				})._activeClients.get(session)!;
+				const reanchor = spy(activeClient.pluginController, 'reanchor');
+				disposables.add(toDisposable(() => reanchor.restore()));
+				const reanchors = () => reanchor.getCalls().map(call => call.args[0].toString());
+				const metadata = async () => Promise.all(resources.map(async resource => {
+					const db = sessionDataService.openDatabase(resource);
+					try {
+						return await db.object.getMetadataObject({
+							'copilot.workingDirectory': true,
+							'copilot.workingDirectories': true,
+							'copilot.customizationDirectory': true,
+						});
+					} finally {
+						db.dispose();
+					}
+				}));
+				return {
+					agent, session, chats, resources, sdkSessions, client, worktreeIsolation, sessionDataService, previous, next, resumed, reanchors, metadata,
+					sends: () => sends,
+					pluginDirectory: () => activeClient.pluginController.directory?.toString(),
+					dispose: async () => {
+						await disposeAgent(agent);
+						await fs.rm(root, { recursive: true, force: true });
+					},
+				};
+			}
+
+			test('source-disappearance guard rejects a missing original folder before cold resume', async () => {
+				const fixture = await createFixture();
+				try {
+					const before = await fixture.metadata();
+					await fs.rm(fixture.previous.fsPath, { recursive: true });
+					await assert.rejects(() => fixture.agent.setSessionWorkingDirectory(fixture.session, fixture.next), error =>
+						error instanceof Error && !(error instanceof AgentWorkingDirectoryChangedError) && /original directory/.test(error.message));
+					assert.deepStrictEqual({
+						resumed: fixture.resumed,
+						calls: fixture.sdkSessions.map(sdk => sdk.workingDirectoryCalls),
+						metadata: await fixture.metadata(),
+					}, {
+						resumed: [{ id: 'live-sdk', directory: fixture.previous.fsPath }],
+						calls: [[], [], []],
+						metadata: before,
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('source-disappearance guard quarantines a cold resume repaired into the destination', async () => {
+				const fixture = await createFixture();
+				try {
+					fixture.worktreeIsolation.resolveWorkingDirectoryForResume = async () => {
+						await fs.rm(fixture.previous.fsPath, { recursive: true });
+						return fixture.next;
+					};
+					await assert.rejects(() => fixture.agent.setSessionWorkingDirectory(fixture.session, fixture.next), error =>
+						error instanceof AgentWorkingDirectoryChangedError
+						&& error.workingDirectory.toString() === fixture.next.toString()
+						&& /did not preserve/.test(error.message));
+					assert.deepStrictEqual({
+						resumed: fixture.resumed,
+						calls: fixture.sdkSessions.map(sdk => sdk.workingDirectoryCalls),
+						directory: getPeerChatStub(fixture.agent, fixture.chats[0])?.workingDirectory?.toString(),
+					}, {
+						resumed: [
+							{ id: 'live-sdk', directory: fixture.previous.fsPath },
+							{ id: 'session-wide', directory: fixture.next.fsPath },
+						],
+						calls: [[], [], []],
+						directory: fixture.next.toString(),
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('source-disappearance guard quarantines a failed SDK resume after its customization anchor moved', async () => {
+				const fixture = await createFixture();
+				try {
+					fixture.worktreeIsolation.resolveWorkingDirectoryForResume = async () => {
+						await fs.rm(fixture.previous.fsPath, { recursive: true });
+						return fixture.next;
+					};
+					fixture.client.resumeSession = async () => { throw new Error('resume failed after repair'); };
+					await assert.rejects(() => fixture.agent.setSessionWorkingDirectory(fixture.session, fixture.next), error =>
+						error instanceof AgentWorkingDirectoryChangedError
+						&& error.workingDirectory.toString() === fixture.next.toString()
+						&& /resume failed after repair/.test(error.message));
+					assert.deepStrictEqual({
+						calls: fixture.sdkSessions.map(sdk => sdk.workingDirectoryCalls),
+						plugin: fixture.pluginDirectory(),
+					}, { calls: [[], [], []], plugin: fixture.next.toString() });
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('switches live and cold default/peer backings once without sending or changing identities', async () => {
+				const fixture = await createFixture();
+				const { agent, session, chats, resources, previous, next, sdkSessions } = fixture;
+				try {
+					const backings = chats.map(chat => ({ ...chatBackings(agent).get(chat.toString()) }));
+					const livePeer = getPeerChatStub(agent, chats[1]);
+					await agent.setSessionWorkingDirectory(session, next);
+					assert.deepStrictEqual({
+						backings: chats.map(chat => chatBackings(agent).get(chat.toString())),
+						sameLivePeer: getPeerChatStub(agent, chats[1]) === livePeer,
+						sends: fixture.sends(),
+						calls: sdkSessions.map(sdk => sdk.workingDirectoryCalls),
+						reanchors: fixture.reanchors().filter(directory => directory === next.toString()),
+						plugin: fixture.pluginDirectory(),
+						metadata: await fixture.metadata(),
+					}, {
+						backings, sameLivePeer: true, sends: 0,
+						calls: sdkSessions.map(() => [next.fsPath]),
+						reanchors: [next.toString()], plugin: next.toString(),
+						metadata: resources.map(() => ({
+							'copilot.workingDirectory': next.toString(),
+							'copilot.workingDirectories': JSON.stringify([next.toString()]),
+							'copilot.customizationDirectory': next.toString(),
+						})),
+					});
+					for (const [index, chat] of chats.entries()) {
+						await agent.chats.releaseChat(chat, exactChatContext(session, chat, resources[index]));
+						await agent.chats.getMessages(chat, exactChatContext(session, chat, resources[index]));
+					}
+					assert.deepStrictEqual(fixture.resumed, [
+						{ id: 'live-sdk', directory: previous.fsPath },
+						{ id: 'session-wide', directory: previous.fsPath },
+						{ id: 'cold-sdk', directory: previous.fsPath },
+						...sdkSessions.map(sdk => ({ id: sdk.sessionId, directory: next.fsPath })),
+					]);
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('restores every changed backing and original metadata even after host worktree metadata was persisted', async () => {
+				const fixture = await createFixture();
+				try {
+					const before = await fixture.metadata();
+					const database = fixture.sessionDataService.openDatabase(fixture.session);
+					try {
+						await database.object.setMetadata('copilot.worktree.path', fixture.next.toString());
+						await database.object.setMetadata('copilot.worktree.repositoryRoot', fixture.previous.toString());
+						await database.object.setMetadata('copilot.worktree.branchName', 'isolated-branch');
+					} finally {
+						database.dispose();
+					}
+					fixture.sdkSessions[2].workingDirectoryErrors.push(new Error('peer mutation failed'));
+					await assert.rejects(() => fixture.agent.setSessionWorkingDirectory(fixture.session, fixture.next), error => {
+						assert.ok(error instanceof Error && !(error instanceof AgentWorkingDirectoryChangedError));
+						return /peer mutation failed/.test(error.message);
+					});
+					assert.deepStrictEqual({
+						calls: fixture.sdkSessions.map(sdk => sdk.workingDirectoryCalls),
+						metadata: await fixture.metadata(),
+						plugin: fixture.pluginDirectory(),
+						sends: fixture.sends(),
+						resumeDirectories: fixture.resumed.map(resume => resume.directory),
+					}, {
+						calls: [[fixture.next.fsPath, fixture.previous.fsPath], [fixture.next.fsPath, fixture.previous.fsPath], [fixture.next.fsPath]],
+						metadata: before, plugin: fixture.previous.toString(), sends: 0,
+						resumeDirectories: [fixture.previous.fsPath, fixture.previous.fsPath, fixture.previous.fsPath],
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('updates SDK subagent transcript metadata through its parent without creating another backing', async () => {
+				const fixture = await createFixture();
+				try {
+					const subagent = URI.parse(buildSubagentChatUri(fixture.chats[1].toString(), 'tool-1'));
+					await fixture.agent.materializeChat(subagent, exactChatContext(fixture.session, subagent), undefined);
+					await fixture.agent.setSessionWorkingDirectory(fixture.session, fixture.next);
+					const db = fixture.sessionDataService.openDatabase(subagent);
+					try {
+						assert.deepStrictEqual({
+							backing: chatBackings(fixture.agent).get(subagent.toString()),
+							directory: await db.object.getMetadata('copilot.workingDirectory'),
+							resumed: fixture.resumed.map(resume => resume.id),
+							sends: fixture.sends(),
+						}, {
+							backing: undefined, directory: fixture.next.toString(),
+							resumed: ['live-sdk', 'session-wide', 'cold-sdk'], sends: 0,
+						});
+					} finally {
+						db.dispose();
+					}
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('treats a compensated SDK directory mismatch as a safe failure', async () => {
+				const fixture = await createFixture();
+				try {
+					const before = await fixture.metadata();
+					fixture.sdkSessions[1].workingDirectoryResults.push(fixture.previous.fsPath);
+					await assert.rejects(() => fixture.agent.setSessionWorkingDirectory(fixture.session, fixture.next), error => {
+						assert.ok(error instanceof Error && !(error instanceof AgentWorkingDirectoryChangedError));
+						return /instead of/.test(error.message);
+					});
+					assert.deepStrictEqual({
+						calls: fixture.sdkSessions.map(sdk => sdk.workingDirectoryCalls),
+						metadata: await fixture.metadata(),
+						plugin: fixture.pluginDirectory(),
+					}, {
+						calls: [[fixture.next.fsPath, fixture.previous.fsPath], [fixture.next.fsPath, fixture.previous.fsPath], []],
+						metadata: before, plugin: fixture.previous.toString(),
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('rolls back shared customization and peer metadata preparation before any SDK mutation', async () => {
+				const fixture = await createFixture();
+				try {
+					const before = await fixture.metadata();
+					fixture.sessionDataService.failNextMetadataWrite(fixture.resources[2], 'copilot.workingDirectories', new Error('peer metadata failed'));
+					await assert.rejects(() => fixture.agent.setSessionWorkingDirectory(fixture.session, fixture.next), /peer metadata failed/);
+					assert.deepStrictEqual({
+						calls: fixture.sdkSessions.map(sdk => sdk.workingDirectoryCalls),
+						metadata: await fixture.metadata(),
+						plugin: fixture.pluginDirectory(),
+					}, { calls: [[], [], []], metadata: before, plugin: fixture.previous.toString() });
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('requests quarantine and retention of the destination if SDK compensation fails', async () => {
+				const fixture = await createFixture();
+				try {
+					fixture.sdkSessions[0].workingDirectoryErrors.push(undefined, new Error('rollback failed'));
+					fixture.sdkSessions[2].workingDirectoryErrors.push(new Error('peer mutation failed'));
+					await assert.rejects(() => fixture.agent.setSessionWorkingDirectory(fixture.session, fixture.next), error => {
+						assert.ok(error instanceof AgentWorkingDirectoryChangedError);
+						assert.strictEqual(error.workingDirectory.toString(), fixture.next.toString());
+						return /rollback failed/.test(error.message);
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
 		});
 
 		test('rejects an exact chat without a live backing instead of resuming it', async () => {

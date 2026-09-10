@@ -158,7 +158,16 @@ export function createAgentServiceComposition(
 		};
 		const serverToolHost = new AgentServerToolHost(
 			stateManager,
-			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
+			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor, {
+				canIsolateSession: session => workspaceConversionService.value?.canIsolateSession(session) === true,
+				requestSessionIsolation: (chat, turnId) => {
+					const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
+					if (!initiatingClientId || !workspaceConversionService.value) {
+						throw new Error('Session isolation requires a turn initiated by a connected client.');
+					}
+					workspaceConversionService.value.requestSessionIsolation(chat, turnId, initiatingClientId);
+				},
+			}),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));
