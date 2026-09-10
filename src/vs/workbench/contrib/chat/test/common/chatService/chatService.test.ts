@@ -480,6 +480,24 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(model));
 	});
 
+	test('passes request metadata to the participant without adding it to the prompt', async () => {
+		const requests: { message: string; metadata: Record<string, unknown> | undefined }[] = [];
+		testDisposables.add(chatAgentService.registerAgent('metadataAgent', getAgentData('metadataAgent')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('metadataAgent', {
+			async invoke(request) {
+				requests.push({ message: request.message, metadata: request.metadata });
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const metadata = { 'test.request': { enabled: true } };
+		const response = await service.sendRequest(model.sessionResource, 'hello', { agentId: 'metadataAgent', metadata });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		assert.deepStrictEqual(requests, [{ message: 'hello', metadata }]);
+	});
+
 	test('history', async () => {
 		const historyLengthAgent: IChatAgentImplementation = {
 			async invoke(request, progress, history, token) {
