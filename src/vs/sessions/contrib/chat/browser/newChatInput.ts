@@ -1162,7 +1162,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// editor. Placed before the voice controls so dictation leads the
 		// mic-related group.
 		try {
-			this._createSpeechToTextButton(toolbar, visible => {
+			this._createSpeechToTextButton(toolbar, voiceInputModePillActive, visible => {
 				dictationActionVisible = visible;
 				updateVoiceInputActionBorder();
 			});
@@ -1287,7 +1287,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 	}
 
-	private _createSpeechToTextButton(container: HTMLElement, onDidChangeVisibility: (visible: boolean) => void): void {
+	private _createSpeechToTextButton(container: HTMLElement, voiceInputModePillActive: IObservable<boolean>, onDidChangeVisibility: (visible: boolean) => void): void {
 		const sttService = this.chatSpeechToTextService;
 		const isDictationInputActive = observableFromEvent(
 			this,
