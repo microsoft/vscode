@@ -140,7 +140,13 @@ suite('SessionChatInputToolbar', () => {
 	}
 
 	test('adds rich GitHub hovers only when live details are available', async () => {
-		const commandService = upcastPartial<ICommandService>({ executeCommand: async () => undefined });
+		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];
+		const commandService = upcastPartial<ICommandService>({
+			executeCommand: async (id, ...args) => {
+				commands.push({ id, args });
+				return undefined;
+			},
+		});
 		const clipboardService = upcastPartial<IClipboardService>({ writeText: async () => { } });
 		const openerService = upcastPartial<IOpenerService>({ open: async () => true });
 		const sessionsService = upcastPartial<ISessionsService>({ setActive: () => { } });
@@ -225,6 +231,7 @@ suite('SessionChatInputToolbar', () => {
 		};
 		const pullRequestHover = await renderHover(pullRequestEntry);
 		const issueHover = await renderHover(issueEntry);
+		unresolvedIssueEntry?.open();
 
 		assert.deepStrictEqual({
 			pullRequest: {
@@ -245,6 +252,7 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedAriaLabel: unresolvedIssueEntry?.ariaLabel,
 				unresolvedTooltip: unresolvedIssueEntry?.tooltip,
 				unresolvedHover: unresolvedIssueEntry?.pillHover,
+				openCommands: commands,
 			},
 		}, {
 			pullRequest: {
@@ -265,6 +273,10 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
 				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
 				unresolvedHover: undefined,
+				openCommands: [{
+					id: 'workbench.agentSessions.action.openIssue',
+					args: [{ issue: issueRef }],
+				}],
 			},
 		});
 	});

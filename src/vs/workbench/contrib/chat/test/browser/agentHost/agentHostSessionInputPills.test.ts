@@ -187,12 +187,18 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
-		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+		const [clipboardService, configurationService, editorService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
 			accessor.get(IConfigurationService),
 			accessor.get(IEditorService),
-			accessor.get(IOpenerService),
 		] as const);
+		const opened: { readonly resource: URI; readonly openExternal: boolean | undefined }[] = [];
+		const openerService = upcastPartial<IOpenerService>({
+			open: async (resource, options) => {
+				opened.push({ resource, openExternal: options?.openExternal });
+				return true;
+			},
+		});
 
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -208,14 +214,17 @@ suite('AgentHostSessionInputPills', () => {
 		));
 
 		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
+		button?.click();
 		assert.deepStrictEqual({
 			label: button?.querySelector('.chat-pill-label')?.textContent,
 			ariaLabel: button?.getAttribute('aria-label'),
 			ariaDescription: button?.getAttribute('aria-description'),
+			opened: opened.map(({ resource, openExternal }) => ({ resource: resource.toString(true), openExternal })),
 		}, {
 			label: 'Issue #335383: Agent Window issue pill discards the recorded issue title',
 			ariaLabel: 'Open Issue #335383: Agent Window issue pill discards the recorded issue title',
 			ariaDescription: issueUrl,
+			opened: [{ resource: issueUrl, openExternal: true }],
 		});
 	});
 
