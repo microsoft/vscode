@@ -1796,9 +1796,9 @@ suite('AutomationsCardsWidget', () => {
 			argument: current,
 			anchor: moreActionsButton,
 			actions: [
+				{ id: 'sessions.automations.enable', enabled: true },
 				{ id: 'sessions.automations.duplicate', enabled: true },
 				{ id: 'sessions.automations.export', enabled: true },
-				{ id: 'sessions.automations.disable', enabled: false },
 				{ id: 'sessions.automations.delete', enabled: false },
 			],
 			openState: {
@@ -1842,9 +1842,9 @@ suite('AutomationsCardsWidget', () => {
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
 		assert.deepStrictEqual(menuActions.map(action => ({ id: action.id, enabled: action.enabled })), [
+			{ id: 'sessions.automations.enable', enabled: true },
 			{ id: 'sessions.automations.duplicate', enabled: true },
 			{ id: 'sessions.automations.export', enabled: true },
-			{ id: 'sessions.automations.disable', enabled: false },
 			{ id: 'sessions.automations.delete', enabled: true },
 		]);
 		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
@@ -1987,7 +1987,7 @@ suite('AutomationsCardsWidget', () => {
 			delegate.contextKeyService ?? contextKeyService,
 			delegate.menuActionOptions,
 		).flatMap(([, actions]) => actions);
-		assert.deepStrictEqual(duplicateActions.map(action => action.id), ['sessions.automations.duplicate', 'sessions.automations.export', 'sessions.automations.disable', 'sessions.automations.delete']);
+		assert.deepStrictEqual(duplicateActions.map(action => action.id), ['sessions.automations.disable', 'sessions.automations.duplicate', 'sessions.automations.export', 'sessions.automations.delete']);
 		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
 		assert.ok(command);
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
@@ -2008,58 +2008,76 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('disable context menu action disables the automation and then becomes unavailable', async () => {
+	test('Enable and Disable are the first menu action and toggle with Automation state', async () => {
 		const { automationService, contextKeyService, contextMenuService, instantiationService, widget } = setup();
 		const source = automation();
 		automationService.setAutomations([source]);
-		const getDisableAction = () => {
+		const getMenuActions = () => {
 			const delegate = openAutomationCardMenu(widget, contextMenuService);
 			return instantiationService.get(IMenuService).getMenuActions(
 				Menus.AutomationCardContext,
 				delegate.contextKeyService ?? contextKeyService,
 				delegate.menuActionOptions,
-			).flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.disable');
+			).flatMap(([, actions]) => actions);
 		};
-		const command = CommandsRegistry.getCommand('sessions.automations.disable');
-		assert.ok(command);
+		const disableCommand = CommandsRegistry.getCommand('sessions.automations.disable');
+		const enableCommand = CommandsRegistry.getCommand('sessions.automations.enable');
+		assert.ok(disableCommand);
+		assert.ok(enableCommand);
 
-		const initiallyEnabled = getDisableAction()?.enabled;
-		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
-		const enabledAfterDisable = getDisableAction()?.enabled;
+		const enabledMenuActions = getMenuActions().map(action => action.id);
+		await instantiationService.invokeFunction(accessor => disableCommand.handler(accessor, source));
+		const disabledAutomation = automationService.automations.get()[0];
+		const disabledMenuActions = getMenuActions().map(action => action.id);
+		await instantiationService.invokeFunction(accessor => enableCommand.handler(accessor, disabledAutomation));
 
 		assert.deepStrictEqual({
-			initiallyEnabled,
-			enabledAfterDisable,
+			enabledMenuActions,
+			disabledMenuActions,
 			updateCalls: automationService.guardedUpdateCalls,
 			automationEnabled: automationService.automations.get()[0].enabled,
 		}, {
-			initiallyEnabled: true,
-			enabledAfterDisable: false,
-			updateCalls: [{ id: source.id, patch: { enabled: false }, expected: source }],
-			automationEnabled: false,
+			enabledMenuActions: ['sessions.automations.disable', 'sessions.automations.duplicate', 'sessions.automations.export', 'sessions.automations.delete'],
+			disabledMenuActions: ['sessions.automations.enable', 'sessions.automations.duplicate', 'sessions.automations.export', 'sessions.automations.delete'],
+			updateCalls: [
+				{ id: source.id, patch: { enabled: false }, expected: source },
+				{ id: source.id, patch: { enabled: true }, expected: disabledAutomation },
+			],
+			automationEnabled: true,
 		});
 	});
 
-	test('disable context menu action is unavailable when updates are unsupported', async () => {
+	test('Enable and Disable are unavailable when updates are unsupported', async () => {
 		const { automationService, contextKeyService, contextMenuService, instantiationService, widget } = setup();
 		automationService.canUpdate = false;
-		const source = automation();
-		automationService.setAutomations([source]);
-		const delegate = openAutomationCardMenu(widget, contextMenuService);
-		const disableAction = instantiationService.get(IMenuService).getMenuActions(
-			Menus.AutomationCardContext,
-			delegate.contextKeyService ?? contextKeyService,
-			delegate.menuActionOptions,
-		).flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.disable');
-		const command = CommandsRegistry.getCommand('sessions.automations.disable');
-		assert.ok(command);
-		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		const enabledAutomation = automation();
+		const disabledAutomation = automation({ enabled: false });
+		const getFirstAction = () => {
+			const delegate = openAutomationCardMenu(widget, contextMenuService);
+			return instantiationService.get(IMenuService).getMenuActions(
+				Menus.AutomationCardContext,
+				delegate.contextKeyService ?? contextKeyService,
+				delegate.menuActionOptions,
+			).flatMap(([, actions]) => actions)[0];
+		};
+		automationService.setAutomations([enabledAutomation]);
+		const disableAction = getFirstAction();
+		automationService.setAutomations([disabledAutomation]);
+		const enableAction = getFirstAction();
+		const disableCommand = CommandsRegistry.getCommand('sessions.automations.disable');
+		const enableCommand = CommandsRegistry.getCommand('sessions.automations.enable');
+		assert.ok(disableCommand);
+		assert.ok(enableCommand);
+		await instantiationService.invokeFunction(accessor => disableCommand.handler(accessor, enabledAutomation));
+		await instantiationService.invokeFunction(accessor => enableCommand.handler(accessor, disabledAutomation));
 
 		assert.deepStrictEqual({
-			actionEnabled: disableAction?.enabled,
+			disableAction: { id: disableAction?.id, enabled: disableAction?.enabled },
+			enableAction: { id: enableAction?.id, enabled: enableAction?.enabled },
 			updateCalls: automationService.guardedUpdateCalls,
 		}, {
-			actionEnabled: false,
+			disableAction: { id: 'sessions.automations.disable', enabled: false },
+			enableAction: { id: 'sessions.automations.enable', enabled: false },
 			updateCalls: [],
 		});
 	});
@@ -2161,9 +2179,9 @@ suite('AutomationsCardsWidget', () => {
 			deleteCalls: automationService.deleteCalls,
 		}, {
 			actions: [
+				{ id: 'sessions.automations.disable', enabled: true },
 				{ id: 'sessions.automations.duplicate', enabled: true },
 				{ id: 'sessions.automations.export', enabled: true },
-				{ id: 'sessions.automations.disable', enabled: true },
 				{ id: 'sessions.automations.delete', enabled: false },
 			],
 			confirmations: 0,
@@ -2231,6 +2249,7 @@ suite('AutomationsCardsWidget', () => {
 			moreActionsAriaLabel: moreActionsButton.getAttribute('aria-label'),
 			moreActionsRole: moreActionsButton.getAttribute('role'),
 			moreActionsHasPopup: moreActionsButton.getAttribute('aria-haspopup'),
+			moreActionsUsesVerticalIcon: !!moreActionsButton.querySelector('.codicon-kebab-vertical'),
 			keyboardMenuIds: contextMenuService.menuDelegates.map(delegate => delegate.menuId),
 		}, {
 			movedToMoreActions: true,
@@ -2240,6 +2259,7 @@ suite('AutomationsCardsWidget', () => {
 			moreActionsAriaLabel: 'More Actions for Daily review',
 			moreActionsRole: 'button',
 			moreActionsHasPopup: 'menu',
+			moreActionsUsesVerticalIcon: true,
 			keyboardMenuIds: [Menus.AutomationCardContext, Menus.AutomationCardContext],
 		});
 	});
