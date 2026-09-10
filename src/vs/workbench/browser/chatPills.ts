@@ -349,6 +349,14 @@ export class ChatPillsWidget extends Disposable {
 		return elements;
 	}
 
+	focusFirst(): boolean {
+		if (this._toolbar.getItemsLength() === 0) {
+			return false;
+		}
+		this._toolbar.focus(0);
+		return true;
+	}
+
 	/**
 	 * The pill whose rendered item contains `target`, if any. Toolbar items are
 	 * rendered in pill order, so their position identifies them without each

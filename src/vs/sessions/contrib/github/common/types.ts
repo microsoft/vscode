@@ -74,6 +74,7 @@ export interface IGitHubPullRequest {
 	readonly createdAt: string;
 	readonly updatedAt: string;
 	readonly mergedAt: string | undefined;
+	readonly closedAt?: string;
 	readonly mergeable: boolean | undefined;
 	readonly mergeableState: string;
 }

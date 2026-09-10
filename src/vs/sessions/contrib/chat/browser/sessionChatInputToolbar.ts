@@ -43,8 +43,8 @@ import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../ser
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
-import { createIssueHoverElement } from '../../github/browser/issueHover.js';
-import { createPullRequestHoverElement } from '../../github/browser/pullRequestHover.js';
+import { createIssueHover } from '../../github/browser/issueHover.js';
+import { createPullRequestHover } from '../../github/browser/pullRequestHover.js';
 import { linkKey } from '../../../common/sessionLinks.js';
 
 /** Fake artifacts for the pill debug overlay. */
@@ -72,11 +72,13 @@ function getPullRequestAttention(icon: ThemeIcon, status: IResolvedSessionPullRe
 	return undefined;
 }
 
-function getGitHubRepositoryHoverData(owner: string, repo: string, openerService: IOpenerService) {
+function getGitHubHoverLinkData(owner: string, repo: string, reference: URI, openerService: IOpenerService) {
 	const repository = URI.parse(`https://github.com/${owner}/${repo}`);
 	return {
 		repositoryHref: repository.toString(true),
+		referenceHref: reference.toString(true),
 		onDidClickRepository: () => { void openerService.open(repository, { openExternal: true }); },
+		onDidClickReference: () => { void openerService.open(reference, { openExternal: true }); },
 	};
 }
 
@@ -85,6 +87,22 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status }) => {
 		const artifacts = artifactActions?.artifacts.filter(artifact => artifact.isArtifact && artifact.kind === SessionArtifactKind.PullRequest && artifact.link && linkKey(artifact.link.toString(true)) === linkKey(ref.uri.toString(true)));
 		const title = pullRequest?.title ?? ref.title;
+		let hoverTabbableElements: readonly HTMLElement[] = [];
+		const createHover = pullRequest ? (density: 'default' | 'compact') => createPullRequestHover({
+			owner: ref.owner,
+			repo: ref.repo,
+			number: ref.number,
+			...getGitHubHoverLinkData(ref.owner, ref.repo, ref.uri, openerService),
+			pullRequest,
+			density,
+			...(pullRequest.baseRef ? { onDidClickBaseBranch: () => { void clipboardService.writeText(pullRequest.baseRef); } } : {}),
+			...(pullRequest.headRef ? { onDidClickHeadBranch: () => { void clipboardService.writeText(pullRequest.headRef); } } : {}),
+		}) : undefined;
+		const createDropdownHover = createHover ? () => {
+			const hover = createHover('compact');
+			hoverTabbableElements = hover.tabbableElements;
+			return hover.element;
+		} : undefined;
 		const label = title
 			? localize('sessionChatPills.pullRequestWithTitle', "Pull Request #{0}: {1}", ref.number, title)
 			: localize('sessionChatPills.pullRequest', "Pull Request #{0}", ref.number);
@@ -124,16 +142,9 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			...getChatPillResourceLocation(ref.uri, label),
 			ariaDescription: localize('sessionChatPills.pullRequestDescription', "{0}. {1}", stateDescription, ref.uri.toString(true)),
 			...(!pullRequest && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
-			...(pullRequest ? {
-				pillHover: {
-					element: () => createPullRequestHoverElement({
-						owner: ref.owner,
-						repo: ref.repo,
-						number: ref.number,
-						...getGitHubRepositoryHoverData(ref.owner, ref.repo, openerService),
-						pullRequest,
-					}),
-				},
+			...(createDropdownHover && createHover ? {
+				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+				pillHover: { element: () => createHover('default').element },
 			} : {}),
 			open: () => {
 				if (session) {
@@ -155,6 +166,20 @@ interface IResolvedSessionIssue {
 export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPillSection[] {
 	const entries = issues.map(({ ref, issue }) => {
 		const title = issue?.title ?? ref.title;
+		let hoverTabbableElements: readonly HTMLElement[] = [];
+		const createHover = issue ? (density: 'default' | 'compact') => createIssueHover({
+			owner: ref.owner,
+			repo: ref.repo,
+			number: ref.number,
+			...getGitHubHoverLinkData(ref.owner, ref.repo, ref.uri, openerService),
+			issue,
+			density,
+		}) : undefined;
+		const createDropdownHover = createHover ? () => {
+			const hover = createHover('compact');
+			hoverTabbableElements = hover.tabbableElements;
+			return hover.element;
+		} : undefined;
 		const label = title
 			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, title)
 			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
@@ -171,16 +196,9 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			})],
 			...getChatPillResourceLocation(ref.uri, label),
 			...(!issue && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
-			...(issue ? {
-				pillHover: {
-					element: () => createIssueHoverElement({
-						owner: ref.owner,
-						repo: ref.repo,
-						number: ref.number,
-						...getGitHubRepositoryHoverData(ref.owner, ref.repo, openerService),
-						issue,
-					}),
-				},
+			...(createDropdownHover && createHover ? {
+				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+				pillHover: { element: () => createHover('default').element },
 			} : {}),
 			open: () => {
 				if (session) {
@@ -419,6 +437,10 @@ export class SessionChatInputToolbar extends Disposable {
 
 	getChatPetPlatformElements(): readonly HTMLElement[] {
 		return this._inputPills.getPillElements();
+	}
+
+	focusFirst(): boolean {
+		return this._inputPills.focusFirst();
 	}
 
 	/**

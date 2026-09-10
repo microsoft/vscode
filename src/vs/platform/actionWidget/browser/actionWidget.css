@@ -609,6 +609,10 @@
 	user-select: text;
 }
 
+.action-list-submenu-hover-header.content-owns-padding {
+	padding: 0;
+}
+
 .action-list-submenu-hover-header a {
 	color: var(--vscode-textLink-foreground);
 }

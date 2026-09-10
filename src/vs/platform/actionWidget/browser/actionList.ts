@@ -69,6 +69,15 @@ export interface IActionListItemHover {
 	/** Whether to show the expandable hover's row chevron. Defaults to true. */
 	readonly showIndicator?: boolean;
 	/**
+	 * Includes the focused row's toolbar actions and hover-panel controls in one
+	 * Tab sequence while the list retains Up/Down navigation ownership.
+	 */
+	readonly tabThroughPanel?: boolean;
+	/** Interactive elements owned by the hover content, in forward Tab order. */
+	readonly getTabbableElements?: () => readonly HTMLElement[];
+	/** Whether the hover content supplies its own inset from the panel boundary. */
+	readonly contentOwnsPadding?: boolean;
+	/**
 	 * CSS class set on the hover panel while this item's hover is showing, so a
 	 * consumer can style the panel without reaching for the content inside it.
 	 */
@@ -285,6 +294,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		private readonly _hideDefaultKeybindingTooltip: boolean,
 		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Switch) => IDisposable,
+		private readonly _registerToolbar: (item: IActionListItem<T>, toolbar: ActionBar) => IDisposable,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -511,6 +521,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			const actionBar = new ActionBar(data.toolbar);
 			data.elementDisposables.add(actionBar);
 			actionBar.push(toolbarActions, { icon: true, label: false });
+			data.elementDisposables.add(this._registerToolbar(element, actionBar));
 		}
 
 		if (hasSubmenuIndicator(element)) {
@@ -790,6 +801,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 	private readonly _standaloneToggles = new Map<IActionListItem<T>, Switch>();
+	private readonly _itemToolbars = new Map<IActionListItem<T>, ActionBar>();
 	private _visibleMenuItems: readonly IActionListItem<T>[];
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
@@ -845,6 +857,13 @@ export class ActionListWidget<T> extends Disposable {
 		// the way back to the row it belongs to lives here. A panel that does have a
 		// submenu list stops these keys before they reach this handler.
 		this._register(dom.addDisposableListener(this._submenuContainer, 'keydown', (e: KeyboardEvent) => {
+			if ((e.key === 'Enter' || e.key === ' ') && this._currentSubmenuElement?.hover?.tabThroughPanel) {
+				const target = dom.isHTMLElement(e.target) ? e.target : undefined;
+				if (target && this._currentSubmenuElement.hover.getTabbableElements?.().includes(target)) {
+					e.stopPropagation();
+					return;
+				}
+			}
 			if (e.key !== 'ArrowLeft' && e.key !== 'Escape') {
 				return;
 			}
@@ -909,6 +928,13 @@ export class ActionListWidget<T> extends Disposable {
 				return toDisposable(() => {
 					if (this._standaloneToggles.get(item) === toggle) {
 						this._standaloneToggles.delete(item);
+					}
+				});
+			}, (item, toolbar) => {
+				this._itemToolbars.set(item, toolbar);
+				return toDisposable(() => {
+					if (this._itemToolbars.get(item) === toolbar) {
+						this._itemToolbars.delete(item);
 					}
 				});
 			}, this._keybindingService, this._openerService),
@@ -1205,7 +1231,9 @@ export class ActionListWidget<T> extends Disposable {
 						const rowElement = this._getRowElement(focused[0]);
 						if (rowElement) {
 							this._showSubmenuForElement(element, rowElement);
-							if (this._currentSubmenuWidget) {
+							if (element.hover?.tabThroughPanel) {
+								this._focusFirstTabThroughPanelControl(element, rowElement);
+							} else if (this._currentSubmenuWidget) {
 								this._currentSubmenuWidget.focus();
 							} else {
 								this._submenuContainer.focus();
@@ -1215,6 +1243,7 @@ export class ActionListWidget<T> extends Disposable {
 				}
 			}
 		}));
+		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => this._handleTabThroughPanelKeyDown(e), true));
 
 		if (this._filterInput || this._options?.onType) {
 			this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
@@ -1532,6 +1561,7 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		this._list.domFocus();
 		this._focusCheckedOrFirst();
+		this._showTabThroughPanelForFocusedItem();
 	}
 
 	clearFocus(): void {
@@ -2152,6 +2182,126 @@ export class ActionListWidget<T> extends Disposable {
 		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 	}
 
+	private _showTabThroughPanelForFocusedItem(): void {
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return;
+		}
+		const index = focused[0];
+		const element = this._list.element(index);
+		if (!element.hover?.tabThroughPanel) {
+			return;
+		}
+		const row = this._getRowElement(index);
+		if (row) {
+			this._showSubmenuForElement(element, row);
+		}
+	}
+
+	private _getTabThroughPanelControls(element: IActionListItem<T>, row: HTMLElement): { readonly toolbar: ActionBar | undefined; readonly panelControls: readonly HTMLElement[] } {
+		if (this._currentSubmenuElement !== element) {
+			this._showSubmenuForElement(element, row);
+		}
+		return {
+			toolbar: this._itemToolbars.get(element),
+			panelControls: element.hover?.getTabbableElements?.() ?? [],
+		};
+	}
+
+	private _focusFirstTabThroughPanelControl(element: IActionListItem<T>, row: HTMLElement): void {
+		const controls = this._getTabThroughPanelControls(element, row);
+		if (controls.toolbar?.length()) {
+			controls.toolbar.focus(0);
+		} else {
+			(controls.panelControls[0] ?? this._list.getHTMLElement()).focus();
+		}
+	}
+
+	private _handleTabThroughPanelKeyDown(event: KeyboardEvent): void {
+		if (event.isComposing) {
+			return;
+		}
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return;
+		}
+		const index = focused[0];
+		const element = this._list.element(index);
+		if (!element.hover?.tabThroughPanel) {
+			return;
+		}
+		const row = this._getRowElement(index);
+		const activeElement = dom.getActiveElement();
+		if (!row || !dom.isHTMLElement(activeElement)) {
+			return;
+		}
+		const controls = this._getTabThroughPanelControls(element, row);
+		const inToolbar = controls.toolbar?.isFocused() ?? false;
+		const inPanel = this._submenuContainer.contains(activeElement);
+
+		if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && (inToolbar || inPanel)) {
+			dom.EventHelper.stop(event, true);
+			this._list.domFocus();
+			if (event.key === 'ArrowUp') {
+				this.focusPrevious();
+			} else {
+				this.focusNext();
+			}
+			return;
+		}
+
+		if (event.key !== 'Tab') {
+			return;
+		}
+
+		let target: HTMLElement | undefined;
+		if (event.shiftKey) {
+			if (inPanel) {
+				if (controls.toolbar?.length()) {
+					dom.EventHelper.stop(event, true);
+					controls.toolbar.focus(controls.toolbar.length() - 1);
+					return;
+				}
+				target = this._list.getHTMLElement();
+			} else if (controls.toolbar?.isFocused()) {
+				const toolbarIndex = controls.toolbar.viewItems.findIndex((_, actionIndex) => controls.toolbar?.isFocused(actionIndex));
+				if (toolbarIndex > 0) {
+					dom.EventHelper.stop(event, true);
+					controls.toolbar.focus(toolbarIndex - 1);
+					return;
+				}
+				target = this._list.getHTMLElement();
+			}
+		} else if (activeElement === this._list.getHTMLElement()) {
+			if (controls.toolbar?.length()) {
+				dom.EventHelper.stop(event, true);
+				controls.toolbar.focus(0);
+				return;
+			}
+			target = controls.panelControls[0];
+		} else {
+			if (controls.toolbar?.isFocused()) {
+				const toolbarIndex = controls.toolbar.viewItems.findIndex((_, actionIndex) => controls.toolbar?.isFocused(actionIndex));
+				if (toolbarIndex + 1 < controls.toolbar.length()) {
+					dom.EventHelper.stop(event, true);
+					controls.toolbar.focus(toolbarIndex + 1);
+					return;
+				}
+				target = controls.panelControls[0];
+			} else {
+				const panelControlIndex = controls.panelControls.indexOf(activeElement);
+				if (panelControlIndex >= 0) {
+					target = controls.panelControls[panelControlIndex + 1] ?? this._list.getHTMLElement();
+				}
+			}
+		}
+
+		if (target) {
+			dom.EventHelper.stop(event, true);
+			target.focus();
+		}
+	}
+
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
 		if (this._currentSubmenuElement === element) {
 			return;
@@ -2260,6 +2410,7 @@ export class ActionListWidget<T> extends Disposable {
 				hoverHeader = rendered.element;
 			}
 			hoverHeader.classList.add('action-list-submenu-hover-header');
+			hoverHeader.classList.toggle('content-owns-padding', element.hover?.contentOwnsPadding === true);
 			if (element.submenuActions?.length) {
 				hoverHeader.classList.add('has-submenu');
 			}

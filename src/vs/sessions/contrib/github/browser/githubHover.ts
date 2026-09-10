@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+
+const MAX_DESCRIPTION_LENGTH = 200;
+
+export function getGitHubHoverDescription(body: string, fallback: string): string {
+	const description = renderAsPlaintext(new MarkdownString(body), { omitMarkdownSyntax: true }).replace(/\s+/g, ' ').trim() || fallback;
+	const characters = Array.from(description);
+	if (characters.length <= MAX_DESCRIPTION_LENGTH) {
+		return description;
+	}
+	return `${characters.slice(0, MAX_DESCRIPTION_LENGTH - 1).join('').trimEnd()}…`;
+}
