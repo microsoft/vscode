@@ -5,22 +5,39 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationOverrides, IConfigurationValue, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { LanguageModelToolsConfirmationService } from '../../../browser/tools/languageModelToolsConfirmationService.js';
 import { ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { computeCombinationKey, ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationRef } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+
+class PolicyTestConfigurationService extends TestConfigurationService {
+	policyRestricted = false;
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const result = super.inspect<T>(key, overrides);
+		return key === ChatConfiguration.GlobalAutoApprove
+			? { ...result, policyValue: this.policyRestricted ? false as T : undefined }
+			: result;
+	}
+}
 
 suite('LanguageModelToolsConfirmationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let service: LanguageModelToolsConfirmationService;
 	let instantiationService: TestInstantiationService;
+	let configurationService: PolicyTestConfigurationService;
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		configurationService = new PolicyTestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService);
 
 		service = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
 	});
@@ -357,6 +374,86 @@ suite('LanguageModelToolsConfirmationService', () => {
 		const result = service.getPreConfirmAction(ref);
 		assert.ok(result);
 		assert.strictEqual(result.type, ToolConfirmKind.UserAction);
+	});
+
+	test('policy restriction makes existing default grants dormant until removal', async () => {
+		const preRef = createToolRef('preTool');
+		const postRef = createToolRef('postTool');
+		const combinationRef = await createCombinationRef('combinationTool', { path: 'file.txt' }, 'Allow file.txt');
+		const mcpRef = createMcpToolRef('mcpTool', 'serverId', 'Test Server');
+
+		await service.getPreConfirmActions(preRef).find(action => action.scope === 'workspace')!.select();
+		await service.getPostConfirmActions(postRef).find(action => action.scope === 'profile')!.select();
+		await service.getPreConfirmActions(combinationRef).find(action => action.scope === 'session' && action.label.includes('file.txt'))!.select();
+		await service.getPreConfirmActions(mcpRef).find(action => action.scope === 'profile' && action.label.includes('Test Server'))!.select();
+		await service.getPostConfirmActions(mcpRef).find(action => action.scope === 'workspace' && action.label.includes('Test Server'))!.select();
+
+		configurationService.policyRestricted = true;
+		assert.deepStrictEqual({
+			pre: service.getPreConfirmAction(preRef),
+			post: service.getPostConfirmAction(postRef),
+			combination: service.getPreConfirmAction(combinationRef),
+			mcpPre: service.getPreConfirmAction(mcpRef),
+			mcpPost: service.getPostConfirmAction(mcpRef),
+		}, {
+			pre: undefined,
+			post: undefined,
+			combination: undefined,
+			mcpPre: undefined,
+			mcpPost: undefined,
+		});
+
+		configurationService.policyRestricted = false;
+		assert.deepStrictEqual({
+			pre: service.getPreConfirmAction(preRef),
+			post: service.getPostConfirmAction(postRef),
+			combination: service.getPreConfirmAction(combinationRef),
+			mcpPre: service.getPreConfirmAction(mcpRef),
+			mcpPost: service.getPostConfirmAction(mcpRef),
+		}, {
+			pre: { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' },
+			post: { type: ToolConfirmKind.LmServicePerTool, scope: 'profile' },
+			combination: { type: ToolConfirmKind.LmServicePerTool, scope: 'session' },
+			mcpPre: { type: ToolConfirmKind.LmServicePerTool, scope: 'profile' },
+			mcpPost: { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' },
+		});
+	});
+
+	test('policy restriction suppresses default actions but preserves contribution decisions and actions', async () => {
+		const customActions: ILanguageModelToolConfirmationActions[] = [{
+			label: 'Custom Pre Action',
+			select: async () => true,
+		}];
+		const contribution: ILanguageModelToolConfirmationContribution = {
+			getPreConfirmAction: () => ({ type: ToolConfirmKind.UserAction }),
+			getPostConfirmAction: () => ({ type: ToolConfirmKind.UserAction }),
+			getPreConfirmActions: () => customActions,
+			getPostConfirmActions: () => [{
+				label: 'Custom Post Action',
+				select: async () => true,
+			}],
+		};
+		store.add(service.registerConfirmationContribution('customTool', contribution));
+		const ref: ILanguageModelToolConfirmationRef = {
+			...createMcpToolRef('customTool', 'serverId', 'Test Server'),
+			combination: {
+				label: 'Allow custom combination',
+				key: await computeCombinationKey('customTool', {}),
+			},
+		};
+
+		configurationService.policyRestricted = true;
+		assert.deepStrictEqual({
+			preDecision: service.getPreConfirmAction(ref),
+			postDecision: service.getPostConfirmAction(ref),
+			preActions: service.getPreConfirmActions(ref).map(action => action.label),
+			postActions: service.getPostConfirmActions(ref).map(action => action.label),
+		}, {
+			preDecision: { type: ToolConfirmKind.UserAction },
+			postDecision: { type: ToolConfirmKind.UserAction },
+			preActions: ['Custom Pre Action'],
+			postActions: ['Custom Post Action'],
+		});
 	});
 
 	test('contribution with canUseDefaultApprovals=false prevents default store checks', () => {

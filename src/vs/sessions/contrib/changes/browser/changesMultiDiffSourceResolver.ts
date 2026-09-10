@@ -38,6 +38,10 @@ function compareChanges(a: ISessionFileChange, b: ISessionFileChange): number {
 	return comparePaths(aPath, bPath);
 }
 
+function getChangeResource(change: ISessionFileChange): URI {
+	return isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
+}
+
 export class ChangesMultiDiffSourceResolver extends Disposable implements IMultiDiffSourceResolver {
 
 	constructor(
@@ -78,10 +82,12 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 				isEqual(x.modifiedUri, y.modifiedUri)),
 		}, reader => {
 			const changes = changesObs.read(reader);
-			return [...changes].sort(compareChanges).map(change =>
-				new MultiDiffEditorItem(change.originalUri, change.modifiedUri, change.modifiedUri, undefined, {
-					[SessionChangesFileResourceContext.key]: change.modifiedUri?.toString() ?? change.originalUri?.toString() ?? '',
-				}));
+			return [...changes].sort(compareChanges).map(change => {
+				const resource = getChangeResource(change);
+				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, resource, undefined, {
+					[SessionChangesFileResourceContext.key]: resource.toString(),
+				});
+			});
 		});
 
 		return { resources: new ValueWithChangeEventFromObservable(resourcesObs) };

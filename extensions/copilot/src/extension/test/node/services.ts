@@ -17,7 +17,7 @@ import { DiffServiceImpl } from '../../../platform/diff/node/diffServiceImpl';
 import { EmbeddingType, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
 import { RemoteEmbeddingsComputer } from '../../../platform/embeddings/common/remoteEmbeddingsComputer';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
+import { AutoModePickerMetadata, IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IModelConfig } from '../../../platform/endpoint/test/node/openaiCompatibleEndpoint';
 import { TestEndpointProvider } from '../../../platform/endpoint/test/node/testEndpointProvider';
 import { IGitCommitMessageService, NoopGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
@@ -184,12 +184,8 @@ class NullAutomodeService implements IAutomodeService {
 		throw new Error('Not implemented');
 	}
 
-	consumeLastRoutingDecision(): undefined {
-		return undefined;
-	}
-
-	async getAutoPickerMetadata(): Promise<undefined> {
-		return undefined;
+	getAutoPickerMetadata(): AutoModePickerMetadata {
+		return { discountRange: { low: 0, high: 0 } };
 	}
 
 	areAutoModeTiersSupported(): boolean {
@@ -197,6 +193,8 @@ class NullAutomodeService implements IAutomodeService {
 	}
 
 	readonly onDidChangeAutoModeTierSupport = Event.None;
+
+	readonly onDidRoute = Event.None;
 
 	invalidateRouterCache(): void { }
 }

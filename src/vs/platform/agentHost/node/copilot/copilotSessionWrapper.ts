@@ -7,6 +7,7 @@ import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventTyp
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import type { AgentTurnProviderSessionState } from '../../common/agent.js';
 
 /**
  * Thin wrapper around {@link CopilotSession} that exposes each SDK event as a
@@ -20,6 +21,7 @@ export class CopilotSessionWrapper extends Disposable {
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
 	private readonly _shutdown = new DeferredPromise<void>();
 	private _disconnectPromise: Promise<void> | undefined;
+	private _disconnectCompleted = false;
 
 	constructor(readonly session: CopilotSession) {
 		super();
@@ -38,17 +40,34 @@ export class CopilotSessionWrapper extends Disposable {
 	}
 
 	get sessionId(): string { return this.session.sessionId; }
+	get lifecycleState(): AgentTurnProviderSessionState {
+		return this._shutdown.isSettled
+			? 'shutdown'
+			: this._disconnectCompleted
+				? 'disconnected'
+				: this._disconnectPromise
+					? 'disconnecting'
+					: 'active';
+	}
 
 	/** Disconnects once the request completes or the SDK reports session shutdown. */
 	disconnect(): Promise<void> {
 		if (this._shutdown.isSettled) {
 			return this._shutdown.p;
 		}
-		this._disconnectPromise ??= this.session.disconnect().catch(error => {
-			if (!this._shutdown.isSettled) {
-				throw error;
-			}
-		});
+		if (!this._disconnectPromise) {
+			const disconnectPromise = this.session.disconnect()
+				.then(() => { this._disconnectCompleted = true; })
+				.catch(error => {
+					if (!this._shutdown.isSettled) {
+						if (this._disconnectPromise === disconnectPromise) {
+							this._disconnectPromise = undefined;
+						}
+						throw error;
+					}
+				});
+			this._disconnectPromise = disconnectPromise;
+		}
 		return Promise.race([this._disconnectPromise, this._shutdown.p]);
 	}
 
@@ -85,6 +104,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onPermissionCompleted: Event<SessionEventPayload<'permission.completed'>> | undefined;
 	get onPermissionCompleted(): Event<SessionEventPayload<'permission.completed'>> {
 		return this._onPermissionCompleted ??= this._sdkEvent('permission.completed');
+	}
+
+	private _onSamplingRequested: Event<SessionEventPayload<'sampling.requested'>> | undefined;
+	get onSamplingRequested(): Event<SessionEventPayload<'sampling.requested'>> {
+		return this._onSamplingRequested ??= this._sdkEvent('sampling.requested');
 	}
 
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
@@ -300,6 +324,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onToolsUpdated: Event<SessionEventPayload<'session.tools_updated'>> | undefined;
 	get onToolsUpdated(): Event<SessionEventPayload<'session.tools_updated'>> {
 		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
+	}
+
+	private _onBackgroundTasksChanged: Event<SessionEventPayload<'session.background_tasks_changed'>> | undefined;
+	get onBackgroundTasksChanged(): Event<SessionEventPayload<'session.background_tasks_changed'>> {
+		return this._onBackgroundTasksChanged ??= this._sdkEvent('session.background_tasks_changed');
 	}
 
 	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;

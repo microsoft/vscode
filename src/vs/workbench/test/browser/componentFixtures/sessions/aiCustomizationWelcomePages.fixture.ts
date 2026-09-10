@@ -38,6 +38,7 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 			showGettingStartedBanner: true,
 		};
 		override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
+		override readonly activeProjectLabel = constObservable('workspace');
 		override readonly hasOverrideProjectRoot = constObservable(false);
 		override getActiveProjectRoot(): URI {
 			return URI.file('/workspace');
@@ -83,7 +84,7 @@ function renderWelcomePage(ctx: ComponentFixtureContext): void {
 			selectSection: () => { },
 			selectSectionWithMarketplace: () => { },
 			closeEditor: () => { },
-			migratePromptFiles: () => { },
+			migrateCustomizations: () => { },
 			prefillChat: () => { },
 		},
 		createMockCommandService(),

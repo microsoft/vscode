@@ -23,6 +23,14 @@ import { McpResourceScannerService } from '../../common/mcpResourceScannerServic
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 
+class TestLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].join(' '));
+	}
+}
+
 class TestMcpManagementService extends AbstractCommonMcpManagementService {
 
 	override onInstallMcpServer = Event.None;
@@ -88,6 +96,16 @@ class TestMcpResourceManagementService extends AbstractMcpResourceManagementServ
 
 	override updateMetadata(_local: ILocalMcpServer, _server: IGalleryMcpServer): Promise<ILocalMcpServer> {
 		throw new Error('Not supported');
+	}
+}
+
+class TestMcpUserResourceManagementService extends McpUserResourceManagementService {
+	public override getLocation(name: string, version?: string): URI {
+		return super.getLocation(name, version);
+	}
+
+	public updateMetadataFromGalleryForTest(gallery: IGalleryMcpServer): Promise<IGalleryMcpServerConfiguration> {
+		return this.updateMetadataFromGallery(gallery);
 	}
 }
 
@@ -928,6 +946,21 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}, /No server package found/);
 		});
 
+		test('unsupported package registry type should throw error', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: 'unsupported' as RegistryType,
+					transport: { type: TransportType.STDIO },
+					identifier: 'test-package',
+					version: '1.0.0'
+				}]
+			};
+
+			assert.throws(() => {
+				service.getMcpServerConfigurationFromManifest(manifest, manifest.packages![0].registryType);
+			}, /Unsupported MCP server package registry type: unsupported/);
+		});
+
 		test('manifest with no matching package type should use first package', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
@@ -1248,6 +1281,90 @@ suite('McpResourceManagementService', () => {
 		const result = await updatePromise;
 
 		assert.strictEqual(result[0].source, gallery);
+	});
+
+	test('gallery metadata locations cannot traverse outside the MCP storage folder', () => {
+		const galleryService = disposables.add(new TestMcpUserResourceManagementService(
+			mcpResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+
+		assert.strictEqual(galleryService.getLocation('io.github.owner/server', '1.0.0').path, '/user/mcp/io.github.owner.server-1.0.0');
+		assert.throws(() => galleryService.getLocation('az19-poc-server', '../../legit-weather-server-1.0.0'), /Invalid MCP server location/);
+		assert.throws(() => galleryService.getLocation('io.github.owner/server/child', '1.0.0'), /Invalid MCP server location/);
+		assert.throws(() => galleryService.getLocation('..'), /Invalid MCP server location/);
+	});
+
+	test('gallery metadata writes and uninstalls cannot target another server folder', async () => {
+		const galleryService = disposables.add(new TestMcpUserResourceManagementService(
+			mcpResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+		const gallery = {
+			...createGallery(),
+			name: 'az19-poc-server',
+			version: '../../legit-weather-server-1.0.0',
+			readme: 'attacker controlled',
+		};
+		const siblingLocation = URI.from({ scheme: Schemas.inMemory, path: '/user/mcp/legit-weather-server-1.0.0' });
+
+		await assert.rejects(() => galleryService.updateMetadataFromGalleryForTest(gallery), /Invalid MCP server location/);
+		assert.strictEqual(await fileService.exists(uriIdentityService.extUri.joinPath(siblingLocation, 'manifest.json')), false);
+		await assert.rejects(() => galleryService.uninstall({
+			name: gallery.name,
+			version: gallery.version,
+			location: siblingLocation,
+			config: { type: McpServerType.LOCAL, command: 'node' },
+			mcpResource,
+			source: 'gallery',
+		}), /Invalid MCP server location/);
+	});
+
+	test('missing gallery metadata cache is not logged as an error', async () => {
+		const galleryResource = URI.from({ scheme: Schemas.inMemory, path: '/missing-gallery-metadata-mcp.json' });
+		await fileService.writeFile(galleryResource, VSBuffer.fromString(JSON.stringify({
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					gallery: true,
+					version: '1.0.0'
+				}
+			}
+		}, null, '\t')));
+		const logService = new TestLogService();
+		const galleryService = disposables.add(new McpUserResourceManagementService(
+			galleryResource,
+			upcastPartial<IMcpGalleryService>({}),
+			fileService,
+			uriIdentityService,
+			logService,
+			scannerService,
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
+		));
+
+		const installed = await galleryService.getInstalled();
+
+		assert.deepStrictEqual({
+			installed: installed.map(server => ({ name: server.name, version: server.version, location: server.location })),
+			errors: logService.errors,
+		}, {
+			installed: [{ name: 'test', version: '1.0.0', location: undefined }],
+			errors: [],
+		});
 	});
 });
 

@@ -5,6 +5,12 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
+import { computePullRequestIcon, type ChatPullRequestState, type IPullRequestIconStatus } from '../../../../workbench/common/chatPullRequest.js';
+
+export { computePullRequestIcon, type IPullRequestIconStatus };
+
+export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';
+export const OPEN_ISSUE_ACTION_ID = 'workbench.agentSessions.action.openIssue';
 
 //#region Session Context
 
@@ -71,6 +77,54 @@ export interface IGitHubPullRequest {
 	readonly mergeableState: string;
 }
 
+export interface IGitHubPullRequestSummary {
+	readonly number: number;
+	readonly title: string;
+	readonly author: IGitHubUser;
+	readonly headRef: string;
+	readonly checkoutRef: string;
+	readonly isCrossRepository: boolean;
+	readonly isDraft: boolean;
+	readonly updatedAt: string;
+	readonly additions: number;
+	readonly deletions: number;
+	readonly reviewRequestedFromViewer: boolean;
+	readonly assignedToViewer: boolean;
+}
+
+export interface IGitHubPullRequestsPage {
+	readonly pullRequests: readonly IGitHubPullRequestSummary[];
+	readonly cursor: string | undefined;
+	readonly hasNextPage: boolean;
+}
+
+export interface IGitHubPullRequestContextComment {
+	readonly kind: 'issue' | 'review';
+	readonly author: string;
+	readonly body: string;
+	readonly createdAt: string;
+	readonly updatedAt: string;
+	readonly path?: string;
+	readonly line?: number;
+}
+
+export interface IGitHubPullRequestContext {
+	readonly owner: string;
+	readonly repo: string;
+	readonly number: number;
+	readonly url: string;
+	readonly title: string;
+	readonly description: string;
+	readonly author: string;
+	readonly isDraft: boolean;
+	readonly baseRef: string;
+	readonly branchName: string;
+	readonly headRef: string;
+	readonly updatedAt: string;
+	readonly patch: string;
+	readonly comments: readonly IGitHubPullRequestContextComment[];
+}
+
 export const enum MergeBlockerKind {
 	ChangesRequested = 'changesRequested',
 	CIFailed = 'ciFailed',
@@ -97,41 +151,28 @@ export interface IGitHubPullRequestReview {
 	readonly submittedAt: string;
 }
 
-/**
- * Additional live status used to refine the icon of an open pull request.
- */
-export interface IPullRequestIconStatus {
-	/** Whether the pull request has at least one failing CI check. */
-	readonly hasFailingChecks?: boolean;
-	/** Whether the pull request has at least one unresolved review comment thread. */
-	readonly hasUnresolvedComments?: boolean;
-}
+/** Coarse pull request state, recoverable from the icon carried on session GitHub info. */
+export type PullRequestStatus = ChatPullRequestState;
 
 /**
- * Compute the PR status icon from a state value.
- * Accepts both the `GitHubPullRequestState` enum values and the
- * metadata-only `'draft'` value the extension writes to session metadata.
- *
- * For open (non-draft) pull requests the optional {@link IPullRequestIconStatus}
- * refines the icon: a failing CI check shows an error variant (orange), while an
- * unresolved review comment shows a comment variant (using the open PR green).
+ * Inverse of {@link computePullRequestIcon}: recovers the coarse pull request
+ * status from an icon. Returns `undefined` when the icon is missing or is not
+ * one of the known pull request icons (i.e. the state was never resolved).
  */
-export function computePullRequestIcon(state: GitHubPullRequestState | 'draft', status?: IPullRequestIconStatus): ThemeIcon {
-	switch (state) {
-		case GitHubPullRequestState.Merged:
-			return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
-		case GitHubPullRequestState.Closed:
-			return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
-		case 'draft':
-			return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
-		case GitHubPullRequestState.Open:
-			if (status?.hasFailingChecks) {
-				return { ...Codicon.gitPullRequestError, color: themeColorFromId('charts.orange') };
-			}
-			if (status?.hasUnresolvedComments) {
-				return { ...Codicon.gitPullRequestComment, color: themeColorFromId('charts.green') };
-			}
-			return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
+export function getPullRequestStatusFromIcon(icon: ThemeIcon | undefined): PullRequestStatus | undefined {
+	switch (icon?.id) {
+		case Codicon.gitPullRequestDone.id:
+			return 'merged';
+		case Codicon.gitPullRequestClosed.id:
+			return 'closed';
+		case Codicon.gitPullRequestDraft.id:
+			return 'draft';
+		case Codicon.gitPullRequest.id:
+		case Codicon.gitPullRequestError.id:
+		case Codicon.gitPullRequestComment.id:
+			return 'open';
+		default:
+			return undefined;
 	}
 }
 

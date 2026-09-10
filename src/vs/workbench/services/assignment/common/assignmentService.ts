@@ -8,6 +8,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import type { IKeyValueStorage, IExperimentationTelemetry, IExperimentationFilterProvider, ExperimentationService as TASClient } from 'tas-client';
 import { Memento } from '../../../common/memento.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../base/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -41,6 +42,41 @@ export interface IAssignmentFilter {
 }
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('assignmentService');
+
+/**
+ * Scope prefix that the new TAS assignments endpoint (`/api/v1/assignments`) prepends to the
+ * feature variable keys it returns (e.g. `/vscode/config.chat...`). The legacy endpoint and
+ * VS Code both query treatments by the bare name, so this prefix must be accounted for when a
+ * bare lookup misses. This is an interim workaround until tas-client strips the scope itself.
+ */
+const ASSIGNMENTS_SCOPE_PREFIX = '/vscode/';
+
+/**
+ * Resolves a treatment value preferring the `/vscode/`-scoped key emitted by the new TAS
+ * assignments endpoint over the bare key used by the legacy endpoint, so the new endpoint wins
+ * when both assign a treatment (matching the behavior once tas-client strips the scope itself).
+ * Falls back to the bare key for treatments served only by the legacy endpoint.
+ *
+ * Exported for testing.
+ */
+export function resolveScopedTreatment<T extends string | number | boolean>(read: (name: string) => T | undefined, name: string): T | undefined {
+	const scoped = read(`${ASSIGNMENTS_SCOPE_PREFIX}${name}`);
+	return scoped !== undefined ? scoped : read(name);
+}
+
+/**
+ * Builds the telemetry payload for a tas-client feature query. The queried-feature name is marked
+ * trusted so the telemetry cleaner does not redact a `/vscode/`-scoped name as a `user-file-path`.
+ *
+ * Exported for testing.
+ */
+export function toExperimentTelemetryData(props: Map<string, string>): ITelemetryData {
+	const data: ITelemetryData = {};
+	for (const [key, value] of props.entries()) {
+		data[key] = key === 'ABExp.queriedFeature' ? new TelemetryTrustedValue(value) : value;
+	}
+	return data;
+}
 
 export interface IWorkbenchAssignmentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
@@ -114,10 +150,7 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 	}
 
 	postEvent(eventName: string, props: Map<string, string>): void {
-		const data: ITelemetryData = {};
-		for (const [key, value] of props.entries()) {
-			data[key] = value;
-		}
+		const data = toExperimentTelemetryData(props);
 
 		/* __GDPR__
 			"query-expfeature" : {
@@ -143,6 +176,16 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 				"ErrorType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The type of error encountered when calling the new assignments endpoint" }
 			}
 		*/
+		/* __GDPR__
+			"tas-call" : {
+				"owner": "sbatten",
+				"comment": "Logs each TAS call (legacy and new assignments endpoint) with its outcome, to confirm calls are made and succeeding per extension",
+				"callType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Which endpoint was called: legacy or assignments" },
+				"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Call outcome: Success, ServerError, NoResponse, or GenericError" },
+				"extensionName": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The extension/host the TAS call was made for" },
+				"assignmentContext": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The assignment context returned by this call's endpoint" }
+			}
+		*/
 		this.telemetryService.publicLog(eventName, data);
 	}
 }
@@ -152,12 +195,14 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	declare readonly _serviceBrand: undefined;
 
 	private tasClient: Promise<TASClient> | undefined;
-	private readonly tasSetupDisposables = new DisposableStore();
+	private readonly tasSetupDisposables = this._register(new DisposableStore());
 
 	private assignmentsEndpoint: string | undefined;
 
 	private networkInitialized = false;
 	private setupGeneration = 0;
+	/** Revokes the current setup's storage/telemetry/fetch wrappers, neutralizing a superseded in-flight client. */
+	private revokeCurrentSetup: (() => void) | undefined;
 	private readonly overrideInitDelay: Promise<void>;
 
 	private readonly contextFilter: AssignmentContextFilter;
@@ -187,16 +232,17 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.tasClient = this.setupTASClient();
 
 			// The assignments endpoint is sourced from account entitlements, which load
-			// asynchronously. Re-setup the client when it first appears or changes.
-			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
-				const next = this.getAssignmentsEndpoint();
-				if (next !== this.assignmentsEndpoint) {
-					this.tasClient = this.setupTASClient();
-				}
-			}));
+			// asynchronously. The initial account load resolves the readiness barrier without
+			// firing onDidChangeDefaultAccount, so proactively re-check once it is ready, and
+			// again whenever the account changes later.
+			this.defaultAccountService.getDefaultAccount().then(() => this.recreateTasClientIfEndpointChanged());
+			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.recreateTasClientIfEndpointChanged()));
 
-			// Ensure the final client's auto-polling is stopped when the service is disposed.
-			this._register(toDisposable(() => WorkbenchAssignmentService.disposeTasClient(this.tasClient)));
+			// Stop the final client's auto-polling and revoke its wrappers when the service is disposed.
+			this._register(toDisposable(() => {
+				this.revokeCurrentSetup?.();
+				WorkbenchAssignmentService.disposeTasClient(this.tasClient);
+			}));
 		}
 
 		this.contextFilter = this._register(new AssignmentContextFilter(storageService));
@@ -255,21 +301,22 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			return undefined;
 		}
 
-		let result: T | undefined;
 		const client = await this.tasClient;
 
-		// The TAS client is initialized but we need to check if the initial fetch has completed yet
-		// If it is complete, return a cached value for the treatment
-		// If not, use the async call with `checkCache: true`. This will allow the module to return a cached value if it is present.
-		// Otherwise it will await the initial fetch to return the most up to date value.
-		if (this.networkInitialized) {
-			result = client.getTreatmentVariable<T>('vscode', name);
-		} else {
-			result = await client.getTreatmentVariableAsync<T>('vscode', name, true);
+		// Await the initial network fetch when it has not completed yet, so treatments are
+		// available before we read them from memory. `checkCache: true` returns immediately when a
+		// value is already cached, otherwise it awaits the initial fetch.
+		if (!this.networkInitialized) {
+			await client.getTreatmentVariableAsync<T>('vscode', `${ASSIGNMENTS_SCOPE_PREFIX}${name}`, true);
 		}
 
-		result = client.getTreatmentVariable<T>('vscode', name);
-		return result;
+		// Interim workaround: the new TAS assignments endpoint (/api/v1/assignments) namespaces its
+		// returned feature variable keys with a `/vscode/` scope, whereas the legacy endpoint and
+		// VS Code query treatments by the bare name. Read the scoped key first so the new endpoint
+		// wins over the legacy (bare) key when both assign a treatment - matching the behavior once
+		// tas-client strips the scope itself. Fall back to the bare key for treatments served only
+		// by the legacy endpoint.
+		return resolveScopedTreatment<T>(readName => client.getTreatmentVariable<T>('vscode', readName), name);
 	}
 
 	/**
@@ -284,6 +331,17 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			return undefined;
 		}
 		return `${exp.replace(/\/+$/, '')}/api/v1/assignments`;
+	}
+
+	/** Recreates the TAS client when the resolved assignments endpoint has changed. */
+	private recreateTasClientIfEndpointChanged(): void {
+		if (this._store.isDisposed) {
+			return; // the service was disposed before the (async) account load resolved
+		}
+		const next = this.getAssignmentsEndpoint();
+		if (next !== this.assignmentsEndpoint) {
+			this.tasClient = this.setupTASClient();
+		}
 	}
 
 	/**
@@ -313,8 +371,43 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		const generation = ++this.setupGeneration;
 		this.networkInitialized = false;
 
-		// Dispose the previously created client so it stops auto-polling the (legacy) endpoint.
+		// Revoke the previous setup's wrappers, then dispose its client. Revoking neutralizes a
+		// superseded, still-in-flight client: after replacement it can no longer write the shared
+		// memento, emit telemetry, or hit the assignments endpoint. This is needed because the
+		// tas-client's dispose() only stops its polling timer, not an already-running fetch.
+		this.revokeCurrentSetup?.();
 		WorkbenchAssignmentService.disposeTasClient(this.tasClient);
+
+		let revoked = false;
+		this.revokeCurrentSetup = () => { revoked = true; };
+
+		// Reference the shared memento/telemetry/fetch lazily (at call time): they are assigned in
+		// the constructor body after the initial setupTASClient() call has already started.
+		const service = this;
+
+		const keyValueStorage: IKeyValueStorage = {
+			getValue<T>(key: string, defaultValue?: T): Promise<T | undefined> {
+				return service.keyValueStorage.getValue<T>(key, defaultValue);
+			},
+			setValue<T>(key: string, value: T): void {
+				if (!revoked) {
+					service.keyValueStorage.setValue<T>(key, value);
+				}
+			},
+		};
+
+		const telemetry: IExperimentationTelemetry = {
+			setSharedProperty(name: string, value: string): void {
+				if (!revoked) {
+					service.telemetry.setSharedProperty(name, value);
+				}
+			},
+			postEvent(eventName: string, props: Map<string, string>): void {
+				if (!revoked) {
+					service.telemetry.postEvent(eventName, props);
+				}
+			},
+		};
 
 		const targetPopulation = this.productService.quality === 'stable' ?
 			TargetPopulation.Public : (this.productService.quality === 'exploration' ?
@@ -369,17 +462,20 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		const fetchStopWatch = StopWatch.create();
 		const tasClient = new tasClientModule.ExperimentationService({
 			filterProviders: [filterProvider, extensionsFilterProvider],
-			telemetry: this.telemetry,
+			telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,
-			keyValueStorage: this.keyValueStorage,
+			keyValueStorage,
 			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
 			telemetryEventName: tasConfig.telemetryEventName,
 			endpoint: tasConfig.endpoint,
+			extensionName: 'vscode-core',
 			assignmentsEndpoint,
 			assignmentsFilterProviders,
 			// Route the assignments request through the main-process request service so it is
 			// not subject to renderer CORS (parity with how core reaches api.github.com).
-			assignmentsFetch: assignmentsEndpoint ? this.assignmentsFetch : undefined,
+			assignmentsFetch: assignmentsEndpoint
+				? (url, init) => (revoked ? Promise.resolve({ status: 0, json: async () => ({}) }) : service.assignmentsFetch(url, init))
+				: undefined,
 			refetchInterval: ASSIGNMENT_REFETCH_INTERVAL,
 		});
 
@@ -449,7 +545,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	/** Stops a TAS client's auto-polling once it resolves. Safe to call with `undefined`. */
 	private static disposeTasClient(client: Promise<TASClient> | undefined): void {
-		client?.then(c => (c as unknown as { dispose?(): void }).dispose?.()).catch(() => undefined);
+		client?.then(c => c.dispose()).catch(() => undefined);
 	}
 }
 

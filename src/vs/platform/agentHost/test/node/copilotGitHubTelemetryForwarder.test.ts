@@ -50,7 +50,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				kind: 'tool_call_executed',
 				created_at: '2026-07-10T12:00:00Z',
 				model_call_id: 'model-call',
-				properties: { tool_name: 'grep' },
+				properties: { tool_name: 'grep', secondary_assignment_context: 'secondary:1' },
 				metrics: { duration_ms: 42 },
 				exp_assignment_context: 'experiment',
 				features: { featureA: 'enabled' },
@@ -67,7 +67,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		});
 
 		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotCli/tool_call_executed',
+			eventName: 'copilotSdk/tool_call_executed',
 			data: {
 				cli_version: '1.0.69',
 				os_platform: 'win32',
@@ -109,7 +109,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		forwarder.forward(notification);
 
 		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotCli/restricted_event',
+			eventName: 'copilotSdk/restricted_event',
 			data: {
 				created_at: undefined,
 				model_call_id: undefined,
@@ -121,5 +121,138 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				restricted: true,
 			},
 		}]);
+	});
+
+	test('adds Agent Host turn correlation only to response events', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const notification = (kind: string, properties: Record<string, string> = {}, metrics: Record<string, number> = {}): GitHubTelemetryNotification => ({
+			sessionId: 'session',
+			restricted: false,
+			event: {
+				kind,
+				properties,
+				metrics,
+			},
+		});
+
+		forwarder.forward(notification('response.success', { turnId: 'runtime-turn' }), 'turn-1');
+		forwarder.forward(notification('response.error', {}, { turnId: 42 }));
+		forwarder.forward(notification('tool_call_executed', { turnId: 'runtime-turn' }), 'turn-1');
+		forwarder.forward(notification('response.success', { turnId: 'runtime-turn' }));
+
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			eventName: event.eventName,
+			turnId: event.data?.turnId,
+		})), [
+			{ eventName: 'copilotSdk/response.success', turnId: 'turn-1' },
+			{ eventName: 'copilotSdk/response.error', turnId: undefined },
+			{ eventName: 'copilotSdk/tool_call_executed', turnId: 'runtime-turn' },
+			{ eventName: 'copilotSdk/response.success', turnId: undefined },
+		]);
+	});
+
+	test('forwards tool_call_executed outcome and token-count columns', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+
+		forwarder.forward({
+			sessionId: 'session',
+			restricted: false,
+			event: {
+				kind: 'tool_call_executed',
+				properties: {
+					tool_name: 'grep',
+					result_type: 'SUCCESS',
+					invoke_outcome: 'success',
+					model: 'gpt-5.5',
+					tool_call_id: 'call-1',
+				},
+				metrics: {
+					duration_ms: 12,
+					result_token_count: 34,
+				},
+			},
+		});
+
+		const event = telemetryService.events[0];
+		assert.strictEqual(event.eventName, 'copilotSdk/tool_call_executed');
+		assert.strictEqual(event.data?.invoke_outcome, 'success');
+		assert.strictEqual(event.data?.result_type, 'SUCCESS');
+		assert.strictEqual(event.data?.result_token_count, 34);
+		assert.strictEqual(event.data?.duration_ms, 12);
+		assert.strictEqual(event.data?.tool_call_id, 'call-1');
+	});
+
+	test('only accepts host correlation diagnostics on response events', () => {
+		const telemetryService = new TestTelemetryService();
+		let restrictedTelemetryEnabled = false;
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => restrictedTelemetryEnabled, telemetryService);
+		const client = {
+			cli_version: '1.0.69', os_platform: 'win32', os_version: '11', os_arch: 'x64', node_version: '24.0.0',
+			ahActiveRootTurnIdAtResponse: 'sdk-root', ahSessionDisposedDuringWait: true,
+		};
+		const notification = (kind: string, restricted = false): GitHubTelemetryNotification => ({
+			sessionId: 'session',
+			restricted,
+			event: {
+				kind,
+				client,
+				properties: { ahCorrelationOutcome: 'sdk-value', turnId: 'sdk-turn' },
+				metrics: { ahCorrelationWaitMs: 999, ahSessionDisposedDuringWait: 1 },
+			},
+		});
+		const correlation = {
+			ahCorrelationOutcome: 'waitExpired' as const,
+			ahCorrelationWaitMs: 101,
+			ahActiveRootTurnIdAtResponse: 'host-root',
+			ahSessionDisposedDuringWait: true,
+		};
+		forwarder.forward(notification('response.success'), undefined, correlation);
+		forwarder.forward(notification('response.error'), undefined, correlation);
+		forwarder.forward(notification('tool_call_executed'), undefined, correlation);
+		forwarder.forward(notification('response.success'));
+		forwarder.forward(notification('response.error'));
+		forwarder.forward(notification('response.success', true), undefined, correlation);
+		forwarder.forward(notification('response.error', true), undefined, correlation);
+		restrictedTelemetryEnabled = true;
+		forwarder.forward(notification('response.error', true), undefined, correlation);
+
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			eventName: event.eventName,
+			diagnostics: Object.fromEntries(Object.entries(event.data ?? {}).filter(([key]) => key.startsWith('ah'))),
+			turn: event.data?.turnId,
+		})), [
+			{ eventName: 'copilotSdk/response.success', diagnostics: correlation, turn: undefined },
+			{ eventName: 'copilotSdk/response.error', diagnostics: correlation, turn: undefined },
+			{ eventName: 'copilotSdk/tool_call_executed', diagnostics: {}, turn: 'sdk-turn' },
+			{ eventName: 'copilotSdk/response.success', diagnostics: {}, turn: undefined },
+			{ eventName: 'copilotSdk/response.error', diagnostics: {}, turn: undefined },
+			{ eventName: 'copilotSdk/response.error', diagnostics: correlation, turn: undefined },
+		]);
+	});
+
+	test('omits contextual diagnostics for correlated responses and disposal when no wait occurred', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		for (const kind of ['response.success', 'response.error']) {
+			const notification: GitHubTelemetryNotification = {
+				sessionId: 'session', restricted: false,
+				event: { kind, properties: {}, metrics: {} },
+			};
+			const contextual = { ahActiveRootTurnIdAtResponse: 'root-candidate', ahSessionDisposedDuringWait: true };
+			forwarder.forward(notification, 'host-turn', { ...contextual, ahCorrelationOutcome: 'mappingAvailable' });
+			forwarder.forward(notification, 'host-turn', { ...contextual, ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: 0 });
+			forwarder.forward(notification, undefined, { ...contextual, ahCorrelationOutcome: 'responseAlreadyForwarded' });
+		}
+
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			turn: event.data?.turnId,
+			diagnostics: Object.fromEntries(Object.entries(event.data ?? {}).filter(([key]) => key.startsWith('ah'))),
+		})), ['response.success', 'response.error'].flatMap(() => [
+			{ turn: 'host-turn', diagnostics: { ahCorrelationOutcome: 'mappingAvailable' } },
+			{ turn: 'host-turn', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: 0 } },
+			{ turn: undefined, diagnostics: { ahCorrelationOutcome: 'responseAlreadyForwarded', ahActiveRootTurnIdAtResponse: 'root-candidate' } },
+		]));
 	});
 });

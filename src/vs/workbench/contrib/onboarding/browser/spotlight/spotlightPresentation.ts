@@ -310,6 +310,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			targetOverlayVisible: step.openTarget,
 			padding: step.padding,
 		});
+		context.onDidShow?.();
 
 		if (step.advanceWhen) {
 			const keys = new Set(step.advanceWhen.keys());

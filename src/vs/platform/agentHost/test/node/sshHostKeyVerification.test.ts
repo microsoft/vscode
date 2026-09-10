@@ -8,6 +8,7 @@ import type { ConnectConfig } from 'ssh2';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHHostKeyVerificationRequest } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
@@ -184,7 +185,7 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 			quality: 'stable',
 			dataFolderName: '.vscode-oss',
 		};
-		return disposables.add(new HostKeyTestService(new NullLogService(), productService as IProductService));
+		return disposables.add(new HostKeyTestService(new NullLogService(), productService as IProductService, NullTelemetryService));
 	}
 
 	/** Run a connect attempt, answering the verification request with `trusted`. */

@@ -170,7 +170,7 @@ export interface ISSHRemoteAgentHostService {
 	 * 2. Downloads and installs the VS Code CLI if needed
 	 * 3. Starts `code agent-host`
 	 * 4. Creates a WebSocket relay over the SSH channel
-	 * 5. Registers the connection with {@link IRemoteAgentHostService}
+	 * 5. Waits for {@link IRemoteAgentHostService} to complete the protocol handshake
 	 *
 	 * Resolves with the connection handle once the agent host is reachable.
 	 */
@@ -178,8 +178,8 @@ export interface ISSHRemoteAgentHostService {
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
-	 * Tears down the SSH tunnel, stops the remote agent host, and
-	 * removes the entry from {@link IRemoteAgentHostService}.
+	 * Tears down the SSH tunnel, stops the remote agent host, and removes its
+	 * persisted SSH entry.
 	 */
 	disconnect(host: string): Promise<void>;
 
@@ -205,7 +205,7 @@ export interface ISSHRemoteAgentHostService {
 
 	/**
 	 * Re-establish an SSH tunnel on startup for a previously connected host.
-	 * Returns the new local forwarded address and registers it.
+	 * Resolves once the service-owned protocol connection is ready.
 	 *
 	 * @param userInitiated See {@link ISSHAgentHostConfig.userInitiated}.
 	 * Defaults to `true` (picker-eligible) when omitted; background/auto
@@ -255,10 +255,9 @@ export interface ISSHConnectResult {
 }
 
 /**
- * How OpenSSH should react to an unknown or changed host key, as reported by
- * `ssh -G` (`stricthostkeychecking`). We honor the user's real SSH config here
- * rather than introducing a parallel VS Code setting, so the escape hatch for
- * users who genuinely cannot use verification stays where they expect it.
+ * How OpenSSH should react to an unknown or changed host key. `ssh -G`
+ * canonicalizes `yes` to `true` and `no`/`off` to `false`, which the resolved
+ * config parser normalizes back to this policy representation.
  */
 export type SSHStrictHostKeyChecking = 'ask' | 'accept-new' | 'yes' | 'no' | 'off';
 
@@ -285,7 +284,7 @@ export interface ISSHResolvedConfig {
 	readonly userKnownHostsFiles: string[];
 	/** `GlobalKnownHostsFile` paths, e.g. `/etc/ssh/ssh_known_hosts`. */
 	readonly globalKnownHostsFiles: string[];
-	/** Resolved `StrictHostKeyChecking`, when it is a value we recognize. */
+	/** Resolved and normalized `StrictHostKeyChecking`, when recognized. */
 	readonly strictHostKeyChecking: SSHStrictHostKeyChecking | undefined;
 }
 

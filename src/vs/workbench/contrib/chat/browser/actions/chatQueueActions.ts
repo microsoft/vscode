@@ -162,7 +162,11 @@ export class ChatSteerWithMessageAction extends Action2 {
 			return;
 		}
 
-		widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Steering });
+		widget.acceptInput(undefined, {
+			queue: widget.viewModel.model.lastRequest?.isHiddenFromTranscript
+				? ChatRequestQueueKind.Queued
+				: ChatRequestQueueKind.Steering
+		});
 	}
 }
 
@@ -227,7 +231,7 @@ export class ChatRemovePendingRequestAction extends Action2 {
 		super({
 			id: ChatRemovePendingRequestAction.ID,
 			title: localize2('chat.removePendingRequest', "Remove from Queue"),
-			icon: Codicon.close,
+			icon: Codicon.closeSmall,
 			f1: false,
 			category: CHAT_CATEGORY,
 			menu: [{

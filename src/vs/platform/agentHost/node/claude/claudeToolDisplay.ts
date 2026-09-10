@@ -382,21 +382,21 @@ export function getClaudeInvocationMessage(
 		case 'BashOutput':
 			return localize('claude.toolInvoke.bashOutput', "Reading shell output");
 		case 'KillBash':
-			return localize('claude.toolInvoke.killBash', "Killing shell command");
+			return localize('claude.toolInvoke.killBash', "Kill shell command");
 		case 'Read':
 		case 'NotebookRead': {
 			const path = getClaudeToolPath(toolName, input);
 			if (path) {
-				return md(localize('claude.toolInvoke.readFile', "Reading {0}", formatPathAsMarkdownLink(path)));
+				return md(localize('claude.toolInvoke.readFile', "Read {0}", formatPathAsMarkdownLink(path)));
 			}
-			return localize('claude.toolInvoke.read', "Reading file");
+			return localize('claude.toolInvoke.read', "Read file");
 		}
 		case 'LS': {
 			const path = getClaudeToolPath(toolName, input);
 			if (path) {
-				return md(localize('claude.toolInvoke.lsPath', "Listing {0}", formatPathAsMarkdownLink(path)));
+				return md(localize('claude.toolInvoke.lsPath', "List {0}", formatPathAsMarkdownLink(path)));
 			}
-			return localize('claude.toolInvoke.ls', "Listing directory");
+			return localize('claude.toolInvoke.ls', "List directory");
 		}
 		case 'Write':
 		case 'Edit':
@@ -404,25 +404,25 @@ export function getClaudeInvocationMessage(
 		case 'NotebookEdit': {
 			const path = getClaudeToolPath(toolName, input);
 			if (path) {
-				return md(localize('claude.toolInvoke.editFile', "Editing {0}", formatPathAsMarkdownLink(path)));
+				return md(localize('claude.toolInvoke.editFile', "Edit {0}", formatPathAsMarkdownLink(path)));
 			}
-			return localize('claude.toolInvoke.edit', "Editing file");
+			return localize('claude.toolInvoke.edit', "Edit file");
 		}
 		case 'TodoWrite':
-			return localize('claude.toolInvoke.todoWrite', "Updating todo list");
+			return localize('claude.toolInvoke.todoWrite', "Update todo list");
 		case 'Grep': {
 			const pattern = readStringField(input, 'pattern');
 			if (pattern) {
-				return md(localize('claude.toolInvoke.grepPattern', "Searching for {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
+				return md(localize('claude.toolInvoke.grepPattern', "Search for {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
 			}
-			return localize('claude.toolInvoke.grep', "Searching files");
+			return localize('claude.toolInvoke.grep', "Search files");
 		}
 		case 'Glob': {
 			const pattern = readStringField(input, 'pattern');
 			if (pattern) {
-				return md(localize('claude.toolInvoke.globPattern', "Finding files matching {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
+				return md(localize('claude.toolInvoke.globPattern', "Find files matching {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
 			}
-			return localize('claude.toolInvoke.glob', "Finding files");
+			return localize('claude.toolInvoke.glob', "Find files");
 		}
 		case 'WebFetch': {
 			const url = readStringField(input, 'url');
@@ -449,21 +449,21 @@ export function getClaudeInvocationMessage(
 		case 'TaskCreate': {
 			const subject = readStringField(input, 'subject');
 			if (subject) {
-				return localize('claude.toolInvoke.taskCreateNamed', "Creating task: {0}", truncate(subject, 80));
+				return localize('claude.toolInvoke.taskCreateNamed', "Create task: {0}", truncate(subject, 80));
 			}
-			return localize('claude.toolInvoke.taskCreate', "Creating task");
+			return localize('claude.toolInvoke.taskCreate', "Create task");
 		}
 		case 'TaskUpdate':
 			switch (readTaskUpdateStatus(input)) {
-				case 'in_progress': return localize('claude.toolInvoke.taskStart', "Starting task");
-				case 'completed': return localize('claude.toolInvoke.taskComplete', "Completing task");
-				case 'deleted': return localize('claude.toolInvoke.taskDelete', "Deleting task");
-				default: return localize('claude.toolInvoke.taskUpdate', "Updating task");
+				case 'in_progress': return localize('claude.toolInvoke.taskStart', "Start task");
+				case 'completed': return localize('claude.toolInvoke.taskComplete', "Complete task");
+				case 'deleted': return localize('claude.toolInvoke.taskDelete', "Delete task");
+				default: return localize('claude.toolInvoke.taskUpdate', "Update task");
 			}
 		case 'TaskList':
-			return localize('claude.toolInvoke.taskList', "Reading task list");
+			return localize('claude.toolInvoke.taskList', "Read task list");
 		case 'TaskGet':
-			return localize('claude.toolInvoke.taskGet', "Reading task");
+			return localize('claude.toolInvoke.taskGet', "Read task");
 		default:
 			return displayName;
 	}
@@ -536,49 +536,6 @@ export function getClaudePastTenseMessage(
 		}
 		case 'BashOutput':
 			return localize('claude.toolComplete.bashOutput', "Read shell output");
-		case 'KillBash':
-			return localize('claude.toolComplete.killBash', "Killed shell command");
-		case 'Read':
-		case 'NotebookRead': {
-			const path = getClaudeToolPath(toolName, input);
-			if (path) {
-				return md(localize('claude.toolComplete.readFile', "Read {0}", formatPathAsMarkdownLink(path)));
-			}
-			return localize('claude.toolComplete.read', "Read file");
-		}
-		case 'LS': {
-			const path = getClaudeToolPath(toolName, input);
-			if (path) {
-				return md(localize('claude.toolComplete.lsPath', "Listed {0}", formatPathAsMarkdownLink(path)));
-			}
-			return localize('claude.toolComplete.ls', "Listed directory");
-		}
-		case 'Write':
-		case 'Edit':
-		case 'MultiEdit':
-		case 'NotebookEdit': {
-			const path = getClaudeToolPath(toolName, input);
-			if (path) {
-				return md(localize('claude.toolComplete.editFile', "Edited {0}", formatPathAsMarkdownLink(path)));
-			}
-			return localize('claude.toolComplete.edit', "Edited file");
-		}
-		case 'TodoWrite':
-			return localize('claude.toolComplete.todoWrite', "Updated todo list");
-		case 'Grep': {
-			const pattern = readStringField(input, 'pattern');
-			if (pattern) {
-				return md(localize('claude.toolComplete.grepPattern', "Searched for {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
-			}
-			return localize('claude.toolComplete.grep', "Searched files");
-		}
-		case 'Glob': {
-			const pattern = readStringField(input, 'pattern');
-			if (pattern) {
-				return md(localize('claude.toolComplete.globPattern', "Found files matching {0}", appendEscapedMarkdownInlineCode(truncate(pattern, 80))));
-			}
-			return localize('claude.toolComplete.glob', "Found files");
-		}
 		case 'WebFetch': {
 			const url = readStringField(input, 'url');
 			if (url) {
@@ -596,26 +553,8 @@ export function getClaudePastTenseMessage(
 			}
 			return localize('claude.toolComplete.skill', "Ran skill");
 		}
-		case 'TaskCreate': {
-			const subject = readStringField(input, 'subject');
-			if (subject) {
-				return localize('claude.toolComplete.taskCreateNamed', "Created task: {0}", truncate(subject, 80));
-			}
-			return localize('claude.toolComplete.taskCreate', "Created task");
-		}
-		case 'TaskUpdate':
-			switch (readTaskUpdateStatus(input)) {
-				case 'in_progress': return localize('claude.toolComplete.taskStart', "Started task");
-				case 'completed': return localize('claude.toolComplete.taskComplete', "Completed task");
-				case 'deleted': return localize('claude.toolComplete.taskDelete', "Deleted task");
-				default: return localize('claude.toolComplete.taskUpdate', "Updated task");
-			}
-		case 'TaskList':
-			return localize('claude.toolComplete.taskList', "Read task list");
-		case 'TaskGet':
-			return localize('claude.toolComplete.taskGet', "Read task");
 		default:
-			return displayName;
+			return getClaudeInvocationMessage(toolName, displayName, input);
 	}
 }
 
