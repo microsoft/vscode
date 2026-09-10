@@ -366,12 +366,101 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('search continuation advances even through a large region with no matches', async () => {
 		const h = store.add(new CIHarness());
-		h.mutations.log = { text: `${'setup\n'.repeat(60_000)}FAIL: found`, truncated: false };
+		h.mutations.log = { text: `${'setup\n'.repeat(499_999)}FAIL: found`, truncated: false };
 		const evidenceId = await h.evidenceId();
-		const first = await h.read({ mode: 'search', evidenceId, query: 'FAIL' });
-		assert.ok(first.next);
-		const second = await h.read(first.next);
-		assert.deepStrictEqual({ first: first.matches, second: second.matches.map(match => match.line), next: second.next }, { first: [], second: [60_001], next: null });
+		const matches: number[] = [];
+		let request: AgentMergeCIRequest = { mode: 'search', evidenceId, query: 'FAIL' };
+		let pages = 0;
+		do {
+			const result = await h.read(request);
+			pages++;
+			matches.push(...result.matches.map(match => match.line));
+			if (!result.next) {
+				break;
+			}
+			request = result.next;
+		} while (pages < 11);
+		assert.deepStrictEqual({ pages, matches, downloads: h.mutations.downloads }, { pages: 10, matches: [500_000], downloads: 1 });
+	});
+
+	test('seeks search pages in a newline-dense 16 MiB log using bounded cached checkpoints', () => {
+		const evidence = store.add(new AgentMergeCIEvidenceStore());
+		const text = `${'\n'.repeat(16 * 1024 * 1024 - 5)}FAIL\n`;
+		const entry = evidence.tryAdd('scope', 1, { id: 'job', runId: '1', name: 'test' }, { text, truncated: false }, new AbortController().signal)!;
+		const checkpointReads: number[] = [];
+		const indexedEntry = {
+			...entry,
+			lineStartOffsets: new Proxy(entry.lineStartOffsets, {
+				get: (target, property) => {
+					if (typeof property === 'string' && /^\d+$/.test(property)) {
+						checkpointReads.push(Number(property));
+					}
+					return Reflect.get(target, property, target);
+				},
+			}),
+		};
+		const expectedCheckpoints: number[] = [];
+		const matches: number[] = [];
+		let request: AgentMergeCIRequest = { mode: 'search', evidenceId: entry.id, query: 'FAIL', contextLines: 0 };
+		let skippedLines = 0;
+		for (let page = 0; page < 336; page++) {
+			const first = request.startLine ?? 1;
+			const checkpoint = Math.floor((first - 1) / 1_024);
+			expectedCheckpoints.push(checkpoint);
+			skippedLines += first - 1 - checkpoint * 1_024;
+			const result = searchCIEvidence(indexedEntry, request);
+			matches.push(...result.matches.map(match => match.line));
+			expectedCheckpoints.push(...result.matches.map(match => Math.floor((match.line - 1) / 1_024)));
+			if (!result.next) {
+				assert.strictEqual(result.scannedThrough, entry.lineCount);
+				break;
+			}
+			assert.strictEqual(result.scannedThrough - first + 1, 50_000);
+			request = result.next;
+		}
+		assert.deepStrictEqual({
+			checkpointReads, matches,
+			indexBytes: entry.lineStartOffsets.byteLength,
+			boundedSeeking: skippedLines < 336 * 1_024,
+		}, {
+			checkpointReads: expectedCheckpoints, matches: [16 * 1024 * 1024 - 4],
+			indexBytes: 64 * 1024, boundedSeeking: true,
+		});
+	});
+
+	test('indexes CRLF, empty and unterminated lines across checkpoint boundaries for every reader', () => {
+		const evidence = store.add(new AgentMergeCIEvidenceStore());
+		const prefix = `${'setup\r\n'.repeat(1_023)}\r\n`;
+		const text = `${prefix}FAIL: first\r\n\r\nFAIL: last`;
+		const entry = evidence.tryAdd('scope', 1, { id: 'job', runId: '1', name: 'test' }, { text, truncated: false }, new AbortController().signal)!;
+		const expected = [
+			{ line: 1_024, column: 1, text: '' },
+			{ line: 1_025, column: 1, text: 'FAIL: first' },
+			{ line: 1_026, column: 1, text: '' },
+			{ line: 1_027, column: 1, text: 'FAIL: last' },
+		];
+		assert.deepStrictEqual({
+			lineCount: entry.lineCount,
+			offsets: [...entry.lineStartOffsets],
+			range: readCIRange(entry, { startLine: 1_024, endLine: 1_027 }).lines,
+			tail: readCITail(entry, 4).lines,
+			matches: searchCIEvidence(entry, { startLine: 1_025, query: 'fail', contextLines: 1 }).matches.map(match => ({ line: match.line, excerpt: match.excerpt })),
+		}, {
+			lineCount: 1_027,
+			offsets: [0, prefix.length],
+			range: expected, tail: expected,
+			matches: [{ line: 1_025, excerpt: expected.slice(0, 3) }, { line: 1_027, excerpt: expected.slice(2) }],
+		});
+	});
+
+	test('empty evidence has no line-index entries or phantom lines', () => {
+		const evidence = store.add(new AgentMergeCIEvidenceStore());
+		const entry = evidence.tryAdd('scope', 1, { id: 'job', runId: '1', name: 'test' }, { text: '', truncated: false }, new AbortController().signal)!;
+		assert.deepStrictEqual({
+			lineCount: entry.lineCount, indexBytes: entry.lineStartOffsets.byteLength,
+			range: readCIRange(entry, {}).lines, tail: readCITail(entry).lines,
+			search: searchCIEvidence(entry, { query: 'fail' }),
+		}, { lineCount: 0, indexBytes: 0, range: [], tail: [], search: { matches: [], scannedThrough: 0, next: undefined } });
 	});
 
 	test('does not publish a stale attempt or head if it changes during the download', async () => {

@@ -18,6 +18,7 @@ const evidenceLifetime = 5 * 60_000;
 const maximumEvidenceEntries = 8;
 const maximumEvidenceCharacters = 32 * 1024 * 1024;
 const excerptBytes = 6_000;
+const lineIndexStride = 1_024;
 
 export interface AgentMergeCIEvidence {
 	readonly id: string;
@@ -26,6 +27,8 @@ export interface AgentMergeCIEvidence {
 	readonly job: GitHubWorkflowJob;
 	readonly log: GitHubWorkflowLog;
 	readonly lineCount: number;
+	/** One UTF-16 offset per 1,024 lines bounds seeking without a full per-line index. */
+	readonly lineStartOffsets: Uint32Array;
 	readonly expiresAt: number;
 }
 
@@ -90,7 +93,7 @@ export class AgentMergeCIEvidenceStore extends Disposable {
 			id: generateUuid(), scope, runAttempt,
 			job: { id: job.id, runId: job.runId, name: job.name.slice(0, 200), headSha: job.headSha, runAttempt: job.runAttempt, checkRunId: job.checkRunId },
 			log: { ...log },
-			lineCount: countLines(log.text),
+			...indexLines(log.text),
 			expiresAt: Date.now() + evidenceLifetime,
 		};
 		this._entries.set(entry.id, entry);
@@ -165,18 +168,24 @@ export function ciJsonBytes(value: object): number {
 	return VSBuffer.fromString(JSON.stringify(value)).byteLength;
 }
 
-function countLines(text: string): number {
-	let count = 0;
-	for (let offset = 0; offset < text.length; count++) {
+function indexLines(text: string): Pick<AgentMergeCIEvidence, 'lineCount' | 'lineStartOffsets'> {
+	const offsets: number[] = [];
+	let lineCount = 0;
+	for (let offset = 0; offset < text.length; lineCount++) {
+		if (lineCount % lineIndexStride === 0) {
+			offsets.push(offset);
+		}
 		const end = text.indexOf('\n', offset);
 		offset = end < 0 ? text.length : end + 1;
 	}
-	return count;
+	return { lineCount, lineStartOffsets: Uint32Array.from(offsets) };
 }
 
-function* linesInRange(text: string, first: number, last: number): Iterable<{ line: number; start: number; end: number }> {
-	let line = 1;
-	for (let start = 0; start < text.length && line <= last; line++) {
+function* linesInRange(entry: AgentMergeCIEvidence, first: number, last: number): Iterable<{ line: number; start: number; end: number }> {
+	const text = entry.log.text;
+	const checkpoint = Math.floor((first - 1) / lineIndexStride);
+	let line = checkpoint * lineIndexStride + 1;
+	for (let start = entry.lineStartOffsets[checkpoint] ?? text.length; start < text.length && line <= last; line++) {
 		const newline = text.indexOf('\n', start);
 		const end = newline < 0 ? text.length : newline;
 		if (line >= first) {
@@ -194,7 +203,7 @@ export function readCIRange(entry: AgentMergeCIEvidence, request: AgentMergeCIRe
 	}
 	const result: CILine[] = [];
 	let remaining = budget;
-	for (const line of linesInRange(entry.log.text, first, last)) {
+	for (const line of linesInRange(entry, first, last)) {
 		let column = line.line === first ? request.startColumn ?? 1 : 1;
 		if (column > Math.max(1, line.end - line.start)) {
 			throw new Error('The requested column is outside the captured CI line.');
@@ -215,7 +224,7 @@ export function readCIRange(entry: AgentMergeCIEvidence, request: AgentMergeCIRe
 }
 
 export function readCITail(entry: AgentMergeCIEvidence, lineCount = 100, budget = excerptBytes): CIExcerpt {
-	const candidates = [...linesInRange(entry.log.text, Math.max(1, entry.lineCount - lineCount + 1), entry.lineCount)];
+	const candidates = [...linesInRange(entry, Math.max(1, entry.lineCount - lineCount + 1), entry.lineCount)];
 	const result: CILine[] = [];
 	let remaining = budget;
 	for (const line of candidates.reverse()) {
@@ -252,15 +261,15 @@ export function searchCIEvidence(entry: AgentMergeCIEvidence, request: AgentMerg
 	const matches: { line: number; excerpt: readonly CILine[]; read: AgentMergeCIRequest }[] = [];
 	let bytes = 0;
 	let scannedThrough = first - 1;
-	for (const line of linesInRange(entry.log.text, first, entry.lineCount)) {
-		if (matches.length >= 5 || line.line - first >= 50_000) {
+	for (const line of linesInRange(entry, first, Math.min(entry.lineCount, first + 49_999))) {
+		if (matches.length >= 5) {
 			break;
 		}
 		const text = entry.log.text.slice(line.start, line.end);
 		const index = text.search(query);
 		if (index >= 0) {
 			const excerpt: CILine[] = [];
-			for (const surrounding of linesInRange(entry.log.text, Math.max(1, line.line - context), Math.min(entry.lineCount, line.line + context))) {
+			for (const surrounding of linesInRange(entry, Math.max(1, line.line - context), Math.min(entry.lineCount, line.line + context))) {
 				const column = surrounding.line === line.line ? index + 1 : 1;
 				const length = surrounding.line === line.line ? 200 : 60;
 				excerpt.push({ line: surrounding.line, column, text: entry.log.text.slice(surrounding.start + column - 1, Math.min(surrounding.end, surrounding.start + column - 1 + length)) });
@@ -287,7 +296,7 @@ export function searchCIEvidence(entry: AgentMergeCIEvidence, request: AgentMerg
 
 export function ciFailureExcerpt(entry: AgentMergeCIEvidence): readonly CILine[] {
 	const result: CILine[] = [];
-	for (const line of linesInRange(entry.log.text, 1, entry.lineCount)) {
+	for (const line of linesInRange(entry, 1, entry.lineCount)) {
 		const text = entry.log.text.slice(line.start, line.end);
 		const index = text.search(/\b(?:[1-9]\d* failing|failed|AssertionError|Error|FAIL(?:URE|ED)?)\b|##\[error\]/i);
 		if (index >= 0) {
