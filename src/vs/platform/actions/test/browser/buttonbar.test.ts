@@ -43,10 +43,11 @@ suite('WorkbenchButtonBar', () => {
 		}());
 
 		const container = $('div');
-		// Resolves the spacing tokens buttonbar.css reads, for computed-style assertions.
+		// Resolves the spacing and icon-size tokens buttonbar.css reads, for computed-style assertions.
 		container.style.cssText = `
 			--vscode-spacing-size40: 4px;
 			--vscode-spacing-size60: 6px;
+			--vscode-iconSize-small: 16px;
 		`;
 		mainWindow.document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
@@ -159,6 +160,24 @@ suite('WorkbenchButtonBar', () => {
 			idleUsesDefaultSpacing: true,
 			idleSpinners: 0,
 			idleLabel: 'idle',
+		});
+
+		// The spinner must occupy the same 16x16 slot as the icon it replaces,
+		// so a token or selector regression cannot silently shrink or grow it.
+		const busyLeading = busy.firstElementChild as HTMLElement;
+		const idleLeading = idle.firstElementChild as HTMLElement;
+		const busySize = getWindow(busy).getComputedStyle(busyLeading);
+		const idleSize = getWindow(idle).getComputedStyle(idleLeading);
+		assert.deepStrictEqual({
+			busyWidth: busySize.width,
+			busyHeight: busySize.height,
+			idleWidth: idleSize.width,
+			idleHeight: idleSize.height,
+		}, {
+			busyWidth: '16px',
+			busyHeight: '16px',
+			idleWidth: '16px',
+			idleHeight: '16px',
 		});
 	});
 
