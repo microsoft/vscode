@@ -107,7 +107,7 @@ suite('LayoutController (desktop)', () => {
 		return editor;
 	}
 
-	function makeCustomEditor(resource?: URI): CustomEditorInput {
+	function makeCustomEditor(resource: URI = URI.file('/repo/custom.editor')): CustomEditorInput {
 		const editor = Object.create(CustomEditorInput.prototype) as CustomEditorInput;
 		Object.defineProperty(editor, 'resource', { value: resource });
 		return editor;
