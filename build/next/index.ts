@@ -21,6 +21,7 @@ import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
+import { consoleCompactor } from '../buildfile.ts';
 
 const globAsync = promisify(glob);
 
@@ -166,6 +167,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				...desktopWorkerEntryPoints,
 				...desktopEntryPoints,
 				...codeEntryPoints,
+				consoleCompactor.name,
 			];
 		case 'server':
 			return [
@@ -177,6 +179,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				...workerEntryPoints,
 				...webEntryPoints,
 				...keyboardMapEntryPoints,
+				consoleCompactor.name,
 			];
 		case 'web':
 			return [
@@ -184,6 +187,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				...webOnlyEntryPoints,
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
+				consoleCompactor.name,
 			];
 		default:
 			throw new Error(`Unknown target: ${target}`);

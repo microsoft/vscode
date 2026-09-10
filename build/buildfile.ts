@@ -19,6 +19,7 @@ export const workerLocalFileSearch = createModuleDescription('vs/workbench/servi
 export const workerProfileAnalysis = createModuleDescription('vs/platform/profiling/electron-browser/profileAnalysisWorkerMain');
 export const workerOutputLinks = createModuleDescription('vs/workbench/contrib/output/common/outputLinkComputerMain');
 export const workerBackgroundTokenization = createModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain');
+export const consoleCompactor = createModuleDescription('vs/workbench/contrib/terminalContrib/chatAgentTools/browser/tools/consoleCompactor/consoleCompactor');
 
 export const workbenchDesktop = [
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
@@ -29,7 +30,8 @@ export const workbenchDesktop = [
 	createModuleDescription('vs/platform/agentHost/node/diffWorkerMain'),
 	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
 	createModuleDescription('vs/workbench/workbench.desktop.main'),
-	createModuleDescription('vs/sessions/sessions.desktop.main')
+	createModuleDescription('vs/sessions/sessions.desktop.main'),
+	consoleCompactor,
 ];
 
 export const workbenchWeb = createModuleDescription('vs/workbench/workbench.web.main.internal');
@@ -74,6 +76,7 @@ const buildfile = {
 	workerProfileAnalysis,
 	workerOutputLinks,
 	workerBackgroundTokenization,
+	consoleCompactor,
 	workbenchDesktop,
 	workbenchWeb,
 	sessionsWeb,

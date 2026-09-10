@@ -116,6 +116,7 @@ const vscodeWebEntryPoints = [
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
+	buildfile.consoleCompactor,
 	buildfile.workbenchWeb,
 	buildfile.sessionsWeb,
 ].flat();

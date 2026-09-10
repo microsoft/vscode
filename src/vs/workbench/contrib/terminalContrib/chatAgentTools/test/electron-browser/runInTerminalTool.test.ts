@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -26,7 +26,7 @@ import type { TestInstantiationService } from '../../../../../../platform/instan
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
@@ -67,6 +67,22 @@ import { IChatSessionsService } from '../../../../chat/common/chatSessionsServic
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
+	compactorLoadCount = 0;
+	compactorLoadError: Error | undefined;
+
+	protected override async _loadConsoleCompactor() {
+		this.compactorLoadCount++;
+		if (this.compactorLoadError) {
+			throw this.compactorLoadError;
+		}
+		// The unit runner uses file:// rather than the workbench's vscode-file:// resource protocol.
+		return import('../../browser/tools/consoleCompactor/consoleCompactor.js');
+	}
+
+	compactOutput(command: string, output: string): Promise<string> {
+		return this._compactOutput(command, output);
+	}
+
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
 	get sessionTerminalInstances() { return this._sessionTerminalInstances; }
 	get profileFetcher() { return this._profileFetcher; }
@@ -102,6 +118,7 @@ suite('RunInTerminalTool', () => {
 	let createTerminalCallCount: number;
 	let chatSessions: Map<string, ChatModel>;
 	let chatSessionContribution: ReturnType<IChatSessionsService['getChatSessionContribution']>;
+	let compactionWarnings: { message: string; details: string[] }[];
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -112,6 +129,7 @@ suite('RunInTerminalTool', () => {
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		workspaceContextService = new TestContextService();
+		compactionWarnings = [];
 
 		const logService = new NullLogService();
 		fileService = store.add(new FileService(logService));
@@ -202,6 +220,12 @@ suite('RunInTerminalTool', () => {
 			configurationService: () => configurationService,
 			fileService: () => fileService,
 		}, store);
+		instantiationService.stub(ITerminalLogService, store.add(new class extends NullLogService {
+			declare readonly _logBrand: undefined;
+			override warn(message: string, ...args: unknown[]): void {
+				compactionWarnings.push({ message, details: args.map(arg => String(arg)) });
+			}
+		}()));
 
 		const chatServiceStub = {
 			onDidDisposeSession: chatServiceDisposeEmitter.event,
@@ -459,6 +483,52 @@ suite('RunInTerminalTool', () => {
 	function getAutomaticAllowNetworkRetryTitle(tool: RunInTerminalTool, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
 		return getAutomaticSandboxRetryTitle(tool, 'allowNetwork', shellType, blockedDomains);
 	}
+
+	suite('output compaction', () => {
+		test('does not load the compactor when compaction is disabled', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.OutputCompaction, false);
+			const output = await runInTerminalTool.compactOutput('echo hello', 'hello\n');
+
+			deepStrictEqual({ output, loads: runInTerminalTool.compactorLoadCount }, { output: 'hello\n', loads: 0 });
+		});
+
+		test('loads the compactor on first use and preserves unremarkable output', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.OutputCompaction, true);
+			const loadsBeforeUse = runInTerminalTool.compactorLoadCount;
+			const output = await runInTerminalTool.compactOutput('echo hello', 'hello\n');
+
+			deepStrictEqual({ loadsBeforeUse, output, loads: runInTerminalTool.compactorLoadCount, warnings: compactionWarnings }, { loadsBeforeUse: 0, output: 'hello\n', loads: 1, warnings: [] });
+		});
+
+		test('compacts noisy output through the dynamically loaded module', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.OutputCompaction, true);
+			const original = Array.from({ length: 400 }, (_, i) => `npm http fetch GET 200 https://registry.npmjs.org/pkg${i} ${i}ms (cache miss)`).join('\n') + '\nadded 400 packages in 3s\n';
+			const output = await runInTerminalTool.compactOutput('npm install', original);
+
+			deepStrictEqual({
+				compacted: output.length < original.length,
+				retainsSummary: output.includes('added 400 packages in 3s'),
+				loads: runInTerminalTool.compactorLoadCount,
+				warnings: compactionWarnings,
+			}, { compacted: true, retainsSummary: true, loads: 1, warnings: [] });
+		});
+
+		test('logs a load failure and preserves the command output', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.OutputCompaction, true);
+			runInTerminalTool.compactorLoadError = new Error('Compactor could not be loaded');
+			const output = await runInTerminalTool.compactOutput('echo hello', 'hello\n');
+
+			deepStrictEqual({
+				output,
+				loads: runInTerminalTool.compactorLoadCount,
+				warnings: compactionWarnings,
+			}, {
+				output: 'hello\n',
+				loads: 1,
+				warnings: [{ message: 'RunInTerminalTool: Failed to compact terminal output', details: ['Error: Compactor could not be loaded'] }],
+			});
+		});
+	});
 
 	suite('sandbox invocation messaging', () => {
 		test('should instruct models to use $TMPDIR instead of /tmp when sandboxed', async () => {

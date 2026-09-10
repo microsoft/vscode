@@ -13,6 +13,7 @@ import { appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens, MarkdownSt
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
+import { FileAccess } from '../../../../../../base/common/network.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
@@ -86,7 +87,6 @@ import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligible
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { getSandboxPrecheckInputsForToolInvocation } from '../../../../chat/browser/tools/toolHelpers.js';
-import { compact } from './consoleCompactor/consoleCompactor.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 
 // #region Tool data
@@ -2511,19 +2511,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (outputAnalyzerMessage) {
 			resultText.push(`${outputAnalyzerMessage}\n`);
 		}
-		let outputForResult = terminalResult;
-		if (this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.OutputCompaction) === true) {
-			try {
-				const commandForCompaction = toolSpecificData.commandLine.forDisplay ?? command;
-				const report = compact(commandForCompaction, terminalResult);
-				this._telemetry.logCompaction(report);
-				if (report.applied) {
-					outputForResult = report.compactedOutput;
-				}
-			} catch {
-				this._telemetry.logCompactionFailed();
-			}
-		}
+		const outputForResult = await this._compactOutput(toolSpecificData.commandLine.forDisplay ?? command, terminalResult);
 		// Process large output: write to file if needed, then truncate with file path
 		const processedOutput = await this._largeOutputFileWriter.processOutput(outputForResult);
 		resultText.push(processedOutput);
@@ -2632,6 +2620,27 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			lines.push(`  3. Producing no output for an extended period does not mean the command failed — call ${TerminalToolId.GetTerminalOutput} with id="${termId}" to continue polling. Only call ${TerminalToolId.KillTerminal} if the command is genuinely hung and you need to retry with a different approach.`);
 		}
 		return lines.join('\n');
+	}
+
+	protected _loadConsoleCompactor(): Promise<typeof import('./consoleCompactor/consoleCompactor.js')> {
+		return import(/* webpackIgnore: true */FileAccess.asBrowserUri('vs/workbench/contrib/terminalContrib/chatAgentTools/browser/tools/consoleCompactor/consoleCompactor.js').toString(true));
+	}
+
+	protected async _compactOutput(command: string, output: string): Promise<string> {
+		if (this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.OutputCompaction) !== true) {
+			return output;
+		}
+
+		try {
+			const { compact } = await this._loadConsoleCompactor();
+			const report = compact(command, output);
+			this._telemetry.logCompaction(report);
+			return report.applied ? report.compactedOutput : output;
+		} catch (error) {
+			this._logService.warn('RunInTerminalTool: Failed to compact terminal output', error);
+			this._telemetry.logCompactionFailed();
+			return output;
+		}
 	}
 
 	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {

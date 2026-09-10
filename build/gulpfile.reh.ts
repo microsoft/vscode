@@ -122,6 +122,7 @@ const webEntryPoints = [
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
+	buildfile.consoleCompactor,
 	buildfile.codeWeb
 ].flat();
 

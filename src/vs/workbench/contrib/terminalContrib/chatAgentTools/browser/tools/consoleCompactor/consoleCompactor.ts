@@ -6,6 +6,7 @@
 // Shell-output compactor. Classifies shell commands and strips non-diagnostic
 // noise from their output. This is a faithful TypeScript port of the original
 // Rust implementation (lib.rs, report.rs, shell_output_compactor.rs).
+// Bundled separately and loaded on demand; keep this module independent of workbench services.
 
 //#region Public API types
 
