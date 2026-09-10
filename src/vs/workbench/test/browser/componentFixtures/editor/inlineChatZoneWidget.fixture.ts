@@ -157,7 +157,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine },
 });
 
-function renderInlineChatZoneWidget({ container, disposableStore, theme }: ComponentFixtureContext, showTerminationCard: boolean): void {
+function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }: ComponentFixtureContext, showTerminationCard: boolean): void {
 	container.style.width = '600px';
 	container.style.height = '700px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
@@ -431,7 +431,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 	));
 
 	editor.setModel(textModel);
-	editor.focus();
+	focus(editor);
 
 	const zoneWidget = disposableStore.add(instantiationService.createInstance(
 		InlineChatZoneWidget,

@@ -18,8 +18,8 @@ import { IMcpDiscovery } from './mcpDiscovery.js';
 import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
 
 /**
- * Discovers MCP servers defined in `.mcp.json` files at workspace folder roots.
- * Uses the Claude-style format: `{ "mcpServers": { ... } }`.
+ * Discovers workspace-root `.mcp.json` files using the Claude-style `{ "mcpServers": { ... } }` format.
+ * Servers inherit workspace trust, matching `.vscode/mcp.json`.
  */
 export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
@@ -61,7 +61,7 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 			label: `${folder.name}/.mcp.json`,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority || null,
 			scope: StorageScope.WORKSPACE,
-			trustBehavior: McpServerTrust.Kind.TrustedOnNonce as const,
+			trustBehavior: McpServerTrust.Kind.Trusted as const,
 			serverDefinitions,
 			configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
 			order: McpCollectionSortOrder.WorkspaceFolder + 1,

@@ -17,8 +17,22 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 	{
 		name: readAgentMergeCIToolName,
 		title: 'Read Agent Merge CI',
-		description: 'Read annotations, failed jobs, and bounded logs for failed required checks on the pull request authorized for the active Agent Merge turn.',
-		inputSchema: { type: 'object', properties: {} },
+		description: 'Read CI diagnostics for failed required checks authorized for the active Agent Merge turn. Defaults to a bounded summary of checks, annotations, jobs, failed steps, and failure excerpts. Use a returned evidenceId for a line-numbered tail, range, or literal search with context; pass a returned cursor alone to continue. Responses are capped at 48 KB and job downloads at 16 MiB/30 seconds. Summary pages also respect cache capacity; inspect a page before continuing. Cached evidence expires five minutes after its last summary or on eviction; use summary with jobId to reacquire just that job. Evidence is scoped to this turn, pull request head, workflow attempt, and job. A tail is the real end only when complete is true; a download limit is terminal, not evidence that the unseen log succeeded. Concurrent reads are queued, with waiting included in the three-minute call limit. Follow the returned operations rather than repeating the summary or using other GitHub tools.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				mode: { type: 'string', enum: ['summary', 'tail', 'range', 'search'], description: 'Diagnostic operation. Defaults to summary.' },
+				evidenceId: { type: 'string', description: 'Host-owned job evidence ID returned by a summary.' },
+				jobId: { type: 'string', description: 'Select one authorized failed job in summary mode, including to reacquire expired or evicted evidence.' },
+				cursor: { type: 'string', description: 'Continuation returned by this tool. Pass alone; expired or stale cursors fail explicitly.' },
+				startLine: { type: 'integer', minimum: 1, description: 'First line for range or search, inclusive. Defaults to 1.' },
+				startColumn: { type: 'integer', minimum: 1, description: 'First column of a range, for continuing a long line. Defaults to 1.' },
+				endLine: { type: 'integer', minimum: 1, description: 'Last range line, inclusive. At most 200 lines per requested range.' },
+				lineCount: { type: 'integer', minimum: 1, maximum: 200, description: 'Number of tail lines. Defaults to 100; response budget may return fewer.' },
+				query: { type: 'string', minLength: 1, maxLength: 200, description: 'Case-insensitive literal search text, not a regular expression.' },
+				contextLines: { type: 'integer', minimum: 0, maximum: 5, description: 'Lines surrounding each search match. Defaults to 2.' },
+			},
+		},
 		annotations: { readOnlyHint: true },
 	},
 	{
@@ -54,9 +68,65 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 
 export interface IAgentMergeToolAccessor {
 	isEnabled(): boolean;
-	readFailedCI(session: string): Promise<string>;
+	readFailedCI(session: string, request?: AgentMergeCIRequest): Promise<string>;
 	replyToReviewThread(session: string, threadId: string, body: string, resolve: boolean): Promise<string>;
 	rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string>;
+}
+
+export interface AgentMergeCIRequest {
+	readonly mode?: 'summary' | 'tail' | 'range' | 'search';
+	readonly evidenceId?: string;
+	readonly jobId?: string;
+	readonly cursor?: string;
+	readonly startLine?: number;
+	readonly startColumn?: number;
+	readonly endLine?: number;
+	readonly lineCount?: number;
+	readonly query?: string;
+	readonly contextLines?: number;
+}
+
+export function parseAgentMergeCIRequest(value: unknown): AgentMergeCIRequest {
+	const args = asRecord(value, readAgentMergeCIToolName);
+	const mode = args.mode ?? 'summary';
+	const fields = args.cursor !== undefined ? ['cursor']
+		: mode === 'summary' ? ['mode', 'jobId']
+			: mode === 'tail' ? ['mode', 'evidenceId', 'lineCount']
+				: mode === 'range' ? ['mode', 'evidenceId', 'startLine', 'startColumn', 'endLine']
+					: mode === 'search' ? ['mode', 'evidenceId', 'query', 'startLine', 'contextLines'] : undefined;
+	if (!fields || Object.keys(args).some(key => !fields.includes(key))) {
+		throw new Error('Invalid readAgentMergeCI input: unsupported fields or mode. Pass a cursor alone.');
+	}
+	if (args.cursor !== undefined) {
+		return { cursor: requiredString(args.cursor, 'cursor', readAgentMergeCIToolName) };
+	}
+	if (mode === 'summary') {
+		return { mode, ...(args.jobId !== undefined ? { jobId: requiredString(args.jobId, 'jobId', readAgentMergeCIToolName) } : {}) };
+	}
+	const evidenceId = requiredString(args.evidenceId, 'evidenceId', readAgentMergeCIToolName);
+	if (mode === 'tail') {
+		return { mode, evidenceId, lineCount: boundedInteger(args.lineCount, 'lineCount', 1, 200) };
+	}
+	const startLine = boundedInteger(args.startLine, 'startLine', 1, Number.MAX_SAFE_INTEGER) ?? 1;
+	if (mode === 'range') {
+		const endLine = boundedInteger(args.endLine, 'endLine', startLine, startLine + 199) ?? startLine + 199;
+		return { mode, evidenceId, startLine, endLine, startColumn: boundedInteger(args.startColumn, 'startColumn', 1, Number.MAX_SAFE_INTEGER) };
+	}
+	const query = requiredString(args.query, 'query', readAgentMergeCIToolName);
+	if (query.length > 200 || /[\r\n]/.test(query)) {
+		throw new Error('Invalid readAgentMergeCI input: query must be a single line of at most 200 characters.');
+	}
+	return { mode: 'search', evidenceId, startLine, query, contextLines: boundedInteger(args.contextLines, 'contextLines', 0, 5) };
+}
+
+function boundedInteger(value: unknown, field: string, minimum: number, maximum: number): number | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < minimum || value > maximum) {
+		throw new Error(`Invalid readAgentMergeCI input: ${field} must be an integer between ${minimum} and ${maximum}.`);
+	}
+	return value;
 }
 
 export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccessor): IServerToolGroup {
@@ -70,7 +140,7 @@ export function createAgentMergeServerToolGroup(accessor?: IAgentMergeToolAccess
 			}
 			switch (toolName) {
 				case readAgentMergeCIToolName:
-					return accessor.readFailedCI(context.sessionUri);
+					return accessor.readFailedCI(context.sessionUri, parseAgentMergeCIRequest(rawArgs));
 				case replyToAgentMergeReviewThreadToolName: {
 					const args = asRecord(rawArgs, toolName);
 					return accessor.replyToReviewThread(

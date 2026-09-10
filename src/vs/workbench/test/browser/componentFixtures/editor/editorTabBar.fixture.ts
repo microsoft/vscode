@@ -562,7 +562,10 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		tabs[options.forcedHoverTab]?.classList.add('fixture-hover');
 	}
 	if (options.focusedTabAction !== undefined) {
-		tabs[options.focusedTabAction]?.querySelector<HTMLElement>('.tab-actions .action-label')?.focus();
+		const action = tabs[options.focusedTabAction]?.querySelector<HTMLElement>('.tab-actions .action-label');
+		if (action) {
+			ctx.focus(action);
+		}
 	}
 	layout();
 }
