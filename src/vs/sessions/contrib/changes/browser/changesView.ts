@@ -81,7 +81,7 @@ import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesVi
 import { renderSessionsEmptyState } from '../../../browser/parts/sessionsEmptyState.js';
 import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from './checksActions.js';
-import { getChangesButtonBarIconLabelSpacing } from './changesButtonBarSpacing.js';
+import { CHANGES_OUTSIDE_CARD_CLASS, getChangesButtonBarIconLabelSpacing } from './changesButtonBarSpacing.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -156,7 +156,6 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 	constructor(
 		container: HTMLElement,
 		hasGitOperationInProgressObs: IObservable<boolean>,
-		iconLabelSpacing: 'compact' | 'default',
 		@IMenuService menuService: IMenuService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -167,6 +166,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		@IChatPetService chatPetService: IChatPetService,
 	) {
 		super();
+		const iconLabelSpacing = getChangesButtonBarIconLabelSpacing(container);
 
 		const outgoingChangesObs = derivedObservableWithCache<number | undefined>(this, (reader, lastValue) => {
 			const activeSessionState = changesViewService.activeSessionStateObs.read(reader);
@@ -312,7 +312,6 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 	constructor(
 		container: HTMLElement,
-		iconLabelSpacing: 'compact' | 'default',
 		@IMenuService menuService: IMenuService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -322,6 +321,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
+		const iconLabelSpacing = getChangesButtonBarIconLabelSpacing(container);
 
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const dropdownMenu = this._register(menuService.createMenu(Menus.ChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
@@ -611,8 +611,8 @@ export class ChangesActionsBar extends Disposable {
 			dom.clearNode(container);
 
 			const widget = isAgentHostSessionObs.read(reader)
-				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, getChangesButtonBarIconLabelSpacing('header'))
-				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs, getChangesButtonBarIconLabelSpacing('header'));
+				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container)
+				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
 			reader.store.add(widget);
 			currentWidget = widget;
 			reader.store.add(widget.onDidChangeActions(() => updateVisibility()));
@@ -818,7 +818,7 @@ export class ChangesViewPane extends ViewPane {
 		this.bodyContainer = dom.append(container, $('.changes-view-body'));
 
 		// Actions container - positioned outside and above the card
-		this.actionsContainer = dom.append(this.bodyContainer, $('.chat-editing-session-actions.outside-card'));
+		this.actionsContainer = dom.append(this.bodyContainer, $(`.chat-editing-session-actions.${CHANGES_OUTSIDE_CARD_CLASS}`));
 
 		// SplitView container for resizable file tree / CI checks split
 		this.splitViewContainer = dom.append(this.bodyContainer, $('.changes-splitview-container'));
@@ -1665,8 +1665,8 @@ export class ChangesViewPane extends ViewPane {
 			const isAgentHostSession = isAgentHostSessionObs.read(reader);
 
 			const widget = isAgentHostSession
-				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, getChangesButtonBarIconLabelSpacing('outside-card'))
-				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs, getChangesButtonBarIconLabelSpacing('outside-card'));
+				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!)
+				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs);
 			reader.store.add(widget);
 		}));
 	}
