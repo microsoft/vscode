@@ -7,7 +7,6 @@ import '../media/automationsCards.css';
 import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -96,7 +95,7 @@ interface IAutomationCardEntry {
 	readonly main: HTMLButtonElement;
 	readonly actions: HTMLElement;
 	readonly runButton: IButton;
-	readonly deleteButton: IButton;
+	readonly moreActionsButton: IButton;
 	readonly canDeleteContext: IContextKey<boolean>;
 	readonly canDisableContext: IContextKey<boolean>;
 	readonly nameText: HTMLElement;
@@ -528,20 +527,6 @@ class AutomationCardsSection extends Disposable {
 		const canDeleteContext = AutomationCardCanDeleteContext.bindTo(cardContextKeyService);
 		const canDisableContext = AutomationCardCanDisableContext.bindTo(cardContextKeyService);
 		disposables.add(Gesture.addTarget(card));
-		disposables.add(DOM.addDisposableListener(card, DOM.EventType.CONTEXT_MENU, (event: MouseEvent) => {
-			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation) {
-				return;
-			}
-			event.preventDefault();
-			event.stopPropagation();
-			this.contextMenuService.showContextMenu({
-				menuId: Menus.AutomationCardContext,
-				menuActionOptions: { shouldForwardArgs: true, arg: currentAutomation },
-				getAnchor: () => DOM.isMouseEvent(event) ? new StandardMouseEvent(DOM.getWindow(card), event) : card,
-				contextKeyService: cardContextKeyService,
-			});
-		}));
 
 		const main = DOM.append(card, $<HTMLButtonElement>('button.automations-card-main', {
 			type: 'button',
@@ -583,13 +568,28 @@ class AutomationCardsSection extends Disposable {
 			void this.runNow(currentAutomation);
 		}));
 
-		const deleteBtn = this.createIconButton(buttonBar, Codicon.trash, localize('deleteAutomation', "Delete"), this.automationService.canDeleteAutomation?.(automation.id) === false);
-		disposables.add(deleteBtn.onDidClick(() => {
+		const moreActionsButton = this.createIconButton(buttonBar, Codicon.ellipsis, localize('moreActionsForAutomation', "More Actions for {0}", automation.name), false);
+		moreActionsButton.element.classList.add('automations-card-more-actions-button');
+		moreActionsButton.element.setAttribute('aria-haspopup', 'menu');
+		moreActionsButton.element.setAttribute('aria-expanded', 'false');
+		disposables.add(moreActionsButton.onDidClick(event => {
+			event?.stopPropagation();
 			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation || this.automationService.canDeleteAutomation?.(automation.id) === false) {
+			if (!currentAutomation) {
 				return;
 			}
-			void this.confirmDelete(currentAutomation);
+			actions.classList.add('menu-open');
+			moreActionsButton.element.setAttribute('aria-expanded', 'true');
+			this.contextMenuService.showContextMenu({
+				menuId: Menus.AutomationCardContext,
+				menuActionOptions: { shouldForwardArgs: true, arg: currentAutomation },
+				getAnchor: () => moreActionsButton.element,
+				contextKeyService: cardContextKeyService,
+				onHide: () => {
+					actions.classList.remove('menu-open');
+					moreActionsButton.element.setAttribute('aria-expanded', 'false');
+				},
+			});
 		}));
 
 		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
@@ -612,7 +612,7 @@ class AutomationCardsSection extends Disposable {
 			main,
 			actions,
 			runButton: runBtn,
-			deleteButton: deleteBtn,
+			moreActionsButton,
 			canDeleteContext,
 			canDisableContext,
 			nameText: nameTextEl,
@@ -630,7 +630,6 @@ class AutomationCardsSection extends Disposable {
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
 		card.main.disabled = this.automationService.canUpdateAutomation?.(automation.id) === false;
 		card.runButton.enabled = this.automationService.canRunAutomation?.(automation.id) !== false;
-		card.deleteButton.enabled = this.automationService.canDeleteAutomation?.(automation.id) !== false;
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation?.(automation.id) !== false);
 		card.canDisableContext.set(automation.enabled && this.automationService.canUpdateAutomation?.(automation.id) !== false);
 		const schedule = formatSchedule(automation.schedule);
@@ -642,6 +641,9 @@ class AutomationCardsSection extends Disposable {
 		if (nameChanged) {
 			card.main.setAttribute('aria-label', localize('editAutomationNamed', "Edit automation {0}", automation.name));
 			card.actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
+			const moreActionsLabel = localize('moreActionsForAutomation', "More Actions for {0}", automation.name);
+			card.moreActionsButton.setAriaLabel(moreActionsLabel);
+			card.moreActionsButton.setTitle(moreActionsLabel);
 			card.nameText.textContent = automation.name;
 		}
 		if (!previous || previous.enabled !== automation.enabled) {
@@ -1052,10 +1054,6 @@ class AutomationCardsSection extends Disposable {
 				getErrorMessage(err),
 			);
 		}
-	}
-
-	private async confirmDelete(automation: IAutomationDescriptor): Promise<void> {
-		await confirmAndDeleteAutomation(automation, this.automationService, this.configurationService, this.dialogService, this.logService);
 	}
 
 	private isEnabled(): boolean {
