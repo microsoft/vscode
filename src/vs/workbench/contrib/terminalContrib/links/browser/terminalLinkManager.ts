@@ -119,6 +119,8 @@ export class TerminalLinkManager extends DisposableStore {
 				if (!this._isLinkActivationModifierDown(event)) {
 					return;
 				}
+				// Prevent xterm from reporting invalid coordinates after link activation.
+				event.stopImmediatePropagation();
 				const colonIndex = text.indexOf(':');
 				if (colonIndex === -1) {
 					throw new Error(`Could not find scheme in link "${text}"`);
@@ -206,6 +208,8 @@ export class TerminalLinkManager extends DisposableStore {
 			if (e.event && !(e.event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(e.event)) {
 				return;
 			}
+			// Prevent xterm from reporting invalid coordinates after link activation.
+			e.event?.stopImmediatePropagation();
 			// Just call the handler if there is no before listener
 			if (e.link.activate) {
 				// Custom activate call (external links only)
