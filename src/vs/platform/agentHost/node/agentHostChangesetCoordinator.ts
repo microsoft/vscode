@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agent.js';
-import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, buildSessionChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
@@ -16,6 +16,7 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { readAgentMergeSessionState } from '../common/agentMerge.js';
 import { isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
+import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -93,9 +94,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetFileMonitor.onSessionRestored(sessionStr);
 	}
 
-	/** Refreshes config-dependent catalogue entries after restored session config is seeded. */
-	onSessionConfigRestored(sessionStr: string): void {
+	/** Refreshes the catalogue and summary interest after replacing the previous config during restore. */
+	onSessionConfigRestored(sessionStr: string, previous: SessionConfigState | undefined): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
+		this._refreshSummarySource(sessionStr, previous);
 	}
 
 	/**
@@ -125,10 +127,20 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
+		this._refreshSummarySource(session, previous);
 		const wasEnabled = readAgentMergeSessionState(previous?.values)?.enabled === true;
 		const isEnabled = readAgentMergeSessionState(current?.values)?.enabled === true;
 		if (wasEnabled !== isEnabled) {
 			this._changesets.refreshChangesetCatalog(session);
+		}
+	}
+
+	private _refreshSummarySource(session: string, previous: SessionConfigState | undefined): void {
+		const kind = getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values);
+		if (kind !== getSummaryChangesetKind(previous?.values)) {
+			this._changesetOperationService.updateOperations(session, buildBranchChangesetUri(session));
+			this._changesetOperationService.updateOperations(session, buildSessionChangesetUri(session));
+			this._changesets.recomputeSubscribedChangesets(session);
 		}
 	}
 
@@ -195,7 +207,12 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 
 		this._addSubscription(session, session);
-		this._changesets.refreshSessionChangeset(session);
+		const kind = getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values);
+		if (kind === ChangesetKind.Branch) {
+			this._changesets.refreshBranchChangeset(session);
+		} else {
+			this._changesets.refreshSessionChangeset(session);
+		}
 		this._changesetFileMonitor.trackSessionChanges(session, session);
 	}
 
