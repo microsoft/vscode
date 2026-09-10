@@ -14,16 +14,48 @@ import { ITextResourceConfigurationService } from '../../../../../editor/common/
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IEditorPane, IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { SessionChangesEditor } from '../../../changes/browser/sessionChangesEditor.js';
-import { SessionsDiffEditorCommandsService, SessionsDiffEditorLayoutContribution } from '../../browser/diffEditor.sessions.contribution.js';
+import { sessionsEditorWordWrapConfiguration, SessionsDiffEditorCommandsService, SessionsDiffEditorLayoutContribution } from '../../browser/diffEditor.sessions.contribution.js';
 import { TextDiffEditor } from '../../../../../workbench/browser/parts/editor/textDiffEditor.js';
 import { DiffEditorViewMode, IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorType } from '../../../../../editor/common/editorCommon.js';
-import { IDiffEditorOptionsService } from '../../common/diffEditorOptionsService.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsWordWrap } from '../../common/diffEditorOptionsService.js';
+import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 
 suite('SessionsDiffEditorCommandsService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registers independent editor and diff word wrap auto experiments', () => {
+		const properties = sessionsEditorWordWrapConfiguration.properties;
+		const summarize = (settingId: keyof typeof properties) => {
+			const property = properties[settingId];
+			return {
+				type: property.type,
+				enum: property.enum,
+				default: property.default,
+				experiment: property.experiment,
+			};
+		};
+
+		assert.deepStrictEqual({
+			editor: summarize(SESSIONS_EDITOR_WORD_WRAP_SETTING),
+			diffEditor: summarize(SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING),
+		}, {
+			editor: {
+				type: 'string',
+				enum: ['off', 'on', 'inherit'],
+				default: 'inherit',
+				experiment: { mode: 'auto' },
+			},
+			diffEditor: {
+				type: 'string',
+				enum: ['off', 'on', 'inherit'],
+				default: 'inherit',
+				experiment: { mode: 'auto' },
+			},
+		});
+	});
 
 	function createService(activeEditorPane: IEditorPane | undefined, visibleEditorPanes: readonly IVisibleEditorPane[] = []): { service: SessionsDiffEditorCommandsService; getToggleCount(): number; setModes: DiffEditorViewMode[] } {
 		const editorService = new class extends mock<IEditorService>() {
@@ -62,6 +94,24 @@ suite('SessionsDiffEditorCommandsService', () => {
 		const pane = Object.create(TextDiffEditor.prototype) as TextDiffEditor;
 		Object.defineProperty(pane, 'getControl', { value: () => control });
 		return pane;
+	}
+
+	function createCodeEditor(controlUpdates: Array<{
+		wordWrapOverride1?: 'off' | 'on' | 'inherit';
+		wordWrapOverride2?: 'off' | 'on' | 'inherit';
+	}>): IVisibleEditorPane {
+		const control = new class extends mock<ICodeEditor>() {
+			override getEditorType() { return EditorType.ICodeEditor; }
+			override updateOptions(options: {
+				wordWrapOverride1?: 'off' | 'on' | 'inherit';
+				wordWrapOverride2?: 'off' | 'on' | 'inherit';
+			}): void {
+				controlUpdates.push(options);
+			}
+		};
+		return new class extends mock<IVisibleEditorPane>() {
+			override getControl() { return control; }
+		};
 	}
 
 	test('toggles the shared preference from the Changes editor', async () => {
@@ -149,6 +199,8 @@ suite('SessionsDiffEditorCommandsService', () => {
 		const diffEditorOptionsService = new class extends mock<IDiffEditorOptionsService>() {
 			override readonly viewMode = viewMode;
 			override readonly renderSideBySide = viewMode.map(this, mode => mode !== 'inline');
+			override readonly diffEditorWordWrap = observableValue<SessionsWordWrap>('test', 'inherit');
+			override readonly editorWordWrap = observableValue<SessionsWordWrap>('test', 'inherit');
 		};
 		disposables.add(new SessionsDiffEditorLayoutContribution(editorService, diffEditorOptionsService));
 
@@ -160,14 +212,73 @@ suite('SessionsDiffEditorCommandsService', () => {
 			visibleControlUpdates,
 		}, {
 			activeControlUpdates: [
-				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true },
-				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: false },
-				{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false },
+				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true, diffWordWrap: 'inherit' },
+				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: false, diffWordWrap: 'inherit' },
+				{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false, diffWordWrap: 'inherit' },
 			],
 			visibleControlUpdates: [
-				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true },
-				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: false },
-				{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false },
+				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true, diffWordWrap: 'inherit' },
+				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: false, diffWordWrap: 'inherit' },
+				{ renderSideBySide: false, useInlineViewWhenSpaceIsLimited: false, diffWordWrap: 'inherit' },
+			],
+		});
+	});
+
+	test('applies independent word wrap preferences without replacing transient code editor word wrap', () => {
+		const textControlUpdates: IDiffEditorOptions[] = [];
+		const textEditor = createTextDiffEditor(URI.file('/workspace/active.ts'), true, textControlUpdates);
+		const codeControlUpdates: Array<{
+			wordWrapOverride1?: 'off' | 'on' | 'inherit';
+			wordWrapOverride2?: 'off' | 'on' | 'inherit';
+		}> = [];
+		const codeEditor = createCodeEditor(codeControlUpdates);
+		const multiDiffLayoutOptions: Array<{ viewMode: DiffEditorViewMode; wordWrap: SessionsWordWrap }> = [];
+		const multiDiffEditor = Object.create(MultiDiffEditor.prototype) as MultiDiffEditor;
+		Object.defineProperty(multiDiffEditor, 'setDiffEditorLayoutOptions', {
+			value: (viewMode: DiffEditorViewMode, wordWrap: SessionsWordWrap) => multiDiffLayoutOptions.push({ viewMode, wordWrap })
+		});
+		Object.defineProperty(multiDiffEditor, 'getControl', { value: () => undefined });
+		const editorService = new class extends mock<IEditorService>() {
+			override readonly onDidActiveEditorChange = Event.None;
+			override readonly onDidVisibleEditorsChange = Event.None;
+			override get activeEditorPane() { return textEditor as IVisibleEditorPane; }
+			override get visibleEditorPanes() { return [codeEditor, multiDiffEditor as IVisibleEditorPane]; }
+		};
+		const viewMode = observableValue<DiffEditorViewMode>('test', 'automatic');
+		const diffEditorWordWrap = observableValue<SessionsWordWrap>('test', 'inherit');
+		const editorWordWrap = observableValue<SessionsWordWrap>('test', 'inherit');
+		const diffEditorOptionsService = new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = viewMode;
+			override readonly renderSideBySide = viewMode.map(this, mode => mode !== 'inline');
+			override readonly diffEditorWordWrap = diffEditorWordWrap;
+			override readonly editorWordWrap = editorWordWrap;
+		};
+		disposables.add(new SessionsDiffEditorLayoutContribution(editorService, diffEditorOptionsService));
+
+		editorWordWrap.set('on', undefined);
+		diffEditorWordWrap.set('on', undefined);
+		editorWordWrap.set('off', undefined);
+		diffEditorWordWrap.set('off', undefined);
+
+		assert.deepStrictEqual({
+			textControlUpdates,
+			codeControlUpdates,
+			multiDiffLayoutOptions,
+		}, {
+			textControlUpdates: [
+				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true, diffWordWrap: 'inherit' },
+				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true, diffWordWrap: 'on' },
+				{ renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true, diffWordWrap: 'off' },
+			],
+			codeControlUpdates: [
+				{ wordWrapOverride1: 'inherit' },
+				{ wordWrapOverride1: 'on' },
+				{ wordWrapOverride1: 'off' },
+			],
+			multiDiffLayoutOptions: [
+				{ viewMode: 'automatic', wordWrap: 'inherit' },
+				{ viewMode: 'automatic', wordWrap: 'on' },
+				{ viewMode: 'automatic', wordWrap: 'off' },
 			],
 		});
 	});

@@ -21,7 +21,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostAutoModeTiersEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, AutoModeTiersExperimentName, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, AutoModeTiersExperimentName, CopilotAutoModeTierOverrideSettingId, CopilotAutoModeTiersEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -54,6 +54,7 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
 import { McpCollisionBehavior, allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
+import { autoApprovePolicyValue } from '../common/agentHostConfigPolicy.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
@@ -135,6 +136,7 @@ import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
 import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
+import './telemetry/chatEditorTopologyTelemetry.js';
 import './telemetry/chatModelCountTelemetry.js';
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ClientToolSetsContribution } from './tools/clientToolSetsContribution.js';
@@ -293,6 +295,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.experimentalModelPicker', "When enabled, the model picker uses a tab per model provider and configures thinking effort and context from a detail card next to each model, instead of a separate configuration button."),
 			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.ExperimentalModePermissionsPicker]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimentalModePermissionsPicker', "Shows mode and permissions in a combined picker with expandable permission choices for Copilot Agent Host sessions."),
+			default: product.quality !== 'stable',
 			tags: ['experimental'],
 		},
 		'chat.fontSize': {
@@ -481,14 +490,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
-		},
-		[ChatConfiguration.CustomizationEntryPoints]: {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			scope: ConfigurationScope.APPLICATION,
-			description: nls.localize('chat.agentSessions.customizationEntryPoints', "Controls whether customization entry points appear in the new-session composer and active session headers instead of the Agents Window sidebar."),
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.SaveBeforeSend]: {
 			type: 'boolean',
@@ -793,7 +794,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatToolsAutoApprove',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				value: (policyData) => policyData.managedSettings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] === 'disable' || policyData.chat_preview_features_enabled === false ? false : undefined,
+				value: autoApprovePolicyValue,
 				managedSettings: {
 					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 				},
@@ -962,7 +963,7 @@ configurationRegistry.registerConfiguration({
 			default: 'inline',
 		},
 		[ChatConfiguration.PasteAsAttachmentThreshold]: {
-			markdownDescription: nls.localize('chat.pasteAsAttachmentThreshold', "The number of characters a paste must exceed before it is added to the chat input as an attachment instead of being inserted inline. A paste must also span several lines, so a long single-line paste is always inserted inline. Set this to a very large number to always paste inline."),
+			markdownDescription: nls.localize('chat.pasteAsAttachmentThreshold', "The number of characters a paste must exceed before it is added to the chat input as an attachment instead of being inserted inline. Set this to a very large number to always paste inline."),
 			type: 'number',
 			minimum: 0,
 			default: 10000,
@@ -1038,7 +1039,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.SessionStateIndicatorEnabled]: {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions."),
+			markdownDescription: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions that are in progress, need input, or have an unvisited completion. Customize the borders with `chat.sessionStateIndicator.inProgressBorder`, `chat.sessionStateIndicator.needsInputBorder`, and `chat.sessionStateIndicator.unvisitedBorder` in `#workbench.colorCustomizations#`."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
@@ -1642,6 +1643,13 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
+		[CopilotClaudeAdvisorEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.claudeAdvisor.enabled', "When enabled, Copilot Agent Host sessions using a supported Claude model can call the provider-native Advisor tool. Changing this setting restarts the Copilot SDK client after active turns finish."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		[AgentHostMapLegacySettingsToManagedSettingsSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.copilot.mapLegacySettingsToManagedSettings', "When enabled, maps supported legacy VS Code settings to equivalent Copilot SDK managed settings for local Agent Host sessions. Only restrictions are mapped, and only from globally-scoped values — workspace and folder values are ignored. Applies to local sessions using the Copilot agent; remote hosts and other agents are unaffected. This compatibility bridge is temporary and is not used for new settings."),
@@ -1672,6 +1680,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.copilot.semanticSearch.enabled', "Controls whether Copilot Agent Host sessions can use VS Code's semantic workspace search. When disabled, semantic search is unavailable."),
 			default: false,
+			experiment: { mode: 'auto' },
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostReasoningEffortOverrideSettingId]: {
@@ -1687,21 +1696,18 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
 		},
-		[AgentHostMultiTurnContextRoutingEnabledSettingId]: {
+		[CopilotAutoModeTiersEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.copilot.multiTurnContextRouting', "When enabled, Auto model selection in Copilot SDK agent sessions routes on the conversation so far, sending prior user messages to the router instead of scoring the latest message alone."),
+			markdownDescription: nls.localize('chat.copilot.autoModeTiers', "Show the Auto model's \"Optimize for\" picker with Efficiency, Balance, and Intelligence options in Copilot Chat and Copilot SDK sessions. When disabled, the service chooses how to route unless an override is configured."),
 			default: false,
-			experiment: { mode: 'startup' },
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostAutoModeTiersEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.copilot.autoModeTiers', "When enabled, the Auto model in Copilot SDK agent sessions offers an \"Optimize for\" picker that biases routing toward efficiency, balance, or intelligence. The profile applies when a session is created and stays fixed for that session."),
-			default: false,
-			// The Copilot extension gates its own Auto tier picker on this same treatment, so one
-			// assignment turns tiers on for both harnesses. Mirrors HIDE_AUTO_EXPLAINABILITY_TREATMENT.
 			experiment: { mode: 'startup', name: AutoModeTiersExperimentName },
 			tags: ['experimental', 'advanced'],
+		},
+		[CopilotAutoModeTierOverrideSettingId]: {
+			type: ['string', 'null'],
+			markdownDescription: nls.localize('chat.copilot.autoModeTierOverride', "Override Auto's \"Optimize for\" preference for evals and debugging, even when the picker is disabled. Accepts `efficiency`, `balance`, or `intelligence` in both Copilot Chat and Copilot SDK sessions; `fast` is extension-only. Set to `null` to clear."),
+			default: null,
+			tags: ['advanced'],
 		},
 		[CopilotSubagentModelGuidanceEnabledSettingId]: {
 			type: 'boolean',
@@ -2271,7 +2277,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
 				nls.localize('chat.agent.thinkingMode.fixedScrolling', "Show thinking in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
 			],
-			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
+			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered. Read-only chats always use the collapsed preview style."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.ThinkingGenerateTitles]: {

@@ -19,17 +19,36 @@ import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { ChatOriginKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { GitHubIssueState, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createServices() {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		}));
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			visibleSessions: constObservable([]),
+			activeSession: constObservable(undefined),
+		}));
+		return { instantiationService, visibility };
+	}
 
 	test('uses session-scoped changes rather than the last turn', () => {
 		const session = upcastPartial<IActiveSession>({
@@ -68,6 +87,57 @@ suite('SessionChatInputToolbar', () => {
 			},
 		});
 	});
+
+	for (const activation of ['click', 'Enter', 'Space'] as const) {
+		test(`opens Session Changes from the changes pill with ${activation}`, () => {
+			const { instantiationService } = createServices();
+			const session = upcastPartial<IActiveSession>({
+				sessionId: 'provider:session',
+				resource: URI.parse('session:1'),
+				chats: constObservable([]),
+				workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+				changesets: constObservable([]),
+				changes: constObservable([{
+					modifiedUri: URI.file('/session-change.ts'),
+					insertions: 10,
+					deletions: 4,
+				}]),
+			});
+			const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
+			instantiationService.stub(ISessionsService, 'setActive', (session: IActiveSession | undefined) => {
+				calls.push({ action: 'activate', resource: session?.resource });
+			});
+			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+				revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
+			}));
+			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+				openChangesEditor: async (resource, options) => {
+					calls.push({ action: 'open', resource, options });
+					return undefined;
+				},
+			}));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			toolbar.setSession(session, undefined);
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
+			assert.ok(pill);
+
+			if (activation === 'click') {
+				pill.click();
+			} else {
+				pill.dispatchEvent(new KeyboardEvent('keydown', {
+					key: activation === 'Enter' ? 'Enter' : ' ',
+					keyCode: activation === 'Enter' ? 13 : 32,
+					bubbles: true,
+				}));
+			}
+
+			assert.deepStrictEqual(calls, [
+				{ action: 'activate', resource: session.resource },
+				{ action: 'reveal' },
+				{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: SESSION_CHANGES_CHANGESET_ID } } },
+			]);
+		});
+	}
 
 	test('adds rich GitHub hovers only when live details are available', async () => {
 		const commandService = upcastPartial<ICommandService>({ executeCommand: async () => undefined });
@@ -191,7 +261,7 @@ suite('SessionChatInputToolbar', () => {
 	});
 
 	test('hides the pills in a subagent chat', () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const { instantiationService, visibility } = createServices();
 		const chat = upcastPartial<IChat>({
 			resource: URI.parse('chat:main'),
 			title: constObservable('Main chat'),
@@ -221,19 +291,7 @@ suite('SessionChatInputToolbar', () => {
 				deletions: 4,
 			}]),
 		});
-		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
-			onDidChangeBrowserViews: Event.None,
-			getKnownBrowserViews: () => new Map(),
-		}));
-		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		visibility.toggle(SessionChatPillKind.Subagents);
-		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
-		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
-		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
-			visibleSessions: constObservable([]),
-			activeSession: constObservable(undefined),
-		}));
 		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 		const read = () => ({
 			pills: Array.from(toolbar.element.querySelectorAll('.chat-pill-label')).map(label => label.textContent),

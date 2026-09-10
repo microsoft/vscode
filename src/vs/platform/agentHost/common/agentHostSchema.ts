@@ -543,6 +543,9 @@ export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichL
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
+/** Root config key controlling automatic pull request association for the checked-out branch. */
+export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
+
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
@@ -551,6 +554,12 @@ export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCo
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
 export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
+
+/** Root config key controlling automatic archival of inactive sessions with merged pull requests. */
+export const AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey = 'autoArchiveMergedSessionsAfterDays';
+
+/** Root config key controlling permanent deletion of automatically archived sessions with merged pull requests. */
+export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'autoDeleteArchivedMergedSessionsAfterDays';
 
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
@@ -848,6 +857,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
 	}),
+	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoAttachPullRequests.title', "Automatic Pull Request Association"),
+		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
+		default: true,
+	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
@@ -867,6 +882,18 @@ export const platformRootSchema = createSchema({
 			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),
 		],
 		default: ChatExternalSessionsMode.None,
+	}),
+	[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.title', "Auto-Archive Merged Sessions"),
+		description: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.description', "Number of inactive days after which a session with a merged pull request is automatically archived. Zero disables automatic archival."),
+		default: 0,
+	}),
+	[AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.title', "Auto-Delete Archived Merged Sessions"),
+		description: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.description', "Number of days after automatic archival before a session with a merged pull request is permanently deleted. Zero disables permanent deletion."),
+		default: 0,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

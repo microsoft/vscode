@@ -11,7 +11,6 @@ import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
-import { FileAccess } from '../../../base/common/network.js';
 import { join } from '../../../base/common/path.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -28,7 +27,7 @@ import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDev
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
-import { getAppNodeModulesPath } from './appNodeModules.js';
+import { getAppNodeModulesUri } from './appNodeModules.js';
 import {
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
@@ -387,13 +386,25 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 	}
 
 	protected _resolveShellEnvironment(): Promise<typeof process.env> {
-		this._shellEnvironment ??= this._resolveUserShellEnvironment()
-			.then(environment => ({ ...process.env, ...environment }))
-			.catch(error => {
-				this._logService.error(`${LOG_PREFIX} Unable to resolve shell environment; using inherited environment`, error);
-				return process.env;
-			});
+		this._shellEnvironment ??= this._doResolveShellEnvironment();
 		return this._shellEnvironment;
+	}
+
+	protected async _doResolveShellEnvironment(inheritedEnvironment = process.env, platform = process.platform): Promise<typeof process.env> {
+		let shellEnvironment: typeof process.env = {};
+		try {
+			shellEnvironment = await this._resolveUserShellEnvironment();
+		} catch (error) {
+			this._logService.error(`${LOG_PREFIX} Unable to resolve shell environment; using inherited environment`, error);
+		}
+		const environment = { ...inheritedEnvironment, ...shellEnvironment };
+		const path = environment.PATH || '';
+		// Match Remote Containers' macOS fallback when shell resolution leaves Docker off PATH.
+		if (platform === 'darwin' && !/(^|:)\/usr\/local\/bin(:|$)/i.test(path)) {
+			environment.PATH = path ? `${path}:/usr/local/bin` : '/usr/local/bin';
+			this._logService.trace(`${LOG_PREFIX} Adding /usr/local/bin to PATH for macOS Docker discovery`);
+		}
+		return environment;
 	}
 
 	protected _resolveDevContainerEnvironment(): Promise<typeof process.env> {
@@ -515,7 +526,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 }
 
 export function getDevContainerCliPath(): string {
-	return join(FileAccess.asFileUri(getAppNodeModulesPath()).fsPath, '@devcontainers', 'cli', 'devcontainer.js');
+	return join(getAppNodeModulesUri().fsPath, '@devcontainers', 'cli', 'devcontainer.js');
 }
 
 export function parseDevContainerUpResult(output: string): IDevContainerUpResult | undefined {

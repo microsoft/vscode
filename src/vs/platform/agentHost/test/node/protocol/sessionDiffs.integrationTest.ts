@@ -10,7 +10,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { ChangesetContentChangedAction, SessionAddedParams } from '../../../common/state/sessionActions.js';
+import type { ChangesetContentChangedAction, SessionAddedParams, SessionSummaryChangedParams } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	dispatchTurnStarted,
@@ -33,24 +33,29 @@ const hasGit = (() => {
 	let server: IServerHandle;
 	let client: TestProtocolClient;
 	let tmpRoot: string;
+	let userDataDir: string;
 
 	suiteSetup(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
-		server = await startServer();
+		userDataDir = mkdtempSync(join(tmpdir(), 'agent-host-proto-diff-user-data-'));
+		server = await startServer({ userDataDir });
 	});
 
 	suiteTeardown(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
 		await stopServer(server);
+		rmSync(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 	});
 
 	setup(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(10_000, 30_000));
 		// Initialize a tmp git repo as the session's working directory.
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-proto-diff-'));
-		const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
-		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot, env, stdio: 'pipe' });
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot, stdio: 'pipe' });
 		run('init', '-q', '-b', 'main');
+		// The agent-host subprocess also needs an identity for its checkpoint commits.
+		run('config', 'user.name', 'Agent Host Test');
+		run('config', 'user.email', 'agent-host-test@example.com');
 		writeFileSync(join(tmpRoot, 'seed.txt'), 'seed\n');
 		run('add', '.');
 		run('commit', '-q', '-m', 'init');
@@ -129,5 +134,46 @@ const hasGit = (() => {
 		assert.ok(file, 'expected the edited file in the changeset content');
 		assert.ok(file.edit.after, 'expected after-side for newly added file');
 		assert.ok(!file.edit.before, 'newly added file should have no before-side');
+	});
+
+	test('folder summary matches Session Changes and excludes pre-existing working-tree changes', async function () {
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 90_000));
+		writeFileSync(join(tmpRoot, 'pre-existing.txt'), 'pre-existing change\n');
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-folder-summary' });
+		const session = nextSessionUri();
+		await client.call('createSession', {
+			channel: session, provider: 'mock', workingDirectories: [URI.file(tmpRoot).toString()],
+			config: { isolation: 'folder' },
+		});
+		const changeset = `${session}/changeset/session`;
+		await client.call('subscribe', { channel: session });
+		await client.call('subscribe', { channel: changeset });
+		client.clearReceived();
+
+		dispatchTurnStarted(client, session, 'turn-folder-summary', `terminal-edit:${join(tmpRoot, 'session-edit.txt')}`, 1);
+		const content = await client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/contentChanged')
+			&& getActionEnvelope(n).channel === changeset
+			&& (getActionEnvelope(n).action as ChangesetContentChangedAction).files.some(file => file.edit.after?.uri.endsWith('/session-edit.txt')),
+			getAgentHostE2ETestTimeout(10_000, 30_000),
+		);
+		const files = (getActionEnvelope(content).action as ChangesetContentChangedAction).files;
+		const summary = await client.waitForNotification(n =>
+			n.method === 'root/sessionSummaryChanged'
+			&& (n.params as SessionSummaryChangedParams).session === session
+			&& (n.params as SessionSummaryChangedParams).changes.changes?.files === 1,
+		);
+
+		assert.deepStrictEqual({
+			files: files.map(file => file.edit.after?.uri.split('/').pop()),
+			changes: (summary.params as SessionSummaryChangedParams).changes.changes,
+		}, {
+			files: ['session-edit.txt'],
+			changes: {
+				additions: files[0].edit.diff?.added ?? 0,
+				deletions: files[0].edit.diff?.removed ?? 0,
+				files: 1,
+			},
+		});
 	});
 });
