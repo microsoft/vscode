@@ -219,8 +219,8 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		const agentFileHint = agentFilesMigration.files.length === 0
 			? undefined
 			: agentFilesMigration.files.length === 1
-				? localize('customizationMigrationHintAgentFileSingle', "Found 1 agent file with header properties that {0} ignores and could be updated.", harness.label)
-				: localize('customizationMigrationHintAgentFileMultiple', "Found {0} agent files with  header properties that {1} ignores and could be updated.", agentFilesMigration.files.length, harness.label);
+				? localize('customizationMigrationHintAgentFileSingle', "Found 1 agent file with a handoff that {0} ignores and could be updated.", harness.label)
+				: localize('customizationMigrationHintAgentFileMultiple', "Found {0} agent files with handoffs that {1} ignores and could be updated.", agentFilesMigration.files.length, harness.label);
 		const migratableMcpHint = migratableMcpServerCount === 0
 			? undefined
 			: migratableMcpServerCount === 1
