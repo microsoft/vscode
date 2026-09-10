@@ -97,7 +97,7 @@ export interface ISessionTypePickerOptions {
 	 * `false` cancels the selection without changing the current type.
 	 */
 	readonly prepareSessionTypeSelection?: (pick: IPickedSessionType) => Promise<boolean>;
-	/** Whether to render the Compare Agents mode toggle beside the picker. */
+	/** Controls whether the Compare Agents mode toggle renders beside the picker. */
 	readonly showComparisonToggle?: boolean;
 }
 
