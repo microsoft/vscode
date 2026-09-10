@@ -18,6 +18,7 @@ import {
 	foundryLocalPlatformKey,
 	isFoundryLocalRuntimeSupported,
 	isRuntimeProvisioned,
+	publishRuntime,
 	promoteDir,
 	provisionRuntime,
 	requiredRuntimeFileNames,
@@ -123,6 +124,28 @@ flakySuite('FoundryLocalRuntime', () => {
 		await promoteDir(from, to);
 
 		assert.strictEqual(fs.readFileSync(join(to, 'file'), 'utf8'), 'winner');
+	});
+
+	test('publishRuntime: keeps a complete runtime published by another process', async () => {
+		const targetDir = join(testDir, 'prebuilds', platformKey);
+		writePayload(testDir, platformKey);
+		fs.writeFileSync(join(targetDir, 'winner'), 'winner');
+
+		const stagingTarget = join(testDir, 'staging', 'prebuilds', platformKey);
+		fs.mkdirSync(stagingTarget, { recursive: true });
+		for (const name of requiredRuntimeFileNames(platformKey)) {
+			fs.writeFileSync(join(stagingTarget, name), 'loser');
+		}
+
+		await publishRuntime(stagingTarget, testDir, platformKey, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			winner: fs.readFileSync(join(targetDir, 'winner'), 'utf8'),
+			stagingStillExists: fs.existsSync(stagingTarget),
+		}, {
+			winner: 'winner',
+			stagingStillExists: true,
+		});
 	});
 
 	test('resolveProxyUrl: honors scheme-specific vars, ALL_PROXY fallback, and NO_PROXY', () => {
