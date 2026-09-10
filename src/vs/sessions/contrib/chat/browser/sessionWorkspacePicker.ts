@@ -1923,11 +1923,18 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _isDevContainerWorkspaceAvailable(folderUri: URI, providerId: string): boolean {
-		const provider = this.sessionsProvidersService.getProvider(providerId);
+		let provider = this.sessionsProvidersService.getProvider(providerId);
+		if (!provider || !isAgentHostProvider(provider) || !provider.isDevContainerWorkspaceAvailable) {
+			provider = this.sessionsProvidersService.getProviders().find(candidate =>
+				isAgentHostProvider(candidate)
+				&& !!candidate.isDevContainerWorkspaceAvailable
+				&& candidate.resolveWorkspace(folderUri)?.group === SESSION_WORKSPACE_GROUP_LOCAL
+			);
+		}
 		if (!provider || !isAgentHostProvider(provider) || !provider.isDevContainerWorkspaceAvailable) {
 			return false;
 		}
-		const key = `${providerId}:${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`;
+		const key = `${provider.id}:${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`;
 		const cached = this._devContainerAvailability.get(key);
 		if (typeof cached === 'boolean') {
 			return cached;
