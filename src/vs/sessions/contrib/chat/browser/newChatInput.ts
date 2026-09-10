@@ -130,6 +130,7 @@ import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
 import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
+import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
 
@@ -435,6 +436,22 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return this.options.getWorkspacePreselectionSource?.();
 	}
 
+	get workspaceSelection(): IWorkspaceSelectionSnapshot | undefined {
+		return this.options.getWorkspaceSelection?.();
+	}
+
+	get onDidChangeWorkspaceSelection(): Event<void> {
+		return this.options.onDidChangeWorkspaceSelection ?? Event.None;
+	}
+
+	get hasInput(): boolean {
+		return !!this._editor?.getValue() || this._contextAttachments.attachments.length > 0;
+	}
+
+	get canApplyWorkspaceDefault(): boolean {
+		return !this.hasInput && (this.options.canApplyWorkspaceDefault?.() ?? false);
+	}
+
 	/** Opens the model picker dropdown. */
 	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
 
@@ -498,6 +515,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			getContextFolderUri: () => URI | undefined;
 			getContextPickerActions?: () => readonly IWorkspacePickerContextAction[];
 			getWorkspacePreselectionSource?: () => NewSessionWorkspacePreselectionSource;
+			getWorkspaceSelection?: () => IWorkspaceSelectionSnapshot;
+			onDidChangeWorkspaceSelection?: Event<void>;
+			canApplyWorkspaceDefault?: () => boolean;
 			sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
 			canSendRequest: IObservable<boolean>;
 			canSubmitWithoutSession?: IObservable<boolean>;
