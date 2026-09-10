@@ -508,6 +508,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSendButton?: boolean;
 			renderRepositoryControls?: boolean;
+			/** Configures session-type selection, including optional comparison mode. */
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			sendButtonLabel?: IObservable<string | undefined>;
