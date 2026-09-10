@@ -5,6 +5,7 @@
 
 import '../../browser/media/changesView.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../../base/browser/fonts.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -25,7 +26,7 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 	container.style.padding = '16px';
 	container.style.backgroundColor = 'var(--vscode-editor-background)';
 	container.style.color = 'var(--vscode-foreground)';
-	container.style.fontFamily = 'var(--vscode-font-family)';
+	container.style.fontFamily = DEFAULT_FONT_FAMILY;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
