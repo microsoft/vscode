@@ -184,19 +184,22 @@ function setMigrationEnabled(configurationService: TestConfigurationService, typ
 }
 
 function createWorkspaceMcpSupportSnapshot(root: URI, options: {
+	readonly id?: string;
+	readonly sourceKind?: AgentHostMcpServerSourceKind;
 	readonly enablement?: { readonly enabled: boolean; readonly state: AgentHostMcpServerEnablementState };
+	readonly delivery?: AgentHostMcpServerDelivery;
 	readonly compatibility?: IAgentHostMcpServerSupportSnapshot['servers'][number]['compatibility'];
 	readonly command?: string;
 } = {}): IAgentHostMcpServerSupportSnapshot {
 	const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
 	return {
 		servers: [{
-			id: 'mcp.config.ws0.server',
-			name: 'server',
+			id: options.id ?? 'mcp.config.ws0.server',
+			name: options.id ?? 'server',
 			collectionId: 'mcp.config.ws0',
 			source: {
 				group: undefined,
-				kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
+				kind: options.sourceKind ?? AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
 				label: 'Workspace',
 				collectionUri: sourceUri,
 				definitionLocation: undefined,
@@ -206,7 +209,7 @@ function createWorkspaceMcpSupportSnapshot(root: URI, options: {
 			},
 			enablement: options.enablement ?? { enabled: true, state: AgentHostMcpServerEnablementState.EnabledWorkspace },
 			applicability: AgentHostMcpServerApplicability.Applicable,
-			delivery: AgentHostMcpServerDelivery.ClientForwarded,
+			delivery: options.delivery ?? AgentHostMcpServerDelivery.ClientForwarded,
 			compatibility: options.compatibility ?? { kind: 'supported' },
 			projectedConfiguration: { type: McpServerType.LOCAL, command: options.command ?? 'node' },
 		}],
@@ -402,7 +405,6 @@ suite('CustomizationMigrationService', () => {
 					type: 'mcpServers',
 					servers: [],
 					candidates: [],
-					assessmentCounts: [],
 					discoveryComplete: true,
 					coverage: {
 						restrictedByMcpAccess: false,
@@ -538,74 +540,28 @@ suite('CustomizationMigrationService', () => {
 		const harnessService = new TestCustomizationHarnessService();
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
 			servers: [
-				{
-					...createWorkspaceMcpSupportSnapshot(URI.file('/workspace')).servers[0],
-					id: 'native',
-					name: 'native',
-					source: {
-						group: undefined,
-						kind: AgentHostMcpServerSourceKind.UserProfile,
-						label: 'User',
-						collectionUri: undefined,
-						definitionLocation: undefined,
-						remoteAuthority: null,
-						extensionId: undefined,
-						pluginUri: undefined,
-					},
-					delivery: AgentHostMcpServerDelivery.ProviderBuiltIn,
-				},
-				{
-					...createWorkspaceMcpSupportSnapshot(URI.file('/workspace')).servers[0],
-					id: 'mapped',
-					name: 'mapped',
-					source: {
-						group: undefined,
-						kind: AgentHostMcpServerSourceKind.UserProfile,
-						label: 'User',
-						collectionUri: undefined,
-						definitionLocation: undefined,
-						remoteAuthority: null,
-						extensionId: undefined,
-						pluginUri: undefined,
-					},
-					delivery: AgentHostMcpServerDelivery.ClientForwarded,
-				},
-				{
-					...createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
+				createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
+						id: 'native',
+						sourceKind: AgentHostMcpServerSourceKind.UserProfile,
+						delivery: AgentHostMcpServerDelivery.ProviderBuiltIn,
+				}).servers[0],
+				createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
+						id: 'mapped',
+						sourceKind: AgentHostMcpServerSourceKind.UserProfile,
+						delivery: AgentHostMcpServerDelivery.ClientForwarded,
+				}).servers[0],
+				createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
+						id: 'unsupported',
+						sourceKind: AgentHostMcpServerSourceKind.UserProfile,
+						delivery: AgentHostMcpServerDelivery.NotDelivered,
 						compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.LaunchNotRepresentable] },
-					}).servers[0],
-					id: 'unsupported',
-					name: 'unsupported',
-					source: {
-						group: undefined,
-						kind: AgentHostMcpServerSourceKind.UserProfile,
-						label: 'User',
-						collectionUri: undefined,
-						definitionLocation: undefined,
-						remoteAuthority: null,
-						extensionId: undefined,
-						pluginUri: undefined,
-					},
-					delivery: AgentHostMcpServerDelivery.NotDelivered,
-				},
-				{
-					...createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
+				}).servers[0],
+				createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
+						id: 'disabled',
+						sourceKind: AgentHostMcpServerSourceKind.UserProfile,
+						delivery: AgentHostMcpServerDelivery.NotDelivered,
 						enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledProfile },
-					}).servers[0],
-					id: 'disabled',
-					name: 'disabled',
-					source: {
-						group: undefined,
-						kind: AgentHostMcpServerSourceKind.UserProfile,
-						label: 'User',
-						collectionUri: undefined,
-						definitionLocation: undefined,
-						remoteAuthority: null,
-						extensionId: undefined,
-						pluginUri: undefined,
-					},
-					delivery: AgentHostMcpServerDelivery.NotDelivered,
-				},
+				}).servers[0],
 			],
 			discoveryComplete: true,
 			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },

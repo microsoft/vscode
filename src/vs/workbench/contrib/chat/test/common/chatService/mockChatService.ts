@@ -28,7 +28,7 @@ export class MockChatService implements IChatService {
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
 	readonly onDidCreateModel = this._onDidCreateModel.event;
 
-	registerCustomizationMigrationAssessmentProvider(_provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>): IDisposable {
+	registerCustomizationMigrationHintProvider(_provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>): IDisposable {
 		return Disposable.None;
 	}
 

@@ -63,7 +63,7 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
-import { CustomizationMigrationAssessmentSource, CustomizationMigrationAssessmentType, CustomizationMigrationHintTarget, ICustomizationMigrationAssessment, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationAssessmentType, CustomizationMigrationHintTarget, ICustomizationMigrationAssessment, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
@@ -133,7 +133,7 @@ const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEna
 type CustomizationMigrationAssessmentEvent = {
 	target: string;
 	customizationType: CustomizationMigrationAssessmentType;
-	source: CustomizationMigrationAssessmentSource;
+	source: string;
 	nativeCount: number;
 	mappedCount: number;
 	unsupportedCount: number;
@@ -244,7 +244,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
-	private _customizationMigrationAssessmentProvider: ((sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>) | undefined;
+	private _customizationMigrationHintProvider: ((sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>) | undefined;
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -264,15 +264,15 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.waitForModelDisposals();
 	}
 
-	registerCustomizationMigrationAssessmentProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>): IDisposable {
-		if (this._customizationMigrationAssessmentProvider) {
-			throw new BugIndicatingError('A customization migration assessment provider is already registered');
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>): IDisposable {
+		if (this._customizationMigrationHintProvider) {
+			throw new BugIndicatingError('A customization migration hint provider is already registered');
 		}
 
-		this._customizationMigrationAssessmentProvider = provider;
+		this._customizationMigrationHintProvider = provider;
 		return toDisposable(() => {
-			if (this._customizationMigrationAssessmentProvider === provider) {
-				this._customizationMigrationAssessmentProvider = undefined;
+			if (this._customizationMigrationHintProvider === provider) {
+				this._customizationMigrationHintProvider = undefined;
 			}
 		});
 	}
@@ -1626,12 +1626,12 @@ export class ChatService extends Disposable implements IChatService {
 					|| (!showOnce && hintMode !== CustomizationMigrationHintMode.Always)
 					|| this.storageService.getBoolean(getCustomizationMigrationHintDismissedStorageKey(sessionType), StorageScope.WORKSPACE)
 					|| (showOnce && hintAlreadyShown)
-					|| !this._customizationMigrationAssessmentProvider) {
+					|| !this._customizationMigrationHintProvider) {
 					return undefined;
 				}
 
 				try {
-					const assessment = await this._customizationMigrationAssessmentProvider(sessionResource, token);
+					const assessment = await this._customizationMigrationHintProvider(sessionResource, token);
 					if (assessment && !token.isCancellationRequested) {
 						const target = isRemoteAgentHostSessionType(sessionType) ? parseRemoteAgentHostHarness(sessionType) ?? 'unknown' : sessionType;
 						for (const { customizationType, source, nativeCount, mappedCount, unsupportedCount } of assessment.counts) {

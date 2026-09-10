@@ -2173,7 +2173,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationAssessmentProvider(
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
 			(sessionResource, token) => migrationService.computeMigrationAssessment(sessionResource, token)
 		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
@@ -2291,7 +2291,7 @@ suite('ChatService', () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationHint, CustomizationMigrationHintMode.Once);
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationAssessmentProvider(
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
 			(sessionResource, token) => migrationService.computeMigrationAssessment(sessionResource, token)
 		));
 		const firstRef = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
@@ -2322,7 +2322,7 @@ suite('ChatService', () => {
 	test('customization migration hint is not computed for local sessions', async () => {
 		const migrationService = mockObject<ICustomizationMigrationService>()({ _serviceBrand: undefined });
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationAssessmentProvider(
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
 			(sessionResource, token) => migrationService.computeMigrationAssessment(sessionResource, token)
 		));
 		const model = startSessionModel(testService).object;
@@ -2362,7 +2362,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
-		testDisposables.add(testService.registerCustomizationMigrationAssessmentProvider(
+		testDisposables.add(testService.registerCustomizationMigrationHintProvider(
 			(sessionResource, token) => migrationService.computeMigrationAssessment(sessionResource, token)
 		));
 		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);

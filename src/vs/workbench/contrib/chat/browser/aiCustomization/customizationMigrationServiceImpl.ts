@@ -18,20 +18,21 @@ import { isAgentHostSessionResource } from '../../common/chatSessionsService.js'
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationAssessmentSource, CustomizationMigrationAssessmentType, CustomizationMigrationHintTarget, CustomizationMigrationMcpServerSource, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationAssessment, ICustomizationMigrationAssessmentCount, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationAssessmentType, CustomizationMigrationHintTarget, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationAssessment, ICustomizationMigrationAssessmentCount, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IAgentHostMcpServerSupportScope } from '../agentSessions/agentHost/agentHostMcpServerSupportScope.js';
 import { isMcpServerMigrationDeliverable, McpServerCustomizationMigrator } from './mcpServerCustomizationMigration.js';
 
 type CustomizationMigrationAssessmentCountProperty = 'nativeCount' | 'mappedCount' | 'unsupportedCount';
+type McpServerCustomizationMigrationAssessment = McpServerCustomizationMigration & { readonly assessmentCounts: readonly ICustomizationMigrationAssessmentCount[] };
 
 function incrementAssessmentCount(
 	counts: Map<string, ICustomizationMigrationAssessmentCount>,
 	customizationType: CustomizationMigrationAssessmentType,
-	source: CustomizationMigrationAssessmentSource,
+	source: string,
 	property: CustomizationMigrationAssessmentCountProperty,
 ): void {
 	const key = `${customizationType}\0${source}`;
@@ -39,21 +40,8 @@ function incrementAssessmentCount(
 	counts.set(key, { ...current, [property]: current[property] + 1 });
 }
 
-function toMcpServerAssessmentSource(source: AgentHostMcpServerSourceKind): CustomizationMigrationMcpServerSource {
-	switch (source) {
-		case AgentHostMcpServerSourceKind.UserProfile: return CustomizationMigrationMcpServerSource.UserProfile;
-		case AgentHostMcpServerSourceKind.RemoteUser: return CustomizationMigrationMcpServerSource.RemoteUser;
-		case AgentHostMcpServerSourceKind.VscodeWorkspaceFolder: return CustomizationMigrationMcpServerSource.VscodeWorkspaceFolder;
-		case AgentHostMcpServerSourceKind.WorkspaceConfiguration: return CustomizationMigrationMcpServerSource.WorkspaceConfiguration;
-		case AgentHostMcpServerSourceKind.WorkspaceDotMcp: return CustomizationMigrationMcpServerSource.WorkspaceDotMcp;
-		case AgentHostMcpServerSourceKind.ClaudeDesktop: return CustomizationMigrationMcpServerSource.ClaudeDesktop;
-		case AgentHostMcpServerSourceKind.Windsurf: return CustomizationMigrationMcpServerSource.Windsurf;
-		case AgentHostMcpServerSourceKind.CursorUser: return CustomizationMigrationMcpServerSource.CursorUser;
-		case AgentHostMcpServerSourceKind.CursorWorkspace: return CustomizationMigrationMcpServerSource.CursorWorkspace;
-		case AgentHostMcpServerSourceKind.Extension: return CustomizationMigrationMcpServerSource.Extension;
-		case AgentHostMcpServerSourceKind.AgentPlugin: return CustomizationMigrationMcpServerSource.AgentPlugin;
-		case AgentHostMcpServerSourceKind.Unknown: return CustomizationMigrationMcpServerSource.Unknown;
-	}
+function toMcpServerMigration({ assessmentCounts: _, ...migration }: McpServerCustomizationMigrationAssessment): McpServerCustomizationMigration {
+	return migration;
 }
 
 export class CustomizationMigrationService extends Disposable implements ICustomizationMigrationService {
@@ -87,7 +75,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 	async computeMigration(sessionResource: URI, type: CustomizationMigrationType, token = CancellationToken.None): Promise<CustomizationMigration> {
 		if (!isAgentHostSessionResource(sessionResource)) {
 			return type === CustomizationMigrationType.McpServers
-				? this.emptyMcpServerMigration()
+				? toMcpServerMigration(this.emptyMcpServerMigration())
 				: { type, files: [], candidates: [] };
 		}
 		if (type !== CustomizationMigrationType.McpServers && !this.isMigrationEnabled(type)) {
@@ -115,7 +103,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				return this.createFileMigration(sessionResource, type, customizations.filter(isConfiguredLocationMigrationCandidate), token, true);
 			}
 			case CustomizationMigrationType.McpServers:
-				return this.computeMcpServerMigration(sessionResource, token);
+				return toMcpServerMigration(await this.computeMcpServerMigration(sessionResource, token));
 		}
 	}
 
@@ -210,7 +198,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			this.promptsService.listPromptFiles(PromptsType.prompt, token),
 			this.promptsService.listPromptFiles(PromptsType.skill, token),
 			this.promptsService.listPromptFiles(PromptsType.hook, token),
-			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token),
+			this.computeMcpServerMigration(sessionResource, token),
 		]);
 		const fileCustomizations = [...agents, ...instructions, ...prompts, ...skills, ...hooks]
 			.filter(customization => customization.storage === PromptsStorage.local || customization.storage === PromptsStorage.user);
@@ -322,7 +310,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		return [...counts.values()];
 	}
 
-	private async computeMcpServerMigration(sessionResource: URI, token = CancellationToken.None): Promise<McpServerCustomizationMigration> {
+	private async computeMcpServerMigration(sessionResource: URI, token = CancellationToken.None): Promise<McpServerCustomizationMigrationAssessment> {
 		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
 		const scope = this.activeClientService.acquireMcpServerSupportScope(getChatSessionType(sessionResource), roots);
 		if (!scope) {
@@ -362,7 +350,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		}
 	}
 
-	private emptyMcpServerMigration(): McpServerCustomizationMigration {
+	private emptyMcpServerMigration(): McpServerCustomizationMigrationAssessment {
 		return {
 			type: CustomizationMigrationType.McpServers,
 			servers: [],
@@ -389,7 +377,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				: server.delivery === AgentHostMcpServerDelivery.ClientForwarded
 					? 'mappedCount'
 					: 'nativeCount';
-			incrementAssessmentCount(counts, CustomizationMigrationType.McpServers, toMcpServerAssessmentSource(server.source.kind), property);
+			incrementAssessmentCount(counts, CustomizationMigrationType.McpServers, server.source.kind, property);
 		}
 		return [...counts.values()];
 	}

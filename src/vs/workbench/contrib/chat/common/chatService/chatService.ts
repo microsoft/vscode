@@ -2025,7 +2025,7 @@ export interface IChatService {
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
-	registerCustomizationMigrationAssessmentProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>): IDisposable;
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>): IDisposable;
 
 	/**
 	 * An observable containing all live chat models.
