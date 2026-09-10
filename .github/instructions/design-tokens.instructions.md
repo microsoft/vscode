@@ -136,7 +136,7 @@ If a design or existing CSS sizes a codicon at 14px, treat it as a bug: snap it 
 
 Purpose-specific glyphs outside the standard control and inline roles, such as large orientation or illustration icons, may intentionally use another registered size. Review those by their product role rather than treating every non-standard Codicon size as a defect.
 
-When sizing an icon at the **compact** 12px size, also swap the registered glyph to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`) so the icon is visually optimized for the small size. CSS `font-size` alone only scales the icon — it does not change to the compact glyph. Only swap the glyph when no CSS selector targets the original glyph class (e.g. `.codicon-close`), otherwise update that selector too. Some icons (agent, vm, info, lock) have no compact variant — keep the regular glyph at the compact size.
+When sizing an icon at the **compact** 12px size, also swap the registered glyph to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`) when one is registered, so the icon is visually optimized for the small size. CSS `font-size` alone only scales the icon — it does not change to the compact glyph. Only swap the glyph when no CSS selector targets the original glyph class (e.g. `.codicon-close`), otherwise update that selector too. Not every icon has a registered `*Compact` variant — check `codiconsLibrary.ts` rather than assuming; when none exists, keep the regular glyph at the compact size.
 
 ## Stroke — border width
 
