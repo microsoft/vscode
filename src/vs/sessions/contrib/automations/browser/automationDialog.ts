@@ -826,7 +826,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		if (!this.isolationModel.supportsWorktreeConfiguration) {
 			return localize('automation.form.isolation.worktreeUnavailable', "Not supported by the selected session type");
 		}
-		if (this.isolationModel.selectedBranch) {
+		if (this.isolationModel.isolationMode === 'worktree' && this.isolationModel.selectedBranch) {
 			return undefined;
 		}
 		switch (this.branchLoadState) {

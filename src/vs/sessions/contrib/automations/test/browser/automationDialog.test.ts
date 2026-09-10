@@ -1141,6 +1141,42 @@ suite('Automation branch picker', () => {
 		});
 	});
 
+	for (const discovery of ['noRepository', 'loading', 'error', 'empty'] as const) {
+		test(`does not re-enable a saved Worktree target after opting out while repository discovery is ${discovery}`, async () => {
+			const pending = new DeferredPromise<ISessionWorktreeOptions | undefined>();
+			const { container, model } = createItem({
+				state: createFormState({ isolationMode: 'worktree', branch: 'release' }),
+				getWorktreeOptions: async () => {
+					switch (discovery) {
+						case 'noRepository': return undefined;
+						case 'loading': return pending.p;
+						case 'error': throw new Error('Repository unavailable');
+						case 'empty': return { supportsWorktree: true, currentBranch: undefined, branches: [] };
+					}
+				},
+			});
+			await timeout(0);
+			const toggle = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .action-label')!;
+			const initialMode = model.isolationMode;
+			toggle.click();
+			const afterOptingOut = model.isolationMode;
+			toggle.click();
+			const afterReenableAttempt = {
+				mode: model.isolationMode,
+				selectedBranch: model.selectedBranch,
+				persistedBranch: model.persistedBranch,
+				disabled: container.querySelector('.sessions-chat-isolation-checkbox')?.classList.contains('disabled'),
+			};
+			await pending.complete({ supportsWorktree: true, currentBranch: 'main', branches: ['main', 'release'] });
+
+			assert.deepStrictEqual({ initialMode, afterOptingOut, afterReenableAttempt }, {
+				initialMode: 'worktree',
+				afterOptingOut: 'workspace',
+				afterReenableAttempt: { mode: 'workspace', selectedBranch: 'release', persistedBranch: undefined, disabled: true },
+			});
+		});
+	}
+
 	test('retries provider branch failures without falling back to local Git', async () => {
 		let attempts = 0;
 		const { container, actionWidgetService, getOpenRepositoryAttempts } = createItem({
