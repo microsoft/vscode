@@ -353,8 +353,8 @@ export function validateFontWeightTokens(text: string): IDesignTokenViolation[] 
 
 const RE_SPACING_PROP = /(?:^|[\s;])(padding|margin|gap|row-gap|column-gap)(?:-(?:top|right|bottom|left))?\s*:\s*([^;{}]+)/i;
 
-/** Spacing scale in px, ascending. */
-const SPACING_SCALE: readonly number[] = [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40];
+/** Spacing scale in px, ascending. Includes 0 so nearest-step snapping for subpixel values (e.g. `0.4px`) can land on `sizeNone` instead of always rounding up to the smallest nonzero step. */
+const SPACING_SCALE: readonly number[] = [0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40];
 
 /** Snaps an off-scale spacing px to the nearest ramp value (ties round up). */
 function snapSpacing(px: number): number {
