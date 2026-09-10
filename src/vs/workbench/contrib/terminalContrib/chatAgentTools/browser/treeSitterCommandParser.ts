@@ -32,7 +32,7 @@ export interface IAutoApprovalCommandParseResult {
  * tree-sitter PowerShell grammar limitations where POSIX-style native CLI
  * arguments are parsed as invalid shell syntax.
  *
- * See https://github.com/microsoft/vscode/issues/294010
+ * See https://github.com/microsoft/vscode/issues/294010 and https://github.com/microsoft/vscode/issues/321748.
  * TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
  */
 const pwshFlagEqualsRegex = /(^|\s)(-{1,2}[\w-]+)=/g;
