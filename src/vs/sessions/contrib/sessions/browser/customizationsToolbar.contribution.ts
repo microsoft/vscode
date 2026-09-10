@@ -124,7 +124,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	},
 ];
 
-export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
+async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
 	const session = sessionsService.activeSession.get();
 	if (session) {
 		harnessService.setActiveSession(session.resource);
