@@ -133,9 +133,7 @@ export class AgentsWindow {
 			try {
 				await picker.click();
 				await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
-				await page.mouse.move(0, 0);
-				await workspaceRow.hover();
-				await page.keyboard.press('ArrowRight');
+				await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
 				await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
 				await devContainerRow.click();
 				await page.waitForFunction(
