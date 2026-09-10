@@ -10,7 +10,6 @@ import { Emitter, Event as CommonEvent } from '../../../base/common/event.js';
 import { normalizeDriveLetter, splitRecentLabel } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { join } from '../../../base/common/path.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, originalFSPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -373,7 +372,6 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		const jumpList: JumpListCategory[] = [];
-		let recentWorkspaces = this.getWindowsJumpListWorkspaces((await this.getRecentlyOpened()).workspaces);
 
 		// Tasks
 		jumpList.push({
@@ -387,21 +385,12 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					args: '-n', // force new window
 					iconPath: process.execPath,
 					iconIndex: 0
-				},
-				{
-					type: 'task',
-					title: localize('agentsWindow', "Agents Window"),
-					description: localize('openAgentsWindowDesc', "Opens the Agents Window"),
-					program: process.execPath,
-					args: '--agents',
-					iconPath: join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico'),
-					iconIndex: 0
 				}
 			]
 		});
 
 		// Recent Workspaces
-		if (recentWorkspaces.length > 0) {
+		if ((await this.getRecentlyOpened()).workspaces.length > 0) {
 
 			// The user might have meanwhile removed items from the jump list and we have to respect that
 			// so we need to update our list of recent paths with the choice of the user to not add them again
@@ -419,11 +408,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 				}
 			}
 			await this.removeRecentlyOpened(toRemove);
-			recentWorkspaces = this.getWindowsJumpListWorkspaces((await this.getRecentlyOpened()).workspaces);
 
 			// Add entries up to the slot count Explorer requested (jumpListSettings.minItems).
 			let hasWorkspaces = false;
-			const items: JumpListItem[] = coalesce(recentWorkspaces.slice(0, jumpListSettings.minItems).map(recent => {
+			const items: JumpListItem[] = coalesce((await this.getRecentlyOpened()).workspaces.slice(0, jumpListSettings.minItems).map(recent => {
 				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
 
 				const { title, description } = this.getWindowsJumpListLabel(workspace, recent.label);
@@ -468,10 +456,6 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		} catch (error) {
 			this.logService.warn('updateWindowsJumpList#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
-	}
-
-	private getWindowsJumpListWorkspaces(workspaces: Array<IRecentWorkspace | IRecentFolder>): Array<IRecentWorkspace | IRecentFolder> {
-		return workspaces.filter(recent => isRecentFolder(recent) || !this.isAgentSessionsWorkspace(recent.workspace));
 	}
 
 	private getWindowsJumpListLabel(workspace: IWorkspaceIdentifier | URI, recentLabel: string | undefined): { title: string; description: string } {
