@@ -6755,7 +6755,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
-			this._resumeSubagentForEvent(e);
+			this._resumeSubagentForEvent(e, undefined, true);
 			if (!e.agentId) {
 				this._activeRootSdkTurnId = e.data.turnId;
 				if (this._currentTurn.value) {
