@@ -21,7 +21,8 @@ import { ResponseModelState } from '../../../../../workbench/contrib/chat/common
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
@@ -35,6 +36,50 @@ suite('Sessions - Chat View', () => {
 	/** Reaches the banner without standing up the widget's whole service graph. */
 	interface ISubSessionTipRenderer {
 		_renderSubSessionTip(): void;
+	}
+
+	interface IStickyBackgroundChatView {
+		_layoutStickyScrollBackground(): void;
+		_updateChatBackground(): void;
+	}
+
+	function createBackgroundReplicaHost(background: ISessionsChatBackground) {
+		const store = disposables.add(new DisposableStore());
+		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		workbench.style.setProperty('--vscode-foreground', '#ffffff');
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		part.style.position = 'relative';
+		part.style.width = '600px';
+		part.style.height = '400px';
+		const chatView = dom.append(part, dom.$('.chat-view'));
+		const session = dom.append(chatView, dom.$('.interactive-session'));
+		const interactiveList = dom.append(session, dom.$('.interactive-list'));
+		const list = dom.append(interactiveList, dom.$('.monaco-list'));
+		const scrollable = dom.append(list, dom.$('.monaco-scrollable-element'));
+		const stickyContainer = dom.append(scrollable, dom.$('.monaco-tree-sticky-container'));
+		stickyContainer.style.position = 'absolute';
+		stickyContainer.style.left = '80px';
+		stickyContainer.style.top = '40px';
+		stickyContainer.style.width = '440px';
+		stickyContainer.style.height = '64px';
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		store.add(toDisposable(() => workbench.remove()));
+
+		const sourceRenderer = store.add(new SessionsChatBackgroundRenderer(part));
+		sourceRenderer.setBackground(background);
+		const source = part.querySelector<HTMLElement>(':scope > .sessions-chat-background');
+		if (!source) {
+			throw new Error('Sessions background renderer did not create its background layer');
+		}
+
+		return { store, part, chatView, stickyContainer, source, sourceRenderer };
+	}
+
+	function getBackgroundReplicaElements(stickyContainer: HTMLElement) {
+		const viewport = stickyContainer.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica-viewport');
+		const replica = viewport?.querySelector<HTMLElement>(':scope > .sessions-chat-background-replica');
+		return { viewport, replica };
 	}
 
 	test('retries an unresolved chat when its content provider is registered', () => {
@@ -997,7 +1042,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('keeps sticky request gutters transparent over chat backgrounds', () => {
+	test('keeps sticky request chrome transparent over chat backgrounds', () => {
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		workbench.style.setProperty('--vscode-sideBar-background', '#ff0000');
 		workbench.style.setProperty('--vscode-chat-list-background', '#ff0000');
@@ -1012,13 +1057,14 @@ suite('Sessions - Chat View', () => {
 			const list = dom.append(interactiveList, dom.$('.monaco-list'));
 			const scrollable = dom.append(list, dom.$('.monaco-scrollable-element'));
 			const stickyContainer = dom.append(scrollable, dom.$('.monaco-tree-sticky-container'));
+			const replicaViewport = dom.append(stickyContainer, dom.$('.sessions-chat-background-replica-viewport'));
 			const stickyRow = dom.append(stickyContainer, dom.$('.monaco-tree-sticky-row.monaco-list-row.request.passive-focused'));
 			const treeRow = dom.append(stickyRow, dom.$('.monaco-tl-row'));
 			const treeContents = dom.append(treeRow, dom.$('.monaco-tl-contents'));
 			const request = dom.append(treeContents, dom.$('.interactive-item-container.editing-session.interactive-request.show-verbose-details'));
 			const value = dom.append(request, dom.$('.value'));
 			const bubble = dom.append(value, dom.$('.rendered-markdown'));
-			return { stickyContainer, stickyRow, treeContents, request, bubble };
+			return { stickyContainer, replicaViewport, stickyRow, treeContents, request, bubble };
 		};
 		const background = createStickyRequest(part);
 		const plain = createStickyRequest(plainPart);
@@ -1027,24 +1073,406 @@ suite('Sessions - Chat View', () => {
 
 		assert.deepStrictEqual({
 			container: dom.getWindow(background.stickyContainer).getComputedStyle(background.stickyContainer).backgroundColor,
+			overflow: dom.getWindow(background.stickyContainer).getComputedStyle(background.stickyContainer).overflow,
+			replicaOverflow: dom.getWindow(background.replicaViewport).getComputedStyle(background.replicaViewport).overflow,
 			row: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).backgroundColor,
+			rowZIndex: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).zIndex,
 			contents: dom.getWindow(background.treeContents).getComputedStyle(background.treeContents).backgroundColor,
 			hoverBackground: dom.getWindow(background.stickyRow).getComputedStyle(background.stickyRow).getPropertyValue('--vscode-chat-list-background'),
 			request: dom.getWindow(background.request).getComputedStyle(background.request).backgroundColor,
 			bubble: dom.getWindow(background.bubble).getComputedStyle(background.bubble).backgroundColor,
 			plainContainer: dom.getWindow(plain.stickyContainer).getComputedStyle(plain.stickyContainer).backgroundColor,
+			plainOverflow: dom.getWindow(plain.stickyContainer).getComputedStyle(plain.stickyContainer).overflow,
+			plainReplicaOverflow: dom.getWindow(plain.replicaViewport).getComputedStyle(plain.replicaViewport).overflow,
 			plainRow: dom.getWindow(plain.stickyRow).getComputedStyle(plain.stickyRow).backgroundColor,
+			plainHoverBackground: dom.getWindow(plain.stickyRow).getComputedStyle(plain.stickyRow).getPropertyValue('--vscode-chat-list-background'),
 			plainRequest: dom.getWindow(plain.request).getComputedStyle(plain.request).backgroundColor,
 		}, {
 			container: 'rgba(0, 0, 0, 0)',
+			overflow: 'visible',
+			replicaOverflow: 'hidden',
 			row: 'rgba(0, 0, 0, 0)',
+			rowZIndex: '1',
 			contents: 'rgba(0, 0, 0, 0)',
 			hoverBackground: 'transparent',
-			request: 'rgb(32, 32, 32)',
+			request: 'rgba(0, 0, 0, 0)',
 			bubble: 'rgb(32, 32, 32)',
 			plainContainer: 'rgb(255, 0, 0)',
+			plainOverflow: 'visible',
+			plainReplicaOverflow: 'hidden',
 			plainRow: 'rgb(255, 0, 0)',
+			plainHoverBackground: '#ff0000',
 			plainRequest: 'rgba(0, 0, 0, 0)',
+		});
+	});
+
+	test('hides transcript and sticky tree shadows only over chat backgrounds', () => {
+		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
+		const createShadows = (hasBackground: boolean) => {
+			const part = dom.append(workbench, dom.$(`.part.sessionspart${hasBackground ? '.has-chat-background' : ''}`));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const interactiveList = dom.append(session, dom.$('.interactive-list'));
+			const list = dom.append(interactiveList, dom.$('.monaco-list'));
+			const scrollable = dom.append(list, dom.$('.monaco-scrollable-element'));
+			const topShadow = dom.append(scrollable, dom.$('.shadow.top'));
+			const topLeftShadow = dom.append(scrollable, dom.$('.shadow.top-left-corner.top'));
+			const stickyContainer = dom.append(scrollable, dom.$('.monaco-tree-sticky-container'));
+			const stickyShadow = dom.append(stickyContainer, dom.$('.monaco-tree-sticky-container-shadow'));
+			return { topShadow, topLeftShadow, stickyShadow };
+		};
+		const background = createShadows(true);
+		const plain = createShadows(false);
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const display = (element: HTMLElement) => dom.getWindow(element).getComputedStyle(element).display;
+
+		assert.deepStrictEqual({
+			background: {
+				top: display(background.topShadow),
+				topLeft: display(background.topLeftShadow),
+				sticky: display(background.stickyShadow),
+			},
+			plain: {
+				top: display(plain.topShadow),
+				topLeft: display(plain.topLeftShadow),
+				sticky: display(plain.stickyShadow),
+			},
+		}, {
+			background: {
+				top: 'none',
+				topLeft: 'none',
+				sticky: 'none',
+			},
+			plain: {
+				top: 'block',
+				topLeft: 'block',
+				sticky: 'block',
+			},
+		});
+	});
+
+	test('aligns an image replica to the full sessions background canvas', () => {
+		const background: ISessionsChatBackground = {
+			kind: 'image',
+			backgroundImage: 'url("file:///textures/kirby.png")',
+			backgroundRepeat: 'repeat-x',
+			backgroundSize: '125px 175px',
+			backgroundPosition: '37px 19px',
+		};
+		const { store, stickyContainer, source } = createBackgroundReplicaHost(background);
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+		replica.setBackground(background);
+		replica.layout();
+
+		const { viewport, replica: replicaElement } = getBackgroundReplicaElements(stickyContainer);
+		const replicaLayer = replicaElement?.querySelector<HTMLElement>(':scope > .sessions-chat-background');
+		if (!viewport || !replicaElement || !replicaLayer) {
+			throw new Error('Sticky background replica did not render');
+		}
+		const sourceBounds = source.getBoundingClientRect();
+		const stickyBounds = stickyContainer.getBoundingClientRect();
+		const viewportBounds = viewport.getBoundingClientRect();
+		const replicaBounds = replicaElement.getBoundingClientRect();
+		const viewportStyle = dom.getWindow(viewport).getComputedStyle(viewport);
+		const replicaStyle = dom.getWindow(replicaElement).getComputedStyle(replicaElement);
+
+		assert.deepStrictEqual({
+			source: { left: sourceBounds.left, top: sourceBounds.top, width: sourceBounds.width, height: sourceBounds.height },
+			sticky: { width: stickyBounds.width, height: stickyBounds.height, overflow: dom.getWindow(stickyContainer).getComputedStyle(stickyContainer).overflow },
+			viewport: {
+				left: viewportBounds.left,
+				top: viewportBounds.top,
+				width: viewportBounds.width,
+				height: viewportBounds.height,
+				overflow: viewportStyle.overflow,
+				pointerEvents: viewportStyle.pointerEvents,
+				ariaHidden: viewport.ariaHidden,
+			},
+			replica: {
+				left: replicaBounds.left,
+				top: replicaBounds.top,
+				width: replicaBounds.width,
+				height: replicaBounds.height,
+				styleLeft: replicaElement.style.left,
+				styleTop: replicaElement.style.top,
+			},
+			sourceImage: {
+				image: source.style.backgroundImage,
+				repeat: source.style.backgroundRepeat,
+				size: source.style.backgroundSize,
+				position: source.style.backgroundPosition,
+			},
+			replicaImage: {
+				image: replicaLayer.style.backgroundImage,
+				repeat: replicaLayer.style.backgroundRepeat,
+				size: replicaLayer.style.backgroundSize,
+				position: replicaLayer.style.backgroundPosition,
+			},
+			base: replicaStyle.backgroundColor,
+			pointerEvents: replicaStyle.pointerEvents,
+			ariaHidden: replicaElement.ariaHidden,
+		}, {
+			source: { left: sourceBounds.left, top: sourceBounds.top, width: 600, height: 400 },
+			sticky: { width: 440, height: 64, overflow: 'visible' },
+			viewport: {
+				left: stickyBounds.left,
+				top: stickyBounds.top,
+				width: 440,
+				height: 64,
+				overflow: 'hidden',
+				pointerEvents: 'none',
+				ariaHidden: 'true',
+			},
+			replica: {
+				left: sourceBounds.left,
+				top: sourceBounds.top,
+				width: 600,
+				height: 400,
+				styleLeft: '-80px',
+				styleTop: '-40px',
+			},
+			sourceImage: {
+				image: 'url("file:///textures/kirby.png")',
+				repeat: 'repeat-x',
+				size: '125px 175px',
+				position: '37px 19px',
+			},
+			replicaImage: {
+				image: 'url("file:///textures/kirby.png")',
+				repeat: 'repeat-x',
+				size: '125px 175px',
+				position: '37px 19px',
+			},
+			base: 'rgb(32, 32, 32)',
+			pointerEvents: 'none',
+			ariaHidden: 'true',
+		});
+	});
+
+	test('keeps source and replica Codicons synchronized across resize', () => {
+		const background = { kind: 'codicons' } as const;
+		const { store, part, stickyContainer, source, sourceRenderer } = createBackgroundReplicaHost(background);
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+		replica.setBackground(background);
+		const iconLayout = (element: HTMLElement) => Array.from(element.querySelectorAll<HTMLElement>('.codicon'))
+			.map(icon => ({
+				className: icon.className,
+				left: icon.style.left,
+				top: icon.style.top,
+				transform: icon.style.transform,
+			}))
+			.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+		const initialSourceLayout = iconLayout(source);
+		const initialReplicaLayout = iconLayout(stickyContainer);
+
+		part.style.width = '720px';
+		part.style.height = '480px';
+		sourceRenderer.setBackground(background);
+		replica.layout();
+		replica.setBackground(background);
+		const resizedSourceLayout = iconLayout(source);
+		const resizedReplicaLayout = iconLayout(stickyContainer);
+		const { replica: replicaElement } = getBackgroundReplicaElements(stickyContainer);
+
+		assert.deepStrictEqual({
+			initial: {
+				hasIcons: initialSourceLayout.length > 0,
+				sourceCount: initialSourceLayout.length,
+				replicaCount: initialReplicaLayout.length,
+				replicaLayout: initialReplicaLayout,
+			},
+			resized: {
+				hasMoreIcons: resizedSourceLayout.length > initialSourceLayout.length,
+				sourceCount: resizedSourceLayout.length,
+				replicaCount: resizedReplicaLayout.length,
+				replicaLayout: resizedReplicaLayout,
+				replicaWidth: replicaElement?.getBoundingClientRect().width,
+				replicaHeight: replicaElement?.getBoundingClientRect().height,
+			},
+		}, {
+			initial: {
+				hasIcons: true,
+				sourceCount: initialSourceLayout.length,
+				replicaCount: initialSourceLayout.length,
+				replicaLayout: initialSourceLayout,
+			},
+			resized: {
+				hasMoreIcons: true,
+				sourceCount: resizedSourceLayout.length,
+				replicaCount: resizedSourceLayout.length,
+				replicaLayout: resizedSourceLayout,
+				replicaWidth: 720,
+				replicaHeight: 480,
+			},
+		});
+	});
+
+	test('updates and clears replica rendering from explicit background state', () => {
+		const image: ISessionsChatBackground = {
+			kind: 'image',
+			backgroundImage: 'url("file:///textures/kirby.png")',
+			backgroundRepeat: 'no-repeat',
+			backgroundSize: 'auto',
+			backgroundPosition: 'right bottom',
+		};
+		const codicons = { kind: 'codicons' } as const;
+		const { store, stickyContainer, source, sourceRenderer } = createBackgroundReplicaHost(image);
+		const replica = store.add(new SessionsChatBackgroundReplica(source, stickyContainer));
+		replica.setBackground(image);
+		const { viewport, replica: replicaElement } = getBackgroundReplicaElements(stickyContainer);
+		const replicaLayer = replicaElement?.querySelector<HTMLElement>(':scope > .sessions-chat-background');
+		const codiconLayer = replicaLayer?.querySelector<HTMLElement>(':scope > .sessions-chat-codicon-background');
+		if (!viewport || !replicaElement || !replicaLayer || !codiconLayer) {
+			throw new Error('Sticky background replica did not render its layers');
+		}
+		const imageState = {
+			viewportHidden: viewport.hidden,
+			hasBackground: replicaElement.classList.contains('has-chat-background'),
+			hasImage: replicaElement.classList.contains('has-chat-background-image'),
+			image: replicaLayer.style.backgroundImage,
+			layerHidden: replicaLayer.hidden,
+		};
+
+		sourceRenderer.setBackground(codicons);
+		replica.setBackground(codicons);
+		const codiconState = {
+			viewportHidden: viewport.hidden,
+			hasBackground: replicaElement.classList.contains('has-chat-background'),
+			hasImage: replicaElement.classList.contains('has-chat-background-image'),
+			image: replicaLayer.style.backgroundImage,
+			layerHidden: replicaLayer.hidden,
+			codiconLayerHidden: codiconLayer.hidden,
+			iconCountMatches: source.querySelectorAll('.codicon').length === replicaElement.querySelectorAll('.codicon').length,
+		};
+
+		sourceRenderer.setBackground(undefined);
+		replica.setBackground(undefined);
+		const clearedStyle = dom.getWindow(replicaElement).getComputedStyle(replicaElement);
+
+		assert.deepStrictEqual({
+			image: imageState,
+			codicons: codiconState,
+			cleared: {
+				viewportHidden: viewport.hidden,
+				viewportDisplay: dom.getWindow(viewport).getComputedStyle(viewport).display,
+				hasBackground: replicaElement.classList.contains('has-chat-background'),
+				hasImage: replicaElement.classList.contains('has-chat-background-image'),
+				display: clearedStyle.display,
+				layerHidden: replicaLayer.hidden,
+				codiconLayerHidden: codiconLayer.hidden,
+				iconCount: replicaElement.querySelectorAll('.codicon').length,
+			},
+		}, {
+			image: {
+				viewportHidden: false,
+				hasBackground: true,
+				hasImage: true,
+				image: 'url("file:///textures/kirby.png")',
+				layerHidden: false,
+			},
+			codicons: {
+				viewportHidden: false,
+				hasBackground: true,
+				hasImage: false,
+				image: '',
+				layerHidden: false,
+				codiconLayerHidden: false,
+				iconCountMatches: true,
+			},
+			cleared: {
+				viewportHidden: true,
+				viewportDisplay: 'none',
+				hasBackground: false,
+				hasImage: false,
+				display: 'block',
+				layerHidden: true,
+				codiconLayerHidden: true,
+				iconCount: 0,
+			},
+		});
+	});
+
+	test('reuses, replaces, and disposes the ChatView sticky background replica', () => {
+		const image: ISessionsChatBackground = {
+			kind: 'image',
+			backgroundImage: 'url("file:///textures/kirby.png")',
+			backgroundRepeat: 'no-repeat',
+			backgroundSize: 'auto',
+			backgroundPosition: 'center center',
+		};
+		const codicons = { kind: 'codicons' } as const;
+		const { store, chatView, stickyContainer, sourceRenderer } = createBackgroundReplicaHost(image);
+		const replicaSlot = store.add(new MutableDisposable<SessionsChatBackgroundReplica>());
+		let background: ISessionsChatBackground | undefined = image;
+		let stickyScrollDomNode: HTMLElement | undefined = stickyContainer;
+		let paddingUpdates = 0;
+		const view = Object.assign(Object.create(ChatView.prototype), {
+			element: chatView,
+			_widget: {
+				get stickyScrollDomNode() { return stickyScrollDomNode; },
+				setContentHorizontalPadding: () => paddingUpdates++,
+			},
+			_stickyScrollBackgroundReplica: replicaSlot,
+			chatBackgroundService: { getBackground: () => background },
+			_chatItemHorizontalPadding: getSessionChatItemHorizontalPadding(true),
+		}) as IStickyBackgroundChatView;
+
+		view._layoutStickyScrollBackground();
+		const firstReplicaElement = getBackgroundReplicaElements(stickyContainer).replica;
+		view._layoutStickyScrollBackground();
+		const secondReplicaElement = getBackgroundReplicaElements(stickyContainer).replica;
+
+		background = codicons;
+		sourceRenderer.setBackground(background);
+		view._updateChatBackground();
+		view._updateChatBackground();
+		const updatedReplicaElement = getBackgroundReplicaElements(stickyContainer).replica;
+
+		stickyScrollDomNode = undefined;
+		view._layoutStickyScrollBackground();
+		const oldReplicaCountAfterDisable = stickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica-viewport').length;
+
+		const replacementStickyContainer = dom.append(stickyContainer.parentElement!, dom.$('.monaco-tree-sticky-container'));
+		replacementStickyContainer.style.position = 'absolute';
+		replacementStickyContainer.style.left = '80px';
+		replacementStickyContainer.style.top = '40px';
+		replacementStickyContainer.style.width = '440px';
+		replacementStickyContainer.style.height = '64px';
+		stickyScrollDomNode = replacementStickyContainer;
+		view._layoutStickyScrollBackground();
+		const replacementReplicaElement = getBackgroundReplicaElements(replacementStickyContainer).replica;
+
+		background = undefined;
+		sourceRenderer.setBackground(background);
+		view._updateChatBackground();
+		const replacementViewport = getBackgroundReplicaElements(replacementStickyContainer).viewport;
+		const hiddenBeforeDispose = replacementViewport ? dom.getWindow(replacementViewport).getComputedStyle(replacementViewport).display : undefined;
+		const replicaCountBeforeDispose = replacementStickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica-viewport').length;
+		replicaSlot.dispose();
+
+		assert.deepStrictEqual({
+			created: !!firstReplicaElement,
+			reusedOnLayout: secondReplicaElement === firstReplicaElement,
+			reusedOnBackgroundUpdate: updatedReplicaElement === firstReplicaElement,
+			oldReplicaCountAfterDisable,
+			replacementCreated: !!replacementReplicaElement,
+			recreatedForReplacement: !!replacementReplicaElement && replacementReplicaElement !== firstReplicaElement,
+			replicaCountBeforeDispose,
+			hiddenBeforeDispose,
+			paddingUpdates,
+			replicaCountAfterDispose: replacementStickyContainer.querySelectorAll(':scope > .sessions-chat-background-replica-viewport').length,
+		}, {
+			created: true,
+			reusedOnLayout: true,
+			reusedOnBackgroundUpdate: true,
+			oldReplicaCountAfterDisable: 0,
+			replacementCreated: true,
+			recreatedForReplacement: true,
+			replicaCountBeforeDispose: 1,
+			hiddenBeforeDispose: 'none',
+			paddingUpdates: 1,
+			replicaCountAfterDispose: 0,
 		});
 	});
 

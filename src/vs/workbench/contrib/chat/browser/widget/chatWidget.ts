@@ -1073,6 +1073,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.domNode;
 	}
 
+	get stickyScrollDomNode(): HTMLElement | undefined {
+		return this.listWidget.stickyScrollDomNode;
+	}
+
+	get onDidChangeStickyScrollDomNode(): Event<HTMLElement | undefined> {
+		return this.listWidget.onDidChangeStickyScrollDomNode;
+	}
+
 	get scrollHeight(): number {
 		return this.listWidget.scrollHeight;
 	}
