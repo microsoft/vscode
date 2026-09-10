@@ -856,10 +856,12 @@ function _doScore(
 
 	let score = 1;
 	let isGapLocation = false;
-	if (wordPos === (patternPos - patternStart)) {
+	let isCommonPrefix = false;
+	if (wordPos === wordStart + (patternPos - patternStart)) {
 		// common prefix: `foobar <-> foobaz`
 		//                            ^^^^^
 		score = pattern[patternPos] === word[wordPos] ? 7 : 5;
+		isCommonPrefix = true;
 
 	} else if (isUpperCaseAtPos(wordPos, word, wordLow) && (wordPos === 0 || !isUpperCaseAtPos(wordPos - 1, word, wordLow))) {
 		// hitting upper-case: `foo <-> forOthers`
@@ -884,7 +886,7 @@ function _doScore(
 	}
 
 	if (!isGapLocation) {
-		isGapLocation = isUpperCaseAtPos(wordPos, word, wordLow) || isSeparatorAtPos(wordLow, wordPos - 1) || isWhitespaceAtPos(wordLow, wordPos - 1);
+		isGapLocation = (isUpperCaseAtPos(wordPos, word, wordLow) && !isCommonPrefix) || isSeparatorAtPos(wordLow, wordPos - 1) || isWhitespaceAtPos(wordLow, wordPos - 1);
 	}
 
 	//
