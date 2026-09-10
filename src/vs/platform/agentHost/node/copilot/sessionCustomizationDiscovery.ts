@@ -517,14 +517,18 @@ export class SessionCustomizationDiscovery extends Disposable {
 		throwIfCancelled(token);
 
 		const toResolveArray = [...toResolve];
-		const statResults = await this._fileService.resolveAll(toResolveArray.map(resource => ({ resource })));
 		const existingDirectories = new ResourceSet();
-		for (let i = 0; i < statResults.length; i++) {
-			const result = statResults[i];
-			if (result.success && result.stat?.isDirectory) {
-				existingDirectories.add(toResolveArray[i]);
+		await Promise.all(toResolveArray.map(async resource => {
+			try {
+				if ((await this._fileService.stat(resource)).isDirectory) {
+					existingDirectories.add(resource);
+				}
+			} catch (error) {
+				if (toFileOperationResult(error as Error) !== FileOperationResult.FILE_NOT_FOUND) {
+					throw error;
+				}
 			}
-		}
+		}));
 
 		for (const discoveredDir of discoveredDirectories) {
 			throwIfCancelled(token);
