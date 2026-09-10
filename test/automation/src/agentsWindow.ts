@@ -135,6 +135,7 @@ export class AgentsWindow {
 				await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
 				await page.mouse.move(0, 0);
 				await workspaceRow.hover();
+				await page.keyboard.press('ArrowRight');
 				await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
 				await devContainerRow.click();
 				await page.waitForFunction(
