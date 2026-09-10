@@ -37,7 +37,7 @@ import { MockChatResponseStream, TestChatRequest } from '../../../test/node/test
 import { type IToolsService } from '../../../tools/common/toolsService';
 import { mockLanguageModelChat } from '../../../tools/node/test/searchToolTestUtils';
 import { IAgentSessionsWorkspace } from '../../common/agentSessionsWorkspace';
-import { IChatSessionMetadataStore, RepositoryProperties } from '../../common/chatSessionMetadataStore';
+import { RepositoryProperties } from '../../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeCheckpointService } from '../../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService, type ChatSessionWorktreeFile, type ChatSessionWorktreeProperties, type ChatSessionWorktreePropertiesV2 } from '../../common/chatSessionWorktreeService';
@@ -483,38 +483,6 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		disposables.clear();
-	});
-
-	it('rehydrates persisted archived state in session items', async () => {
-		const metadataStore = new class extends MockChatSessionMetadataStore {
-			override getSessionArchived = vi.fn(async () => true);
-		}();
-		const provider = Object.create(CopilotCLIChatSessionItemProvider.prototype) as CopilotCLIChatSessionItemProvider;
-		const providerState = provider as unknown as {
-			sdkToUntitledUriMapping: Map<string, Uri>;
-			untitledSessionIdMapping: Map<string, string>;
-			chatSessionMetadataStore: IChatSessionMetadataStore;
-			worktreeManager: IChatSessionWorktreeService;
-			workspaceFolderService: IChatSessionWorkspaceFolderService;
-			gitService: IGitService;
-			configurationService: IConfigurationService;
-		};
-		providerState.sdkToUntitledUriMapping = new Map<string, Uri>();
-		providerState.untitledSessionIdMapping = new Map<string, string>();
-		providerState.chatSessionMetadataStore = metadataStore;
-		providerState.worktreeManager = worktree;
-		providerState.workspaceFolderService = workspaceFolderService;
-		providerState.gitService = git;
-		providerState.configurationService = configurationService;
-
-		const item = await provider.toChatSessionItem({
-			id: 'archived-session',
-			label: 'Archived Session',
-			timing: { created: 1, startTime: 1, endTime: 2 },
-			workingDirectory: undefined,
-		});
-
-		expect(item.archived).toBe(true);
 	});
 
 	it('creates new session for untitled context and invokes request', async () => {

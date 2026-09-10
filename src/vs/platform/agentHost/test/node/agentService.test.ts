@@ -4737,6 +4737,60 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('forced legacy migration does not re-announce an existing session with stale metadata', async () => {
+			const database = new TransientRegistryWriteDatabase();
+			const sessionData = createPerSessionDataService();
+			const session = AgentSession.uri('copilot', 'existing-legacy');
+			await Promise.all([
+				sessionData.database(session).setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false'),
+				sessionData.database(session).setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true'),
+				sessionData.database(session).setMetadata('customTitle', 'Persisted title'),
+				database.registerSession(session.toString(), {
+					provider: 'copilot',
+					startTime: 1,
+					modifiedTime: 2,
+					source: 'explicit',
+				}, { checkTombstone: true }),
+				database.markProviderBackfilled('copilot'),
+			]);
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database));
+			const agent = disposables.add(new class extends MockAgent {
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					return [{
+						chat: URI.parse(buildDefaultChatUri(session)),
+						startTime: 1,
+						modifiedTime: 2,
+						summary: 'Stale provider title',
+					}];
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return {
+						chat,
+						startTime: 1,
+						modifiedTime: 2,
+						summary: 'Stale provider title',
+					};
+				}
+			}('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const before = await svc.listSessions();
+			const notifications: INotification[] = [];
+			disposables.add(getStateManager(svc).onDidEmitNotification(notification => notifications.push(notification)));
+
+			await (svc as unknown as { _migrateLegacyProviderChats(provider: IAgent, force: boolean): Promise<void> })._migrateLegacyProviderChats(agent, true);
+			const after = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				before: before.map(item => ({ title: item.summary, status: item.status })),
+				after: after.map(item => ({ title: item.summary, status: item.status })),
+				sessionAdded: notifications.filter(notification => notification.type === NotificationType.SessionAdded),
+			}, {
+				before: [{ title: 'Persisted title', status: SessionStatus.Idle | SessionStatus.IsArchived }],
+				after: [{ title: 'Persisted title', status: SessionStatus.Idle | SessionStatus.IsArchived }],
+				sessionAdded: [],
+			});
+		});
+
 		test('legacy migration and external discovery use separate provider catalogs and signals', async () => {
 			class SeparateCatalogAgent extends MockAgent {
 				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();

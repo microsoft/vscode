@@ -295,11 +295,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 
 	public async toChatSessionItem(session: ICopilotCLISessionItem, options?: { readonly includeChanges?: boolean }, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.ChatSessionItem> {
 		const resource = this.sdkToUntitledUriMapping.get(session.id) ?? SessionIdForCLI.getResource(this.untitledSessionIdMapping.get(session.id) ?? session.id);
-		const [initialWorktreeProperties, archived] = await Promise.all([
-			raceCancellation(this.worktreeManager.getWorktreeProperties(session.id), token),
-			raceCancellation(this.chatSessionMetadataStore.getSessionArchived(session.id), token),
-		]);
-		let worktreeProperties = initialWorktreeProperties;
+		let worktreeProperties = await raceCancellation(this.worktreeManager.getWorktreeProperties(session.id), token);
 		const workingDirectory = worktreeProperties?.worktreePath ? vscode.Uri.file(worktreeProperties.worktreePath)
 			: session.workingDirectory;
 
@@ -444,7 +440,6 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 			timing: session.timing,
 			changes,
 			status,
-			archived,
 			metadata,
 		} satisfies vscode.ChatSessionItem;
 	}
