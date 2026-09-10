@@ -29,6 +29,7 @@ import { IContextKeyService, IContextKey } from '../../../../platform/contextkey
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -410,6 +411,7 @@ export class WorkspacePicker extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -1024,7 +1026,10 @@ export class WorkspacePicker extends Disposable {
 				}
 			}));
 			if (isAgentHostProvider(provider) && provider.onDidChangeDevContainerAvailability) {
-				store.add(provider.onDidChangeDevContainerAvailability(() => this._clearDevContainerAvailability(true)));
+				store.add(provider.onDidChangeDevContainerAvailability(() => {
+					this.logService.trace(`[WorkspacePicker] Dev Container availability changed: provider=${provider.id}`);
+					this._clearDevContainerAvailability(true);
+				}));
 			}
 		}
 	}
@@ -1925,26 +1930,36 @@ export class WorkspacePicker extends Disposable {
 	private _isDevContainerWorkspaceAvailable(folderUri: URI, providerId: string): boolean {
 		const provider = this.sessionsProvidersService.getProvider(providerId);
 		if (!provider || !isAgentHostProvider(provider) || !provider.isDevContainerWorkspaceAvailable) {
+			const capableProviderIds = this.sessionsProvidersService.getProviders()
+				.filter(candidate => isAgentHostProvider(candidate) && !!candidate.isDevContainerWorkspaceAvailable)
+				.map(candidate => candidate.id);
+			this.logService.trace(`[WorkspacePicker] Dev Container availability skipped: provider=${providerId}, scheme=${folderUri.scheme}, registered=${!!provider}, agentHost=${!!provider && isAgentHostProvider(provider)}, capability=${!!provider && isAgentHostProvider(provider) && !!provider.isDevContainerWorkspaceAvailable}, capableProviders=${capableProviderIds.join(',') || '<none>'}`);
 			return false;
 		}
 		const key = `${providerId}:${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`;
 		const cached = this._devContainerAvailability.get(key);
 		if (typeof cached === 'boolean') {
+			this.logService.trace(`[WorkspacePicker] Dev Container availability cache hit: provider=${providerId}, scheme=${folderUri.scheme}, available=${cached}`);
 			return cached;
 		}
 		if (cached) {
+			this.logService.trace(`[WorkspacePicker] Dev Container availability pending: provider=${providerId}, scheme=${folderUri.scheme}`);
 			return false;
 		}
+		this.logService.trace(`[WorkspacePicker] Dev Container availability probe started: provider=${providerId}, scheme=${folderUri.scheme}`);
 		const availability = this._devContainerAvailabilityLimiter.queue(() => provider.isDevContainerWorkspaceAvailable!(folderUri))
 			.catch(error => {
+				this.logService.error(`[WorkspacePicker] Dev Container availability probe failed: provider=${providerId}, scheme=${folderUri.scheme}`, error);
 				onUnexpectedError(error);
 				return false;
 			});
 		this._devContainerAvailability.set(key, availability);
 		void availability.then(available => {
 			if (this._devContainerAvailability.get(key) !== availability) {
+				this.logService.trace(`[WorkspacePicker] Dev Container availability result discarded: provider=${providerId}, scheme=${folderUri.scheme}, available=${available}`);
 				return;
 			}
+			this.logService.trace(`[WorkspacePicker] Dev Container availability probe completed: provider=${providerId}, scheme=${folderUri.scheme}, available=${available}`);
 			this._devContainerAvailability.set(key, available);
 		});
 		return false;

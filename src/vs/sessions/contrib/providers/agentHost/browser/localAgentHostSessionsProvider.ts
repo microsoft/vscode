@@ -333,8 +333,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		return this._devContainerAvailableDrafts.has(sessionId);
 	}
 
-	isDevContainerWorkspaceAvailable(workspaceUri: URI): Promise<boolean> {
-		return this._devContainerAgentHostService.isAvailable(workspaceUri);
+	async isDevContainerWorkspaceAvailable(workspaceUri: URI): Promise<boolean> {
+		this._logService.trace(`[${this.id}] Dev Container workspace availability probe started: scheme=${workspaceUri.scheme}`);
+		const available = await this._devContainerAgentHostService.isAvailable(workspaceUri);
+		this._logService.trace(`[${this.id}] Dev Container workspace availability probe completed: scheme=${workspaceUri.scheme}, available=${available}`);
+		return available;
 	}
 
 	isDevContainerEnabled(sessionId: string): boolean {

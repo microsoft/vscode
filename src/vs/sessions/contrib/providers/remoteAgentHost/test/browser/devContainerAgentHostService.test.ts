@@ -18,8 +18,10 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -187,6 +189,15 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 	provider: TestProvider | undefined;
 	publishSessionOnCreate = false;
+
+	constructor(
+		instantiationService: IInstantiationService,
+		remoteAgentHostService: IRemoteAgentHostService,
+		sessionsProvidersService: ISessionsProvidersService,
+		storageService: IStorageService,
+	) {
+		super(instantiationService, remoteAgentHostService, sessionsProvidersService, storageService, new NullLogService());
+	}
 
 	protected override _createProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
 		this.provider = new TestProvider(config);

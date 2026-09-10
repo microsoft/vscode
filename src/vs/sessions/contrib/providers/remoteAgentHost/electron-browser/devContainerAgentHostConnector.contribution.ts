@@ -49,19 +49,23 @@ export async function isDevContainerWorkspaceAvailable(
 	fileService: IFileService,
 	mainService: IDevContainerAgentHostMainService,
 	configurationService: IConfigurationService,
+	logService?: ILogService,
 ): Promise<boolean> {
-	if (
-		!configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId)
-		|| !configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
-		|| workspaceUri.scheme !== Schemas.file
-	) {
+	const devContainerEnabled = configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId);
+	const remoteAgentHostsEnabled = configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+	const isLocalWorkspace = workspaceUri.scheme === Schemas.file;
+	if (!devContainerEnabled || !remoteAgentHostsEnabled || !isLocalWorkspace) {
+		logService?.trace(`[DevContainerAgentHostConnector] Availability skipped: scheme=${workspaceUri.scheme}, devContainerEnabled=${devContainerEnabled}, remoteAgentHostsEnabled=${remoteAgentHostsEnabled}, localWorkspace=${isLocalWorkspace}`);
 		return false;
 	}
-	const hasConfiguration = await Promise.all([
+	const [nestedConfigurationExists, rootConfigurationExists] = await Promise.all([
 		fileService.exists(URI.joinPath(workspaceUri, '.devcontainer', 'devcontainer.json')),
 		fileService.exists(URI.joinPath(workspaceUri, '.devcontainer.json')),
 	]);
-	return hasConfiguration.some(exists => exists) && await mainService.isDockerAvailable();
+	const hasConfiguration = nestedConfigurationExists || rootConfigurationExists;
+	const dockerAvailable = hasConfiguration ? await mainService.isDockerAvailable() : false;
+	logService?.trace(`[DevContainerAgentHostConnector] Availability completed: scheme=${workspaceUri.scheme}, devContainerEnabled=${devContainerEnabled}, remoteAgentHostsEnabled=${remoteAgentHostsEnabled}, localWorkspace=${isLocalWorkspace}, nestedConfiguration=${nestedConfigurationExists}, rootConfiguration=${rootConfigurationExists}, dockerAvailable=${dockerAvailable}`);
+	return hasConfiguration && dockerAvailable;
 }
 
 class DevContainerOutputWriter extends Disposable {
@@ -129,7 +133,12 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 	}
 
 	async isAvailable(workspaceUri: URI): Promise<boolean> {
-		return isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService);
+		try {
+			return await isDevContainerWorkspaceAvailable(workspaceUri, this._fileService, this._mainService, this._configurationService, this._logService);
+		} catch (error) {
+			this._logService.error(`[DevContainerAgentHostConnector] Availability failed: scheme=${workspaceUri.scheme}`, error);
+			throw error;
+		}
 	}
 
 	async createConnection(workspaceUri: URI, address: string, token: CancellationToken): Promise<IDevContainerAgentHostConnection> {

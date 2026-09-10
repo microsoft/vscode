@@ -21,6 +21,7 @@ import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService, RemoteAgentHo
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -352,6 +353,7 @@ function createTestPicker(
 	instantiationService.stub(ISessionsRecentWorkspacesService, recentWorkspacesService ?? disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(ILogService, new NullLogService());
 
 	return disposables.add(instantiationService.createInstance(pickerCtor, options ?? {}));
 }
@@ -3594,6 +3596,7 @@ function createTestablePicker(
 	});
 	instantiationService.stub(ISessionsRecentWorkspacesService, disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(ILogService, new NullLogService());
 	return disposables.add(instantiationService.createInstance(TestablePicker, options));
 }
 
@@ -4527,6 +4530,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 		instantiationService.stub(ISessionsRecentWorkspacesService, disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ILogService, new NullLogService());
 		const picker = disposables.add(instantiationService.createInstance(TestablePicker, {}));
 		// Recent workspace group ('Cloud') is not added as a tab — only
 		// browse actions and the always-present Remote group contribute tabs.
