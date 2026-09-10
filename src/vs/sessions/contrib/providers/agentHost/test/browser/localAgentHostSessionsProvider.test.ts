@@ -50,7 +50,7 @@ import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -3576,6 +3576,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			available: true,
 			enabled: true,
+		});
+	});
+
+	test('switches incompatible worktree isolation to folder when enabling a preferred Dev Container', async () => {
+		const configurationService = new TestConfigurationService({
+			[DevContainerWorktreeEnabledSettingId]: false,
+		});
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService,
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> {
+					return true;
+				}
+			}(),
+		});
+		const session = provider.createNewSession(
+			URI.file('/home/user/project'),
+			provider.sessionTypes[0].id,
+		);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values[SessionConfigKey.Isolation] === 'worktree');
+		provider.preferDevContainer(session.sessionId);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values[SessionConfigKey.Isolation] === 'folder');
+
+		assert.deepStrictEqual({
+			enabled: provider.isDevContainerEnabled(session.sessionId),
+			isolation: provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.Isolation],
+			forwardedIsolation: agentHost.resolveSessionConfigRequests.at(-1)?.config?.[SessionConfigKey.Isolation],
+		}, {
+			enabled: true,
+			isolation: 'folder',
+			forwardedIsolation: 'folder',
 		});
 	});
 
