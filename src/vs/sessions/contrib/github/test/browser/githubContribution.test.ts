@@ -197,6 +197,12 @@ suite('GitHubReferenceList', () => {
 
 suite('GitHubPullRequestPollingContribution', () => {
 
+	// Capture registrations before configuration registry tests clear the global registry.
+	const automaticCleanupSettings = Object.entries(Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties())
+		.filter(([, property]) => property.tags?.includes(AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG))
+		.map(([key]) => key)
+		.sort();
+
 	const store = new DisposableStore();
 	const logService = new NullLogService();
 	let sessionsManagementService: TestSessionsManagementService;
@@ -233,12 +239,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('tags only the two automatic cleanup settings for the settings query', () => {
-		const properties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const settings = Object.keys(properties)
-			.filter(key => properties[key].tags?.includes(AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG))
-			.sort();
-
-		assert.deepStrictEqual({ query: AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, settings }, {
+		assert.deepStrictEqual({ query: AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, settings: automaticCleanupSettings }, {
 			query: '@tag:agentSessionCleanup',
 			settings: [AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING],
 		});
