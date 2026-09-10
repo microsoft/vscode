@@ -19,7 +19,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerInput, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -203,7 +203,7 @@ class TestLogService extends NullLogService {
 	}
 }
 
-function createGallery(name: string, remoteUrls: readonly string[] = []): IGalleryMcpServer {
+function createGallery(name: string, remoteUrls: readonly string[] = [], remoteVariables?: Record<string, IMcpServerInput>): IGalleryMcpServer {
 	return {
 		name,
 		displayName: name,
@@ -212,7 +212,7 @@ function createGallery(name: string, remoteUrls: readonly string[] = []): IGalle
 		isLatest: true,
 		status: GalleryMcpServerStatus.Active,
 		configuration: {
-			remotes: remoteUrls.map(url => ({ type: TransportType.STREAMABLE_HTTP, url }))
+			remotes: remoteUrls.map(url => ({ type: TransportType.STREAMABLE_HTTP, url, variables: remoteVariables }))
 		},
 		publisher: 'test'
 	};
@@ -761,17 +761,45 @@ suite('McpWorkbenchService', () => {
 		});
 	});
 
-	test('requires remote URLs to match the registry entry exactly', async () => {
+	test('requires remote URLs to match equivalent registry entries', async () => {
 		const allowed = createLocal('allowed', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: 'https://allowed.test/mcp' });
+		const templated = createLocal('templated', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: 'https://${input:environment_id}.apps.test/mcp' });
 		const blocked = createLocal('blocked', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: 'https://blocked.test/mcp' });
-		const { service, galleryService } = await createFixture([allowed, blocked]);
+		const { service, galleryService } = await createFixture([allowed, templated, blocked]);
 		await complete(await galleryService.nextRequest(), new Map([
 			[allowed.name, found(createGallery(allowed.name, ['https://allowed.test/mcp']))],
+			[templated.name, found(createGallery(templated.name, ['https://{environment_id}.apps.test/mcp'], {
+				environment_id: {
+					description: 'Environment ID',
+					isRequired: true
+				}
+			}))],
 			[blocked.name, found(createGallery(blocked.name, ['https://different.test/mcp']))],
 		]));
 
-		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['allowed']);
+		assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['allowed', 'templated']);
 	});
+
+	for (const value of ['?region=eu', '']) {
+		test(`matches fixed registry URL variables without allowing overrides for ${JSON.stringify(value)}`, async () => {
+			const url = 'https://example.com/{environment}/mcp{suffix}';
+			const normalizedUrl = 'https://example.com/${input:environment}/mcp';
+			const fixed = createLocal('fixed', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: `${normalizedUrl}${value}` });
+			const prompted = createLocal('prompted', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: `${normalizedUrl}\${input:suffix}` });
+			const mismatch = createLocal('mismatch', LocalMcpServerScope.User, { type: McpServerType.REMOTE, url: `${normalizedUrl}${value}other` });
+			const installed = [fixed, prompted, mismatch];
+			const { service, galleryService } = await createFixture(installed);
+			await complete(await galleryService.nextRequest(), new Map(installed.map(server => [
+				server.name,
+				found(createGallery(server.name, [url], {
+					environment: { description: 'Environment ID' },
+					suffix: { value }
+				}))
+			])));
+
+			assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.name), ['fixed']);
+		});
+	}
 
 	test('keeps a stable order for duplicate server names across repeated sorts', async () => {
 		const user = createLocal('duplicate', LocalMcpServerScope.User);
