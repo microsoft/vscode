@@ -1015,6 +1015,45 @@ suite('CreatePullRequestWidget', () => {
 		assert.strictEqual(dom.getActiveElement(), outside);
 	});
 
+	for (const group of ['After creation', 'Merge method']) {
+		test(`failed keyboard submission restores the rebuilt ${group} radio`, async () => {
+			const completion = new DeferredPromise<void>();
+			let cancelled = 0;
+			const { widget } = createWidget({ create: () => completion.p }, () => cancelled++);
+			await widget.ready;
+			select(widget, 'Auto-Merge');
+			select(widget, 'Rebase');
+			const selector = `[role="radiogroup"][aria-label="${group}"] [aria-checked="true"]`;
+			const previousRadio = element(widget, selector);
+			previousRadio.focus();
+			previousRadio.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 13, ctrlKey: !isMacintosh, metaKey: isMacintosh, bubbles: true }));
+			await completion.error(new Error('Push rejected'));
+			await timeout(0);
+			const currentRadio = element(widget, selector);
+			const focused = dom.getActiveElement();
+			focused?.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 27, bubbles: true }));
+			assert.deepStrictEqual({
+				rebuilt: currentRadio !== previousRadio,
+				focused: focused === currentRadio,
+				label: currentRadio.textContent,
+				submitting: widget.isSubmitting,
+				cancelled,
+			}, { rebuilt: true, focused: true, label: group === 'After creation' ? 'Auto-Merge' : 'Rebase', submitting: false, cancelled: 1 });
+		});
+	}
+
+	for (const selector of ['[role="radio"][aria-checked="true"]', '.create-pr-buttons > .monaco-button', '.create-pr-submit', '.monaco-dropdown-button']) {
+		test(`Escape from ${selector} cancels before the button consumes the key`, async () => {
+			let cancelled = 0;
+			const { widget } = createWidget(undefined, () => cancelled++, { sendToChat: async () => { } });
+			await widget.ready;
+			const control = element(widget, selector);
+			control.focus();
+			control.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 27, bubbles: true }));
+			assert.strictEqual(cancelled, 1);
+		});
+	}
+
 	test('prevents duplicate submission while creating', async () => {
 		const completion = new DeferredPromise<void>();
 		let submissions = 0;

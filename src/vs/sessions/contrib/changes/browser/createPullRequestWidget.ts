@@ -332,7 +332,8 @@ export class CreatePullRequestWidget extends Disposable {
 			}
 		}));
 		this._register(this.descriptionInput.onDidHeightChange(() => this.layout()));
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => this.onKeyDown(event)));
+		// Capture before child buttons consume Escape and blur themselves.
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => this.onKeyDown(event), true));
 		this.updateMergeOptions();
 		this.ready = this.prepare();
 	}
@@ -580,6 +581,7 @@ export class CreatePullRequestWidget extends Disposable {
 			...(this.details?.agentMergeOptions ? { agentMergeOptions: this.getAgentMergeOptions() } : {}),
 		});
 		const previouslyFocused = dom.getActiveElement();
+		const previouslyFocusedRadio = [this.mergeModeRadio, this.mergeMethodRadio].find(radio => radio.domNode.contains(previouslyFocused));
 		this.submitting = true;
 		this.domNode.setAttribute('aria-busy', 'true');
 		this.error.hidden = true;
@@ -633,9 +635,12 @@ export class CreatePullRequestWidget extends Disposable {
 				this.updateSubmitButton();
 				this.updateMergeOptions();
 				this.layout();
-				if (failed && dom.getActiveElement() === focusAfterDisabling && dom.isHTMLElement(previouslyFocused)
-					&& previouslyFocused.isConnected && this.domNode.contains(previouslyFocused)) {
-					previouslyFocused.focus();
+				if (failed && dom.getActiveElement() === focusAfterDisabling) {
+					if (previouslyFocusedRadio) {
+						previouslyFocusedRadio.focusActiveItem();
+					} else if (dom.isHTMLElement(previouslyFocused) && previouslyFocused.isConnected && this.domNode.contains(previouslyFocused)) {
+						previouslyFocused.focus();
+					}
 				}
 			}
 		}
