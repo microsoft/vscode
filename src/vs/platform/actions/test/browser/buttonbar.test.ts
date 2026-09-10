@@ -185,8 +185,10 @@ suite('WorkbenchButtonBar', () => {
 
 		// The pair-specific margin must stay on the leading icon only, not spread to the inline icon.
 		const [leadingIcon, , inlineIcon] = Array.from(button.children) as HTMLElement[];
+		const buttonStyle = getWindow(button).getComputedStyle(button);
 		const leadingStyle = getWindow(button).getComputedStyle(leadingIcon);
 		const inlineStyle = getWindow(button).getComputedStyle(inlineIcon);
+		assert.strictEqual(buttonStyle.columnGap, 'normal');
 		assert.strictEqual(leadingStyle.marginInlineEnd, '6px');
 		assert.strictEqual(inlineStyle.marginInlineEnd, inlineStyle.marginInlineStart);
 		assert.notStrictEqual(inlineStyle.marginInlineEnd, leadingStyle.marginInlineEnd);
