@@ -11,6 +11,7 @@ import { GrepResultService, NullGrepResultService } from '../grepResultService';
 
 suite('GrepResultService', () => {
 	const uri = URI.file('/file.ts');
+	const sessionUri = URI.file('/session');
 
 	function createMatch(range: vscode.Range): vscode.TextSearchMatch2 {
 		return {
@@ -29,17 +30,45 @@ suite('GrepResultService', () => {
 		const second = new Range(8, 1, 8, 7);
 		const after = new Range(9, 0, 9, 1);
 		const service = new GrepResultService();
-		service.addGrepResult('request', {
+		service.addGrepResult(sessionUri, 'request', {
 			files: [{ uri, matches: [before, first, second, after].map(createMatch) }]
 		});
 
-		expect(service.getGrepResult('request', uri, 4, 8)).toEqual([first, second]);
+		expect(service.getGrepResult(sessionUri, 'request', uri, 4, 8)).toEqual([first, second]);
+	});
+
+	test('returns unique ranges starting with the latest grep result', () => {
+		const older = new Range(4, 2, 4, 5);
+		const duplicate = new Range(6, 1, 6, 7);
+		const latest = new Range(8, 0, 8, 3);
+		const service = new GrepResultService();
+		service.addGrepResult(sessionUri, 'first-request', {
+			files: [{ uri, matches: [older, duplicate].map(createMatch) }]
+		});
+		service.addGrepResult(sessionUri, 'second-request', {
+			files: [{ uri, matches: [duplicate, latest].map(createMatch) }]
+		});
+
+		expect(service.getGrepResult(sessionUri, 'second-request', uri, 0, 10)).toEqual([duplicate, latest, older]);
+	});
+
+	test('fires the request ID when the oldest grep result is removed', () => {
+		const service = new GrepResultService();
+		const removedRequestIds: string[] = [];
+		service.onDidRemoveGrepResult(requestId => removedRequestIds.push(requestId));
+
+		for (let i = 0; i < 17; i++) {
+			service.addGrepResult(sessionUri, `request-${i}`, { files: [] });
+		}
+
+		expect(removedRequestIds).toEqual(['request-0']);
+		service.dispose();
 	});
 
 	test('returns undefined when no results are available', () => {
 		const service = new GrepResultService();
 
-		expect(service.getGrepResult('unknown', uri, 0, 10)).toBeUndefined();
-		expect(new NullGrepResultService().getGrepResult('request', uri, 0, 10)).toBeUndefined();
+		expect(service.getGrepResult(sessionUri, 'unknown', uri, 0, 10)).toBeUndefined();
+		expect(new NullGrepResultService().getGrepResult(sessionUri, 'request', uri, 0, 10)).toBeUndefined();
 	});
 });
