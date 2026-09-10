@@ -2235,9 +2235,10 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_refreshSkillHookCustomizations'] = async () => { };
 		agent['_refreshSkillExtraRoots'] = async () => { };
 		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
 			kind: 'ready',
-			client: new CodexAppServerClient(peer.transport),
+			client,
 			usageSource: 'github',
 			child: { kill: () => true },
 		} as never;
@@ -2256,10 +2257,19 @@ suite('CodexAgent prewarm eviction', () => {
 		entry.firstTurnSent = true;
 		entry.hostTurnIdByAppTurnId.set('previous-codex-turn', 'previous-host-turn');
 		entry.codexTurnIdByHostTurnId.set('previous-host-turn', 'previous-codex-turn');
+		const weeklyRateLimit = { usedPercent: 97.5, windowDurationMins: 7 * 24 * 60, resetsAt: Math.floor(Date.now() / 1000) + 3600 };
+		agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'person@example.com' });
 		const requests: ITestWireRequest[] = [];
 		const respond = (chunk: Buffer) => {
 			const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
 			requests.push(request);
+			if (request.method === 'account/rateLimits/read') {
+				queueMicrotask(() => peer.push({ id: request.id, result: { rateLimits: { primary: null, secondary: weeklyRateLimit }, rateLimitsByLimitId: null, rateLimitResetCredits: null } }));
+				return;
+			}
+			if (request.method === 'turn/start') {
+				agent['_openAIAccountRateLimit'] = { ...weeklyRateLimit, usedPercent: 12 };
+			}
 			const result = request.method === 'config/read'
 				? { layers: [{ name: { type: 'user', profile: null, file: '/custom-codex/config.toml' }, version: 'original-version', config: {} }] }
 				: request.method === 'thread/start'
@@ -2273,6 +2283,7 @@ suite('CodexAgent prewarm eviction', () => {
 		};
 		peer.outbound.on('data', respond);
 		try {
+			await agent['_refreshAccountRateLimits'](client);
 			await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL }, chatContext(created.session, chat));
 			assert.deepStrictEqual(telemetryService.events, []);
 			await agent.chats.sendMessage(chat, 'continue through Copilot', [URI.file('/repo/switch-provider')], undefined, 'next-host-turn', undefined, undefined, chatContext(created.session, chat));
@@ -2314,10 +2325,16 @@ suite('CodexAgent prewarm eviction', () => {
 			previousHostTurn: 'previous-host-turn',
 			previousCodexTurn: 'previous-codex-turn',
 		});
-		assert.deepStrictEqual(telemetryService.events, [{
-			name: 'agentHost.codexProviderSwitch',
-			data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false },
-		}]);
+		assert.deepStrictEqual({
+			quotaReads: requests.filter(request => request.method === 'account/rateLimits/read').length,
+			events: telemetryService.events,
+		}, {
+			quotaReads: 1,
+			events: [{
+				name: 'agentHost.codexProviderSwitch',
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptWeeklyUsedPercentBucket: 90 },
+			}],
+		});
 	});
 
 	test('does not report a pending switch for a different backing thread', async () => {
@@ -2349,6 +2366,50 @@ suite('CodexAgent prewarm eviction', () => {
 				pendingSwitch: entry.pendingModelProviderSwitch,
 				events: telemetryService.events,
 			}, { method: 'turn/start', threadId: 'new-thread', pendingSwitch: undefined, events: [] });
+		} finally {
+			peer.exit();
+		}
+	});
+
+	test('does not attach another account\'s quota when sign-in changes before a switch turn is accepted', async () => {
+		const telemetryService = new TestCodexTelemetryService();
+		const agent = await createAgent(disposables, { telemetryService });
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo/quota')], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const materializing = agent['_materializeIfNeeded'](entry, session, false);
+		try {
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'quota-thread' } } });
+			await materializing;
+			entry.firstTurnSent = true;
+			entry.pendingModelProviderSwitch = { threadId: 'quota-thread', fromProvider: 'openai' };
+			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'person@example.com' });
+			agent['_openAIAccountRateLimit'] = { usedPercent: 97.5, windowDurationMins: 7 * 24 * 60 };
+			agent['_openAIAccountRateLimitUpdatedAt'] = Date.now();
+			const send = agent.chats.sendMessage(defaultChatOf(session), 'continue', undefined, undefined, 'turn-1');
+			const turn = await readNextRequest(peer.outbound);
+			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'another@example.com' });
+			agent['_openAIAccountRateLimit'] = { usedPercent: 12, windowDurationMins: 7 * 24 * 60 };
+			agent['_openAIAccountRateLimitUpdatedAt'] = Date.now();
+			peer.push({ id: turn.id, result: {} });
+			await send;
+			assert.deepStrictEqual({ method: turn.method, events: telemetryService.events }, {
+				method: 'turn/start',
+				events: [{
+					name: 'agentHost.codexProviderSwitch',
+					data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false },
+				}],
+			});
 		} finally {
 			peer.exit();
 		}
