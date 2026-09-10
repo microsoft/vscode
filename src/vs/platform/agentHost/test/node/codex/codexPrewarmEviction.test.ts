@@ -1921,7 +1921,7 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
-	test('applies context size to new and resumed threads', async () => {
+	test('applies context size and thinking level to new and resumed threads', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
@@ -1939,13 +1939,14 @@ suite('CodexAgent prewarm eviction', () => {
 			configSchema: {
 				type: 'object',
 				properties: {
+					thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'], default: 'low' },
 					contextSize: { type: 'number', title: 'Context Size', enum: [272_000, 1_000_000], default: 272_000 },
 				},
 			},
 		}], undefined);
 
 		const folder = URI.file('/repo/context-size');
-		const longContextModel = { id: COPILOT_TEST_MODEL, config: { contextSize: 1_000_000 } };
+		const longContextModel = { id: COPILOT_TEST_MODEL, config: { thinkingLevel: 'low', contextSize: 1_000_000 } };
 		const created = await createSession(agent, { workingDirectories: [folder], model: longContextModel });
 		const chat = defaultChatOf(created.session);
 		const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
@@ -1954,7 +1955,7 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.push({ id: start.id, result: { thread: { id: 'context-size-thread', cwd: folder.fsPath } } });
 		await materializing;
 
-		await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL, config: { contextSize: 272_000 } }, chatContext(created.session, chat));
+		await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL, config: { thinkingLevel: 'high', contextSize: 272_000 } }, chatContext(created.session, chat));
 		const sending = agent.chats.sendMessage(chat, 'use the shorter window', [folder], undefined, 'turn-1', undefined, undefined, chatContext(created.session, chat));
 		const unsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: unsubscribe.id, result: {} });
@@ -1970,12 +1971,16 @@ suite('CodexAgent prewarm eviction', () => {
 			start: { method: start.method, contextSize: start.params.config?.model_context_window },
 			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
 			resume: { method: resume.method, contextSize: resume.params.config?.model_context_window },
-			turn: turn.method,
+			turn: {
+				method: turn.method,
+				thinkingLevel: turn.params.effort,
+				collaborationThinkingLevel: turn.params.collaborationMode?.settings.reasoning_effort,
+			},
 		}, {
 			start: { method: 'thread/start', contextSize: 1_000_000 },
 			unsubscribe: { method: 'thread/unsubscribe', threadId: 'context-size-thread' },
 			resume: { method: 'thread/resume', contextSize: 272_000 },
-			turn: 'turn/start',
+			turn: { method: 'turn/start', thinkingLevel: 'high', collaborationThinkingLevel: 'high' },
 		});
 		peer.exit();
 	});
