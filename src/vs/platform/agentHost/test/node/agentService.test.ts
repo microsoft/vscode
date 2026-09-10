@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -53,6 +53,8 @@ import { AgentService } from '../../node/agentService.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
+import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -1306,6 +1308,52 @@ suite('AgentService (node dispatcher)', () => {
 					central: expectedArtifacts,
 					restarted: expectedArtifacts,
 					databaseOpens: 0,
+				});
+			});
+		}
+
+		for (const enabled of [true, false]) {
+			test(`session catalog ${enabled ? 'enabled serves the list centrally' : 'disabled serves the list from providers'}`, async () => {
+				class MetadataCountingAgent extends MockAgent {
+					metadataCalls = 0;
+					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+						this.metadataCalls++;
+						return super.getChatMetadata(chat, context);
+					}
+				}
+				const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+				));
+				// The gate is frozen at its first read, so it must be set before any provider work.
+				getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: enabled });
+				const storage = (svc as unknown as { _storageService: IAgentHostStorageService })._storageService;
+				storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, 1);
+				const agent = disposables.add(new MetadataCountingAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'copilot' });
+				await svc.listSessions();
+				svc.markStartupComplete();
+				await svc.whenDeferredWorkSettled();
+				await svc.whenCatalogReconciliationIdle();
+
+				// The central payload is written either way, so only the read source differs.
+				const centralPayload = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()));
+				agent.metadataCalls = 0;
+				(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
+				const listed = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					listed: listed.map(metadata => metadata.session.toString()),
+					centralPayloadPresent: centralPayload !== undefined,
+					askedProviderForMetadata: agent.metadataCalls > 0,
+					verificationMarker: storage.get(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY),
+				}, {
+					listed: [session.toString()],
+					centralPayloadPresent: true,
+					askedProviderForMetadata: !enabled,
+					verificationMarker: enabled ? 1 : undefined,
 				});
 			});
 		}

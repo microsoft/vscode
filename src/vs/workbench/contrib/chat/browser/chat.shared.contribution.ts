@@ -17,7 +17,7 @@ import { registerAction2 } from '../../../../platform/actions/common/actions.js'
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
@@ -474,6 +474,19 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			},
 			agentHost: { key: AgentHostMigrateLegacyCopilotCliEnabledConfigKey },
+		},
+		[ChatConfiguration.SessionCatalogEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentSessions.sessionCatalog', "Controls whether the agent session list is served from the Agent host's session catalog. When disabled, sessions are listed from provider metadata and per-session storage instead, which is slower.\n\nChanging this setting requires a restart to take effect."),
+			default: true,
+			tags: ['experimental'],
+			// The catalog backs the shared agent host, so it is a single value for all
+			// windows rather than a per-window preference.
+			scope: ConfigurationScope.APPLICATION,
+			experiment: {
+				mode: 'startup'
+			},
+			agentHost: { key: AgentHostSessionCatalogEnabledConfigKey },
 		},
 		[ChatConfiguration.ShowExternalAgentSessions]: {
 			type: 'string',

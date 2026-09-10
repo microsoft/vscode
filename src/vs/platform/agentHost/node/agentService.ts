@@ -71,7 +71,7 @@ import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
-import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
+import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, AgentHostCatalogListResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate } from './agentHostSessionsV2MigrationService.js';
@@ -99,7 +99,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -821,11 +821,19 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService,
 			{
 				...options.catalogReconciliationOptions,
-				canSchedule: () => this._startupSettled.isOpen(),
+				canSchedule: () => this._startupSettled.isOpen() && this._isSessionCatalogEnabled(),
 				isSourceAvailable: registered => !!this._providerService.getProvider(registered.provider),
 			},
 		));
-		this._runWhenStartupSettled('catalog reconciliation', () => this._catalogReconciliationService.schedule());
+		this._runWhenStartupSettled('catalog reconciliation', () => {
+			if (!this._isSessionCatalogEnabled()) {
+				// Mutations made while the catalog is bypassed leave cached payloads stale,
+				// so the next enabled start must re-verify every row.
+				this._storageService.delete(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY);
+				return;
+			}
+			this._catalogReconciliationService.schedule();
+		});
 		this._register(core.disposables);
 	}
 
@@ -2160,6 +2168,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * coalesced away as a supposed duplicate.
 	 */
 	private _ensureSessionsV2Imported(provider: IAgent, force = false): Promise<void> {
+		if (!this._isSessionCatalogEnabled()) {
+			return Promise.resolve();
+		}
 		return this._ensureProviderCatalog(provider, this._providerMigrations, force, runForce => this._importProviderSessionsV2(provider, runForce));
 	}
 
@@ -2942,7 +2953,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return {
 				registeredSession,
-				central: await this._catalogListReader.read(registeredSession),
+				central: this._isSessionCatalogEnabled()
+					? await this._catalogListReader.read(registeredSession)
+					: { eligible: false, chatBacking: false, detail: 'session catalog disabled' },
 			};
 		})));
 		const providersWithEligibleCatalogs = new Set(catalogResults
@@ -3016,7 +3029,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// A late listing can still find catalog misses after disposal (a
 		// queued reconciliation resolves after teardown); scheduling a repair
 		// then would leak the timer, since a disposed holder drops its value.
-		if (repairSessions.size > 0 && !this._store.isDisposed) {
+		if (repairSessions.size > 0 && !this._store.isDisposed && this._isSessionCatalogEnabled()) {
 			this._catalogListRepair.value = disposableTimeout(() => {
 				this._catalogListRepair.clear();
 				void Promise.allSettled([...repairSessions].map(session => this._markCatalogPayloadDirty(session))).then(() => {
@@ -3370,6 +3383,18 @@ export class AgentService extends Disposable implements IAgentService {
 		// flips mid-process, so there is no live discovery re-run / retract storm
 		// to reconcile.
 		return this._migrateLegacyEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+	}
+
+	private _sessionCatalogEnabledSnapshot: boolean | undefined;
+
+	/**
+	 * Whether the central catalog serves the session list. Frozen at the first
+	 * read for the same reason as the migrate gate: the store backing the list
+	 * must not change while the host is running. Registry identity and every
+	 * compatibility write are unaffected, so the two stores stay interchangeable.
+	 */
+	private _isSessionCatalogEnabled(): boolean {
+		return this._sessionCatalogEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostSessionCatalogEnabledConfigKey) !== false;
 	}
 
 	private _isAgentMergeEnabled(): boolean {
