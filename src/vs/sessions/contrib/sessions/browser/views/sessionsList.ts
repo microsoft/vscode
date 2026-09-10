@@ -55,6 +55,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { createSessionActionViewItemProvider } from '../../../../browser/sessionActionViewItem.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -864,6 +865,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, this.options.toolbarMenuId, {
 				menuOptions: { shouldForwardArgs: true },
 				actionRunner,
+				actionViewItemProvider: createSessionActionViewItemProvider(scopedInstantiationService, this.configurationService),
 			}));
 		}
 
@@ -1426,7 +1428,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
 				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID);
 				const badgeStyle = this.automationNewBadgePresentation.read(reader);
-				template.newBadge.style.display = badgeStyle ? 'inline-flex' : 'none';
+				template.newBadge.style.display = badgeStyle && badgeStyle !== 'unread' ? 'inline-flex' : 'none';
 				template.newBadge.classList.toggle('session-section-new-badge-accent', badgeStyle === 'accent');
 				template.newBadge.classList.toggle('session-section-new-badge-soft', badgeStyle === 'soft');
 				template.newBadge.classList.toggle('session-section-new-badge-outline', badgeStyle === 'outline');
@@ -1434,6 +1436,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.icon));
 			template.elementDisposables.add(autorun(reader => {
 				const automationStatus = this.automationStatus.read(reader);
+				const badgeStyle = this.automationNewBadgePresentation.read(reader);
 				if (automationStatus === SessionStatus.NeedsInput) {
 					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.NeedsInput, true, false);
@@ -1441,6 +1444,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.InProgress, true, false);
 				} else if (automationStatus === SessionStatus.Completed) {
+					template.icon.className = 'session-section-icon';
+					statusIcon.setStatus(SessionStatus.Completed, false, false);
+				} else if (badgeStyle === 'unread') {
 					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.Completed, false, false);
 				} else {
@@ -3456,11 +3462,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.map(node => node.element)
 			.find(element => !!element && isSessionChatItem(element) && this.uriIdentityService.extUri.isEqual(element.chat.resource, activeChat.resource));
 		if (!chatItem || !isSessionChatItem(chatItem)) {
+			this.tree.setFocus([session]);
 			this.tree.setSelection([session]);
 			return;
 		}
 		this.tree.expand(session);
 		this.tree.reveal(chatItem, 0.5);
+		this.tree.setFocus([chatItem]);
 		this.tree.setSelection([chatItem]);
 	}
 
@@ -3909,6 +3917,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanRenameContext.key, capabilities.canRename],
 			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
 			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
+			[SessionProviderIdContext.key, element.session.providerId],
 		]);
 		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);
 		const actions = Separator.join(...menu.getActions({ arg: element, shouldForwardArgs: true }).map(([, groupActions]) => groupActions));

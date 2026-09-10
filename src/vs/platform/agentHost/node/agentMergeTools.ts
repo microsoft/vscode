@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IGitHubService } from '../../github/common/githubService.js';
-import { PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
+import { GitHubWorkflowRerunOptions } from '../../github/common/githubPullRequestMutationService.js';
+import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentMergeAction, AgentMergeConfiguration, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor } from '../common/agentMerge.js';
 import { IAgentMergeToolAccessor } from './shared/agentMergeServerTools.js';
@@ -19,6 +20,11 @@ export interface IAgentMergeTurnContext {
 	readonly snapshot: PullRequestSnapshot;
 	readonly signal: AbortSignal;
 	readonly commentWatermark: string;
+	readonly deferredCheckIds: ReadonlySet<string>;
+	/** Keeps rerun authorization stable when diagnostics are suppressed mid-turn. */
+	readonly initialDeferredCheckIds: ReadonlySet<string>;
+	/** Defers a busy workflow or coalesces with a rerun the host is already handling. */
+	readonly deferWorkflowRerun: (options: GitHubWorkflowRerunOptions, checkIds: readonly string[], running: boolean) => boolean;
 }
 
 export class AgentMergeTools implements IAgentMergeToolAccessor {
@@ -36,10 +42,9 @@ export class AgentMergeTools implements IAgentMergeToolAccessor {
 
 	async readFailedCI(session: string): Promise<string> {
 		const context = this._requireTurnAction(session, 'fixCI');
-		const checks = context.snapshot.checks.value ? classifyAgentMergeRequiredChecks(context.snapshot.checks.value) : undefined;
-		const failedChecks = checks?.kind === 'ready' ? checks.failed : [];
-		const runIds = failedRequiredRunIds(context.snapshot);
-		this._logService.info(`[AgentMergeTools] Reading failed required CI: session=${session}, turn=${context.turnId}, failedChecks=${failedChecks.length}, workflowRuns=${runIds.length}`);
+		const failedChecks = failedRequiredChecks(context);
+		const runIds = new Set(failedChecks.map(workflowRunId).filter(id => id !== undefined));
+		this._logService.info(`[AgentMergeTools] Reading failed required CI: session=${session}, turn=${context.turnId}, failedChecks=${failedChecks.length}, workflowRuns=${runIds.size}`);
 		const sections: string[] = [];
 		for (const check of failedChecks) {
 			const annotations = check.type === 'checkRun'
@@ -59,7 +64,7 @@ export class AgentMergeTools implements IAgentMergeToolAccessor {
 		}
 		for (const runId of runIds) {
 			const jobs = await this._gitHubService.mutations.listWorkflowJobs(context.ref, runId, context.signal);
-			for (const job of jobs.filter(job => isFailedConclusion(job.conclusion))) {
+			for (const job of jobs.filter(job => isFailedConclusion(job.conclusion) && !context.deferredCheckIds.has(job.checkRunId ?? job.id))) {
 				const log = await this._gitHubService.mutations.downloadWorkflowJobLog(context.ref, job.id, context.signal);
 				sections.push(JSON.stringify({
 					runId,
@@ -95,21 +100,38 @@ export class AgentMergeTools implements IAgentMergeToolAccessor {
 
 	async rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string> {
 		const context = this._requireTurnAction(session, 'fixCI');
-		if (!failedRequiredRunIds(context.snapshot).includes(runId)) {
+		const failedChecks = failedRequiredChecks(context, context.initialDeferredCheckIds).filter(check => workflowRunId(check) === runId);
+		if (failedChecks.length === 0) {
 			throw new Error('The workflow run is not associated with a failed required check in this Agent Merge turn.');
 		}
 		const runs = await this._gitHubService.mutations.listWorkflowRuns(context.ref, context.headSha, context.signal);
-		const run = runs.find(candidate => candidate.id === runId && isFailedConclusion(candidate.conclusion));
+		const run = runs.find(candidate => candidate.id === runId && candidate.headSha === context.headSha);
 		if (!run) {
-			throw new Error('The failed workflow run is no longer available for rerun.');
+			throw new Error('The workflow run is no longer available for this pull request head.');
 		}
-		this._logService.info(`[AgentMergeTools] Rerunning failed workflow: session=${session}, turn=${context.turnId}, failedJobsOnly=${failedJobsOnly}, currentAttempt=${run.runAttempt}`);
-		const result = await this._gitHubService.mutations.rerunWorkflow(context.ref, {
+		const options: GitHubWorkflowRerunOptions = {
 			operationId: `agent-merge:${context.turnId}:rerun:${runId}`,
 			runId,
 			expectedRunAttempt: run.runAttempt,
 			failedJobsOnly,
-		}, context.signal);
+		};
+		if (!run.status) {
+			throw new Error('The workflow run status is unavailable.');
+		}
+		const running = run.status.toUpperCase() !== 'COMPLETED';
+		if (!running && !isFailedConclusion(run.conclusion)) {
+			throw new Error('The workflow run no longer has a failed conclusion.');
+		}
+		if (context.deferWorkflowRerun(options, failedChecks.map(check => check.id), running)) {
+			this._logService.info(`[AgentMergeTools] Deferred workflow rerun: session=${session}, turn=${context.turnId}, run=${runId}, status=${run.status}, currentAttempt=${run.runAttempt}`);
+			return JSON.stringify({
+				outcome: 'deferred',
+				run,
+				message: 'Agent Merge is handling this rerun after the current workflow attempt completes, if CI repair remains enabled and the pull request head is unchanged. Continue other actionable work without polling or requesting this rerun again.',
+			});
+		}
+		this._logService.info(`[AgentMergeTools] Rerunning failed workflow: session=${session}, turn=${context.turnId}, failedJobsOnly=${failedJobsOnly}, currentAttempt=${run.runAttempt}`);
+		const result = await this._gitHubService.mutations.rerunWorkflow(context.ref, options, context.signal);
 		this._logService.info(`[AgentMergeTools] Workflow rerun requested: session=${session}, turn=${context.turnId}, outcome=${result.outcome}`);
 		return JSON.stringify({ outcome: result.outcome, run: result.value });
 	}
@@ -124,18 +146,15 @@ export class AgentMergeTools implements IAgentMergeToolAccessor {
 	}
 }
 
-function failedRequiredRunIds(snapshot: PullRequestSnapshot): string[] {
-	const ids = new Set<string>();
-	const checks = snapshot.checks.value ? classifyAgentMergeRequiredChecks(snapshot.checks.value) : undefined;
-	for (const check of checks?.kind === 'ready' ? checks.failed : []) {
-		const match = /\/actions\/runs\/(?<runId>\d+)/.exec(check.detailsUrl ?? '');
-		if (match?.groups?.runId) {
-			ids.add(match.groups.runId);
-		}
-	}
-	return [...ids];
+function failedRequiredChecks(context: IAgentMergeTurnContext, deferredCheckIds = context.deferredCheckIds): readonly PullRequestCheck[] {
+	const checks = context.snapshot.checks.value ? classifyAgentMergeRequiredChecks(context.snapshot.checks.value) : undefined;
+	return checks?.kind === 'ready' ? checks.failed.filter(check => !deferredCheckIds.has(check.id)) : [];
 }
 
-function isFailedConclusion(conclusion: string | undefined): boolean {
+function workflowRunId(check: PullRequestCheck): string | undefined {
+	return /\/actions\/runs\/(?<runId>\d+)/.exec(check.detailsUrl ?? '')?.groups?.runId;
+}
+
+export function isFailedConclusion(conclusion: string | undefined): boolean {
 	return !!conclusion && !['SUCCESS', 'NEUTRAL', 'SKIPPED'].includes(conclusion.toUpperCase());
 }

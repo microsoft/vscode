@@ -120,6 +120,9 @@ export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.ex
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 
+/** Configuration key controlling automatic pull request association for the checked-out branch. */
+export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
+
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
  * agent-host provider. When `true`, the Copilot provider advertises the
@@ -181,9 +184,11 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 
 /**
  * Configuration key controlling whether the Codex provider is registered in
- * the agent host process. When `false` (the default), the agent host skips
- * registering the Codex provider regardless of SDK availability. The agent
- * host process must be restarted for changes to take effect.
+ * the agent host process. When `false`, the agent host skips registering the
+ * Codex provider regardless of SDK availability. The setting defaults to
+ * enabled outside Stable and disabled in Stable, subject to its startup
+ * experiment override. The agent host process must be restarted to unregister
+ * a provider that is already running.
  */
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
@@ -208,14 +213,17 @@ export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
 /**
  * Environment variable form of {@link AgentHostClaudeAgentEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`true` for Claude, `false` for Codex).
+ * `'false'`; absent uses the agent host's Claude fallback (`true`). The
+ * starters normally forward the resolved setting explicitly.
  */
 export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED';
 
 /**
  * Environment variable form of {@link AgentHostCodexAgentEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`false`).
+ * `'false'`; absent uses the host-level fallback (`false`), independently of
+ * the product-quality-specific setting default. The starters normally forward
+ * the resolved setting explicitly.
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
 
@@ -284,11 +292,9 @@ export type AgentHostCopilotSandboxSettingId =
 	| typeof AgentHostSdkSandboxEnabledSettingId
 	| typeof AgentHostSdkSandboxWindowsEnabledSettingId;
 
-export function getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
-	if (customTerminalToolEnabled) {
-		return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
-	}
-	return windows ? AgentHostSdkSandboxWindowsEnabledSettingId : AgentHostSdkSandboxEnabledSettingId;
+export function getAgentHostCopilotSandboxSettingId(_customTerminalToolEnabled: boolean, windows = isWindows): AgentHostCopilotSandboxSettingId {
+	// TODO: Check Agent Host-specific sandbox settings once they are enabled for users.
+	return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
 
 /**

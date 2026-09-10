@@ -64,6 +64,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			assert.deepStrictEqual(
 				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.filter(directory => (directory.children?.length ?? 0) > 0)
 					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
 				[
 					{ uri: URI.joinPath(workspace, '.claude', 'agents').toString(), children: ['root'] },
@@ -81,6 +82,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			assert.deepStrictEqual(
 				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.filter(directory => (directory.children?.length ?? 0) > 0)
 					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
 				[
 					{ uri: URI.joinPath(userHome, '.claude', 'skills').toString(), children: ['user-skill'] },
@@ -97,6 +99,7 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			assert.deepStrictEqual(
 				(result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[])
+					.filter(directory => (directory.children?.length ?? 0) > 0)
 					.map(directory => ({ uri: directory.uri, children: directory.children?.map(child => child.name) })),
 				[
 					{ uri: URI.joinPath(broadRoot, '.claude', 'skills').toString(), children: ['user-skill'] },
@@ -121,7 +124,9 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			// Workspace containers first (agents, skills), then user — each rooted at
 			// the real `<scope>/.claude/<sub>` dir so the workbench can label scope.
 			assert.deepStrictEqual(
-				dirs.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
+				dirs
+					.filter(directory => (directory.children?.length ?? 0) > 0)
+					.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
 				[
 					{ uri: URI.joinPath(workspace, '.claude', 'agents').toString(), contents: CustomizationType.Agent, children: [{ name: 'wa', uri: wsAgentUri.toString() }] },
 					{ uri: URI.joinPath(workspace, '.claude', 'skills').toString(), contents: CustomizationType.Skill, children: [{ name: 'ws', uri: wsSkillUri.toString() }] },
@@ -147,7 +152,9 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 			assert.deepStrictEqual(
-				dirs.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
+				dirs
+					.filter(directory => (directory.children?.length ?? 0) > 0)
+					.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
 				[
 					{ uri: URI.joinPath(workspace, '.claude', 'rules').toString(), contents: CustomizationType.Rule, children: [{ name: 'CLAUDE.md', uri: wsRuleUri.toString() }] },
 					{ uri: URI.joinPath(userHome, '.claude', 'rules').toString(), contents: CustomizationType.Rule, children: [{ name: 'g', uri: userRuleUri.toString() }] },
@@ -164,10 +171,29 @@ suite('claudeSessionCustomizationDiscovery', () => {
 
 			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
 			assert.deepStrictEqual(
-				dirs.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
+				dirs
+					.filter(directory => (directory.children?.length ?? 0) > 0)
+					.map(d => ({ uri: d.uri, contents: d.contents, children: d.children?.map(c => ({ name: c.name, uri: c.uri })) })),
 				[
 					{ uri: URI.joinPath(workspace, '.claude', 'hooks').toString(), contents: CustomizationType.Hook, children: [{ name: 'settings.json', uri: wsHookUri.toString() }] },
 					{ uri: URI.joinPath(userHome, '.claude', 'hooks').toString(), contents: CustomizationType.Hook, children: [{ name: 'settings.json', uri: userHookUri.toString() }] },
+				],
+			);
+		});
+
+		test('publishes empty workspace and user migration target directories', () => {
+			const result = mapDiscoveredCustomizations([], [], [], [], workspace, userHome);
+
+			const dirs = result.filter(c => c.type === CustomizationType.Directory) as DirectoryCustomization[];
+			assert.deepStrictEqual(
+				dirs.map(d => ({ uri: d.uri, contents: d.contents, writable: d.writable, children: d.children })),
+				[
+					{ uri: URI.joinPath(workspace, '.claude', 'agents').toString(), contents: CustomizationType.Agent, writable: true, children: [] },
+					{ uri: URI.joinPath(workspace, '.claude', 'skills').toString(), contents: CustomizationType.Skill, writable: true, children: [] },
+					{ uri: URI.joinPath(workspace, '.claude', 'rules').toString(), contents: CustomizationType.Rule, writable: true, children: [] },
+					{ uri: URI.joinPath(userHome, '.claude', 'agents').toString(), contents: CustomizationType.Agent, writable: true, children: [] },
+					{ uri: URI.joinPath(userHome, '.claude', 'skills').toString(), contents: CustomizationType.Skill, writable: true, children: [] },
+					{ uri: URI.joinPath(userHome, '.claude', 'rules').toString(), contents: CustomizationType.Rule, writable: true, children: [] },
 				],
 			);
 		});

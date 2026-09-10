@@ -3,29 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from '../../../../../../../base/common/actions.js';
-import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { Event } from '../../../../../../../base/common/event.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, type IModelConfigurationAccess } from '../../../../common/languageModels.js';
 
-/**
- * Read/write access to a model's configuration (e.g. context size, thinking
- * effort). Implemented either by the global `ILanguageModelsService` or by
- * a per-editor override layer so that one editor's changes do not sync to other
- * already-open editors. Structurally satisfied by `ILanguageModelsService`.
- */
-export interface IModelConfigurationAccess {
-	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
-	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
-	getModelConfigurationActions(modelId: string): IAction[];
-	/**
-	 * Fires when this access layer's configuration changes (e.g. user picks a
-	 * new context size). Implementations that always read the global value can
-	 * omit this and rely on `ILanguageModelsService.onDidChangeLanguageModels`.
-	 */
-	readonly onDidChange?: Event<string /* modelId */>;
-}
+export type { IModelConfigurationAccess } from '../../../../common/languageModels.js';
 
 /** The thinking effort group, or the routing tier for the Auto model. */
 export const MODEL_CONFIG_GROUP_EFFORT = 'navigation';
@@ -92,13 +73,22 @@ export function getModelConfigSummary(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: IModelConfigurationAccess,
 ): string | undefined {
-	const parts: string[] = [];
+	const parts = getChangedModelConfigProperties(model, configurationAccess).map(property => getModelConfigValueLabel(property.schema, property.value));
+	return parts.length ? parts.join(' \u00b7 ') : undefined;
+}
+
+/** The effort and context properties whose effective values differ from their defaults. */
+export function getChangedModelConfigProperties(
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+	configurationAccess: IModelConfigurationAccess,
+): IModelConfigProperty[] {
+	const properties: IModelConfigProperty[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
 		const property = getModelConfigProperty(model, configurationAccess, group);
 		if (!property || property.value === undefined || property.value === property.schema.default) {
 			continue;
 		}
-		parts.push(getModelConfigValueLabel(property.schema, property.value));
+		properties.push(property);
 	}
-	return parts.length ? parts.join(' \u00b7 ') : undefined;
+	return properties;
 }
