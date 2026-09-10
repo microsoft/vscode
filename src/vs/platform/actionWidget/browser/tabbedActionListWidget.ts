@@ -333,7 +333,7 @@ export class TabbedActionListWidget extends Disposable {
 						: undefined;
 					const refreshed = options.createActionList(activeTab);
 					const sizingHeight = sizing
-						? list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions)
+						? list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined
 						: undefined;
 					const sizingChanged = sizingHeight !== this._fixedListHeight;
 					if (sizingChanged) {

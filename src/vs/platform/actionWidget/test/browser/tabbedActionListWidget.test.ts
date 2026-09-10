@@ -648,7 +648,7 @@ suite('TabbedActionListWidget', () => {
 
 		// Opens on the short tab on purpose: the height has to come from the sizing tab
 		// regardless of which tab the popup happens to open on.
-		const heightsAcrossTabs = (sizingTab: string | undefined) => {
+		const heightsAcrossTabs = (sizingTab: string | undefined, sizingItemIds = ['a', 'b', 'c', 'd', 'e', 'f']) => {
 			const { widget } = createWidget(disposables);
 			widget.show<ITestItem>({
 				user: 'test',
@@ -658,20 +658,23 @@ suite('TabbedActionListWidget', () => {
 				sizingTab,
 				createActionList: tab => ({
 					items: tab === 'Copilot'
-						? ['a', 'b', 'c', 'd', 'e', 'f'].map(action)
+						? sizingItemIds.map(action)
 						: [action('only')],
 				}),
 				delegate: { onSelect: () => { }, onHide: () => { } },
 			});
 			const onShortTab = listHeight();
+			widget.refreshActiveList();
+			const afterRefresh = listHeight();
 			document.querySelectorAll<HTMLElement>('.tabbed-action-list-tabstrip .monaco-button')[0].click();
 			const onSizingTab = listHeight();
 			widget.hide();
-			return { onShortTab, onSizingTab };
+			return { onShortTab, afterRefresh, onSizingTab };
 		};
 
 		const unsized = heightsAcrossTabs(undefined);
 		const sized = heightsAcrossTabs('Copilot');
+		const empty = heightsAcrossTabs('Copilot', []);
 
 		// Clamping depends on the room around the anchor, which differs between the two
 		// renders here, so compare how each tab is sized rather than the pixels.
@@ -679,8 +682,13 @@ suite('TabbedActionListWidget', () => {
 			{
 				resizesWithoutASizingTab: unsized.onShortTab < unsized.onSizingTab,
 				shortTabTakesTheSizingTabsHeight: sized.onShortTab > unsized.onShortTab,
+				emptySizingTab: [empty.onShortTab, empty.afterRefresh],
 			},
-			{ resizesWithoutASizingTab: true, shortTabTakesTheSizingTabsHeight: true },
+			{
+				resizesWithoutASizingTab: true,
+				shortTabTakesTheSizingTabsHeight: true,
+				emptySizingTab: [unsized.onShortTab, unsized.onShortTab],
+			},
 		);
 	});
 
