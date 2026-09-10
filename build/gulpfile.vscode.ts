@@ -476,6 +476,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'resources/win32/react.ico',
 				'resources/win32/ruby.ico',
 				'resources/win32/sass.ico',
+				'resources/win32/sessions.ico',
 				'resources/win32/shell.ico',
 				'resources/win32/sql.ico',
 				'resources/win32/typescript.ico',

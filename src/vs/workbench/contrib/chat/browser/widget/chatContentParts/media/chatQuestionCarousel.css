@@ -211,11 +211,6 @@
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 			color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 
-			.chat-question-list-label,
-			.chat-question-list-label-title {
-				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
-			}
-
 			.chat-question-list-label-desc {
 				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
@@ -250,7 +245,8 @@
 				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 			}
 		}
-		.chat-question-list-item.selected:hover {
+
+		&:not(:focus) .chat-question-list-item.selected:hover {
 			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 		}
 

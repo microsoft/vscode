@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
-import { timeout } from '../../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { Emitter } from '../../../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
@@ -65,6 +65,7 @@ function createModel(id: string, metadata: Partial<ILanguageModelChatMetadata> =
 suite('ModelPickerTelemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const model = createModel('test-model');
+	const fastModel = createModel('test-model-fast');
 	const otherModel = createModel('other-model');
 	const thirdPartyModel = createModel('private-model', { vendor: 'third-party' });
 	const autoModel = createModel('auto', {
@@ -80,17 +81,22 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(tabbed: boolean, selectedModel = model) {
+	function createPicker(tabbed: boolean, selectedModel = model, beforeSave?: (id: string) => Promise<void>) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const openedLinks: string[] = [];
 		const configurations = new Map<string, IStringDictionary<unknown>>();
+		const pinnedModelIds: string[] = [];
+		let tabbedShows = 0;
 		const configurationAccess: IModelConfigurationAccess = {
 			getModelConfiguration: id => configurations.get(id),
-			setModelConfiguration: async (id, values) => { configurations.set(id, { ...configurations.get(id), ...values }); },
+			setModelConfiguration: async (id, values) => {
+				await beforeSave?.(id);
+				configurations.set(id, { ...configurations.get(id), ...values });
+			},
 			getModelConfigurationActions: () => [],
 		};
-		const models = [autoModel, model, otherModel, thirdPartyModel];
+		const models = [autoModel, model, fastModel, otherModel, thirdPartyModel];
 		const container = dom.append(mainWindow.document.body, dom.$('.monaco-reduce-motion'));
 		store.add(toDisposable(() => container.remove()));
 		const footer = dom.append(container, dom.$('div'));
@@ -137,6 +143,7 @@ suite('ModelPickerTelemetry', () => {
 			onDidHide: onDidHide.event,
 			get isVisible() { return visible; },
 			show: options => {
+				tabbedShows++;
 				visible = true;
 				let activeTab = options.initialTab;
 				refreshList = () => {
@@ -170,6 +177,9 @@ suite('ModelPickerTelemetry', () => {
 		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
 			override getLanguageModelIds() { return models.map(model => model.identifier); }
 			override getRecentlyUsedModelIds() { return [model.identifier]; }
+			override getPinnedModelIds() { return [...pinnedModelIds]; }
+			override pinModel(id: string) { pinnedModelIds.push(id); }
+			override unpinModel(id: string) { pinnedModelIds.splice(pinnedModelIds.indexOf(id), 1); }
 		}());
 		instantiationService.stub(IProductService, { version: '1.100.0' });
 		const entitlementService = new TestChatEntitlementService();
@@ -198,7 +208,9 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, openedLinks, picker, container,
+			events, openedLinks, picker, container, configurations, pinnedModelIds,
+			get visible() { return visible; },
+			get tabbedShows() { return tabbedShows; },
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
 			showCard: (label: string) => showCard(label),
@@ -308,6 +320,54 @@ suite('ModelPickerTelemetry', () => {
 		});
 	}
 
+	test('accepting a row during a speed change does not report a revert to Standard', () => {
+		const result = createPicker(true);
+		option(result.showCard(model.metadata.name), 'Fast').click();
+		result.selectItem(model.metadata.name);
+
+		assert.deepStrictEqual({ selected: result.picker.selectedModel?.identifier, events: result.events }, {
+			selected: fastModel.identifier,
+			events: [modelChange(model, fastModel), modelChange(fastModel, fastModel)],
+		});
+	});
+
+	for (const initiallyFast of [false, true]) {
+		test(`selecting a remembered speed through search reports Fast (initially fast: ${initiallyFast})`, async () => {
+			const result = createPicker(true, initiallyFast ? fastModel : model);
+			if (!initiallyFast) {
+				option(result.showCard(model.metadata.name), 'Fast').click();
+				await timeout(0);
+			}
+			result.selectItem(otherModel.metadata.name);
+			result.picker.show(result.container);
+			result.listOptions.onType?.('test');
+			result.selectItem(fastModel.metadata.name);
+
+			assert.deepStrictEqual({ searching: result.listOptions.showFilter, events: result.events }, {
+				searching: true,
+				events: [
+					...(initiallyFast ? [] : [modelChange(model, fastModel)]),
+					modelChange(fastModel, otherModel),
+					modelChange(otherModel, fastModel),
+				],
+			});
+		});
+	}
+
+	test('pinning a model then changing speed preserves its pin without a configuration event', async () => {
+		const result = createPicker(true);
+		const card = result.showCard(model.metadata.name);
+		card.querySelector<HTMLElement>('[aria-label="Pin Model"]')!.click();
+		option(card, 'Fast').click();
+		await timeout(0);
+		result.showCard(fastModel.metadata.name).querySelector<HTMLElement>('[aria-label="Unpin Model"]')!.click();
+
+		assert.deepStrictEqual({ pinned: result.pinnedModelIds, events: result.events }, {
+			pinned: [],
+			events: [modelChange(model, fastModel)],
+		});
+	});
+
 	test('tabbed Auto toggles report the current previous model while the popup stays open', () => {
 		const result = createPicker(true);
 		const toggle = result.container.querySelector<HTMLElement>('[role="switch"]');
@@ -344,4 +404,82 @@ suite('ModelPickerTelemetry', () => {
 			data: { model: new TelemetryTrustedValue(otherModel.identifier), property: 'reasoningEffort', fromValue: 'medium', toValue: 'high' },
 		}, modelChange(model, otherModel)]);
 	});
+
+	test('multiple configuration changes and pinning preserve the tabbed picker and the same card', async () => {
+		const result = createPicker(true);
+		const card = result.showCard(otherModel.metadata.name);
+		option(card, 'High').click();
+		await timeout(0);
+		option(card, '1M').click();
+		await timeout(0);
+		const pin = card.querySelector<HTMLElement>('[aria-label="Pin Model"]');
+		assert.ok(pin);
+		pin.click();
+		await timeout(0);
+		const sameCardAfterPin = result.showCard(otherModel.metadata.name) === card;
+		const pinned = [...result.pinnedModelIds];
+		const unpin = card.querySelector<HTMLElement>('[aria-label="Unpin Model"]');
+		assert.ok(unpin);
+		unpin.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			visible: result.visible,
+			shows: result.tabbedShows,
+			sameCardAfterPin,
+			sameCardAfterUnpin: result.showCard(otherModel.metadata.name) === card,
+			pinned,
+			unpinned: result.pinnedModelIds,
+			config: result.configurations.get(otherModel.identifier),
+			modelChanges: result.events.filter(event => event.name === 'chat.modelChange'),
+		}, {
+			visible: true,
+			shows: 1,
+			sameCardAfterPin: true,
+			sameCardAfterUnpin: true,
+			pinned: [otherModel.identifier],
+			unpinned: [],
+			config: { reasoningEffort: 'high', contextSize: 1000000 },
+			modelChanges: [modelChange(model, otherModel)],
+		});
+	});
+
+	for (const latest of ['current model', 'Auto']) {
+		test(`a delayed save in another card cannot override a newer interaction with ${latest}`, async () => {
+			const saved = new DeferredPromise<void>();
+			const result = createPicker(true, model, async id => {
+				if (id === otherModel.identifier) {
+					await saved.p;
+				}
+			});
+			option(result.showCard(otherModel.metadata.name), 'High').click();
+			if (latest === 'Auto') {
+				const toggle = result.container.querySelector<HTMLElement>('[role="switch"]');
+				assert.ok(toggle);
+				toggle.click();
+			} else {
+				option(result.showCard(model.metadata.name), 'High').click();
+			}
+			await timeout(0);
+			await saved.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				selected: result.picker.selectedModel?.identifier,
+				saved: result.configurations.get(otherModel.identifier),
+				modelChanges: result.events.filter(event => event.name === 'chat.modelChange'),
+				configurationChanges: result.events.filter(event => event.name === 'chat.thinkingEffortChange'),
+				visible: result.visible,
+			}, {
+				selected: latest === 'Auto' ? autoModel.identifier : model.identifier,
+				saved: { reasoningEffort: 'high' },
+				modelChanges: latest === 'Auto' ? [modelChange(model, autoModel)] : [],
+				configurationChanges: (latest === 'Auto' ? [otherModel] : [model, otherModel]).map(model => ({
+					name: 'chat.thinkingEffortChange',
+					data: { model: new TelemetryTrustedValue(model.identifier), property: 'reasoningEffort', fromValue: 'medium', toValue: 'high' },
+				})),
+				visible: true,
+			});
+		});
+	}
 });

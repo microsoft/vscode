@@ -111,11 +111,17 @@ Capabilities describe operations supported by the backing provider and remain ob
 
 Sessions and chats expose provider-neutral file changes and changesets. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
 
+Features may extend individual changeset operation descriptors through contribution-owned contracts, keeping feature-specific capabilities out of `ISessionChangeset`. The Changes contribution defines the Create PR operation's preparation and submission contract and owns its form; providers attach that capability only to supported operations and own generation, creation, and transport. Preparation is read-only and returns repository and branch identity for submission to revalidate before mutations. Submission uses confirmed values, saving any Agent Merge configuration as session-only overrides after creation.
+
+The form also supports requesting creation in the originating session's main chat through the normal send lifecycle, without invoking programmatic PR creation. The provider validates the same prepared identity without regenerating details before the message is sent. That message contains the PR details and GitHub merge instructions; submission choices travel separately as provider-owned request metadata. A host chat contribution applies Agent Merge choices only after the creation turn is admitted and while it is still active, so monitoring cannot capture the old branch during client-side request preparation. The Changes contribution remembers form options and the last-used submission method across sessions in profile storage; remembering choices does not itself change session configuration or retain PR content.
+
 Turn-level file changes route through `IChatResponseFileChangesService`. The editor workbench opens its standard multi-diff presentation; the Agents Window registers `SessionsChatResponseFileChangesService` to select its canonical Changes editor. Providers expose the data but do not choose the presentation.
 
 ### Artifacts, references, and customizations
 
 Sessions may expose the artifacts and references recorded by the agent. Both share one session-scoped observable and are told apart by `isArtifact`: an artifact is something the session produced that is not an ordinary workspace edit, while a reference is something it only points the user at. Consumers that surface one category must filter on that field rather than assuming the observable holds artifacts alone. Chats may expose the customizations used or read during their turns; these are chat-scoped. Providers that cannot determine either may omit the corresponding observable.
+
+Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
 
 ## Provider contract
 

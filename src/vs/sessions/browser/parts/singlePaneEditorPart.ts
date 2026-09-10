@@ -29,10 +29,10 @@ import { SinglePaneAuxiliaryBarPart } from './singlePaneAuxiliaryBarPart.js';
  * header + editor + auxiliary bar" is a single unit. It creates the
  * {@link SinglePaneAuxiliaryBarPart} (lazily, so the pane composite service and
  * the editor part share one instance) and the {@link DockedAuxiliaryBarController}
- * that docks and sizes the auxiliary bar inside the editor part. The full-width
- * header itself is rendered by the editor group from the group's configured header
+ * that docks and sizes the auxiliary bar inside the editor part. The header itself
+ * is rendered by the editor group from the group's configured header
  * menus, supplied via {@link getGroupViewOptions}, and also hosts breadcrumbs in
- * that row for text file editors. The part only reacts to the header's height to
+ * that row for text file editors. The part only reacts to the tab row's height to
  * reposition the docked auxiliary bar.
  */
 export class SinglePaneMainEditorPart extends MainEditorPart {
@@ -53,6 +53,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
 			},
 			showHeader: true,
+			useModernUITabs: true,
 			reserveHeaderSpace: editor => editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow)
 		};
 	}
@@ -153,7 +154,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
-				getTitleHeight: () => (this.activeGroup as EditorGroupView).titleHeight.total,
+				getTabsHeight: () => (this.activeGroup as EditorGroupView).titleHeight.offset,
 			},
 		));
 

@@ -16,6 +16,8 @@ import { INativeEnvironmentService } from '../../../../../platform/environment/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -78,6 +80,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
 	const runStartupAccountProbe = agent['_probeAccountAtStartup'].bind(agent);
 	agent['_probeAccountAtStartup'] = async () => { };
@@ -1072,9 +1075,17 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
-	test('uses the reasoning efforts advertised by Copilot models', async () => {
+	test('uses the model configuration advertised by Copilot models', async () => {
 		const model: CCAModel = {
-			billing: { is_premium: true, multiplier: 1, restricted_to: [] },
+			billing: {
+				is_premium: true,
+				multiplier: 1,
+				restricted_to: [],
+				token_prices: {
+					default: { context_max: 272_000, input_price: 1 },
+					long_context: { context_max: 1_000_000, input_price: 2 },
+				},
+			},
 			capabilities: {
 				family: 'gpt-5.6',
 				limits: { max_context_window_tokens: 272_000, max_output_tokens: 32_000, max_prompt_tokens: 240_000 },
@@ -1108,11 +1119,21 @@ suite('CodexAgent model refresh', () => {
 				enum: model.configSchema.properties.thinkingLevel.enum,
 				default: model.configSchema.properties.thinkingLevel.default,
 			},
+			contextSize: model.configSchema?.properties.contextSize && {
+				enum: model.configSchema.properties.contextSize.enum,
+				default: model.configSchema.properties.contextSize.default,
+				labels: model.configSchema.properties.contextSize.enumLabels,
+			},
 		})), [{
 			id: toCodexModelSelectionId('vscode-proxy', 'gpt-5.6-sol'),
 			thinkingLevel: {
 				enum: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
 				default: 'medium',
+			},
+			contextSize: {
+				enum: [272_000, 1_000_000],
+				default: 272_000,
+				labels: ['272K', '1M'],
 			},
 		}]);
 	});
@@ -1454,6 +1475,7 @@ suite('CodexAgent model refresh', () => {
 			rateLimitResetCredits: null,
 		});
 		await second;
+		const latestObservedAt = agent['_openAIAccountRateLimitUpdatedAt'];
 		resolveFirst({
 			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: 100 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
 			rateLimitsByLimitId: null,
@@ -1461,8 +1483,36 @@ suite('CodexAgent model refresh', () => {
 		});
 		await first;
 
-		assert.deepStrictEqual(agent['_openAIAccountRateLimit'], { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 });
+		assert.deepStrictEqual({
+			rateLimit: agent['_openAIAccountRateLimit'],
+			hasObservationTime: Number.isFinite(latestObservedAt),
+			observedAt: agent['_openAIAccountRateLimitUpdatedAt'],
+		}, {
+			rateLimit: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 },
+			hasObservationTime: true,
+			observedAt: latestObservedAt,
+		});
 	});
+
+	for (const state of [
+		{ usageSource: 'openai', status: 'signedOut' },
+		{ usageSource: 'openai', status: 'unavailable', authType: 'apiKey' },
+		{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'another@example.com' },
+	] as const) {
+		test(`clears quota snapshots when the ChatGPT account becomes ${state.status}`, () => {
+			const agent = createAgent(disposables, async () => []);
+			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'person@example.com' });
+			agent['_openAIAccountRateLimit'] = { usedPercent: 90, windowDurationMins: 7 * 24 * 60 };
+			agent['_openAIAccountRateLimitUpdatedAt'] = Date.now();
+
+			agent['_setOpenAIAccountState'](state);
+
+			assert.deepStrictEqual({ rateLimit: agent['_openAIAccountRateLimit'], observedAt: agent['_openAIAccountRateLimitUpdatedAt'] }, {
+				rateLimit: undefined,
+				observedAt: undefined,
+			});
+		});
+	}
 
 	test('surfaces current ChatGPT subscription models in the ChatGPT group', async () => {
 		const agent = createAgent(disposables, async () => []);
@@ -1506,6 +1556,32 @@ suite('CodexAgent model refresh', () => {
 				default: 'low',
 			},
 			meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt' },
+		}]);
+	});
+
+	test('publishes context size options for ChatGPT subscription models without Copilot models', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_connection'] = {
+			...createChatGPTConnection(),
+			readModelContextWindows: async () => new Map([['gpt-5.6-sol', { defaultSize: 272_000, maxSize: 872_000 }]]),
+		} as never;
+
+		await agent.refreshModels();
+
+		assert.deepStrictEqual(agent.models.get().map(model => ({
+			id: model.id,
+			maxContextWindow: model.maxContextWindow,
+			contextSize: model.configSchema?.properties.contextSize && {
+				enum: model.configSchema.properties.contextSize.enum,
+				default: model.configSchema.properties.contextSize.default,
+			},
+		})), [{
+			id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
+			maxContextWindow: 872_000,
+			contextSize: {
+				enum: [272_000, 872_000],
+				default: 272_000,
+			},
 		}]);
 	});
 

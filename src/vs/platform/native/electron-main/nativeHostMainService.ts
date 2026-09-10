@@ -219,7 +219,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
-			dirty: window.isDocumentEdited()
+			dirty: window.isDocumentEdited(),
+			iconPath: window.iconPath
 		}));
 
 		const auxiliaryWindows = [];
@@ -319,7 +320,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
-		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined, options?.source);
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined, options?.source, options?.folderUriIsDefault);
 		if (windows.length > 0) {
 			windows[0].focus();
 		}

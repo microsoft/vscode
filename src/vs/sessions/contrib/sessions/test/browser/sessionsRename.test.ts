@@ -18,6 +18,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -476,7 +477,7 @@ suite('Sessions rename', () => {
 	});
 
 	suite('accessibility help', () => {
-		function createHelpProvider(origin: HTMLElement, removeOrigin = false) {
+		function createHelpProvider(origin: HTMLElement, removeOrigin = false, phoneLayout = false) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			let fallbackFocusCount = 0;
 			const fallbackView = new class extends mock<SessionView>() {
@@ -492,6 +493,9 @@ suite('Sessions rename', () => {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
 			});
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			const mainContainer = mainWindow.document.createElement('div');
+			mainContainer.classList.toggle('phone-layout', phoneLayout);
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
 
 			mainWindow.document.body.appendChild(origin);
 			disposables.add({ dispose: () => origin.remove() });
@@ -520,10 +524,11 @@ suite('Sessions rename', () => {
 				hasChatRenameKeybinding: content.includes(`<keybinding:${RENAME_CHAT_COMMAND_ID}>`),
 				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
 				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
-				hasDevContainerAvailability: content.includes('Docker is available') && content.includes('selected local folder contains a Dev Container configuration'),
-				hasDevContainerExecution: content.includes('run the session on an Agent Host inside that folder\'s Dev Container'),
+				hasDevContainerAvailability: content.includes('Docker is available') && content.includes('a local folder contains a Dev Container configuration'),
+				hasDevContainerExecution: content.includes('Dev Container Agent Host sessions are enabled'),
 				hasNoBackgroundOption: content.includes('choose no background'),
 				hasPetAchievements: content.includes('View Achievements'),
+				hasSidebarCustomizations: content.includes('Chat Customizations section at the bottom of the left sidebar'),
 				activeElement: mainWindow.document.activeElement,
 				fallbackFocusCount: fallbackFocusCount(),
 			}, {
@@ -540,9 +545,16 @@ suite('Sessions rename', () => {
 				hasDevContainerExecution: true,
 				hasNoBackgroundOption: true,
 				hasPetAchievements: true,
+				hasSidebarCustomizations: true,
 				activeElement: origin,
 				fallbackFocusCount: 0,
 			});
+		});
+
+		test('omits the desktop customization focus command on phones', () => {
+			const origin = mainWindow.document.createElement('button');
+			const { provider } = createHelpProvider(origin, false, true);
+			assert.strictEqual(provider.provideContent().includes('Chat Customizations section at the bottom of the left sidebar'), false);
 		});
 
 		test('falls back to the active session when the originating element is gone', () => {

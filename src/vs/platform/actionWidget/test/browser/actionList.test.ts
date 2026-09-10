@@ -10,6 +10,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Event as CommonEvent } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -178,6 +179,37 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('recycled action icons do not retain a previous fallback or theme color', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('fallback')],
+			listOptions: { showFilter: false },
+		});
+		widget.domNode.style.setProperty('--vscode-editorLightBulb-foreground', '#ffcc00');
+		widget.domNode.style.setProperty('--vscode-problemsWarningIcon-foreground', '#ffaa00');
+		widget.domNode.style.color = '#123456';
+		const originalIcon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row > .codicon')!;
+		const iconState = () => {
+			const icon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row > .codicon')!;
+			return { reused: icon === originalIcon, inlineColor: icon.style.color, color: mainWindow.getComputedStyle(icon).color };
+		};
+		const states = [iconState()];
+		const icons = [
+			Codicon.shield,
+			{ ...Codicon.warning, color: { id: 'problemsWarningIcon.foreground' } },
+			Codicon.shield,
+		];
+		for (const icon of icons) {
+			widget.updateItems([{ ...action(icon.id), group: { title: '', icon } }]);
+			states.push(iconState());
+		}
+		assert.deepStrictEqual(states, [
+			{ reused: true, inlineColor: 'var(--vscode-editorLightBulb-foreground)', color: 'rgb(255, 204, 0)' },
+			{ reused: true, inlineColor: '', color: 'rgb(18, 52, 86)' },
+			{ reused: true, inlineColor: 'var(--vscode-problemsWarningIcon-foreground)', color: 'rgb(255, 170, 0)' },
+			{ reused: true, inlineColor: '', color: 'rgb(18, 52, 86)' },
+		]);
+	});
+
 	test('opening under a stationary pointer preserves keyboard focus and selection', () => {
 		const selected: string[] = [];
 		const widget = createActionListWidget(disposables, {
@@ -333,6 +365,65 @@ suite('ActionListWidget', () => {
 		return { widget, popup, panel, contents, selected, rows, hover, isCenteredOnRow };
 	}
 
+	test('focus groups move their highlights immediately on hover, including rows with previews', () => {
+		const selected: string[] = [];
+		const items: IActionListItem<ITestActionItem>[] = [
+			{ ...action('first'), item: { id: 'first', checked: true }, focusGroup: 'a' },
+			{ ...action('second'), focusGroup: 'a', hover: { content: 'Preview' } },
+			{ ...action('third'), item: { id: 'third', checked: true }, focusGroup: 'b' },
+			{ ...action('fourth'), focusGroup: 'b' },
+			{ ...action('disabled'), focusGroup: 'b', disabled: true },
+		];
+		const widget = createActionListWidget(disposables, {
+			items,
+			onSelect: item => selected.push(item.id),
+			listOptions: { showFilter: false },
+		});
+		const highlights = () => Array.from(widget.domNode.querySelectorAll('.focus-group-highlighted > .title'), title => title.textContent);
+		const states = [highlights()];
+		for (const index of [1, 3, 4]) {
+			const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[index];
+			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			states.push(highlights());
+		}
+
+		assert.deepStrictEqual({
+			states,
+			checked: items.filter(item => item.item?.checked).map(item => item.item?.id),
+			selected,
+		}, {
+			states: [['first', 'third'], ['second', 'third'], ['second', 'fourth'], ['second', 'fourth']],
+			checked: ['first', 'third'],
+			selected: [],
+		});
+	});
+
+	test('focus group highlights survive virtualized row reuse and clear when items are replaced', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('first'), item: { id: 'first', checked: true }, focusGroup: 'a' },
+				{ ...action('second'), focusGroup: 'a' },
+				action('ungrouped'),
+			],
+			listOptions: { showFilter: false },
+		});
+		widget.layout(widget.lineHeight, 200);
+		widget.focus();
+		const highlights = () => Array.from(widget.domNode.querySelectorAll('.focus-group-highlighted > .title'), title => title.textContent);
+		const states = [highlights()];
+		widget.focusNext();
+		states.push(highlights());
+		widget.focusNext();
+		states.push(highlights());
+		widget.focusPrevious();
+		states.push(highlights());
+		widget.updateItems([{ ...action('replacement'), item: { id: 'replacement', checked: true } }]);
+		states.push(highlights());
+
+		assert.deepStrictEqual(states, [['first'], ['second'], [], ['second'], []]);
+	});
+
 	test('renders and activates a standalone toggle row', () => {
 		let checked = false;
 		const widget = createActionListWidget(disposables, {
@@ -416,6 +507,62 @@ suite('ActionListWidget', () => {
 		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
 		assert.strictEqual(hideCount, 1);
+	});
+
+	test('hovering back to the parent keeps focus in the menu when a submenu was focused', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const states = [];
+		for (const hover of [undefined, { content: 'Mode details' }]) {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('mode'), hover }, {
+					...action('permissions'),
+					label: 'Permissions',
+					submenuActions: [toAction({ id: 'manual', label: 'Manual', run: () => { } })],
+				}],
+				listOptions: { showFilter: false },
+			});
+			const parentList = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+			const modeRow = parentList.querySelector<HTMLElement>('.monaco-list-row')!;
+			widget.focus();
+			widget.focusNext();
+			parentList.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const initiallyFocusedSubmenu = panel.contains(document.activeElement);
+
+			modeRow.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			modeRow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			await timeout(600);
+
+			states.push({
+				initiallyFocusedSubmenu,
+				parentFocused: document.activeElement === parentList,
+				highlightedRow: widget.getFocusedElement()?.item?.id,
+				panel: panel.textContent,
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ initiallyFocusedSubmenu: true, parentFocused: true, highlightedRow: 'mode', panel: '' },
+			{ initiallyFocusedSubmenu: true, parentFocused: true, highlightedRow: 'mode', panel: 'Mode details' },
+		]);
+	}));
+
+	test('replacing a focused submenu moves focus before disposing its contents', () => {
+		const widget = createActionListWidget(disposables, {
+			items: ['permissions', 'configuration'].map(id => ({
+				...action(id),
+				submenuActions: [toAction({ id, label: id, run: () => { } })],
+			})),
+			listOptions: { showFilter: false },
+		});
+		const parentList = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		widget.focus();
+		parentList.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const secondRow = parentList.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		secondRow.querySelector<HTMLElement>('.action-list-submenu-indicator')!.click();
+
+		assert.deepStrictEqual({
+			parentFocused: document.activeElement === parentList,
+			content: widget.domNode.querySelector('.action-list-submenu-panel .title')?.textContent,
+		}, { parentFocused: true, content: 'configuration' });
 	});
 
 	test('runs dynamic filter updates immediately', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -929,6 +1076,27 @@ suite('ActionListWidget', () => {
 		);
 	}));
 
+	test('full-height menus show all content instead of scrolling within the viewport fraction cap', () => withWindowInnerHeight(560, () => {
+		const states = [false, true].map(useFullHeight => {
+			const list = createActionList(disposables, Array.from({ length: 17 }, (_, index) => ({
+				...action(`item-${index}`),
+				item: { id: `item-${index}`, checked: index === 16 },
+			})), {
+				anchor: { x: 10, y: 432, width: 100, height: 24 },
+				listOptions: { showFilter: false, anchorPosition: AnchorPosition.ABOVE, useFullHeight },
+			});
+			list.layout(260);
+			list.focus();
+			const rows = list.domNode.querySelector<HTMLElement>('.monaco-list-rows')!;
+			return { useFullHeight, height: list.domNode.clientHeight, contentHeight: rows.clientHeight, contentTop: rows.style.top };
+		});
+
+		assert.deepStrictEqual(states, [
+			{ useFullHeight: false, height: 336, contentHeight: 408, contentTop: '-72px' },
+			{ useFullHeight: true, height: 408, contentHeight: 408, contentTop: '0px' },
+		]);
+	}));
+
 	test('header dismiss removes the banner and requests a re-layout', () => {
 		let dismissed = false;
 		let layoutRequested = false;
@@ -1072,6 +1240,97 @@ suite('ActionListWidget', () => {
 			{ focusStayedOutside: document.activeElement === outside, rows: getVisibleRowText(widget) },
 			{ focusStayedOutside: true, rows: ['one', 'two', 'three'] },
 		);
+	});
+
+	test('removing the focused row toolbar restores focus inside the remaining list', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('one'), toolbarActions: [toAction({ id: 'remove', label: 'Remove', run: () => { } })] },
+				action('two'),
+				action('three'),
+			],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.focus();
+		widget.updateItems([action('two'), action('three')]);
+
+		assert.deepStrictEqual({
+			focusInside: widget.domNode.contains(document.activeElement),
+			focusedItem: widget.getFocusedElement()?.item?.id,
+			rows: getVisibleRowText(widget),
+		}, { focusInside: true, focusedItem: 'two', rows: ['two', 'three'] });
+	});
+
+	test('refreshing the initial selection stays quiet until hover or keyboard navigation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const items = [
+			{ ...action('selected'), item: { id: 'selected', checked: true }, hover: { content: 'Selected details' } },
+			{ ...action('other'), hover: { content: 'Other details' } },
+		];
+		const widget = createActionListWidget(disposables, {
+			items,
+			listOptions: { showFilter: false },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const state = () => ({
+			focused: widget.getFocusedElement()?.item?.id,
+			display: panel.style.display,
+			text: panel.textContent,
+			listFocused: widget.domNode.querySelector('.monaco-list') === document.activeElement,
+		});
+		widget.focus();
+		const initial = state();
+		widget.updateItems(items.map(item => ({ ...item })));
+		await timeout(1000);
+		const refreshed = state();
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		await timeout(1000);
+		const hovered = state();
+		widget.focusNext();
+		const navigated = state();
+
+		assert.deepStrictEqual({ initial, refreshed, hovered, navigated }, {
+			initial: { focused: 'selected', display: 'none', text: '', listFocused: true },
+			refreshed: { focused: 'selected', display: 'none', text: '', listFocused: true },
+			hovered: { focused: 'selected', display: '', text: 'Selected details', listFocused: true },
+			navigated: { focused: 'other', display: '', text: 'Other details', listFocused: true },
+		});
+	}));
+
+	for (const persistentHover of [false, true]) {
+		test(`refreshing an open hover preserves its latest content: persistent=${persistentHover}`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('selected'), item: { id: 'selected', checked: true }, hover: { content: 'Original details' } }],
+				listOptions: { showFilter: false, persistentHover },
+			});
+			widget.focus();
+			widget.showHoverForCheckedItem();
+			widget.updateItems([{ ...action('selected'), item: { id: 'selected', checked: true }, hover: { content: 'Updated details' } }]);
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+			assert.deepStrictEqual({ focused: widget.getFocusedElement()?.item?.id, display: panel.style.display, text: panel.textContent }, {
+				focused: 'selected', display: '', text: 'Updated details',
+			});
+		});
+	}
+
+	test('an explicit focus target after refreshing can still open a hover', () => {
+		const items = [
+			{ ...action('selected'), item: { id: 'selected', checked: true }, hover: { content: 'Selected details' } },
+			{ ...action('other'), hover: { content: 'Other details' } },
+		];
+		const widget = createActionListWidget(disposables, {
+			items,
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.updateItems(items, 'other');
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+
+		assert.deepStrictEqual({ focused: widget.getFocusedElement()?.item?.id, display: panel.style.display, text: panel.textContent }, {
+			focused: 'other', display: '', text: 'Other details',
+		});
 	});
 
 	test('shows a row hover panel once the hover delay elapses', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1251,6 +1510,63 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(panel.textContent, 'Details for first');
 	}));
 
+	test('opens a submenu on hover after the delay without moving DOM focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('permissions'),
+				label: 'Permissions',
+				submenuActions: [toAction({ id: 'manual', label: 'Manual', run: () => { } })],
+			}, action('mode')],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.focusNext();
+		const focusedElement = document.activeElement;
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		await timeout(300);
+		const displayBeforeDelay = panel.style.display;
+		await timeout(300);
+
+		assert.deepStrictEqual({
+			displayBeforeDelay,
+			display: panel.style.display,
+			label: panel.querySelector('.title')?.textContent,
+			expanded: row.getAttribute('aria-expanded'),
+			focusUnchanged: document.activeElement === focusedElement,
+			highlightedRows: Array.from(widget.domNode.querySelectorAll('.monaco-list-row.focused .title'), title => title.textContent),
+		}, {
+			displayBeforeDelay: 'none',
+			display: '',
+			label: 'Manual',
+			expanded: 'true',
+			focusUnchanged: true,
+			highlightedRows: ['Permissions'],
+		});
+	}));
+
+	test('cancels a submenu hover when the pointer leaves before the delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('permissions'),
+				label: 'Permissions',
+				submenuActions: [toAction({ id: 'manual', label: 'Manual', run: () => { } })],
+			}],
+			listOptions: { showFilter: false },
+		});
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		widget.domNode.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(1000);
+
+		assert.deepStrictEqual({ display: panel.style.display, text: panel.textContent }, { display: 'none', text: '' });
+	}));
+
 	test('does not open a row hover panel once the pointer has left the list', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{ ...action('auto'), hover: { content: 'Auto routes based on your task' } }, action('other')],
@@ -1309,6 +1625,52 @@ suite('ActionListWidget', () => {
 		widget.focus();
 
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'active');
+	});
+
+	test('initial focus groups prefer their checked enabled item and leave explicit item focus unchanged', () => {
+		const cases = [
+			{ group: 'permissions', checked: true, disabled: false, itemId: undefined },
+			{ group: 'permissions', checked: false, disabled: false, itemId: undefined },
+			{ group: 'permissions', checked: true, disabled: true, itemId: undefined },
+			{ group: 'missing', checked: true, disabled: false, itemId: undefined },
+			{ group: 'permissions', checked: true, disabled: false, itemId: 'mode' },
+		];
+		const focused = cases.map(({ group, checked, disabled, itemId }) => {
+			const widget = createActionListWidget(disposables, {
+				items: [
+					{ ...action('mode'), item: { id: 'mode', checked: true }, focusGroup: 'modes' },
+					action('permissions'),
+					{ ...action('manual'), focusGroup: 'permissions' },
+					{ ...action('assisted'), item: { id: 'assisted', checked }, focusGroup: 'permissions', disabled },
+				],
+				listOptions: { showFilter: false, initialFocusGroup: group, initialFocusItemId: itemId },
+			});
+			widget.focus();
+			return widget.getFocusedElement()?.item?.id;
+		});
+
+		assert.deepStrictEqual(focused, ['assisted', 'manual', 'manual', 'mode', 'mode']);
+	});
+
+	test('initial focus groups do not reset focus after navigation or layout', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('mode'), item: { id: 'mode', checked: true }, focusGroup: 'modes' },
+				{ ...action('manual'), focusGroup: 'permissions' },
+				{ ...action('assisted'), item: { id: 'assisted', checked: true }, focusGroup: 'permissions' },
+			],
+			listOptions: { showFilter: false, initialFocusGroup: 'permissions' },
+		});
+		widget.focus();
+		const initial = widget.getFocusedElement()?.item?.id;
+		widget.focusPrevious();
+		widget.layout(200, 200);
+		widget.focus();
+
+		assert.deepStrictEqual({ initial, afterNavigation: widget.getFocusedElement()?.item?.id }, {
+			initial: 'assisted',
+			afterNavigation: 'manual',
+		});
 	});
 
 	test('opening the checked hover reveals a model in a collapsed section', () => {
@@ -1462,6 +1824,111 @@ suite('ActionListWidget', () => {
 			}
 		}
 	}
+
+	for (const zoom of [1, 1.25]) {
+		test(`refresh retains the live hover and its origin while the focused row moves at ${zoom} zoom`, async () => {
+			const content = document.createElement('div');
+			content.style.cssText = 'width: 120px; height: 80px;';
+			const button = document.createElement('button');
+			button.textContent = 'Pin Model';
+			content.appendChild(button);
+			const item = (id: string, label = id): IActionListItem<ITestActionItem> => ({
+				...action(id), label, item: { id, checked: true },
+				hover: { content: () => content, expandable: true, alignToParent: true, preserveVerticalPosition: true },
+			});
+			const others = ['one', 'two', 'three', 'four'].map(action);
+			const widget = createActionListWidget(disposables, {
+				items: [...others, item('model')],
+				listOptions: { showFilter: false, persistentHover: true },
+			});
+			const popup = document.createElement('div');
+			popup.className = 'action-widget';
+			popup.style.cssText = `position: fixed; top: 80px; left: 40px; zoom: ${zoom};`;
+			document.body.appendChild(popup);
+			disposables.add({ dispose: () => popup.remove() });
+			popup.appendChild(widget.domNode);
+			widget.layout(160, 200);
+			widget.showHoverForCheckedItem();
+			await settleLayout();
+			button.focus();
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const before = panel.getBoundingClientRect();
+			widget.updateItems([item('model'), ...others], 'model', { preserveHover: true, animateItemMove: true });
+			const moved = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.textContent === 'model')!;
+			const animations = moved.getAnimations();
+			const moveTiming = animations.map(animation => {
+				const timing = animation.effect?.getTiming();
+				return { duration: timing?.duration, easing: timing?.easing };
+			});
+			animations.forEach(animation => animation.finish());
+			await settleLayout();
+			const afterMove = panel.getBoundingClientRect();
+			widget.updateItems([...others, item('model-fast', 'Fast Model')], 'model-fast', { preserveHover: true });
+			await settleLayout();
+			const afterVariant = panel.getBoundingClientRect();
+			const stationary = (rect: DOMRect) => Math.abs(rect.x - before.x) < 1 && Math.abs(rect.y - before.y) < 1 && Math.abs(rect.width - before.width) < 1;
+
+			assert.deepStrictEqual({
+				samePanel: panel === widget.domNode.querySelector('.action-list-submenu-panel'),
+				sameContent: panel.contains(content),
+				focusPreserved: document.activeElement === button,
+				stationaryAfterMove: stationary(afterMove),
+				stationaryAfterVariant: stationary(afterVariant),
+				focusedModel: widget.getFocusedElement()?.item?.id,
+				panelLabel: panel.getAttribute('aria-label'),
+				moveTiming,
+			}, {
+				samePanel: true,
+				sameContent: true,
+				focusPreserved: true,
+				stationaryAfterMove: true,
+				stationaryAfterVariant: true,
+				focusedModel: 'model-fast',
+				panelLabel: 'Fast Model',
+				moveTiming: mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? [] : [{ duration: 160, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }],
+			});
+		});
+	}
+
+	test('preserving a hover reveals its row in a collapsed section without reporting a user toggle', () => {
+		const content = document.createElement('button');
+		content.textContent = 'Unpin Model';
+		const item: IActionListItem<ITestActionItem> = {
+			...action('model'), item: { id: 'model', checked: true }, hover: { content, expandable: true, preserveVerticalPosition: true },
+		};
+		const toggles: boolean[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: [item],
+			listOptions: { showFilter: false, persistentHover: true, collapsedByDefault: new Set(['other']), onDidToggleSection: (_, collapsed) => toggles.push(collapsed) },
+		});
+		widget.showHoverForCheckedItem();
+		content.focus();
+		widget.updateItems([action('first'), { ...item, section: 'other' }], 'model', { preserveHover: true });
+
+		assert.deepStrictEqual({
+			rows: getVisibleRowText(widget),
+			toggles,
+			focused: widget.getFocusedElement()?.item?.id,
+			buttonFocused: document.activeElement === content,
+			panelVisible: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display !== 'none',
+		}, { rows: ['first', 'model'], toggles: [], focused: 'model', buttonFocused: true, panelVisible: true });
+	});
+
+	test('a removed hover is not retained by an item with the same id but different content', () => {
+		const content = document.createElement('button');
+		content.textContent = 'Configure';
+		const item: IActionListItem<ITestActionItem> = {
+			...action('model'), item: { id: 'model', checked: true }, hover: { content, expandable: true },
+		};
+		const widget = createActionListWidget(disposables, { items: [item], listOptions: { showFilter: false, persistentHover: true } });
+		widget.showHoverForCheckedItem();
+		content.focus();
+		widget.updateItems([{ ...item, hover: undefined }], undefined, { preserveHover: true });
+		assert.deepStrictEqual({
+			contentConnected: content.isConnected,
+			panelHidden: widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')?.style.display === 'none',
+		}, { contentConnected: false, panelHidden: true });
+	});
 
 	for (const side of ['left', 'right']) {
 		for (const zoom of [1, 1.25]) {
