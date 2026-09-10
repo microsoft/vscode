@@ -7,6 +7,8 @@ Custom personas with specific tools, instructions, and behaviors. Use for orches
 | Path | Scope |
 |------|-------|
 | `.github/agents/*.agent.md` | Workspace |
+| `.agents/agents/*.md` | Workspace |
+| `~/.agents/agents/*.md` | Personal |
 | `<profile>/agents/*.agent.md` | User profile |
 
 ## Frontmatter
