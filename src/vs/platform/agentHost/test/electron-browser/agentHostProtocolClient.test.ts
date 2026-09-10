@@ -13,9 +13,11 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../workspace/common/workspaceTrust.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
@@ -35,7 +37,7 @@ import { NonReconnectableTransportError, type IClientTransport, type IProtocolTr
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -103,6 +105,15 @@ class TestClientIdentityTelemetryService implements ITelemetryService {
 	publicLogError2(): void { }
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
+}
+
+const workspaceTrustEnablementService: IWorkspaceTrustEnablementService = { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => true };
+
+class TestWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagementService>() {
+	override onDidChangeTrust = Event.None;
+	override onDidChangeTrustedFolders = Event.None;
+	trustedUris: URI[] = [];
+	override getTrustedUris(): URI[] { return this.trustedUris; }
 }
 
 interface ITestRootConfigNotificationParams {
@@ -334,7 +345,7 @@ suite('AgentHostProtocolClient', () => {
 		const options = loadEstimator !== undefined || clientId !== undefined || clientInfo !== undefined || reconnectPolicy !== undefined
 			? { loadEstimator, clientId, clientInfo, reconnectPolicy }
 			: undefined;
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService));
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrustEnablementService, new TestWorkspaceTrustManagementService()));
 		return { client, transport, configurationService };
 	}
 
@@ -355,6 +366,52 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await connectPromise;
 	}
+
+	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'test.example:1234', 'vscode-remote://ssh-remote+test'] as const) {
+		test(`workspace trust forwards only the target host's trusted roots (${String(identity)})`, async () => {
+			const transport = disposables.add(new TestProtocolTransport());
+			const trustService = new TestWorkspaceTrustManagementService();
+			trustService.trustedUris = [
+				URI.file('/local/trusted'),
+				toAgentHostUri(URI.file('/remote/trusted'), agentHostAuthority('test.example:1234')),
+				toAgentHostUri(URI.file('/other/trusted'), agentHostAuthority('other.example:1234')),
+				URI.parse('vscode-remote://ssh-remote+test/ssh/trusted'),
+				URI.parse('vscode-remote://ssh-remote+other/other/trusted'),
+			];
+			const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService));
+			await connectClient(client, transport);
+			const path = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? '/local/trusted' : identity === 'test.example:1234' ? '/remote/trusted' : '/ssh/trusted';
+			assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: true, trustedUris: [URI.file(path).toString()] });
+		});
+	}
+
+	test('workspace trust sends current grants and revocations, not workspace configuration', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const trustService = new TestWorkspaceTrustManagementService();
+		const changed = disposables.add(new Emitter<void>());
+		trustService.onDidChangeTrustedFolders = changed.event;
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService({ 'security.workspace.trust.enabled': false }), NullTelemetryService, workspaceTrustEnablementService, trustService));
+		await connectClient(client, transport);
+		const states = [findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey)];
+		for (const trustedUris of [[URI.file('/repo')], []]) {
+			transport.sentMessages.length = 0;
+			trustService.trustedUris = trustedUris;
+			changed.fire();
+			states.push(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey));
+		}
+		assert.deepStrictEqual(states, [
+			{ enabled: true, trustedUris: [] },
+			{ enabled: true, trustedUris: [URI.file('/repo').toString()] },
+			{ enabled: true, trustedUris: [] },
+		]);
+	});
+
+	test('workspace trust forwards explicit disablement from the enablement service', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService()));
+		await connectClient(client, transport);
+		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: false, trustedUris: [] });
+	});
 
 	test('initialize sends the local client telemetry identity only for usage telemetry', async () => {
 		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));
@@ -1187,6 +1244,8 @@ suite('AgentHostProtocolClient', () => {
 			createPermissionService(),
 			configurationService,
 			NullTelemetryService,
+			workspaceTrustEnablementService,
+			new TestWorkspaceTrustManagementService(),
 		));
 
 		const connectPromise = client.connect();
@@ -2281,6 +2340,7 @@ suite('AgentHostProtocolClient', () => {
 			};
 			const client = disposables.add(new AgentHostProtocolClient(
 				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined ? { clientInfo, reconnectPolicy } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService,
+				workspaceTrustEnablementService, new TestWorkspaceTrustManagementService(),
 			));
 			return { client, transports };
 		}
@@ -2506,6 +2566,7 @@ suite('AgentHostProtocolClient', () => {
 				});
 
 				await flushMicrotasks();
+				assert.deepStrictEqual(findRootConfigValue(reconnectTransport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: true, trustedUris: [] });
 				client.dispose();
 			});
 		});

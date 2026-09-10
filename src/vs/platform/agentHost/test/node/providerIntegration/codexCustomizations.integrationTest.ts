@@ -15,7 +15,7 @@ import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ActionType, type RootAgentsChangedAction } from '../../../common/state/sessionActions.js';
-import { AgentHostCodexEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostCodexEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../common/agent.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
@@ -359,86 +359,102 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		assert.ok(developerInputText(responsesRequest.body).includes(WORKSPACE_AGENT_MARKER), 'selected workspace-agent instructions must reach the Codex developer message');
 	});
 
-	test('workspace SessionStart hook runs with thread-scoped trust only', async function () {
-		this.timeout(180_000);
+	for (const trusted of [true, false]) {
+		test(`workspace SessionStart hook obeys Workspace Trust (${trusted ? 'trusted' : 'untrusted'})`, async function () {
+			this.timeout(180_000);
 
-		const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-workspace-hook-'));
-		tempDirs.push(workspaceDir);
-		const hooksDir = join(workspaceDir, '.codex');
-		const markerFile = join(workspaceDir, 'hook-marker.txt');
-		const hookScript = join(workspaceDir, 'write-hook-marker.cjs');
-		await mkdir(hooksDir, { recursive: true });
-		await Promise.all([
-			writeFile(hookScript, `require('fs').writeFileSync(${JSON.stringify(markerFile)}, ${JSON.stringify(HOOK_MARKER)});\n`),
-			writeFile(join(hooksDir, 'hooks.json'), JSON.stringify({
-				description: 'Agent Host thread-scoped hook trust integration test.',
-				hooks: {
-					SessionStart: [{
-						hooks: [{
-							type: 'command',
-							command: `${JSON.stringify(process.execPath)} ${JSON.stringify(hookScript)}`,
-							statusMessage: 'Running workspace hook integration test',
-							timeout: 5,
+			const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-workspace-hook-'));
+			tempDirs.push(workspaceDir);
+			const hooksDir = join(workspaceDir, '.codex');
+			const markerFile = join(workspaceDir, 'hook-marker.txt');
+			const hookScript = join(workspaceDir, 'write-hook-marker.cjs');
+			await mkdir(hooksDir, { recursive: true });
+			await Promise.all([
+				writeFile(hookScript, `require('fs').writeFileSync(${JSON.stringify(markerFile)}, ${JSON.stringify(HOOK_MARKER)});\n`),
+				writeFile(join(hooksDir, 'hooks.json'), JSON.stringify({
+					description: 'Agent Host thread-scoped hook trust integration test.',
+					hooks: {
+						SessionStart: [{
+							hooks: [{
+								type: 'command',
+								command: `${JSON.stringify(process.execPath)} ${JSON.stringify(hookScript)}`,
+								statusMessage: 'Running workspace hook integration test',
+								timeout: 5,
+							}],
 						}],
-					}],
+					},
+				})),
+			]);
+
+			const clientId = 'codex-workspace-hook-client';
+			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
+			client.dispatch({
+				channel: ROOT_STATE_URI,
+				clientSeq: 1,
+				action: {
+					type: ActionType.RootConfigChanged, config: {
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: trusted ? [URI.file(workspaceDir).toString()] : [] },
+					}
 				},
-			})),
-		]);
+			});
+			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
+			const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
+			await client.call('createSession', {
+				channel: sessionUri,
+				provider: 'codex',
+				workingDirectories: [URI.file(workspaceDir).toString()],
+				config: { isolation: 'folder', [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } },
+				activeClient: { clientId, tools: [], customizations: [] },
+			}, 30_000);
+			createdSessions.push(sessionUri);
+			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			client.clearReceived();
 
-		const clientId = 'codex-workspace-hook-client';
-		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
-		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
-		const sessionUri = URI.from({ scheme: 'codex', path: `/${generateUuid()}` }).toString();
-		await client.call('createSession', {
-			channel: sessionUri,
-			provider: 'codex',
-			workingDirectories: [URI.file(workspaceDir).toString()],
-			config: { isolation: 'folder' },
-			activeClient: { clientId, tools: [], customizations: [] },
-		}, 30_000);
-		createdSessions.push(sessionUri);
-		await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
-		client.clearReceived();
-
-		const turnId = 'turn-codex-workspace-hook';
-		client.dispatch({
-			channel: buildDefaultChatUri(sessionUri),
-			clientSeq: 1,
-			action: {
-				type: ActionType.ChatTurnStarted,
-				turnId,
-				startedAt: '2026-09-02T00:00:00.000Z',
-				message: {
-					text: 'Reply with exactly CODEX_WORKSPACE_HOOK_OK.',
-					origin: { kind: MessageKind.User },
+			const turnId = 'turn-codex-workspace-hook';
+			client.dispatch({
+				channel: buildDefaultChatUri(sessionUri),
+				clientSeq: 2,
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: '2026-09-02T00:00:00.000Z',
+					message: {
+						text: 'Reply with exactly CODEX_WORKSPACE_HOOK_OK.',
+						origin: { kind: MessageKind.User },
+					},
 				},
-			},
-		});
-		await client.waitForNotification(notification =>
-			isActionNotification(notification, 'chat/turnComplete')
-			&& getActionEnvelope(notification).channel === buildDefaultChatUri(sessionUri)
-			&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
-			120_000,
-		);
+			});
+			await client.waitForNotification(notification =>
+				isActionNotification(notification, 'chat/turnComplete')
+				&& getActionEnvelope(notification).channel === buildDefaultChatUri(sessionUri)
+				&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
+				120_000,
+			);
 
-		const marker = await waitForFileContents(markerFile, 30_000);
-		let codexConfig = '';
-		try {
-			codexConfig = await readFile(join(userHomeDir, '.codex', 'config.toml'), 'utf8');
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-				throw error;
+			let marker: string | undefined;
+			if (trusted) {
+				marker = await waitForFileContents(markerFile, 30_000);
+			} else {
+				await assert.rejects(readFile(markerFile), { code: 'ENOENT' });
 			}
-		}
-		assert.deepStrictEqual({
-			marker,
-			persistedHookTrust: codexConfig.includes('trusted_hash') || codexConfig.includes('.codex/hooks.json'),
-		}, {
-			marker: HOOK_MARKER,
-			persistedHookTrust: false,
+			let codexConfig = '';
+			try {
+				codexConfig = await readFile(join(userHomeDir, '.codex', 'config.toml'), 'utf8');
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+					throw error;
+				}
+			}
+			assert.deepStrictEqual({
+				marker,
+				persistedHookTrust: codexConfig.includes('trusted_hash') || codexConfig.includes('.codex/hooks.json'),
+			}, {
+				marker: trusted ? HOOK_MARKER : undefined,
+				persistedHookTrust: false,
+			});
 		});
-	});
+	}
 
 	test('standalone host registers Codex after runtime enablement', async function () {
 		this.timeout(120_000);

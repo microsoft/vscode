@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
+import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
@@ -1848,6 +1848,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			agentRoles: customization.agentRoles,
 			developerInstructions: customization.developerInstructions,
 			selectedCapabilityRoots: selectedCapabilityRoots.map(root => root.location.path),
+			workspaceTrust: this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey),
 		});
 		return {
 			config,
@@ -7138,7 +7139,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/** Builds per-thread trust for the project hooks Codex discovered from the primary workspace. */
 	private async _buildSessionHookTrustState(client: ICodexAppServerClient, cwd: string | undefined): Promise<Record<string, JsonValue>> {
-		if (!cwd || !await codexDirectoryHasHooks(this._fileService, URI.file(cwd))) {
+		if (!cwd || !this._isWorkspaceTrusted(URI.file(cwd))) {
 			return {};
 		}
 
@@ -7152,13 +7153,36 @@ export class CodexAgent extends Disposable implements IAgent {
 
 		const trust: Record<string, JsonValue> = {};
 		for (const entry of response.data) {
+			for (const error of entry.errors) {
+				this._logService.warn(`[Codex] hooks/list for session hook trust: ${error.path}: ${error.message}`);
+			}
+			for (const warning of entry.warnings) {
+				this._logService.warn(`[Codex] hooks/list for session hook trust: ${warning}`);
+			}
 			for (const hook of entry.hooks) {
-				if (hook.source === 'project' && !hook.isManaged && hook.currentHash) {
+				if (hook.source === 'project' && !hook.isManaged && hook.currentHash && this._isWorkspaceTrusted(URI.file(hook.sourcePath))) {
 					trust[hook.key] = { trusted_hash: hook.currentHash };
 				}
 			}
 		}
-		return trust;
+		return this._isWorkspaceTrusted(URI.file(cwd)) ? trust : {};
+	}
+
+	private _isWorkspaceTrusted(resource: URI): boolean {
+		const trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+		if (!trust) {
+			return false;
+		}
+		if (!trust.enabled) {
+			return true;
+		}
+		return trust.trustedUris.some(uri => {
+			try {
+				return extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(uri));
+			} catch {
+				return false;
+			}
+		});
 	}
 
 	/** Adds a non-empty hook trust map to the per-thread Codex config. */
