@@ -61,9 +61,13 @@ function checkDirectory(directory: string): CheckResult {
 }
 
 function main(): void {
+	const args = process.argv.slice(2);
+	const jsonOutput = args.includes('--json');
+
 	const packageDirectories = dirs
 		.map(dir => path.join(root, dir))
 		.filter(directory => existsSync(path.join(directory, 'package.json')));
+	
 	const results: CheckResult[] = [];
 	for (const directory of packageDirectories) {
 		const result = checkDirectory(directory);
@@ -72,20 +76,21 @@ function main(): void {
 		}
 	}
 
+	if (jsonOutput) {
+		console.log(JSON.stringify(results, null, 2));
+		if (results.length > 0) {
+			process.exitCode = 1;
+		}
+		return;
+	}
+
 	if (results.length === 0) {
 		console.log(`Checked ${packageDirectories.length} package.json files: all install scripts are covered by allowScripts.`);
 		return;
 	}
 
-	console.error(`Found unreviewed install scripts in ${results.length} package.json files:`);
-	for (const result of results) {
-		console.error(`\n${path.relative(root, result.directory) || '.'}/package.json`);
-		for (const pending of result.pending) {
-			console.error(`  - ${pending.package} (${pending.scripts})`);
-		}
-	}
 	console.error('\nRun `npm approve-scripts <pkg>` in each directory to review the pending install scripts.');
 	process.exitCode = 1;
 }
 
-main();
+main(); 
