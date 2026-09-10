@@ -188,13 +188,13 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			throw new Error(localize('devContainerAgentHost.connectorAlreadyRegistered', "A Dev Container Agent Host connector is already registered."));
 		}
 		this._connector = connector;
-		this._logService.trace('[DevContainerAgentHostService] Connector registered');
+		this._logService.info('[DevContainerAgentHostService] Connector registered');
 		this._onDidRegisterConnector.fire(connector);
 		this._onDidChangeAvailability.fire();
 		return toDisposable(() => {
 			if (this._connector === connector) {
 				this._connector = undefined;
-				this._logService.trace('[DevContainerAgentHostService] Connector unregistered');
+				this._logService.info('[DevContainerAgentHostService] Connector unregistered');
 				this._onDidChangeAvailability.fire();
 			}
 		});
@@ -202,10 +202,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 
 	isAvailable(workspaceUri: URI): Promise<boolean> {
 		if (!this._connector) {
-			this._logService.trace(`[DevContainerAgentHostService] Availability skipped: scheme=${workspaceUri.scheme}, connectorRegistered=false`);
+			this._logService.info(`[DevContainerAgentHostService] Availability skipped: scheme=${workspaceUri.scheme}, connectorRegistered=false`);
 			return Promise.resolve(false);
 		}
-		this._logService.trace(`[DevContainerAgentHostService] Availability delegated: scheme=${workspaceUri.scheme}, connectorRegistered=true`);
+		this._logService.info(`[DevContainerAgentHostService] Availability delegated: scheme=${workspaceUri.scheme}, connectorRegistered=true`);
 		return this._connector.isAvailable(workspaceUri);
 	}
 

@@ -55,7 +55,7 @@ export async function isDevContainerWorkspaceAvailable(
 	const remoteAgentHostsEnabled = configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
 	const isLocalWorkspace = workspaceUri.scheme === Schemas.file;
 	if (!devContainerEnabled || !remoteAgentHostsEnabled || !isLocalWorkspace) {
-		logService?.trace(`[DevContainerAgentHostConnector] Availability skipped: scheme=${workspaceUri.scheme}, devContainerEnabled=${devContainerEnabled}, remoteAgentHostsEnabled=${remoteAgentHostsEnabled}, localWorkspace=${isLocalWorkspace}`);
+		logService?.info(`[DevContainerAgentHostConnector] Availability skipped: scheme=${workspaceUri.scheme}, devContainerEnabled=${devContainerEnabled}, remoteAgentHostsEnabled=${remoteAgentHostsEnabled}, localWorkspace=${isLocalWorkspace}`);
 		return false;
 	}
 	const [nestedConfigurationExists, rootConfigurationExists] = await Promise.all([
@@ -64,7 +64,7 @@ export async function isDevContainerWorkspaceAvailable(
 	]);
 	const hasConfiguration = nestedConfigurationExists || rootConfigurationExists;
 	const dockerAvailable = hasConfiguration ? await mainService.isDockerAvailable() : false;
-	logService?.trace(`[DevContainerAgentHostConnector] Availability completed: scheme=${workspaceUri.scheme}, devContainerEnabled=${devContainerEnabled}, remoteAgentHostsEnabled=${remoteAgentHostsEnabled}, localWorkspace=${isLocalWorkspace}, nestedConfiguration=${nestedConfigurationExists}, rootConfiguration=${rootConfigurationExists}, dockerAvailable=${dockerAvailable}`);
+	logService?.info(`[DevContainerAgentHostConnector] Availability completed: scheme=${workspaceUri.scheme}, devContainerEnabled=${devContainerEnabled}, remoteAgentHostsEnabled=${remoteAgentHostsEnabled}, localWorkspace=${isLocalWorkspace}, nestedConfiguration=${nestedConfigurationExists}, rootConfiguration=${rootConfigurationExists}, dockerAvailable=${dockerAvailable}`);
 	return hasConfiguration && dockerAvailable;
 }
 
