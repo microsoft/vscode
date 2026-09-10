@@ -199,7 +199,7 @@ export class ChatInputPills extends Disposable {
 		}));
 		this._pills.element.classList.add('show-file-icons');
 		this._row.content.appendChild(this._pills.element);
-		this._row.observe(this._pills.element);
+		this._row.observe(this._pills);
 		this._register(this._pills.onDidRemoveFocusedPill(() => this._row.restoreFocus(() => this._pills.getPillElements(), _options.focusFallback)));
 		this.onDidChange = Event.any(this._row.onDidChangeLayout, this._pills.onDidChangePills);
 
