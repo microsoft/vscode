@@ -596,8 +596,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			id: activeWindowId,
 			title: activeWindow.document.title,
 			workspace: toWorkspaceIdentifier(this.contextService.getWorkspace()),
-			dirty: false,
-			isSessionsWindow: this.environmentService.isSessionsWindow
+			dirty: false
 		}];
 
 		// Auxiliary windows

@@ -27,7 +27,6 @@ import { Categories } from '../../../platform/action/common/actionCommonCategori
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { isMacintosh } from '../../../base/common/platform.js';
-import { FileAccess } from '../../../base/common/network.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
 import { IsAuxiliaryWindowContext, IsAuxiliaryWindowFocusedContext, IsWindowAlwaysOnTopContext } from '../../common/contextkeys.js';
@@ -301,8 +300,8 @@ abstract class BaseSwitchWindow extends Action2 {
 				windowId: window.id,
 				label: window.title,
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
-				iconPath: window.isSessionsWindow ? { dark: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg') } : undefined,
-				iconClasses: window.isSessionsWindow ? undefined : getIconClasses(modelService, languageService, resource, fileKind),
+				iconPath: window.iconPath ? { dark: window.iconPath } : undefined,
+				iconClasses: window.iconPath ? undefined : getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
 				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};

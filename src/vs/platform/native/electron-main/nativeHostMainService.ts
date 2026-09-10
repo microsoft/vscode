@@ -220,7 +220,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited(),
-			isSessionsWindow: window.config?.isSessionsWindow === true
+			iconPath: window.iconPath
 		}));
 
 		const auxiliaryWindows = [];

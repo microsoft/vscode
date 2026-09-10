@@ -702,6 +702,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
 
+	private readonly _iconPath: URI | undefined;
+	get iconPath(): URI | undefined { return this._iconPath; }
+
 	private _config: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this._config; }
 
@@ -781,6 +784,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			if (config.isSessionsWindow && isWindows) {
 				options.icon = join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico');
 			}
+			this._iconPath = typeof options.icon === 'string' ? URI.file(options.icon) : undefined;
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
