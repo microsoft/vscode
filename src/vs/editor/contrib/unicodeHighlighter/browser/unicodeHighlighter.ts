@@ -580,7 +580,7 @@ export class DisableHighlightingInCommentsAction extends EditorAction implements
 	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingInComments.shortLabel', 'Disable Highlight In Comments');
 	constructor() {
 		super({
-			id: DisableHighlightingOfAmbiguousCharactersAction.ID,
+			id: DisableHighlightingInCommentsAction.ID,
 			label: nls.localize2('action.unicodeHighlight.disableHighlightingInComments', "Disable highlighting of characters in comments"),
 			precondition: undefined
 		});
@@ -603,7 +603,7 @@ export class DisableHighlightingInStringsAction extends EditorAction implements 
 	public readonly shortLabel = nls.localize('unicodeHighlight.disableHighlightingInStrings.shortLabel', 'Disable Highlight In Strings');
 	constructor() {
 		super({
-			id: DisableHighlightingOfAmbiguousCharactersAction.ID,
+			id: DisableHighlightingInStringsAction.ID,
 			label: nls.localize2('action.unicodeHighlight.disableHighlightingInStrings', "Disable highlighting of characters in strings"),
 			precondition: undefined
 		});
