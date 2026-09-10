@@ -61,20 +61,26 @@ suite('terminalEnvironment', () => {
 	});
 
 	suite('escapeNonWindowsPath', () => {
-		test('should escape for bash/sh/zsh shells', () => {
+		test('should escape for bash/zsh shells using ANSI-C quoting', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Bash), '\'/foo/bar\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Bash), '\'/foo/bar\\\'baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Bash), '$\'/foo/bar\\\'baz\'');
 			strictEqual(escapeNonWindowsPath('/foo/bar"baz', PosixShellType.Bash), '\'/foo/bar"baz\'');
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', PosixShellType.Bash), '$\'/foo/bar\\\'baz"qux\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Sh), '\'/foo/bar\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Sh), '\'/foo/bar\\\'baz\'');
 			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Zsh), '\'/foo/bar\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Zsh), '\'/foo/bar\\\'baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Zsh), '$\'/foo/bar\\\'baz\'');
 		});
 
-		test('should escape for git bash', () => {
+		test('should escape for sh shell using POSIX close/escape/reopen quoting', () => {
+			// POSIX sh does not support $'...' ANSI-C quoting
+			strictEqual(escapeNonWindowsPath('/foo/bar', PosixShellType.Sh), '\'/foo/bar\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', PosixShellType.Sh), "'/foo/bar'\\''baz'");
+			strictEqual(escapeNonWindowsPath('/foo/bar"baz', PosixShellType.Sh), '\'/foo/bar"baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', PosixShellType.Sh), "'/foo/bar'\\''baz\"qux'");
+		});
+
+		test('should escape for git bash using ANSI-C quoting', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar', WindowsShellType.GitBash), '\'/foo/bar\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', WindowsShellType.GitBash), '\'/foo/bar\\\'baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz', WindowsShellType.GitBash), '$\'/foo/bar\\\'baz\'');
 			strictEqual(escapeNonWindowsPath('/foo/bar"baz', WindowsShellType.GitBash), '\'/foo/bar"baz\'');
 		});
 
@@ -92,9 +98,9 @@ suite('terminalEnvironment', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz"qux', GeneralShellType.PowerShell), '"/foo/bar\'baz`"qux"');
 		});
 
-		test('should default to POSIX escaping for unknown shells', () => {
+		test('should default to POSIX close/escape/reopen quoting for unknown shells', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar'), '\'/foo/bar\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar\'baz'), '\'/foo/bar\\\'baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'baz'), "'/foo/bar'\\''baz'");
 		});
 
 		test('should remove dangerous characters', () => {
