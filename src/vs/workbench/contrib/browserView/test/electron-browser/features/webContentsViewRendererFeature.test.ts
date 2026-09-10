@@ -56,4 +56,16 @@ suite('WebContentsViewRendererFeature', () => {
 			fractionalZoomReservedBorder: { width: 10.5, height: 20, left: -0.25, top: -0.25 },
 		});
 	});
+
+	test('preserves collapsed dimensions when covering fractional host pixels', () => {
+		const pane = { width: 10.5, height: 20.25, originX: 0.25, originY: 0.75 };
+
+		assert.deepStrictEqual({
+			zeroWidth: snapBrowserContainerLayout({ width: 0, height: 20.25, left: 0, top: 0 }, pane, 2, true),
+			zeroHeight: snapBrowserContainerLayout({ width: 10.5, height: 0, left: 0, top: 0 }, pane, 2, true),
+		}, {
+			zeroWidth: { width: 0, height: 20.5, left: -0.25, top: -0.25 },
+			zeroHeight: { width: 11, height: 0, left: -0.25, top: -0.25 },
+		});
+	});
 });

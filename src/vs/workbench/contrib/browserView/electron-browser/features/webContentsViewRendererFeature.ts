@@ -52,8 +52,8 @@ export function snapBrowserContainerLayout(current: IContainerLayout, pane: ICon
 	const snappedAbsoluteTop = snapDown(absoluteTop);
 	return {
 		...current,
-		width: coverAvailableArea ? snapUp(absoluteLeft + current.width) - snappedAbsoluteLeft : snapDown(current.width),
-		height: coverAvailableArea ? snapUp(absoluteTop + current.height) - snappedAbsoluteTop : snapDown(current.height),
+		width: coverAvailableArea && current.width !== 0 ? snapUp(absoluteLeft + current.width) - snappedAbsoluteLeft : snapDown(current.width),
+		height: coverAvailableArea && current.height !== 0 ? snapUp(absoluteTop + current.height) - snappedAbsoluteTop : snapDown(current.height),
 		left: snappedAbsoluteLeft - pane.originX,
 		top: snappedAbsoluteTop - pane.originY,
 	};
