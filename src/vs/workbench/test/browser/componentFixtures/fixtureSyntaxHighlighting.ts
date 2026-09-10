@@ -6,7 +6,6 @@
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { Color } from '../../../../base/common/color.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
 import { ColorId, StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
 import { TokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -216,8 +215,8 @@ function createOnigLib(): Promise<IOnigLib> {
 		const wasm = await readFixtureBinaryResource(fixtureResourceUri('node_modules/vscode-oniguruma/release/onig.wasm'));
 		await vscodeOniguruma.loadWASM(wasm);
 		return {
-			createOnigScanner: sources => vscodeOniguruma.createOnigScanner(sources),
-			createOnigString: value => vscodeOniguruma.createOnigString(value),
+			createOnigScanner: (sources: string[]) => vscodeOniguruma.createOnigScanner(sources),
+			createOnigString: (value: string) => vscodeOniguruma.createOnigString(value),
 		};
 	})().catch(error => {
 		onigLibPromise = undefined;
