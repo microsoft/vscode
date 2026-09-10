@@ -2147,6 +2147,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
 				paddingBottom: this._persistentContentHeight,
+				tabIndex: this.viewOptions.transcriptTabIndex,
 			}
 		));
 

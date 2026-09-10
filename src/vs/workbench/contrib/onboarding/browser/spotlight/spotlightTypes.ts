@@ -12,9 +12,13 @@ export const SPOTLIGHT_PRESENTATION_KIND = 'spotlight';
 /** Preferred placement of the callout relative to the spotlighted target. */
 export type SpotlightPlacement = 'above' | 'below' | 'left' | 'right' | 'auto';
 
+/** `advanceOnly` consumes target activation instead of running the target's action. */
+export type SpotlightTargetClickBehavior = boolean | 'advanceOnly';
+
 /** Behavior when a spotlight target is not rendered when its step is reached. */
 export type SpotlightMissingTargetBehavior =
 	| { readonly kind: 'skip' }
+	| { readonly kind: 'abort' }
 	| { readonly kind: 'wait'; readonly timeoutMs: number };
 
 /**
@@ -39,13 +43,16 @@ export interface ISpotlightStep {
 	/** Callout body (localized string or markdown). */
 	readonly description: string | IMarkdownString;
 
+	/** Localized primary button label, replacing the default Next or Done. */
+	readonly nextButtonLabel?: string;
+
 	/** Preferred placement of the callout. Defaults to `'auto'`. */
 	readonly placement?: SpotlightPlacement;
 
 	/** When present and unsatisfied, the step is skipped. */
 	readonly when?: ContextKeyExpression;
 
-	/** Missing-target behavior. Defaults to waiting two seconds before skipping. */
+	/** Defaults to waiting two seconds before skipping; `abort` ends the run immediately if the target is missing. */
 	readonly missingTarget?: SpotlightMissingTargetBehavior;
 
 	/** Opens or expands the target through its owner before the step begins. */
@@ -54,11 +61,11 @@ export interface ISpotlightStep {
 	/** Allow the spotlighted element to remain interactive. Defaults to `false`. */
 	readonly allowTargetInteraction?: boolean;
 
-	/**
-	 * When set, the step advances when the user clicks the spotlighted target
-	 * itself (rather than a "Next" button). The target is kept interactive.
-	 */
-	readonly advanceOnTargetClick?: boolean;
+	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
+	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
+
+	/** Overrides hiding Next when advancing on target clicks. `advanceWhen` always hides Next. */
+	readonly hideNext?: boolean;
 
 	/** Hides Next and advances once this context expression becomes satisfied. */
 	readonly advanceWhen?: ContextKeyExpression;

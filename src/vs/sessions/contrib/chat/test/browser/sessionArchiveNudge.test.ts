@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
@@ -13,18 +16,30 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestChatEntitlementService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ISpotlightPayload } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
+import { IOnboardingScenario, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { IChat, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../github/common/types.js';
 import { getPullRequestKey } from '../../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
-import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
+import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService, ShowSessionArchiveNudgeAction } from '../../browser/sessionArchiveNudge.js';
+import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
+import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/sessionsView.js';
 
 suite('SessionArchiveNudge', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,7 +57,7 @@ suite('SessionArchiveNudge', () => {
 	}
 
 	function createSession(id: string = 'session') {
-		return new class extends mock<ISession>() {
+		return new class extends mock<IActiveSession>() {
 			override readonly sessionId = `test:${id}`;
 			override readonly resource = URI.from({ scheme: 'test-session', path: `/${id}` });
 			override readonly status = observableValue<SessionStatus>(this, SessionStatus.Completed);
@@ -52,13 +67,16 @@ suite('SessionArchiveNudge', () => {
 			override readonly worktreePending = observableValue(this, false);
 			override readonly artifacts = observableValue<readonly ISessionArtifact[]>(this, [artifact(1)]);
 			override readonly chats = observableValue<readonly IChat[]>(this, []);
+			override readonly mainChat = observableValue<IChat>(this, new class extends mock<IChat>() {
+				override readonly resource = URI.from({ scheme: 'test-chat', path: `/${id}` });
+			}());
 			override readonly workspace = observableValue<ISessionWorkspace | undefined>(this, undefined);
 			override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>(this, { kind: 'connected' });
 		}();
 	}
 
-	function setup(sessions = [createSession()], enabled = true, enterpriseHost?: string) {
-		const configuration = new TestConfigurationService({ [SESSION_ARCHIVE_NUDGE_SETTING]: enabled });
+	function setup(sessions = [createSession()], enabled = true, enterpriseHost?: string, onboardingEnabled = false) {
+		const configuration = new TestConfigurationService({ [SESSION_ARCHIVE_NUDGE_SETTING]: enabled, [ONBOARDING_ENABLED_CONFIG]: onboardingEnabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const entitlement = new TestChatEntitlementService();
 		const storage = store.add(new TestStorageService());
@@ -134,7 +152,41 @@ suite('SessionArchiveNudge', () => {
 				};
 			}
 		}();
-		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry));
+		const onboardingEvents: string[] = [];
+		const onboardingPayloads: ISpotlightPayload[] = [];
+		const onboardingStarted = new DeferredPromise<void>();
+		let onboardingResult = Promise.resolve(OnboardingOutcome.Completed);
+		let onboardingShown = false;
+		let viewAvailable = true;
+		const view = upcastPartial<SessionsView>({
+			setExpanded: expanded => { onboardingEvents.push(`expanded:${expanded}`); return true; },
+			sessionsControl: upcastPartial<SessionsList>({
+				revealArchiveAction: session => {
+					onboardingEvents.push(`reveal:${session.sessionId}`);
+					return { targetId: 'archive', dispose: () => onboardingEvents.push('released') };
+				},
+			}),
+		});
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, {});
+		instantiationService.stub(IViewsService, 'openView', async (id: string, focus: boolean) => {
+			onboardingEvents.push(`open:${id}:${focus}`);
+			return viewAvailable ? view : null;
+		});
+		const viewsService = instantiationService.get(IViewsService);
+		const onboardingService = new class extends mock<IOnboardingScenarioService>() {
+			override hasBeenShown(): boolean { return onboardingShown; }
+			override reset(): void { onboardingShown = false; }
+			override async runScenario(id: string): Promise<OnboardingOutcome> {
+				const scenario = onboardingScenarioRegistry.getScenario(id) as IOnboardingScenario<ISpotlightPayload>;
+				onboardingShown = true;
+				onboardingPayloads.push(scenario.presentation.payload);
+				await scenario.presentation.payload.steps[0].onBeforeShow?.();
+				onboardingStarted.complete();
+				return onboardingResult;
+			}
+		}();
+		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);
 		function createNudge() {
 			const nudge = store.add(new SessionArchiveNudge(current, configuration, entitlement, github, service, commandService));
@@ -146,9 +198,16 @@ suite('SessionArchiveNudge', () => {
 			get service() { return service; },
 			get counts() { return { references, polling, refreshes }; },
 			createNudge,
+			onboarding: {
+				events: onboardingEvents,
+				payloads: onboardingPayloads,
+				started: onboardingStarted.p,
+				setResult(result: Promise<OnboardingOutcome>) { onboardingResult = result; },
+				setViewAvailable(value: boolean) { viewAvailable = value; },
+			},
 			reloadService() {
 				service.dispose();
-				service = store.add(new SessionArchiveNudgeService(storage, management, telemetry));
+				service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService));
 			},
 			setArchiveError(error: Error) { archiveError = error; },
 			setArchiveNoop() { archiveNoop = true; },
@@ -192,6 +251,120 @@ suite('SessionArchiveNudge', () => {
 		assert.deepStrictEqual({ states, live: context.counts.references, polling: context.counts.polling, events: context.events }, {
 			states: [false, true, false, true, false], live: 0, polling: 0, events: [],
 		});
+	});
+
+	test('developer command shows the active session nudge without enabling the setting or requiring PRs', async () => {
+		const session = createSession();
+		session.artifacts.set([], undefined);
+		const context = setup([session], false);
+		const nudge = context.createNudge();
+		const opened: URI[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsService, {
+			activeSession: observableValue('active', session),
+			openChat: async (_session, resource) => { opened.push(resource); },
+		});
+		instantiationService.stub(ISessionArchiveNudgeService, context.service);
+		instantiationService.stub(IChatEntitlementService, context.entitlement);
+		const action = new ShowSessionArchiveNudgeAction();
+		await instantiationService.invokeFunction(accessor => action.run(accessor));
+		nudge.markShown();
+		assert.deepStrictEqual({
+			palette: action.desc.f1,
+			opened,
+			count: nudge.options.get()?.pullRequestCount,
+			setting: context.configuration.getValue(SESSION_ARCHIVE_NUDGE_SETTING),
+			requests: context.requests,
+			events: context.events,
+		}, {
+			palette: true,
+			opened: [session.mainChat.get().resource],
+			count: 1,
+			setting: false,
+			requests: [],
+			events: [],
+		});
+		context.entitlement.sentimentObs.set({ hidden: true }, undefined);
+		await assert.rejects(instantiationService.invokeFunction(accessor => action.run(accessor)), /Open a session with chat enabled/);
+	});
+
+	test('debug nudges can be shown again after dismissal without persisting the debug override', () => {
+		const session = createSession();
+		const context = setup([session], false);
+		const key = `sessions.archiveNudge.dismissed.${session.sessionId}`;
+		context.storage.store(key, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const nudge = context.createNudge();
+		const states = [!!nudge.options.get()];
+		context.service.showForTesting(session);
+		states.push(!!nudge.options.get());
+		nudge.options.get()!.onDismiss();
+		states.push(!!nudge.options.get());
+		context.service.showForTesting(session);
+		states.push(!!nudge.options.get());
+		context.reloadService();
+		states.push(!!context.createNudge().options.get());
+		assert.deepStrictEqual({
+			states, dismissed: context.storage.getBoolean(key, StorageScope.PROFILE), events: context.events,
+		}, { states: [false, true, false, true, false], dismissed: true, events: [] });
+	});
+
+	test('dismissing a debug nudge also hides an otherwise eligible real nudge', () => {
+		const session = createSession();
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		context.service.showForTesting(session);
+		nudge.options.get()!.onDismiss();
+		assert.strictEqual(nudge.options.get(), undefined);
+	});
+
+	test('debug nudges stay session-specific and respect disabled AI features', () => {
+		const session = createSession();
+		const other = createSession('other');
+		const context = setup([session, other], false);
+		const nudge = context.createNudge();
+		context.service.showForTesting(session);
+		const states = [!!nudge.options.get()];
+		context.current.set(other, undefined);
+		states.push(!!nudge.options.get());
+		context.current.set(session, undefined);
+		states.push(!!nudge.options.get());
+		context.entitlement.sentimentObs.set({ hidden: true }, undefined);
+		states.push(!!nudge.options.get());
+		assert.deepStrictEqual(states, [true, false, true, false]);
+	});
+
+	test('debug nudges reject unavailable sessions', () => {
+		const session = createSession();
+		const context = setup([session], false);
+		for (const status of [SessionStatus.Untitled, SessionStatus.InProgress]) {
+			session.status.set(status, undefined);
+			assert.throws(() => context.service.showForTesting(session), /Select a connected, idle session/);
+		}
+		session.status.set(SessionStatus.Completed, undefined);
+		session.isArchived.set(true, undefined);
+		assert.throws(() => context.service.showForTesting(session), /Select a connected, idle session/);
+	});
+
+	test('debug nudges wait for onboarding and perform real archiving without recording nudge telemetry', async () => {
+		const session = createSession();
+		const context = setup([session], false, undefined, true);
+		const nudge = context.createNudge();
+		const outcome = new DeferredPromise<OnboardingOutcome>();
+		context.onboarding.setResult(outcome.p);
+		context.service.showForTesting(session);
+		const archiving = nudge.options.get()!.onArchive();
+		await context.onboarding.started;
+		assert.deepStrictEqual(context.archiveTargets, []);
+		await outcome.complete(OnboardingOutcome.Completed);
+		await archiving;
+		assert.deepStrictEqual({
+			archived: session.isArchived.get(),
+			targets: context.archiveTargets,
+			debugSession: context.service.debugSession.get(),
+			visible: !!nudge.options.get(),
+			events: context.events,
+		}, { archived: true, targets: [session], debugSession: undefined, visible: false, events: [] });
 	});
 
 	test('waits for every PR artifact, ignoring references and unrelated links', () => {
@@ -452,5 +625,148 @@ suite('SessionArchiveNudge', () => {
 			message: 'The session could not be updated. Check its connection and try again.',
 		});
 		assert.deepStrictEqual({ visible: !!nudge.options.get(), events: context.events }, { visible: true, events: [] });
+	});
+
+	for (const outcome of [OnboardingOutcome.Completed, OnboardingOutcome.Skipped]) {
+		test(`waits for onboarding ${outcome} before archiving and does not repeat after reload`, async () => {
+			const session = createSession();
+			const context = setup([session], true, undefined, true);
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+			const nudge = context.createNudge();
+			const finish = new DeferredPromise<OnboardingOutcome>();
+			context.onboarding.setResult(finish.p);
+			const archive = nudge.options.get()!.onArchive();
+			await context.onboarding.started;
+			assert.deepStrictEqual({
+				targets: context.archiveTargets,
+				events: context.onboarding.events,
+			}, {
+				targets: [],
+				events: [`open:${SessionsViewId}:true`, 'expanded:true', `reveal:${session.sessionId}`],
+			});
+			finish.complete(outcome);
+			await archive;
+			context.reloadService();
+			await context.service.showArchiveOnboarding(createSession('another'));
+			assert.deepStrictEqual({
+				targets: context.archiveTargets.map(target => target.sessionId),
+				tours: context.onboarding.payloads.length,
+				released: context.onboarding.events.at(-1),
+			}, { targets: [session.sessionId], tours: 1, released: 'released' });
+		});
+	}
+
+	for (const wording of ['archive', 'done']) {
+		test(`uses ${wording} wording and only Understood for the spotlight`, async () => {
+			const context = setup(undefined, true, undefined, true);
+			await context.configuration.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, wording);
+			await context.service.showArchiveOnboarding(createSession());
+			const step = context.onboarding.payloads[0].steps[0];
+			assert.deepStrictEqual({
+				title: step.title,
+				description: step.description,
+				button: step.nextButtonLabel,
+				advanceOnTargetClick: step.advanceOnTargetClick,
+				hideNext: step.hideNext,
+				missingTarget: step.missingTarget,
+			}, {
+				title: wording === 'done' ? 'Mark sessions as done from the list' : 'Archive sessions from the list',
+				description: wording === 'done'
+					? 'You can mark any session as done directly from the sessions list. Hover over a session or focus it to show Mark as Done.'
+					: 'You can archive any session directly from the sessions list. Hover over a session or focus it to show Archive.',
+				button: 'Understood',
+				advanceOnTargetClick: 'advanceOnly',
+				hideNext: false,
+				missingTarget: { kind: 'abort' },
+			});
+		});
+	}
+
+	test('clicking the spotlighted action completes onboarding before archiving exactly once', async () => {
+		const session = createSession();
+		const context = setup([session], true, undefined, true);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const finish = new DeferredPromise<OnboardingOutcome>();
+		context.onboarding.setResult(finish.p);
+		const archiving = nudge.options.get()!.onArchive();
+		await context.onboarding.started;
+
+		const container = $('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const target = $('button');
+		container.appendChild(target);
+		let nativeActions = 0;
+		store.add(addDisposableListener(target, EventType.CLICK, () => nativeActions++));
+		const step = context.onboarding.payloads[0].steps[0];
+		const overlay = store.add(new SpotlightOverlay(container));
+		store.add(overlay.onDidClickNext(() => {
+			overlay.hide();
+			void finish.complete(OnboardingOutcome.Completed);
+		}));
+		overlay.show(target, {
+			title: step.title,
+			description: step.description,
+			nextButtonLabel: step.nextButtonLabel,
+			stepIndex: 0,
+			stepCount: 1,
+			canGoBack: false,
+			isLastStep: true,
+		}, { advanceOnTargetClick: step.advanceOnTargetClick, hideNext: step.hideNext });
+		target.click();
+		const archivesBeforeTourFinished = context.archiveTargets.length;
+		await archiving;
+		assert.deepStrictEqual({
+			archivesBeforeTourFinished,
+			nativeActions,
+			targets: context.archiveTargets,
+			released: context.onboarding.events.at(-1),
+		}, { archivesBeforeTourFinished: 0, nativeActions: 0, targets: [session], released: 'released' });
+	});
+
+	test('does not archive when onboarding aborts and allows a retry', async () => {
+		const context = setup(undefined, true, undefined, true);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Aborted));
+		await assert.rejects(nudge.options.get()!.onArchive(), /introduction was interrupted/);
+		assert.deepStrictEqual(context.archiveTargets, []);
+		context.onboarding.setResult(Promise.resolve(OnboardingOutcome.Completed));
+		await nudge.options.get()!.onArchive();
+		assert.deepStrictEqual({ tours: context.onboarding.payloads.length, targets: context.archiveTargets.length }, { tours: 2, targets: 1 });
+	});
+
+	test('revalidates the session after onboarding instead of archiving a stale suggestion', async () => {
+		const session = createSession();
+		const context = setup([session], true, undefined, true);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const finish = new DeferredPromise<OnboardingOutcome>();
+		context.onboarding.setResult(finish.p);
+		const archive = nudge.options.get()!.onArchive();
+		await context.onboarding.started;
+		session.status.set(SessionStatus.InProgress, undefined);
+		finish.complete(OnboardingOutcome.Completed);
+		await assert.rejects(archive, /no longer available/);
+		assert.deepStrictEqual(context.archiveTargets, []);
+	});
+
+	test('coalesces concurrent onboarding requests', async () => {
+		const context = setup(undefined, true, undefined, true);
+		const finish = new DeferredPromise<OnboardingOutcome>();
+		context.onboarding.setResult(finish.p);
+		const first = context.service.showArchiveOnboarding(createSession('first'));
+		const second = context.service.showArchiveOnboarding(createSession('second'));
+		await context.onboarding.started;
+		finish.complete(OnboardingOutcome.Completed);
+		await Promise.all([first, second]);
+		assert.strictEqual(context.onboarding.payloads.length, 1);
+	});
+
+	test('honors disabled onboarding without opening the list', async () => {
+		const context = setup();
+		await context.service.showArchiveOnboarding(createSession());
+		assert.deepStrictEqual(context.onboarding.events, []);
 	});
 });

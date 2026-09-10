@@ -189,6 +189,22 @@ export class NewChatWidget extends Disposable {
 			},
 			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
 		}));
+		const providersChanged = observableSignalFromEvent(this, this.sessionsProvidersService.onDidChangeProviders);
+		this._register(autorun(reader => {
+			providersChanged.read(reader);
+			const activeSession = this._session.read(reader);
+			if (!activeSession) {
+				return;
+			}
+			const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+			if (!provider || !isAgentHostProvider(provider)) {
+				return;
+			}
+			reader.store.add(Event.filter(
+				provider.onDidChangeSessionConfig,
+				sessionId => sessionId === activeSession.sessionId,
+			)(() => this._syncWorkspacePickerDevContainerMode(activeSession, false, WorkspaceSelectionOrigin.SessionSync)));
+		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
 		this._feedbackItems = derived(this, reader => {
@@ -292,6 +308,9 @@ export class NewChatWidget extends Disposable {
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
 			await this._onWorkspaceSelected(folderUri);
 			this._newChatInput.focus();
+		}));
+		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
+			this._preferredDevContainerFolderUri = preferDevContainer ? folderUri : undefined;
 		}));
 		this._register(this._workspacePicker.onDidSelectContext(context => {
 			const contextUri = context.uri.toString();
@@ -636,14 +655,23 @@ export class NewChatWidget extends Disposable {
 			return false;
 		}
 
-		const sessionWorkspace = activeSession.workspace.get();
-		const folderUri = sessionWorkspace?.folders[0]?.root;
+		const folderUri = this._syncWorkspacePickerDevContainerMode(activeSession, true, WorkspaceSelectionOrigin.RestoredDraft);
 		if (folderUri) {
-			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
 			this._replaceDraftOnUnservableHarness(folderUri, activeSession);
 		}
 
 		return true;
+	}
+
+	private _syncWorkspacePickerDevContainerMode(activeSession: IActiveSession, persist: boolean, origin: WorkspaceSelectionOrigin): URI | undefined {
+		const folderUri = activeSession.workspace.get()?.folders[0]?.root;
+		if (!folderUri) {
+			return undefined;
+		}
+		const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
+		const preferDevContainer = !!provider && isAgentHostProvider(provider) && provider.isDevContainerEnabled?.(activeSession.sessionId) === true;
+		this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: activeSession.providerId, persist, preferDevContainer, origin });
+		return folderUri;
 	}
 
 	/**
@@ -1183,7 +1211,7 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 		this._preferredDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
-		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId, origin: options?.selectionOrigin });
+		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId, preferDevContainer: options?.preferDevContainer, origin: options?.selectionOrigin });
 		const selection = this._workspacePicker.selectionSnapshot;
 		return selection.state === 'selected' && this.uriIdentityService.extUri.isEqual(selection.folderUri, folderUri) ? 'applied' : 'notReady';
 	}

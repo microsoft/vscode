@@ -24,7 +24,7 @@ import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IWorkspacePickerNoWorkspaceOption } from '../../browser/sessionWorkspacePicker.js';
+import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -114,6 +114,19 @@ const applyPreferredDevContainer = Reflect.get(NewChatWidget.prototype, '_applyP
 	session: ISession | undefined,
 	folderUri: URI,
 ) => void;
+const syncWorkspacePickerDevContainerMode = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerDevContainerMode') as (
+	this: {
+		readonly sessionsProvidersService: {
+			getProvider(providerId: string): { readonly id: string; isDevContainerEnabled?(sessionId: string): boolean } | undefined;
+		};
+		readonly _workspacePicker: {
+			setSelectedWorkspace(folderUri: URI, options: { fireEvent: boolean; providerId: string; persist: boolean; preferDevContainer: boolean; origin: WorkspaceSelectionOrigin }): void;
+		};
+	},
+	activeSession: IActiveSession,
+	persist: boolean,
+	origin: WorkspaceSelectionOrigin,
+) => URI | undefined;
 const scheduleRecreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_scheduleRecreateOnProviderChange') as INewChatWidgetHarness['_scheduleRecreateOnProviderChange'];
 const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as (
 	this: IRecreateHarness,
@@ -568,6 +581,49 @@ suite('NewChatWidget', () => {
 			pendingAfterOtherFolder: folder.toString(),
 			pendingAfterMatch: undefined,
 		});
+	});
+
+	test('resynchronizes Dev Container mode with the selection origin when updating and restoring a draft', () => {
+		const folder = URI.file('/project');
+		let enabled = true;
+		const selections: Array<{ readonly folderUri: string; readonly providerId: string; readonly persist: boolean; readonly preferDevContainer: boolean; readonly origin: WorkspaceSelectionOrigin }> = [];
+		const harness = {
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					isDevContainerEnabled: () => enabled,
+				}),
+			},
+			_workspacePicker: {
+				setSelectedWorkspace: (folderUri: URI, options: { providerId: string; persist: boolean; preferDevContainer: boolean; origin: WorkspaceSelectionOrigin }) => selections.push({
+					folderUri: folderUri.toString(),
+					providerId: options.providerId,
+					persist: options.persist,
+					preferDevContainer: options.preferDevContainer,
+					origin: options.origin,
+				}),
+			},
+		};
+		const activeSession = upcastPartial<IActiveSession>({
+			sessionId: 'draft',
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			workspace: constObservable<ISessionWorkspace | undefined>(upcastPartial<ISessionWorkspace>({
+				uri: folder,
+				label: 'project',
+				folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }],
+			})),
+		});
+
+		syncWorkspacePickerDevContainerMode.call(harness, activeSession, false, WorkspaceSelectionOrigin.SessionSync);
+		enabled = false;
+		syncWorkspacePickerDevContainerMode.call(harness, activeSession, false, WorkspaceSelectionOrigin.SessionSync);
+		syncWorkspacePickerDevContainerMode.call(harness, activeSession, true, WorkspaceSelectionOrigin.RestoredDraft);
+
+		assert.deepStrictEqual(selections, [
+			{ folderUri: folder.toString(), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, persist: false, preferDevContainer: true, origin: WorkspaceSelectionOrigin.SessionSync },
+			{ folderUri: folder.toString(), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, persist: false, preferDevContainer: false, origin: WorkspaceSelectionOrigin.SessionSync },
+			{ folderUri: folder.toString(), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, persist: true, preferDevContainer: false, origin: WorkspaceSelectionOrigin.RestoredDraft },
+		]);
 	});
 
 	test('cancels an in-flight creation and keeps the newer draft ownership', async () => {
@@ -1080,25 +1136,26 @@ suite('NewChatWidget', () => {
 		});
 	}
 
-	test('acknowledges the requested workspace only after the target picker resolves that same folder', () => {
+	test('forwards Dev Container mode and selection origin while acknowledging only the resolved target folder', () => {
 		const folder = URI.file('/requested');
 		let selection: Pick<IWorkspaceSelectionSnapshot, 'folderUri' | 'state'> = { folderUri: folder, state: 'unresolved' };
-		const forwarded: ISelectWorkspaceOptions[] = [];
+		const forwarded: Parameters<WorkspacePicker['setSelectedWorkspace']>[1][] = [];
 		const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
 			uriIdentityService: { extUri },
 			_workspacePicker: {
 				get selectionSnapshot() { return selection; },
-				setSelectedWorkspace: (_folder: URI, options: ISelectWorkspaceOptions) => forwarded.push(options),
+				setSelectedWorkspace: (_folder: URI, options: Parameters<WorkspacePicker['setSelectedWorkspace']>[1]) => forwarded.push(options),
 			},
 		});
-		const results = [widget.selectWorkspace(folder, { providerId: 'provider' })];
+		const options: ISelectWorkspaceOptions = { providerId: 'provider', preferDevContainer: true, selectionOrigin: WorkspaceSelectionOrigin.WindowOpen };
+		const results = [widget.selectWorkspace(folder, options)];
 		selection = { folderUri: URI.file('/unrelated'), state: 'selected' };
-		results.push(widget.selectWorkspace(folder, { providerId: 'provider' }));
+		results.push(widget.selectWorkspace(folder, options));
 		selection = { folderUri: folder, state: 'selected' };
-		results.push(widget.selectWorkspace(folder, { providerId: 'provider' }));
+		results.push(widget.selectWorkspace(folder, options));
 		assert.deepStrictEqual({ results, forwarded }, {
 			results: ['notReady', 'notReady', 'applied'],
-			forwarded: Array.from({ length: 3 }, () => ({ providerId: 'provider', origin: undefined })),
+			forwarded: Array.from({ length: 3 }, () => ({ providerId: 'provider', preferDevContainer: true, origin: WorkspaceSelectionOrigin.WindowOpen })),
 		});
 	});
 });

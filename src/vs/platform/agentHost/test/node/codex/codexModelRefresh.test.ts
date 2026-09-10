@@ -1072,9 +1072,17 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
-	test('uses the reasoning efforts advertised by Copilot models', async () => {
+	test('uses the model configuration advertised by Copilot models', async () => {
 		const model: CCAModel = {
-			billing: { is_premium: true, multiplier: 1, restricted_to: [] },
+			billing: {
+				is_premium: true,
+				multiplier: 1,
+				restricted_to: [],
+				token_prices: {
+					default: { context_max: 272_000, input_price: 1 },
+					long_context: { context_max: 1_000_000, input_price: 2 },
+				},
+			},
 			capabilities: {
 				family: 'gpt-5.6',
 				limits: { max_context_window_tokens: 272_000, max_output_tokens: 32_000, max_prompt_tokens: 240_000 },
@@ -1108,11 +1116,21 @@ suite('CodexAgent model refresh', () => {
 				enum: model.configSchema.properties.thinkingLevel.enum,
 				default: model.configSchema.properties.thinkingLevel.default,
 			},
+			contextSize: model.configSchema?.properties.contextSize && {
+				enum: model.configSchema.properties.contextSize.enum,
+				default: model.configSchema.properties.contextSize.default,
+				labels: model.configSchema.properties.contextSize.enumLabels,
+			},
 		})), [{
 			id: toCodexModelSelectionId('vscode-proxy', 'gpt-5.6-sol'),
 			thinkingLevel: {
 				enum: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
 				default: 'medium',
+			},
+			contextSize: {
+				enum: [272_000, 1_000_000],
+				default: 272_000,
+				labels: ['272K', '1M'],
 			},
 		}]);
 	});

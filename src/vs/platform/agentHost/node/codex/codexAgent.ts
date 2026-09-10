@@ -24,7 +24,8 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
-import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
@@ -1707,29 +1708,30 @@ export class CodexAgent extends Disposable implements IAgent {
 		throw new Error('Codex has no available models.');
 	}
 
-	private _createReasoningEffortConfigSchema(
+	private _createModelConfigSchema(
 		supportedEfforts: readonly { readonly reasoningEffort: string; readonly description?: string }[] | undefined,
 		declaredDefault?: string,
 		modelId?: string,
+		billing?: ICAPIModelBilling,
 	): ConfigSchema | undefined {
-		if (!supportedEfforts?.length) {
-			return undefined;
+		const properties: ConfigSchema['properties'] = {};
+		if (supportedEfforts?.length) {
+			const efforts = supportedEfforts.map(option => option.reasoningEffort);
+			properties[CODEX_THINKING_LEVEL_KEY] = {
+				type: 'string',
+				title: localize('codex.modelThinkingLevel.title', "Thinking Level"),
+				description: localize('codex.modelThinkingLevel.description', "Controls how much reasoning effort Codex uses."),
+				default: resolveDefaultReasoningEffort(efforts, declaredDefault, modelId),
+				enum: efforts,
+				enumLabels: efforts.map(getReasoningEffortLabel),
+				enumDescriptions: supportedEfforts.map(option => option.description || getReasoningEffortDescription(option.reasoningEffort) || ''),
+			};
 		}
-		const efforts = supportedEfforts.map(option => option.reasoningEffort);
-		return {
-			type: 'object',
-			properties: {
-				[CODEX_THINKING_LEVEL_KEY]: {
-					type: 'string',
-					title: localize('codex.modelThinkingLevel.title', "Thinking Level"),
-					description: localize('codex.modelThinkingLevel.description', "Controls how much reasoning effort Codex uses."),
-					default: resolveDefaultReasoningEffort(efforts, declaredDefault, modelId),
-					enum: efforts,
-					enumLabels: efforts.map(getReasoningEffortLabel),
-					enumDescriptions: supportedEfforts.map(option => option.description || getReasoningEffortDescription(option.reasoningEffort) || ''),
-				},
-			},
-		};
+		const contextSize = createContextSizeConfigSchemaProperty(billing);
+		if (contextSize) {
+			properties[ContextSizeConfigKey] = contextSize;
+		}
+		return Object.keys(properties).length > 0 ? { type: 'object', properties } : undefined;
 	}
 
 	private _getReasoningEffort(session: ICodexSession, configResource: URI): ReasoningEffort | undefined {
@@ -1739,6 +1741,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const config = this._configurationService.getSessionConfigValues(configResource.toString());
 		return narrowReasoningEffort(config?.[CodexSessionConfigKey.ModelReasoningEffort]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ModelReasoningEffort];
+	}
+
+	private _modelContextConfigOverrides(model: ModelSelection | undefined): Record<string, JsonValue> {
+		const contextSize = getModelContextSize(model);
+		const offeredSizes = model
+			? this._models.get().find(candidate => candidate.id === model.id)?.configSchema?.properties[ContextSizeConfigKey]?.enum
+			: undefined;
+		return contextSize !== undefined && offeredSizes?.includes(contextSize)
+			? { model_context_window: contextSize }
+			: {};
 	}
 
 	private _readSessionConfig(configResource: URI): ReturnType<typeof codexSessionConfigSchema.validateOrDefault> {
@@ -2022,30 +2034,34 @@ export class CodexAgent extends Disposable implements IAgent {
 			const models = all
 				.filter(isCodexCompatibleCopilotModel)
 				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
-				.map((m): IAgentModelInfo => ({
-					provider: CODEX_AGENT_PROVIDER_ID,
-					id: toCodexModelSelectionId(CODEX_COPILOT_MODEL_PROVIDER, m.id),
-					name: m.name ?? m.id,
-					maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
-					maxOutputTokens: m.capabilities?.limits?.max_output_tokens,
-					maxPromptTokens: m.capabilities?.limits?.max_prompt_tokens,
-					supportsVision: !!m.capabilities?.supports?.vision,
-					configSchema: this._createReasoningEffortConfigSchema(
-						(m.capabilities?.supports as { readonly reasoning_effort?: readonly string[] } | undefined)?.reasoning_effort?.map(reasoningEffort => ({ reasoningEffort })),
-						undefined,
-						m.id,
-					),
-					policyState: m.policy?.state as PolicyState | undefined,
-					_meta: {
-						...createPricingMetaFromBilling(
-							normalizeCAPIBilling(m.billing),
-							typeof m.model_picker_price_category === 'string'
-								? m.model_picker_price_category
-								: undefined,
+				.map((m): IAgentModelInfo => {
+					const billing = normalizeCAPIBilling(m.billing);
+					return {
+						provider: CODEX_AGENT_PROVIDER_ID,
+						id: toCodexModelSelectionId(CODEX_COPILOT_MODEL_PROVIDER, m.id),
+						name: m.name ?? m.id,
+						maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
+						maxOutputTokens: m.capabilities?.limits?.max_output_tokens,
+						maxPromptTokens: m.capabilities?.limits?.max_prompt_tokens,
+						supportsVision: !!m.capabilities?.supports?.vision,
+						configSchema: this._createModelConfigSchema(
+							(m.capabilities?.supports as { readonly reasoning_effort?: readonly string[] } | undefined)?.reasoning_effort?.map(reasoningEffort => ({ reasoningEffort })),
+							undefined,
+							m.id,
+							billing,
 						),
-						...createAgentModelGroupMeta(CODEX_COPILOT_MODEL_GROUP),
-					},
-				}));
+						policyState: m.policy?.state as PolicyState | undefined,
+						_meta: {
+							...createPricingMetaFromBilling(
+								billing,
+								typeof m.model_picker_price_category === 'string'
+									? m.model_picker_price_category
+									: undefined,
+							),
+							...createAgentModelGroupMeta(CODEX_COPILOT_MODEL_GROUP),
+						},
+					};
+				});
 			this._copilotModels = models;
 			return undefined;
 		} catch (err) {
@@ -2109,7 +2125,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					id: toCodexModelSelectionId(modelProvider, model.model),
 					name: model.displayName,
 					supportsVision: model.inputModalities.includes('image'),
-					configSchema: this._createReasoningEffortConfigSchema(model.supportedReasoningEfforts, model.defaultReasoningEffort, model.model),
+					configSchema: this._createModelConfigSchema(model.supportedReasoningEfforts, model.defaultReasoningEffort, model.model),
 					_meta: {
 						...createAgentModelSourceMeta(usesChatGPTSubscription ? CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID : undefined),
 						...createAgentModelGroupMeta(pickerProvider),
@@ -2739,7 +2755,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				if (!chatChannel) {
 					return { result: this._toolFailure(`No chat channel for server tool ${params.tool}`) };
 				}
-				if (host.requiresConfirmation(chatChannel, params.tool)) {
+				const { approvalPolicy, sandboxMode } = this._resolveSessionPermissions(session.configurationResource);
+				const fullAccess = !session.agentMergeTurn && approvalPolicy === 'never' && sandboxMode === 'danger-full-access';
+				if (host.requiresConfirmation(chatChannel, params.tool) && !fullAccess) {
 					const entry = session.mapState.itemToToolCall.get(params.callId);
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
@@ -4746,6 +4764,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const dynamicTools = this._buildDynamicTools(scratch);
 			const threadConfig: Record<string, JsonValue> = {
 				web_search: narrowWebSearchMode(validatedConfig[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
+				...this._modelContextConfigOverrides(model),
 				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 			};
 			if (Object.keys(mcpServers).length > 0) {
@@ -5124,6 +5143,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				} : {}),
 				...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
 				config: {
+					...this._modelContextConfigOverrides(model),
 					[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 					'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 				},
@@ -5348,6 +5368,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const threadConfig: Record<string, JsonValue> = {
 			web_search: narrowWebSearchMode(config[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
 			...customizationLaunch.config,
+			...this._modelContextConfigOverrides(model),
 			[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 			'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
 		};
@@ -6184,11 +6205,18 @@ export class CodexAgent extends Disposable implements IAgent {
 			await this._metadataStore.write(sessionUri, { modelId: supported.id });
 			return;
 		}
+		const previousContextSize = getModelContextSize(session.model);
+		const nextContextSize = getModelContextSize(supported);
 		const previousProvider = session.materializedModelProvider ?? (session.model ? parseCodexModelSelection(session.model).modelProvider : undefined);
 		const nextProvider = parseCodexModelSelection(supported).modelProvider;
 		session.model = supported;
 		if (previousProvider !== undefined && previousProvider !== nextProvider) {
 			await this._resetSessionForModelProviderChange(session, nextProvider);
+		} else if (session.threadId !== undefined && previousContextSize !== nextContextSize) {
+			// Context-window overrides are launch configuration rather than a
+			// turn setting. Reload before the next turn so app-server applies the
+			// new compaction boundary without losing the thread's history.
+			this._markSessionForReload(session);
 		}
 		await this._persistSessionModel(session);
 		this._persistMaterializedSession(session);
@@ -6421,7 +6449,7 @@ export class CodexAgent extends Disposable implements IAgent {
 							threadId,
 							mcpServers,
 							runtimeWorkspaceRoots,
-							customizationLaunch.config,
+							{ ...customizationLaunch.config, ...this._modelContextConfigOverrides(session.model) },
 							customizationLaunch.developerInstructions,
 							this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
 							{ approvalPolicy, approvalsReviewer: resolvedPermissions.approvalsReviewer, permissions },

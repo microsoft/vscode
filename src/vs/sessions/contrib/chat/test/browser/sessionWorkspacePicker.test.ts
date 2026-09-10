@@ -92,6 +92,9 @@ function createMockProvider(id: string, opts?: {
 	remoteAddress?: string;
 	getSessions?: () => ISession[];
 	onDidChangeSessions?: Event<ISessionChangeEvent>;
+	group?: string;
+	onDidChangeDevContainerAvailability?: Event<void>;
+	isDevContainerWorkspaceAvailable?: (workspaceUri: URI) => Promise<boolean>;
 }): ISessionsProvider {
 	const pathPrefix = MOCK_PROVIDER_PATH_PREFIXES[id];
 	const canResolve = (uri: URI) => !pathPrefix || uri.path === pathPrefix || uri.path.startsWith(`${pathPrefix}/`);
@@ -111,6 +114,7 @@ function createMockProvider(id: string, opts?: {
 				uri,
 				label: uri.path.substring(1) || uri.path,
 				icon: Codicon.folder,
+				group: opts?.group,
 				folders: [{
 					root: uri,
 					workingDirectory: uri,
@@ -145,7 +149,7 @@ function createMockProvider(id: string, opts?: {
 		createSideChat: async () => { throw new Error('Not implemented'); },
 		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },
 	};
-	if (opts?.connectionStatus) {
+	if (opts?.connectionStatus || opts?.isDevContainerWorkspaceAvailable || opts?.onDidChangeDevContainerAvailability) {
 		return {
 			...base,
 			canConnectOnDemand: opts.canConnectOnDemand,
@@ -153,6 +157,8 @@ function createMockProvider(id: string, opts?: {
 			connectionStatus: opts.connectionStatus,
 			onDidReportConnectProgress: opts.onDidReportConnectProgress,
 			remoteAddress: opts.remoteAddress,
+			onDidChangeDevContainerAvailability: opts.onDidChangeDevContainerAvailability,
+			isDevContainerWorkspaceAvailable: opts.isDevContainerWorkspaceAvailable,
 			onDidChangeSessionConfig: Event.None,
 			getSessionConfig: () => undefined,
 			setSessionConfigValue: async () => { },
@@ -311,6 +317,7 @@ function createTestPicker(
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
 	options?: IWorkspacePickerOptions,
 	fileService: IFileService = upcastPartial<IFileService>({
+		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
 		hasProvider: () => true,
 		exists: async () => true,
@@ -335,7 +342,10 @@ function createTestPicker(
 	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 	instantiationService.stub(IFileDialogService, fileDialogService);
 	instantiationService.stub(IDialogService, dialogService);
-	instantiationService.stub(IFileService, fileService);
+	instantiationService.stub(IFileService, upcastPartial<IFileService>({
+		...fileService,
+		onDidFilesChange: fileService.onDidFilesChange ?? Event.None,
+	}));
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IMenuService, {
 		createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }),
@@ -509,6 +519,212 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ label: 'Provider agenthost-ssh', icon: Codicon.remote.id },
 				{ label: 'Provider agenthost-wsl', icon: Codicon.remote.id },
 			],
+		});
+	});
+
+	test('offers Dev Container execution from a local folder submenu and updates the trigger label', async () => {
+		const folderUri = URI.file('/agent-host/project');
+		const unavailableFolderUri = URI.file('/agent-host/without-config');
+		const provider = createMockProvider('local-agent-host', {
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			isDevContainerWorkspaceAvailable: async workspaceUri => extUri.isEqual(workspaceUri, folderUri),
+		});
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [
+			{ uri: folderUri, providerId: provider.id, checked: false },
+			{ uri: unavailableFolderUri, providerId: provider.id, checked: false },
+		]);
+		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, {
+			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+		} as unknown as IWorkspacesService);
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			storage,
+			undefined,
+			TestablePicker,
+			undefined,
+			undefined,
+			recentWorkspacesService,
+			{ restoreFromSessions: false },
+		) as TestablePicker;
+		const container = document.createElement('div');
+		picker.render(container);
+		const selectedModes: Array<{ readonly folderUri: string; readonly preferDevContainer: boolean }> = [];
+		disposables.add(picker.onDidSelectWorkspaceMode(mode => selectedModes.push({
+			folderUri: mode.folderUri.toString(),
+			preferDevContainer: mode.preferDevContainer,
+		})));
+
+		picker.getItems();
+		await timeout(0);
+		const initialFolderItem = picker.getItems().find(item => item.label === 'agent-host/project');
+		const initialSubmenu = initialFolderItem?.submenuActions?.[0];
+		await picker.selectSubmenu('agent-host/project', 'Use Dev Container');
+
+		const devContainerFolderItem = picker.getItems().find(item => item.label === 'agent-host/project');
+		const devContainerSubmenu = devContainerFolderItem?.submenuActions?.[0];
+		const devContainerLabel = container.querySelector('.sessions-chat-dropdown-label')?.textContent;
+		const devContainerAriaLabel = container.querySelector('.action-label')?.getAttribute('aria-label');
+		await picker.selectSubmenu('agent-host/project', 'Use Local');
+
+		assert.deepStrictEqual({
+			initialSubmenu: initialSubmenu instanceof SubmenuAction ? initialSubmenu.actions.map(action => ({
+				label: action.label,
+				tooltip: action.tooltip,
+				checked: action.checked,
+			})) : undefined,
+			devContainerSubmenu: devContainerSubmenu instanceof SubmenuAction ? devContainerSubmenu.actions.map(action => ({
+				label: action.label,
+				checked: action.checked,
+			})) : undefined,
+			unavailableFolderHasSubmenu: picker.getItems().find(item => item.label === 'agent-host/without-config')?.submenuActions !== undefined,
+			selectedModes,
+			devContainerLabel,
+			devContainerAriaLabel,
+			triggerLabel: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			triggerAriaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
+		}, {
+			initialSubmenu: [
+				{ label: 'Use Local', tooltip: '', checked: true },
+				{ label: 'Use Dev Container', tooltip: '', checked: false },
+			],
+			devContainerSubmenu: [
+				{ label: 'Use Local', checked: false },
+				{ label: 'Use Dev Container', checked: true },
+			],
+			unavailableFolderHasSubmenu: false,
+			selectedModes: [
+				{ folderUri: folderUri.toString(), preferDevContainer: true },
+				{ folderUri: folderUri.toString(), preferDevContainer: false },
+			],
+			devContainerLabel: 'agent-host/project - Dev Container',
+			devContainerAriaLabel: 'New session in agent-host/project - Dev Container',
+			triggerLabel: 'agent-host/project',
+			triggerAriaLabel: 'New session in agent-host/project',
+		});
+	});
+
+	test('offers Dev Container execution through a capable provider when the recent provider differs', async () => {
+		const folderUri = URI.file('/agent-host/project');
+		const agentHostProvider = createMockProvider('local-agent-host', {
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			isDevContainerWorkspaceAvailable: async workspaceUri => extUri.isEqual(workspaceUri, folderUri),
+		});
+		const recentProvider = {
+			...createMockProvider('default-copilot'),
+			resolveWorkspace: (uri: URI) => agentHostProvider.resolveWorkspace(uri),
+		};
+		providersService.setProviders([recentProvider, agentHostProvider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: folderUri, providerId: recentProvider.id, checked: false }]);
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, storage);
+
+		picker.getItems();
+		await timeout(0);
+		const folderItem = picker.getItems().find(item => item.label === 'agent-host/project');
+		const submenu = folderItem?.submenuActions?.[0];
+
+		assert.deepStrictEqual({
+			providerId: folderItem?.item?.providerId,
+			submenu: submenu instanceof SubmenuAction ? submenu.actions.map(action => action.label) : undefined,
+		}, {
+			providerId: recentProvider.id,
+			submenu: ['Use Local', 'Use Dev Container'],
+		});
+	});
+
+	test('caches Dev Container availability across picker opens and invalidates when connector availability changes', async () => {
+		const folderUri = URI.file('/agent-host/project');
+		let available = true;
+		let availabilityChecks = 0;
+		const onDidChangeDevContainerAvailability = disposables.add(new Emitter<void>());
+		const provider = createMockProvider('local-agent-host', {
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			onDidChangeDevContainerAvailability: onDidChangeDevContainerAvailability.event,
+			isDevContainerWorkspaceAvailable: async () => {
+				availabilityChecks++;
+				return available;
+			},
+		});
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: folderUri, providerId: provider.id, checked: false }]);
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, storage);
+		const container = document.createElement('div');
+		picker.render(container);
+
+		picker.showPicker();
+		await timeout(0);
+		const initiallyAvailable = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
+		available = false;
+		picker.showPicker();
+		picker.showPicker();
+		await timeout(0);
+		const availableAfterReopen = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
+		onDidChangeDevContainerAvailability.fire();
+		picker.getItems();
+		await timeout(0);
+		const availableAfterConnectorChange = picker.getItems().find(item => item.label === 'agent-host/project')?.submenuActions !== undefined;
+
+		assert.deepStrictEqual({
+			availabilityChecks,
+			initiallyAvailable,
+			availableAfterReopen,
+			availableAfterConnectorChange,
+		}, {
+			availabilityChecks: 2,
+			initiallyAvailable: true,
+			availableAfterReopen: true,
+			availableAfterConnectorChange: false,
+		});
+	});
+
+	test('limits concurrent Dev Container availability checks', async () => {
+		let activeChecks = 0;
+		let maximumActiveChecks = 0;
+		let availabilityChecks = 0;
+		const pendingChecks: Array<() => void> = [];
+		const provider = createMockProvider('local-agent-host', {
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			isDevContainerWorkspaceAvailable: async () => {
+				availabilityChecks++;
+				activeChecks++;
+				maximumActiveChecks = Math.max(maximumActiveChecks, activeChecks);
+				await new Promise<void>(resolve => pendingChecks.push(resolve));
+				activeChecks--;
+				return false;
+			},
+		});
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, Array.from({ length: 8 }, (_, index) => ({
+			uri: URI.file(`/agent-host/project-${index}`),
+			providerId: provider.id,
+			checked: false,
+		})));
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, storage);
+
+		picker.getItems();
+		const initiallyStarted = availabilityChecks;
+		pendingChecks.splice(0).forEach(resolve => resolve());
+		await timeout(0);
+		const eventuallyStarted = availabilityChecks;
+		pendingChecks.splice(0).forEach(resolve => resolve());
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			initiallyStarted,
+			eventuallyStarted,
+			maximumActiveChecks,
+			activeChecks,
+		}, {
+			initiallyStarted: 4,
+			eventuallyStarted: 8,
+			maximumActiveChecks: 4,
+			activeChecks: 0,
 		});
 	});
 
@@ -1383,7 +1599,7 @@ suite('WorkspacePicker - Selection diagnostics', () => {
 		});
 	});
 
-	test('same-folder draft synchronization preserves the original selection origin', async () => {
+	test('same-folder draft synchronization preserves the origin while updating Dev Container mode', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		providersService.setProviders([createMockProvider('local-1')]);
 		const folderUri = URI.file('/local/recent');
@@ -1394,21 +1610,29 @@ suite('WorkspacePicker - Selection diagnostics', () => {
 		});
 		const recents = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
 		const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recents);
+		const container = document.createElement('div');
+		picker.render(container);
 		const origins = [picker.selectionSnapshot.origin];
 
-		picker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
+		picker.setSelectedWorkspace(folderUri, { fireEvent: false, preferDevContainer: true, origin: WorkspaceSelectionOrigin.RestoredDraft });
 		origins.push(picker.selectionSnapshot.origin);
+		const devContainerLabel = container.querySelector('.sessions-chat-dropdown-label')?.textContent;
 		picker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync });
 		origins.push(picker.selectionSnapshot.origin);
+		const localLabel = container.querySelector('.sessions-chat-dropdown-label')?.textContent;
 		picker.setSelectedWorkspace(URI.file('/local/restored'), { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
 		origins.push(picker.selectionSnapshot.origin);
 
 		assert.deepStrictEqual({
 			origins,
+			devContainerLabel,
+			localLabel,
 			legacySource: picker.preselectionSource,
 			selected: picker.selectedFolderUri?.path,
 		}, {
 			origins: [WorkspaceSelectionOrigin.VSCodeRecent, WorkspaceSelectionOrigin.VSCodeRecent, WorkspaceSelectionOrigin.VSCodeRecent, WorkspaceSelectionOrigin.RestoredDraft],
+			devContainerLabel: 'local/recent - Dev Container',
+			localLabel: 'local/recent',
 			legacySource: NewSessionWorkspacePreselectionSource.ProvidedWorkspace,
 			selected: '/local/restored',
 		});
@@ -3666,6 +3890,7 @@ function createTestablePicker(
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, new TestDialogService());
 	instantiationService.stub(IFileService, upcastPartial<IFileService>({
+		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
 		hasProvider: () => true,
 		exists: async () => true,
@@ -4603,6 +4828,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		instantiationService.stub(IFileDialogService, {});
 		instantiationService.stub(IDialogService, new TestDialogService());
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({
+			onDidFilesChange: Event.None,
 			onDidChangeFileSystemProviderRegistrations: Event.None,
 			hasProvider: () => true,
 			exists: async () => true,

@@ -30,9 +30,10 @@ import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution } from '../../../node/agentHostCustomizationEnablementService.js';
@@ -51,6 +52,7 @@ import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
+import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
@@ -80,8 +82,9 @@ interface ITestWireRequest {
 		readonly extraRoots?: readonly string[];
 		readonly permissions?: string;
 		readonly config?: Record<string, unknown>;
+		readonly effort?: string;
 		readonly developerInstructions?: string;
-		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
+		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null; readonly reasoning_effort?: string | null } };
 	};
 }
 
@@ -1921,6 +1924,70 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
+	test('applies context size and thinking level to new and resumed threads', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const baseModel = agent.models.get()[0];
+		agent['_models'].set([{
+			...baseModel,
+			configSchema: {
+				type: 'object',
+				properties: {
+					thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'], default: 'low' },
+					contextSize: { type: 'number', title: 'Context Size', enum: [272_000, 1_000_000], default: 272_000 },
+				},
+			},
+		}], undefined);
+
+		const folder = URI.file('/repo/context-size');
+		const longContextModel = { id: COPILOT_TEST_MODEL, config: { thinkingLevel: 'low', contextSize: 1_000_000 } };
+		const created = await createSession(agent, { workingDirectories: [folder], model: longContextModel });
+		const chat = defaultChatOf(created.session);
+		const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+		const materializing = agent['_materializeIfNeeded'](entry, created.session, false);
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'context-size-thread', cwd: folder.fsPath } } });
+		await materializing;
+
+		await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL, config: { thinkingLevel: 'high', contextSize: 272_000 } }, chatContext(created.session, chat));
+		const sending = agent.chats.sendMessage(chat, 'use the shorter window', [folder], undefined, 'turn-1', undefined, undefined, chatContext(created.session, chat));
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: 'context-size-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			start: { method: start.method, contextSize: start.params.config?.model_context_window },
+			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+			resume: { method: resume.method, contextSize: resume.params.config?.model_context_window },
+			turn: {
+				method: turn.method,
+				thinkingLevel: turn.params.effort,
+				collaborationThinkingLevel: turn.params.collaborationMode?.settings.reasoning_effort,
+			},
+		}, {
+			start: { method: 'thread/start', contextSize: 1_000_000 },
+			unsubscribe: { method: 'thread/unsubscribe', threadId: 'context-size-thread' },
+			resume: { method: 'thread/resume', contextSize: 272_000 },
+			turn: { method: 'turn/start', thinkingLevel: 'high', collaborationThinkingLevel: 'high' },
+		});
+		peer.exit();
+	});
+
 	test('routes provider-qualified models independently and switches one session', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
@@ -3087,6 +3154,81 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 		entry.managedWorkingDirectory = undefined;
 	});
+
+	const serverToolApprovalCases: readonly {
+		readonly name: string;
+		readonly config: Readonly<Record<string, string>>;
+		readonly requiresConfirmation: boolean;
+		readonly agentMergeTurn?: boolean;
+		readonly approved?: boolean;
+	}[] = [
+			{ name: 'full-access preset', config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' }, requiresConfirmation: false },
+			{ name: 'legacy full-access permissions', config: { [CodexSessionConfigKey.ApprovalPolicy]: 'never', [CodexSessionConfigKey.SandboxMode]: 'danger-full-access' }, requiresConfirmation: false },
+			{ name: 'default permissions', config: {}, requiresConfirmation: true },
+			{ name: 'auto-review preset', config: { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' }, requiresConfirmation: true },
+			{ name: 'never with read-only sandbox', config: { [CodexSessionConfigKey.ApprovalPolicy]: 'never', [CodexSessionConfigKey.SandboxMode]: 'read-only' }, requiresConfirmation: true },
+			{ name: 'never with workspace-write sandbox', config: { [CodexSessionConfigKey.ApprovalPolicy]: 'never', [CodexSessionConfigKey.SandboxMode]: 'workspace-write' }, requiresConfirmation: true },
+			{ name: 'Agent Merge with full access', config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' }, requiresConfirmation: true, agentMergeTurn: true },
+			{ name: 'denied default approval', config: {}, requiresConfirmation: true, approved: false },
+		];
+
+	for (const scenario of serverToolApprovalCases) {
+		test(`workspace-less server tool approval honors ${scenario.name}`, async () => {
+			const agent = await createAgent(disposables, { sessionConfig: scenario.config });
+			const tool = sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SetWorkspace)!;
+			const executions: { readonly chatUri: string; readonly toolName: string }[] = [];
+			agent.setServerToolHost({
+				definitions: [tool],
+				toolNames: [tool.name],
+				advertise: () => { },
+				getDefinitionsForSession: () => [tool],
+				canRequireConfirmation: sessionToolRequiresConfirmation,
+				requiresConfirmation: (_chatUri, toolName) => sessionToolRequiresConfirmation(toolName),
+				executeTool: (chatUri, toolName) => {
+					executions.push({ chatUri, toolName });
+					return 'Workspace change scheduled';
+				},
+			});
+			const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'server-tool-thread';
+			entry.agentMergeTurn = scenario.agentMergeTurn;
+			agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+			entry.mapState.itemToToolCall.set('call-1', { toolCallId: 'tool-1', turnId: 'turn-1', toolName: tool.name, output: '' });
+			const confirmations: StringOrMarkdown[] = [];
+			const executionsBeforeApproval: number[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallReady && signal.action.confirmationTitle) {
+					confirmations.push(signal.action.confirmationTitle);
+					executionsBeforeApproval.push(executions.length);
+					agent.respondToPermissionRequest(signal.action.toolCallId, scenario.approved !== false);
+				}
+			}));
+
+			const response = await agent['_handleDynamicToolCallRpc']({
+				threadId: entry.threadId,
+				turnId: 'turn-1',
+				callId: 'call-1',
+				namespace: null,
+				tool: tool.name,
+				arguments: { workspaceFolder: '/workspace/app', isolation: true },
+			});
+
+			assert.deepStrictEqual({
+				confirmations,
+				executionsBeforeApproval,
+				executions,
+				success: response.result?.success,
+				approvalPending: entry.pendingCommandApprovals.has('tool-1'),
+			}, {
+				confirmations: scenario.requiresConfirmation ? ['Continue in app?'] : [],
+				executionsBeforeApproval: scenario.requiresConfirmation ? [0] : [],
+				executions: scenario.approved === false ? [] : [{ chatUri: defaultChatOf(session).toString(), toolName: tool.name }],
+				success: scenario.approved !== false,
+				approvalPending: false,
+			});
+		});
+	}
 
 	test('conversion releases scratch ownership only after confirmation and forks in the attached workspace', async () => {
 		const database = new TestSessionDatabase();

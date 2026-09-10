@@ -198,6 +198,56 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(title?.textContent?.includes('details'), 'content should be rendered');
 		});
 
+		test('option labels inherit the selected row foreground', () => {
+			const root = mainWindow.document.createElement('div');
+			store.add(toDisposable(() => root.remove()));
+			root.className = 'monaco-workbench vs';
+			root.style.setProperty('--vscode-foreground', '#3B3B3B');
+			root.style.setProperty('--vscode-list-activeSelectionForeground', '#FFFFFF');
+			root.style.setProperty('--vscode-list-inactiveSelectionBackground', '#E4E6F1');
+			root.style.setProperty('--vscode-list-hoverBackground', '#F2F2F2');
+
+			const container = mainWindow.document.createElement('div');
+			container.className = 'interactive-session';
+			root.appendChild(container);
+			mainWindow.document.body.appendChild(root);
+
+			const carousel = createMockCarousel([{
+				id: 'q1',
+				type: 'singleSelect',
+				title: 'Choose one',
+				defaultValue: 'a',
+				options: [{ id: 'a', label: 'Option A - Recommended', value: 'a' }]
+			}]);
+			createWidget(carousel, undefined, container);
+
+			const item = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
+			const label = item.querySelector('.chat-question-list-label') as HTMLElement;
+			const title = item.querySelector('.chat-question-list-label-title') as HTMLElement;
+			const getForegrounds = () => ({
+				item: getWindow(item).getComputedStyle(item).color,
+				label: getWindow(label).getComputedStyle(label).color,
+				title: getWindow(title).getComputedStyle(title).color,
+			});
+
+			const inactive = getForegrounds();
+			item.style.color = 'var(--vscode-list-activeSelectionForeground)';
+			const active = getForegrounds();
+
+			assert.deepStrictEqual({ inactive, active }, {
+				inactive: {
+					item: 'rgb(59, 59, 59)',
+					label: 'rgb(59, 59, 59)',
+					title: 'rgb(59, 59, 59)',
+				},
+				active: {
+					item: 'rgb(255, 255, 255)',
+					label: 'rgb(255, 255, 255)',
+					title: 'rgb(255, 255, 255)',
+				},
+			});
+		});
+
 		test('renders progress indicator correctly', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1', message: 'Question 1' },

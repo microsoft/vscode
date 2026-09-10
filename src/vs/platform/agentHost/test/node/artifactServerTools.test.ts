@@ -127,7 +127,7 @@ suite('Artifact Server Tools', () => {
 		let persistCalls = 0;
 		const group = createArtifactServerToolGroup({
 			isEnabled: () => true,
-			persist: () => persistCalls++,
+			persist: () => { persistCalls++; },
 		});
 
 		const result = await group.execute(stateManager, { sessionUri, chatUri: buildDefaultChatUri(sessionUri), turnId: 'turn-1' }, ArtifactServerToolName.AddArtifactOrReference, {
@@ -167,7 +167,7 @@ suite('Artifact Server Tools', () => {
 		let persisted = false;
 		const group = createArtifactServerToolGroup({
 			isEnabled: () => true,
-			persist: () => persisted = true,
+			persist: () => { persisted = true; },
 		});
 
 		let errorMessage: string | undefined;

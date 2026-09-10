@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toAction } from '../../../../../base/common/actions.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -105,5 +106,40 @@ suite('SessionPullRequestPillData', () => {
 		const data = createSessionPullRequestPillData(sections, createVisibility(storageService));
 
 		assert.strictEqual(data.getContextMenuActions()[0].checked, true);
+	});
+
+	test('offers removal in dropdown rows or the single visible PR context menu', async () => {
+		const visibility = createVisibility();
+		const removed: string[] = [];
+		const copyAction = toAction({ id: 'copy', label: 'Copy', run: () => { } });
+		const removeAction = toAction({ id: 'remove', label: 'Remove', run: () => { removed.push('open'); } });
+		const input = observableValue<readonly IChatPullRequestPillSection[]>('pullRequests', [{
+			title: 'Pull Requests',
+			entries: [
+				{ id: 'open', label: 'Open', pullRequestState: 'open', toolbarActions: [copyAction], removeAction, open: () => { } },
+				{ id: 'closed', label: 'Closed', pullRequestState: 'closed', open: () => { } },
+			],
+		}]);
+		const data = createSessionPullRequestPillData(input, visibility);
+		const read = () => ({
+			toolbars: data.sections.get().flatMap(section => section.entries.map(entry => entry.toolbarActions?.map(action => action.id) ?? [])),
+			contextMenu: data.getContextMenuPrimaryActions().map(action => action.id),
+		});
+		const multiple = read();
+		visibility.setShowAll(false);
+		const singleVisible = read();
+		await data.getContextMenuPrimaryActions()[0].run();
+		input.set([{ title: 'Pull Requests', entries: [input.get()[0].entries[0]] }], undefined);
+		visibility.setShowAll(true);
+		const singleRemaining = read();
+		input.set([], undefined);
+
+		assert.deepStrictEqual({ multiple, singleVisible, singleRemaining, empty: read(), removed }, {
+			multiple: { toolbars: [['copy', 'remove'], []], contextMenu: [] },
+			singleVisible: { toolbars: [['copy']], contextMenu: ['remove'] },
+			singleRemaining: { toolbars: [['copy']], contextMenu: ['remove'] },
+			empty: { toolbars: [], contextMenu: [] },
+			removed: ['open'],
+		});
 	});
 });
