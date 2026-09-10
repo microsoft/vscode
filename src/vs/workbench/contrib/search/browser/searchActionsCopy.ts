@@ -15,6 +15,7 @@ import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { RenderableMatch, ISearchTreeMatch, isSearchTreeMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
+import { relativePath } from '../../../../base/common/resources.js';
 
 //#region Actions
 registerAction2(class CopyMatchCommandAction extends Action2 {
@@ -162,14 +163,16 @@ async function copyMatchCommand(accessor: ServicesAccessor, match: RenderableMat
 
 	const clipboardService = accessor.get(IClipboardService);
 	const labelService = accessor.get(ILabelService);
+	const viewsService = accessor.get(IViewsService);
+	const isTree = getSearchView(viewsService)?.isTreeLayoutViewVisible ?? false;
 
 	let text: string | undefined;
 	if (isSearchTreeMatch(match)) {
 		text = matchToString(match);
 	} else if (isSearchTreeFileMatch(match)) {
-		text = fileMatchToString(match, labelService).text;
+		text = fileMatchToString(match, labelService, isTree).text;
 	} else if (isSearchTreeFolderMatch(match)) {
-		text = folderMatchToString(match, labelService).text;
+		text = folderMatchToString(match, labelService, isTree).text;
 	}
 
 	if (text) {
@@ -191,7 +194,7 @@ async function copyAllCommand(accessor: ServicesAccessor, match: RenderableMatch
 			match = getSelectedRow(accessor);
 		}
 
-		const text = allFolderMatchesToString(root.folderMatches(isAISearchElement), labelService);
+		const text = allFolderMatchesToString(root.folderMatches(isAISearchElement), labelService, searchView.isTreeLayoutViewVisible);
 		await clipboardService.writeText(text);
 	}
 }
@@ -223,48 +226,74 @@ function matchToString(match: ISearchTreeMatch, indent = 0): string {
 	return formattedLines.join('\n');
 }
 
-function fileFolderMatchToString(match: ISearchTreeFileMatch | ISearchTreeFolderMatch | ISearchTreeFolderMatchWithResource, labelService: ILabelService): { text: string; count: number } {
+function fileFolderMatchToString(match: ISearchTreeFileMatch | ISearchTreeFolderMatch | ISearchTreeFolderMatchWithResource, labelService: ILabelService, isTree: boolean = false, indent: number = 0): { text: string; count: number } {
 	if (isSearchTreeFileMatch(match)) {
-		return fileMatchToString(match, labelService);
+		return fileMatchToString(match, labelService, isTree, indent);
 	} else {
-		return folderMatchToString(match, labelService);
+		return folderMatchToString(match, labelService, isTree, indent);
 	}
 }
 
-function fileMatchToString(fileMatch: ISearchTreeFileMatch, labelService: ILabelService): { text: string; count: number } {
+export function fileMatchToString(fileMatch: ISearchTreeFileMatch, labelService: ILabelService, isTree: boolean = false, indent: number = 0): { text: string; count: number } {
+	const matchIndent = isTree ? indent + 2 : 2;
 	const matchTextRows = fileMatch.matches()
 		.sort(searchMatchComparer)
-		.map(match => matchToString(match, 2));
-	const uriString = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
+		.map(match => matchToString(match, matchIndent));
+
+	let header: string;
+	if (isTree) {
+		// In tree mode, show the file label relative to the nearest folder ancestor with a resource,
+		// matching what the tree view displays. Fall back to basename when no relative path is computable.
+		const parent = fileMatch.parent();
+		const parentResource = isSearchTreeFolderMatchWithResource(parent) ? parent.resource : undefined;
+		const relative = parentResource ? relativePath(parentResource, fileMatch.resource) : undefined;
+		const label = relative ?? fileMatch.name();
+		header = `${' '.repeat(indent)}${label}`;
+	} else {
+		header = labelService.getUriLabel(fileMatch.resource, { noPrefix: true });
+	}
+
 	return {
-		text: `${uriString}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
+		text: `${header}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
 		count: matchTextRows.length
 	};
 }
 
-function folderMatchToString(folderMatch: ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch, labelService: ILabelService): { text: string; count: number } {
+export function folderMatchToString(folderMatch: ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch, labelService: ILabelService, isTree: boolean = false, indent: number = 0): { text: string; count: number } {
 	const results: string[] = [];
 	let numMatches = 0;
 
 	const matches = folderMatch.matches().sort(searchMatchComparer);
+	// In tree mode, indent children under a header line showing this folder's name
+	// (only for nested folders that have a resource; top-level folder headers are handled by allFolderMatchesToString).
+	const childIndent = isTree ? indent + 2 : indent;
 
 	matches.forEach(match => {
-		const result = fileFolderMatchToString(match, labelService);
+		const result = fileFolderMatchToString(match, labelService, isTree, childIndent);
 		numMatches += result.count;
 		results.push(result.text);
 	});
 
+	let text: string;
+	if (isTree && isSearchTreeFolderMatchWithResource(folderMatch) && results.length) {
+		// Emit a header for the nested folder, using basename to match the tree rendering.
+		const header = `${' '.repeat(indent)}${folderMatch.name()}`;
+		text = `${header}${lineDelimiter}${results.join(lineDelimiter)}`;
+	} else {
+		text = results.join(isTree ? lineDelimiter : lineDelimiter + lineDelimiter);
+	}
+
 	return {
-		text: results.join(lineDelimiter + lineDelimiter),
+		text,
 		count: numMatches
 	};
 }
 
-function allFolderMatchesToString(folderMatches: Array<ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch>, labelService: ILabelService): string {
+export function allFolderMatchesToString(folderMatches: Array<ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch>, labelService: ILabelService, isTree: boolean = false): string {
 	const folderResults: string[] = [];
 	folderMatches = folderMatches.sort(searchMatchComparer);
 	for (let i = 0; i < folderMatches.length; i++) {
-		const folderResult = folderMatchToString(folderMatches[i], labelService);
+		const folderResult = folderMatchToString(folderMatches[i], labelService, isTree, 0);
 		if (folderResult.count) {
 			folderResults.push(folderResult.text);
 		}
