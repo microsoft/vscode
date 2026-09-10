@@ -8,7 +8,7 @@ import { Gesture, EventType as TouchEventType } from '../../../../../base/browse
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignal } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -261,7 +261,6 @@ export class PermissionPicker extends Disposable {
 		this._renderDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (this._affectsSandboxToggle(e)) {
 				this._updateTriggerLabel(trigger);
-				this._sandboxDefaultChanged.trigger(undefined);
 			}
 		}));
 
@@ -412,28 +411,40 @@ export class PermissionPicker extends Disposable {
 			},
 			listOptions,
 		);
+		this._pickerDisposables.add(this.watchSandboxToggle(items));
+	}
+
+	watchSandboxToggle<T>(items: readonly IActionListItem<T>[]): IDisposable {
 		const sandboxToggle = items.find(item => item.standaloneToggle)?.standaloneToggle;
 		let previousToggle = sandboxToggle;
-		if (sandboxToggle) {
-			this._pickerDisposables.add(autorun(reader => {
-				this._delegate.managedSandboxEnforced?.read(reader);
-				this._delegate.sandboxEnabled?.read(reader);
-				this._sandboxDefaultChanged.read(reader);
-				this.agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
-				const standaloneToggle = this._getSandboxStandaloneToggle();
-				if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
-					return;
-				}
-				previousToggle = standaloneToggle;
-				const disabled = standaloneToggle?.disabled === true;
-				this.actionWidgetService.updateItems(items.map(item => item.standaloneToggle ? {
-					...item,
-					standaloneToggle,
-					disabled,
-					hover: disabled ? { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } : undefined,
-				} : item));
-			}));
+		if (!sandboxToggle) {
+			return Disposable.None;
 		}
+		const disposables = new DisposableStore();
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (this._affectsSandboxToggle(e)) {
+				this._sandboxDefaultChanged.trigger(undefined);
+			}
+		}));
+		disposables.add(autorun(reader => {
+			this._delegate.managedSandboxEnforced?.read(reader);
+			this._delegate.sandboxEnabled?.read(reader);
+			this._sandboxDefaultChanged.read(reader);
+			this.agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
+			const standaloneToggle = this._getSandboxStandaloneToggle();
+			if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
+				return;
+			}
+			previousToggle = standaloneToggle;
+			const disabled = standaloneToggle?.disabled === true;
+			this.actionWidgetService.updateItems(items.map(item => item.standaloneToggle ? {
+				...item,
+				standaloneToggle,
+				disabled,
+				hover: disabled ? { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } : undefined,
+			} : item));
+		}));
+		return disposables;
 	}
 
 	protected _isResolving(): boolean {
