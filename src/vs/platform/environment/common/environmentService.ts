@@ -282,6 +282,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	get editSessionId(): string | undefined { return this.args['editSessionId']; }
+	set editSessionId(value: string | undefined) { this.args['editSessionId'] = value; }
 
 	get exportPolicyData(): string | undefined {
 		return this.args['export-policy-data'];
