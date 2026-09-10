@@ -375,14 +375,16 @@ suite('CodexAgent createChat', () => {
 		const request = await readNextRequest(peer.outbound);
 		peer.push({ id: request.id, result: {} });
 		peer.push({ method: 'thread/settings/updated', params: { threadId: live.threadId, threadSettings: { cwd: replacementFolder.fsPath } } });
-		await update;
+		const appliedDirectory = await update;
 
 		assert.deepStrictEqual({
+			appliedDirectory: appliedDirectory.toString(),
 			request: { method: request.method, params: request.params },
 			workingDirectory: live.workingDirectory?.toString(),
 			needsResume: live.needsResume,
 			persistedCwd: await sessionStore.databaseFor(session).getMetadata('codex.cwd'),
 		}, {
+			appliedDirectory: replacementFolder.toString(),
 			request: {
 				method: 'thread/settings/update',
 				params: { threadId: 'codex-thread', cwd: replacementFolder.fsPath },
@@ -1598,8 +1600,8 @@ suite('CodexAgent workspace conversion', () => {
 		const { agent, peer, session, chat, scratch } = await createWorkspaceHarness();
 		const requests: string[] = [];
 		peer.outbound.on('data', data => requests.push(String(data)));
-		await agent.setWorkingDirectory(chat, session, scratch);
-		assert.deepStrictEqual(requests, []);
+		const unchangedDirectory = await agent.setWorkingDirectory(chat, session, scratch);
+		assert.deepStrictEqual({ requests, directory: unchangedDirectory.toString() }, { requests: [], directory: scratch.toString() });
 	});
 
 	test('rejects invalid targets and contexts without sending a settings update', async () => {

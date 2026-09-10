@@ -9,10 +9,12 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { hasKey, isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { AgentSession, AgentWorkingDirectoryChangedError, type IAgent, type IAgentSessionProjectInfo } from '../../../common/agent.js';
+import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../../../files/common/files.js';
+import { AgentSession, AgentWorkingDirectoryChangedError, AgentWorkingDirectoryUnconfirmedError, type IAgent, type IAgentSessionProjectInfo } from '../../../common/agent.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../../common/agentHostSchema.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
@@ -23,6 +25,7 @@ import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
+import { createAgentChatContext } from '../../agentChatContext.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { IAgentHostTurnService, type IDeferredAgentHostTurn } from '../../agentHostTurnService.js';
 import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js';
@@ -82,6 +85,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostServerToolService private readonly _serverToolHost: IAgentHostServerToolService,
 		@ILogService private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._register(this._stateManager.onDidRemoveSession(session => {
@@ -172,8 +176,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		let authoritativeWorkingDirectory = resolvedWorkspace.workingDirectory;
 		let providerAlignmentError: AgentWorkingDirectoryChangedError | undefined;
 		try {
-			await provider.setWorkingDirectory(chat, session, resolvedWorkspace.workingDirectory);
+			authoritativeWorkingDirectory = await provider.setWorkingDirectory(chat, createAgentChatContext(this._stateManager, session, chat), resolvedWorkspace.workingDirectory);
 		} catch (error) {
+			if (error instanceof AgentWorkingDirectoryUnconfirmedError) {
+				const disposal = await this._disposeUnsafeProviderChat(provider, chat, session);
+				throw new UnsafeProviderWorkingDirectoryError(`The provider did not confirm its working directory: ${[error, ...disposal.errors].map(error => toErrorMessage(error)).join('; ')}`);
+			}
 			if (!(error instanceof AgentWorkingDirectoryChangedError)) {
 				const cleanupError = resolvedWorkspace.isolated ? await this._removeWorktree(session) : undefined;
 				if (cleanupError) {
@@ -213,7 +221,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			}
 			throw new UnsafeProviderWorkingDirectoryError(`The workspace-less session state changed after the provider working directory changed, so the provider was disposed${finalizationErrors.length > 0 ? `: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}` : ''}`);
 		}
-		const worktreeApplied = resolvedWorkspace.isolated && isEqual(authoritativeWorkingDirectory, resolvedWorkspace.workingDirectory);
+		const worktreeApplied = resolvedWorkspace.isolated && await this._isAppliedWorktree(session, authoritativeWorkingDirectory, resolvedWorkspace.workingDirectory);
 		const worktreeCleanupError = resolvedWorkspace.isolated && !worktreeApplied ? await this._removeWorktree(session) : undefined;
 		const configPatch: Record<string, unknown> = worktreeApplied
 			? {
@@ -282,8 +290,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		});
 		this._updateIsolationConfig(session, finalState.config, configPatch, resolvedWorkspace.isolationConfig, worktreeApplied);
 		this._serverToolHost.advertise(session.toString());
+		if (providerAlignmentError?.requiresQuarantine) {
+			const quarantineError = await this._persistQuarantine(session);
+			throw new UnsafeProviderWorkingDirectoryError(`The working directory changed, but the provider cannot safely restore its conversation: ${toErrorMessage(providerAlignmentError)}${quarantineError ? `; quarantine persistence failed: ${toErrorMessage(quarantineError)}` : ''}`);
+		}
 		try {
-			const customizations = await provider.getChatCustomizations(chat, session);
+			const customizations = await provider.getChatCustomizations(chat, createAgentChatContext(this._stateManager, session, chat));
 			this._stateManager.dispatchServerAction(session.toString(), {
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: [...customizations],
@@ -302,6 +314,26 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			throw new Error(`The workspace changed to '${authoritativeWorkingDirectory.fsPath}', but conversion did not complete cleanly: ${finalizationErrors.map(error => toErrorMessage(error)).join('; ')}`);
 		}
 		return authoritativeWorkingDirectory;
+	}
+
+	private async _isAppliedWorktree(session: URI, applied: URI, requested: URI): Promise<boolean> {
+		if (isEqual(applied, requested)) {
+			return true;
+		}
+		try {
+			const [appliedPath, requestedPath] = await Promise.all([this._fileService.realpath(applied), this._fileService.realpath(requested)]);
+			if (!appliedPath || !requestedPath) {
+				throw new Error('The file system provider could not resolve the worktree paths.');
+			}
+			return isEqual(appliedPath, requestedPath);
+		} catch (error) {
+			if ((error instanceof Error && toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound)
+				|| (isObject(error) && hasKey(error, { code: true }) && error.code === 'ENOENT')) {
+				return false;
+			}
+			const quarantineError = await this._persistQuarantine(session);
+			throw new UnsafeProviderWorkingDirectoryError(`Cannot safely identify the applied worktree after conversion: ${toErrorMessage(error)}${quarantineError ? `; quarantine persistence failed: ${toErrorMessage(quarantineError)}` : ''}`);
+		}
 	}
 
 	private async _requireWorkspaceTrust(required: boolean, clientId: string, workspace: URI, trustedParent?: URI): Promise<void> {
@@ -336,12 +368,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			errors.push(quarantineError);
 		}
 		try {
-			await provider.chats.releaseChat(chat, session);
+			await provider.chats.releaseChat(chat, createAgentChatContext(this._stateManager, session, chat));
 		} catch (error) {
 			errors.push(error);
 		}
 		try {
-			await provider.chats.disposeChat(chat, session);
+			await provider.chats.disposeChat(chat, createAgentChatContext(this._stateManager, session, chat));
 		} catch (error) {
 			errors.push(error);
 		}

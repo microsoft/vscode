@@ -13,7 +13,11 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentWorkingDirectoryChangedError, type IAgent } from '../../common/agent.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { AgentWorkingDirectoryChangedError, AgentWorkingDirectoryUnconfirmedError, type IAgent } from '../../common/agent.js';
 import type { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -128,8 +132,11 @@ suite('SessionWorkspaceConversionService', () => {
 		worktreeIsolation = new NullAgentHostWorktreeIsolation(),
 		requestWorkspaceTrust: IAgentHostClientConnectionService['requestWorkspaceTrust'] = async () => true,
 		database: ISessionDatabase = new TestSessionDatabase(),
+		fileServiceOverride?: IFileService,
 	) {
 		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const sessionDataService = createSessionDataService(database);
@@ -193,7 +200,7 @@ suite('SessionWorkspaceConversionService', () => {
 				refreshedServerTools.push(targetSession);
 			}
 		}();
-		const service = disposables.add(new SessionWorkspaceConversionService(stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService));
+		const service = disposables.add(new SessionWorkspaceConversionService(stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService, fileServiceOverride ?? fileService));
 		const session = URI.parse('copilot:/workspace-less');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const scratch = URI.file('/tmp/copilot-scratch/workspace-less');
@@ -273,6 +280,7 @@ suite('SessionWorkspaceConversionService', () => {
 				workspaceFolder: workingDirectory.toString(),
 			});
 			await providerMutation.p;
+			return workingDirectory;
 		};
 		completePriorTurn(harness.stateManager, harness.chat);
 		startTurn(harness.stateManager, harness.chat);
@@ -404,7 +412,7 @@ suite('SessionWorkspaceConversionService', () => {
 
 	test('does not show or persist a workspace transition during the first turn', async () => {
 		const harness = createHarness();
-		harness.agent.setWorkingDirectory = async () => { };
+		harness.agent.setWorkingDirectory = async (_chat, _context, directory) => directory;
 		startTurn(harness.stateManager, harness.chat);
 		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
 		completeTurn(harness.stateManager, harness.chat);
@@ -467,7 +475,7 @@ suite('SessionWorkspaceConversionService', () => {
 			conversionDatabase = await SessionDatabase.open(databasePath);
 			const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, conversionDatabase);
 			const workspaceFolder = URI.file('/workspace/project');
-			harness.agent.setWorkingDirectory = async () => { };
+			harness.agent.setWorkingDirectory = async (_chat, _context, directory) => directory;
 			completePriorTurn(harness.stateManager, harness.chat);
 			startTurn(harness.stateManager, harness.chat);
 			await harness.database.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
@@ -641,6 +649,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const provider: IAgent = harness.agent;
 		provider.setWorkingDirectory = async (_chat, _context, workingDirectory) => {
 			providerCalls.push(workingDirectory.toString());
+			return workingDirectory;
 		};
 		completePriorTurn(harness.stateManager, harness.chat);
 		startTurn(harness.stateManager, harness.chat);
@@ -722,10 +731,57 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
+	test('preserves isolation when the provider canonicalizes the worktree path', async () => {
+		const root = await fs.promises.mkdtemp(join(tmpdir(), 'workspace-conversion-alias-'));
+		try {
+			const actual = join(root, 'actual');
+			const alias = join(root, 'alias');
+			await fs.promises.mkdir(actual);
+			await fs.promises.symlink(actual, alias, 'junction');
+			const authoritative = URI.file(await fs.promises.realpath(actual));
+			const isolation = new TestWorktreeIsolation(URI.file(alias));
+			const harness = createHarness(isolation);
+			const provider: IAgent = harness.agent;
+			provider.setWorkingDirectory = async () => authoritative;
+			startTurn(harness.stateManager, harness.chat);
+			harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', isolation.repository, true, 'client-1');
+			completeTurn(harness.stateManager, harness.chat);
+			await updateSessionWorkspace(harness);
+			const state = harness.stateManager.getSessionState(harness.session.toString());
+			assert.deepStrictEqual({
+				directories: state?.workingDirectories,
+				isolation: state?.config?.values[SessionConfigKey.Isolation],
+				removed: isolation.removedWorktrees,
+			}, { directories: [authoritative.toString()], isolation: 'worktree', removed: [] });
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('does not remove the worktree when the file service cannot resolve its real path', async () => {
+		const isolation = new TestWorktreeIsolation(URI.file('/workspace/worktree-alias'));
+		const fileService = new class extends mock<IFileService>() {
+			override async realpath(): Promise<URI | undefined> { return undefined; }
+		}();
+		const harness = createHarness(isolation, async () => true, new TestSessionDatabase(), fileService);
+		const provider: IAgent = harness.agent;
+		provider.setWorkingDirectory = async () => URI.file('/workspace/worktree');
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', isolation.repository, true, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			removed: isolation.removedWorktrees,
+			quarantined: await harness.database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
+			continuations: harness.continuations.length,
+			failures: harness.failedContinuations.length,
+		}, { removed: [], quarantined: 'true', continuations: 0, failures: 1 });
+	});
+
 	test('does not request workspace trust in Allow All mode', async () => {
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => false);
 		const workspaceFolder = URI.file('/workspace/project');
-		harness.agent.setWorkingDirectory = async () => { };
+		harness.agent.setWorkingDirectory = async (_chat, _context, directory) => directory;
 		setSessionConfig(harness, { [SessionConfigKey.AutoApprove]: 'autoApprove' });
 		startTurn(harness.stateManager, harness.chat);
 		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', workspaceFolder, false, 'client-1');
@@ -747,7 +803,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const repository = URI.file('/workspace/project');
 		const worktreeIsolation = new TestWorktreeIsolation(URI.file('/workspace/project.worktrees/implement-feature'), repository);
 		const harness = createHarness(worktreeIsolation, async () => false);
-		harness.agent.setWorkingDirectory = async () => { };
+		harness.agent.setWorkingDirectory = async (_chat, _context, directory) => directory;
 		harness.configurationService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
 		startTurn(harness.stateManager, harness.chat);
 		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', workspaceFolder, true, 'client-1');
@@ -797,6 +853,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const provider: IAgent = harness.agent;
 		provider.setWorkingDirectory = async (_chat, _context, workingDirectory) => {
 			providerCalls.push(workingDirectory.toString());
+			return workingDirectory;
 		};
 		startTurn(harness.stateManager, harness.chat);
 		await harness.database.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
@@ -842,6 +899,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const provider: IAgent = harness.agent;
 		provider.setWorkingDirectory = async (_chat, _context, workingDirectory) => {
 			providerCalls.push(workingDirectory.toString());
+			return workingDirectory;
 		};
 		startTurn(harness.stateManager, harness.chat);
 		await harness.database.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
@@ -987,6 +1045,106 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
+	test('passes the default chat configuration and storage scopes to every provider conversion operation', async () => {
+		for (const fail of [false, true]) {
+			const harness = createHarness();
+			const calls: { operation: string; chat: string; configuration?: string; resource?: string }[] = [];
+			const record = (operation: string, chat: URI, context: Parameters<IAgent['setWorkingDirectory']>[1]) => {
+				calls.push({
+					operation,
+					chat: chat.toString(),
+					configuration: URI.isUri(context) ? undefined : context.configurationResource.toString(),
+					resource: URI.isUri(context) ? undefined : context.resource.toString(),
+				});
+			};
+			const provider: IAgent = harness.agent;
+			provider.setWorkingDirectory = async (chat, context, directory) => {
+				record('convert', chat, context);
+				if (fail) {
+					throw new AgentWorkingDirectoryUnconfirmedError('Unknown native cwd');
+				}
+				return directory;
+			};
+			provider.getChatCustomizations = async (chat, context) => {
+				record('customizations', chat, context);
+				return [];
+			};
+			provider.chats.releaseChat = async (chat, context) => { record('release', chat, context); };
+			provider.chats.disposeChat = async (chat, context) => { record('dispose', chat, context); };
+			startTurn(harness.stateManager, harness.chat);
+			harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/target'), false, 'client-1');
+			completeTurn(harness.stateManager, harness.chat);
+			await updateSessionWorkspace(harness);
+			assert.deepStrictEqual(calls, (fail ? ['convert', 'release', 'dispose'] : ['convert', 'customizations']).map(operation => ({
+				operation,
+				chat: harness.chat.toString(),
+				configuration: harness.session.toString(),
+				resource: harness.session.toString(),
+			})));
+		}
+	});
+
+	test('adopts a successful provider-canonicalized directory before continuing', async () => {
+		const harness = createHarness();
+		const authoritative = URI.file('/workspace/canonical');
+		const provider: IAgent = harness.agent;
+		provider.setWorkingDirectory = async () => authoritative;
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/requested'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		const state = harness.stateManager.getSessionState(harness.session.toString());
+		assert.deepStrictEqual({
+			directories: state?.workingDirectories,
+			workspaceless: readSessionWorkspaceless(state?._meta),
+			continuesInCanonicalDirectory: harness.continuations[0]?.message.text.includes(authoritative.fsPath),
+			failures: harness.failedContinuations,
+		}, {
+			directories: [authoritative.toString()],
+			workspaceless: false,
+			continuesInCanonicalDirectory: true,
+			failures: [],
+		});
+	});
+
+	test('quarantines without continuing when the provider cannot identify its applied directory', async () => {
+		const harness = createHarness();
+		const provider: IAgent = harness.agent;
+		provider.setWorkingDirectory = async () => {
+			throw new AgentWorkingDirectoryUnconfirmedError('Malformed native acknowledgement');
+		};
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/requested'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			quarantined: await harness.database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
+			pending: harness.service.isPending(harness.chat.toString()),
+			continuations: harness.continuations.length,
+			failures: harness.failedContinuations.length,
+		}, { quarantined: 'true', pending: true, continuations: 0, failures: 1 });
+	});
+
+	test('adopts cwd but quarantines when native transcript relocation did not complete', async () => {
+		const harness = createHarness();
+		const authoritative = URI.file('/workspace/authoritative');
+		const provider: IAgent = harness.agent;
+		provider.setWorkingDirectory = async () => {
+			throw new AgentWorkingDirectoryChangedError(authoritative, 'Transcript relocation failed', true);
+		};
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', authoritative, false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			directories: harness.stateManager.getSessionState(harness.session.toString())?.workingDirectories,
+			quarantined: await harness.database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
+			pending: harness.service.isPending(harness.chat.toString()),
+			continuations: harness.continuations.length,
+			failures: harness.failedContinuations.length,
+		}, { directories: [authoritative.toString()], quarantined: 'true', pending: true, continuations: 0, failures: 1 });
+	});
+
 	test('adopts an irreversible provider directory before reporting an alignment failure', async () => {
 		const harness = createHarness();
 		const authoritative = URI.file('/workspace/authoritative');
@@ -1083,7 +1241,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const database = new GatedConversionDatabase();
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
 		const provider: IAgent = harness.agent;
-		provider.setWorkingDirectory = async () => { };
+		provider.setWorkingDirectory = async (_chat, _context, directory) => directory;
 		completePriorTurn(harness.stateManager, harness.chat);
 		startTurn(harness.stateManager, harness.chat);
 		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
@@ -1159,7 +1317,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const database = new FailingConversionDatabase();
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
 		const provider: IAgent = harness.agent;
-		provider.setWorkingDirectory = async () => { };
+		provider.setWorkingDirectory = async (_chat, _context, directory) => directory;
 		completePriorTurn(harness.stateManager, harness.chat);
 		startTurn(harness.stateManager, harness.chat);
 		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
@@ -1205,7 +1363,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const database = new FailingQuarantineDatabase();
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
 		const provider: IAgent = harness.agent;
-		provider.setWorkingDirectory = async () => { };
+		provider.setWorkingDirectory = async (_chat, _context, directory) => directory;
 		completePriorTurn(harness.stateManager, harness.chat);
 		startTurn(harness.stateManager, harness.chat);
 		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
@@ -1235,6 +1393,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const provider: IAgent = harness.agent;
 		provider.setWorkingDirectory = async (_chat, _session, workingDirectory) => {
 			providerCalls.push(workingDirectory.toString());
+			return workingDirectory;
 		};
 		startTurn(harness.stateManager, harness.chat);
 		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
@@ -1269,7 +1428,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
 		const disposedChats: { session: string; chat: string }[] = [];
 		const provider: IAgent = harness.agent;
-		provider.setWorkingDirectory = async () => { };
+		provider.setWorkingDirectory = async (_chat, _context, directory) => directory;
 		harness.agent.disposeChat = async (session, chat) => {
 			disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		};
@@ -1314,7 +1473,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
 		const disposedChats: { session: string; chat: string }[] = [];
 		const provider: IAgent = harness.agent;
-		provider.setWorkingDirectory = async () => { };
+		provider.setWorkingDirectory = async (_chat, _context, directory) => directory;
 		harness.agent.disposeChat = async (session, chat) => {
 			disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		};

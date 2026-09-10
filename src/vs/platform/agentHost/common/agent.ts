@@ -32,9 +32,14 @@ export class AgentWorkingDirectoryChangedError extends Error {
 	constructor(
 		readonly workingDirectory: URI,
 		message: string,
+		readonly requiresQuarantine = false,
 	) {
 		super(message);
 	}
+}
+
+/** The provider may have changed cwd, but did not identify an authoritative directory. */
+export class AgentWorkingDirectoryUnconfirmedError extends Error {
 }
 
 export function isInvalidUtilityProcessConfigurationMessage(message: string): boolean {
@@ -1215,8 +1220,9 @@ export interface IAgent {
 	 * backing. Callers MUST gate this operation on
 	 * {@link IAgentHostCapabilities.workspaceConversion}; implementations that do
 	 * not advertise the capability MUST reject the call.
+	 * Returns the provider-confirmed directory, including on a no-op.
 	 */
-	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
+	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<URI>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;

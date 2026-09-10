@@ -1467,7 +1467,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return applyMcpServerEnablement(customizations, this._retainedHostCustomizations(session));
 	}
 
-	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void> {
+	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<URI> {
 		const initial = this._resolveLiveWorkingDirectoryContext(chat, context);
 		if (!isDefaultChatUri(chat)) {
 			throw new Error(`Cannot change the working directory for peer chat '${chat.toString()}': live working-directory changes are only supported for the owning default chat`);
@@ -1479,7 +1479,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._throwIfRecordedChatSharesConfiguration(chat, initial.configurationResource);
 		this._workingDirectoryMutations.set(initial.configurationResource, initial.entry);
 		try {
-			await this._queueChat(initial.configurationId, initial.sdkSessionId, 'setWorkingDirectory', async () => {
+			return await this._queueChat(initial.configurationId, initial.sdkSessionId, 'setWorkingDirectory', async () => {
 				const current = this._resolveLiveWorkingDirectoryContext(chat, context);
 				if (current.entry !== initial.entry || current.sdkSessionId !== initial.sdkSessionId) {
 					throw new Error(`Cannot change the working directory: chat '${chat.toString()}' is no longer backed by the same live session`);
@@ -1514,7 +1514,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					throw new Error(`Cannot change the working directory: live chat '${chat.toString()}' has no working directory`);
 				}
 				if (isEqual(previousWorkingDirectory, workingDirectory)) {
-					return;
+					return previousWorkingDirectory;
 				}
 
 				const previousCustomizationDirectory = activeClient.pluginController.directory ?? previousWorkingDirectory;
@@ -1528,7 +1528,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					previousCustomizationAdditionalDirectories,
 					previousMetadata: storedMetadata.snapshot,
 				});
-				await entry.setWorkingDirectory(workingDirectory, transaction);
+				return entry.setWorkingDirectory(workingDirectory, transaction);
 			});
 		} finally {
 			if (this._workingDirectoryMutations.get(initial.configurationResource) === initial.entry) {

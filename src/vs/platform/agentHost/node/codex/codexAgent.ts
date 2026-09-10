@@ -66,7 +66,7 @@ import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointServi
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
-import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../shared/workspacelessInstructions.js';
+import { getWorkspacelessInstructions } from '../shared/workspacelessInstructions.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -1873,7 +1873,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const customization = await codexCustomizationConfig(workspaceAgents.agents, plugins, session.agent, this._fileService);
 		const developerInstructions = [
 			customization.developerInstructions,
-			session.managedWorkingDirectory ? AGENT_HOST_WORKSPACELESS_INSTRUCTIONS : '',
+			session.managedWorkingDirectory ? getWorkspacelessInstructions('request_user_input') : '',
 		].filter(instruction => instruction.length > 0).join('\n\n');
 		const config: Record<string, JsonValue> = {};
 		if (customization.agentRoles.length > 0) {
@@ -4058,7 +4058,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostCodexMultiRootEnabledConfigKey) === true;
 	}
 
-	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void> {
+	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<URI> {
 		const session = this._resolveWorkingDirectoryChangeSession(chat, context);
 		if (this._workingDirectoryMutations.has(session)) {
 			throw new Error(`Cannot change the working directory for chat '${chat.toString()}' while another working-directory change is active`);
@@ -4066,8 +4066,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (workingDirectory.scheme !== Schemas.file || !isAbsolute(workingDirectory.fsPath) || workingDirectory.query || workingDirectory.fragment) {
 			throw new Error(`Cannot change the working directory to non-local or relative resource '${workingDirectory.toString()}'`);
 		}
-		if (isEqual(session.workingDirectory, workingDirectory)) {
-			return;
+		if (session.workingDirectory && isEqual(session.workingDirectory, workingDirectory)) {
+			return session.workingDirectory;
 		}
 
 		const change: ICodexWorkingDirectoryChange = {
@@ -4122,6 +4122,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (!isEqual(appliedDirectory, workingDirectory)) {
 				throw new Error(`Codex applied '${appliedDirectory.fsPath}' instead of '${workingDirectory.fsPath}'`);
 			}
+			return appliedDirectory;
 		} catch (error) {
 			if (appliedDirectory) {
 				const message = error instanceof Error ? error.message : String(error);

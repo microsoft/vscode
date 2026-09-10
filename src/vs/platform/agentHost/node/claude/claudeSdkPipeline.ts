@@ -12,13 +12,14 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
-import { AgentSignal } from '../../common/agent.js';
+import { AgentSignal, AgentWorkingDirectoryUnconfirmedError } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ClaudePromptQueue, IPendingSdkMessage } from './claudePromptQueue.js';
 import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
+import { setClaudeWorkingDirectory } from './claudeWorkingDirectory.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 /**
@@ -86,6 +87,29 @@ export interface ISdkResolvedCustomizations {
 }
 
 export class ClaudeSdkPipeline extends Disposable {
+	async setWorkingDirectory(workingDirectory: URI): Promise<URI> {
+		if (this.hasActiveTurn || !this._isResumed || !this._query || this._needsRebind || this._store.isDisposed) {
+			throw new Error('Claude working-directory changes require a live, started, idle query.');
+		}
+		try {
+			return await setClaudeWorkingDirectory(this._query, workingDirectory);
+		} catch (error) {
+			if (error instanceof AgentWorkingDirectoryUnconfirmedError) {
+				this._abortController.abort();
+			}
+			throw error;
+		}
+	}
+
+	/** Refresh launch-scoped MCP and tool options only after the native transition has committed. */
+	async rebindAfterWorkingDirectoryChange(): Promise<void> {
+		this._needsRebind = true;
+		this._abortController.abort();
+		await this._warm[Symbol.asyncDispose]();
+		await this._query?.return(undefined);
+		await this._rebindQuery('restart');
+	}
+
 	/**
 	 * Phase 11 — hot-swap the SDK's plugin set in place via
 	 * `Query.reloadPlugins()`. Commands / agents / mcpServers added or
@@ -665,6 +689,9 @@ export class ClaudeSdkPipeline extends Disposable {
 		}
 		try {
 			for await (const message of query) {
+				if (this._query !== query) {
+					return;
+				}
 				if (this._abortController.signal.aborted) {
 					throw new CancellationError();
 				}
@@ -677,6 +704,9 @@ export class ClaudeSdkPipeline extends Disposable {
 					}
 				}
 				const parent = this._queue.peekParent();
+				if (message.type === 'result' && !parent) {
+					continue;
+				}
 				const turnId = parent?.turnId;
 				const clientContext = parent?.clientContext;
 				const turnDuration = parent?.stopWatch.elapsed();
@@ -688,6 +718,9 @@ export class ClaudeSdkPipeline extends Disposable {
 					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
+				}
+				if (this._query !== query) {
+					return;
 				}
 				if (message.type === 'result') {
 					const completed = this._queue.settleHead();

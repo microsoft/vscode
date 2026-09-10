@@ -6,12 +6,16 @@
 import type { CCAModel } from '@vscode/copilot-api';
 import type { ModelInfo, OnElicitation, Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import * as fs from 'fs/promises';
 import { Limiter, retry, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { isAbsolute } from '../../../../base/common/path.js';
+import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -28,8 +32,10 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRoot
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
+import { workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
+import { getWorkspacelessInstructions } from '../shared/workspacelessInstructions.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -351,7 +357,7 @@ class ClaudeActiveClientHandle implements IActiveClient {
  */
 export class ClaudeAgent extends Disposable implements IAgent {
 	readonly id: AgentProvider = CLAUDE_AGENT_PROVIDER_ID;
-	readonly agentHostCapabilities = { workspaceConversion: false } as const;
+	readonly agentHostCapabilities = { workspaceConversion: true } as const;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -469,6 +475,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * inside the send sequencer.
 	 */
 	private readonly _sessionSequencer = new SequencerByKey<string>();
+	private readonly _workingDirectoryMutations = new Map<string, ClaudeAgentSession>();
 
 	private readonly _metadataStore: ClaudeSessionMetadataStore;
 
@@ -527,6 +534,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/** Records `chat`'s exact scope binding, populated on create and materialize. */
 	private _recordChatScope(chat: URI, configurationResource: URI, resource: URI): void {
+		if (!this._chatConfigScopes.has(chat.toString()) && this._workingDirectoryMutations.has(configurationResource.toString())) {
+			throw new Error('Cannot attach another chat while the working directory is changing.');
+		}
 		this._chatConfigScopes.set(chat.toString(), { configurationResource, resource });
 	}
 
@@ -716,8 +726,109 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostClaudeMultiRootEnabledConfigKey) === true;
 	}
 
-	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
-		throw new Error('Claude does not support changing the working directory of an existing session.');
+	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<URI> {
+		const { resolved: initial, target } = this._resolveWorkingDirectoryChange(chat, context);
+		const configurationKey = initial.configurationResource.toString();
+		if (this._workingDirectoryMutations.has(configurationKey)) {
+			throw new Error(`Cannot change the working directory for chat '${chat.toString()}' while another working-directory change is active for its configuration`);
+		}
+		if (workingDirectory.scheme !== Schemas.file || workingDirectory.authority || !isAbsolute(workingDirectory.fsPath) || workingDirectory.query || workingDirectory.fragment) {
+			throw new Error(`Cannot change the working directory to non-local or relative resource '${workingDirectory.toString()}'`);
+		}
+		this._workingDirectoryMutations.set(configurationKey, target);
+		try {
+			return await this._sessionSequencer.queue(initial.sequencerKey, async () => {
+				const overlay = await this._metadataStore.read(initial.resource);
+				if ((overlay.workingDirectories?.length ?? 0) > 1) {
+					throw new Error(`Cannot change the working directory for multi-root chat '${chat.toString()}'`);
+				}
+				const previousWorkingDirectory = target.workingDirectory;
+				const managedScratch = target.managedWorkingDirectory;
+				if (!managedScratch || !isEqual(previousWorkingDirectory, managedScratch)) {
+					throw new Error(`Cannot change the working directory for chat '${chat.toString()}': its current directory is not the provider-managed workspace-less scratch directory`);
+				}
+				const requestedDirectory = URI.file(await fs.realpath(workingDirectory.fsPath));
+				const scratchDirectory = URI.file(await fs.realpath(managedScratch.fsPath));
+				if (isEqualOrParent(requestedDirectory, scratchDirectory)) {
+					throw new Error(`Cannot convert chat '${chat.toString()}' to a workspace inside its managed scratch directory`);
+				}
+				if (!(await fs.stat(requestedDirectory.fsPath)).isDirectory()) {
+					throw new Error(`Cannot change the working directory because '${workingDirectory.fsPath}' is not an existing directory`);
+				}
+				const { resolved: current, target: currentTarget } = this._resolveWorkingDirectoryChange(chat, context);
+				if (currentTarget !== target) {
+					throw new Error(`Cannot change the working directory: chat '${chat.toString()}' is no longer backed by the same live Claude conversation`);
+				}
+				let appliedDirectory: URI;
+				let alignmentError: AgentWorkingDirectoryChangedError | undefined;
+				try {
+					appliedDirectory = await target.setWorkingDirectory(requestedDirectory);
+				} catch (error) {
+					if (!(error instanceof AgentWorkingDirectoryChangedError)) {
+						throw error;
+					}
+					appliedDirectory = error.workingDirectory;
+					alignmentError = error;
+				}
+				try {
+					await this._metadataStore.writeWorkingDirectory(current.resource, appliedDirectory);
+					if (alignmentError) {
+						throw alignmentError;
+					}
+					await this._cleanupManagedWorkingDirectory(current.configurationResource, current.resource, target.managedWorkingDirectory);
+					target.managedWorkingDirectory = undefined;
+				} catch (error) {
+					throw new AgentWorkingDirectoryChangedError(appliedDirectory, `Claude changed the working directory, but finalization failed: ${error instanceof Error ? error.message : String(error)}`, alignmentError?.requiresQuarantine);
+				}
+				return appliedDirectory;
+			});
+		} finally {
+			if (this._workingDirectoryMutations.get(configurationKey) === target) {
+				this._workingDirectoryMutations.delete(configurationKey);
+			}
+		}
+	}
+
+	private _resolveWorkingDirectoryChange(chat: URI, context: URI | IAgentChatContext) {
+		const resolved = this._resolveChatContext(chat, context);
+		const target = resolved.target;
+		const scope = this._chatConfigScopes.get(chat.toString());
+		if (!isDefaultChatUri(chat) || !scope || !isEqual(scope.configurationResource, resolved.configurationResource)
+			|| !isEqual(scope.resource, resolved.resource) || !target?.isPipelineReady || !target.isResumed || !isEqual(target.chatChannelUri, chat)) {
+			throw new Error(`Cannot change the working directory for chat '${chat.toString()}': an exact live, started default conversation is required`);
+		}
+		if (target.hasActiveTurn) {
+			throw new Error(`Cannot change the working directory for busy chat '${chat.toString()}'`);
+		}
+		if (target.workingDirectories?.length !== 1) {
+			throw new Error(`Cannot change the working directory for multi-root chat '${chat.toString()}'`);
+		}
+		for (const [otherChat, otherScope] of this._chatConfigScopes) {
+			if (otherChat !== chat.toString() && isEqual(otherScope.configurationResource, resolved.configurationResource)) {
+				throw new Error(`Cannot change the working directory for chat '${chat.toString()}' while another chat shares its configuration`);
+			}
+		}
+		for (const [otherChat, backing] of this._chatBackings) {
+			if (otherChat !== chat.toString() && backing.sdkSessionId === target.sessionId) {
+				throw new Error(`Cannot change the working directory for chat '${chat.toString()}' while another chat shares its native conversation`);
+			}
+		}
+		const prefix = `${chat.toString()}\u0000`;
+		if (![...this._activeClientHandles.keys()].some(key => key.startsWith(prefix))) {
+			throw new Error(`Cannot change the working directory for chat '${chat.toString()}': no active client is attached`);
+		}
+		return { resolved, target };
+	}
+
+	private async _cleanupManagedWorkingDirectory(configurationResource: URI, resource: URI, directory: URI | undefined): Promise<void> {
+		if (!directory) {
+			return;
+		}
+		if (!isEqual(directory, workspacelessScratchDir(this._environmentService.userHome, AgentSession.id(configurationResource)))) {
+			throw new Error('Refusing to remove an unexpected Claude scratch directory.');
+		}
+		await fs.rm(directory.fsPath, { recursive: true, force: true });
+		await this._metadataStore.write(resource, { managedWorkingDirectory: null });
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
@@ -1296,6 +1407,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		try {
 			await this._metadataStore.write(resource, {
 				customizationDirectory: session.workingDirectory,
+				managedWorkingDirectory: session.managedWorkingDirectory,
 				model: session.provisionalModel,
 				permissionMode: readClaudePermissionMode(this._configurationService, configResource) ?? session.permissionModeFallback,
 				transport: transportKind,
@@ -1565,6 +1677,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._instantiationService,
 			options?.workingDirectories?.slice(1) ?? [],
 		);
+		session.managedWorkingDirectory = requestedWorkingDirectory ? undefined : workingDirectory;
 		this._registerLiveChat(chat, session);
 		this._logService.info(`[Claude] Bound chat ${chat.toString()} to fresh conversation ${sdkSessionId} for scope ${context.configurationResource.toString()}`);
 		return {
@@ -1610,8 +1723,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const initialContext = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const target = this._findChatByUri(chatKey);
+			const managedDirectory = target?.managedWorkingDirectory ?? (await this._metadataStore.read(initialContext.resource)).managedWorkingDirectory;
 			if (target) {
+				if (managedDirectory) {
+					await target.shutdownLiveQuery();
+				}
 				await this._disposeLiveSession(target);
+			}
+			const shared = [...this._chatConfigScopes].some(([key, scope]) => key !== chatKey && isEqual(scope.configurationResource, initialContext.configurationResource));
+			if (!shared) {
+				await this._cleanupManagedWorkingDirectory(initialContext.configurationResource, initialContext.resource, managedDirectory);
 			}
 			this._chatBackings.delete(chatKey);
 			this._chatConfigScopes.delete(chatKey);
@@ -1785,6 +1906,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// the newest model; preferring it here ensures a model change is never
 		// silently reverted after a restart.
 		const model = overlay.model ?? info.model;
+		const scratchDirectory = workspacelessScratchDir(this._environmentService.userHome, AgentSession.id(configurationResource));
+		const managedWorkingDirectory = overlay.managedWorkingDirectory
+			?? (overlay.workspaceless && isDefaultChatUri(chat) && isEqual(workingDirectory, scratchDirectory) ? scratchDirectory : undefined);
+		if (managedWorkingDirectory && !isEqual(managedWorkingDirectory, scratchDirectory)) {
+			throw new Error('Refusing to restore unexpected Claude scratch ownership.');
+		}
+		if (isEqual(managedWorkingDirectory, workingDirectory)) {
+			await ensureWorkspacelessScratchDir(this._environmentService.userHome, AgentSession.id(configurationResource));
+		}
 		const chatSession = ClaudeAgentSession.createProvisional(
 			info.sdkSessionId,
 			chat,
@@ -1798,6 +1928,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._instantiationService,
 			additionalDirectories,
 		);
+		chatSession.managedWorkingDirectory = managedWorkingDirectory;
 		this._registerLiveChat(chat, chatSession);
 		this._recordChatScope(chat, configurationResource, resource);
 		// The chat now has a live runtime, so re-apply the contributions of
@@ -2298,6 +2429,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const sendContext = this._requireChatContext(chat, operationContext, 'sendMessage');
 		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext?.clientTelemetryContext;
 		const context = this._resolveChatContext(chat, sendContext);
+		if (this._workingDirectoryMutations.has(context.configurationResource.toString())) {
+			throw new Error('Cannot start a turn while the working directory is changing.');
+		}
 
 		return this._sessionSequencer.queue(context.sequencerKey, async () => {
 			const current = this._resolveChatContext(chat, sendContext);
@@ -2310,7 +2444,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				session.setHostCustomizations(current.customizations);
 			}
 			const switchTransport = session.hasPendingTransportSwitch ? this._ensureAuthenticated(session.provisionalModel) : undefined;
-			await session.send(this._buildSdkPrompt(session.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId, current.configurationResource, workingDirectories, switchTransport, resolveAgentHostInstructions(operationContext), clientTelemetryContext, !!operationContext && !URI.isUri(operationContext) && operationContext.agentMergeTurn === true);
+			const hostInstructions = resolveAgentHostInstructions(operationContext);
+			const instructions = session.managedWorkingDirectory && isEqual(session.workingDirectory, session.managedWorkingDirectory)
+				? [...(hostInstructions ?? []), getWorkspacelessInstructions('AskUserQuestion')]
+				: hostInstructions;
+			await session.send(this._buildSdkPrompt(session.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId, current.configurationResource, workingDirectories, switchTransport, instructions, clientTelemetryContext, !!operationContext && !URI.isUri(operationContext) && operationContext.agentMergeTurn === true);
 			if (workingDirectories) {
 				await this._metadataStore.write(current.resource, { workingDirectories });
 			}

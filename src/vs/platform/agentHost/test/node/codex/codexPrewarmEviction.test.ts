@@ -51,7 +51,7 @@ import { codexSkillsToContainers } from '../../../node/codex/codexCustomizations
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
-import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
+import { getWorkspacelessInstructions } from '../../../node/shared/workspacelessInstructions.js';
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
@@ -3037,7 +3037,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const sending = agent.chats.sendMessage(sourceChat, 'hello', undefined, undefined, 'turn-1');
 		const start = await readNextRequest(peer.outbound);
 		assert.strictEqual(start.params.config?.['features.default_mode_request_user_input'], true);
-		assert.ok(start.params.developerInstructions?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+		assert.ok(start.params.developerInstructions?.includes(getWorkspacelessInstructions('request_user_input')));
 		assert.deepStrictEqual({
 			approvalPolicy: start.params.approvalPolicy,
 			permissions: start.params.permissions,
@@ -3047,7 +3047,7 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 		peer.push({ id: start.id, result: { thread: { id: 'managed-source', cwd: start.params.cwd } } });
 		const sourceTurn = await readNextRequest(peer.outbound);
-		assert.ok(sourceTurn.params.collaborationMode?.settings.developer_instructions?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+		assert.ok(sourceTurn.params.collaborationMode?.settings.developer_instructions?.includes(getWorkspacelessInstructions('request_user_input')));
 		assert.deepStrictEqual({
 			approvalPolicy: sourceTurn.params.approvalPolicy,
 			permissions: sourceTurn.params.permissions,

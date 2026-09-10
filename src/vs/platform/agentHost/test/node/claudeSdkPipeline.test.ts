@@ -6,9 +6,9 @@
 import type { Query, SDKControlInterruptResponse, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { AsyncIterableSource, DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -21,9 +21,11 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { makeResultSuccess, makeSystemInitMessage } from './claudeMapSessionEventsTestUtils.js';
 
 // ===== Test doubles =====
 
@@ -53,7 +55,7 @@ class FakeWarmQuery implements WarmQuery {
 
 class ImmediatelyDoneQuery implements Query {
 	[Symbol.asyncIterator](): this { return this; }
-	async next(): Promise<IteratorResult<never, void>> { return { done: true, value: undefined }; }
+	async next(): Promise<IteratorResult<SDKMessage, void>> { return { done: true, value: undefined }; }
 	async return(): Promise<IteratorResult<never, void>> { return { done: true, value: undefined }; }
 	async throw(err: unknown): Promise<IteratorResult<never, void>> { throw err; }
 	async setModel(): Promise<void> { /* not exercised here */ }
@@ -249,9 +251,69 @@ async function flushMicrotasks(): Promise<void> {
 	}
 }
 
+class StreamingWarmQuery extends FakeWarmQuery {
+	readonly messages = new AsyncIterableSource<SDKMessage>();
+	readonly promptObserved = new DeferredPromise<void>();
+
+	override query(prompt: string | AsyncIterable<SDKUserMessage>): Query {
+		if (typeof prompt === 'string') {
+			throw new Error('Expected streaming input');
+		}
+		const prompts = prompt[Symbol.asyncIterator]();
+		void (async () => {
+			while (!(await prompts.next()).done) {
+				this.promptObserved.complete();
+			}
+		})();
+		const iterator = this.messages.asyncIterable[Symbol.asyncIterator]();
+		return new class extends ImmediatelyDoneQuery {
+			override next(): Promise<IteratorResult<SDKMessage, void>> {
+				return iterator.next();
+			}
+		}();
+	}
+}
+
 suite('ClaudeSdkPipeline', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('native idle results and late results from a replaced query cannot complete the next turn', async () => {
+		const original = new StreamingWarmQuery();
+		const replacement = new StreamingWarmQuery();
+		disposables.add(toDisposable(() => {
+			original.messages.resolve();
+			replacement.messages.resolve();
+		}));
+		const { pipeline } = createPipeline(disposables, original);
+		const completed: string[] = [];
+		disposables.add(pipeline.onDidProduceSignal(signal => {
+			if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete) {
+				completed.push(signal.action.turnId);
+			}
+		}));
+		const first = pipeline.send(makePrompt('first'), 'first');
+		await original.promptObserved.p;
+		original.messages.emitOne(makeSystemInitMessage('sess-1'));
+		original.messages.emitOne(makeResultSuccess('sess-1'));
+		await first;
+		original.messages.emitOne({ ...makeResultSuccess('sess-1'), num_turns: 0 });
+		await flushMicrotasks();
+		pipeline.attachRematerializer(async () => ({ warm: replacement, abortController: new AbortController() }));
+		await pipeline.rebindForRestart();
+		const second = pipeline.send(makePrompt('second'), 'second');
+		await replacement.promptObserved.p;
+		original.messages.emitOne({ ...makeResultSuccess('sess-1'), num_turns: 0 });
+		await flushMicrotasks();
+		const activeAfterLateResult = pipeline.hasActiveTurn;
+		replacement.messages.emitOne(makeResultSuccess('sess-1'));
+		await second;
+		pipeline.dispose();
+		original.messages.resolve();
+		replacement.messages.resolve();
+		await flushMicrotasks();
+		assert.deepStrictEqual({ completed, activeAfterLateResult }, { completed: ['first', 'second'], activeAfterLateResult: true });
+	});
 
 	suite('reloadPlugins', () => {
 

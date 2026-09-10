@@ -45,7 +45,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -87,6 +87,7 @@ import { IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } fr
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
+import { workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 // #region Test fakes
@@ -528,6 +529,12 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 
 	/** All warm queries produced by {@link startup}. Last entry is the most recent. */
 	readonly warmQueries: FakeWarmQuery[] = [];
+	readonly setCwdCalls: { path: string; options?: { trustAccepted: boolean; trustedDirectory: string } }[] = [];
+	setCwdRejection: Error | undefined;
+	setCwdGate: Promise<void> | undefined;
+	setCwdEntered: DeferredPromise<void> | undefined;
+	setCwdResult: { status: 'ok'; cwd: string; changed: boolean; transcript_relocated: boolean } | undefined;
+	keepQueryOpen = false;
 
 	/** All queries produced by {@link query} (native model enumeration). */
 	readonly enumerationQueries: FakeQuery[] = [];
@@ -793,6 +800,9 @@ class FakeWarmQuery implements WarmQuery {
 
 	async [Symbol.asyncDispose](): Promise<void> {
 		this.asyncDisposeCount++;
+		if (this._sdk.keepQueryOpen) {
+			this.produced?.close();
+		}
 	}
 }
 
@@ -827,6 +837,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	mcpServerStatusCallCount = 0;
 
 	private _yieldIndex = 0;
+	private readonly _closed = new DeferredPromise<void>();
 
 	constructor(prompt: AsyncIterable<SDKUserMessage>, private readonly _sdk: FakeClaudeAgentSdkService) {
 		this.capturedPrompt = prompt;
@@ -855,6 +866,9 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 			await this._sdk.queryAdvance(this._yieldIndex);
 		}
 		if (this._yieldIndex >= this._sdk.nextQueryMessages.length) {
+			if (this._sdk.keepQueryOpen) {
+				await this._closed.p;
+			}
 			return { done: true, value: undefined };
 		}
 		const value = this._sdk.nextQueryMessages[this._yieldIndex++];
@@ -863,6 +877,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 
 	async return(_value: void): Promise<IteratorResult<SDKMessage, void>> {
 		this.returnCount++;
+		this._closed.complete();
 		if (this._sdk.queryReturnGate) {
 			await this._sdk.queryReturnGate;
 		}
@@ -885,6 +900,19 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 		this.recordedPermissionModes.push(mode);
 	}
 	async setModel(model?: string): Promise<void> { this.recordedModels.push(model); }
+	async setCwd(path: string, options?: { trustAccepted: boolean; trustedDirectory: string }) {
+		this._sdk.setCwdCalls.push({ path, options });
+		this._sdk.setCwdEntered?.complete();
+		await this._sdk.setCwdGate;
+		if (this._sdk.setCwdRejection) {
+			throw this._sdk.setCwdRejection;
+		}
+		const result = this._sdk.setCwdResult ?? { status: 'ok' as const, cwd: path, changed: true, transcript_relocated: true };
+		if (result.transcript_relocated) {
+			this._sdk.sessionList = this._sdk.sessionList.map(info => ({ ...info, cwd: result.cwd }));
+		}
+		return result;
+	}
 	setMcpPermissionModeOverride(): never { throw new Error('FakeQuery: setMcpPermissionModeOverride not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
@@ -956,7 +984,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	stopTask(): never { throw new Error('FakeQuery: stopTask not modeled'); }
 	reloadSkills(): never { throw new Error('FakeQuery: reloadSkills not modeled'); }
 	backgroundTasks(): never { throw new Error('FakeQuery: backgroundTasks not modeled'); }
-	close(): void { this.closeCount++; }
+	close(): void { this.closeCount++; this._closed.complete(); }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
 }
 
@@ -987,6 +1015,17 @@ class RecordingSessionDataService implements ISessionDataService {
 	get onWillDeleteSessionData() { return this._delegate.onWillDeleteSessionData; }
 	cleanupOrphanedData(knownSessionIds: Set<string>) { return this._delegate.cleanupOrphanedData(knownSessionIds); }
 	whenIdle() { return this._delegate.whenIdle(); }
+}
+
+class FailingWorkspaceConversionDatabase extends TestSessionDatabase {
+	failWorkspaceConversionWrites = false;
+
+	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+		if (this.failWorkspaceConversionWrites && values['claude.workingDirectories'] !== undefined) {
+			throw new Error('workspace conversion persistence failed');
+		}
+		await super.setMetadataValues(values);
+	}
 }
 
 // #endregion
@@ -1297,26 +1336,337 @@ function reducerBackedEnablementService(stateManager: AgentHostStateManager): IC
 
 // #endregion
 
+function publishReducerCustomizations(stateManager: AgentHostStateManager, session: URI, customizations: readonly Customization[]): void {
+	const resource = session.toString();
+	if (!stateManager.getSessionState(resource)) {
+		const now = new Date().toISOString();
+		stateManager.createSession({
+			resource,
+			provider: 'claude',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: now,
+			modifiedAt: now,
+		});
+	}
+	stateManager.dispatchServerAction(resource, { type: ActionType.SessionCustomizationsChanged, customizations: [...customizations] });
+}
+
 suite('ClaudeAgent', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function createWorkspaceConversionFixture(options?: { readonly additionalDirectories?: readonly URI[]; readonly database?: TestSessionDatabase; readonly config?: Record<string, unknown> }) {
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-workspace-conversion-`));
+		disposables.add(toDisposable(() => void fs.rm(userHome.fsPath, { recursive: true, force: true })));
+		const ctx = createTestContext(disposables, { userHome, database: options?.database });
+		ctx.sdk.keepQueryOpen = true;
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(ctx.agent, { config: options?.config });
+		const chat = defaultChatUri(created.session);
+		const scratch = workspacelessScratchDir(userHome, AgentSession.id(created.session));
+		ctx.sdk.sessionList = [{ sessionId: created.sdkSessionId, cwd: scratch.fsPath, summary: '', lastModified: Date.now() }];
+		getOrCreateActiveClient(ctx.agent, chat, 'client-1');
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await ctx.agent.chats.sendMessage(
+			chat,
+			'first',
+			[scratch, ...(options?.additionalDirectories ?? [])],
+			undefined,
+			'turn-1',
+			'client-1',
+			undefined,
+			chatContext(chat),
+		);
+		return { ...ctx, ...created, providerData: created.chat?.providerData, chat, scratch, userHome };
+	}
 
 	test('getDescriptor advertises the Claude provider', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
 			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: true } },
 		);
 	});
 
-	test('setWorkingDirectory rejects because Claude does not advertise workspace conversion', async () => {
-		const { agent } = createTestContext(disposables);
+	test('setWorkingDirectory uses native acknowledgement before refreshing the same conversation and releasing managed scratch', async () => {
+		const fixture = await createWorkspaceConversionFixture();
+		const target = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-workspace-target-`));
+		disposables.add(toDisposable(() => void fs.rm(target.fsPath, { recursive: true, force: true })));
+		fixture.sdk.nextQueryMessages = [];
 
-		await assert.rejects(
-			() => agent.setWorkingDirectory(URI.parse('claude:/chat'), URI.parse('claude:/session'), URI.file('/workspace')),
-			/Claude does not support changing the working directory/,
-		);
+		await fixture.agent.setWorkingDirectory(fixture.chat, createAgentChatContext(fixture.stateManager, fixture.session, fixture.chat), target);
+
+		const overlay = await new ClaudeSessionMetadataStore(fixture.sessionData).read(fixture.session);
+		const appliedDirectory = URI.file(await fs.realpath(target.fsPath));
+		const scratchExists = await fs.stat(fixture.scratch.fsPath).then(() => true, () => false);
+		assert.deepStrictEqual({
+			startupCount: fixture.sdk.startupCallCount,
+			resume: fixture.sdk.capturedStartupOptions[1]?.resume,
+			sessionId: fixture.sdk.capturedStartupOptions[1]?.sessionId,
+			cwd: fixture.sdk.capturedStartupOptions[1]?.cwd,
+			liveSessionId: fixture.agent.getSessionForTesting(fixture.session)?.sessionId,
+			workingDirectories: fixture.agent.getSessionForTesting(fixture.session)?.workingDirectories?.map(directory => directory.toString()),
+			nativeCalls: fixture.sdk.setCwdCalls,
+			managedDirectory: overlay.managedWorkingDirectory,
+			scratchExists,
+		}, {
+			startupCount: 2,
+			resume: fixture.sdkSessionId,
+			sessionId: undefined,
+			cwd: appliedDirectory.fsPath,
+			liveSessionId: fixture.sdkSessionId,
+			workingDirectories: [appliedDirectory.toString()],
+			nativeCalls: [{ path: appliedDirectory.fsPath, options: undefined }],
+			managedDirectory: undefined,
+			scratchExists: false,
+		});
+	});
+
+	test('setWorkingDirectory preserves the original runtime when Claude rejects the native request', async () => {
+		const fixture = await createWorkspaceConversionFixture();
+		const target = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-workspace-rejected-`));
+		disposables.add(toDisposable(() => void fs.rm(target.fsPath, { recursive: true, force: true })));
+		fixture.sdk.setCwdRejection = new Error('native change rejected');
+
+		await assert.rejects(() => fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), target), /native change rejected/);
+
+		assert.deepStrictEqual({
+			workingDirectories: fixture.agent.getSessionForTesting(fixture.session)?.workingDirectories?.map(directory => directory.toString()),
+			scratchExists: await fs.stat(fixture.scratch.fsPath).then(() => true, () => false),
+		}, {
+			workingDirectories: [fixture.scratch.toString()],
+			scratchExists: true,
+		});
+	});
+
+	test('setWorkingDirectory reports an authoritative change when provider persistence fails', async () => {
+		const database = new FailingWorkspaceConversionDatabase();
+		const fixture = await createWorkspaceConversionFixture({ database });
+		const target = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-workspace-authoritative-`));
+		disposables.add(toDisposable(() => void fs.rm(target.fsPath, { recursive: true, force: true })));
+		fixture.sdk.nextQueryMessages = [];
+		database.failWorkspaceConversionWrites = true;
+		const appliedDirectory = URI.file(await fs.realpath(target.fsPath));
+
+		let error: unknown;
+		try {
+			await fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), target);
+		} catch (caught) {
+			error = caught;
+		}
+
+		assert.deepStrictEqual({
+			authoritative: error instanceof AgentWorkingDirectoryChangedError,
+			workingDirectory: error instanceof AgentWorkingDirectoryChangedError ? error.workingDirectory.toString() : undefined,
+			liveWorkingDirectories: fixture.agent.getSessionForTesting(fixture.session)?.workingDirectories?.map(directory => directory.toString()),
+			scratchExists: await fs.stat(fixture.scratch.fsPath).then(() => true, () => false),
+			nativeRequests: fixture.sdk.setCwdCalls.length,
+		}, {
+			authoritative: true,
+			workingDirectory: appliedDirectory.toString(),
+			liveWorkingDirectories: [appliedDirectory.toString()],
+			scratchExists: true,
+			nativeRequests: 1,
+		});
+	});
+
+	test('setWorkingDirectory rejects provisional chats and mismatched configuration scopes', async () => {
+		const fixture = await createWorkspaceConversionFixture();
+		const provisional = await createSession(fixture.agent, { workingDirectories: [fixture.userHome] });
+		await assert.rejects(() => fixture.agent.setWorkingDirectory(defaultChatUri(provisional.session), provisional.session, fixture.userHome), /live, started default conversation/);
+		await assert.rejects(() => fixture.agent.setWorkingDirectory(fixture.chat, {
+			configurationResource: provisional.session,
+			resource: provisional.session,
+		}, fixture.userHome), /live, started default conversation/);
+		assert.strictEqual(fixture.sdk.setCwdCalls.length, 0);
+	});
+
+	test('setWorkingDirectory rejects another backing for the same native conversation', async () => {
+		const fixture = await createWorkspaceConversionFixture();
+		const otherSession = AgentSession.uri('claude', generateUuid());
+		const otherChat = defaultChatUri(otherSession);
+		await fixture.agent.materializeChat(otherChat, chatContext(otherChat), fixture.providerData);
+		await assert.rejects(() => fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), fixture.userHome), /shares its native conversation/);
+		assert.strictEqual(fixture.sdk.setCwdCalls.length, 0);
+	});
+
+	test('setWorkingDirectory retains scratch and rejects sends and peers until native conversion finishes', async () => {
+		const fixture = await createWorkspaceConversionFixture();
+		const gate = new DeferredPromise<void>();
+		fixture.sdk.setCwdEntered = new DeferredPromise<void>();
+		fixture.sdk.setCwdGate = gate.p;
+		const conversion = fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), fixture.userHome);
+		await fixture.sdk.setCwdEntered.p;
+		try {
+			await assert.rejects(() => fixture.agent.chats.sendMessage(fixture.chat, 'racing send', undefined, undefined, 'turn-race', undefined, undefined, chatContext(fixture.chat)), /working directory is changing/);
+			const peer = URI.parse(buildChatUri(fixture.session.toString(), 'racing-peer'));
+			await assert.rejects(() => fixture.agent.chats.createChat(peer, chatContext(peer), resolvedChatOptions()), /working directory is changing/);
+			await assert.rejects(() => fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), fixture.userHome), /another working-directory change/);
+			assert.deepStrictEqual({
+				scratchExists: await fs.stat(fixture.scratch.fsPath).then(() => true, () => false),
+				startups: fixture.sdk.startupCallCount,
+			}, { scratchExists: true, startups: 1 });
+		} finally {
+			gate.complete();
+			await conversion;
+		}
+	});
+
+	test('setWorkingDirectory retains native cwd and scratch ownership if the aligned restart fails', async () => {
+		const fixture = await createWorkspaceConversionFixture();
+		const target = URI.file(await fs.realpath(fixture.userHome.fsPath));
+		fixture.sdk.startupRejection = new Error('aligned startup failed');
+		await assert.rejects(() => fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), target),
+			error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.fsPath === target.fsPath);
+		const overlay = await new ClaudeSessionMetadataStore(fixture.sessionData).read(fixture.session);
+		assert.deepStrictEqual({
+			cwd: fixture.agent.getSessionForTesting(fixture.session)?.workingDirectory?.fsPath,
+			persistedRoots: overlay.workingDirectories?.map(directory => directory.fsPath),
+			managed: overlay.managedWorkingDirectory?.fsPath,
+			nativeCalls: fixture.sdk.setCwdCalls.length,
+		}, {
+			cwd: target.fsPath,
+			persistedRoots: [target.fsPath],
+			managed: fixture.scratch.fsPath,
+			nativeCalls: 1,
+		});
+	});
+
+	test('setWorkingDirectory does not restart or continue when cwd changes without transcript relocation', async () => {
+		const fixture = await createWorkspaceConversionFixture();
+		const target = URI.file(await fs.realpath(fixture.userHome.fsPath));
+		fixture.sdk.setCwdResult = { status: 'ok', cwd: target.fsPath, changed: true, transcript_relocated: false };
+		await assert.rejects(() => fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), target),
+			error => error instanceof AgentWorkingDirectoryChangedError && error.requiresQuarantine && error.workingDirectory.fsPath === target.fsPath);
+		await assert.rejects(() => fixture.agent.chats.sendMessage(fixture.chat, 'continue', undefined, undefined, 'turn-2', undefined, undefined, chatContext(fixture.chat)), /transcript.*blocked/);
+		assert.deepStrictEqual({
+			startups: fixture.sdk.startupCallCount,
+			cwd: fixture.agent.getSessionForTesting(fixture.session)?.workingDirectory?.fsPath,
+			persistedCwd: fixture.sdk.sessionList[0].cwd,
+			scratchExists: await fs.stat(fixture.scratch.fsPath).then(() => true, () => false),
+		}, { startups: 1, cwd: target.fsPath, persistedCwd: fixture.scratch.fsPath, scratchExists: true });
+	});
+
+	test('setWorkingDirectory refreshes workspace MCP startup wiring without changing permission mode', async () => {
+		const fixture = await createWorkspaceConversionFixture({ config: { [ClaudeSessionConfigKey.PermissionMode]: 'plan' } });
+		const target = URI.file(await fs.realpath(fixture.userHome.fsPath));
+		await fixture.fileService.writeFile(URI.joinPath(target, '.mcp.json'), VSBuffer.fromString(JSON.stringify({
+			mcpServers: { workspace: { command: 'node', args: ['workspace-server.js'] } },
+		})));
+		publishReducerCustomizations(fixture.stateManager, fixture.session, [{
+			...makeMcpServerCustomization(URI.joinPath(target, '.mcp.json'), 'workspace'),
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		}]);
+		await fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), target);
+		const options = fixture.sdk.capturedStartupOptions.at(-1);
+		assert.deepStrictEqual({
+			cwd: options?.cwd,
+			resume: options?.resume,
+			mode: options?.permissionMode,
+			server: options?.mcpServers?.workspace,
+			deniedServers: typeof options?.settings === 'object' ? options.settings.deniedMcpServers : undefined,
+			nativeCalls: fixture.sdk.setCwdCalls.length,
+		}, {
+			cwd: target.fsPath,
+			resume: fixture.sdkSessionId,
+			mode: 'plan',
+			server: undefined,
+			deniedServers: [{ serverName: 'workspace' }],
+			nativeCalls: 1,
+		});
+	});
+
+	test('managed scratch survives idle release and is removed on cold chat disposal', async () => {
+		const fixture = await createWorkspaceConversionFixture();
+		await releaseDefaultChat(fixture.agent, fixture.session);
+		const retained = await fs.stat(fixture.scratch.fsPath).then(() => true, () => false);
+		await disposeSession(fixture.agent, fixture.session);
+		const removed = await fs.stat(fixture.scratch.fsPath).then(() => false, () => true);
+		assert.deepStrictEqual({ retained, removed }, { retained: true, removed: true });
+	});
+
+	test('restored workspace-less sessions recover legacy scratch ownership before native conversion', async () => {
+		const database = new TestSessionDatabase();
+		const fixture = await createWorkspaceConversionFixture({ database });
+		await database.deleteMetadata(['claude.managedWorkingDirectory']);
+		await database.setMetadata('agentHost.workspaceless', 'true');
+		await releaseDefaultChat(fixture.agent, fixture.session);
+		await fixture.agent.chats.sendMessage(fixture.chat, 'resume', undefined, undefined, 'turn-2', undefined, undefined, chatContext(fixture.chat));
+		const result = await fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), fixture.userHome);
+		assert.deepStrictEqual({
+			directory: result.fsPath,
+			nativeCalls: fixture.sdk.setCwdCalls.length,
+			scratchExists: await fs.stat(fixture.scratch.fsPath).then(() => true, () => false),
+		}, { directory: await fs.realpath(fixture.userHome.fsPath), nativeCalls: 1, scratchExists: false });
+	});
+
+	test('caller-supplied directories are never owned or deleted as scratch', async () => {
+		const fixture = await createWorkspaceConversionFixture();
+		await disposeSession(fixture.agent, fixture.session);
+		const created = await createSession(fixture.agent, { workingDirectories: [fixture.userHome] });
+		await disposeSession(fixture.agent, created.session);
+		assert.strictEqual((await fs.stat(fixture.userHome.fsPath)).isDirectory(), true);
+	});
+
+	test('setWorkingDirectory rejects busy, shared, and multi-root Claude conversations', async () => {
+		const busy = await createWorkspaceConversionFixture();
+		await releaseDefaultChat(busy.agent, busy.session);
+		const busyTarget = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-workspace-busy-`));
+		disposables.add(toDisposable(() => void fs.rm(busyTarget.fsPath, { recursive: true, force: true })));
+		await startActiveTurn(disposables, busy, busy.session, busy.sdkSessionId);
+		const busyError = await busy.agent.setWorkingDirectory(busy.chat, chatContext(busy.chat), busyTarget).then(() => undefined, error => String(error));
+
+		const shared = await createWorkspaceConversionFixture();
+		const peer = URI.parse(buildChatUri(shared.session.toString(), 'peer'));
+		await shared.agent.chats.createChat(peer, chatContext(peer), resolvedChatOptions([shared.scratch]));
+		const sharedError = await shared.agent.setWorkingDirectory(shared.chat, chatContext(shared.chat), busyTarget).then(() => undefined, error => String(error));
+
+		const additional = URI.file('/additional');
+		const multiRoot = await createWorkspaceConversionFixture({ additionalDirectories: [additional] });
+		const multiRootError = await multiRoot.agent.setWorkingDirectory(multiRoot.chat, chatContext(multiRoot.chat), busyTarget).then(() => undefined, error => String(error));
+		assert.deepStrictEqual({
+			busy: busyError?.includes('busy chat'),
+			shared: sharedError?.includes('another chat shares its configuration'),
+			multiRoot: multiRootError?.includes('multi-root chat'),
+		}, {
+			busy: true,
+			shared: true,
+			multiRoot: true,
+		});
+	});
+
+	test('restored converted sessions use the native relocated transcript directory', async () => {
+		const database = new TestSessionDatabase();
+		const fixture = await createWorkspaceConversionFixture({ database });
+		const target = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-workspace-restored-`));
+		disposables.add(toDisposable(() => void fs.rm(target.fsPath, { recursive: true, force: true })));
+		fixture.sdk.nextQueryMessages = [];
+		await fixture.agent.setWorkingDirectory(fixture.chat, chatContext(fixture.chat), target);
+		const appliedDirectory = URI.file(await fs.realpath(target.fsPath));
+		const restored = createTestContext(disposables, { userHome: fixture.userHome, database });
+		await restored.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		restored.sdk.sessionList = [{
+			sessionId: fixture.sdkSessionId,
+			cwd: appliedDirectory.fsPath,
+			summary: '',
+			lastModified: Date.now(),
+		}];
+		await restored.agent.materializeChat(fixture.chat, chatContext(fixture.chat), fixture.providerData);
+		getOrCreateActiveClient(restored.agent, fixture.chat, 'client-1');
+		restored.sdk.nextQueryMessages = [makeSystemInitMessage(fixture.sdkSessionId), makeResultSuccess(fixture.sdkSessionId)];
+		await restored.agent.chats.sendMessage(fixture.chat, 'continue', undefined, undefined, 'turn-2', 'client-1', undefined, chatContext(fixture.chat));
+
+		assert.deepStrictEqual({
+			resume: restored.sdk.capturedStartupOptions[0]?.resume,
+			cwd: restored.sdk.capturedStartupOptions[0]?.cwd,
+			workingDirectories: restored.agent.getSessionForTesting(fixture.session)?.workingDirectories?.map(directory => directory.toString()),
+		}, {
+			resume: fixture.sdkSessionId,
+			cwd: appliedDirectory.fsPath,
+			workingDirectories: [appliedDirectory.toString()],
+		});
 	});
 
 	test('advertises multipleWorkingDirectories only when the hidden setting is enabled', () => {
@@ -8529,22 +8879,6 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat), ...explicit });
 		};
 		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
-	}
-
-	function publishReducerCustomizations(stateManager: AgentHostStateManager, session: URI, customizations: readonly Customization[]): void {
-		const resource = session.toString();
-		if (!stateManager.getSessionState(resource)) {
-			const now = new Date().toISOString();
-			stateManager.createSession({
-				resource,
-				provider: 'claude',
-				title: 'Test',
-				status: SessionStatus.Idle,
-				createdAt: now,
-				modifiedAt: now,
-			});
-		}
-		stateManager.dispatchServerAction(resource, { type: ActionType.SessionCustomizationsChanged, customizations: [...customizations] });
 	}
 
 	test('createChat seeds the eager activeClient customizations to the plugin manager', async () => {

@@ -2613,7 +2613,7 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
-	async setWorkingDirectory(workingDirectory: URI, transaction: ICopilotWorkingDirectoryChangeTransaction): Promise<void> {
+	async setWorkingDirectory(workingDirectory: URI, transaction: ICopilotWorkingDirectoryChangeTransaction): Promise<URI> {
 		if (!this._wrapper) {
 			throw new Error('Cannot change the working directory before the session is initialized');
 		}
@@ -2690,7 +2690,7 @@ export class CopilotAgentSession extends Disposable {
 				if (alignmentErrors.length > 0) {
 					throw new AgentWorkingDirectoryChangedError(workingDirectory, `The SDK working directory changed to '${workingDirectory.fsPath}', but runtime alignment failed: ${alignmentErrors.join('; ')}`);
 				}
-				return;
+				return actualUri;
 			}
 
 			const mismatchError = new Error(`The SDK returned working directory '${result.workingDirectory}' instead of '${workingDirectory.fsPath}'`);

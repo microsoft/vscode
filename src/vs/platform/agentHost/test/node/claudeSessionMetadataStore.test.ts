@@ -44,6 +44,7 @@ suite('ClaudeSessionMetadataStore', () => {
 
 		await store.write(SESSION_URI, {
 			customizationDirectory: URI.file('/custom'),
+			managedWorkingDirectory: URI.file('/scratch'),
 			model: { id: 'claude-opus-4-6', config: { thinking: 'medium' } },
 			permissionMode: 'acceptEdits',
 		});
@@ -52,11 +53,13 @@ suite('ClaudeSessionMetadataStore', () => {
 
 		assert.deepStrictEqual({
 			customizationDirectory: overlay.customizationDirectory?.toString(),
+			managedWorkingDirectory: overlay.managedWorkingDirectory?.toString(),
 			modelId: overlay.model?.id,
 			modelConfig: overlay.model?.config,
 			permissionMode: overlay.permissionMode,
 		}, {
 			customizationDirectory: URI.file('/custom').toString(),
+			managedWorkingDirectory: URI.file('/scratch').toString(),
 			modelId: 'claude-opus-4-6',
 			modelConfig: { thinking: 'medium' },
 			permissionMode: 'acceptEdits',
@@ -76,6 +79,21 @@ suite('ClaudeSessionMetadataStore', () => {
 			overlay.workingDirectories?.map(d => d.toString()),
 			[URI.file('/a').toString(), URI.file('/b').toString(), URI.file('/c').toString()],
 		);
+	});
+
+	test('conversion atomically updates both anchors and cleanup clears only scratch ownership', async () => {
+		const db = new TestSessionDatabase();
+		const store = createStore(disposables, createSessionDataService(db));
+		await store.write(SESSION_URI, { managedWorkingDirectory: URI.file('/scratch'), permissionMode: 'plan' });
+		await store.writeWorkingDirectory(SESSION_URI, URI.file('/target'));
+		await store.write(SESSION_URI, { managedWorkingDirectory: null });
+		const overlay = await store.read(SESSION_URI);
+		assert.deepStrictEqual({
+			customizations: overlay.customizationDirectory?.fsPath,
+			directories: overlay.workingDirectories?.map(directory => directory.fsPath),
+			managed: overlay.managedWorkingDirectory,
+			mode: overlay.permissionMode,
+		}, { customizations: URI.file('/target').fsPath, directories: [URI.file('/target').fsPath], managed: undefined, mode: 'plan' });
 	});
 
 	test('read returns undefined workingDirectories when none were persisted', async () => {

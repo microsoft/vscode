@@ -1219,11 +1219,41 @@ plus an event**, not a method pair.
      `_sessions`.
   4. Fires `onDidMaterializeSession` (only if it has not already
      been fired — the fork path fires it earlier).
-- **Why worktree before `query()`?** SDK subprocess `cwd` is fixed
-  at fork-time and cannot be changed afterwards. Worktree creation
-  must complete before `query()` or the SDK runs in the wrong
-  directory. Reverse ordering would require a second restart to
-  relocate.
+- **Why worktree before `query()`?** Initial placement must be resolved
+  before startup so tools and customization discovery start in the correct
+  directory. Existing workspace-less conversations use the separate native
+  conversion boundary below, not a change to startup options alone.
+
+##### Workspace-less conversion
+
+`ClaudeAgent.setWorkingDirectory` uses the SDK runtime's `Query.setCwd`
+(`set_cwd` control request). SDK 0.3.258 ships this method but does not
+declare it in the public `Query` type; `claudeWorkingDirectory.ts` guards
+its presence and validates responses. There is no shell-`cd` or
+resume-only fallback when the native operation is unavailable.
+
+The shared `set_workspace` flow owns workspace/isolation confirmation and
+trust. A native `needs_trust` response is acknowledged only for the exact
+canonical target already approved by that flow. The native `ok` response
+must identify the applied cwd and confirm transcript relocation. That
+response, not a later restart, establishes the authoritative directory.
+Failures after it must not roll the host back to the old scratch root.
+In particular, `ok` with `transcript_relocated: false` means cwd changed
+but the transcript may still be stored under the source directory. The
+host adopts the reported cwd, retains scratch ownership, and quarantines
+the session without restarting or automatically continuing it.
+
+After native relocation, the provider reanchors discovery and gracefully
+restarts the query with the same SDK session ID to refresh launch-scoped
+MCP, plugin, permission, and tool options. The SDK catalog remains the
+source of truth for restored cwd; no host cwd override masks native
+transcript metadata. Scratch ownership is persisted separately, retained
+across idle release, and cleared only after owned-directory cleanup.
+Conversion requires an exact live, started, idle default chat with one
+root and no other recorded chat sharing its configuration.
+Native conversion can emit an extra empty result without a user-message
+UUID; results with no pending prompt and messages from a replaced query
+must not complete a later turn.
 
 ##### Fresh vs resumed: `Options.sessionId` vs `Options.resume`
 

@@ -11,7 +11,7 @@ import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
-import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
+import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, getWorkspacelessInstructions } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { BrowserChatToolReferenceName } from '../../../browserView/common/browserChatToolReferenceNames.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
@@ -221,7 +221,7 @@ suite('AgentHostPromptRegistry', () => {
 				avoidsReplacementSession: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not create another session solely to move the work'),
 				blocksScratchMutation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('MUST NOT create, edit, or delete files'),
 				requiresConfirmation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('follow this exact sequence before using any shell or file-mutation tool'),
-				namesProviderTools: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('`request_user_input` in Codex or `ask_user` in Copilot'),
+				providerNeutral: ['Codex', 'Claude', 'Copilot', 'request_user_input', 'AskUserQuestion', 'ask_user'].every(name => !AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes(name)),
 				combinesWorkspaceAndIsolation: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('exactly one single-select question whose choices each combine an exact workspace with an isolation strategy'),
 				forbidsSplitQuestions: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.includes('Do not ask workspace and isolation as separate questions'),
 			}, {
@@ -229,9 +229,20 @@ suite('AgentHostPromptRegistry', () => {
 				avoidsReplacementSession: true,
 				blocksScratchMutation: true,
 				requiresConfirmation: true,
-				namesProviderTools: true,
+				providerNeutral: true,
 				combinesWorkspaceAndIsolation: true,
 				forbidsSplitQuestions: true,
+			});
+		});
+
+		test('keeps provider-selected tool guidance inside the shared workflow tag', () => {
+			const lines = getWorkspacelessInstructions('custom_input').split('\n');
+			assert.deepStrictEqual({
+				sharedLines: lines.slice(0, -3),
+				ending: lines.slice(-3),
+			}, {
+				sharedLines: AGENT_HOST_WORKSPACELESS_INSTRUCTIONS.split('\n').slice(0, -1),
+				ending: ['', 'Use `custom_input` as the user-input tool for workspace and isolation confirmation.', '</workspaceless_chat>'],
 			});
 		});
 
@@ -245,7 +256,7 @@ suite('AgentHostPromptRegistry', () => {
 						...COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections,
 						tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` },
 					},
-					content: `${AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
+					content: `${getWorkspacelessInstructions('ask_user')}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
 				}
 			);
 		});
@@ -275,7 +286,7 @@ suite('AgentHostPromptRegistry', () => {
 						guidelines: { action: 'append', content: 'Be concise.' },
 						tool_instructions: { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` },
 					},
-					content: `${AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
+					content: `${getWorkspacelessInstructions('ask_user')}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
 				}
 			);
 		});
@@ -290,7 +301,7 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, [], true)),
-				{ mode: 'replace', content: `FULL PROMPT\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n\n${AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
+				{ mode: 'replace', content: `FULL PROMPT\n\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}\n\n${getWorkspacelessInstructions('ask_user')}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
 			);
 		});
 	});

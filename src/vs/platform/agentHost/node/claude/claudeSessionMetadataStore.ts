@@ -18,6 +18,10 @@ import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js
  */
 export interface IClaudeSessionOverlay {
 	readonly customizationDirectory?: URI;
+	/** Scratch directory created by this provider, retained until cleanup succeeds. */
+	readonly managedWorkingDirectory?: URI;
+	/** Host-owned marker used to recover scratch ownership for sessions created before it was explicit. */
+	readonly workspaceless?: boolean;
 	readonly model?: ModelSelection;
 	readonly permissionMode?: ClaudePermissionMode;
 	readonly agent?: AgentSelection;
@@ -46,6 +50,7 @@ export interface IClaudeSessionOverlay {
  */
 export interface IClaudeSessionOverlayUpdate {
 	readonly customizationDirectory?: URI;
+	readonly managedWorkingDirectory?: URI | null;
 	readonly model?: ModelSelection;
 	readonly permissionMode?: ClaudePermissionMode;
 	readonly agent?: AgentSelection | null;
@@ -72,6 +77,7 @@ export interface IClaudeSessionOverlayUpdate {
 export class ClaudeSessionMetadataStore {
 
 	private static readonly KEY_CUSTOMIZATION_DIRECTORY = 'claude.customizationDirectory';
+	private static readonly KEY_MANAGED_WORKING_DIRECTORY = 'claude.managedWorkingDirectory';
 	private static readonly KEY_MODEL = 'claude.model';
 	private static readonly KEY_PERMISSION_MODE = 'claude.permissionMode';
 	private static readonly KEY_AGENT = 'claude.agent';
@@ -92,6 +98,7 @@ export class ClaudeSessionMetadataStore {
 				[AH_META_WORKSPACELESS_DB_KEY]: true,
 				'claude.external': true,
 				[ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY]: true,
+				[ClaudeSessionMetadataStore.KEY_MANAGED_WORKING_DIRECTORY]: true,
 				[ClaudeSessionMetadataStore.KEY_MODEL]: true,
 				[ClaudeSessionMetadataStore.KEY_PERMISSION_MODE]: true,
 				[ClaudeSessionMetadataStore.KEY_AGENT]: true,
@@ -117,6 +124,9 @@ export class ClaudeSessionMetadataStore {
 			const work: Promise<void>[] = [];
 			if (fields.customizationDirectory) {
 				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY, fields.customizationDirectory.toString()));
+			}
+			if (fields.managedWorkingDirectory !== undefined) {
+				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_MANAGED_WORKING_DIRECTORY, fields.managedWorkingDirectory?.toString() ?? ''));
 			}
 			if (fields.model) {
 				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_MODEL, serializeModelSelection(fields.model)));
@@ -145,6 +155,19 @@ export class ClaudeSessionMetadataStore {
 		}
 	}
 
+	/** Commit the converted root and customization anchor together; native transcript metadata owns cwd. */
+	async writeWorkingDirectory(session: URI, workingDirectory: URI): Promise<void> {
+		const ref = this._sessionDataService.openDatabase(session);
+		try {
+			await ref.object.setMetadataValues({
+				[ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY]: workingDirectory.toString(),
+				[ClaudeSessionMetadataStore.KEY_WORKING_DIRECTORIES]: JSON.stringify([workingDirectory.toString()]),
+			});
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	/**
 	 * Read all overlay fields from the per-session DB. Returns `{}` when
 	 * no DB is present (external Claude CLI session, fresh install).
@@ -158,8 +181,10 @@ export class ClaudeSessionMetadataStore {
 			return {};
 		}
 		try {
-			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw, workingDirectoriesRaw] = await Promise.all([
+			const [customizationDirectoryRaw, managedWorkingDirectoryRaw, workspacelessRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw, workingDirectoriesRaw] = await Promise.all([
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY),
+				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_MANAGED_WORKING_DIRECTORY),
+				ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_MODEL),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_PERMISSION_MODE),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_AGENT),
@@ -168,6 +193,8 @@ export class ClaudeSessionMetadataStore {
 			]);
 			return {
 				customizationDirectory: customizationDirectoryRaw ? URI.parse(customizationDirectoryRaw) : undefined,
+				managedWorkingDirectory: managedWorkingDirectoryRaw ? URI.parse(managedWorkingDirectoryRaw) : undefined,
+				workspaceless: workspacelessRaw === 'true' ? true : workspacelessRaw === 'false' ? false : undefined,
 				model: parseModelSelection(modelRaw),
 				permissionMode: narrowClaudePermissionMode(permissionModeRaw),
 				agent: parseAgentSelection(agentRaw),

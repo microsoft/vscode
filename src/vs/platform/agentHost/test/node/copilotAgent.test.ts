@@ -4213,7 +4213,8 @@ suite('CopilotAgent', () => {
 				const originalSession = getPeerChatStub(agent, chat);
 				const originalSdkSessionId = chatBackings(agent).get(chat.toString())?.sdkSessionId;
 
-				await agent.setWorkingDirectory(chat, session, next);
+				const appliedDirectory = await agent.setWorkingDirectory(chat, session, next);
+				const unchangedDirectory = await agent.setWorkingDirectory(chat, session, next);
 
 				const stored = sessionDataService.openDatabase(session);
 				const metadata = await stored.object.getMetadataObject({
@@ -4224,6 +4225,8 @@ suite('CopilotAgent', () => {
 				});
 				stored.dispose();
 				assert.deepStrictEqual({
+					appliedDirectory: appliedDirectory.toString(),
+					unchangedDirectory: unchangedDirectory.toString(),
 					sameSession: getPeerChatStub(agent, chat) === originalSession,
 					sdkSessionId: chatBackings(agent).get(chat.toString())?.sdkSessionId,
 					originalSdkSessionId,
@@ -4233,6 +4236,8 @@ suite('CopilotAgent', () => {
 					pluginAdditionalDirectories: activeClient.pluginController.additionalDirectories.map(directory => directory.toString()),
 					metadata,
 				}, {
+					appliedDirectory: next.toString(),
+					unchangedDirectory: next.toString(),
 					sameSession: true,
 					sdkSessionId: 'test-session-1',
 					originalSdkSessionId: 'test-session-1',
@@ -4377,7 +4382,7 @@ suite('CopilotAgent', () => {
 			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession, workingDirectory: previous });
 			const writeGate = new DeferredPromise<void>();
 			const writeEntered = new DeferredPromise<void>();
-			let change: Promise<void> | undefined;
+			let change: Promise<URI> | undefined;
 			try {
 				await created.session.initializeSession();
 				(agent as unknown as {
@@ -4751,7 +4756,7 @@ suite('CopilotAgent', () => {
 			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession, workingDirectory: previous });
 			const writeGate = new DeferredPromise<void>();
 			const writeEntered = new DeferredPromise<void>();
-			let change: Promise<void> | undefined;
+			let change: Promise<URI> | undefined;
 			try {
 				await created.session.initializeSession();
 				(agent as unknown as {
@@ -4812,7 +4817,7 @@ suite('CopilotAgent', () => {
 			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession, workingDirectory: previous });
 			const writeGate = new DeferredPromise<void>();
 			const writeEntered = new DeferredPromise<void>();
-			let change: Promise<void> | undefined;
+			let change: Promise<URI> | undefined;
 			try {
 				await created.session.initializeSession();
 				(agent as unknown as {
@@ -4880,7 +4885,7 @@ suite('CopilotAgent', () => {
 			const blockerGate = new DeferredPromise<void>();
 			const blockerEntered = new DeferredPromise<void>();
 			let blocker: Promise<void> | undefined;
-			let change: Promise<void> | undefined;
+			let change: Promise<URI> | undefined;
 			try {
 				await created.session.initializeSession();
 				(agent as unknown as {
@@ -4959,7 +4964,7 @@ suite('CopilotAgent', () => {
 			const blockerGate = new DeferredPromise<void>();
 			const blockerEntered = new DeferredPromise<void>();
 			let blocker: Promise<void> | undefined;
-			let change: Promise<void> | undefined;
+			let change: Promise<URI> | undefined;
 			try {
 				await created.session.initializeSession();
 				(agent as unknown as {
