@@ -32,9 +32,10 @@ import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution } from '../../../node/agentHostCustomizationEnablementService.js';
@@ -53,6 +54,7 @@ import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
+import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
@@ -3676,6 +3678,81 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 		entry.managedWorkingDirectory = undefined;
 	});
+
+	const serverToolApprovalCases: readonly {
+		readonly name: string;
+		readonly config: Readonly<Record<string, string>>;
+		readonly requiresConfirmation: boolean;
+		readonly agentMergeTurn?: boolean;
+		readonly approved?: boolean;
+	}[] = [
+			{ name: 'full-access preset', config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' }, requiresConfirmation: false },
+			{ name: 'legacy full-access permissions', config: { [CodexSessionConfigKey.ApprovalPolicy]: 'never', [CodexSessionConfigKey.SandboxMode]: 'danger-full-access' }, requiresConfirmation: false },
+			{ name: 'default permissions', config: {}, requiresConfirmation: true },
+			{ name: 'auto-review preset', config: { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' }, requiresConfirmation: true },
+			{ name: 'never with read-only sandbox', config: { [CodexSessionConfigKey.ApprovalPolicy]: 'never', [CodexSessionConfigKey.SandboxMode]: 'read-only' }, requiresConfirmation: true },
+			{ name: 'never with workspace-write sandbox', config: { [CodexSessionConfigKey.ApprovalPolicy]: 'never', [CodexSessionConfigKey.SandboxMode]: 'workspace-write' }, requiresConfirmation: true },
+			{ name: 'Agent Merge with full access', config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' }, requiresConfirmation: true, agentMergeTurn: true },
+			{ name: 'denied default approval', config: {}, requiresConfirmation: true, approved: false },
+		];
+
+	for (const scenario of serverToolApprovalCases) {
+		test(`workspace-less server tool approval honors ${scenario.name}`, async () => {
+			const agent = await createAgent(disposables, { sessionConfig: scenario.config });
+			const tool = sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SetWorkspace)!;
+			const executions: { readonly chatUri: string; readonly toolName: string }[] = [];
+			agent.setServerToolHost({
+				definitions: [tool],
+				toolNames: [tool.name],
+				advertise: () => { },
+				getDefinitionsForSession: () => [tool],
+				canRequireConfirmation: sessionToolRequiresConfirmation,
+				requiresConfirmation: (_chatUri, toolName) => sessionToolRequiresConfirmation(toolName),
+				executeTool: (chatUri, toolName) => {
+					executions.push({ chatUri, toolName });
+					return 'Workspace change scheduled';
+				},
+			});
+			const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'server-tool-thread';
+			entry.agentMergeTurn = scenario.agentMergeTurn;
+			agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+			entry.mapState.itemToToolCall.set('call-1', { toolCallId: 'tool-1', turnId: 'turn-1', toolName: tool.name, output: '' });
+			const confirmations: StringOrMarkdown[] = [];
+			const executionsBeforeApproval: number[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallReady && signal.action.confirmationTitle) {
+					confirmations.push(signal.action.confirmationTitle);
+					executionsBeforeApproval.push(executions.length);
+					agent.respondToPermissionRequest(signal.action.toolCallId, scenario.approved !== false);
+				}
+			}));
+
+			const response = await agent['_handleDynamicToolCallRpc']({
+				threadId: entry.threadId,
+				turnId: 'turn-1',
+				callId: 'call-1',
+				namespace: null,
+				tool: tool.name,
+				arguments: { workspaceFolder: '/workspace/app', isolation: true },
+			});
+
+			assert.deepStrictEqual({
+				confirmations,
+				executionsBeforeApproval,
+				executions,
+				success: response.result?.success,
+				approvalPending: entry.pendingCommandApprovals.has('tool-1'),
+			}, {
+				confirmations: scenario.requiresConfirmation ? ['Continue in app?'] : [],
+				executionsBeforeApproval: scenario.requiresConfirmation ? [0] : [],
+				executions: scenario.approved === false ? [] : [{ chatUri: defaultChatOf(session).toString(), toolName: tool.name }],
+				success: scenario.approved !== false,
+				approvalPending: false,
+			});
+		});
+	}
 
 	test('conversion releases scratch ownership only after confirmation and forks in the attached workspace', async () => {
 		const database = new TestSessionDatabase();
