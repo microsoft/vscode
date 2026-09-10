@@ -261,12 +261,6 @@
 	box-sizing: border-box;
 }
 
-.tools-list-widget > .tools-gallery-container {
-	width: min(calc(100% - var(--vscode-spacing-size40)), 840px);
-	margin-inline: auto;
-	box-sizing: border-box;
-}
-
 .ai-customization-management-editor .contributed-section-container {
 	flex: 1 1 auto;
 	min-height: 0;
@@ -954,7 +948,8 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .prompts-content-container,
-.ai-customization-management-editor .prompt-migration-content-container {
+.ai-customization-management-editor .prompt-migration-content-container,
+.ai-customization-management-editor .tools-content-container {
 	padding-inline: var(--vscode-spacing-sizeNone);
 }
 
@@ -965,9 +960,18 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .prompt-migration-content-container > .section-title-header,
 .ai-customization-management-editor .prompt-migration-content-container > .customization-migration-banner,
 .ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-footer,
-.ai-customization-management-editor .prompt-migration-list {
+.ai-customization-management-editor .prompt-migration-list,
+.ai-customization-management-editor .tools-content-container > .tools-list-widget > .section-title-header,
+.ai-customization-management-editor .tools-content-container > .tools-list-widget > .tools-list-search-and-button-container,
+.ai-customization-management-editor .tools-list-tree {
 	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
 	margin-inline: auto;
+}
+
+.ai-customization-management-editor .tools-content-container > .tools-list-widget > .tools-gallery-container {
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400) - var(--vscode-spacing-size40)), 840px);
+	margin-inline: auto;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .plugin-card-scrollable {
@@ -1441,14 +1445,17 @@ per-word capitalization does not survive translation. */
 	flex: 1;
 	min-height: 0;
 	width: 100%;
-	max-width: 840px;
-	margin: 0 auto;
 }
 
-/* The scrolled element: bound it to the wrapper so clientHeight < scrollHeight when content overflows. */
-.ai-customization-management-editor .tools-list-tree {
+.ai-customization-management-editor .tools-list-tree-scrollable > .tools-list-scroll-container {
 	position: absolute;
 	inset: 0;
+	overflow: hidden;
+}
+
+.ai-customization-management-editor .tools-list-tree {
+	height: 100%;
+	min-height: 0;
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
