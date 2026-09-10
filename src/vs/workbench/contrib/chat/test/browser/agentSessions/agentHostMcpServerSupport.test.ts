@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService, mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
@@ -443,6 +443,7 @@ suite('agentHostMcpServerSupport', () => {
 			mcpWorkbenchService,
 			makeConfigurationResolverService(),
 			configurationService,
+			makeAllowedMcpServersService(),
 		);
 		const scope = store.add(owner.acquire());
 		await scope.whenResolved();
@@ -485,6 +486,7 @@ suite('agentHostMcpServerSupport', () => {
 			mcpWorkbenchService,
 			makeConfigurationResolverService(),
 			configurationService,
+			makeAllowedMcpServersService(),
 		);
 		const scope = store.add(owner.acquire());
 		await readinessRequested.p;
@@ -757,6 +759,7 @@ suite('agentHostMcpServerSupport', () => {
 		const result = await assessMcpServersForCopilotAgentHost(
 			[],
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			'agent-host-copilotcli',
 			[],
 			LazyCollectionState.HasUnknown,
@@ -769,6 +772,7 @@ suite('agentHostMcpServerSupport', () => {
 		const result = await assessMcpServersForCopilotAgentHost(
 			[],
 			makeConfigurationResolverService(),
+			makeAllowedMcpServersService(),
 			'agent-host-claude',
 			[],
 			LazyCollectionState.AllKnown,
@@ -871,10 +875,18 @@ function getUndefinedMcpConfigPath(arg: IWorkbenchLocalMcpServer | URI): IMcpCon
 	return URI.isUri(arg) ? Promise.resolve(undefined) : undefined;
 }
 
+function makeAllowedMcpServersService(isServerAllowed: IAllowedMcpServersService['isServerAllowed'] = () => true): IAllowedMcpServersService {
+	return {
+		onDidChangeAllowedMcpServers: Event.None,
+		isServerAllowed,
+	} as unknown as IAllowedMcpServersService;
+}
+
 async function assess(servers: readonly IMcpServer[], roots: readonly URI[] | undefined) {
 	const result = await assessMcpServersForCopilotAgentHost(
 		servers,
 		makeConfigurationResolverService(),
+		makeAllowedMcpServersService(),
 		'agent-host-copilotcli',
 		roots,
 		LazyCollectionState.AllKnown,

@@ -6,6 +6,7 @@
 import { equals } from '../../../base/common/arrays.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { isObject, isString } from '../../../base/common/types.js';
+import { IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 
 /**
  * A single entry in the `chat.mcp.allowedServers` allowlist. Identifies an MCP server by exactly
@@ -68,6 +69,20 @@ function isValidMatcher(entry: unknown): entry is IMcpServerMatcher {
 	const hasCommand = Array.isArray(serverCommand) && serverCommand.length > 0 && serverCommand.every(isString);
 	// Exactly one matching strategy per the canonical schema's `oneOf`.
 	return (hasName ? 1 : 0) + (hasUrl ? 1 : 0) + (hasCommand ? 1 : 0) === 1;
+}
+
+/**
+ * Reduces a declarative MCP server configuration to the identity used for allow/deny matching:
+ * `url` for remote servers, the full `[command, ...args]` invocation for local stdio servers.
+ *
+ * Shared by every enforcement path so that a server blocked when it is installed or started
+ * locally is blocked identically when it is forwarded to an agent host.
+ */
+export function mcpServerIdentityFromConfiguration(name: string, configuration: IMcpServerConfiguration): IMcpServerIdentity {
+	if (configuration.type === McpServerType.REMOTE) {
+		return { name, url: configuration.url };
+	}
+	return { name, command: [configuration.command, ...(configuration.args ?? [])] };
 }
 
 /**

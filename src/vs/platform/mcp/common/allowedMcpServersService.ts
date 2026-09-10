@@ -9,9 +9,8 @@ import { createCommandUri, IMarkdownString, MarkdownString } from '../../../base
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Emitter } from '../../../base/common/event.js';
 import { hasKey } from '../../../base/common/types.js';
-import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, IMcpServerMatcher, McpServerAllowResult } from './allowedMcpServers.js';
+import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, IMcpServerMatcher, mcpServerIdentityFromConfiguration, McpServerAllowResult } from './allowedMcpServers.js';
 import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue } from './mcpManagement.js';
-import { McpServerType } from './mcpPlatformTypes.js';
 import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../policy/common/copilotManagedSettings.js';
 
 export class AllowedMcpServersService extends Disposable implements IAllowedMcpServersService {
@@ -75,11 +74,7 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 
 	private toIdentity(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): IMcpServerIdentity {
 		if (hasKey(mcpServer, { config: true })) {
-			const config = mcpServer.config;
-			if (config.type === McpServerType.REMOTE) {
-				return { name: mcpServer.name, url: config.url };
-			}
-			return { name: mcpServer.name, command: [config.command, ...(config.args ?? [])] };
+			return mcpServerIdentityFromConfiguration(mcpServer.name, mcpServer.config);
 		}
 
 		// Gallery server: match by name or a remote URL; the local command invocation is only

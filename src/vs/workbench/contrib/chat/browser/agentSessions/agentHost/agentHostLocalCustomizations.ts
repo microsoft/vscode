@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, type AgentCustomization, type CustomizationEnablement, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -16,12 +16,13 @@ import { IPromptsService, isUserToggleableCustomization, matchesSessionType, Pro
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IAllowedMcpServersService } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
-import { AgentHostMcpServerDelivery, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
+import { AgentHostMcpServerDelivery, isMcpServerConfigurationBlockedByPolicy, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
 
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
@@ -192,11 +193,12 @@ export async function resolveLocalCustomAgents(
  * exception is `.vscode/mcp.json`, which the agent host does not discover
  * (despite what the SDK's `enableConfigDiscovery` docs imply) — those are
  * synced, but only when their config can be resolved without requiring user
- * interaction. For agent-host providers with their own GitHub MCP server, the
+ * interaction. Servers blocked by the enterprise MCP allow/deny policy are never
+ * forwarded. For agent-host providers with their own GitHub MCP server, the
  * Copilot Chat extension's duplicate provider is excluded.
  */
-export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[]): Promise<ISyncableMcpServer[]> {
-	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories);
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, allowedMcpServersService: IAllowedMcpServersService, sessionType: string, workingDirectories: readonly URI[]): Promise<ISyncableMcpServer[]> {
+	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, allowedMcpServersService, sessionType, workingDirectories);
 	return resolved.flatMap(({ server, definition, delivery, projectedConfiguration }) => {
 		if (delivery !== AgentHostMcpServerDelivery.ClientForwarded || !definition || !projectedConfiguration) {
 			return [];
@@ -229,6 +231,7 @@ export async function resolveCustomizationRefs(
 	agentPluginService: IAgentPluginService,
 	mcpService: IMcpService,
 	configurationResolverService: IConfigurationResolverService,
+	allowedMcpServersService: IAllowedMcpServersService,
 	bundler: SyncedCustomizationBundler,
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
@@ -264,6 +267,20 @@ export async function resolveCustomizationRefs(
 				};
 				if (nonce !== undefined) {
 					ref.nonce = nonce.toString(16);
+				}
+				// A plugin syncs as a directory, so a policy-blocked server it contributes can only be
+				// withheld by disabling it as a child; the host maps this to `disabledMcpServers`.
+				const blockedChildren: Record<string, CustomizationEnablement[]> = {};
+				for (const definition of plugin.mcpServerDefinitions.get()) {
+					if (isMcpServerConfigurationBlockedByPolicy(allowedMcpServersService, definition.name, definition.configuration)) {
+						blockedChildren[definition.name] = withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+							kind: CustomizationEnablementKind.Global,
+							enabled: false,
+						});
+					}
+				}
+				if (Object.keys(blockedChildren).length > 0) {
+					ref.childEnablement = { ...ref.childEnablement, ...blockedChildren };
 				}
 				return ref;
 			})();
@@ -303,7 +320,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, allowedMcpServersService, sessionType, workingDirectories);
 	if (looseFiles.length > 0 || mcpServers.length > 0) {
 		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
 	}
