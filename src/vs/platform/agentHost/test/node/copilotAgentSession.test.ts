@@ -2513,6 +2513,46 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(usage?.usage, { inputTokens: 4500, outputTokens: 0, model: 'claude-sonnet-4.6' });
 	});
 
+	test('observed request usage preserves missing counters and counts compaction once', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('observed-turn');
+		const data = { model: 'claude-opus-4.6', inputTokens: 10, outputTokens: 0, apiCallId: 'provider-call-1', reasoningEffort: 'high' } as SessionEventPayload<'assistant.usage'>['data'];
+		mockSession.fire('assistant.usage', data, { id: 'observed-1' });
+		mockSession.fire('assistant.usage', data, { id: 'observed-reemitted' });
+		mockSession.fire('assistant.usage', { model: 'gpt-5', cacheReadTokens: 7 } as SessionEventPayload<'assistant.usage'>['data'], { id: 'observed-2' });
+		mockSession.fire('assistant.usage', {
+			model: 'summarizer', inputTokens: 100, apiCallId: 'compaction-call', interactionType: 'conversation-compaction',
+		} as SessionEventPayload<'assistant.usage'>['data'], { id: 'compaction-call-usage' });
+		mockSession.fire('session.compaction_complete', {
+			success: true,
+			compactionTokensUsed: { model: 'summarizer', inputTokens: 100 },
+		} as SessionEventPayload<'session.compaction_complete'>['data'], { id: 'compaction-1' });
+		const before = session.getTurnTokenUsage('observed-turn');
+		session.failActiveTurn({ errorType: 'test', message: 'failure' });
+		assert.deepStrictEqual(session.getTurnTokenUsage('observed-turn'), before);
+		assert.deepStrictEqual(before?.summaries.map(row => row.reasoningEffort), ['high', undefined, undefined]);
+		assert.deepStrictEqual(before?.summaries.map(row => [row.model, row.usageScope, row.usageStatus, row.usageRecordCount, row.knownInputTokens, row.knownOutputTokens, row.knownCacheReadTokens]), [
+			['claude-opus-4.6', 'direct-model', 'partial', 1, 10, 0, undefined],
+			['gpt-5', 'direct-model', 'partial', 1, undefined, undefined, 7],
+			['summarizer', 'compaction', 'partial', 1, 100, undefined, undefined],
+		]);
+		const usage = getActions(signals).filter(a => a.type === ActionType.ChatUsage).at(-1) as ChatUsageAction;
+		assert.deepStrictEqual(usage.usage._meta?.directTurnTokenTotals, [
+			{ model: 'claude-opus-4.6', inputTokens: 20, outputTokens: 0, cachedTokens: 0 },
+			{ model: 'gpt-5', inputTokens: 0, outputTokens: 0, cachedTokens: 7 },
+			{ model: 'summarizer', inputTokens: 200, outputTokens: 0, cachedTokens: 0 },
+		]);
+	});
+
+	test('observed request usage retains the ultra reasoning-effort tier', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.resetTurnState('ultra-turn');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5', inputTokens: 10, outputTokens: 20, apiCallId: 'ultra-call', reasoningEffort: 'ultra',
+		} as SessionEventPayload<'assistant.usage'>['data'], { id: 'ultra-usage' });
+		assert.deepStrictEqual(session.getTurnTokenUsage('ultra-turn')?.summaries.map(row => row.reasoningEffort), ['ultra']);
+	});
+
 	test('a resumed session does not bill its restored history to the first new turn', async () => {
 		// The SDK re-folds usage from its durable event log on resume, so `getMetrics`
 		// opens at the accumulated total of everything already billed.
@@ -4202,6 +4242,81 @@ suite('CopilotAgentSession', () => {
 			{ model: 'gpt-5.5', inputTokens: 6, cachedTokens: 0, outputTokens: 8 },
 		]);
 		assert.deepStrictEqual(meta?.directCopilotUsage, { totalNanoAiu: 300_000_000 });
+	});
+
+	test('observed child usage excludes root and resumed child usage and deduplicates replayed records', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.resetTurnState('root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'child-tool', agentName: 'explore', agentDisplayName: 'Explore',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'child' });
+		const data = { model: 'gpt-5.5', inputTokens: 5 } as SessionEventPayload<'assistant.usage'>['data'];
+		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
+		const first = session.getTurnTokenUsage('child-turn-1', 'child-tool');
+		// Completion now flows through background-task reconciliation, not the subagent.completed event.
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'child', toolCallId: 'child-tool', description: 'Explore',
+			status: 'completed', agentType: 'explore', prompt: 'Explore', startedAt: new Date(0).toISOString(),
+		} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
+		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
+		mockSession.fire('assistant.usage', { ...data, inputTokens: 7 }, { agentId: 'child', id: 'child-usage-2' });
+		const resumed = session.getTurnTokenUsage('child-turn-2', 'child-tool');
+		assert.deepStrictEqual([
+			session.getTurnTokenUsage('root')?.summaries.map(row => [row.usageStatus, row.knownInputTokens]),
+			first?.summaries.map(row => [row.usageStatus, row.knownInputTokens]),
+			resumed?.summaries.map(row => [row.usageStatus, row.knownInputTokens]),
+			session.getTurnTokenUsage('child-turn-1', 'child-tool'),
+		], [[['notReported', undefined]], [['partial', 5]], [['partial', 7]], first]);
+	});
+
+	test('bounds retained child usage and clears token snapshots on session disposal', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.resetTurnState('root');
+		for (let index = 0; index <= 256; index++) {
+			mockSession.fire('assistant.usage', {
+				model: 'gpt-5.5', inputTokens: index, parentToolCallId: `child-${index}`,
+			} as SessionEventPayload<'assistant.usage'>['data'], { id: `child-usage-${index}` });
+		}
+		await timeout(0);
+		const evicted = session.getTurnTokenUsage('evicted-turn', 'child-0');
+		const retained = session.getTurnTokenUsage('retained-turn', 'child-256');
+		session.dispose();
+		assert.deepStrictEqual({
+			evicted,
+			retainedInput: retained?.summaries[0].knownInputTokens,
+			disposed: session.getTurnTokenUsage('retained-turn', 'child-256'),
+		}, {
+			evicted: undefined,
+			retainedInput: 256,
+			disposed: undefined,
+		});
+	});
+
+	test('unattributed child usage does not become direct root usage', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.resetTurnState('root');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5', inputTokens: 10, interactionType: 'conversation-subagent',
+		} as SessionEventPayload<'assistant.usage'>['data'], { id: 'missing-owner' });
+		assert.deepStrictEqual(session.getTurnTokenUsage('root')?.summaries, [{
+			usageScope: 'direct-model', usageStatus: 'notReported', usageRecordCount: 0,
+			inputKnownRecordCount: 0, outputKnownRecordCount: 0, cacheKnownRecordCount: 0,
+		}]);
+	});
+
+	test('a repeated completed request record does not populate a subsequent root turn', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const data = { model: 'gpt-5.5', inputTokens: 10, apiCallId: 'completed-call' } as SessionEventPayload<'assistant.usage'>['data'];
+		session.resetTurnState('old');
+		mockSession.fire('assistant.usage', data, { id: 'old-event' });
+		session.failActiveTurn({ errorType: 'test', message: 'failed' });
+		session.resetTurnState('new');
+		mockSession.fire('assistant.usage', data, { id: 're-emitted-event' });
+		assert.deepStrictEqual(['old', 'new'].map(turnId => session.getTurnTokenUsage(turnId)?.summaries.map(row => [row.usageRecordCount, row.knownInputTokens])), [
+			[[1, 10]], [[0, undefined]],
+		]);
 	});
 
 	test('keeps direct subagent usage after the root turn completes', async () => {
