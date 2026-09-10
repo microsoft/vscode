@@ -352,16 +352,14 @@ type ComponentFixtureThemeVariant = {
 	readonly label: string;
 	readonly background: 'dark' | 'light';
 	readonly theme: ColorThemeData;
-	readonly scopeThemingParticipants: boolean;
 };
-type ComponentFixtureAdditionalThemeVariant = ComponentFixtureThemeVariant & { readonly scopeThemingParticipants: true };
 
-const darkThemeVariant = { label: 'Dark', background: 'dark', theme: darkTheme, scopeThemingParticipants: false } as const satisfies ComponentFixtureThemeVariant;
-const lightThemeVariant = { label: 'Light', background: 'light', theme: lightTheme, scopeThemingParticipants: false } as const satisfies ComponentFixtureThemeVariant;
+const darkThemeVariant = { label: 'Dark', background: 'dark', theme: darkTheme } as const satisfies ComponentFixtureThemeVariant;
+const lightThemeVariant = { label: 'Light', background: 'light', theme: lightTheme } as const satisfies ComponentFixtureThemeVariant;
 const additionalThemeVariants = {
-	darkHighContrast: { label: 'DarkHighContrast', background: 'dark', theme: darkHighContrastTheme, scopeThemingParticipants: true },
-	lightHighContrast: { label: 'LightHighContrast', background: 'light', theme: lightHighContrastTheme, scopeThemingParticipants: true },
-} as const satisfies Record<string, ComponentFixtureAdditionalThemeVariant>;
+	darkHighContrast: { label: 'DarkHighContrast', background: 'dark', theme: darkHighContrastTheme },
+	lightHighContrast: { label: 'LightHighContrast', background: 'light', theme: lightHighContrastTheme },
+} as const satisfies Record<string, ComponentFixtureThemeVariant>;
 export type ComponentFixtureAdditionalTheme = keyof typeof additionalThemeVariants;
 
 const themeLoadedPromises = new WeakMap<ColorThemeData, Promise<void>>();
@@ -397,7 +395,6 @@ function ensureFileIconThemeLoaded(theme: FileIconThemeData): Promise<string | u
 export async function setupTheme(
 	container: HTMLElement,
 	theme: ColorThemeData,
-	scopeThemingParticipants = false,
 	fileIconThemeId: ComponentFixtureFileIconTheme = 'vs-seti',
 	fileIconThemeScope: HTMLElement = container
 ): Promise<IFileIconTheme> {
@@ -411,7 +408,7 @@ export async function setupTheme(
 		throw new Error(`Fixture file icon theme '${fileIconThemeId}' did not produce a stylesheet.`);
 	}
 
-	await ensureGlobalStylesInstalled(theme, scopeThemingParticipants, fileIconThemeClassName && fileIconThemeStyleSheetContent !== undefined ? {
+	await ensureGlobalStylesInstalled(theme, fileIconThemeClassName && fileIconThemeStyleSheetContent !== undefined ? {
 		scopeSelector: `.${fileIconThemeClassName}`,
 		styleSheetContent: fileIconThemeStyleSheetContent,
 	} : undefined);
@@ -1032,7 +1029,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			fixtureHost.appendChild(container);
 			const disposableStore = new DisposableStore();
 			const input = parseFixtureInput(context.input);
-			const { label: themeLabel, theme, scopeThemingParticipants } = themeVariant;
+			const { label: themeLabel, theme } = themeVariant;
 
 			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
 			disposableStore.add(pushRandomOverwrite(42));
@@ -1129,7 +1126,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			});
 
 			async function actualRender() {
-				const fileIconTheme = await setupTheme(container, theme, scopeThemingParticipants, options.fileIconTheme, fixtureHost);
+				const fileIconTheme = await setupTheme(container, theme, options.fileIconTheme, fixtureHost);
 
 				const stylesheetOrderOverride = disposableStore.add(new MutableDisposable<IDisposable>());
 				const updateStylesheetOrder = (input: unknown) => {
