@@ -60,6 +60,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'folder-uri':
 		case 'file-uri':
 		case 'add':
+		case 'remove':
 		case 'diff':
 		case 'merge':
 		case 'wait':
