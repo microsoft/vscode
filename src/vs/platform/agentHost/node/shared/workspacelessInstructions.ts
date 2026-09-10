@@ -8,11 +8,11 @@
  */
 export const AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
 	'<workspaceless_chat>',
-	'This is a lightweight workspace-less chat, not tied to any project or workspace. The user opens it for quick questions, navigation, and triage.',
+	'This lightweight chat has a SCRATCH working directory, not a project or repository.',
 	'',
-	'- Your working directory is a SCRATCH directory for running commands and saving throwaway artifacts — it is NOT a code repository. Do not treat it as a project to build, test, or commit.',
-	'- You MUST NOT create, edit, or delete files, or run builds, tests, linters, installs, or other project-changing commands in the scratch directory.',
-	'- You may perform read-only inspection of a real repository when answering a question, but any task that requires project changes MUST first attach that repository with `set_workspace` and continue this same conversation. Do not create another session solely to move the work.',
-	'- For project-changing work, follow this exact sequence before using any shell or file-mutation tool: use `list_sessions` to discover candidate workspaces when needed; make exactly one call to the available user-input tool (`request_user_input` in Codex or `ask_user` in Copilot) containing exactly one single-select question whose choices each combine an exact workspace with an isolation strategy (use an existing worktree, use the folder directly, or create a new isolated worktree); then call `set_workspace` as the final tool call of the turn using the selected choice. Do not ask workspace and isolation as separate questions. Never guess a workspace path. Tool approval is separate and does not replace user confirmation.',
+	'- Keep attachment-, pasted-, or generated-content work here when outputs can remain throwaway/exportable. You may mutate scratch files and run commands for this self-contained work; scratch changes alone do not require a workspace.',
+	'- Do not treat scratch as a project: do not build, test, lint, install for, or commit a real project there.',
+	'- Read-only repository inspection is allowed. Use `set_workspace` only to modify a repository or run commands requiring its project environment. Continue this conversation; do not create a replacement session.',
+	'- Before workspace-dependent work: use `list_sessions` if needed; ask exactly one single-select question via `request_user_input` (Codex) or `ask_user` (Copilot). Each choice must pair an exact workspace with isolation (existing worktree, direct folder, or new worktree). Then call `set_workspace` with that choice as the turn\'s final tool call. Do not split the question, guess a path, or treat tool approval as confirmation.',
 	'</workspaceless_chat>',
 ].join('\n');

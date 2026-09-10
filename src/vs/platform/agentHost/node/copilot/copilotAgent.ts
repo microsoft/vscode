@@ -15,7 +15,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
 import { delimiter, dirname, isAbsolute, join } from '../../../../base/common/path.js';
@@ -37,6 +36,7 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
@@ -44,7 +44,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { isAutoModel } from './modelIdentifiers.js';
@@ -1928,7 +1928,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const fallbackTurnId = session?.currentTurnId;
 		const event = notification.event;
 		const nativeModelCallId = event.properties.modelCallId ?? event.model_call_id;
-		const modelCallId = typeof nativeModelCallId === 'string' ? nativeModelCallId : undefined;
+		const modelCallId = typeof nativeModelCallId === 'string' && nativeModelCallId.length > 0 ? nativeModelCallId : undefined;
 		const forward = (turnId: string | undefined, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
 			this._gitHubTelemetryForwarder.forward(notification, turnId, {
 				ahCorrelationOutcome: outcome,
@@ -2439,39 +2439,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Synthesize a `contextSize` config property when the model exposes a `long_context` pricing tier with a distinct
-	 * context-max. Picker surfaces this as the "Context Size" button. Mirrors `getContextSizeOptions` in
-	 * `extensions/copilot/src/extension/chat/vscode-node/languageModelAccess.ts`.
-	 *
-	 * The `enum` values are the two context-window sizes (in tokens), smallest first, so the numeric token counts
-	 * flow to the client. The chosen value comes back in the model's `config` bag and is mapped to the SDK's
-	 * two-valued `contextTier` at the SDK boundary by {@link getCopilotContextTier}, using the model's long-context
-	 * window from {@link _longContextWindowFor}.
-	 */
-	private _createContextSizeConfigSchemaProperty(billing: ICAPIModelBilling | undefined): ConfigPropertySchema | undefined {
-		const tokenPrices = billing?.tokenPrices;
-		const defaultMax = tokenPrices?.contextMax;
-		const longContextMax = tokenPrices?.longContext?.contextMax;
-		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
-			return undefined;
-		}
-
-		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
-		return {
-			type: 'number',
-			title: localize('copilot.modelContextSize.title', "Context Size"),
-			description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-			default: hasLongContextSurcharge(billing) ? defaultMax : longContextMax,
-			enum: [defaultMax, longContextMax],
-			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
-			enumDescriptions: [
-				localize('copilot.modelContextSize.default', "Default"),
-				localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
-			],
-		};
-	}
-
-	/**
 	 * The model's long-context window (in tokens): the largest size offered by its "Context Size" picker
 	 * (the max numeric value in the synthesized `contextSize` {@link ConfigPropertySchema.enum}). Used by
 	 * {@link getCopilotContextTier} to decide whether a numeric selection opts into `long_context`.
@@ -2526,7 +2493,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
-		const contextSize = this._createContextSizeConfigSchemaProperty(billing);
+		const contextSize = createContextSizeConfigSchemaProperty(billing);
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
 		}
@@ -3285,8 +3252,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return session.getTurnDiagnosticSnapshot(turnId) ?? { state: 'missingTurn' };
 	}
 
+	getTurnTokenUsage(chat: URI, turnId: string, parentToolCallId?: string): IAgentTurnTokenUsage | undefined {
+		return this._findChatByUri(chat)?.getTurnTokenUsage(turnId, parentToolCallId);
+	}
+
 	recordModelCallTurnCorrelation(chat: URI, modelCallId: string, turnId: string): void {
-		this._findChatByUri(chat)?.modelCallTurnCorrelation.record(modelCallId, turnId);
+		const session = this._findChatByUri(chat);
+		if (session) {
+			const status = session.modelCallTurnCorrelation.record(modelCallId, turnId);
+			if (status !== 'duplicate') {
+				this._gitHubTelemetryForwarder.recordModelCallTurnCorrelation(session.sessionId, modelCallId, turnId, status);
+			}
+		}
 	}
 
 	/** Creates one exact chat backing: fresh, deferred, imported, or forked. */
@@ -4377,6 +4354,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _abortSession(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
+		const context = this._resolveChatContext(chat, operationContext);
+		const abort = this._abortSessionWithRecovery(chat, operationContext);
+		const barrier = abort.then(() => undefined, () => undefined);
+		const queuedBarrier = this._queueChat(context.configurationId, context.sequencerKey, 'abortBarrier', () => barrier);
+		void queuedBarrier.catch(error => {
+			if (!(error instanceof CancellationError)) {
+				this._logService.error(`[Copilot:${context.configurationId}] Failed to queue abort barrier for ${context.sequencerKey}`, error);
+			}
+		});
+		await abort;
+	}
+
+	private async _abortSessionWithRecovery(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		try {
 			await this._abortSessionOnce(chat, operationContext);
 		} catch (error) {
@@ -6796,7 +6786,7 @@ class SessionPluginController extends Disposable {
 
 		if (!this._sessionDiscovered.value) {
 			this._sessionDiscovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry,
-				[this._directory, ...this._additionalDirectories],
+				this._workspaceCustomizationDirectories(),
 				this._parent.getUserHome(),
 				() => this._parent.getClient(),
 				() => this._publish(() => ({
@@ -6809,12 +6799,13 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _mcpDiscoveryEntry(): SessionMcpDiscovery | undefined {
-		if (!this._directory) {
+		const workingDirectories = this._workspaceCustomizationDirectories();
+		if (workingDirectories.length === 0) {
 			return undefined;
 		}
 		if (!this._sessionMcpDiscovery.value) {
 			const store = new DisposableStore();
-			const discovery = store.add(new SessionMcpDiscovery([this._directory, ...this._additionalDirectories], this._fileService));
+			const discovery = store.add(new SessionMcpDiscovery(workingDirectories, this._fileService));
 			store.add(discovery.onDidChange(() => this._publish(() => ({
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: [...this.getCustomizations()],
@@ -6822,6 +6813,13 @@ class SessionPluginController extends Disposable {
 			this._sessionMcpDiscovery.value = { discovery, dispose: () => store.dispose() };
 		}
 		return this._sessionMcpDiscovery.value.discovery;
+	}
+
+	private _workspaceCustomizationDirectories(): readonly URI[] {
+		if (!this._directory || isEqual(this._directory, workspacelessScratchDir(this._parent.getUserHome(), AgentSession.id(this._session)))) {
+			return [];
+		}
+		return [this._directory, ...this._additionalDirectories];
 	}
 
 	private _publish(action: () => SessionAction): void {

@@ -26,7 +26,6 @@ import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts
 import { ResourceLabel } from '../../../../workbench/browser/labels.js';
 import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
@@ -244,8 +243,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(root));
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
 			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
-		this._register(bindContextKey(ChatContextKeys.hasAgentSessionChanges, scopedContextKeyService, reader =>
-			this.changesViewService.activeSessionChangesObs.read(reader).length > 0));
+		this._register(bindContextKey(ActiveSessionContextKeys.HasSelectableChangesets, scopedContextKeyService, reader =>
+			this.changesViewService.activeSessionChangesetsObs.read(reader)?.some(changeset => changeset.isEnabled.read(reader)) ?? false));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._scopedInstantiationService = scopedInstantiationService;
@@ -313,8 +312,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private _buildHeaderToolbars(left: HTMLElement, right: HTMLElement, instantiationService: IInstantiationService): IDisposable {
 		const store = new DisposableStore();
 
-		// The Branch Changes picker + diff stats render as the leading header menu;
-		// their custom action view items resolve globally via IActionViewItemService.
+		// The consolidated changes picker renders as the leading header menu;
+		// its custom action view item resolves globally via IActionViewItemService.
 		store.add(instantiationService.createInstance(MenuWorkbenchToolBar, left, Menus.SessionsEditorHeaderPrimary, {
 			menuOptions: { shouldForwardArgs: true },
 		}));

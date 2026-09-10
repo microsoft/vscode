@@ -1284,6 +1284,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this._getProvider(session)?.renameSession(session.sessionId, title);
 		this._onDidRenameSession.fire(session);
 	}
+
+	async removeSessionArtifact(session: ISession, artifactId: string): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!session.capabilities.get().supportsRemoveArtifacts || !provider?.removeSessionArtifact) {
+			throw new Error(localize('sessions.removeSessionArtifact.unsupported', "Removing artifacts is not supported for this session."));
+		}
+		await provider.removeSessionArtifact(session.sessionId, artifactId);
+	}
 }
 
 function isDeferredNewSessionRequestOptions(options: NewSessionRequestOptions): options is IDeferredNewSessionRequestOptions {

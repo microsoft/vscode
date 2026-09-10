@@ -8,6 +8,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 
 export const CHANGES_VIEW_ID = 'workbench.view.agentSessions.changes';
 export const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesContainer';
+export const CreatePullRequestFocusedContext = new RawContextKey<boolean>('sessions.createPullRequestFocused', false);
 
 /**
  * Command id that opens the session's multi-file diff (Changes) editor, revealing
@@ -50,6 +51,7 @@ export const ChangesContextKeys = {
 export const ActiveSessionContextKeys = {
 	IsolationMode: new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace),
 	HasChanges: new RawContextKey<boolean>('sessions.hasChanges', false),
+	HasSelectableChangesets: new RawContextKey<boolean>('sessions.hasSelectableChangesets', false),
 	HasGitRepository: new RawContextKey<boolean>('sessions.hasGitRepository', true),
 	HasUpstream: new RawContextKey<boolean>('sessions.hasUpstream', false),
 	HasIncomingChanges: new RawContextKey<boolean>('sessions.hasIncomingChanges', false),

@@ -61,7 +61,7 @@ import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '..
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { CustomizationMigrationHintTarget, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, CustomizationMigrationType, ICustomizationMigrationService } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
@@ -478,6 +478,24 @@ suite('ChatService', () => {
 		await response.data.responseCompletePromise;
 
 		await assertSnapshot(toSnapshotExportData(model));
+	});
+
+	test('passes request metadata to the participant without adding it to the prompt', async () => {
+		const requests: { message: string; metadata: Record<string, unknown> | undefined }[] = [];
+		testDisposables.add(chatAgentService.registerAgent('metadataAgent', getAgentData('metadataAgent')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('metadataAgent', {
+			async invoke(request) {
+				requests.push({ message: request.message, metadata: request.metadata });
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const metadata = { 'test.request': { enabled: true } };
+		const response = await service.sendRequest(model.sessionResource, 'hello', { agentId: 'metadataAgent', metadata });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		assert.deepStrictEqual(requests, [{ message: 'hello', metadata }]);
 	});
 
 	test('history', async () => {
@@ -2125,8 +2143,21 @@ suite('ChatService', () => {
 		const migrationHint = {
 			message: 'Found 3 customization files that could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 3 }],
 		};
 		migrationService.computeMigrationHint.resolves(migrationHint);
+		const migrationTelemetry: { readonly category: string; readonly count: number }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+				if (eventName === 'chat.customizationMigrationAssessment' && data) {
+					migrationTelemetry.push({
+						category: String(data.category),
+						count: Number(data.count),
+					});
+				}
+			}
+		});
 
 		const mockSessionsService = new MockChatSessionsService();
 		mockSessionsService.setContributions([{
@@ -2206,6 +2237,7 @@ suite('ChatService', () => {
 		assert.deepStrictEqual({
 			computeCalls: migrationService.computeMigrationHint.callCount,
 			computedFor: migrationService.computeMigrationHint.firstCall.args[0].toString(),
+			migrationTelemetry,
 			neverHint: getHintContent(0),
 			firstHint: getHintContent(1),
 			secondHint: getHintContent(2),
@@ -2216,6 +2248,11 @@ suite('ChatService', () => {
 		}, {
 			computeCalls: 3,
 			computedFor: sessionResource.toString(),
+			migrationTelemetry: [
+				{ category: 'promptFiles', count: 3 },
+				{ category: 'promptFiles', count: 3 },
+				{ category: 'promptFiles', count: 3 },
+			],
 			neverHint: [],
 			firstHint: [expectedHint],
 			secondHint: [],
@@ -2233,6 +2270,7 @@ suite('ChatService', () => {
 		migrationService.computeMigrationHint.resolves({
 			message: 'Found customization files that could be migrated.',
 			target: CustomizationMigrationHintTarget.FileMigrations,
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		});
 
 		const mockSessionsService = new MockChatSessionsService();
