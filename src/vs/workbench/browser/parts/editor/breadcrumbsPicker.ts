@@ -493,8 +493,12 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown
 
 		tree.setInput(input.outline);
 		if (input.element !== input.outline) {
-			tree.reveal(input.element, 0.5);
-			tree.setFocus([input.element], this._fakeEvent);
+			try {
+				tree.reveal(input.element, 0.5);
+				tree.setFocus([input.element], this._fakeEvent);
+			} catch {
+				// element may not be in tree yet
+			}
 		}
 		tree.domFocus();
 
