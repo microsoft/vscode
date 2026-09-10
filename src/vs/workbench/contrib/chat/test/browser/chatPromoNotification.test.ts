@@ -1211,7 +1211,7 @@ suite('ChatPromoNotificationContribution', () => {
 		});
 	});
 
-	test('the promo card shows the model vendor icon', async () => {
+	test('the promo card shows the model vendor icon at its design size', async () => {
 		const container = dom.append(document.body, dom.$('.monaco-workbench'));
 		disposables.add(toDisposable(() => container.remove()));
 		const statusbar = dom.append(container, dom.$('.part.statusbar'));
@@ -1237,7 +1237,20 @@ suite('ChatPromoNotificationContribution', () => {
 		await CommandsRegistry.getCommand(ARM_CHAT_PROMO_COMMAND_ID)!.handler(undefined!, payload);
 		entry.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-		assert.strictEqual(card?.querySelector('.provider-icon')?.className, 'codicon codicon-chat-model-provider-claude provider-icon');
+		// Mount the card the way the hover service does, because the hover host styles
+		// every codicon under `.hover-contents` and the card has to outrank that.
+		const hover = dom.append(container, dom.$('.monaco-hover.workbench-hover.chat-promo-widget-hover'));
+		const contents = dom.append(dom.append(hover, dom.$('.hover-row.markdown-hover')), dom.$('.hover-contents.html-hover-contents'));
+		dom.append(contents, card!);
+		const icon = card!.querySelector('.provider-icon') as HTMLElement;
+
+		assert.deepStrictEqual({
+			className: icon.className,
+			fontSize: getComputedStyle(icon).fontSize,
+		}, {
+			className: 'codicon codicon-chat-model-provider-claude provider-icon',
+			fontSize: '24px',
+		});
 	});
 
 	test('popup pip follows a replaced status entry and restores its icon on disposal', async () => {

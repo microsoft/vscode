@@ -58,8 +58,12 @@
 	display: contents;
 }
 
+/*
+ * The hover host sets `font-size: inherit` on any codicon inside `.hover-contents`,
+ * so the provider mark needs a selector that outranks it to keep its own size.
+ */
 .chat-promo-widget .provider-icon,
-.chat-promo-widget .provider-icon.codicon {
+.monaco-hover.chat-promo-widget-hover .chat-promo-widget .provider-icon.codicon {
 	display: flex;
 	align-items: center;
 	justify-content: center;
