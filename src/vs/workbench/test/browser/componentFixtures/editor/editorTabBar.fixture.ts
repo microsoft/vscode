@@ -899,7 +899,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		FirstTabActiveAdjacentHover: defineComponentFixture({
 			render: renderConnectedSurface(0, 1),
 			expectedVisualDescriptions: [
-				'The first active tab is flush with the editor body left edge. The adjacent hovered tab begins immediately at the active tab boundary without an inter-tab gutter, while the active tab shoulder remains visible over the shared boundary.',
+				'The first active tab is flush with the editor body left edge and the tab strip top edge, and overlaps the body by one stroke so no seam appears below the cap or shoulder. The adjacent hovered tab begins immediately at the active tab boundary and spans the full strip height without an inter-tab, upper, or lower gutter, while the active tab shoulder remains visible over the shared boundary.',
 			],
 		}),
 		LastTabActive: defineComponentFixture({

@@ -8,7 +8,7 @@
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab.fixture-hover:not(.selected):not(.active) > .tab-fill {
-	bottom: calc(-1 * var(--vscode-strokeThickness));
+	bottom: calc(-1 * var(--modern-ui-connected-tab-gutter));
 }
 
 .modern-ui-tabs .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.fixture-hover:not(.selected):not(.active) .tab-label:not(.monaco-decoration-itemColor) a,

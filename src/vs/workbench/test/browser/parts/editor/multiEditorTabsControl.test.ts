@@ -158,6 +158,7 @@ suite('MultiEditorTabsControl', () => {
 
 	test('connected tabs fill row edges without inter-tab gutters', () => {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
+		root.style.cssText = '--vscode-spacing-size40: 4px; --vscode-strokeThickness: 1px;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
 		const editor = $('.part.editor');
@@ -171,13 +172,16 @@ suite('MultiEditorTabsControl', () => {
 		const [activeTab, inactiveTab] = container.querySelectorAll<HTMLElement>('.tabs-container > .tab');
 		const activeFillStyle = mainWindow.getComputedStyle(activeTab.querySelector<HTMLElement>('.tab-fill')!);
 		const inactiveFillStyle = mainWindow.getComputedStyle(inactiveTab.querySelector<HTMLElement>('.tab-fill')!);
+		const rowStyle = mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tabs-and-actions-container')!);
 
 		assert.deepStrictEqual({
-			active: { left: activeFillStyle.left, right: activeFillStyle.right },
-			inactive: { left: inactiveFillStyle.left, right: inactiveFillStyle.right },
+			active: { top: activeFillStyle.top, left: activeFillStyle.left, right: activeFillStyle.right, bottom: activeFillStyle.bottom },
+			inactive: { top: inactiveFillStyle.top, left: inactiveFillStyle.left, right: inactiveFillStyle.right, bottom: inactiveFillStyle.bottom },
+			rowPaddingLeft: rowStyle.paddingLeft,
 		}, {
-			active: { left: '0px', right: '0px' },
-			inactive: { left: '0px', right: '0px' },
+			active: { top: '-4px', left: '0px', right: '0px', bottom: '-6px' },
+			inactive: { top: '-4px', left: '0px', right: '0px', bottom: '-5px' },
+			rowPaddingLeft: '0px',
 		});
 	});
 

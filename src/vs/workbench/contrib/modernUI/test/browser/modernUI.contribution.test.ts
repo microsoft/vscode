@@ -1989,7 +1989,7 @@ suite('ModernUIContribution', () => {
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: connected ? [1, 0, 0] : [0, 0, 0],
+							fillExpansion: [0, 0, 0],
 							topRadius: connected ? '5px' : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));
 					}

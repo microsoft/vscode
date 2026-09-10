@@ -11,7 +11,7 @@ The Modern UI colors below are experimental and require a build that supports th
 
 `workbench.experimental.modernUIEditorTabStyle` chooses the editor tab treatment when `workbench.experimental.modernUI` is enabled:
 
-- `connected` (default): the active tab joins the editor surface, with an outside stroke and curved shoulders. The first tab has a straight left edge.
+- `connected` (default): tabs span the full strip height without gaps. The active tab joins the editor surface with an outside stroke and curved shoulders, and the first tab has a straight left edge.
 - `pill`: separate rounded tabs, without the connected stroke or shoulders.
 
 Changes apply immediately, including in auxiliary editor windows. This setting does not enable Modern UI by itself and does not change the Agents window's pill tabs. High contrast themes keep their explicit selection and focus borders.
