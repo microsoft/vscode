@@ -1966,7 +1966,7 @@ class SessionsAccessibilityProvider {
 				case SessionHeaderStatus.FailingCI:
 					return localize('sessionSectionFailingCIAria', "{0}, {1}, session has failing CI checks", label, sessions.length);
 				case SessionHeaderStatus.Unread:
-					return localize('sessionSectionUnreadAria', "{0}, {1}, unread sessions", label, sessions.length);
+					return localize('sessionSectionUnreadAria', "{0}, {1}, contains unread sessions", label, sessions.length);
 				default:
 					return localize('sessionSectionAria', "{0}, {1}", label, sessions.length);
 			}

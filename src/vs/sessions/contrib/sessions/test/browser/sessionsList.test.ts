@@ -621,7 +621,7 @@ suite('Sessions - SessionsList', () => {
 				color: getHeader(container, group.name).querySelector<HTMLElement>('.codicon-circle-filled')?.style.color,
 			}, {
 				unreadSections: [group.name, 'Workspace C'],
-				groupAria: 'Group A, 1, unread sessions',
+				groupAria: 'Group A, 1, contains unread sessions',
 				workspaceAria: 'Workspace B, 1',
 				color: 'var(--vscode-textLink-foreground)',
 			});
@@ -799,7 +799,7 @@ suite('Sessions - SessionsList', () => {
 					preservesSpinner: true,
 					color: 'var(--vscode-list-warningForeground)',
 					needsInputAria: `${label}, 6, session needs input`,
-					unreadAria: `${label}, 6, unread sessions`,
+					unreadAria: `${label}, 6, contains unread sessions`,
 					expandedPulse: false,
 					clearedPulse: false,
 				});
@@ -1048,7 +1048,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual(states, [
 				{ unreadSections: [], groupIcon: true, workspaceIcon: true, groupAria: 'Group A, 1' },
-				{ unreadSections: [group.name, 'Workspace'], groupIcon: false, workspaceIcon: false, groupAria: 'Group A, 1, unread sessions' },
+				{ unreadSections: [group.name, 'Workspace'], groupIcon: false, workspaceIcon: false, groupAria: 'Group A, 1, contains unread sessions' },
 			]);
 		});
 	});
