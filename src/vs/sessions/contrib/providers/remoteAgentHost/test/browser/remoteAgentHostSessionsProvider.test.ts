@@ -60,6 +60,10 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	override readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
+	private readonly _onWillReinitialize = new Emitter<void>();
+	override readonly onWillReinitialize = this._onWillReinitialize.event;
+	private readonly _onDidReinitialize = new Emitter<void>();
+	override readonly onDidReinitialize = this._onDidReinitialize.event;
 
 	private readonly _onDidRootStateChange = new Emitter<RootState>();
 	private _rootStateValue: RootState = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo] };
@@ -107,9 +111,11 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	}
 
 	public createdSessionUris: URI[] = [];
+	public onCreateSession: (() => void | Promise<void>) | undefined;
 	override async createSession(config?: { session?: URI }): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto');
 		this.createdSessionUris.push(uri);
+		await this.onCreateSession?.();
 		return uri;
 	}
 
@@ -212,9 +218,19 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this._onDidAction.fire(envelope);
 	}
 
+	fireWillReinitialize(): void {
+		this._onWillReinitialize.fire();
+	}
+
+	fireDidReinitialize(): void {
+		this._onDidReinitialize.fire();
+	}
+
 	dispose(): void {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
+		this._onWillReinitialize.dispose();
+		this._onDidReinitialize.dispose();
 		this._onDidRootStateChange.dispose();
 		for (const emitter of this._sessionStateEmitters.values()) {
 			emitter.dispose();
@@ -1206,6 +1222,38 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
 
 		assert.strictEqual(session.loading.get(), true);
+	});
+
+	test('new session recreates its provisional backend after remote host reinitialization', async () => {
+		const provider = createProvider(disposables, connection);
+		provider.setAuthenticationPending(false);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const backendUri = AgentSession.uri(provider.sessionTypes[0].id, session.resource.path.substring(1)).toString();
+		while ((connection.sessionSubscribeCounts.get(backendUri) ?? 0) < 1) {
+			await timeout(0);
+		}
+		const recreated = new DeferredPromise<void>();
+		connection.onCreateSession = () => recreated.complete();
+
+		connection.fireWillReinitialize();
+		connection.fireDidReinitialize();
+		await recreated.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			createdSessions: connection.createdSessionUris.map(uri => uri.toString()),
+			subscribeCount: connection.sessionSubscribeCounts.get(backendUri),
+			unsubscribeCount: connection.sessionUnsubscribeCounts.get(backendUri),
+			disposedSessions: connection.disposedSessions.map(uri => uri.toString()),
+			sessionId: session.sessionId,
+		}, {
+			createdSessions: [backendUri, backendUri],
+			subscribeCount: 2,
+			unsubscribeCount: 1,
+			disposedSessions: [],
+			sessionId: session.sessionId,
+		});
 	});
 
 	test('cached session loading reflects authenticationPending', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

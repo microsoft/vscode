@@ -100,7 +100,7 @@ suite('WSLAgentHostContribution disconnect', () => {
 suite('WSLAgentHostContribution connection wiring', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('clears a wired provider when its connection disconnects or vanishes without clearing an unwired provider', () => {
+	test('keeps a wired provider during in-place reconnect and clears it for a replacement connection', () => {
 		const address = 'wsl:Ubuntu';
 		const connection = {} as IAgentConnection;
 		const calls: string[] = [];
@@ -125,6 +125,10 @@ suite('WSLAgentHostContribution connection wiring', () => {
 		]);
 		contribution._wiredAddresses = new Set();
 
+		contribution._wireConnections();
+		connections = [{ address, status: RemoteAgentHostConnectionStatus.reconnecting }];
+		contribution._wireConnections();
+		connections = [{ address, status: RemoteAgentHostConnectionStatus.connecting }];
 		contribution._wireConnections();
 		connections = [{ address, defaultDirectory: '/home/ubuntu', status: RemoteAgentHostConnectionStatus.disconnected }];
 		contribution._wireConnections();

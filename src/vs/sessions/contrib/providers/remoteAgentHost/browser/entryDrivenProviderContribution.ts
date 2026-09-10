@@ -127,7 +127,9 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 					provider.setConnection(connection, connectionInfo.defaultDirectory);
 					this._wiredAddresses.add(address);
 				}
-			} else if (this._wiredAddresses.delete(address)) {
+			} else if (this._wiredAddresses.has(address)
+				&& !RemoteAgentHostConnectionStatus.isReconnecting(connectionInfo?.status)) {
+				this._wiredAddresses.delete(address);
 				provider.clearConnection();
 			}
 		}
