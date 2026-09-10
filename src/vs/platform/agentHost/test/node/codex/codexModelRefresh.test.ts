@@ -16,6 +16,8 @@ import { INativeEnvironmentService } from '../../../../../platform/environment/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -78,6 +80,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
 	const runStartupAccountProbe = agent['_probeAccountAtStartup'].bind(agent);
 	agent['_probeAccountAtStartup'] = async () => { };

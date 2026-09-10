@@ -23,6 +23,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, getModelContextSize } from '../../common/agentModelConfiguration.js';
@@ -150,6 +151,7 @@ import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/gener
 import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { ensurePortableCodexProxyProvider } from './codexProviderConfiguration.js';
+import { reportCodexProviderSwitch } from './codexProviderSwitchTelemetry.js';
 import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
 import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
 
@@ -671,6 +673,7 @@ interface ICodexSession {
 	materializedCustomizationsSig: string | undefined;
 	/** Model provider backing the current materialized thread. */
 	materializedModelProvider: string | undefined;
+	pendingModelProviderSwitch?: { readonly threadId: string; readonly fromProvider: string };
 	hasNativeHistory?: boolean;
 	/** True once a turn has been started on the (materialized) thread. */
 	firstTurnSent: boolean;
@@ -1202,6 +1205,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._worktree = worktree;
@@ -5796,6 +5800,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			conn = (await this._ensureThreadConnection(session, conn)).connection;
 			const threadId = session.threadId!;
 			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, currentCustomizationLaunch.developerInstructions, configResource);
+			const modelProvider = session.materializedModelProvider;
+			const providerSwitch = session.pendingModelProviderSwitch;
 			const hostInstructions = resolveAgentHostInstructions(operationContext);
 			session.lastPromptText = prompt;
 			session.currentTurnId = effectiveTurnId;
@@ -5816,6 +5822,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			// The thread now has committed history; client tools are locked to
 			// what was registered at `thread/start` and won't be re-applied.
 			session.firstTurnSent = true;
+			if (session.pendingModelProviderSwitch === providerSwitch) {
+				session.pendingModelProviderSwitch = undefined;
+			}
+			if (providerSwitch?.threadId === threadId) {
+				reportCodexProviderSwitch(this._telemetryService, providerSwitch.fromProvider, modelProvider, this._desktopThreadIds.has(threadId));
+			}
 			// We don't await turn completion here — the notification
 			// stream emits ChatTurnComplete asynchronously.
 		} catch (err) {
@@ -6480,6 +6492,10 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 				session.materializedMcpSig = mcpServersSignature(mcpServers);
 				session.materializedCustomizationsSig = customizationLaunch.signature;
+				if (session.firstTurnSent && session.materializedModelProvider !== undefined && session.materializedModelProvider !== resolvedModel.modelProvider
+					&& session.pendingModelProviderSwitch?.threadId !== threadId) {
+					session.pendingModelProviderSwitch = { threadId, fromProvider: session.materializedModelProvider };
+				}
 				session.materializedModelProvider = resolvedModel.modelProvider;
 				void this._refreshMcpInventory(conn.client, threadId);
 			})().catch(err => {

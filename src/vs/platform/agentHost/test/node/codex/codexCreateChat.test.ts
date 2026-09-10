@@ -21,6 +21,8 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
@@ -222,6 +224,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, logService);
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
 	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;

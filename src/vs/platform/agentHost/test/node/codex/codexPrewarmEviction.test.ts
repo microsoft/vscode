@@ -25,6 +25,8 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService, type ITelemetryData } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
@@ -158,6 +160,7 @@ function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 }
 
 interface ICreateAgentOptions {
+	readonly telemetryService?: ITelemetryService;
 	readonly multiRootEnabled?: boolean;
 	readonly sessionConfig?: Readonly<Record<string, boolean | string | readonly string[]>>;
 	readonly database?: TestSessionDatabase;
@@ -170,6 +173,14 @@ class TestCodexLogService extends NullLogService {
 
 	override warn(message: string, ...args: unknown[]): void {
 		this.warnings.push([message, ...args].join(' '));
+	}
+}
+
+class TestCodexTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string | undefined; data: ITelemetryData | undefined }[] = [];
+
+	override publicLog2(name?: string, data?: ITelemetryData): void {
+		this.events.push({ name, data });
 	}
 }
 
@@ -242,6 +253,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, logService);
+	instantiationService.stub(ITelemetryService, options.telemetryService ?? NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
 	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
@@ -2111,8 +2123,11 @@ suite('CodexAgent prewarm eviction', () => {
 	for (const initialConfiguration of ['missing', 'conflicting', 'unwritable']) {
 		test(`protects a cold native thread with a saved Copilot selection and ${initialConfiguration} alias configuration`, async () => {
 			const database = new TestSessionDatabase();
-			const agent = await createAgent(disposables, { database });
+			const telemetryService = new TestCodexTelemetryService();
+			const agent = await createAgent(disposables, { database, telemetryService });
 			agent['_schedulePrewarm'] = () => { };
+			agent['_refreshSkillHookCustomizations'] = async () => { };
+			agent['_refreshSkillExtraRoots'] = async () => { };
 			await database.setMetadata('codex.threadId', 'native-chatgpt-thread');
 			await database.setMetadata('codex.model', COPILOT_TEST_MODEL);
 			const peer = disposables.add(createTestPeer());
@@ -2124,9 +2139,15 @@ suite('CodexAgent prewarm eviction', () => {
 			} as never;
 			const requests: string[] = [];
 			let configurationRepaired = false;
+			let failNextTurn = true;
 			const respond = (chunk: Buffer) => {
 				const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
 				requests.push(request.method);
+				if (request.method === 'turn/start' && failNextTurn) {
+					failNextTurn = false;
+					queueMicrotask(() => peer.push({ id: request.id, error: { code: -32600, message: 'Turn rejected' } }));
+					return;
+				}
 				if (request.method === 'config/batchWrite' && initialConfiguration === 'unwritable' && !configurationRepaired) {
 					queueMicrotask(() => peer.push({ id: request.id, error: { code: -32600, message: 'User configuration is read-only' } }));
 					return;
@@ -2147,11 +2168,13 @@ suite('CodexAgent prewarm eviction', () => {
 			const chat = defaultChatOf(session);
 			try {
 				await agent.getChatMetadata(chat, chatContext(session, chat));
+				assert.deepStrictEqual(telemetryService.events, []);
 				const entry = agent['_sessions'].get(AgentSession.id(session))!;
 				entry.hostTurnIdByAppTurnId.set('native-turn', 'host-turn');
 				entry.codexTurnIdByHostTurnId.set('host-turn', 'native-turn');
 				if (initialConfiguration !== 'missing') {
 					await assert.rejects(agent['_resumeSession'](entry), /already defines an incompatible|User configuration is read-only/);
+					assert.deepStrictEqual(telemetryService.events, []);
 					assert.deepStrictEqual({
 						requests,
 						threadId: entry.threadId,
@@ -2182,6 +2205,22 @@ suite('CodexAgent prewarm eviction', () => {
 					hostTurn: 'host-turn',
 					nativeTurn: 'native-turn',
 				});
+				assert.deepStrictEqual(telemetryService.events, []);
+				await agent.materializeChat(chat, chatContext(session, chat), JSON.stringify({ sessionId: AgentSession.id(session) }));
+				await agent.chats.sendMessage(chat, 'continue', undefined, undefined, 'failed-turn', undefined, undefined, chatContext(session, chat));
+				assert.deepStrictEqual(telemetryService.events, []);
+				await agent.chats.sendMessage(chat, 'retry', undefined, undefined, 'retry-turn', undefined, undefined, chatContext(session, chat));
+				await agent.chats.sendMessage(chat, 'continue again', undefined, undefined, 'next-turn', undefined, undefined, chatContext(session, chat));
+				assert.deepStrictEqual({
+					turnAttempts: requests.filter(method => method === 'turn/start').length,
+					events: telemetryService.events,
+				}, {
+					turnAttempts: 3,
+					events: [{
+						name: 'agentHost.codexProviderSwitch',
+						data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false },
+					}],
+				});
 			} finally {
 				peer.outbound.off('data', respond);
 				peer.exit();
@@ -2190,7 +2229,8 @@ suite('CodexAgent prewarm eviction', () => {
 	}
 
 	test('preserves the native thread when switching from ChatGPT to Copilot', async () => {
-		const agent = await createAgent(disposables);
+		const telemetryService = new TestCodexTelemetryService();
+		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
 		agent['_refreshSkillExtraRoots'] = async () => { };
@@ -2234,6 +2274,7 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.outbound.on('data', respond);
 		try {
 			await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL }, chatContext(created.session, chat));
+			assert.deepStrictEqual(telemetryService.events, []);
 			await agent.chats.sendMessage(chat, 'continue through Copilot', [URI.file('/repo/switch-provider')], undefined, 'next-host-turn', undefined, undefined, chatContext(created.session, chat));
 		} finally {
 			peer.outbound.off('data', respond);
@@ -2273,10 +2314,49 @@ suite('CodexAgent prewarm eviction', () => {
 			previousHostTurn: 'previous-host-turn',
 			previousCodexTurn: 'previous-codex-turn',
 		});
+		assert.deepStrictEqual(telemetryService.events, [{
+			name: 'agentHost.codexProviderSwitch',
+			data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false },
+		}]);
+	});
+
+	test('does not report a pending switch for a different backing thread', async () => {
+		const telemetryService = new TestCodexTelemetryService();
+		const agent = await createAgent(disposables, { telemetryService });
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.pendingModelProviderSwitch = { threadId: 'old-thread', fromProvider: 'openai' };
+		const send = agent.chats.sendMessage(defaultChatOf(session), 'continue', [URI.file('/repo/replacement')], undefined, 'turn-1');
+		try {
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'new-thread' } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+			assert.deepStrictEqual({
+				method: turn.method,
+				threadId: turn.params.threadId,
+				pendingSwitch: entry.pendingModelProviderSwitch,
+				events: telemetryService.events,
+			}, { method: 'turn/start', threadId: 'new-thread', pendingSwitch: undefined, events: [] });
+		} finally {
+			peer.exit();
+		}
 	});
 
 	test('honors switching back to ChatGPT while the Copilot handoff is preparing', async () => {
-		const agent = await createAgent(disposables);
+		const telemetryService = new TestCodexTelemetryService();
+		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		agent['_refreshSkillHookCustomizations'] = async () => { };
 		agent['_refreshSkillExtraRoots'] = async () => { };
@@ -2298,6 +2378,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'native-chatgpt-thread' } } });
 		await materializing;
+		entry.firstTurnSent = true;
 		await agent.chats.changeModel(chat, { id: COPILOT_TEST_MODEL }, chatContext(created.session, chat));
 		const resuming = agent['_resumeSession'](entry);
 		const readConfig = await readNextRequest(peer.outbound);
@@ -2325,6 +2406,8 @@ suite('CodexAgent prewarm eviction', () => {
 				provider: 'openai',
 				threadId: 'native-chatgpt-thread',
 			});
+			await agent.chats.sendMessage(chat, 'continue through ChatGPT', undefined, undefined, 'native-turn', undefined, undefined, chatContext(created.session, chat));
+			assert.deepStrictEqual(telemetryService.events, []);
 		} finally {
 			peer.outbound.off('data', respond);
 			peer.exit();
@@ -2332,7 +2415,8 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('routes provider-qualified models independently and switches one session', async () => {
-		const agent = await createAgent(disposables);
+		const telemetryService = new TestCodexTelemetryService();
+		const agent = await createAgent(disposables, { telemetryService });
 		agent['_schedulePrewarm'] = () => { };
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
@@ -2377,6 +2461,11 @@ suite('CodexAgent prewarm eviction', () => {
 		await resumeCopilot;
 		const inventory = await refreshingInventory;
 		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const firstSend = agent.chats.sendMessage(defaultChatOf(copilot.session), 'first turn after prewarm', undefined, undefined, 'first-turn');
+		const firstTurn = await readNextRequest(peer.outbound);
+		peer.push({ id: firstTurn.id, result: {} });
+		await firstSend;
+		assert.deepStrictEqual({ method: firstTurn.method, events: telemetryService.events }, { method: 'turn/start', events: [] });
 
 		await agent.chats.changeModel(defaultChatOf(copilot.session), { id: COPILOT_TEST_MODEL }, chatContext(copilot.session, defaultChatOf(copilot.session)));
 		const resumeOriginalProvider = agent['_resumeSession'](copilotEntry);
@@ -2385,8 +2474,23 @@ suite('CodexAgent prewarm eviction', () => {
 		const unsubscribeAgain = await readNextRequest(peer.outbound);
 		peer.push({ id: unsubscribeAgain.id, result: {} });
 		const returnedResume = await readNextRequest(peer.outbound);
+		const returnedInventoryPromise = readNextRequest(peer.outbound);
 		peer.push({ id: returnedResume.id, result: { thread: { id: 'thread-copilot' } } });
 		await resumeOriginalProvider;
+		const returnedInventory = await returnedInventoryPromise;
+		peer.push({ id: returnedInventory.id, result: { data: [], nextCursor: null } });
+		assert.deepStrictEqual(telemetryService.events, []);
+		const nextSend = agent.chats.sendMessage(defaultChatOf(copilot.session), 'second turn through Copilot', undefined, undefined, 'second-turn');
+		const nextTurn = await readNextRequest(peer.outbound);
+		peer.push({ id: nextTurn.id, result: {} });
+		await nextSend;
+		assert.deepStrictEqual({ method: nextTurn.method, events: telemetryService.events }, {
+			method: 'turn/start',
+			events: [{
+				name: 'agentHost.codexProviderSwitch',
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false },
+			}],
+		});
 
 		assert.deepStrictEqual({
 			copilotStart: { model: copilotStart.params.model, provider: copilotStart.params.modelProvider },
@@ -3837,7 +3941,8 @@ suite('CodexAgent prewarm eviction', () => {
 			database.setMetadata('codex.threadId', 'replacement-thread'),
 			database.setMetadata('codex.model', OPENAI_TEST_MODEL),
 		]);
-		const agent = await createAgent(disposables, { database });
+		const telemetryService = new TestCodexTelemetryService();
+		const agent = await createAgent(disposables, { database, telemetryService });
 		const baseModel = agent.models.get()[0];
 		agent['_models'].set([
 			{ ...baseModel, id: COPILOT_TEST_MODEL },
@@ -3979,6 +4084,31 @@ suite('CodexAgent prewarm eviction', () => {
 			historyReadThreadId: 'desktop-thread',
 			turn: { method: 'turn/start', threadId: 'desktop-thread', model: 'gpt-test' },
 			overlay: { threadId: 'desktop-thread', modelId: COPILOT_TEST_MODEL },
+		});
+		assert.deepStrictEqual(telemetryService.events, []);
+		await agent.chats.changeModel(chat, { id: OPENAI_TEST_MODEL }, context);
+		const nativeSend = agent.chats.sendMessage(chat, 'continue through ChatGPT', [workingDirectory], undefined, 'native-turn', undefined, undefined, context);
+		const nativeUnsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: nativeUnsubscribe.id, result: {} });
+		const nativeResume = await readNextRequest(peer.outbound);
+		peer.push({ id: nativeResume.id, result: { thread: { id: 'desktop-thread' } } });
+		const nativeInventory = await readNextRequest(peer.outbound);
+		peer.push({ id: nativeInventory.id, result: { data: [], nextCursor: null } });
+		const nativeTurn = await readNextRequest(peer.outbound);
+		assert.deepStrictEqual(telemetryService.events, []);
+		peer.push({ id: nativeTurn.id, result: {} });
+		await nativeSend;
+		assert.deepStrictEqual({
+			method: nativeTurn.method,
+			threadId: nativeTurn.params.threadId,
+			events: telemetryService.events,
+		}, {
+			method: 'turn/start',
+			threadId: 'desktop-thread',
+			events: [{
+				name: 'agentHost.codexProviderSwitch',
+				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: true },
+			}],
 		});
 		peer.exit();
 	});
