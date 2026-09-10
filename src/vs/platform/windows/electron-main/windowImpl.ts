@@ -781,10 +781,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
-			if (config.isSessionsWindow && isWindows) {
-				options.icon = join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico');
+			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
+			if (iconPath) {
+				options.icon = iconPath;
 			}
-			this._iconPath = typeof options.icon === 'string' ? URI.file(options.icon) : undefined;
+			this._iconPath = iconPath ? URI.file(iconPath) : undefined;
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
