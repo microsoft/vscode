@@ -343,12 +343,12 @@ async function renderCheckpointControlsBackground(context: ComponentFixtureConte
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 	CheckpointControlsBackground: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Restore Checkpoint and fork controls each have their own compact opaque surface over the Codicons wallpaper between faded separator lines, with no opaque rectangle behind their toolbar or spacing. Direct hover changes only the hovered control surface.'],
 		render: renderCheckpointControlsBackground,
 	}),
 	RequestAttachmentBackground: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['A comment attachment pill and its /act-on-feedback request sit on opaque tinted surfaces above a short assistant reply on the Codicons wallpaper; the wallpaper remains visible around the surfaces without showing through them.'],
 		render: renderRequestAttachmentBackground,
 	}),
