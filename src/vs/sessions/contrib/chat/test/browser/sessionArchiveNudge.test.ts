@@ -35,7 +35,7 @@ import { GitHubPullRequestModel } from '../../../github/browser/models/githubPul
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../github/common/types.js';
 import { getPullRequestKey } from '../../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
-import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
+import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
 import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/sessionsView.js';
 
