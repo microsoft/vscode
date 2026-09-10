@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -46,6 +47,8 @@ import {
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
 	getMcpStatusPresentation,
+	getMcpErrorPreview,
+	MCP_ERROR_PREVIEW_LENGTH,
 	isMcpServerCollectionVisible,
 	isPrimaryMcpServerEnabled,
 	getMcpStatusRenderSignature,
@@ -929,23 +932,25 @@ suite('mcpListWidget', () => {
 				}
 				const button = disposables.add(new Button(actions, unthemedButtonStyles));
 				button.element.classList.add('test-management-action');
+				button.element.style.width = 'auto';
 				button.label = 'More Actions';
 				registerMcpInlineButtonAction(disposables, button, () => { managementClicks.push('more'); });
 			};
-			const renderer = new McpServerItemRenderer(
+			const renderer = store.add(new McpServerItemRenderer(
 				renderManagementActions,
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,
 				agentHostCustomizationService,
 				customizationHarnessService,
-			);
+			));
 
 			const container = document.createElement('div');
+			container.style.cssText = 'width: 600px; --vscode-fontSize-body1: 13px; --vscode-fontSize-body2: 11px;';
 			const templateData = renderer.renderTemplate(container);
 			store.add({ dispose: () => renderer.disposeTemplate(templateData) });
 			const widget = Object.create(McpListWidget.prototype) as {
-				getMcpEntryAriaLabel(entry: Entry): IObservable<string>;
+				getMcpEntryAriaLabel(entry: Entry, renderer?: McpServerItemRenderer): IObservable<string>;
 				getMcpServerActions(entry: Entry, store: DisposableStore): IAction[];
 				renderMcpListActions(getEntry: () => Entry | undefined, actions: HTMLElement, store: DisposableStore, updateTabbability: () => void): void;
 				createMcpSectionList(container: HTMLElement, label: string, entries: readonly Entry[]): void;
@@ -972,6 +977,7 @@ suite('mcpListWidget', () => {
 				localEnablementCalls: () => localEnablementCalls,
 				menuActions: () => menuActions,
 				activeSessionResource,
+				setAriaProvider: (provider: (entry: Entry) => IObservable<string>) => { widget.getMcpEntryAriaLabel = provider; },
 				menu: (entry: Entry, localServer?: IMcpServer) => {
 					const instantiationService = workbenchInstantiationService({}, store);
 					const enablement = createMcpService(ContributionEnablementState.EnabledProfile);
@@ -1003,7 +1009,7 @@ suite('mcpListWidget', () => {
 				},
 				createSection: (entries: readonly Entry[], width = 500, height = 300) => {
 					const root = DOM.append(document.body, DOM.$('.plugin-list-widget'));
-					root.style.cssText = `width: ${width}px; height: ${height}px; --vscode-spacing-size120: 12px; --vscode-spacing-size80: 8px;`;
+					root.style.cssText = `width: ${width}px; height: ${height}px; --vscode-spacing-size120: 12px; --vscode-spacing-size80: 8px; --vscode-fontSize-body1: 13px; --vscode-fontSize-body2: 11px;`;
 					store.add({ dispose: () => root.remove() });
 					const instantiationService = workbenchInstantiationService({}, store);
 					instantiationService.stub(IListService, store.add(new ListService()));
@@ -1047,7 +1053,7 @@ suite('mcpListWidget', () => {
 				render: (entry: Entry = createBuiltinActiveSessionMcpEntries([server])[0]) => {
 					renderer.renderElement(entry, 0, templateData);
 					renderer.setFocusedIndex(0);
-					const label = widget.getMcpEntryAriaLabel(entry);
+					const label = widget.getMcpEntryAriaLabel(entry, renderer);
 					ariaSubscription.value = autorun(reader => { ariaLabel = label.read(reader); });
 				},
 				read: () => ({
@@ -1243,7 +1249,7 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('dynamic error rows show every line and unbroken token, resize and preserve actions', async () => {
+		test('explicitly expanded errors show every line and unbroken token, resize and preserve actions', async () => {
 			const server = erroring();
 			const ctx = createRenderer(server);
 			disposables.add(ctx.store);
@@ -1260,6 +1266,9 @@ suite('mcpListWidget', () => {
 			const message = `First line\nhttps://example.test/${'unbroken'.repeat(65)}\nFINAL CHARACTERS`;
 			ctx.setServers([{ ...server, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message } } }]);
 			ctx.notifyUnchanged();
+			await section.settle();
+			assert.ok(section.list.getElementHeight(0) <= 120);
+			row.querySelector<HTMLElement>('.mcp-server-error-toggle')!.click();
 			await section.settle();
 			const wideHeight = section.list.getElementHeight(0);
 			section.resize(280);
@@ -1327,7 +1336,15 @@ suite('mcpListWidget', () => {
 			assert.strictEqual(section.list.scrollTop, scrollTop);
 			section.list.reveal(15);
 			await section.settle();
+			assert.ok(section.list.getElementHeight(15) <= 120);
+			section.container.querySelector<HTMLElement>('[data-index="15"] .mcp-server-error-toggle')!.click();
+			await section.settle();
 			assert.ok(section.list.getElementHeight(15) > 280);
+			section.list.reveal(0);
+			await section.settle();
+			section.list.reveal(15);
+			await section.settle();
+			assert.ok(section.list.getElementHeight(15) > 280, 'the same error stays expanded across recycling');
 			section.list.reveal(0);
 			await section.settle();
 			ctx.setServers([{ ...server, enabled: false }]);
@@ -1383,6 +1400,8 @@ suite('mcpListWidget', () => {
 			disposables.add(ctx.store);
 			const section = ctx.createSection([{ type: 'session-server-item', server }], 320);
 			await section.settle();
+			section.container.querySelector<HTMLElement>('.mcp-server-error-toggle')!.click();
+			await section.settle();
 			assert.ok(section.list.getElementHeight(0) > 200);
 			ctx.setServers([]);
 			ctx.activeSessionResource.set(URI.parse('vscode-agent-session:///replacement'), undefined);
@@ -1396,13 +1415,15 @@ suite('mcpListWidget', () => {
 		});
 
 		for (const message of ['Connection refused', '', ' \t\r\n ', 'First line\nSecond line\r\nThird line', 'Long diagnostic '.repeat(100), '<b>not HTML</b> [not a link](command:test) $(error)']) {
-			test(`shows full plain-text error and accessible hover: ${JSON.stringify(message.slice(0, 40))}`, () => {
+			test(`shows bounded plain-text error and accessible hover: ${JSON.stringify(message.slice(0, 40))}`, () => {
 				const ctx = createRenderer(createAgentHostServer({ status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message } } }));
 				disposables.add(ctx.store);
 				ctx.render();
 				const expected = message.trim() ? message : 'The server reported an error without additional details.';
+				const preview = getMcpErrorPreview(expected);
 				assert.deepStrictEqual({ ...ctx.read(), childCount: ctx.templateData.description.childElementCount }, {
-					text: expected, error: true, display: '', hover: expected, ariaLabel: `Server One, Error, ${expected}`, childCount: 0,
+					text: preview.text, error: true, display: '', hover: preview.text,
+					ariaLabel: `Server One, Error, ${preview.text}${preview.truncated ? '. Use Show More to read the full error.' : ''}`, childCount: 0,
 				});
 			});
 		}
@@ -1416,6 +1437,198 @@ suite('mcpListWidget', () => {
 				hover: 'The server reported an error without additional details.',
 				ariaLabel: 'Server One, Error, The server reported an error without additional details.',
 			});
+		});
+
+		for (const character of ['a', '\u{1F600}']) {
+			for (const length of [299, 300, 301]) {
+				test(`preview boundary ${length} code points (${character.length} UTF-16 units each)`, () => {
+					const message = character.repeat(length);
+					const ctx = createRenderer(createAgentHostServer({ ...erroring(), state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message } } }));
+					disposables.add(ctx.store);
+					ctx.render();
+					const expected = character.repeat(Math.min(length, MCP_ERROR_PREVIEW_LENGTH)) + (length > MCP_ERROR_PREVIEW_LENGTH ? '\u2026' : '');
+					assert.deepStrictEqual({
+						preview: getMcpErrorPreview(message), domText: ctx.read().text, hover: ctx.read().hover,
+						expansionDisplay: ctx.templateData.expandButton.element.style.display,
+					}, {
+						preview: { text: expected, truncated: length > MCP_ERROR_PREVIEW_LENGTH },
+						domText: expected, hover: expected, expansionDisplay: length > MCP_ERROR_PREVIEW_LENGTH ? '' : 'none',
+					});
+				});
+			}
+		}
+
+		test('huge errors never enter collapsed DOM hover or ARIA, and expansion is explicit', () => {
+			const message = '<error>\n' + 'Verbose server output '.repeat(50_000) + '\nFINAL';
+			const server = createAgentHostServer({ ...erroring(), state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message } } });
+			const ctx = createRenderer(server);
+			disposables.add(ctx.store);
+			ctx.render();
+			const { description, expandButton } = ctx.templateData;
+			assert.deepStrictEqual({
+				text: description.textContent,
+				hover: ctx.read().hover,
+				ariaBounded: ctx.read().ariaLabel.length < MCP_ERROR_PREVIEW_LENGTH + 100,
+				totalDomBounded: ctx.templateData.container.textContent!.length < MCP_ERROR_PREVIEW_LENGTH + 100,
+				controls: expandButton.element.getAttribute('aria-controls'),
+				expanded: expandButton.element.getAttribute('aria-expanded'),
+				plain: description.childElementCount,
+			}, {
+				text: getMcpErrorPreview(message).text, hover: getMcpErrorPreview(message).text,
+				ariaBounded: true, totalDomBounded: true, controls: description.id, expanded: 'false', plain: 0,
+			});
+			expandButton.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			assert.deepStrictEqual({
+				text: description.textContent, hover: ctx.read().hover,
+				aria: ctx.read().ariaLabel, expanded: expandButton.element.getAttribute('aria-expanded'), label: expandButton.element.textContent,
+			}, { text: message, hover: message, aria: `Server One, Error, ${message}`, expanded: 'true', label: 'Show Less' });
+			expandButton.element.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			assert.strictEqual(description.textContent, getMcpErrorPreview(message).text);
+			ctx.setServers([{ ...server, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: ' \n'.repeat(50_000) } } }]);
+			ctx.notifyUnchanged();
+			assert.strictEqual(description.textContent, 'The server reported an error without additional details.');
+		});
+
+		for (const message of ['one\ntwo\nthree\nfour', 'short URL '.repeat(20)]) {
+			test(`line or width clipping under 300 characters offers expansion: ${message.slice(0, 15)}`, async () => {
+				const server = createAgentHostServer({ ...erroring(), state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message } } });
+				const ctx = createRenderer(server);
+				disposables.add(ctx.store);
+				const section = ctx.createSection([{ type: 'session-server-item', server }], 240, 700);
+				await section.settle();
+				section.list.setFocus([0]);
+				const description = section.container.querySelector<HTMLElement>('.mcp-server-description')!;
+				const button = section.container.querySelector<HTMLElement>('.mcp-server-error-toggle')!;
+				assert.ok(message.length < MCP_ERROR_PREVIEW_LENGTH);
+				assert.deepStrictEqual({
+					visible: button.style.display, height: description.clientHeight, boundedRow: section.list.getElementHeight(0) <= 120,
+					clipped: description.scrollHeight > description.clientHeight, tabIndex: button.tabIndex,
+				}, { visible: '', height: 42, boundedRow: true, clipped: true, tabIndex: 0 });
+				button.focus();
+				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				await section.settle();
+				assert.deepStrictEqual({
+					expanded: button.getAttribute('aria-expanded'),
+					focus: document.activeElement === button,
+					fullHeight: description.clientHeight === description.scrollHeight,
+					stable: section.container.querySelector('.mcp-server-error-toggle') === button,
+				}, { expanded: 'true', focus: true, fullHeight: true, stable: true });
+				button.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+				await section.settle();
+				assert.deepStrictEqual({ expanded: button.getAttribute('aria-expanded'), focus: document.activeElement === button, height: description.clientHeight },
+					{ expanded: 'false', focus: true, height: 42 });
+			});
+		}
+
+		test('short visible errors do not add an expansion control', async () => {
+			const ctx = createRenderer(erroring());
+			disposables.add(ctx.store);
+			const section = ctx.createSection([{ type: 'session-server-item', server: erroring() }], 600);
+			await section.settle();
+			assert.strictEqual(section.container.querySelector<HTMLElement>('.mcp-server-error-toggle')!.style.display, 'none');
+		});
+
+		test('width-only clipping reveals Show More, and widening removes the unnecessary control', async () => {
+			const message = 'The connection failed. '.repeat(8);
+			const server = createAgentHostServer({ ...erroring(), state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message } } });
+			const ctx = createRenderer(server);
+			disposables.add(ctx.store);
+			const section = ctx.createSection([{ type: 'session-server-item', server }], 1200);
+			await section.settle();
+			const button = section.container.querySelector<HTMLElement>('.mcp-server-error-toggle')!;
+			assert.strictEqual(button.style.display, 'none');
+			section.resize(240);
+			await section.settle();
+			assert.strictEqual(button.style.display, '');
+			section.resize(1200);
+			await section.settle();
+			assert.strictEqual(button.style.display, 'none');
+		});
+
+		test('native expansion is cleared by disablement even when the same error returns', async () => {
+			const ctx = createRenderer(erroring(), false);
+			disposables.add(ctx.store);
+			const native = nativeServer();
+			native.connectionState.set({ state: McpConnectionState.Kind.Error, message: 'Native details\n'.repeat(40) }, undefined);
+			const section = ctx.createSection([{ type: 'server-item', server: native.workbenchServer, localServer: native.server }], 600);
+			await section.settle();
+			section.container.querySelector<HTMLElement>('.mcp-server-error-toggle')!.click();
+			await section.settle();
+			assert.ok(section.list.getElementHeight(0) > 400);
+			native.enablement.set(ContributionEnablementState.DisabledProfile, undefined);
+			await section.settle();
+			native.enablement.set(ContributionEnablementState.EnabledProfile, undefined);
+			await section.settle();
+			assert.deepStrictEqual({
+				expanded: section.container.querySelector('.mcp-server-error-toggle')!.getAttribute('aria-expanded'),
+				boundedHeight: section.list.getElementHeight(0) <= 120,
+			}, { expanded: 'false', boundedHeight: true });
+		});
+
+		test('only changed error rows are measured; offscreen ARIA and identical collapsed previews stay idle', async () => {
+			const servers = Array.from({ length: 500 }, (_, index) => createAgentHostServer({ id: `server-${index}`, name: `Server ${index}` }));
+			const ctx = createRenderer(servers[0]);
+			disposables.add(ctx.store);
+			ctx.setServers(servers);
+			const entries: Entry[] = servers.map(server => ({ type: 'session-server-item', server }));
+			const ariaReads = new Set<Entry>();
+			ctx.setAriaProvider(entry => derived(ctx, () => { ariaReads.add(entry); return entry.type === 'session-server-item' ? entry.server.name : ''; }));
+			const section = ctx.createSection(entries, 600, 264);
+			await section.settle();
+			const updateHeight = sinon.spy(section.list, 'updateElementHeight');
+			const rerender = sinon.spy(section.list, 'rerender');
+			const untouched = section.container.querySelector<HTMLElement>('[data-index="0"]')!;
+			const measured = sinon.spy(untouched, 'offsetHeight', ['get']);
+			disposables.add({ dispose: () => { updateHeight.restore(); rerender.restore(); measured.get.restore(); } });
+			const action = untouched.querySelector('.test-management-action');
+			const replaceError = (index: number, message: string) => {
+				servers[index] = { ...servers[index], status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message } } };
+				ctx.setServers([...servers]);
+				ctx.notifyUnchanged();
+			};
+			replaceError(1, 'Changed failure');
+			await section.settle();
+			assert.deepStrictEqual({
+				measuredIndexes: updateHeight.args.map(args => args[0]), wholeListRerenders: rerender.callCount,
+				untouchedMeasurements: measured.get.callCount, offscreenAria: ariaReads.has(entries[450]), ariaReads: ariaReads.size <= 5,
+				sameAction: untouched.querySelector('.test-management-action') === action, scroll: section.list.scrollTop,
+			}, { measuredIndexes: [1], wholeListRerenders: 0, untouchedMeasurements: 0, offscreenAria: false, ariaReads: true, sameAction: true, scroll: 0 });
+			updateHeight.resetHistory();
+			servers[1] = { ...servers[1], logOutputChannelId: 'changed-metadata' };
+			ctx.setServers([...servers]);
+			ctx.notifyUnchanged();
+			await section.settle();
+			assert.strictEqual(updateHeight.callCount, 0);
+			replaceError(1, 'X'.repeat(300) + 'first tail');
+			await section.settle();
+			updateHeight.resetHistory();
+			replaceError(1, 'X'.repeat(300) + 'second tail');
+			await section.settle();
+			assert.strictEqual(updateHeight.callCount, 0, 'a changed hidden tail does not remeasure the collapsed preview');
+			section.container.querySelector<HTMLElement>('[data-index="1"] .mcp-server-error-toggle')!.click();
+			await section.settle();
+			assert.strictEqual(section.container.querySelector('[data-index="1"] .mcp-server-description')!.textContent, 'X'.repeat(300) + 'second tail');
+			replaceError(1, 'X'.repeat(300) + 'third tail');
+			await section.settle();
+			assert.strictEqual(section.container.querySelector('[data-index="1"] .mcp-server-error-toggle')!.getAttribute('aria-expanded'), 'false');
+			updateHeight.resetHistory();
+			replaceError(450, 'Offscreen failure');
+			await section.settle();
+			assert.deepStrictEqual({ updates: updateHeight.args, offscreenAria: ariaReads.has(entries[450]), wholeList: rerender.callCount },
+				{ updates: [[450, 66]], offscreenAria: false, wholeList: 0 });
+			section.list.reveal(450);
+			await section.settle();
+			assert.ok(ariaReads.has(entries[450]), 'ARIA subscribes once the row is rendered');
+			const anchor = section.list.firstVisibleIndex;
+			const anchorTop = section.container.querySelector(`[data-index="${anchor}"]`)!.getBoundingClientRect().top;
+			servers[1] = createAgentHostServer({ id: 'server-1', name: 'Server 1' });
+			ctx.setServers([...servers]);
+			ctx.notifyUnchanged();
+			await section.settle();
+			assert.deepStrictEqual({
+				anchor: section.list.firstVisibleIndex,
+				top: section.container.querySelector(`[data-index="${anchor}"]`)!.getBoundingClientRect().top,
+			}, { anchor, top: anchorTop });
 		});
 
 		test('message-only changes preserve management action identity, keyboard focus and clicks', () => {

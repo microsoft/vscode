@@ -88,7 +88,7 @@ import { IAutomationService } from '../../../../contrib/chat/common/automations/
 import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
+import { MCP_ERROR_PREVIEW_LENGTH, McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -647,6 +647,13 @@ const inlineErrorMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[2], id: 'inline-plain-text', name: 'Plain Text', state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: '<error> [server response](command:example) is plain text, not markup.' } } },
 	{ ...activeSessionMcpServers[2], id: 'inline-disabled', name: 'Disabled Server', enabled: false },
 ];
+
+const hugeMcpErrorServer: FixtureAgentHostMcpServer = {
+	...activeSessionMcpServers[2],
+	id: 'huge-error',
+	name: 'Verbose HTTP Server',
+	state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'HTTP 502: upstream response body\n' + 'Synthetic verbose diagnostics. '.repeat(2000) + '\nFINAL DIAGNOSTIC CHARACTER' } },
+};
 
 function makeFixtureTool(id: string, displayName: string, description: string, source: ToolDataSource): IToolData {
 	return {
@@ -1261,14 +1268,15 @@ const galleryServers = [
 	makeGalleryServer('gallery-redis', 'Redis', 'In-memory data store operations and key management', 'Redis Ltd'),
 ];
 
-async function renderMcpInlineErrors(ctx: ComponentFixtureContext, options: Pick<IRenderEditorOptions, 'width' | 'height' | 'mcpSearchQuery'>): Promise<void> {
+async function renderMcpInlineErrors(ctx: ComponentFixtureContext, options: Pick<IRenderEditorOptions, 'width' | 'height' | 'mcpSearchQuery'> & { expanded?: boolean; huge?: boolean }): Promise<void> {
+	const { expanded, huge, ...editorOptions } = options;
 	await renderEditor(ctx, {
 		sessionResource: localSessionResource,
 		isSessionsWindow: true,
 		selectedSection: AICustomizationManagementSection.McpServers,
-		activeSessionMcpServers: inlineErrorMcpServers,
+		activeSessionMcpServers: huge ? [hugeMcpErrorServer] : inlineErrorMcpServers,
 		enableHovers: true,
-		...options,
+		...editorOptions,
 	});
 	const rows = ctx.container.querySelectorAll('.mcp-server-item.has-error');
 	assert(rows.length > 0, 'The fixture must render an installed error row.');
@@ -1276,6 +1284,17 @@ async function renderMcpInlineErrors(ctx: ComponentFixtureContext, options: Pick
 		assert(row.querySelector('.mcp-runtime-status-badge.error')?.textContent === 'Error', 'Keep the Error badge beside the server name.');
 		const actions = row.querySelector('.mcp-server-actions');
 		assert(actions?.childElementCount === 2 && !!actions.querySelector('[role="switch"]') && !!actions.querySelector('.plugin-card-icon-button'), 'Error rows retain only the enable switch and more-actions button, without a trailing error icon or reserved gap.');
+		const description = row.querySelector<HTMLElement>('.mcp-server-description')!;
+		assert(description.textContent!.length <= MCP_ERROR_PREVIEW_LENGTH * 2 + 1, 'The collapsed DOM must not contain the full unbounded diagnostic.');
+		assert(row.getAttribute('aria-label')!.length < MCP_ERROR_PREVIEW_LENGTH * 2 + 150, 'The collapsed accessible label must be bounded.');
+		assert(description.clientHeight <= 42, 'The collapsed preview must occupy at most three lines.');
+		if (expanded) {
+			const button = row.querySelector<HTMLElement>('.mcp-server-error-toggle')!;
+			button.click();
+			await timeout(50);
+			assert(button.getAttribute('aria-expanded') === 'true' && description.classList.contains('expanded'), 'Full diagnostic rendering must require explicit expansion.');
+			assert(description.textContent!.endsWith('handshake.'), 'Expanded diagnostics must include the final characters.');
+		}
 	}
 }
 
@@ -1945,7 +1964,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersInlineErrors: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The installed error row shows the full red message and Error badge, with space below the name. Only the enable switch and more-actions button appear on the right; there is no red X or empty slot. Healthy rows and marketplace cards remain compact.'],
+		expectedVisualDescriptions: ['The error row shows a padded three-line red preview and Show More below it. The Error badge, enable switch, and more-actions button remain, without a trailing red X. Healthy rows stay compact.'],
 		render: ctx => renderMcpInlineErrors(ctx, {
 			height: 900,
 		}),
@@ -1954,7 +1973,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersInlineErrorsNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The error wraps across as many lines as needed, including the long URL and final handshake sentence. The healthy row follows below without overlap. The Error badge remains; the right side has only the enable switch and more-actions button, with no red X.'],
+		expectedVisualDescriptions: ['At narrow width, the red preview stays within three lines and Show More provides access to hidden text. The following healthy row does not overlap, and there is no trailing red X.'],
 		render: ctx => renderMcpInlineErrors(ctx, {
 			mcpSearchQuery: 'component',
 			width: 550,
@@ -1965,10 +1984,30 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersInlineErrorsSearch: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Search results show a padded, fully wrapped plain red error and Error badge above a compact healthy row. There is no ellipsis, clipped error line, or trailing red X; the enable switch and more-actions button remain.'],
+		expectedVisualDescriptions: ['Search results show a bounded red error preview with an omission ellipsis and Show More, above a compact healthy row. The Error badge and management controls remain without a trailing red X.'],
 		render: ctx => renderMcpInlineErrors(ctx, {
 			mcpSearchQuery: 'component',
 		}),
+	}),
+
+	McpServersInlineErrorsExpanded: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['After Show More is activated, the complete diagnostic wraps beneath the server name, including the final handshake sentence. Show Less is available on the same control.'],
+		render: ctx => renderMcpInlineErrors(ctx, { mcpSearchQuery: 'component', expanded: true }),
+	}),
+
+	McpServersInlineErrorsExpandedNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: ctx => renderMcpInlineErrors(ctx, { mcpSearchQuery: 'component', expanded: true, width: 550, height: 750 }),
+	}),
+
+	McpServersHugeErrorCollapsed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A large HTTP response body is represented by only a three-line preview and Show More. No huge hidden DOM or accessible error text is created.'],
+		render: ctx => renderMcpInlineErrors(ctx, { mcpSearchQuery: 'Verbose', huge: true }),
 	}),
 
 	McpServersAuthRequired: defineComponentFixture({
