@@ -5,9 +5,11 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ISessionFolder } from './session.js';
 
 export const enum SessionComparisonParticipantRole {
 	Coordinator = 'coordinator',
@@ -94,3 +96,19 @@ export interface ISessionComparisonService {
 }
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
+
+export function getSessionComparisonFileKey(resource: URI, folders: readonly ISessionFolder[]): string {
+	const matchingFolders = folders
+		.map((folder, index) => ({ folder, index }))
+		.filter(({ folder }) => isEqualOrParent(resource, folder.workingDirectory))
+		.sort((a, b) => b.folder.workingDirectory.path.length - a.folder.workingDirectory.path.length);
+	const match = matchingFolders[0];
+	if (!match) {
+		return resource.toString();
+	}
+	const path = relativePath(match.folder.workingDirectory, resource);
+	if (path === undefined) {
+		return resource.toString();
+	}
+	return folders.length === 1 ? path : `${match.folder.name}/${path}`;
+}

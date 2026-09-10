@@ -255,6 +255,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
+	get permissionLevel() { return this._session.permissionLevel; }
+	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get isArchived() { return this._session.isArchived; }
@@ -307,6 +309,8 @@ class ResourceOverrideSession implements ISession {
 	get artifacts() { return this._session.artifacts; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
+	get permissionLevel() { return this._session.permissionLevel; }
+	get branch() { return this._session.branch; }
 	get loading() { return this._session.loading; }
 	get isNewSessionRequestInProgress() { return this._session.isNewSessionRequestInProgress; }
 	get isArchived() { return this._session.isArchived; }

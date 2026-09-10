@@ -18,8 +18,12 @@ import { SessionComparisonEditor } from './sessionComparisonEditor.js';
 import { SessionComparisonEditorInput, SessionComparisonEditorSerializer } from './sessionComparisonEditorInput.js';
 import { SessionComparisonToolContribution } from './sessionComparisonTool.js';
 import { SESSION_COMPARISON_AUTO_SYNTHESIZE_SETTING } from '../../../services/sessions/browser/sessionComparisonService.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SessionComparisonAccessibilityHelp, SessionComparisonAccessibleView } from './sessionComparisonAccessibility.js';
 
 registerWorkbenchContribution2(SessionComparisonToolContribution.ID, SessionComparisonToolContribution, WorkbenchPhase.Eventually);
+AccessibleViewRegistry.register(new SessionComparisonAccessibilityHelp());
+AccessibleViewRegistry.register(new SessionComparisonAccessibleView());
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',

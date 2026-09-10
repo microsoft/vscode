@@ -202,6 +202,7 @@ interface ICreateProviderOptions {
 	readonly fileService?: IFileService;
 	readonly pullRequestIconCache?: IPullRequestIconCache;
 	readonly pathService?: IPathService;
+	readonly storageService?: IStorageService;
 }
 
 function createGitConfigFileService(repositoryRoot: URI, config: string | (() => string), onRead?: () => void): IFileService {
@@ -316,7 +317,7 @@ function createProviderWithConfig(
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) });
-	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
+	instantiationService.stub(IStorageService, opts?.storageService ?? disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
 		confirm: async () => ({ confirmed: true }),
@@ -422,7 +423,7 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[]; chatModeService?: IChatModeService; languageModelsService?: Partial<ILanguageModelsService> },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; configurationService?: TestConfigurationService; agentHostEnabled?: boolean; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; notifications?: string[]; chatModeService?: IChatModeService; languageModelsService?: Partial<ILanguageModelsService>; storageService?: IStorageService },
 ): TestSandboxCopilotProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -431,7 +432,7 @@ function createProviderForSendTests(
 
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
+	instantiationService.stub(IStorageService, opts?.storageService ?? disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
 		confirm: async () => ({ confirmed: true }),
@@ -2984,7 +2985,7 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	}
 
-	test('cloud session that commits a new resource resolves without timing out', async () => {
+	test('cloud session that commits a new resource resolves without timing out and restores provenance', async () => {
 		// Regression: a cloud session commits a different resource mid-request
 		// (untitled → /task/<id>), so _sendFirstChat must wait for the committed
 		// resource, not the untitled one, otherwise it times out and removes the session.
@@ -2995,6 +2996,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
 		const responseCreatedPromise = new Promise<IChatResponseModel>(() => { /* never resolves */ });
 
+		const storageService = disposables.add(new TestStorageService());
 		const provider = createProviderForSendTests(disposables, model, async () => ({
 			kind: 'sent' as const,
 			data: {
@@ -3002,7 +3004,7 @@ suite('CopilotChatSessionsProvider', () => {
 				responseCreatedPromise,
 				agent: new class extends mock<IChatAgentData>() { }(),
 			} as IChatSendRequestData,
-		}), { onDidCommitSession: onDidCommit.event });
+		}), { onDidCommitSession: onDidCommit.event, storageService });
 
 		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo/HEAD' });
 		const createdBySession = {
@@ -3058,6 +3060,10 @@ suite('CopilotChatSessionsProvider', () => {
 			createdBySession,
 			untitledRemoved: false,
 		});
+
+		const restoredProvider = createProviderForSendTests(disposables, model, async () => ({ kind: 'rejected', reason: 'Unexpected send' }), { storageService });
+		const restoredSession = restoredProvider.getSessions().find(candidate => candidate.resource.toString() === committedResource.toString());
+		assert.deepStrictEqual(restoredSession?.createdBySession?.get(), createdBySession);
 	});
 	suite('cloud sandbox send path', () => {
 		// A browsed GitHub workspace root carries a ref (`/<owner>/<repo>/HEAD`), which is what
