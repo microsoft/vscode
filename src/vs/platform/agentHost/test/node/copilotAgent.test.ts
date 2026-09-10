@@ -7383,10 +7383,13 @@ suite('CopilotAgent', () => {
 			}
 		}
 
-		test('maps the largest numeric context size to long_context', async () => {
-			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextSize: '1000000' } }, [longContextModel]);
+		test('passes selected context size and thinking level to SDK session creation', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { thinkingLevel: 'high', contextSize: '1000000' } }, [longContextModel]);
 			assert.ok(config, 'SDK createSession should be called during materialization');
-			assert.strictEqual(config.contextTier, 'long_context');
+			assert.deepStrictEqual({ contextTier: config.contextTier, reasoningEffort: config.reasoningEffort }, {
+				contextTier: 'long_context',
+				reasoningEffort: 'high',
+			});
 		});
 
 		test('maps the default numeric context size to default', async () => {
@@ -12284,6 +12287,39 @@ suite('CopilotAgent', () => {
 					{ id: 'model-x', effort: 'low', tier: undefined },
 					{ id: 'model-y', effort: 'high', tier: undefined },
 				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel passes selected thinking level and context size together to the SDK', async () => {
+			const model: ITestCopilotModelInfo = {
+				id: 'model-tuned',
+				name: 'Model Tuned',
+				supportedReasoningEfforts: ['low', 'high'],
+				billing: {
+					multiplier: 1,
+					tokenPrices: {
+						contextMax: 272_000,
+						longContext: { contextMax: 1_000_000, inputPrice: 2 },
+					},
+				},
+			};
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([], [model]) });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+				const session = AgentSession.uri('copilotcli', 'model-tuning');
+				const chat = URI.parse(buildChatUri(session, 'peer-a'));
+				const sdk = makeFakeChatSession(session, 'sdk-a');
+				setPeerChatStub(agent, chat, sdk.fake);
+
+				await agent.chats.changeModel(chat, {
+					id: model.id,
+					config: { thinkingLevel: 'high', contextSize: 1_000_000 },
+				}, exactChatContext(session, chat));
+
+				assert.deepStrictEqual(sdk.rec.modelCalls, [{ id: model.id, effort: 'high', tier: 'long_context' }]);
 			} finally {
 				await disposeAgent(agent);
 			}

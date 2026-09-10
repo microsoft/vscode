@@ -328,6 +328,9 @@ export interface IChatWidgetViewOptions {
 	 */
 	isSessionsWindow?: boolean;
 
+	/** Tab index for the transcript tree root. Use `-1` to exclude it from sequential keyboard navigation while preserving programmatic focus. */
+	transcriptTabIndex?: 0 | -1;
+
 	/** Whether this host supports the experimental session state indicator. Defaults to false. */
 	enableSessionStateIndicator?: boolean;
 

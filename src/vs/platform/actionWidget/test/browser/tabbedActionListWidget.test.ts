@@ -346,6 +346,50 @@ suite('TabbedActionListWidget', () => {
 		widget.hide();
 	});
 
+	for (const focusPanel of [false, true]) {
+		test(`Escape from a detail ${focusPanel ? 'panel' : 'button'} returns to the list before dismissing the picker`, async () => {
+			const { widget, contextView } = createWidget(disposables);
+			const anchor = document.createElement('div');
+			document.body.appendChild(anchor);
+			disposables.add({ dispose: () => anchor.remove() });
+			const button = document.createElement('button');
+			button.textContent = 'Pin Model';
+			widget.show<ITestItem>({
+				user: 'test',
+				anchor,
+				tabs: [{ id: 'Models' }],
+				initialTab: 'Models',
+				showCheckedItemHover: true,
+				createActionList: () => ({
+					items: [{
+						...action('model'),
+						item: { id: 'model', checked: true },
+						hover: { content: button, expandable: true },
+					}],
+					listOptions: { persistentHover: true },
+				}),
+				delegate: { onSelect: () => { }, onHide: () => { } },
+			});
+			const popup = contextView.getContextViewElement();
+			const panel = popup.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			const focusTarget = focusPanel ? panel : button;
+			focusTarget.focus();
+			focusTarget.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+			const afterFirstEscape = {
+				visible: widget.isVisible,
+				panelHidden: panel.style.display === 'none',
+				listFocused: popup.querySelector('.monaco-list') === document.activeElement,
+			};
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({ afterFirstEscape, visibleAfterSecondEscape: widget.isVisible }, {
+				afterFirstEscape: { visible: true, panelHidden: true, listFocused: true },
+				visibleAfterSecondEscape: false,
+			});
+		});
+	}
+
 	for (const motionReduced of [false, true]) {
 		test(`refresh preserves the focused detail control and moves its row with reduced motion ${motionReduced}`, async () => {
 			const { widget, contextView } = createWidget(disposables, motionReduced);

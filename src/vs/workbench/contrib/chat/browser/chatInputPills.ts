@@ -30,6 +30,8 @@ export interface IChatInputPillSource {
 	readonly isVisible?: IObservable<boolean>;
 	readonly pill: IObservable<IChatPill>;
 	getContextMenuActions?(): readonly IAction[];
+	/** Actions on this pill's content, shown directly when its context menu is opened. */
+	getContextMenuPrimaryActions?(): readonly IAction[];
 }
 
 export interface IChatInputPillsOptions {
@@ -51,6 +53,7 @@ export interface IStandardChatInputPillSections {
 	readonly hasData?: IObservable<boolean>;
 	readonly icon?: ThemeIcon | IObservable<ThemeIcon>;
 	getContextMenuActions?(): readonly IAction[];
+	getContextMenuPrimaryActions?(): readonly IAction[];
 }
 
 export interface IStandardChatInputPillsData {
@@ -134,6 +137,7 @@ export class StandardChatInputPillSources extends Disposable {
 				hasData: source.hasData ?? pillSource.hasData,
 				isVisible: pillSource.hasData,
 				getContextMenuActions: () => source.getContextMenuActions?.() ?? [],
+				getContextMenuPrimaryActions: () => source.getContextMenuPrimaryActions?.() ?? [],
 			});
 		};
 		addSections(SessionChatPillKind.PullRequests, data.pullRequests, sessionPullRequestsPillOptions);
@@ -284,6 +288,16 @@ export class ChatInputPills extends Disposable {
 			},
 		});
 		const targetActions: IAction[] = [];
+		if (targetKind) {
+			for (const source of this._options.sources.get()) {
+				if (source.kind === targetKind && this._options.offeredKinds.includes(targetKind)) {
+					targetActions.push(...source.getContextMenuPrimaryActions?.() ?? []);
+				}
+			}
+			if (targetActions.length) {
+				targetActions.push(new Separator());
+			}
+		}
 		if (menu.hide) {
 			const hide = menu.hide;
 			targetActions.push(toAction({

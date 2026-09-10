@@ -14,16 +14,50 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import {
 	IBrowserViewKeyDownEvent,
 } from '../../../../../platform/browserView/common/browserView.js';
-import { IBrowserViewModel } from '../../common/browserView.js';
+import { BrowserViewSharingState, IBrowserViewModel } from '../../common/browserView.js';
 import {
 	BrowserEditor,
 	BrowserEditorContribution,
 	BrowserWidgetLocation,
 	IBrowserEditorWidget,
 	IContainerLayout,
+	IContainerLayoutPane,
 	IContainerLayoutOverride,
 } from '../browserEditor.js';
 import { BrowserOverlayManager, BrowserOverlayType } from '../overlayManager.js';
+
+const BROWSER_CONTAINER_BORDER_PADDING = 3;
+
+/**
+ * Returns room for the browser page border unless the Modern UI editor card already supplies the resting boundary.
+ */
+export function getBrowserContainerPadding(browserContainer: HTMLElement, isShared: boolean, hasDeviceEmulation: boolean): { top: number; right: number; bottom: number; left: number } {
+	const editorPart = browserContainer.closest('.part.editor');
+	const hasModernUIEditorCard = !!editorPart
+		&& !editorPart.classList.contains('modal-editor-part')
+		&& !!editorPart.closest('.monaco-workbench.modern-ui');
+	const padding = hasModernUIEditorCard && !isShared && !hasDeviceEmulation ? 0 : BROWSER_CONTAINER_BORDER_PADDING;
+	return { top: padding, right: padding, bottom: padding, left: padding };
+}
+
+/**
+ * Snaps Browser bounds to host pixels, covering the available area when the editor card owns its boundary.
+ */
+export function snapBrowserContainerLayout(current: IContainerLayout, pane: IContainerLayoutPane, zoomFactor: number, coverAvailableArea: boolean): IContainerLayout {
+	const snapDown = (value: number) => Math.floor(value * zoomFactor) / zoomFactor;
+	const snapUp = (value: number) => Math.ceil(value * zoomFactor) / zoomFactor;
+	const absoluteLeft = pane.originX + (current.left ?? 0);
+	const absoluteTop = pane.originY + (current.top ?? 0);
+	const snappedAbsoluteLeft = snapDown(absoluteLeft);
+	const snappedAbsoluteTop = snapDown(absoluteTop);
+	return {
+		...current,
+		width: coverAvailableArea && current.width !== 0 ? snapUp(absoluteLeft + current.width) - snappedAbsoluteLeft : snapDown(current.width),
+		height: coverAvailableArea && current.height !== 0 ? snapUp(absoluteTop + current.height) - snappedAbsoluteTop : snapDown(current.height),
+		left: snappedAbsoluteLeft - pane.originX,
+		top: snappedAbsoluteTop - pane.originY,
+	};
+}
 
 /**
  * Default browser renderer: drives a Chromium WebContentsView.
@@ -88,31 +122,16 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	}
 
 	override beforeContainerLayout(): IContainerLayoutOverride {
-		return {
-			padding: { top: 3, right: 3, bottom: 3, left: 3 },
+		const padding = getBrowserContainerPadding(
+			this.editor.browserContainer,
+			this._model?.sharingState === BrowserViewSharingState.Shared,
+			!!this._model?.device,
+		);
+		const usesModernUIEditorCardBoundary = padding.top === 0;
 
-			// Snap CSS-pixel values down so `v × hostZoom` is an exact integer:
-			// main places the WCV at `round(v × hostZoom) × systemDPR` physical
-			// pixels while CSS renders it at `v × hostZoom × systemDPR`, so this
-			// collapses main's rounding to a no-op and keeps the WebContentsView
-			// aligned with the placeholder screenshot. We snap the absolute
-			// origin (pane origin + local offset) then derive the corresponding
-			// local position so the DOM element and the WCV land on the same
-			// physical pixel. Runs late so it refines whatever sizing upstream
-			// contributions (e.g. device emulation) produced.
-			compute: (current, pane): IContainerLayout => {
-				const z = getZoomFactor(this.editor.window);
-				const snap = (v: number) => Math.floor(v * z) / z;
-				const absLeft = pane.originX + (current.left ?? 0);
-				const absTop = pane.originY + (current.top ?? 0);
-				return {
-					...current,
-					width: snap(current.width),
-					height: snap(current.height),
-					left: snap(absLeft) - pane.originX,
-					top: snap(absTop) - pane.originY,
-				};
-			},
+		return {
+			padding,
+			compute: (current, pane): IContainerLayout => snapBrowserContainerLayout(current, pane, getZoomFactor(this.editor.window), usesModernUIEditorCardBoundary),
 			priority: 1000,
 		};
 	}
@@ -183,6 +202,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		store.add(model.onDidKeyCommand(keyEvent => void this._handleKeyEvent(keyEvent)));
 		store.add(model.onDidNavigate(() => this._refresh(true)));
 		store.add(model.onDidChangeLoadingState(() => this._refresh(true)));
+		store.add(model.onDidChangeSharingState(() => this.editor.layoutBrowserContainer()));
 
 		this._refresh();
 		void this._doScreenshot();

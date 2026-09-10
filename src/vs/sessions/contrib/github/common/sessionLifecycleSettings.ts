@@ -5,4 +5,5 @@
 
 export const AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
 export const AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
-export const AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY = 'chat.agentSessions.auto';
+export const AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';
+export const AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY = `@tag:${AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG}`;

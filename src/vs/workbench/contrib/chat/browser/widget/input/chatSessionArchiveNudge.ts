@@ -98,7 +98,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.worktreeElement = dom.append(details, dom.$('p.chat-session-archive-nudge-worktree'));
 
 		const footer = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-footer'));
-		this.archiveButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
+		this.archiveButton = this._register(new Button(footer, defaultButtonStyles));
 		this.archiveButton.element.setAttribute('aria-describedby', this.descriptionElement.id);
 		this._register(this.archiveButton.onDidClick(() => this.archive()));
 		this.cleanupSettingsButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
