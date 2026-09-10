@@ -263,28 +263,26 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
 		});
 
-		try {
-			return {
-				asyncResults: asyncResults.then(
-					value => {
-						this.onSearchCompleted(value, Date.now() - start, searchInstanceID, false);
-						return value;
-					},
-					e => {
-						this.onSearchError(e, Date.now() - start, false);
-						throw e;
-					}),
-				syncResults
-			};
-		} finally {
-			/* __GDPR__
-				"searchResultsFinished" : {
-					"owner": "roblourens",
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('searchResultsFinished', { duration: Date.now() - start });
-		}
+		return {
+			asyncResults: asyncResults.then(
+				value => {
+					this.onSearchCompleted(value, Date.now() - start, searchInstanceID, false);
+					return value;
+				},
+				e => {
+					this.onSearchError(e, Date.now() - start, false);
+					throw e;
+				}).finally(() => {
+					/* __GDPR__
+						"searchResultsFinished" : {
+							"owner": "roblourens",
+							"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+						}
+					*/
+					this.telemetryService.publicLog('searchResultsFinished', { duration: Date.now() - start });
+				}),
+			syncResults
+		};
 	}
 
 	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string, ai: boolean): ISearchComplete | undefined {
