@@ -1331,6 +1331,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 		override readonly agents = constObservable([
 			{ uri: URI.joinPath(uri, 'agents', `${contributionName}.agent.md`), name: `${name} assistant`, description: `An agent specialized for ${name}.` },
 		]);
+		override readonly automations = constObservable([]);
 		override readonly instructions = constObservable([
 			{ uri: URI.joinPath(uri, 'instructions', `${contributionName}.instructions.md`), name: `${name} instructions`, description: `Context rules for ${name}.` },
 		]);
