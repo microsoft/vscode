@@ -18,7 +18,9 @@ Use for `padding`, `margin`, `gap`, and fixed `width`/`height` of spacers. The n
 | px | Variable |
 |----|----------|
 | 0  | `--vscode-spacing-sizeNone` |
+| 1  | `--vscode-spacing-size10` |
 | 2  | `--vscode-spacing-size20` |
+| 3  | `--vscode-spacing-size30` |
 | 4  | `--vscode-spacing-size40` |
 | 6  | `--vscode-spacing-size60` |
 | 8  | `--vscode-spacing-size80` |
@@ -38,7 +40,7 @@ Use for `padding`, `margin`, `gap`, and fixed `width`/`height` of spacers. The n
 /* avoid   */          padding: 5px 7px;    /* off-scale - breaks rhythm */
 ```
 
-**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale** (0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40). What breaks visual rhythm is an **off-scale** value (3, 5, 7, 14, 26px…). Snap those to the nearest scale value (ties round **up**), e.g. `5px → 6px`, `3px → 4px`, `1px → 2px`, `26px → 28px`. Each length of a shorthand is checked independently (`0 5px → 0 6px`). `auto`, `%`, `em`/`rem`, and any `var()`/`calc()` expression are left untouched.
+**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale** (0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40). What breaks visual rhythm is an **off-scale** value (5, 7, 14, 26px…). Snap those to the nearest scale value (ties round **up**), e.g. `5px → 6px`, `7px → 8px`, `26px → 28px`. Each length of a shorthand is checked independently (`0 5px → 0 6px`). `auto`, `%`, `em`/`rem`, and any `var()`/`calc()` expression are left untouched.
 
 ## Corner radius — `border-radius`
 
@@ -107,11 +109,21 @@ The legacy `--vscode-agents-fontWeight-regular` and `--vscode-agents-fontWeight-
 /* prefer */           font-weight: var(--vscode-fontWeight-semiBold);
 ```
 
-## Representation-neutral icon box
+## Representation-neutral icon size
 
-`--vscode-iconSize-small` defines the 16px rendered icon area used by the current shared-control pilot. It is representation-neutral: a Codicon, product icon, file icon, SVG, or raster image can fit inside the same box without changing adjacent layout. This proposal does not establish a broader icon-size ramp.
+These tokens define rendered icon geometry independently of whether the source is a Codicon, product icon, file icon, SVG, or raster image:
 
-Use contain-style fitting for image and SVG sources so their aspect ratio is preserved. Apply any optical correction within the fixed area; transforms must not change its layout footprint or move adjacent content.
+| Step | px | Variable |
+|---|---:|---|
+| Extra small | 12 | `--vscode-iconSize-xSmall` |
+| Small | 16 | `--vscode-iconSize-small` |
+| Medium | 20 | `--vscode-iconSize-medium` |
+| Large | 24 | `--vscode-iconSize-large` |
+| Extra large | 32 | `--vscode-iconSize-xLarge` |
+
+The names describe a scale, not settled product roles. Choose a step in the owning component contract and validate it in context. The current `WorkbenchButtonBar` pilot consumes only `small`; the other steps establish shared vocabulary without implying product migrations.
+
+Use contain-style fitting for image and SVG sources so their aspect ratio is preserved. Apply optical correction within the selected area; transforms must not change its layout footprint or move adjacent content.
 
 ## Codicon size — icon `font-size`
 
