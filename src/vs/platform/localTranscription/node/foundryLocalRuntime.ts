@@ -18,15 +18,15 @@ import { CancellationError } from '../../../base/common/errors.js';
  * and `foundry_local_preload.node`) and native libraries (Foundry Local + ONNX
  * Runtime + ONNX Runtime GenAI). The shared libraries require a newer glibc than
  * VS Code's minimum supported Linux distros, so we bundle only the addons with
- * the product (see `build/gulpfile.vscode.ts`). We republish the complete
- * per-target native directory to VS Code's CDN at build time (see
- * `build/dictation-runtime/`) and download it here, at runtime, into a per-user
- * writable cache. This keeps the shipped package's glibc floor intact and
- * avoids any runtime dependency on the npm registry or NuGet.
+ * the product (see `build/gulpfile.vscode.ts`). We republish the per-target
+ * shared libraries to VS Code's CDN at build time (see
+ * `build/dictation-runtime/`) and download them here, at runtime, into a
+ * per-user writable cache. This keeps the shipped package's glibc floor intact
+ * and avoids any runtime dependency on the npm registry or NuGet.
  *
  * The tarball's internal layout mirrors the SDK's own package layout:
  *
- *   <cacheRoot>/<version>/prebuilds/<target>/<addons and native libraries>
+ *   <cacheRoot>/<version>/prebuilds/<target>/<shared libraries>
  *
  * The SDK keeps its addons in the packaged npm module and is configured through
  * `configureNativeLoader`/`FoundryLocalConfig.libraryPath` to preload the shared
@@ -83,10 +83,10 @@ const inFlight = new Map<string, Promise<string>>();
 const DOWNLOAD_INACTIVITY_TIMEOUT_MS = 60_000;
 
 /**
- * Ensure the Foundry Local native runtime (addons + shared libraries) is present
- * in `<cacheRoot>`, downloading the per-target CDN tarball if necessary. Returns
- * the concrete cached `prebuilds/<target>` directory to use as the SDK's
- * `libraryPath` before constructing a manager.
+ * Ensure the Foundry Local shared libraries are present in `<cacheRoot>`,
+ * downloading the per-target CDN tarball if necessary. Returns the concrete
+ * cached `prebuilds/<target>` directory to use as the SDK's `libraryPath`
+ * before constructing a manager.
  *
  * Idempotent: once a version is fully provisioned a per-platform `.complete`
  * marker is written and subsequent calls return immediately (after verifying the
@@ -181,16 +181,16 @@ function foundryMarkerPath(overrideDir: string, platformKey: string): string {
 	return join(overrideDir, `.complete-${platformKey}`);
 }
 
-/** Directory containing the target's addons and shared libraries. */
+/** Directory containing the target's shared libraries. */
 function foundryPrebuildDir(overrideDir: string, platformKey: string): string {
 	return join(overrideDir, 'prebuilds', platformKey);
 }
 
 /**
  * Whether `<overrideDir>` holds a complete, verified runtime for `platformKey`:
- * the per-platform marker AND all expected addons and shared libraries. A marker
- * alone is insufficient (it can belong to a different architecture, or the
- * payload can be partially deleted). Exported for tests.
+ * the per-platform marker AND all expected shared libraries. A marker alone is
+ * insufficient (it can belong to a different architecture, or the payload can
+ * be partially deleted). Exported for tests.
  */
 export function isRuntimeProvisioned(overrideDir: string, platformKey: string): boolean {
 	return fs.existsSync(foundryMarkerPath(overrideDir, platformKey))
@@ -260,7 +260,7 @@ function detectGlibcVersion(): [number, number] | undefined {
 /**
  * Download the per-target runtime tarball from `url` and extract it into
  * `stagingDir`, which then contains
- * `prebuilds/<target>/<addons and native libraries>`. The tarball is published
+ * `prebuilds/<target>/<shared libraries>`. The tarball is published
  * to VS Code's CDN by `build/dictation-runtime/`.
  */
 async function downloadAndExtractTarball(url: string, stagingDir: string, token: CancellationToken): Promise<void> {
@@ -286,8 +286,6 @@ export function requiredRuntimeFileNames(platformKey: string): string[] {
 	const ext = isWin ? '.dll' : isDarwin ? '.dylib' : '.so';
 	const prefix = isWin ? '' : 'lib';
 	return [
-		'foundry_local_node.node',
-		'foundry_local_preload.node',
 		`${prefix}foundry_local${ext}`,
 		isWin ? 'onnxruntime.dll' : isDarwin ? 'libonnxruntime.1.dylib' : 'libonnxruntime.so.1',
 		`${prefix}onnxruntime-genai${ext}`,
