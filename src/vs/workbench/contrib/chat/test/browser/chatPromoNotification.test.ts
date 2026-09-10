@@ -245,6 +245,7 @@ suite('ChatPromoNotificationContribution', () => {
 		visible?: boolean;
 		configured?: ChatClosedPromoNotification;
 		dismissed?: boolean;
+		seen?: boolean;
 		treatment?: string;
 		iconPresent?: boolean;
 		iconVisible?: boolean;
@@ -268,6 +269,9 @@ suite('ChatPromoNotificationContribution', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		if (options.dismissed) {
 			storage.store('chat.dismissedPromoIds', '["promo"]', StorageScope.APPLICATION, 0);
+		}
+		if (options.seen) {
+			storage.store('chat.seenPromoIds', '["promo"]', StorageScope.APPLICATION, 0);
 		}
 		const commands = createMockCommandService();
 		const configuration = new TestConfigurationService(options.configured === undefined ? {} : {
@@ -312,6 +316,7 @@ suite('ChatPromoNotificationContribution', () => {
 		{ name: 'other vendor', options: { metadata: { vendor: 'other' } } },
 		{ name: 'expanded Chat', options: { visible: true } },
 		{ name: 'dismissed promo', options: { dismissed: true } },
+		{ name: 'already seen promo', options: { seen: true } },
 		{ name: 'missing status icon', options: { iconPresent: false } },
 		{ name: 'hidden status icon', options: { iconVisible: false } },
 	];
@@ -382,6 +387,19 @@ suite('ChatPromoNotificationContribution', () => {
 			queries: fixture.getTreatment.callCount,
 			commands: fixture.commands.executed.map(command => command.id),
 		}, { beforeCollapse: 0, queries: 1, commands: [ARM_CHAT_PROMO_COMMAND_ID] });
+	});
+
+	test('a promo met in an open Chat never returns as a pip', async () => {
+		const fixture = experimentFixture({ visible: true, treatment: ChatClosedPromoNotification.CopilotIconPopup });
+		fixture.start();
+		fixture.notifications.getNotification()?.onDidShow?.();
+		fixture.views.setVisible(false);
+		await timeout(0);
+		assert.deepStrictEqual({
+			seen: fixture.storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
+			queries: fixture.getTreatment.callCount,
+			commands: fixture.commands.executed.map(command => command.id),
+		}, { seen: '["promo"]', queries: 0, commands: [] });
 	});
 
 	test('waits until the status icon is visible before the first cohort query', async () => {

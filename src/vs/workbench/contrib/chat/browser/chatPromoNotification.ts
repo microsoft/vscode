@@ -25,6 +25,7 @@ import { addDismissedNotificationId, ChatInputNotificationActionKind, ChatInputN
 
 const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
 const DISMISSED_PROMOS_STORAGE_KEY = 'chat.dismissedPromoIds';
+const SEEN_PROMOS_STORAGE_KEY = 'chat.seenPromoIds';
 export const CHAT_CLOSED_PROMO_TREATMENT = `config.${ChatConfiguration.ChatClosedPromoNotification}`;
 
 export { CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID };
@@ -39,7 +40,9 @@ function isPromoVisible(context: IChatInputNotificationContext): boolean {
  * model switch is still plausible: persistent chat surfaces whose session has
  * not started yet, and only when the promo is banner-eligible (`showBanner` is
  * not `false`). Dismissals are persisted by promo id in application storage,
- * so they survive reloads and apply to every open window.
+ * so they survive reloads and apply to every open window, as is the fact that a
+ * promo has been seen: one sale is offered at most once, either in an open chat
+ * or through the collapsed-chat pip, never both.
  */
 export class ChatPromoNotificationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -94,6 +97,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		// which is broadcast to every window. Re-drive so the promo also disappears
 		// here instead of lingering until this window reloads.
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, DISMISSED_PROMOS_STORAGE_KEY, this._store)(() => this._update()));
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, SEEN_PROMOS_STORAGE_KEY, this._store)(() => this._update()));
 		this._register(this._viewsService.onDidChangeViewVisibility(e => {
 			if (e.id === ChatViewId) {
 				this._update();
@@ -156,6 +160,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 
 	private _update(): void {
 		const dismissed = readDismissedNotificationIds(this._storageService, DISMISSED_PROMOS_STORAGE_KEY);
+		const seen = readDismissedNotificationIds(this._storageService, SEEN_PROMOS_STORAGE_KEY);
 		const modelIds = this._languageModelsService.getLanguageModelIds();
 
 		// Bucket one non-dismissed promo per harness (a model's `targetChatSessionType`,
@@ -182,13 +187,17 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 			const notificationId = `${PROMO_NOTIFICATION_ID}.${harness}`;
 			desired.add(notificationId);
 
-			// Don't re-push an unchanged notification: re-setting it would clear a
-			// pending user dismissal in the notification service.
+			// The pip is a second exposure of a sale the user may already have met in
+			// an open chat, so it stands down once this promo has been seen anywhere.
+			// The experiment is read last, so an ineligible user is never assigned.
 			const showPip = ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)
 				&& this._isGitHubCopilotPromo(model)
 				&& !this._viewsService.isViewVisible(ChatViewId)
+				&& !seen.has(promo.id)
 				&& this._isPopupEnabled();
 			const kind = showPip ? ChatClosedPromoNotification.CopilotIconPopup : ChatClosedPromoNotification.None;
+			// Don't re-push an unchanged notification: re-setting it would clear a
+			// pending user dismissal in the notification service.
 			const shownNotification = this._shownNotifications.get(notificationId);
 			if (shownNotification?.modelIdentifier === model.identifier && shownNotification.promoId === promo.id && shownNotification.kind === kind) {
 				if (showPip) {
@@ -219,6 +228,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 				description,
 				actions: [action],
 				when: isPromoVisible,
+				onDidShow: () => this._markPromoSeen(promo.id),
 				dismissible: true,
 				autoDismissOnMessage: false,
 				sessionTypes: [harness],
@@ -242,6 +252,20 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 			this._promoPipPayload = undefined;
 			void this._commandService.executeCommand(DISARM_CHAT_PROMO_COMMAND_ID);
 		}
+	}
+
+	/**
+	 * Records that the user has met this sale, so the collapsed-chat pip does not
+	 * offer the same promo a second time. Kept per promo id in application storage
+	 * (through the shared notification id-set helpers) so it holds across windows
+	 * and reloads, while a later sale still gets its own pip.
+	 */
+	private _markPromoSeen(promoId: string): void {
+		if (readDismissedNotificationIds(this._storageService, SEEN_PROMOS_STORAGE_KEY).has(promoId)) {
+			return;
+		}
+		addDismissedNotificationId(this._storageService, SEEN_PROMOS_STORAGE_KEY, promoId);
+		this._update();
 	}
 
 	private _promoCardPayload(model: ILanguageModelChatMetadataAndIdentifier): IChatPromoCardInput | undefined {
