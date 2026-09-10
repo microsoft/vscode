@@ -489,6 +489,12 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		}
 		const step = createSessionArchiveTour(reveal.targetId, options.archiveOnboarding, async () => { }).presentation.payload.steps[0];
 		const overlay = disposableStore.add(new SpotlightOverlay(container));
+		const finish = () => {
+			overlay.hide();
+			reveal.dispose();
+		};
+		disposableStore.add(overlay.onDidClickNext(finish));
+		disposableStore.add(overlay.onDidSkip(finish));
 		overlay.show(target, {
 			title: step.title,
 			description: step.description,
@@ -497,7 +503,11 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			canGoBack: false,
 			isLastStep: true,
 			nextButtonLabel: step.nextButtonLabel,
-		}, { placement: step.placement });
+		}, {
+			placement: step.placement,
+			advanceOnTargetClick: step.advanceOnTargetClick,
+			hideNext: step.hideNext,
+		});
 	}
 
 	if (options.showAutomations) {

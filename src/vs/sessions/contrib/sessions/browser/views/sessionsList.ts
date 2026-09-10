@@ -3272,10 +3272,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const renderSessionChildren = (sessions: readonly ISession[], sectionId: string, sectionLabel: string, enabled: boolean): IObjectTreeElement<SessionListItem>[] => {
 			const limited = limitSessionsForList(sessions, sessionGroupLimit, {
-				enabled: enabled && !sessions.some(session => session.sessionId === archiveOnboardingSession?.sessionId),
+				enabled,
 				expanded: this.expandedSessionGroups.has(sectionId),
 				sectionId,
 				sectionLabel,
+				revealSessionId: archiveOnboardingSession?.sessionId,
 			});
 			const children = toSessionChildren(limited.sessions);
 			if (limited.showMore) {
@@ -4410,7 +4411,13 @@ export interface ISessionLimitResult {
 export function limitSessionsForList(
 	sessions: readonly ISession[],
 	limit: number,
-	options: { readonly enabled: boolean; readonly expanded: boolean; readonly sectionId: string; readonly sectionLabel: string },
+	options: {
+		readonly enabled: boolean;
+		readonly expanded: boolean;
+		readonly sectionId: string;
+		readonly sectionLabel: string;
+		readonly revealSessionId?: string;
+	},
 ): ISessionLimitResult {
 	if (!options.enabled || sessions.length <= limit) {
 		return { sessions, showMore: undefined };
@@ -4430,16 +4437,25 @@ export function limitSessionsForList(
 		};
 	}
 
+	const visibleSessions = sessions.slice(0, limit);
+	if (options.revealSessionId !== undefined) {
+		const revealIndex = sessions.findIndex(session => session.sessionId === options.revealSessionId);
+		if (revealIndex >= limit) {
+			visibleSessions.push(sessions[revealIndex]);
+		}
+	}
+	const remainingCount = sessions.length - visibleSessions.length;
+
 	return {
-		sessions: sessions.slice(0, limit),
-		showMore: {
+		sessions: visibleSessions,
+		showMore: remainingCount > 0 ? {
 			showMore: true,
 			kind: 'sessions',
 			mode: 'more',
 			sectionId: options.sectionId,
 			sectionLabel: options.sectionLabel,
-			remainingCount: sessions.length - limit,
-		},
+			remainingCount,
+		} : undefined,
 	};
 }
 

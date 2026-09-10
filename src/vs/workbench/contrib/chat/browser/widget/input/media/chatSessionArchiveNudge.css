@@ -29,7 +29,7 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.chat-session-archive-nudge-icon.codicon-git-merge {
+.chat-session-archive-nudge .chat-session-archive-nudge-icon.codicon-git-merge {
 	color: var(--vscode-charts-purple);
 }
 

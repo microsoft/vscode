@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ISpotlightContent, SpotlightOverlay } from '../../browser/spotlight/spotlightOverlay.js';
 import { OnboardingDismissReason } from '../../common/onboardingScenario.js';
 
@@ -114,6 +116,27 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('shows progress only for multi-step tours and clears it when reused for one step', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 100, 50, 200, 40);
+		const progress = [
+			{ stepIndex: 0, stepCount: 1 },
+			{ stepIndex: 0, stepCount: 2 },
+			{ stepIndex: 1, stepCount: 2 },
+			{ stepIndex: 0, stepCount: 1 },
+		].map(step => {
+			overlay.show(target, content({
+				...step,
+				canGoBack: step.stepIndex > 0,
+				isLastStep: step.stepIndex === step.stepCount - 1,
+			}));
+			return container.querySelector('.spotlight-callout-counter')!.textContent;
+		});
+
+		assert.deepStrictEqual(progress, ['', '1 of 2', '2 of 2', '']);
+	});
+
 	test('Next / Back / Skip buttons fire the corresponding events', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
@@ -183,6 +206,41 @@ suite('SpotlightOverlay', () => {
 			skipHidden: true,
 			backHidden: true,
 			nextLabel: 'Done',
+		});
+	});
+
+	test('advanceOnly consumes mouse and keyboard activation while keeping the acknowledgment available', () => {
+		const container = createContainer();
+		const target = disposables.add(new Button(container, defaultButtonStyles));
+		target.label = 'Archive';
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const events: string[] = [];
+		disposables.add(target.onDidClick(() => events.push('native')));
+		disposables.add(overlay.onDidClickNext(source => events.push(source)));
+		disposables.add(overlay.onDidSkip(() => events.push('skip')));
+		overlay.show(target.element, content({ canGoBack: false, isLastStep: true, nextButtonLabel: 'Understood' }), {
+			advanceOnTargetClick: 'advanceOnly',
+			hideNext: false,
+		});
+		const next = getButtons(container).at(-1)!;
+		const visibleButtons = getButtons(container).filter(button => button.style.display !== 'none').map(button => button.textContent);
+		next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+		const targetFocused = mainWindow.document.activeElement === target.element;
+		target.element.click();
+		for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+			for (const type of ['keydown', 'keyup']) {
+				target.element.dispatchEvent(new KeyboardEvent(type, { key, keyCode, bubbles: true, cancelable: true }));
+			}
+		}
+		next.click();
+		target.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		overlay.hide();
+		target.element.click();
+
+		assert.deepStrictEqual({ visibleButtons, targetFocused, events }, {
+			visibleButtons: ['Archive', 'Understood'],
+			targetFocused: true,
+			events: ['target', 'target', 'target', 'button', 'skip', 'native'],
 		});
 	});
 

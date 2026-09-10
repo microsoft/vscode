@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -230,6 +230,55 @@ suite('SpotlightPresentation', () => {
 					dismissReason: OnboardingDismissReason.Completed,
 					lastStepIndex: 0,
 					stepCount: 1,
+				},
+			});
+		});
+
+		test(`consumed target activation completes the last step (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
+			const container = createContainer();
+			const target = createTarget(container, 'test.spotlight.advanceOnly');
+			let nativeActions = 0;
+			disposables.add(addDisposableListener(target, EventType.CLICK, () => nativeActions++));
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+			const step: ISpotlightStep = {
+				id: 'archive',
+				targetId: 'test.spotlight.advanceOnly',
+				title: 'Archive',
+				description: 'Archive the session',
+				nextButtonLabel: 'Understood',
+				advanceOnTargetClick: 'advanceOnly',
+				hideNext: false,
+			};
+			let visibleButtons: (string | null)[] = [];
+			const context = {
+				targetWindow: mainWindow,
+				onAbort: Event.None,
+				onDidShow: () => {
+					visibleButtons = Array.from(container.getElementsByClassName('monaco-button'))
+						.filter(button => (button as HTMLElement).style.display !== 'none').map(button => button.textContent);
+					target.click();
+				},
+			};
+			const result = runAsSequenceStep
+				? await presentation.runStep({ id: step.id, kind: SPOTLIGHT_PRESENTATION_KIND, payload: step }, {
+					...context,
+					cancellationToken: CancellationToken.None,
+					stepIndex: 0,
+					visualStepIndex: 0,
+					visualStepCount: 1,
+					canGoBack: false,
+					isLastVisualStep: true,
+				})
+				: await presentation.run(createScenario('test.spotlight.advanceOnly', step), context);
+
+			assert.deepStrictEqual({ nativeActions, visibleButtons, result }, {
+				nativeActions: 0,
+				visibleButtons: ['Understood'],
+				result: runAsSequenceStep ? {
+					action: 'next', shown: true, dismissReason: OnboardingDismissReason.TargetClick,
+				} : {
+					outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.TargetClick, lastStepIndex: 0, stepCount: 1,
 				},
 			});
 		});

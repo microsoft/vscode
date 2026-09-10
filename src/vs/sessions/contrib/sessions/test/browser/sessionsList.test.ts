@@ -751,6 +751,7 @@ suite('Sessions - SessionsList', () => {
 				expanded: true,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
+				revealSessionId: '3',
 			});
 
 			assert.deepStrictEqual({
@@ -776,6 +777,55 @@ suite('Sessions - SessionsList', () => {
 				expanded: false,
 				sectionId: 'group:alpha',
 				sectionLabel: 'Alpha',
+				revealSessionId: '3',
+			});
+
+			assert.deepStrictEqual({
+				sessions: result.sessions.map(session => session.sessionId),
+				showMore: result.showMore,
+			}, {
+				sessions: ['1', '2', '3'],
+				showMore: undefined,
+			});
+		});
+
+		for (const revealSessionId of ['1', '3', '5', 'missing']) {
+			test(`includes only the revealed session beyond the cap (${revealSessionId})`, () => {
+				const sessions = ['1', '2', '3', '4', '5'].map(id => createSession(id, {}));
+				const result = limitSessionsForList(sessions, 2, {
+					enabled: true,
+					expanded: false,
+					sectionId: 'group:alpha',
+					sectionLabel: 'Alpha',
+					revealSessionId,
+				});
+				const addsSession = revealSessionId === '3' || revealSessionId === '5';
+
+				assert.deepStrictEqual({
+					sessions: result.sessions.map(session => session.sessionId),
+					showMore: result.showMore,
+				}, {
+					sessions: addsSession ? ['1', '2', revealSessionId] : ['1', '2'],
+					showMore: {
+						showMore: true,
+						kind: 'sessions',
+						mode: 'more',
+						sectionId: 'group:alpha',
+						sectionLabel: 'Alpha',
+						remainingCount: addsSession ? 2 : 3,
+					},
+				});
+			});
+		}
+
+		test('omits show more when the revealed session is the only hidden session', () => {
+			const sessions = ['1', '2', '3'].map(id => createSession(id, {}));
+			const result = limitSessionsForList(sessions, 2, {
+				enabled: true,
+				expanded: false,
+				sectionId: 'group:alpha',
+				sectionLabel: 'Alpha',
+				revealSessionId: '3',
 			});
 
 			assert.deepStrictEqual({
@@ -1472,8 +1522,9 @@ suite('Sessions - SessionsList', () => {
 				const after = findOnboardingTarget(mainWindow, target.targetId)?.checkVisibility() ?? false;
 				assert.deepStrictEqual({
 					during, afterRerender, after,
+					unpinVisibleAfter: container.querySelector<HTMLElement>('.codicon-pinned')?.checkVisibility(),
 					remainingClasses: container.querySelectorAll('.archive-onboarding').length,
-				}, { during: true, afterRerender: true, after: false, remainingClasses: 0 });
+				}, { during: true, afterRerender: true, after: false, unpinVisibleAfter: pinned, remainingClasses: 0 });
 			});
 		}
 
@@ -1497,6 +1548,42 @@ suite('Sessions - SessionsList', () => {
 				filterPreserved: list.isStatusExcluded(SessionStatus.Completed),
 			}, { before: false, during: true, after: false, filterPreserved: true });
 		});
+
+		for (const customGroup of [false, true]) {
+			test(`reveals only the onboarding target beyond the ${customGroup ? 'custom group' : 'workspace'} cap`, () => {
+				const sessions = Array.from({ length: 12 }, (_, index) => ({
+					...createTestSession(`Session ${index}`).session,
+					createdAt: new Date(2025, 0, 12 - index),
+				}));
+				const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+				const harness = createListHarness(disposables, sessions, {
+					groups: customGroup ? [group] : [],
+					memberships: customGroup ? new Map(sessions.map(session => [session.sessionId, group.id])) : undefined,
+				});
+				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+				const container = harness.createContainer(400, 1000);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1000, 400);
+				const snapshot = () => ({
+					sessions: list.getVisibleSessions().map(session => session.title.get()),
+					showMore: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
+				});
+				const before = snapshot();
+				const target = harness.store.add(list.revealArchiveAction(sessions[9]));
+				const during = snapshot();
+				target.dispose();
+
+				assert.deepStrictEqual({ before, during, after: snapshot() }, {
+					before: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4'], showMore: ['+7 more'] },
+					during: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 9'], showMore: ['+6 more'] },
+					after: { sessions: ['Session 0', 'Session 1', 'Session 2', 'Session 3', 'Session 4'], showMore: ['+7 more'] },
+				});
+			});
+		}
 
 		for (const pinned of [false, true]) {
 			test(`tabs into the selected ${pinned ? 'pinned' : 'unpinned'} session toolbar without hover`, () => {

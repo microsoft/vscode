@@ -25,9 +25,11 @@ export function createSessionArchiveTour(targetId: string, wording: ChatSessionA
 						? localize('archiveOnboarding.doneTitle', "Mark sessions as done from the list")
 						: localize('archiveOnboarding.archiveTitle', "Archive sessions from the list"),
 					description: markAsDone
-						? localize('archiveOnboarding.doneDescription', "You can mark any session as done directly from the sessions list. Hover over a session or focus it to show Mark as Done. Select Understood or press Escape to mark this session as done now.")
-						: localize('archiveOnboarding.archiveDescription', "You can archive any session directly from the sessions list. Hover over a session or focus it to show Archive. Select Understood or press Escape to archive this session now."),
+						? localize('archiveOnboarding.doneDescription', "You can mark any session as done directly from the sessions list. Hover over a session or focus it to show Mark as Done.")
+						: localize('archiveOnboarding.archiveDescription', "You can archive any session directly from the sessions list. Hover over a session or focus it to show Archive."),
 					nextButtonLabel: localize('archiveOnboarding.understood', "Understood"),
+					advanceOnTargetClick: 'advanceOnly',
+					hideNext: false,
 					placement: 'right',
 					missingTarget: { kind: 'abort' },
 					onBeforeShow,
