@@ -504,18 +504,22 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 			for (const [start, deleteCount, rawResources] of groupSlices) {
 				const resources = rawResources.map(rawResource => {
-					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiDiffEditorOriginalUri, multiDiffEditorModifiedUri] = rawResource;
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiDiffEditorOriginalUri, multiDiffEditorModifiedUri, insertions, deletions] = rawResource;
 
 					const [light, dark] = icons;
 					const icon = ThemeIcon.isThemeIcon(light) ? light : URI.revive(light);
 					const iconDark = (ThemeIcon.isThemeIcon(dark) ? dark : URI.revive(dark)) || icon;
+					const lineChanges = (insertions !== undefined || deletions !== undefined)
+						? { insertions: insertions ?? 0, deletions: deletions ?? 0 }
+						: undefined;
 
 					const decorations = {
 						icon: icon,
 						iconDark: iconDark,
 						tooltip,
 						strikeThrough,
-						faded
+						faded,
+						lineChanges
 					};
 
 					return new MainThreadSCMResource(

@@ -40,6 +40,10 @@ export interface ISCMResourceDecorations {
 	tooltip?: string;
 	strikeThrough?: boolean;
 	faded?: boolean;
+	lineChanges?: {
+		readonly insertions: number;
+		readonly deletions: number;
+	};
 }
 
 export interface ISCMResource {
