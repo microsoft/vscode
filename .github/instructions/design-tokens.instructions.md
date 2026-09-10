@@ -121,7 +121,7 @@ Use the icon-size ramp for the rendered geometry of Codicons, product icons, fil
 | 24 | `--vscode-iconSize-large` | prominent navigation |
 | 32 | `--vscode-iconSize-xLarge` | welcome-state and orientation cues |
 
-The icon-size token defines the rendered area. Use contain-style fitting for image and SVG sources so their aspect ratio is preserved. Apply any optical correction within that area; transforms must not change the spacing to adjacent content.
+The icon-size token defines the rendered area. Use contain-style fitting for image and SVG sources so their aspect ratio is preserved. Apply any optical correction within that area; transforms must not change the rendered box's layout footprint or the position reserved for adjacent content.
 
 ## Codicon compatibility — icon `font-size`
 
