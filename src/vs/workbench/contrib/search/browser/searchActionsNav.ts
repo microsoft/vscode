@@ -26,6 +26,9 @@ import { category, getSearchView, openSearchView } from './searchActionsBase.js'
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
 import { FileMatchOrMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch } from './searchTreeModel/searchTreeCommon.js';
+import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { searchOpenInFileIcon } from './searchIcons.js';
 
 //#region Actions: Changing Search Input Options
 registerAction2(class ToggleQueryDetailsAction extends Action2 {
@@ -234,6 +237,37 @@ registerAction2(class AddCursorsAtSearchResultsAction extends Action2 {
 			const tree: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> = searchView.getControl();
 			searchView.openEditorWithMultiCursor(<FileMatchOrMatch>tree.getFocus()[0]);
 		}
+	}
+});
+
+registerAction2(class OpenReplacePreviewFileAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.OpenReplacePreviewFile,
+			title: nls.localize2('OpenReplacePreviewFile.label', "Open File"),
+			category,
+			icon: searchOpenInFileIcon,
+			f1: false,
+			menu: [{
+				id: MenuId.EditorTitle,
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.internal),
+				group: 'navigation',
+				order: 1,
+			}],
+			precondition: ContextKeyExpr.equals('resourceScheme', Schemas.internal),
+		});
+	}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditor = editorService.activeEditor;
+		if (!(activeEditor instanceof DiffEditorInput)) {
+			return;
+		}
+		const originalResource = activeEditor.original.resource;
+		if (!originalResource) {
+			return;
+		}
+		await editorService.openEditor({ resource: originalResource });
 	}
 });
 
