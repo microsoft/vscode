@@ -131,6 +131,13 @@
 	}
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-list > .monaco-list > .monaco-scrollable-element {
+	> .shadow.top,
+	> .monaco-tree-sticky-container > .monaco-tree-sticky-container-shadow {
+		display: none;
+	}
+}
+
 .agent-sessions-workbench .interactive-list > .monaco-list.mouse-support > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 	cursor: default;
 }

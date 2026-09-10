@@ -1058,6 +1058,52 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('hides transcript and sticky tree shadows only over chat backgrounds', () => {
+		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
+		const createShadows = (hasBackground: boolean) => {
+			const part = dom.append(workbench, dom.$(`.part.sessionspart${hasBackground ? '.has-chat-background' : ''}`));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const interactiveList = dom.append(session, dom.$('.interactive-list'));
+			const list = dom.append(interactiveList, dom.$('.monaco-list'));
+			const scrollable = dom.append(list, dom.$('.monaco-scrollable-element'));
+			const topShadow = dom.append(scrollable, dom.$('.shadow.top'));
+			const topLeftShadow = dom.append(scrollable, dom.$('.shadow.top-left-corner.top'));
+			const stickyContainer = dom.append(scrollable, dom.$('.monaco-tree-sticky-container'));
+			const stickyShadow = dom.append(stickyContainer, dom.$('.monaco-tree-sticky-container-shadow'));
+			return { topShadow, topLeftShadow, stickyShadow };
+		};
+		const background = createShadows(true);
+		const plain = createShadows(false);
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const display = (element: HTMLElement) => dom.getWindow(element).getComputedStyle(element).display;
+
+		assert.deepStrictEqual({
+			background: {
+				top: display(background.topShadow),
+				topLeft: display(background.topLeftShadow),
+				sticky: display(background.stickyShadow),
+			},
+			plain: {
+				top: display(plain.topShadow),
+				topLeft: display(plain.topLeftShadow),
+				sticky: display(plain.stickyShadow),
+			},
+		}, {
+			background: {
+				top: 'none',
+				topLeft: 'none',
+				sticky: 'none',
+			},
+			plain: {
+				top: 'block',
+				topLeft: 'block',
+				sticky: 'block',
+			},
+		});
+	});
+
 	test('aligns an image replica to the full sessions background canvas', () => {
 		const background: ISessionsChatBackground = {
 			kind: 'image',
