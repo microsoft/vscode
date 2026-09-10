@@ -89,6 +89,7 @@ suite('MCP configuration entry points', () => {
 		const opened: URI[] = [];
 		const selections: (IRange | undefined)[] = [];
 		const started: string[] = [];
+		const errors: Parameters<INotificationService['error']>[0][] = [];
 		const existenceChecks: string[] = [];
 		const installs: { server: IInstallableMcpServer; options: IWorkbencMcpServerInstallOptions | undefined }[] = [];
 		const servers = observableValue<readonly IMcpServer[]>('servers', []);
@@ -120,7 +121,7 @@ suite('MCP configuration entry points', () => {
 		instantiation.stub(ICommandService, 'executeCommand', async () => false);
 		instantiation.stub(IWorkbenchEnvironmentService, {});
 		instantiation.stub(IOpenerService, {});
-		instantiation.stub(INotificationService, {});
+		instantiation.stub(INotificationService, { error: error => errors.push(error) });
 		instantiation.stub(ILabelService, {});
 		instantiation.stub(IAgentHostCustomizationService, {});
 		instantiation.stub(IChatWidgetService, {});
@@ -162,7 +163,7 @@ suite('MCP configuration entry points', () => {
 				return upcastPartial<IWorkbenchMcpServer>({ id: local.id, name: local.name, local });
 			},
 		});
-		return { instantiation, quickInput, folder, secondFolder, workspace, opened, selections, started, existenceChecks, installs, servers, runtimeServer, destination: instantiation.createInstance(McpConfigurationDestination) };
+		return { instantiation, quickInput, folder, secondFolder, workspace, opened, selections, started, errors, existenceChecks, installs, servers, runtimeServer, destination: instantiation.createInstance(McpConfigurationDestination) };
 	}
 
 	for (const enabled of [false, true]) {
@@ -283,7 +284,7 @@ suite('MCP configuration entry points', () => {
 		fixture.quickInput.selections.push('Command (stdio)', 'Workspace', undefined);
 		fixture.quickInput.inputs.push('node server.js', installable.name);
 		await new AddConfigurationAction().run(fixture.instantiation);
-		assert.deepStrictEqual({ installed: fixture.installs, opened: fixture.opened, started: fixture.started }, { installed: [], opened: [], started: [] });
+		assert.deepStrictEqual({ installed: fixture.installs, opened: fixture.opened, started: fixture.started, errors: fixture.errors }, { installed: [], opened: [], started: [], errors: [] });
 	});
 
 	test('manual add with interpolation requires explicit legacy confirmation', async () => {
@@ -331,12 +332,14 @@ suite('MCP configuration entry points', () => {
 				opened: fixture.opened.map(uri => uri.path),
 				selections: fixture.selections,
 				started: fixture.started,
+				errors: fixture.errors,
 			}, {
 				pickerCount: 1,
 				kind: file === rootFile ? WorkspaceMcpConfigKind.Root : WorkspaceMcpConfigKind.LegacyVscode,
 				opened: [resource.path],
 				selections: [new Range(3, 1, 3, 5)],
 				started: [`installed:${resource.path}`],
+				errors: [],
 			});
 		});
 	}
@@ -360,24 +363,60 @@ suite('MCP configuration entry points', () => {
 	for (const path of ['/project/nested/.mcp.json', '/outside/.mcp.json', '/project/settings.json']) {
 		test(`invalid editor destination fails before prompting: ${path}`, async () => {
 			const fixture = setup(true);
-			await assert.rejects(new AddConfigurationAction().run(fixture.instantiation, URI.file(path)), /open workspace folder/);
-			assert.deepStrictEqual({ pickers: fixture.quickInput.pickLabels, installs: fixture.installs }, { pickers: [], installs: [] });
+			await new AddConfigurationAction().run(fixture.instantiation, URI.file(path));
+			assert.deepStrictEqual({ pickers: fixture.quickInput.pickLabels, installs: fixture.installs, errors: fixture.errors }, {
+				pickers: [],
+				installs: [],
+				errors: [new Error('Select a .mcp.json or .vscode/mcp.json file at the root of an open workspace folder.')],
+			});
 		});
 	}
 
 	test('explicit root editor add is rejected when the flag is off', async () => {
 		const fixture = setup(false, [rootFile]);
-		await assert.rejects(new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(rootFile)), /Enable chat\.mcp\.workspaceRootConfig\.enabled/);
-		assert.deepStrictEqual({ pickers: fixture.quickInput.pickLabels, installs: fixture.installs }, { pickers: [], installs: [] });
+		await new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(rootFile));
+		assert.deepStrictEqual({ pickers: fixture.quickInput.pickLabels, installs: fixture.installs, errors: fixture.errors }, {
+			pickers: [],
+			installs: [],
+			errors: [new Error('Enable chat.mcp.workspaceRootConfig.enabled to add servers to .mcp.json, or use .vscode/mcp.json.')],
+		});
 	});
 
-	test('explicit root editor add rejects unsupported configuration without a fallback picker', async () => {
+	test('explicit root editor add notifies once for unsupported configuration without side effects', async () => {
 		const fixture = setup(true, [rootFile, legacyFile]);
 		fixture.quickInput.selections.push('Command (stdio)');
 		fixture.quickInput.inputs.push('node ${input:token}', installable.name);
-		await assert.rejects(new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(rootFile)), /not supported in \.mcp\.json/);
-		assert.deepStrictEqual({ pickerCount: fixture.quickInput.pickLabels.length, installs: fixture.installs }, { pickerCount: 1, installs: [] });
+		await new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(rootFile));
+		assert.deepStrictEqual({
+			pickerCount: fixture.quickInput.pickLabels.length,
+			installs: fixture.installs,
+			opened: fixture.opened,
+			started: fixture.started,
+			errors: fixture.errors,
+		}, {
+			pickerCount: 1,
+			installs: [],
+			opened: [],
+			started: [],
+			errors: [new Error('MCP server \'same-name\' uses \'${...}\', which is not supported in .mcp.json. Install it in .vscode/mcp.json instead.')],
+		});
 	});
+
+	for (const cancelled of [false, true]) {
+		test(`editor add ${cancelled ? 'silently handles cancellation' : 'notifies once for an installation failure'}`, async () => {
+			const fixture = setup(true, [rootFile, legacyFile]);
+			const error = cancelled ? new CancellationError() : new Error('Unable to write MCP configuration');
+			fixture.instantiation.stub(IWorkbenchMcpManagementService, 'install', async () => { throw error; });
+			fixture.quickInput.selections.push('Command (stdio)');
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+			await new AddConfigurationAction().run(fixture.instantiation, fixture.folder.toResource(rootFile));
+			assert.deepStrictEqual({ errors: fixture.errors, opened: fixture.opened, started: fixture.started }, {
+				errors: cancelled ? [] : [error],
+				opened: [],
+				started: [],
+			});
+		});
+	}
 
 	test('editor menu retains AI gates and only offers root additions when enabled', () => {
 		const menu = new AddConfigurationAction().desc.menu;

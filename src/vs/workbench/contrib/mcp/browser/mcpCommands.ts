@@ -13,6 +13,7 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -1159,8 +1160,15 @@ export class AddConfigurationAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, configUri?: URI | string): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		const target = configUri === undefined ? undefined : instantiationService.createInstance(McpConfigurationDestination).getExplicitTarget(configUri);
-		return instantiationService.createInstance(McpAddConfigurationCommand, target).run();
+		const notificationService = accessor.get(INotificationService);
+		try {
+			const target = configUri === undefined ? undefined : instantiationService.createInstance(McpConfigurationDestination).getExplicitTarget(configUri);
+			await instantiationService.createInstance(McpAddConfigurationCommand, target).run();
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				notificationService.error(error);
+			}
+		}
 	}
 }
 
