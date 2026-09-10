@@ -73,7 +73,7 @@
 .sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger,
 .agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger {
 	display: flex;
-	height: auto;
+	height: var(--chat-input-control-height);
 	padding: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 	overflow: visible;

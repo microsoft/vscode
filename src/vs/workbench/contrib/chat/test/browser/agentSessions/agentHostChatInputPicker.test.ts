@@ -229,6 +229,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 					fontSize: style.fontSize,
 					width: icon.getBoundingClientRect().width,
 					height: icon.getBoundingClientRect().height,
+					triggerHeight: trigger.getBoundingClientRect().height,
 					buttonHeights: [rendered.modeButton, rendered.permissionsButton].map(button => button.getBoundingClientRect().height),
 					buttonPadding: [rendered.modeButton, rendered.permissionsButton].map(button => dom.getWindow(button).getComputedStyle(button).padding),
 					contentInsets: [rendered.modeButton, rendered.permissionsButton].map(button => {
@@ -245,6 +246,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		assert.deepStrictEqual(states, surfaces.flatMap(surface => modes.map(mode => ({
 			surface: surface.className, label: mode.label, icon: `codicon codicon-${mode.icon.id}-compact`,
 			fontSize: '12px', width: 12, height: 12,
+			triggerHeight: surface.buttonHeight,
 			buttonHeights: [surface.buttonHeight, surface.buttonHeight],
 			buttonPadding: ['0px 3px 0px 6px', '0px 6px 0px 3px'],
 			contentInsets: [{ left: 6, right: 3 }, { left: 3, right: 6 }],
