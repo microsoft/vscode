@@ -18,7 +18,7 @@ Work in three layers - name the **feeling**, find the **principle** it breaks, t
   5. *Elevation is encoded, not eyeballed* - does roundness match how far the surface floats?
   6. *Sameness signals sameness* - do two like things look identical, and is any difference intentional?
   7. *Delight earns its keep* - what does this help the user do?
-- **Moves (the mechanics):** elevation tiers, the registered spacing/type/icon roles, the standard stroke token, `--vscode-*` theme color, reveal-on-intent chrome, and words instead of mystery glyphs. Read the current token IDs and values from [`baseSizes.ts`](../../src/vs/platform/theme/common/sizes/baseSizes.ts); do not infer the registry from this summary.
+- **Moves (the mechanics):** elevation tiers, the registered spacing/type/icon roles, the standard stroke token, `--vscode-*` theme color, reveal-on-intent chrome, and words instead of mystery glyphs. Read the current size-token IDs and values from [`baseSizes.ts`](../../src/vs/platform/theme/common/sizes/baseSizes.ts); do not infer the size registry from this summary.
 
 Reach for a **move** only *after* naming the feeling and the principle - never instead. Describe a bug by its role/tier/ramp (*"this overlay is rounded at the control tier"*), not its number (*"border-radius should be 6"*).
 

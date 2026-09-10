@@ -181,7 +181,7 @@ Moves are the **concrete mechanics** - the tokens, ramps, and tiers. On their ow
 
 This is the one section that touches implementation - and even here, the goal is to keep the *conversation* about design. Treat the Moves as the **shared vocabulary that lets an agreed design be built consistently**, not as the opening move in a review. Reach for them *after* you've named the feeling and the principle, never instead of it.
 
-The current token IDs, values, and descriptions live in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts), which is the source of truth. This skill explains how to choose among registered roles; do not infer the current registry from examples here. CSS authoring guidance is in [design-tokens.instructions.md](../../instructions/design-tokens.instructions.md).
+The current size-token IDs, values, and descriptions live in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts), which is the size-registry source of truth. This skill explains how to choose among registered size roles; do not infer the current size registry from examples here. CSS authoring guidance is in [design-tokens.instructions.md](../../instructions/design-tokens.instructions.md).
 
 <a id="design-tokens"></a>
 ### Tokens are the source of truth, not the pixel
