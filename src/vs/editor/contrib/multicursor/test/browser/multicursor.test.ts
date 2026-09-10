@@ -265,8 +265,8 @@ suite('Multicursor selection', () => {
 		});
 	});
 
-	function testMulticursor(text: string[], callback: (editor: ITestCodeEditor, findController: CommonFindController) => void): void {
-		withTestCodeEditor(text, { serviceCollection: serviceCollection }, (editor) => {
+	function testMulticursor(text: string[], callback: (editor: ITestCodeEditor, findController: CommonFindController) => void, options?: { hasTextFocus?: boolean }): void {
+		withTestCodeEditor(text, { serviceCollection: serviceCollection, hasTextFocus: options?.hasTextFocus }, (editor) => {
 			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
 			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 
@@ -277,12 +277,59 @@ suite('Multicursor selection', () => {
 		});
 	}
 
-	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: ITestCodeEditor, action: AddSelectionToNextFindMatchAction, findController: CommonFindController) => void): void {
+	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: ITestCodeEditor, action: AddSelectionToNextFindMatchAction, findController: CommonFindController) => void, options?: { hasTextFocus?: boolean }): void {
 		testMulticursor(text, (editor, findController) => {
 			const action = new AddSelectionToNextFindMatchAction();
 			callback(editor, action, findController);
-		});
+		}, options);
 	}
+
+	test('AddSelectionToNextFindMatchAction works with regex find mode (#107090)', () => {
+		const text = [
+			'abc pizza',
+			'abc house',
+			'abc bar'
+		];
+		// Run with focus outside the editor (i.e. in the find widget). The find
+		// widget only owns the search - and so only applies its regex option - on
+		// that path. With editor focus the session would expand the cursor's word
+		// and search literally, so the regex option would never be exercised and
+		// this test would pass even with the bug present.
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			// 'a.c' as a regex matches 'abc' on every line. As a literal string it
+			// matches nothing, so if isRegex is not forwarded no match is found and
+			// the selections never expand.
+			findController.getState().change({ searchString: 'a.c', isRegex: true, isRevealed: true }, false);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+
+			// All matches are now selected; running again wraps around and adds no
+			// new selection.
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 4),
+				new Selection(2, 1, 2, 4),
+				new Selection(3, 1, 3, 4),
+			]);
+		}, { hasTextFocus: false });
+	});
 
 	test('AddSelectionToNextFindMatchAction starting with single collapsed selection', () => {
 		const text = [
