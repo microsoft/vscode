@@ -17,7 +17,7 @@ import { registerAction2 } from '../../../../platform/actions/common/actions.js'
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
@@ -64,7 +64,7 @@ import { ChatRequestOriginService, IChatRequestOriginService } from '../common/c
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, CustomizationMigrationHintMode, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, CustomizationMigrationHintMode, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
@@ -490,6 +490,32 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
+		},
+		[ChatConfiguration.UnifiedWorkspacePicker]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			description: nls.localize('sessions.chat.unifiedWorkspacePicker.enabled', "Controls whether the Agents Window uses the unified workspace picker, which combines GitHub and remote workspaces, provides search, and, when supported, allows creating sessions with no workspace."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.AutoArchiveMergedSessionsAfterDays]: {
+			type: 'integer',
+			minimum: 0,
+			default: 0,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', AGENT_SESSION_CLEANUP_SETTINGS_TAG],
+			markdownDescription: nls.localize('autoArchiveMergedSessions.description', "Controls the number of inactive days before agent sessions with a merged pull request are automatically archived. Archiving safely removes eligible worktrees. Permanent deletion is controlled separately by {0}. Set to 0 to disable automatic archival. The recommended value is 15.", '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`'),
+			agentHost: { key: AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey },
+		},
+		[ChatConfiguration.AutoDeleteArchivedMergedSessionsAfterDays]: {
+			type: 'integer',
+			minimum: 0,
+			default: 0,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', AGENT_SESSION_CLEANUP_SETTINGS_TAG],
+			markdownDescription: nls.localize('autoDeleteArchivedMergedSessions.description', "Controls the number of days after automatic archival before agent sessions with a merged pull request are permanently deleted. Retained eligible worktrees are safely removed before deletion. Automatic archival is controlled separately by {0}. Set to 0 to disable permanent deletion. The recommended value is 15.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`'),
+			agentHost: { key: AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey },
 		},
 		[ChatConfiguration.SaveBeforeSend]: {
 			type: 'boolean',
