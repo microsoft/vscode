@@ -171,6 +171,7 @@ suite('SessionChatInputToolbar', () => {
 			repo: 'vscode',
 			number: 42,
 			uri: URI.parse('https://github.com/microsoft/vscode/issues/42'),
+			title: 'Recorded issue title',
 		};
 		const issue: IGitHubIssue = {
 			number: issueRef.number,
@@ -235,10 +236,14 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedHover: unresolvedPullRequestEntry?.pillHover,
 			},
 			issue: {
+				label: issueEntry?.label,
 				className: issueHover?.className,
 				repository: issueHover?.querySelector('.sessions-issue-hover-repository')?.textContent,
 				title: issueHover?.querySelector('.sessions-issue-hover-title')?.textContent,
 				description: issueHover?.querySelector('.sessions-issue-hover-description-content')?.textContent,
+				unresolvedLabel: unresolvedIssueEntry?.label,
+				unresolvedAriaLabel: unresolvedIssueEntry?.ariaLabel,
+				unresolvedTooltip: unresolvedIssueEntry?.tooltip,
 				unresolvedHover: unresolvedIssueEntry?.pillHover,
 			},
 		}, {
@@ -251,10 +256,14 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedHover: undefined,
 			},
 			issue: {
+				label: 'Issue #42: Rich issue hover',
 				className: 'sessions-issue-hover',
 				repository: 'microsoft/vscode#42',
 				title: 'Rich issue hover',
 				description: 'Provides detailed issue context.',
+				unresolvedLabel: 'Issue #42: Recorded issue title',
+				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
+				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
 				unresolvedHover: undefined,
 			},
 		});

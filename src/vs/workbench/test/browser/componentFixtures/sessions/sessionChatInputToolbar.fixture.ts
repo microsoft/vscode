@@ -22,6 +22,8 @@ import { ISessionChatPillsDebugData } from '../../../../../sessions/contrib/chat
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { GitHubIssueModel } from '../../../../../sessions/contrib/github/browser/models/githubIssueModel.js';
+// eslint-disable-next-line local/code-import-patterns
 import { GitHubPullRequestModel } from '../../../../../sessions/contrib/github/browser/models/githubPullRequestModel.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionInputBanners } from '../../../../../sessions/contrib/sessionInputBanners/browser/sessionInputBanners.js';
@@ -32,7 +34,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/wo
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionChangeset, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFileChange, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { ChatOriginKind, type IGitHubInfo, type IGitHubIssueRef, type IGitHubPullRequestRef, ISessionArtifact, ISessionChangeset, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFileChange, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -69,6 +71,7 @@ interface ISessionSpec {
 	/** Customizations the chat used or read. */
 	readonly customizations?: readonly ISessionChatCustomization[];
 	readonly pullRequests?: readonly IGitHubPullRequestRef[];
+	readonly issues?: readonly IGitHubIssueRef[];
 }
 
 /** A mock session + its viewed chat, as the toolbar consumes them. */
@@ -80,10 +83,11 @@ interface IMockSessionAndChat {
 
 function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 	const workspaceRoot = URI.file('/repo');
-	const gitHubInfo: IGitHubInfo | undefined = spec.pullRequests ? {
+	const gitHubInfo: IGitHubInfo | undefined = spec.pullRequests || spec.issues ? {
 		owner: 'microsoft',
 		repo: 'vscode',
-		pullRequests: spec.pullRequests,
+		...(spec.pullRequests ? { pullRequests: spec.pullRequests } : {}),
+		...(spec.issues ? { issues: spec.issues } : {}),
 	} : undefined;
 	const gitRepository: ISessionGitRepository | undefined = gitHubInfo ? {
 		uri: workspaceRoot,
@@ -174,6 +178,17 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 		override readonly activeSessionPullRequestObs = constObservable(undefined);
 		override readonly activeSessionPullRequestCIObs = constObservable(undefined);
 		override readonly activeSessionPullRequestReviewThreadsObs = constObservable(undefined);
+		override createIssueModelReference(owner: string, repo: string, issueNumber: number) {
+			const model = new class extends mock<GitHubIssueModel>() {
+				override readonly issue = constObservable(undefined);
+				override readonly owner = owner;
+				override readonly repo = repo;
+				override readonly issueNumber = issueNumber;
+				override refresh(): Promise<void> { return Promise.resolve(); }
+				override startPolling() { return Disposable.None; }
+			}();
+			return { object: model, dispose: () => { } };
+		}
 		override createPullRequestModelReference(owner: string, repo: string, prNumber: number) {
 			const model = new class extends mock<GitHubPullRequestModel>() {
 				override readonly pullRequest = constObservable(undefined);
@@ -423,6 +438,28 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				state: 'closed',
 			}],
 		})),
+	}),
+
+	SessionChatPills_IssuesWithRecordedTitles: defineComponentFixture({
+		expectedVisualDescriptions: ['The open Issues pill dropdown lists issue #335383 as "Agent Window issue pill discards the recorded issue title" and issue #335354 as "Predictable UI composition: spacing ownership and icon sizing".'],
+		render: ctx => {
+			renderPills(ctx, createMockSession({
+				issues: [{
+					owner: 'microsoft',
+					repo: 'vscode',
+					number: 335383,
+					uri: URI.parse('https://github.com/microsoft/vscode/issues/335383'),
+					title: 'Agent Window issue pill discards the recorded issue title',
+				}, {
+					owner: 'microsoft',
+					repo: 'vscode',
+					number: 335354,
+					uri: URI.parse('https://github.com/microsoft/vscode/issues/335354'),
+					title: 'Predictable UI composition: spacing ownership and icon sizing',
+				}],
+			}), { width: '760px' });
+			ctx.container.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
+		},
 	}),
 
 	SessionChatPills_ArtifactsEveryType: defineComponentFixture({

@@ -7824,7 +7824,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'a1', type: SessionArtifactType.PullRequest, label: 'Created', isArtifact: true, link: 'https://github.com/owner/repo/pull/50', isGitHub: true },
 			{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Referenced', isArtifact: false, link: 'https://github.com/owner/repo/pull/60', isGitHub: true },
 			{ id: 'a3', type: SessionArtifactType.PullRequest, label: 'Duplicate', isArtifact: true, link: 'https://github.com/OWNER/REPO/pull/41/', isGitHub: true },
-			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Issue', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Preserve promoted issue titles', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
 			{ id: 'a5', type: SessionArtifactType.PullRequest, label: 'Elsewhere', isArtifact: true, link: 'https://gitlab.com/owner/repo/-/merge_requests/3', isGitHub: false },
 			{ id: 'a6', type: SessionArtifactType.File, label: 'Plan', isArtifact: true, uri: 'file:///repo/plan.md' },
 			{ id: 'a7', type: SessionArtifactType.Issue, label: 'Referenced issue', isArtifact: false, link: 'https://github.com/owner/repo/issues/8', isGitHub: true },
@@ -7842,13 +7842,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			activePullRequest: gitHubInfo?.pullRequest?.number,
 			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
-			issues: gitHubInfo?.issues?.map(issue => issue.number),
+			issues: gitHubInfo?.issues?.map(issue => [issue.number, issue.title]),
 			artifacts: session.artifacts?.get().map(artifact => [artifact.id, artifact.isArtifact]),
 		}, {
 			activePullRequest: 41,
 			pullRequests: [41, 50, 42],
 			// Only issues the session produced are polled; a referenced one stays a reference.
-			issues: [7],
+			issues: [[7, 'Preserve promoted issue titles']],
 			artifacts: [
 				['a8', false],
 				['a7', false],

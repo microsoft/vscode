@@ -68,6 +68,7 @@ const artifactSectionOrder: readonly { readonly type: SessionArtifactType; reado
 export interface IAgentHostSessionPillMetadata {
 	readonly pullRequestUrls: readonly string[];
 	readonly issueUrls: readonly string[];
+	readonly issueTitles: ReadonlyMap<string, string>;
 	readonly artifacts: readonly ISessionArtifact[];
 	readonly references: readonly ISessionArtifact[];
 }
@@ -112,15 +113,17 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta);
 	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)).map(entry => entry.link);
-	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue)).map(entry => entry.link);
+	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
 	const pullRequestUrls = dedupeLinks(artifactPullRequests, getSessionRelatedPullRequestUrls(github));
-	const issueUrls = dedupeLinks(artifactIssues);
+	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
+	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
 		pullRequestUrls,
 		issueUrls,
+		issueTitles,
 		artifacts: remaining.filter(entry => entry.isArtifact),
 		references: remaining.filter(entry => !entry.isArtifact),
 	};
@@ -204,13 +207,18 @@ function parseUri(value: string | undefined): URI | undefined {
 	}
 }
 
-function referenceLabel(link: string, kind: 'pullRequest' | 'issue'): string {
+function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
 	const resource = parseUri(link);
 	const number = resource ? githubReferenceNumber(resource, kind) : undefined;
 	if (kind === 'pullRequest') {
 		return number
 			? localize('agentHostSessionPills.pullRequest.number', "Pull Request #{0}", number)
 			: localize('agentHostSessionPills.pullRequest', "Pull Request");
+	}
+	if (title) {
+		return number
+			? localize('agentHostSessionPills.issue.numberWithTitle', "Issue #{0}: {1}", number, title)
+			: title;
 	}
 	return number
 		? localize('agentHostSessionPills.issue.number', "Issue #{0}", number)
@@ -350,7 +358,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			const icons = getChatPillEntries(pullRequestSections.read(reader)).map(entry => entry.icon);
 			return getHighestPriorityPullRequestIcon(icons) ?? computePullRequestIcon('open');
 		});
-		const issueSections = derived(this, reader => this._buildReferenceSections(metadata.read(reader).issueUrls, 'issue'));
+		const issueSections = derived(this, reader => {
+			const currentMetadata = metadata.read(reader);
+			return this._buildReferenceSections(currentMetadata.issueUrls, 'issue', undefined, currentMetadata.issueTitles);
+		});
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
 			return currentResolution
@@ -404,14 +415,15 @@ export class AgentHostSessionInputPills extends Disposable {
 		updateVisibility(inputPills.visible);
 	}
 
-	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>) {
+	private _buildReferenceSections(links: readonly string[], kind: 'pullRequest' | 'issue', gitHubState?: ReturnType<typeof readSessionGitHubState>, titles?: ReadonlyMap<string, string>) {
 		const entries = links.map(link => {
 			const resource = parseUri(link);
 			if (!resource) {
 				return undefined;
 			}
 			const number = githubReferenceNumber(resource, kind);
-			const label = referenceLabel(link, kind);
+			const title = titles?.get(linkKey(link));
+			const label = referenceLabel(link, kind, title);
 			const pullRequestState = kind === 'pullRequest'
 				&& gitHubState?.pullRequestState
 				&& gitHubState.pullRequestStateUrl
@@ -433,6 +445,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					run: () => this._clipboardService.writeText(resource.toString(true)),
 				})],
 				...getChatPillResourceLocation(resource, label),
+				...(kind === 'issue' && title ? { tooltip: `${label}\n${resource.toString(true)}` } : {}),
 				open: () => this._openExternal(resource),
 			};
 		}).filter(isDefined);

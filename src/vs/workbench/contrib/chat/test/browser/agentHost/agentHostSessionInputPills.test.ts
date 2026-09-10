@@ -90,6 +90,7 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
 			issueUrls: metadata.issueUrls,
+			issueTitles: [...metadata.issueTitles],
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
@@ -98,6 +99,7 @@ suite('AgentHostSessionInputPills', () => {
 				'https://github.com/microsoft/vscode/pull/1',
 			],
 			issueUrls: ['https://github.com/microsoft/vscode/issues/3'],
+			issueTitles: [['https://github.com/microsoft/vscode/issues/3', 'Created Issue']],
 			artifactIds: ['website'],
 			// Newest first: `resource` was recorded after `issue-reference`.
 			referenceIds: ['resource', 'issue-reference'],
@@ -121,6 +123,7 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
 			issueUrls: metadata.issueUrls,
+			issueTitles: [...metadata.issueTitles],
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
 			referenceIds: metadata.references.map(reference => reference.id),
 		}, {
@@ -131,6 +134,10 @@ suite('AgentHostSessionInputPills', () => {
 			issueUrls: [
 				'https://github.com/microsoft/vscode/issues/2',
 				'https://github.com/microsoft/vscode/issues/1',
+			],
+			issueTitles: [
+				['https://github.com/microsoft/vscode/issues/2', 'New Issue'],
+				['https://github.com/microsoft/vscode/issues/1', 'Old Issue'],
 			],
 			artifactIds: ['new-website', 'old-website'],
 			referenceIds: ['new-reference', 'old-reference'],
