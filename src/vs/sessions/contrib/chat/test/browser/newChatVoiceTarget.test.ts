@@ -15,7 +15,7 @@ import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/mod
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewChatVoiceComposer, isNewChatVoiceInputModePillActive, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
+import { INewChatVoiceComposer, isNewChatStandaloneDictationVisible, isNewChatVoiceInputModePillActive, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 
 suite('NewChatVoiceTargetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -117,6 +117,20 @@ suite('NewChatVoiceTargetService', () => {
 			false,
 			true,
 			true,
+			false,
+		]);
+	});
+
+	test('new-session composer never shows standalone dictation with the segmented control', () => {
+		assert.deepStrictEqual([
+			isNewChatStandaloneDictationVisible(false, false),
+			isNewChatStandaloneDictationVisible(true, false),
+			isNewChatStandaloneDictationVisible(false, true),
+			isNewChatStandaloneDictationVisible(true, true),
+		], [
+			false,
+			true,
+			false,
 			false,
 		]);
 	});

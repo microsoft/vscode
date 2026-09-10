@@ -46,6 +46,11 @@ export function isNewChatVoiceInputModePillActive(dictationAvailable: boolean, v
 	return voiceAvailable && (dictationAvailable || voiceSessionActive);
 }
 
+/** Whether the standalone dictation action should be shown instead of the segmented control. */
+export function isNewChatStandaloneDictationVisible(dictationActionAvailable: boolean, voiceInputModePillActive: boolean): boolean {
+	return dictationActionAvailable && !voiceInputModePillActive;
+}
+
 /** New-session composer APIs used by voice mode. */
 export interface INewChatVoiceComposer {
 	/** Fires when the composer input gains focus. */
