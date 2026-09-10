@@ -231,6 +231,7 @@ suite('SessionChatInputToolbar', () => {
 		};
 		const pullRequestHover = await renderHover(pullRequestEntry);
 		const issueHover = await renderHover(issueEntry);
+		pullRequestEntry?.open();
 		unresolvedIssueEntry?.open();
 
 		assert.deepStrictEqual({
@@ -273,10 +274,16 @@ suite('SessionChatInputToolbar', () => {
 				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
 				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
 				unresolvedHover: undefined,
-				openCommands: [{
-					id: 'workbench.agentSessions.action.openIssue',
-					args: [{ issue: issueRef }],
-				}],
+				openCommands: [
+					{
+						id: 'workbench.agentSessions.action.openPullRequest',
+						args: [{ pullRequest: pullRequestRef }],
+					},
+					{
+						id: 'workbench.agentSessions.action.openIssue',
+						args: [{ issue: issueRef }],
+					},
+				],
 			},
 		});
 	});

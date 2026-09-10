@@ -570,12 +570,18 @@ suite('AgentHostSessionInputPills', () => {
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		const filterActions = createSessionPullRequestPillData(constObservable([]), visibility.pullRequests).getContextMenuActions();
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
-		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+		const [clipboardService, configurationService, editorService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
 			accessor.get(IConfigurationService),
 			accessor.get(IEditorService),
-			accessor.get(IOpenerService),
 		] as const);
+		const opened: { readonly resource: URI; readonly openExternal: boolean | undefined }[] = [];
+		const openerService = upcastPartial<IOpenerService>({
+			open: async (resource, options) => {
+				opened.push({ resource, openExternal: options?.openExternal });
+				return true;
+			},
+		});
 
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -619,12 +625,14 @@ suite('AgentHostSessionInputPills', () => {
 			iconColor: singleIcon?.style.color,
 			hasChevron: singleButton?.querySelector('.chat-pill-chevron') !== null,
 		};
+		singleButton?.click();
 		await filterActions[1].run();
 
 		assert.deepStrictEqual({
 			multiple,
 			filteredLabel,
 			single,
+			opened: opened.map(({ resource, openExternal }) => ({ resource: resource.toString(true), openExternal })),
 			filteredOnly: persistentContent.querySelector('.chat-dropdown-pill-button'),
 			canConfigure: persistentContent.querySelector('.chat-pills-row')?.classList.contains('empty'),
 		}, {
@@ -643,6 +651,7 @@ suite('AgentHostSessionInputPills', () => {
 				iconColor: 'var(--vscode-charts-purple)',
 				hasChevron: false,
 			},
+			opened: [{ resource: 'https://github.com/microsoft/vscode/pull/1', openExternal: true }],
 			filteredOnly: null,
 			canConfigure: true,
 		});
