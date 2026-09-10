@@ -162,8 +162,7 @@ suite('WorkbenchButtonBar', () => {
 			idleLabel: 'idle',
 		});
 
-		// The spinner must occupy the same 16x16 slot as the icon it replaces,
-		// so a token or selector regression cannot silently shrink or grow it.
+		// The spinner must occupy the same 16x16 slot as the icon it replaces.
 		const busyLeading = busy.firstElementChild as HTMLElement;
 		const idleLeading = idle.firstElementChild as HTMLElement;
 		const busySize = getWindow(busy).getComputedStyle(busyLeading);
