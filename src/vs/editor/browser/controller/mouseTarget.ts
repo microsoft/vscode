@@ -1041,8 +1041,15 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
+		// `caretPositionFromPoint` returns `null` when the point lies outside the
+		// document (e.g. while drag-selecting and the cursor leaves the browser
+		// viewport). Mirror the symmetric guard in `_actualDoHitTestWithCaretRangeFromPoint`.
 		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-		const hitResult: { offsetNode: Node; offset: number } = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
+		const hitResult: { offsetNode: Node; offset: number } | null = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
+
+		if (!hitResult || !hitResult.offsetNode) {
+			return new UnknownHitTestResult();
+		}
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
 			// offsetNode is expected to be the token text
