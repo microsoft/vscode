@@ -38,7 +38,8 @@ import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IChatViewOptions, ISelectWorkspaceOptions } from '../../../browser/parts/chatView.js';
+import { IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
+import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedbackAttachmentEntry.js';
@@ -129,7 +130,7 @@ export class NewChatWidget extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
-		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
@@ -146,6 +147,7 @@ export class NewChatWidget extends Disposable {
 			}
 			return activeSession;
 		});
+		const hasRestoredDraft = this._session.get() !== undefined;
 
 		// A quick chat is workspace-less; the composer hides the workspace picker
 		// (nothing to pick) and surfaces the session-type picker in the controls.
@@ -170,6 +172,7 @@ export class NewChatWidget extends Disposable {
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			canRestoreWorkspace: () => !this._isQuickChatComposer.get(),
+			onUserSelection: () => newSessionComposerService.notifyUserWorkspaceSelection(),
 			getWorkspaceGroupAction: group => {
 				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
 					this.defaultAccountService.currentDefaultAccount !== null,
@@ -224,6 +227,11 @@ export class NewChatWidget extends Disposable {
 			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
 				? NewSessionWorkspacePreselectionSource.None
 				: this._workspacePicker.preselectionSource,
+			getWorkspaceSelection: () => this._isQuickChatComposer.get()
+				? { ...this._workspacePicker.selectionSnapshot, folderUri: undefined, origin: WorkspaceSelectionOrigin.None, state: 'noWorkspace' }
+				: this._workspacePicker.selectionSnapshot,
+			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
+			canApplyWorkspaceDefault: () => !hasRestoredDraft,
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			canSubmitWithoutSession,
@@ -322,6 +330,7 @@ export class NewChatWidget extends Disposable {
 			syncAttachedContext();
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async pick => {
+			this.newSessionComposerService.notifyUserWorkspaceSelection();
 			// A quick chat has no folder: re-create the draft with the picked
 			// type via openQuickChat (mirrors the folder path's draft recreation).
 			if (this._isQuickChatComposer.get()) {
@@ -379,7 +388,7 @@ export class NewChatWidget extends Disposable {
 	private _syncWorkspacePickerFromSessionWorkspace(workspace: ISessionWorkspace | undefined): void {
 		const folderUri = workspace?.folders[0]?.root;
 		if (folderUri && !this._workspacePicker.matchesSelectedWorkspace(workspace)) {
-			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
+			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.SessionSync });
 		}
 	}
 
@@ -630,7 +639,7 @@ export class NewChatWidget extends Disposable {
 		const sessionWorkspace = activeSession.workspace.get();
 		const folderUri = sessionWorkspace?.folders[0]?.root;
 		if (folderUri) {
-			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
+			this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
 			this._replaceDraftOnUnservableHarness(folderUri, activeSession);
 		}
 
@@ -987,6 +996,7 @@ export class NewChatWidget extends Disposable {
 		}
 
 		try {
+			this.newSessionComposerService.notifyWillSendRequest(sendOptions, wasQuickChat ? undefined : this._workspacePicker.selectionSnapshot);
 			await this.sessionsManagementService.sendNewChatRequest(session, sendOptions);
 		} catch (e) {
 			this._pendingBackgroundSends.deleteAndDispose(sendOptions);
@@ -1147,9 +1157,23 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.attach(uris);
 	}
 
-	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+		if (options?.isDefault) {
+			const selection = this._workspacePicker.selectionSnapshot;
+			if (!this._newChatInput.canApplyWorkspaceDefault || this._isQuickChatComposer.get()
+				|| selection.state === 'noWorkspace'
+				|| selection.origin === WorkspaceSelectionOrigin.User
+				|| selection.origin === WorkspaceSelectionOrigin.WindowOpen
+				|| selection.origin === WorkspaceSelectionOrigin.RestoredDraft
+				|| selection.origin === WorkspaceSelectionOrigin.SessionSync
+				|| selection.origin === WorkspaceSelectionOrigin.Programmatic) {
+				return 'preserved';
+			}
+		}
 		this._preferredDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
-		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId });
+		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId, origin: options?.selectionOrigin });
+		const selection = this._workspacePicker.selectionSnapshot;
+		return selection.state === 'selected' && this.uriIdentityService.extUri.isEqual(selection.folderUri, folderUri) ? 'applied' : 'notReady';
 	}
 }
 
