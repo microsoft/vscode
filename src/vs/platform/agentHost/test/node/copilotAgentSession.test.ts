@@ -2544,6 +2544,15 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
+	test('observed request usage retains the ultra reasoning-effort tier', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.resetTurnState('ultra-turn');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5', inputTokens: 10, outputTokens: 20, apiCallId: 'ultra-call', reasoningEffort: 'ultra',
+		} as SessionEventPayload<'assistant.usage'>['data'], { id: 'ultra-usage' });
+		assert.deepStrictEqual(session.getTurnTokenUsage('ultra-turn')?.summaries.map(row => row.reasoningEffort), ['ultra']);
+	});
+
 	test('a resumed session does not bill its restored history to the first new turn', async () => {
 		// The SDK re-folds usage from its durable event log on resume, so `getMetrics`
 		// opens at the accumulated total of everything already billed.
@@ -4244,10 +4253,13 @@ suite('CopilotAgentSession', () => {
 		const data = { model: 'gpt-5.5', inputTokens: 5 } as SessionEventPayload<'assistant.usage'>['data'];
 		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
 		const first = session.getTurnTokenUsage('child-turn-1', 'child-tool');
-		mockSession.fire('subagent.completed', {
-			toolCallId: 'child-tool', agentName: 'explore', agentDisplayName: 'Explore',
-			durationMs: 1, totalTokens: 5, totalToolCalls: 0,
-		} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'child' });
+		// Completion now flows through background-task reconciliation, not the subagent.completed event.
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'child', toolCallId: 'child-tool', description: 'Explore',
+			status: 'completed', agentType: 'explore', prompt: 'Explore', startedAt: new Date(0).toISOString(),
+		} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>];
+		mockSession.fire('session.background_tasks_changed', {});
+		await timeout(0);
 		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
 		mockSession.fire('assistant.usage', { ...data, inputTokens: 7 }, { agentId: 'child', id: 'child-usage-2' });
 		const resumed = session.getTurnTokenUsage('child-turn-2', 'child-tool');
