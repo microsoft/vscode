@@ -373,6 +373,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		const jumpList: JumpListCategory[] = [];
+		let recentWorkspaces = this.getWindowsJumpListWorkspaces((await this.getRecentlyOpened()).workspaces);
 
 		// Tasks
 		jumpList.push({
@@ -400,7 +401,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		});
 
 		// Recent Workspaces
-		if ((await this.getRecentlyOpened()).workspaces.length > 0) {
+		if (recentWorkspaces.length > 0) {
 
 			// The user might have meanwhile removed items from the jump list and we have to respect that
 			// so we need to update our list of recent paths with the choice of the user to not add them again
@@ -418,10 +419,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 				}
 			}
 			await this.removeRecentlyOpened(toRemove);
+			recentWorkspaces = this.getWindowsJumpListWorkspaces((await this.getRecentlyOpened()).workspaces);
 
 			// Add entries up to the slot count Explorer requested (jumpListSettings.minItems).
 			let hasWorkspaces = false;
-			const items: JumpListItem[] = coalesce((await this.getRecentlyOpened()).workspaces.slice(0, jumpListSettings.minItems).map(recent => {
+			const items: JumpListItem[] = coalesce(recentWorkspaces.slice(0, jumpListSettings.minItems).map(recent => {
 				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
 
 				const { title, description } = this.getWindowsJumpListLabel(workspace, recent.label);
@@ -466,6 +468,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		} catch (error) {
 			this.logService.warn('updateWindowsJumpList#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
+	}
+
+	private getWindowsJumpListWorkspaces(workspaces: Array<IRecentWorkspace | IRecentFolder>): Array<IRecentWorkspace | IRecentFolder> {
+		return workspaces.filter(recent => isRecentFolder(recent) || !this.isAgentSessionsWorkspace(recent.workspace));
 	}
 
 	private getWindowsJumpListLabel(workspace: IWorkspaceIdentifier | URI, recentLabel: string | undefined): { title: string; description: string } {
