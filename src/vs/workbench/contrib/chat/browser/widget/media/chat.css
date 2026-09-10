@@ -1195,14 +1195,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 	position: relative;
 	transition: box-shadow 350ms ease;
-	/* Duration of the working/progress border comet animation. Set
-		dynamically by `ChatInputPart#layout` to keep the comet's linear
-		travel speed roughly constant regardless of input width — wider
-		inputs would otherwise feel sluggish at a fixed duration. */
-	--chat-input-anim-duration: 4s;
+	/* Duration of the two-lap working/progress border sequence. Set
+		dynamically by `ChatInputPart#layout` to keep each lap's linear travel
+		speed roughly constant regardless of input width. */
+	--chat-input-anim-duration: 8s;
 	/* Allow host surfaces (like inactive sessions) to tone down the animation
-		accent without overriding the global chat theme token. */
-	--chat-input-working-border-color1: var(--vscode-chat-inputWorkingBorderColor1);
+		accents without overriding the shared Voice Mode palette. */
+	--chat-input-working-border-color1: var(--chat-input-working-border-listening-color, var(--vscode-chat-inputWorkingBorderColor1));
+	--chat-input-working-border-color2: var(--chat-input-working-border-speaking-color, var(--vscode-chat-inputWorkingBorderColor2));
 }
 
 /* Prevent contents from covering border corners. Not applied in compact mode
@@ -1230,13 +1230,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	initial-value: 135deg;
 }
 
+@property --chat-input-anim-color {
+	syntax: '<color>';
+	inherits: false;
+	initial-value: transparent;
+}
+
 @keyframes chat-input-working-border-spin {
-	from {
+	0% {
 		--chat-input-anim-angle: 135deg;
+		--chat-input-anim-color: var(--chat-input-working-border-color1);
 	}
 
-	to {
+	50% {
 		--chat-input-anim-angle: 495deg;
+		--chat-input-anim-color: var(--chat-input-working-border-color1);
+	}
+
+	50.01% {
+		--chat-input-anim-angle: 495deg;
+		--chat-input-anim-color: var(--chat-input-working-border-color2);
+	}
+
+	100% {
+		--chat-input-anim-angle: 855deg;
+		--chat-input-anim-color: var(--chat-input-working-border-color2);
 	}
 }
 
@@ -1259,9 +1277,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		so the rest of the border stays invisible. */
 	background: conic-gradient(from var(--chat-input-anim-angle),
 			transparent 0deg,
-			color-mix(in srgb, var(--chat-input-working-border-color1) 90%, transparent) 20deg,
-			var(--chat-input-working-border-color1) 30deg,
-			color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 50deg,
+			color-mix(in srgb, var(--chat-input-anim-color) 90%, transparent) 20deg,
+			var(--chat-input-anim-color) 30deg,
+			color-mix(in srgb, var(--chat-input-anim-color) 60%, transparent) 50deg,
 			transparent 90deg,
 			transparent 360deg);
 	-webkit-mask:
@@ -1288,8 +1306,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 2px;
 	background: conic-gradient(from var(--chat-input-anim-angle),
 			transparent 0deg,
-			color-mix(in srgb, var(--chat-input-working-border-color1) 60%, transparent) 25deg,
-			color-mix(in srgb, var(--chat-input-working-border-color1) 35%, transparent) 50deg,
+			color-mix(in srgb, var(--chat-input-anim-color) 60%, transparent) 25deg,
+			color-mix(in srgb, var(--chat-input-anim-color) 35%, transparent) 50deg,
 			transparent 90deg,
 			transparent 360deg);
 	-webkit-mask:
@@ -1336,14 +1354,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: transparent;
 }
 
-.monaco-workbench .interactive-session .chat-input-container.working::before {
+.monaco-workbench.monaco-enable-motion .interactive-session .chat-input-container.working::before {
 	opacity: 1;
 	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
 }
 
-.monaco-workbench .interactive-session .chat-input-container.working::after {
+.monaco-workbench.monaco-enable-motion .interactive-session .chat-input-container.working::after {
 	opacity: 1;
 	animation: chat-input-working-border-spin var(--chat-input-anim-duration) linear infinite;
+}
+
+.monaco-workbench.hc-black .interactive-session .chat-input-container.working,
+.monaco-workbench.hc-light .interactive-session .chat-input-container.working {
+	border-color: var(--vscode-contrastActiveBorder, var(--chat-input-working-border-color1));
+}
+
+.monaco-workbench.hc-black .interactive-session .chat-input-container.working::before,
+.monaco-workbench.hc-black .interactive-session .chat-input-container.working::after,
+.monaco-workbench.hc-light .interactive-session .chat-input-container.working::before,
+.monaco-workbench.hc-light .interactive-session .chat-input-container.working::after {
+	display: none;
+	animation: none;
 }
 
 /* Marker class toggled briefly by `ChatInputPart#_updateWorkingProgressAnimationDuration`

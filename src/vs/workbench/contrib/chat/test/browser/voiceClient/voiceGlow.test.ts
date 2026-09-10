@@ -7,11 +7,12 @@ import assert from 'assert';
 import { Color, HSLA } from '../../../../../../base/common/color.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { inputBackground } from '../../../../../../platform/theme/common/colors/inputColors.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
-import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
+import { chatDictationActiveMicGlow, chatInputWorkingBorderColor1, chatInputWorkingBorderColor2, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
-import { isGlowingVoiceState, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { isGlowingVoiceState, GlowThemeKind, resolveChatInputWorkingBorderColors, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController, createVoiceRimLight } from '../../../browser/voiceClient/voiceGlowController.js';
 
 suite('VoiceGlow', () => {
@@ -89,6 +90,43 @@ suite('VoiceGlow', () => {
 			getColor: id => id === chatVoiceGlowBaseColor ? Color.fromHex('#58A6FF') : id === chatVoiceSpeakingGlow ? pinned : undefined,
 		});
 		assert.strictEqual(colors.speaking.toString(), pinned.toString());
+	});
+
+	test('the working border reuses the tuned Voice Mode sequence and preserves overrides', () => {
+		const base = Color.fromHex('#58A6FF');
+		const background = Color.fromHex('#3C3C3C');
+		const resolve = (overrides = false) => resolveChatInputWorkingBorderColors({
+			type: ColorScheme.DARK,
+			getColor: (id, useDefault) => {
+				if (id === chatVoiceGlowBaseColor) {
+					return base;
+				}
+				if (id === inputBackground) {
+					return background;
+				}
+				if (overrides && useDefault === false && id === chatInputWorkingBorderColor1) {
+					return Color.fromHex('#123456');
+				}
+				if (overrides && useDefault === false && id === chatInputWorkingBorderColor2) {
+					return Color.fromHex('#ABCDEF');
+				}
+				return undefined;
+			},
+		});
+
+		assert.deepStrictEqual({
+			voiceMode: resolve(),
+			overrides: resolve(true),
+		}, {
+			voiceMode: {
+				listening: 'hsl(202 96% 56%)',
+				speaking: 'hsl(299 96% 72%)',
+			},
+			overrides: {
+				listening: '#123456',
+				speaking: '#abcdef',
+			},
+		});
 	});
 
 	test('the dictation microphone paints the listening rim color', () => {

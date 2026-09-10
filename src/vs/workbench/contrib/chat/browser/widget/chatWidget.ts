@@ -93,6 +93,7 @@ import { ChatListWidget } from './chatListWidget.js';
 import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
+import { resolveChatInputWorkingBorderColors } from '../voiceClient/voiceGlow.js';
 import { hasImmutablePrimaryWorkingDirectory, resolveFolderPickerDecisionUpdate, IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatTipService } from '../chatTipService.js';
@@ -711,6 +712,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.listWidget.rerender();
 			}
 		}));
+		this._register(this.themeService.onDidColorThemeChange(() => this.updateWorkingProgressBorderColors()));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -983,6 +985,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const working = enabled && inProgress;
 		inputContainer.classList.toggle('working', working);
 		setChatInputStackInputWorking(inputContainer, working);
+	}
+
+	private updateWorkingProgressBorderColors(): void {
+		const inputContainer = this.inputPartDisposable.value?.inputContainerElement;
+		if (!inputContainer) {
+			return;
+		}
+		const colors = resolveChatInputWorkingBorderColors(this.themeService.getColorTheme());
+		inputContainer.style.setProperty('--chat-input-working-border-listening-color', colors.listening);
+		inputContainer.style.setProperty('--chat-input-working-border-speaking-color', colors.speaking);
 	}
 
 	private isSessionStateIndicatorEnabled(): boolean {
@@ -2551,6 +2563,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.input.render(container, '', this);
+		this.updateWorkingProgressBorderColors();
 		this._gettingStartedTip.value = this.instantiationService.createInstance(
 			ChatInputTipPresenter,
 			{
