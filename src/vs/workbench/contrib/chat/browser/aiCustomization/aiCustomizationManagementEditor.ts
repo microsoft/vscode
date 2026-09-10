@@ -1118,13 +1118,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.migrationBannerContainer = DOM.append(this.migrationContentContainer, $('.customization-migration-banner'));
 		this.migrationBannerContainer.style.display = 'none';
 
+		// Keep the native scroll target separate because virtualization can make the content overflow visible.
 		const migrationScrollContainer = $('.prompt-migration-scroll-container');
 		this.migrationListContainer = DOM.append(migrationScrollContainer, $('.prompt-migration-list.list-container.distributed-section-layout'));
-		const migrationListScrollable = this.migrationListScrollable = this.editorDisposables.add(new DomScrollableElement(migrationScrollContainer, {
+		const migrationListScrollable = this.editorDisposables.add(new DomScrollableElement(migrationScrollContainer, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
 		}));
+		this.migrationListScrollable = migrationListScrollable;
 		this.editorDisposables.add(DOM.addDisposableListener(migrationScrollContainer, DOM.EventType.SCROLL, () => {
 			migrationListScrollable.setScrollPosition({ scrollTop: migrationScrollContainer.scrollTop });
 		}));

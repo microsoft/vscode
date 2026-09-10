@@ -958,10 +958,14 @@ per-word capitalization does not survive translation. */
 	padding-inline: var(--vscode-spacing-sizeNone);
 }
 
-/* The list scroll host reaches the pane edge while its content retains the panel inset. */
+/* The scroll hosts reach the pane edge while their content retains the panel inset. */
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .section-title-header,
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget > .list-search-and-button-container,
-.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget .plugin-card-scroll {
+.ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget.plugin-list-widget .plugin-card-scroll,
+.ai-customization-management-editor .prompt-migration-content-container > .section-title-header,
+.ai-customization-management-editor .prompt-migration-content-container > .customization-migration-banner,
+.ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-footer,
+.ai-customization-management-editor .prompt-migration-list {
 	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
 	margin-inline: auto;
 }
@@ -981,14 +985,6 @@ per-word capitalization does not survive translation. */
 	position: absolute;
 	inset: 0;
 	overflow: hidden;
-}
-
-.ai-customization-management-editor .prompt-migration-content-container > .section-title-header,
-.ai-customization-management-editor .prompt-migration-content-container > .customization-migration-banner,
-.ai-customization-management-editor .prompt-migration-content-container > .prompt-migration-footer {
-	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
-	margin-inline: auto;
-	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .prompt-migration-footer {
@@ -1137,8 +1133,6 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .prompt-migration-list {
 	height: 100%;
 	min-height: 0;
-	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
-	margin-inline: auto;
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
