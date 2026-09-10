@@ -112,6 +112,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			})],
 			...getChatPillResourceLocation(ref.uri, label),
 			ariaDescription: localize('sessionChatPills.pullRequestDescription', "{0}. {1}", stateDescription, ref.uri.toString(true)),
+			...(!pullRequest && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
 			...(pullRequest ? {
 				pillHover: {
 					element: () => createPullRequestHoverElement({

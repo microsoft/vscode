@@ -12,6 +12,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -66,6 +67,18 @@ class StaticAgentConnection extends mock<IAgentConnection>() {
 	}
 }
 
+class TestOpenerService extends mock<IOpenerService>() {
+	readonly opened: { readonly resource: URI; readonly openExternal: boolean | undefined }[] = [];
+
+	override async open(resource: URI | string, options?: Parameters<IOpenerService['open']>[1]): Promise<boolean> {
+		this.opened.push({
+			resource: typeof resource === 'string' ? URI.parse(resource) : resource,
+			openExternal: options && 'openExternal' in options ? options.openExternal : undefined,
+		});
+		return true;
+	}
+}
+
 suite('AgentHostSessionInputPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -89,6 +102,7 @@ suite('AgentHostSessionInputPills', () => {
 
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
+			pullRequestTitles: [...metadata.pullRequestTitles],
 			issueUrls: metadata.issueUrls,
 			issueTitles: [...metadata.issueTitles],
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
@@ -98,6 +112,7 @@ suite('AgentHostSessionInputPills', () => {
 				'https://github.com/microsoft/vscode/pull/2',
 				'https://github.com/microsoft/vscode/pull/1',
 			],
+			pullRequestTitles: [['https://github.com/microsoft/vscode/pull/2', 'Created PR']],
 			issueUrls: ['https://github.com/microsoft/vscode/issues/3'],
 			issueTitles: [['https://github.com/microsoft/vscode/issues/3', 'Created Issue']],
 			artifactIds: ['website'],
@@ -122,6 +137,7 @@ suite('AgentHostSessionInputPills', () => {
 
 		assert.deepStrictEqual({
 			pullRequestUrls: metadata.pullRequestUrls,
+			pullRequestTitles: [...metadata.pullRequestTitles],
 			issueUrls: metadata.issueUrls,
 			issueTitles: [...metadata.issueTitles],
 			artifactIds: metadata.artifacts.map(artifact => artifact.id),
@@ -130,6 +146,10 @@ suite('AgentHostSessionInputPills', () => {
 			pullRequestUrls: [
 				'https://github.com/microsoft/vscode/pull/2',
 				'https://github.com/microsoft/vscode/pull/1',
+			],
+			pullRequestTitles: [
+				['https://github.com/microsoft/vscode/pull/2', 'New PR'],
+				['https://github.com/microsoft/vscode/pull/1', 'Old PR'],
 			],
 			issueUrls: [
 				'https://github.com/microsoft/vscode/issues/2',
@@ -144,23 +164,43 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('renders recorded issue titles in editor and panel pills', () => {
+	test('renders recorded GitHub titles in editor and panel pills', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const sessionResource = URI.parse('agent-host-copilot:/session');
 		const backendSession = URI.parse('copilot:/session');
 		const issueUrl = 'https://github.com/microsoft/vscode/issues/335383';
+		const firstPullRequestUrl = 'https://github.com/microsoft/vscode/pull/335387';
+		const secondPullRequestUrl = 'https://github.com/microsoft/vscode/pull/332982';
 		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChangesetState>([
 			[StateComponents.Session, {
 				defaultChat: buildDefaultChatUri(backendSession),
 				chats: [],
-				_meta: withSessionArtifacts(undefined, [{
-					id: 'issue',
-					type: SessionArtifactType.Issue,
-					label: 'Agent Window issue pill discards the recorded issue title',
-					link: issueUrl,
-					isGitHub: true,
-					isArtifact: true,
-				}]),
+				_meta: withSessionArtifacts(undefined, [
+					{
+						id: 'issue',
+						type: SessionArtifactType.Issue,
+						label: 'Agent Window issue pill discards the recorded issue title',
+						link: issueUrl,
+						isGitHub: true,
+						isArtifact: true,
+					},
+					{
+						id: 'first-pr',
+						type: SessionArtifactType.PullRequest,
+						label: 'sessions: preserve recorded issue titles in pills',
+						link: firstPullRequestUrl,
+						isGitHub: true,
+						isArtifact: true,
+					},
+					{
+						id: 'second-pr',
+						type: SessionArtifactType.PullRequest,
+						label: 'Chat: unify Agent Host status pills across chat surfaces',
+						link: secondPullRequestUrl,
+						isGitHub: true,
+						isArtifact: true,
+					},
+				]),
 			} as unknown as SessionState],
 		]));
 		const persistentContent = document.createElement('div');
@@ -187,18 +227,22 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		let dropdownLabels: readonly string[] = [];
+		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			show: (_user, _supportsPreview, items) => {
+				dropdownLabels = items.map(item => item.label ?? '');
+			},
+			hide: () => { },
+			updateItems: () => { },
+			focusItemById: () => { },
+		}));
 		const [clipboardService, configurationService, editorService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IClipboardService),
 			accessor.get(IConfigurationService),
 			accessor.get(IEditorService),
 		] as const);
-		const opened: { readonly resource: URI; readonly openExternal: boolean | undefined }[] = [];
-		const openerService = upcastPartial<IOpenerService>({
-			open: async (resource, options) => {
-				opened.push({ resource, openExternal: options?.openExternal });
-				return true;
-			},
-		});
+		const openerService = new TestOpenerService();
 
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -213,17 +257,37 @@ suite('AgentHostSessionInputPills', () => {
 			visibility,
 		));
 
-		const button = persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button');
-		button?.click();
+		const buttons = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')];
+		const [pullRequestButton, issueButton] = buttons;
+		pullRequestButton?.click();
+		issueButton?.click();
 		assert.deepStrictEqual({
-			label: button?.querySelector('.chat-pill-label')?.textContent,
-			ariaLabel: button?.getAttribute('aria-label'),
-			ariaDescription: button?.getAttribute('aria-description'),
-			opened: opened.map(({ resource, openExternal }) => ({ resource: resource.toString(true), openExternal })),
+			pullRequests: {
+				label: pullRequestButton?.querySelector('.chat-pill-label')?.textContent,
+				ariaLabel: pullRequestButton?.getAttribute('aria-label'),
+				dropdownLabels,
+			},
+			issue: {
+				label: issueButton?.querySelector('.chat-pill-label')?.textContent,
+				ariaLabel: issueButton?.getAttribute('aria-label'),
+				ariaDescription: issueButton?.getAttribute('aria-description'),
+			},
+			opened: openerService.opened.map(({ resource, openExternal }) => ({ resource: resource.toString(true), openExternal })),
 		}, {
-			label: 'Issue #335383: Agent Window issue pill discards the recorded issue title',
-			ariaLabel: 'Open Issue #335383: Agent Window issue pill discards the recorded issue title',
-			ariaDescription: issueUrl,
+			pullRequests: {
+				label: '2 Pull Requests',
+				ariaLabel: 'Show 2 pull requests',
+				dropdownLabels: [
+					'Pull Requests',
+					'Pull Request #332982: Chat: unify Agent Host status pills across chat surfaces',
+					'Pull Request #335387: sessions: preserve recorded issue titles in pills',
+				],
+			},
+			issue: {
+				label: 'Issue #335383: Agent Window issue pill discards the recorded issue title',
+				ariaLabel: 'Open Issue #335383: Agent Window issue pill discards the recorded issue title',
+				ariaDescription: issueUrl,
+			},
 			opened: [{ resource: issueUrl, openExternal: true }],
 		});
 	});
@@ -575,13 +639,7 @@ suite('AgentHostSessionInputPills', () => {
 			accessor.get(IConfigurationService),
 			accessor.get(IEditorService),
 		] as const);
-		const opened: { readonly resource: URI; readonly openExternal: boolean | undefined }[] = [];
-		const openerService = upcastPartial<IOpenerService>({
-			open: async (resource, options) => {
-				opened.push({ resource, openExternal: options?.openExternal });
-				return true;
-			},
-		});
+		const openerService = new TestOpenerService();
 
 		store.add(new AgentHostSessionInputPills(
 			widget,
@@ -632,7 +690,7 @@ suite('AgentHostSessionInputPills', () => {
 			multiple,
 			filteredLabel,
 			single,
-			opened: opened.map(({ resource, openExternal }) => ({ resource: resource.toString(true), openExternal })),
+			opened: openerService.opened.map(({ resource, openExternal }) => ({ resource: resource.toString(true), openExternal })),
 			filteredOnly: persistentContent.querySelector('.chat-dropdown-pill-button'),
 			canConfigure: persistentContent.querySelector('.chat-pills-row')?.classList.contains('empty'),
 		}, {

@@ -67,6 +67,7 @@ const artifactSectionOrder: readonly { readonly type: SessionArtifactType; reado
 
 export interface IAgentHostSessionPillMetadata {
 	readonly pullRequestUrls: readonly string[];
+	readonly pullRequestTitles: ReadonlyMap<string, string>;
 	readonly issueUrls: readonly string[];
 	readonly issueTitles: ReadonlyMap<string, string>;
 	readonly artifacts: readonly ISessionArtifact[];
@@ -112,16 +113,18 @@ function isPromotedArtifact(artifact: ISessionArtifact, type: SessionArtifactTyp
 export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undefined): IAgentHostSessionPillMetadata {
 	const entries = readSessionArtifactsNewestFirst(meta);
 	const github = readSessionGitHubState(meta);
-	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest)).map(entry => entry.link);
+	const artifactPullRequests = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.PullRequest));
 	const artifactIssues = entries.filter(entry => isPromotedArtifact(entry, SessionArtifactType.Issue));
 	// Recorded pull requests lead discovered ones, as in the Agents Window.
-	const pullRequestUrls = dedupeLinks(artifactPullRequests, getSessionRelatedPullRequestUrls(github));
+	const pullRequestUrls = dedupeLinks(artifactPullRequests.map(entry => entry.link), getSessionRelatedPullRequestUrls(github));
+	const pullRequestTitles = new Map(artifactPullRequests.map(entry => [linkKey(entry.link), entry.label]));
 	const issueUrls = dedupeLinks(artifactIssues.map(entry => entry.link));
 	const issueTitles = new Map(artifactIssues.map(entry => [linkKey(entry.link), entry.label]));
 	const promotedLinks = new Set([...pullRequestUrls, ...issueUrls].map(linkKey));
 	const remaining = entries.filter(entry => !entry.link || !promotedLinks.has(linkKey(entry.link)));
 	return {
 		pullRequestUrls,
+		pullRequestTitles,
 		issueUrls,
 		issueTitles,
 		artifacts: remaining.filter(entry => entry.isArtifact),
@@ -210,15 +213,20 @@ function parseUri(value: string | undefined): URI | undefined {
 function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
 	const resource = parseUri(link);
 	const number = resource ? githubReferenceNumber(resource, kind) : undefined;
+	if (title) {
+		if (kind === 'pullRequest') {
+			return number
+				? localize('agentHostSessionPills.pullRequest.numberWithTitle', "Pull Request #{0}: {1}", number, title)
+				: title;
+		}
+		return number
+			? localize('agentHostSessionPills.issue.numberWithTitle', "Issue #{0}: {1}", number, title)
+			: title;
+	}
 	if (kind === 'pullRequest') {
 		return number
 			? localize('agentHostSessionPills.pullRequest.number', "Pull Request #{0}", number)
 			: localize('agentHostSessionPills.pullRequest', "Pull Request");
-	}
-	if (title) {
-		return number
-			? localize('agentHostSessionPills.issue.numberWithTitle', "Issue #{0}: {1}", number, title)
-			: title;
 	}
 	return number
 		? localize('agentHostSessionPills.issue.number', "Issue #{0}", number)
@@ -353,7 +361,10 @@ export class AgentHostSessionInputPills extends Disposable {
 				: new Set();
 		});
 
-		const pullRequestSections = derived(this, reader => this._buildReferenceSections(metadata.read(reader).pullRequestUrls, 'pullRequest', gitHubState.read(reader)));
+		const pullRequestSections = derived(this, reader => {
+			const currentMetadata = metadata.read(reader);
+			return this._buildReferenceSections(currentMetadata.pullRequestUrls, 'pullRequest', gitHubState.read(reader), currentMetadata.pullRequestTitles);
+		});
 		const pullRequestIcon = derived(this, reader => {
 			const icons = getChatPillEntries(pullRequestSections.read(reader)).map(entry => entry.icon);
 			return getHighestPriorityPullRequestIcon(icons) ?? computePullRequestIcon('open');
@@ -445,7 +456,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					run: () => this._clipboardService.writeText(resource.toString(true)),
 				})],
 				...getChatPillResourceLocation(resource, label),
-				...(kind === 'issue' && title ? { tooltip: `${label}\n${resource.toString(true)}` } : {}),
+				...(title ? { tooltip: `${label}\n${resource.toString(true)}` } : {}),
 				open: () => this._openExternal(resource),
 			};
 		}).filter(isDefined);

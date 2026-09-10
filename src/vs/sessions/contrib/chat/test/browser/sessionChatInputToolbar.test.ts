@@ -155,6 +155,7 @@ suite('SessionChatInputToolbar', () => {
 			repo: 'vscode',
 			number: 332982,
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/332982'),
+			title: 'Recorded pull request title',
 		};
 		const pullRequest: IGitHubPullRequest = {
 			number: pullRequestRef.number,
@@ -236,11 +237,15 @@ suite('SessionChatInputToolbar', () => {
 
 		assert.deepStrictEqual({
 			pullRequest: {
+				label: pullRequestEntry?.label,
 				className: pullRequestHover?.className,
 				repository: pullRequestHover?.querySelector('.sessions-pr-hover-repository')?.textContent,
 				title: pullRequestHover?.querySelector('.sessions-pr-hover-title')?.textContent,
 				description: pullRequestHover?.querySelector('.sessions-pr-hover-description-content')?.textContent,
 				branches: [...pullRequestHover?.querySelectorAll('.sessions-pr-hover-branch') ?? []].map(element => element.textContent),
+				unresolvedLabel: unresolvedPullRequestEntry?.label,
+				unresolvedAriaLabel: unresolvedPullRequestEntry?.ariaLabel,
+				unresolvedTooltip: unresolvedPullRequestEntry?.tooltip,
 				unresolvedHover: unresolvedPullRequestEntry?.pillHover,
 			},
 			issue: {
@@ -257,11 +262,15 @@ suite('SessionChatInputToolbar', () => {
 			},
 		}, {
 			pullRequest: {
+				label: 'Pull Request #332982: Restore rich pill hovers',
 				className: 'sessions-pr-hover',
 				repository: 'microsoft/vscode',
 				title: 'Restore rich pill hovers',
 				description: 'Provides detailed pull request context.',
 				branches: ['main', 'feature/rich-hover'],
+				unresolvedLabel: 'Pull Request #332982: Recorded pull request title',
+				unresolvedAriaLabel: 'Open Pull Request #332982: Recorded pull request title',
+				unresolvedTooltip: 'Pull Request #332982: Recorded pull request title\nhttps://github.com/microsoft/vscode/pull/332982',
 				unresolvedHover: undefined,
 			},
 			issue: {
