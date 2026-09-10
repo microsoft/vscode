@@ -24,7 +24,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../../nls.js';
-import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -63,7 +62,7 @@ import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
-import { CustomizationMigrationAssessmentType, CustomizationMigrationHintTarget, ICustomizationMigrationAssessment, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationHintTarget, ICustomizationMigrationHint } from '../promptSyntax/service/customizationMigrationService.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection, getCustomizationMigrationHintDismissedStorageKey } from '../aiCustomizationWorkspaceService.js';
@@ -129,26 +128,6 @@ class CancellableRequest implements IDisposable {
 
 const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
-
-type CustomizationMigrationAssessmentEvent = {
-	target: string;
-	customizationType: CustomizationMigrationAssessmentType;
-	source: string;
-	nativeCount: number;
-	mappedCount: number;
-	unsupportedCount: number;
-};
-
-type CustomizationMigrationAssessmentClassification = {
-	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The target Agent Host harness for the assessment.' };
-	customizationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization in the assessment.' };
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded source category of customizations in the assessment.' };
-	nativeCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations consumed from a native location.' };
-	mappedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations consumed through compatibility mapping.' };
-	unsupportedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations not fully supported by the target.' };
-	owner: 'digitarald';
-	comment: 'Tracks aggregate customization migration assessments without collecting customization names, paths, IDs, or content.';
-};
 
 /**
  * Preserve the picker state from `stateToApply`, only recovering a custom agent mode from
@@ -244,7 +223,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
-	private _customizationMigrationHintProvider: ((sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>) | undefined;
+	private _customizationMigrationHintProvider: ((sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>) | undefined;
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
@@ -264,7 +243,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.waitForModelDisposals();
 	}
 
-	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationAssessment | undefined>): IDisposable {
+	registerCustomizationMigrationHintProvider(provider: (sessionResource: URI, token: CancellationToken) => Promise<ICustomizationMigrationHint | undefined>): IDisposable {
 		if (this._customizationMigrationHintProvider) {
 			throw new BugIndicatingError('A customization migration hint provider is already registered');
 		}
@@ -1631,22 +1610,8 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				try {
-					const assessment = await this._customizationMigrationHintProvider(sessionResource, token);
-					if (assessment && !token.isCancellationRequested) {
-						const target = isRemoteAgentHostSessionType(sessionType) ? parseRemoteAgentHostHarness(sessionType) ?? 'unknown' : sessionType;
-						for (const { customizationType, source, nativeCount, mappedCount, unsupportedCount } of assessment.counts) {
-							this.telemetryService.publicLog2<CustomizationMigrationAssessmentEvent, CustomizationMigrationAssessmentClassification>('chat.customizationMigrationAssessment', {
-								target,
-								customizationType,
-								source,
-								nativeCount,
-								mappedCount,
-								unsupportedCount,
-							});
-						}
-						return assessment.hint;
-					}
-					return undefined;
+					const hint = await this._customizationMigrationHintProvider(sessionResource, token);
+					return token.isCancellationRequested ? undefined : hint;
 				} catch (error) {
 					this.logService.warn('[ChatService] Failed to compute customization migration hint:', error);
 					return undefined;

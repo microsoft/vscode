@@ -168,21 +168,6 @@ export interface ICustomizationMigrationHint {
 	readonly target: CustomizationMigrationHintTarget;
 }
 
-export type CustomizationMigrationAssessmentType = PromptsType | CustomizationMigrationType.McpServers;
-
-export interface ICustomizationMigrationAssessmentCount {
-	readonly customizationType: CustomizationMigrationAssessmentType;
-	readonly source: PromptFileSource | PromptsStorage | string;
-	readonly nativeCount: number;
-	readonly mappedCount: number;
-	readonly unsupportedCount: number;
-}
-
-export interface ICustomizationMigrationAssessment {
-	readonly hint: ICustomizationMigrationHint | undefined;
-	readonly counts: readonly ICustomizationMigrationAssessmentCount[];
-}
-
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
 
@@ -190,6 +175,5 @@ export interface ICustomizationMigrationService {
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
 	migrateMcpServers(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
 	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;
-	computeMigrationAssessment(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationAssessment | undefined>;
 	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
 }

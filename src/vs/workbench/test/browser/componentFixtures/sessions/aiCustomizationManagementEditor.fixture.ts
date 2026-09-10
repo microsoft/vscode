@@ -28,6 +28,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -906,6 +907,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				migrationFileService,
 				new NullLogService(),
 				configurationService,
+				NullTelemetryService,
 			));
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;

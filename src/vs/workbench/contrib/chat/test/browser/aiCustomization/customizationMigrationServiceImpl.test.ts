@@ -22,6 +22,7 @@ import { IFileService, IFileWriteOptions } from '../../../../../../platform/file
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -322,7 +323,7 @@ suite('CustomizationMigrationService', () => {
 			onDidChangeCustomizations: Event.None,
 			getClientWorkingDirectoryUris: () => [root],
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
-		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 		const agentHostSessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' });
 		const localSessionResource = URI.from({ scheme: SessionType.Local, path: '/session' });
 
@@ -444,7 +445,7 @@ suite('CustomizationMigrationService', () => {
 			override readonly onDidChangeCustomizations = Event.None;
 			override getClientWorkingDirectoryUris() { return []; }
 		}();
-		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
@@ -469,7 +470,7 @@ suite('CustomizationMigrationService', () => {
 			override readonly onDidChangeCustomizations = Event.None;
 			override getClientWorkingDirectoryUris() { return []; }
 		}();
-		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostClaude, path: '/session' }));
 
@@ -520,7 +521,7 @@ suite('CustomizationMigrationService', () => {
 			override readonly onDidChangeCustomizations = Event.None;
 			override getClientWorkingDirectoryUris() { return []; }
 		}();
-		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 
 		const hint = await service.computeMigrationHint(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
 
@@ -531,36 +532,37 @@ suite('CustomizationMigrationService', () => {
 	});
 
 	test('assesses native, mapped, and unsupported customizations by type and source', async () => {
+		const sessionType = 'remote-test-machine-copilot';
 		const promptsService = store.add(new TestPromptsService([
 			{ uri: URI.file('/copilot/agents/native.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
 			{ uri: URI.file('/legacy/agents/mapped.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
 			{ uri: URI.file('/legacy/instructions/unsupported.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.CopilotPersonal },
 			{ uri: URI.file('/legacy/hooks/unsupported.json'), storage: PromptsStorage.user, type: PromptsType.hook, source: PromptFileSource.CopilotPersonal },
 		]));
-		const harnessService = new TestCustomizationHarnessService();
+		const harnessService = new TestCustomizationHarnessService(sessionType);
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
 			servers: [
 				createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
-						id: 'native',
-						sourceKind: AgentHostMcpServerSourceKind.UserProfile,
-						delivery: AgentHostMcpServerDelivery.ProviderBuiltIn,
+					id: 'native',
+					sourceKind: AgentHostMcpServerSourceKind.UserProfile,
+					delivery: AgentHostMcpServerDelivery.ProviderBuiltIn,
 				}).servers[0],
 				createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
-						id: 'mapped',
-						sourceKind: AgentHostMcpServerSourceKind.UserProfile,
-						delivery: AgentHostMcpServerDelivery.ClientForwarded,
+					id: 'mapped',
+					sourceKind: AgentHostMcpServerSourceKind.UserProfile,
+					delivery: AgentHostMcpServerDelivery.ClientForwarded,
 				}).servers[0],
 				createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
-						id: 'unsupported',
-						sourceKind: AgentHostMcpServerSourceKind.UserProfile,
-						delivery: AgentHostMcpServerDelivery.NotDelivered,
-						compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.LaunchNotRepresentable] },
+					id: 'unsupported',
+					sourceKind: AgentHostMcpServerSourceKind.UserProfile,
+					delivery: AgentHostMcpServerDelivery.NotDelivered,
+					compatibility: { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.LaunchNotRepresentable] },
 				}).servers[0],
 				createWorkspaceMcpSupportSnapshot(URI.file('/workspace'), {
-						id: 'disabled',
-						sourceKind: AgentHostMcpServerSourceKind.UserProfile,
-						delivery: AgentHostMcpServerDelivery.NotDelivered,
-						enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledProfile },
+					id: 'disabled',
+					sourceKind: AgentHostMcpServerSourceKind.UserProfile,
+					delivery: AgentHostMcpServerDelivery.NotDelivered,
+					enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledProfile },
 				}).servers[0],
 			],
 			discoveryComplete: true,
@@ -578,20 +580,28 @@ suite('CustomizationMigrationService', () => {
 			override readonly onDidChangeCustomizations = Event.None;
 			override getClientWorkingDirectoryUris() { return []; }
 		}();
-		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const telemetryEvents: unknown[] = [];
+		const telemetryService = new class extends NullTelemetryServiceShape {
+			override publicLog2(eventName?: string, data?: unknown): void {
+				if (eventName === 'chat.customizationMigrationAssessment') {
+					telemetryEvents.push(data);
+				}
+			}
+		}();
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration()), telemetryService));
 
-		const assessment = await service.computeMigrationAssessment(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
+		const hint = await service.computeMigrationHint(URI.from({ scheme: sessionType, path: '/session' }));
 
-		assert.deepStrictEqual(assessment, {
+		assert.deepStrictEqual({ hint, telemetryEvents }, {
 			hint: {
 				message: 'Found 1 MCP server that is not fully supported by Copilot.',
 				target: CustomizationMigrationHintTarget.McpServers,
 			},
-			counts: [
-				{ customizationType: PromptsType.agent, source: PromptFileSource.CopilotPersonal, nativeCount: 1, mappedCount: 1, unsupportedCount: 0 },
-				{ customizationType: PromptsType.instructions, source: PromptFileSource.CopilotPersonal, nativeCount: 0, mappedCount: 0, unsupportedCount: 1 },
-				{ customizationType: PromptsType.hook, source: PromptFileSource.CopilotPersonal, nativeCount: 0, mappedCount: 0, unsupportedCount: 1 },
-				{ customizationType: CustomizationMigrationType.McpServers, source: AgentHostMcpServerSourceKind.UserProfile, nativeCount: 1, mappedCount: 1, unsupportedCount: 1 },
+			telemetryEvents: [
+				{ target: 'copilot', customizationType: PromptsType.agent, source: PromptFileSource.CopilotPersonal, nativeCount: 1, mappedCount: 1, unsupportedCount: 0 },
+				{ target: 'copilot', customizationType: PromptsType.instructions, source: PromptFileSource.CopilotPersonal, nativeCount: 0, mappedCount: 0, unsupportedCount: 1 },
+				{ target: 'copilot', customizationType: PromptsType.hook, source: PromptFileSource.CopilotPersonal, nativeCount: 0, mappedCount: 0, unsupportedCount: 1 },
+				{ target: 'copilot', customizationType: CustomizationMigrationType.McpServers, source: AgentHostMcpServerSourceKind.UserProfile, nativeCount: 1, mappedCount: 1, unsupportedCount: 1 },
 			],
 		});
 	});
@@ -650,7 +660,7 @@ suite('CustomizationMigrationService', () => {
 			getClientWorkingDirectoryUris: () => [root],
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
 		const configurationService = store.add(createMigrationConfiguration({ [CustomizationMigrationType.McpServers]: false }));
-		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), configurationService));
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), configurationService, NullTelemetryService));
 
 		const disabledMigration = await service.computeMigration(activeSessionResource.get(), CustomizationMigrationType.McpServers);
 		const disabledHint = await service.computeMigrationHint(activeSessionResource.get());
@@ -742,7 +752,7 @@ suite('CustomizationMigrationService', () => {
 			onDidChangeCustomizations: Event.None,
 			getClientWorkingDirectoryUris: () => [root],
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
-		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 		const requested = [{
 			type: CustomizationMigrationType.McpServers,
 			id: 'mcp.config.ws0.server',
@@ -847,7 +857,7 @@ suite('CustomizationMigrationService', () => {
 			onDidChangeCustomizations: Event.None,
 			getClientWorkingDirectoryUris: () => [root],
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
-		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration({ [CustomizationMigrationType.McpServers]: false }))));
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration({ [CustomizationMigrationType.McpServers]: false })), NullTelemetryService));
 
 		const migration = await service.computeMigration(harnessService.activeSessionResource.get(), CustomizationMigrationType.McpServers);
 		const hint = await service.computeMigrationHint(harnessService.activeSessionResource.get());
@@ -896,7 +906,7 @@ suite('CustomizationMigrationService', () => {
 			[CustomizationMigrationType.ConfiguredLocations]: false,
 			[CustomizationMigrationType.McpServers]: false,
 		}));
-		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), configurationService));
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), configurationService, NullTelemetryService));
 		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' });
 
 		const disabledMigrations = await service.computeMigrations(sessionResource);
@@ -970,7 +980,7 @@ suite('CustomizationMigrationService', () => {
 			onDidChangeCustomizations: Event.None,
 			getClientWorkingDirectoryUris: () => [root],
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
-		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 		const migration = await service.computeMigration(activeSessionResource.get(), CustomizationMigrationType.McpServers);
 		const hint = await service.computeMigrationHint(activeSessionResource.get());
 		supportScope.settle(unsupportedSnapshot);
@@ -1051,7 +1061,7 @@ suite('CustomizationMigrationService', () => {
 			onDidChangeCustomizations: Event.None,
 			getClientWorkingDirectoryUris: () => roots,
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
-		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 		const requested = [{
 			type: CustomizationMigrationType.McpServers,
 			id: 'server',
@@ -1100,7 +1110,7 @@ suite('CustomizationMigrationService', () => {
 			onDidChangeCustomizations: Event.None,
 			getClientWorkingDirectoryUris: () => [root],
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
-		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 
 		const migration = await service.computeMigration(activeSessionResource.get(), CustomizationMigrationType.McpServers);
 		const resultPromise = service.migrateMcpServers(activeSessionResource.get(), migration.candidates);
@@ -1166,7 +1176,7 @@ suite('CustomizationMigrationService', () => {
 				override readonly onDidChangeCustomizations = Event.None;
 				override getClientWorkingDirectoryUris() { return roots; }
 			}(),
-			fileService, new NullLogService(), store.add(createMigrationConfiguration()),
+			fileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService,
 		));
 		const session = harness.activeSessionResource.get();
 		const plan = await service.computeMigration(session, CustomizationMigrationType.McpServers);
@@ -1220,7 +1230,7 @@ suite('CustomizationMigrationService', () => {
 			onDidChangeCustomizations: Event.None,
 			getClientWorkingDirectoryUris: () => [root],
 		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
-		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration())));
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 		const tokenSource = store.add(new CancellationTokenSource());
 
 		const migration = service.computeMigration(activeSessionResource.get(), CustomizationMigrationType.McpServers, tokenSource.token);
@@ -1308,7 +1318,7 @@ suite('CustomizationMigrationService', () => {
 				override getClientWorkingDirectoryUris() { return [remoteRoot]; }
 			}();
 			const harnessService = new TestCustomizationHarnessService();
-			const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration())));
+			const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), NullTelemetryService));
 			const session = harnessService.activeSessionResource.get();
 			const migration = await service.computeMigration(session, CustomizationMigrationType.McpServers);
 			if (disconnected) {
