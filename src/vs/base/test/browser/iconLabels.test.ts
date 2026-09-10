@@ -62,13 +62,21 @@ suite('renderLabelWithIcons', () => {
 suite('IconLabel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createLabel(): IconLabel {
+	function createLabel(sizeVariables = true): IconLabel {
 		const container = $('div');
-		container.style.cssText = `
-			--vscode-iconSize-small: 16px;
-			--vscode-spacing-sizeNone: 0px;
-			--vscode-spacing-size60: 6px;
-		`;
+		if (sizeVariables) {
+			container.style.cssText = `
+				--vscode-iconSize-small: 16px;
+				--vscode-spacing-sizeNone: 0px;
+				--vscode-spacing-size60: 6px;
+			`;
+		} else {
+			container.style.cssText = `
+				--vscode-iconSize-small: initial;
+				--vscode-spacing-sizeNone: initial;
+				--vscode-spacing-size60: initial;
+			`;
+		}
 		mainWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		return store.add(new IconLabel(container, { supportIcons: true }));
@@ -111,6 +119,28 @@ suite('IconLabel', () => {
 			pathSpacing: '6px',
 			pathFlex: '0 0 auto',
 			pathAriaLabel: 'Explicit icon',
+		});
+	});
+
+	test('preserves default geometry without registered size variables', () => {
+		const pseudoLabel = createLabel(false);
+		pseudoLabel.setLabel('Pseudo icon', undefined, { extraClasses: ['file-icon'] });
+		const pathLabel = createLabel(false);
+		pathLabel.setLabel('Explicit icon', undefined, { iconPath: Codicon.file });
+
+		const pseudoStyle = getWindow(pseudoLabel.element).getComputedStyle(pseudoLabel.element, '::before');
+		const iconPath = pathLabel.element.querySelector<HTMLElement>('.monaco-icon-label-iconpath')!;
+		const pathStyle = getWindow(pathLabel.element).getComputedStyle(iconPath);
+		assert.deepStrictEqual({
+			pseudoWidth: pseudoStyle.width,
+			pseudoSpacing: pseudoStyle.paddingInlineEnd,
+			pathWidth: pathStyle.width,
+			pathSpacing: pathStyle.marginInlineEnd,
+		}, {
+			pseudoWidth: '16px',
+			pseudoSpacing: '6px',
+			pathWidth: '16px',
+			pathSpacing: '6px',
 		});
 	});
 

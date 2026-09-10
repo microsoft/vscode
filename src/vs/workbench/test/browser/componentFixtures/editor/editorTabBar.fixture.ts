@@ -633,7 +633,7 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 		// pinnedTabSizing
 		PinnedTabSizingCompact: defineComponentFixture({
 			...(modernUI ? {
-				labels: { kind: 'screenshot' as const },
+				labels: { kind: 'screenshot' as const, blocksCi: true },
 				expectedVisualDescriptions: ['A horizontal editor tab bar begins with three compact pinned icon-only tabs followed by normal labelled tabs. Each compact icon occupies its tab without empty label separation, while the labelled tabs retain their normal icon-label relationship.'],
 			} : {}),
 			render: render(modernUI, { partOptions: { pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }),

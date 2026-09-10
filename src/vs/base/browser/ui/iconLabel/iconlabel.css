@@ -14,10 +14,10 @@
 .monaco-icon-label::before {
 
 	/* svg icons rendered as background image */
-	background-size: var(--vscode-iconSize-small);
+	background-size: var(--vscode-iconSize-small, 16px);
 	background-position: left center;
 	background-repeat: no-repeat;
-	width: var(--vscode-iconSize-small);
+	width: var(--vscode-iconSize-small, 16px);
 	height: 22px;
 	line-height: inherit !important;
 	display: inline-block;
@@ -31,26 +31,26 @@
 }
 
 .monaco-icon-label.monaco-icon-label-spacing-none::before {
-	padding-inline-end: var(--vscode-spacing-sizeNone);
+	padding-inline-end: var(--vscode-spacing-sizeNone, 0px);
 }
 
 .monaco-icon-label.monaco-icon-label-spacing-default::before {
-	padding-inline-end: var(--vscode-spacing-size60);
+	padding-inline-end: var(--vscode-spacing-size60, 6px);
 }
 
 .monaco-icon-label-iconpath {
 	flex: 0 0 auto;
-	width: var(--vscode-iconSize-small);
+	width: var(--vscode-iconSize-small, 16px);
 	height: 22px;
 	display: flex;
 }
 
 .monaco-icon-label.monaco-icon-label-spacing-none > .monaco-icon-label-iconpath {
-	margin-inline-end: var(--vscode-spacing-sizeNone);
+	margin-inline-end: var(--vscode-spacing-sizeNone, 0px);
 }
 
 .monaco-icon-label.monaco-icon-label-spacing-default > .monaco-icon-label-iconpath {
-	margin-inline-end: var(--vscode-spacing-size60);
+	margin-inline-end: var(--vscode-spacing-size60, 6px);
 }
 
 .monaco-icon-label-container.disabled {

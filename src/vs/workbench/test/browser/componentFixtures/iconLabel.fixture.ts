@@ -11,7 +11,7 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 export default defineThemedFixtureGroup({ path: 'base/' }, {
 	IconLabels: defineComponentFixture({
 		fileIconTheme: 'vs-seti',
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Five captioned rows show the shared IconLabel with a pseudo-element file icon, a file icon through the explicit iconPath path, an icon-rich label containing an inline check icon, an icon with no separation, and a long label with a description truncated at the fixed guide. The first two labels begin at the same horizontal position after equal fixed icon slots and separation.'],
 		render: renderIconLabels,
 	}),
