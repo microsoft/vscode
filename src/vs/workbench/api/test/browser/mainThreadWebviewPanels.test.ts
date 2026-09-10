@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { extUriIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -16,12 +17,13 @@ import { FileService } from '../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { getResourceToLoad } from '../../../contrib/webview/browser/resourceLoading.js';
 import { IOverlayWebview, WebviewContentOptions, WebviewExtensionDescription } from '../../../contrib/webview/browser/webview.js';
 import { WebviewInput } from '../../../contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
-import { NullExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { TestEditorGroupsService, TestEditorService } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadWebviewPanels } from '../../browser/mainThreadWebviewPanels.js';
 import { MainThreadWebviews } from '../../browser/mainThreadWebviews.js';
@@ -38,8 +40,8 @@ suite('MainThreadWebviewPanels', () => {
 		localResourceRoots: readonly URI[] | undefined,
 		oldExtension: WebviewExtensionDescription | null = { id: extensionId, location: oldLocation },
 		currentLocation: URI | null = newLocation,
+		uriIdentityService: IUriIdentityService = store.add(new UriIdentityService(store.add(new FileService(new NullLogService())))),
 	) {
-		const uriIdentityService = store.add(new UriIdentityService(store.add(new FileService(new NullLogService()))));
 		const webview = new class extends mock<IOverlayWebview>() {
 			override extension = oldExtension ?? undefined;
 			override contentOptions: WebviewContentOptions = { allowScripts: true, localResourceRoots };
@@ -67,7 +69,8 @@ suite('MainThreadWebviewPanels', () => {
 			new TestConfigurationService(),
 			new TestEditorGroupsService(),
 			store.add(new TestEditorService()),
-			new class extends NullExtensionService {
+			new class extends mock<IExtensionService>() {
+				override async activateByEvent() { }
 				override async getExtension(id: string) {
 					assert.strictEqual(id, extensionId.value);
 					return currentLocation ? { identifier: extensionId, extensionLocation: currentLocation } as IExtensionDescription : undefined;
@@ -134,6 +137,19 @@ suite('MainThreadWebviewPanels', () => {
 		assert.deepStrictEqual(webview.contentOptions.localResourceRoots?.map(root => root.toString()), [URI.joinPath(newWindows, 'dist').toString()]);
 	});
 
+	test('preserves subdirectories on case-insensitive file systems', async () => {
+		const uriIdentityService = new class extends mock<IUriIdentityService>() {
+			override extUri = extUriIgnorePathCase;
+		};
+		const { webview } = await restore(
+			[oldLocation.with({ path: `${oldLocation.path.toUpperCase()}/dist` })],
+			{ id: extensionId, location: oldLocation },
+			newLocation,
+			uriIdentityService,
+		);
+		assert.deepStrictEqual(webview.contentOptions.localResourceRoots?.map(root => root.toString()), [URI.joinPath(newLocation, 'dist').toString()]);
+	});
+
 	for (const roots of [undefined, []]) {
 		test(`preserves ${roots ? 'empty' : 'unspecified'} roots`, async () => {
 			const { webview } = await restore(roots);
@@ -157,6 +173,12 @@ suite('MainThreadWebviewPanels', () => {
 	test('leaves roots unchanged when the saved extension is unknown', async () => {
 		const roots = [URI.joinPath(oldLocation, 'dist')];
 		const { webview } = await restore(roots, null);
+		assert.strictEqual(webview.contentOptions.localResourceRoots, roots);
+	});
+
+	test('leaves roots unchanged when the saved extension location is unknown', async () => {
+		const roots = [URI.joinPath(oldLocation, 'dist')];
+		const { webview } = await restore(roots, { id: extensionId });
 		assert.strictEqual(webview.contentOptions.localResourceRoots, roots);
 	});
 });

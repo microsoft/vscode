@@ -289,7 +289,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	private async updateExtensionLocation(webviewInput: WebviewInput): Promise<void> {
 		const oldExtension = webviewInput.extension;
-		if (!oldExtension) {
+		if (!oldExtension?.location) {
 			return;
 		}
 
@@ -300,15 +300,15 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		}
 
 		const webview = webviewInput.webview;
+		const oldLocation = extUri.removeTrailingPathSeparator(extUri.normalizePath(oldExtension.location));
 		webview.contentOptions = {
 			...webview.contentOptions,
 			localResourceRoots: webview.contentOptions.localResourceRoots?.map(root => {
 				const normalizedRoot = extUri.normalizePath(root);
-				if (!extUri.isEqualOrParent(normalizedRoot, oldExtension.location)) {
+				if (!extUri.isEqualOrParent(normalizedRoot, oldLocation)) {
 					return root;
 				}
-				const relativePath = extUri.relativePath(oldExtension.location, normalizedRoot);
-				return relativePath !== undefined ? URI.joinPath(extension.extensionLocation, relativePath) : root;
+				return URI.joinPath(extension.extensionLocation, normalizedRoot.path.slice(oldLocation.path.length));
 			}),
 		};
 		webview.extension = { id: extension.identifier, location: extension.extensionLocation };
