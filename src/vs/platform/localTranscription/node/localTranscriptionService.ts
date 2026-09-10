@@ -538,12 +538,12 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 					// subsequent sessions load without re-downloading ("model
 					// management"). `createAsync` avoids blocking the event loop
 					// during native init.
-					this._manager = await this._sdk.FoundryLocalManager.createAsync({
+					this._manager = this._register(await this._sdk.FoundryLocalManager.createAsync({
 						appName: FOUNDRY_APP_NAME,
 						modelCacheDir: cacheDir,
 						logLevel: 'warn',
 						...(nativeLibraryPath ? { libraryPath: nativeLibraryPath } : {}),
-					});
+					}));
 				}
 
 				const model = await withTimeout(
