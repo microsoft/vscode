@@ -198,6 +198,23 @@ suite('sessionWorkspaceEqual', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main', constObservable(gitHubInfoA)), workspace('main', constObservable(gitHubInfoB))), true);
 	});
 
+	test('compares recorded issue titles in GitHub info', () => {
+		const uri = URI.parse('https://github.com/owner/repo/issues/42');
+		const base: IGitHubInfo = {
+			owner: 'owner',
+			repo: 'repo',
+			issues: [{ owner: 'owner', repo: 'repo', number: 42, uri, title: 'Recorded title' }],
+		};
+
+		assert.deepStrictEqual({
+			equivalent: sessionWorkspaceEqual(workspace('main', constObservable(base)), workspace('main', constObservable({ ...base, issues: [{ ...base.issues![0] }] }))),
+			changedTitle: sessionWorkspaceEqual(workspace('main', constObservable(base)), workspace('main', constObservable({ ...base, issues: [{ ...base.issues![0], title: 'Updated title' }] }))),
+		}, {
+			equivalent: true,
+			changedTitle: false,
+		});
+	});
+
 	test('returns false when folder repository metadata changes', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main'), workspace('feature')), false);
 	});

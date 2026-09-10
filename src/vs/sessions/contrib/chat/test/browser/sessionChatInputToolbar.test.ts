@@ -169,7 +169,13 @@ suite('SessionChatInputToolbar', () => {
 	}
 
 	test('adds rich GitHub hovers only when live details are available', async () => {
-		const commandService = upcastPartial<ICommandService>({ executeCommand: async () => undefined });
+		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];
+		const commandService = upcastPartial<ICommandService>({
+			executeCommand: async (id, ...args) => {
+				commands.push({ id, args });
+				return undefined;
+			},
+		});
 		const clipboardService = upcastPartial<IClipboardService>({ writeText: async () => { } });
 		const openerService = upcastPartial<IOpenerService>({ open: async () => true });
 		const sessionsService = upcastPartial<ISessionsService>({ setActive: () => { } });
@@ -178,6 +184,7 @@ suite('SessionChatInputToolbar', () => {
 			repo: 'vscode',
 			number: 332982,
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/332982'),
+			title: 'Recorded pull request title',
 		};
 		const pullRequest: IGitHubPullRequest = {
 			number: pullRequestRef.number,
@@ -200,6 +207,7 @@ suite('SessionChatInputToolbar', () => {
 			repo: 'vscode',
 			number: 42,
 			uri: URI.parse('https://github.com/microsoft/vscode/issues/42'),
+			title: 'Recorded issue title',
 		};
 		const issue: IGitHubIssue = {
 			number: issueRef.number,
@@ -253,38 +261,67 @@ suite('SessionChatInputToolbar', () => {
 		};
 		const pullRequestHover = await renderHover(pullRequestEntry);
 		const issueHover = await renderHover(issueEntry);
+		pullRequestEntry?.open();
+		unresolvedIssueEntry?.open();
 
 		assert.deepStrictEqual({
 			pullRequest: {
+				label: pullRequestEntry?.label,
 				className: pullRequestHover?.className,
 				repository: pullRequestHover?.querySelector('.sessions-pr-hover-repository')?.textContent,
 				title: pullRequestHover?.querySelector('.sessions-pr-hover-title')?.textContent,
 				description: pullRequestHover?.querySelector('.sessions-pr-hover-description-content')?.textContent,
 				branches: [...pullRequestHover?.querySelectorAll('.sessions-pr-hover-branch') ?? []].map(element => element.textContent),
+				unresolvedLabel: unresolvedPullRequestEntry?.label,
+				unresolvedAriaLabel: unresolvedPullRequestEntry?.ariaLabel,
+				unresolvedTooltip: unresolvedPullRequestEntry?.tooltip,
 				unresolvedHover: unresolvedPullRequestEntry?.pillHover,
 			},
 			issue: {
+				label: issueEntry?.label,
 				className: issueHover?.className,
 				repository: issueHover?.querySelector('.sessions-issue-hover-repository')?.textContent,
 				title: issueHover?.querySelector('.sessions-issue-hover-title')?.textContent,
 				description: issueHover?.querySelector('.sessions-issue-hover-description-content')?.textContent,
+				unresolvedLabel: unresolvedIssueEntry?.label,
+				unresolvedAriaLabel: unresolvedIssueEntry?.ariaLabel,
+				unresolvedTooltip: unresolvedIssueEntry?.tooltip,
 				unresolvedHover: unresolvedIssueEntry?.pillHover,
+				openCommands: commands,
 			},
 		}, {
 			pullRequest: {
+				label: 'Pull Request #332982: Restore rich pill hovers',
 				className: 'sessions-pr-hover',
 				repository: 'microsoft/vscode',
 				title: 'Restore rich pill hovers',
 				description: 'Provides detailed pull request context.',
 				branches: ['main', 'feature/rich-hover'],
+				unresolvedLabel: 'Pull Request #332982: Recorded pull request title',
+				unresolvedAriaLabel: 'Open Pull Request #332982: Recorded pull request title',
+				unresolvedTooltip: 'Pull Request #332982: Recorded pull request title\nhttps://github.com/microsoft/vscode/pull/332982',
 				unresolvedHover: undefined,
 			},
 			issue: {
+				label: 'Issue #42: Rich issue hover',
 				className: 'sessions-issue-hover',
 				repository: 'microsoft/vscode#42',
 				title: 'Rich issue hover',
 				description: 'Provides detailed issue context.',
+				unresolvedLabel: 'Issue #42: Recorded issue title',
+				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
+				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
 				unresolvedHover: undefined,
+				openCommands: [
+					{
+						id: 'workbench.agentSessions.action.openPullRequest',
+						args: [{ pullRequest: pullRequestRef }],
+					},
+					{
+						id: 'workbench.agentSessions.action.openIssue',
+						args: [{ issue: issueRef }],
+					},
+				],
 			},
 		});
 	});
