@@ -175,6 +175,7 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public hasUnmatchedClosingBracketAfter(position: Position, openingBracket: OpeningBracketKind): boolean {
+		// Defer semantic bracket checks until tokenization is accurate for the entire model.
 		if (!this.textModel.tokenization.hasAccurateTokensForLine(this.textModel.getLineCount())) {
 			return false;
 		}
@@ -190,7 +191,6 @@ export class BracketPairsTree extends Disposable {
 	public getFirstBracketAfter(position: Position): IFoundBracket | null {
 		this.flushQueue();
 
-		// Prefer the provisional tree until tokenization completes to avoid bracket flicker.
 		const node = this.initialAstWithoutTokens || this.astWithTokens!;
 		return getFirstBracketAfter(node, lengthZero, node.length, positionToLength(position));
 	}
