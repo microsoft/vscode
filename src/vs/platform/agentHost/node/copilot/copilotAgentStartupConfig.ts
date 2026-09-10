@@ -12,7 +12,6 @@ export class CopilotAgentStartupConfig {
 		readonly sessionSync: boolean,
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
-		readonly multiTurnContextRouting: boolean,
 		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
 		readonly enterpriseHost: string | undefined,
 		readonly systemProxy: boolean,

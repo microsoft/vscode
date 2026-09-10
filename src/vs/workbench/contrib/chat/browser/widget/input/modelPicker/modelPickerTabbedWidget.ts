@@ -6,7 +6,7 @@
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -22,7 +22,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModel
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { ModelPickerAutoRow } from './modelPickerAutoRow.js';
-import { IPricingDisclosure, ModelCard } from './modelPickerCard.js';
+import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge } from './modelPickerBadges.js';
 import { createModelAction, createUnavailableModelItem, getUnavailableReason } from './modelPickerItemPrimitives.js';
@@ -64,7 +64,8 @@ export interface ITabbedModelPickerContext {
 	readonly onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 	readonly onTogglePin: ((modelIdentifier: string, pinned: boolean) => void) | undefined;
 	readonly onManageModels: () => void;
-	/** Reports a configuration change made from a model's detail card. */
+	readonly onDidToggleOtherModels: (collapsed: boolean) => void;
+	/** Reports a configuration change made from the Auto row or a model's detail card. */
 	readonly onConfigurationChanged: (model: ILanguageModelChatMetadataAndIdentifier, group: string, key: string, fromValue: unknown, toValue: unknown) => void;
 	/** Warning banner shown when switching options mid-session would reset the prompt cache. */
 	readonly cacheBreakHint: { readonly text: string; readonly link: IActionListHeaderLink | undefined; readonly dismiss: () => void } | undefined;
@@ -80,7 +81,7 @@ export class TabbedModelPicker extends Disposable {
 	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _widget: TabbedActionListWidget;
-	private readonly _cards = this._register(new DisposableStore());
+	private readonly _cards = this._register(new DisposableMap<string, ModelCard>());
 	private readonly _autoRow = this._register(new MutableDisposable<ModelPickerAutoRow>());
 	private readonly _onDidChangePricingDisclosure = this._register(new Emitter<void>());
 	/** Shared by every card, and remembered, so the breakdown is opened once rather than per model. */
@@ -98,6 +99,7 @@ export class TabbedModelPicker extends Disposable {
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
 	private _speedVariants: ReadonlyMap<string, IModelSpeedVariants> = new Map();
+	private _selectionVersion = 0;
 	/** The model to fall back to when Auto is switched off. */
 	private _lastExplicitModelId: string | undefined;
 
@@ -119,6 +121,7 @@ export class TabbedModelPicker extends Disposable {
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
 			this._searchVisible = false;
+			this._cards.clearAndDisposeAll();
 			this._onDidHide.fire();
 		}));
 	}
@@ -147,8 +150,8 @@ export class TabbedModelPicker extends Disposable {
 		}
 
 		this._speedVariants = buildSpeedVariants(context.models);
-		const listModels = collapseSpeedVariants(context.models, this._speedVariants, context.selectedModelId);
-		const destinations = buildModelPickerDestinations(listModels, this._languageModelsService, context.providerPlaceholders);
+		this._cards.clearAndDisposeAll();
+		const destinations = this._buildDestinations(context);
 		if (!destinations.length) {
 			return;
 		}
@@ -177,13 +180,13 @@ export class TabbedModelPicker extends Disposable {
 			filterInTabBar: true,
 			width: PICKER_WIDTH,
 			createActionList: activeTab => {
-				this._cards.clear();
 				const current = this._context ?? context;
-				const destination = destinations.find(candidate => candidate.id === activeTab) ?? destinations[0];
+				const currentDestinations = this._buildDestinations(current);
+				const destination = currentDestinations.find(candidate => candidate.id === activeTab) ?? currentDestinations[0];
 				const sections = this._buildSections(destination, current);
 				// Search spans every destination at once, so each model names its provider.
 				const items = this._searchVisible
-					? destinations.flatMap(candidate => this._buildSearchItems(candidate, current))
+					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, current))
 					: this._buildItems(destination, sections, current);
 				return {
 					items,
@@ -205,6 +208,11 @@ export class TabbedModelPicker extends Disposable {
 						headerDismiss: current.cacheBreakHint?.dismiss,
 						// A tab with nothing promoted would open on an empty list, so leave it expanded.
 						collapsedByDefault: hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
+						onDidToggleSection: (section, collapsed) => {
+							if (section === OTHER_MODELS_SECTION) {
+								current.onDidToggleOtherModels(collapsed);
+							}
+						},
 						linkHandler: uri => current.onUnavailableLinkClick(uri),
 						maxWidth: PICKER_WIDTH,
 						hideDefaultKeybindingTooltip: true,
@@ -231,6 +239,11 @@ export class TabbedModelPicker extends Disposable {
 			},
 			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible),
 		});
+	}
+
+	private _buildDestinations(context: ITabbedModelPickerContext): IModelPickerDestination[] {
+		const models = collapseSpeedVariants(context.models, this._speedVariants, context.selectedModelId);
+		return buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders);
 	}
 
 	private _isAutoSelected(context: ITabbedModelPickerContext): boolean {
@@ -338,7 +351,6 @@ export class TabbedModelPicker extends Disposable {
 					item: { id: 'otherModels', enabled: true, checked: false, class: undefined, tooltip: label, label, run: () => { } },
 					kind: ActionListItemKind.Action,
 					label,
-					badge: String(count),
 					ariaDescription: localize('chat.modelPicker.otherModelsCount', "{0} more models", count),
 					group: { title: '', icon: Codicon.chevronDown },
 					hideIcon: false,
@@ -376,9 +388,8 @@ export class TabbedModelPicker extends Disposable {
 		// While Auto is choosing, a model's settings do not apply, so the card that edits
 		// them stays shut. The row is still selectable, which is what turns Auto off.
 		const autoEnabled = this._isAutoSelected(context);
-		// Build each card lazily and reuse it while browsing this list.
-		let card: ModelCard | undefined;
-		const createCard = () => (card ??= this._cards.add(new ModelCard({
+		let selectionVersion = this._selectionVersion;
+		const cardOptions: IModelCardOptions = {
 			model,
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
@@ -386,29 +397,38 @@ export class TabbedModelPicker extends Disposable {
 			isPinned: context.pinnedModelIds.includes(model.identifier),
 			pricingDisclosure: this._pricingDisclosure,
 			speedVariants: this._speedVariants.get(model.identifier),
-			onSelectVariant: next => {
-				context.onSelect(next);
-				this._widget.hide();
+			onWillSelect: () => { selectionVersion = ++this._selectionVersion; },
+			onSelect: next => {
+				if (selectionVersion === this._selectionVersion && this._widget.isVisible && next.identifier !== (this._context ?? context).selectedModelId) {
+					context.onSelect(next);
+					this._context = { ...(this._context ?? context), selectedModelId: next.identifier };
+					this._lastExplicitModelId = next.identifier;
+				}
+			},
+			onDidAccept: () => {
+				this._widget.refreshActiveList({
+					focusItemId: selectionVersion === this._selectionVersion ? this._context?.selectedModelId : undefined,
+					preserveHover: true,
+				});
 			},
 			onTogglePin: context.onTogglePin
-				? pinned => {
-					context.onTogglePin?.(model.identifier, pinned);
-					// Closes like every other action in the card, so the card is not left
-					// open over a list that has since reordered itself.
-					this._widget.hide();
-				}
+				? pinned => this._togglePin(model.identifier, pinned)
 				: undefined,
 			onDidChangeConfiguration: (group, key, fromValue, toValue) => {
 				context.onConfigurationChanged(model, group, key, fromValue, toValue);
-				// Configuring a model is a choice of it: the settings only take effect on the
-				// model they belong to, so tuning one and leaving another selected would
-				// discard the change the user just made.
-				if (model.identifier !== context.selectedModelId) {
-					context.onSelect(model);
-				}
-				this._widget.hide();
 			},
-		}))).element;
+		};
+		const createCard = () => {
+			const key = this._speedVariants.get(model.identifier)?.standard.identifier ?? model.identifier;
+			let card = this._cards.get(key);
+			if (card) {
+				card.update(cardOptions);
+			} else {
+				card = new ModelCard(cardOptions);
+				this._cards.set(key, card);
+			}
+			return card.element;
+		};
 		return {
 			item: action,
 			kind: ActionListItemKind.Action,
@@ -420,9 +440,28 @@ export class TabbedModelPicker extends Disposable {
 			hideIcon: false,
 			section,
 			className: badge ? `chat-model-picker-badge-${badge.tone}` : undefined,
-			hover: autoEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true },
+			hover: autoEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true, preserveVerticalPosition: true },
 			tooltip: action.tooltip,
 		};
+	}
+
+	private _togglePin(modelIdentifier: string, pinned: boolean): void {
+		const context = this._context;
+		if (!context?.onTogglePin) {
+			return;
+		}
+		context.onTogglePin(modelIdentifier, pinned);
+		this._context = {
+			...context,
+			pinnedModelIds: pinned
+				? [...context.pinnedModelIds, modelIdentifier]
+				: context.pinnedModelIds.filter(id => id !== modelIdentifier),
+		};
+		this._widget.refreshActiveList({
+			focusItemId: modelIdentifier,
+			preserveHover: true,
+			animateItemMove: true,
+		});
 	}
 
 	private _renderAutoRow(container: HTMLElement, autoModel: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): IDisposable {
@@ -431,6 +470,7 @@ export class TabbedModelPicker extends Disposable {
 			configurationAccess: context.configurationAccess,
 			isEnabled: () => this._isAutoSelected(this._context ?? context),
 			onToggle: enabled => this._toggleAuto(enabled, autoModel),
+			onDidChangeConfiguration: (group, key, fromValue, toValue) => context.onConfigurationChanged(autoModel, group, key, fromValue, toValue),
 		});
 		this._autoRow.value = row;
 		container.appendChild(row.element);
@@ -448,6 +488,7 @@ export class TabbedModelPicker extends Disposable {
 			this._autoRow.value?.render();
 			return;
 		}
+		this._selectionVersion++;
 		context.onSelect(next);
 		this._context = { ...context, selectedModelId: next.identifier };
 		// Updated in place rather than re-shown: rebuilding the popup would move focus

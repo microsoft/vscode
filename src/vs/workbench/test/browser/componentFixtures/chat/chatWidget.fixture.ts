@@ -31,6 +31,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
+import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../../contrib/chat/common/promptTimeline.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
@@ -118,6 +119,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
 	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
 	readonly persistentContentHeight?: number;
+	/** Enables or disables both settings required by the real tree-based sticky-scroll path. */
+	readonly stickyScroll?: boolean;
 }
 
 interface IChatWidgetFixtureHandle {
@@ -242,6 +245,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	configService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
 	if (options.verbose !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.Verbose, options.verbose);
+	}
+	if (options.stickyScroll !== undefined) {
+		configService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, options.stickyScroll);
+		configService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, options.stickyScroll);
 	}
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
 	// real ChatViewModel + ChatListWidget — the same components used in production.

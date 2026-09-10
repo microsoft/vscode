@@ -289,7 +289,9 @@ function deserializeStatus(raw: ISerializedSessionMetadata): ProtocolSessionStat
 }
 
 function isRememberedSessionConfigKey(property: string): boolean {
-	return property !== SessionConfigKey.Branch && !UNSAFE_SESSION_CONFIG_KEYS.has(property);
+	return property !== SessionConfigKey.Branch
+		&& property !== SessionConfigKey.SandboxEnabled
+		&& !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
 
 function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
@@ -2298,6 +2300,7 @@ class NewSession extends Disposable {
 				...primaryFolder,
 				gitRepository: {
 					...currentRepository,
+					isRepository: constObservable(true),
 					branchName: gitState?.branchName ?? currentRepository.branchName,
 					baseBranchName: gitState?.baseBranchName ?? currentRepository.baseBranchName,
 					hasGitHubRemote: gitState?.hasGitHubRemote ?? currentRepository.hasGitHubRemote,

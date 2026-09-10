@@ -11,7 +11,7 @@ import * as os from 'os';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -50,10 +50,10 @@ import { codexSkillsToContainers } from '../../../node/codex/codexCustomizations
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel } from '../../../node/shared/mcpCustomizationController.js';
+import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
-import type { SandboxPolicy } from '../../../node/codex/protocol/generated/v2/SandboxPolicy.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
@@ -74,9 +74,11 @@ interface ITestWireRequest {
 		readonly runtimeWorkspaceRoots?: readonly string[];
 		readonly model?: string;
 		readonly modelProvider?: string;
+		readonly approvalPolicy?: string;
+		readonly approvalsReviewer?: string;
 		readonly selectedCapabilityRoots?: readonly SelectedCapabilityRoot[];
 		readonly extraRoots?: readonly string[];
-		readonly sandboxPolicy?: SandboxPolicy;
+		readonly permissions?: string;
 		readonly config?: Record<string, unknown>;
 		readonly developerInstructions?: string;
 		readonly collaborationMode?: { readonly settings: { readonly developer_instructions: string | null } };
@@ -2370,6 +2372,67 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('thread start maps each permissions preset to its native profile', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const configurationService = agent['_configurationService'];
+		assert.ok(configurationService instanceof TestCodexConfigurationService);
+		const repo = URI.file('/repo');
+		const starts: Record<string, ITestWireRequest> = {};
+
+		try {
+			for (const preset of ['default', 'auto-review', 'full-access'] as const) {
+				configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: preset });
+				const { session } = await createSession(agent, {
+					session: AgentSession.uri('codex', `permissions-${preset}`),
+					workingDirectories: [repo],
+					model: { id: COPILOT_TEST_MODEL },
+				});
+				const entry = agent['_sessions'].get(AgentSession.id(session))!;
+				const start = await readNextRequest(peer.outbound);
+				starts[preset] = start;
+				peer.push({ id: start.id, result: { thread: { id: `thread-${preset}` } } });
+				await entry.materializePromise;
+			}
+
+			assert.deepStrictEqual(Object.fromEntries(Object.entries(starts).map(([preset, start]) => [preset, {
+				approvalPolicy: start.params.approvalPolicy,
+				approvalsReviewer: start.params.approvalsReviewer,
+				permissions: start.params.permissions,
+				runtimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
+			}])), {
+				default: {
+					approvalPolicy: 'on-request',
+					approvalsReviewer: 'user',
+					permissions: 'vscode-workspace',
+					runtimeWorkspaceRoots: [repo.fsPath],
+				},
+				'auto-review': {
+					approvalPolicy: 'on-request',
+					approvalsReviewer: 'auto_review',
+					permissions: 'vscode-workspace',
+					runtimeWorkspaceRoots: [repo.fsPath],
+				},
+				'full-access': {
+					approvalPolicy: 'never',
+					approvalsReviewer: 'user',
+					permissions: ':danger-full-access',
+					runtimeWorkspaceRoots: undefined,
+				},
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('multi-root start and turn separate workspace roots from additional writable directories', async () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'multi-root');
@@ -2406,9 +2469,29 @@ suite('CodexAgent prewarm eviction', () => {
 			await send;
 			const configurationService = agent['_configurationService'];
 			assert.ok(configurationService instanceof TestCodexConfigurationService);
-			configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
+			configurationService.setSessionConfig({
+				[CodexSessionConfigKey.PermissionsPreset]: 'auto-review',
+				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
+			});
+			const autoReview = agent['_turnStartOptions'](entry, 'gpt-test');
+			configurationService.setSessionConfig({
+				[CodexSessionConfigKey.PermissionsPreset]: 'default',
+				[CodexSessionConfigKey.NetworkAccessEnabled]: true,
+				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
+			});
+			const networkAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			configurationService.setSessionConfig({
+				[CodexSessionConfigKey.PermissionsPreset]: 'full-access',
+				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
+			});
 			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test');
-			configurationService.setSessionConfig({ [CodexSessionConfigKey.SandboxMode]: 'read-only' });
+			entry.agentMergeTurn = true;
+			const agentMerge = agent['_turnStartOptions'](entry, 'gpt-test');
+			entry.agentMergeTurn = false;
+			configurationService.setSessionConfig({
+				[CodexSessionConfigKey.SandboxMode]: 'read-only',
+				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
+			});
 			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test');
 
 			assert.deepStrictEqual({
@@ -2416,44 +2499,82 @@ suite('CodexAgent prewarm eviction', () => {
 					cwd: start.params.cwd,
 					runtimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
 					selectedCapabilityRoots: start.params.selectedCapabilityRoots,
+					approvalPolicy: start.params.approvalPolicy,
+					approvalsReviewer: start.params.approvalsReviewer,
+					permissions: start.params.permissions,
 				},
 				turn: {
 					runtimeWorkspaceRoots: turn.params.runtimeWorkspaceRoots,
 					selectedCapabilityRoots: turn.params.selectedCapabilityRoots,
-					sandboxPolicy: turn.params.sandboxPolicy,
+					approvalPolicy: turn.params.approvalPolicy,
+					approvalsReviewer: turn.params.approvalsReviewer,
+					permissions: turn.params.permissions,
+				},
+				autoReview,
+				networkAccess: {
+					runtimeWorkspaceRoots: networkAccess.runtimeWorkspaceRoots,
+					permissions: networkAccess.permissions,
 				},
 				fullAccess: {
+					approvalPolicy: fullAccess.approvalPolicy,
 					runtimeWorkspaceRoots: fullAccess.runtimeWorkspaceRoots,
-					sandboxPolicy: fullAccess.sandboxPolicy,
+					permissions: fullAccess.permissions,
+				},
+				agentMerge: {
+					approvalPolicy: agentMerge.approvalPolicy,
+					runtimeWorkspaceRoots: agentMerge.runtimeWorkspaceRoots,
+					permissions: agentMerge.permissions,
 				},
 				readOnly: {
 					runtimeWorkspaceRoots: readOnly.runtimeWorkspaceRoots,
-					sandboxPolicy: readOnly.sandboxPolicy,
+					permissions: readOnly.permissions,
 				},
 			}, {
 				start: {
 					cwd: repoA.fsPath,
-					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
+					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath, additionalDirectory],
 					selectedCapabilityRoots: undefined,
+					approvalPolicy: 'on-request',
+					approvalsReviewer: 'user',
+					permissions: 'vscode-workspace',
 				},
 				turn: {
-					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
+					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath, additionalDirectory],
 					selectedCapabilityRoots: undefined,
-					sandboxPolicy: {
-						type: 'workspaceWrite',
-						writableRoots: [repoA.fsPath, repoB.fsPath, additionalDirectory],
-						networkAccess: false,
-						excludeTmpdirEnvVar: false,
-						excludeSlashTmp: false,
+					approvalPolicy: 'on-request',
+					approvalsReviewer: 'user',
+					permissions: 'vscode-workspace',
+				},
+				autoReview: {
+					approvalPolicy: 'on-request',
+					permissions: 'vscode-workspace',
+					approvalsReviewer: 'auto_review',
+					effort: 'medium',
+					personality: 'none',
+					summary: 'auto',
+					collaborationMode: {
+						mode: 'default',
+						settings: { model: 'gpt-test', reasoning_effort: 'medium', developer_instructions: null },
 					},
+					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath, additionalDirectory],
+				},
+				networkAccess: {
+					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath, additionalDirectory],
+					permissions: 'vscode-workspace-network',
 				},
 				fullAccess: {
+					approvalPolicy: 'never',
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
-					sandboxPolicy: { type: 'dangerFullAccess' },
+					permissions: ':danger-full-access',
+				},
+				agentMerge: {
+					approvalPolicy: 'on-request',
+					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath, additionalDirectory],
+					permissions: 'vscode-workspace',
 				},
 				readOnly: {
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
-					sandboxPolicy: { type: 'readOnly', networkAccess: false },
+					permissions: 'vscode-workspace-read-only',
 				},
 			});
 		} finally {
@@ -2503,26 +2624,26 @@ suite('CodexAgent prewarm eviction', () => {
 					method: secondTurn.method,
 					threadId: secondTurn.params.threadId,
 					runtimeWorkspaceRoots: secondTurn.params.runtimeWorkspaceRoots,
-					writableRoots: secondTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? secondTurn.params.sandboxPolicy.writableRoots : undefined,
+					permissions: secondTurn.params.permissions,
 				},
 				third: {
 					method: thirdTurn.method,
 					threadId: thirdTurn.params.threadId,
 					runtimeWorkspaceRoots: thirdTurn.params.runtimeWorkspaceRoots,
-					writableRoots: thirdTurn.params.sandboxPolicy?.type === 'workspaceWrite' ? thirdTurn.params.sandboxPolicy.writableRoots : undefined,
+					permissions: thirdTurn.params.permissions,
 				},
 			}, {
 				second: {
 					method: 'turn/start',
 					threadId: 'thread',
 					runtimeWorkspaceRoots: [repoA.fsPath, repoC.fsPath],
-					writableRoots: [repoA.fsPath, repoC.fsPath],
+					permissions: 'vscode-workspace',
 				},
 				third: {
 					method: 'turn/start',
 					threadId: 'thread',
 					runtimeWorkspaceRoots: [repoA.fsPath],
-					writableRoots: [repoA.fsPath],
+					permissions: 'vscode-workspace',
 				},
 			});
 		} finally {
@@ -2566,13 +2687,13 @@ suite('CodexAgent prewarm eviction', () => {
 				startSelectedCapabilityRoots: start.params.selectedCapabilityRoots,
 				turnRuntimeWorkspaceRoots: turn.params.runtimeWorkspaceRoots,
 				turnSelectedCapabilityRoots: turn.params.selectedCapabilityRoots,
-				writableRoots: turn.params.sandboxPolicy?.type === 'workspaceWrite' ? turn.params.sandboxPolicy.writableRoots : undefined,
+				permissions: turn.params.permissions,
 			}, {
-				startRuntimeWorkspaceRoots: undefined,
+				startRuntimeWorkspaceRoots: [repoA.fsPath, additionalDirectory],
 				startSelectedCapabilityRoots: undefined,
 				turnRuntimeWorkspaceRoots: [repoA.fsPath, additionalDirectory],
 				turnSelectedCapabilityRoots: undefined,
-				writableRoots: [repoA.fsPath, additionalDirectory],
+				permissions: 'vscode-workspace',
 			});
 		} finally {
 			peer.exit();
@@ -2625,40 +2746,34 @@ suite('CodexAgent prewarm eviction', () => {
 				turn: {
 					runtimeWorkspaceRoots: turn.params.runtimeWorkspaceRoots,
 					selectedCapabilityRoots: turn.params.selectedCapabilityRoots,
-					sandboxPolicy: turn.params.sandboxPolicy,
+					permissions: turn.params.permissions,
 				},
 				fullAccess: {
 					runtimeWorkspaceRoots: fullAccess.runtimeWorkspaceRoots,
-					sandboxPolicy: fullAccess.sandboxPolicy,
+					permissions: fullAccess.permissions,
 				},
 				readOnly: {
 					runtimeWorkspaceRoots: readOnly.runtimeWorkspaceRoots,
-					sandboxPolicy: readOnly.sandboxPolicy,
+					permissions: readOnly.permissions,
 				},
 			}, {
 				start: {
 					cwd: repo.fsPath,
-					runtimeWorkspaceRoots: undefined,
+					runtimeWorkspaceRoots: [repo.fsPath, additionalDirectory],
 					selectedCapabilityRoots: undefined,
 				},
 				turn: {
 					runtimeWorkspaceRoots: [repo.fsPath, additionalDirectory],
 					selectedCapabilityRoots: undefined,
-					sandboxPolicy: {
-						type: 'workspaceWrite',
-						writableRoots: [repo.fsPath, additionalDirectory],
-						networkAccess: false,
-						excludeTmpdirEnvVar: false,
-						excludeSlashTmp: false,
-					},
+					permissions: 'vscode-workspace',
 				},
 				fullAccess: {
 					runtimeWorkspaceRoots: undefined,
-					sandboxPolicy: { type: 'dangerFullAccess' },
+					permissions: ':danger-full-access',
 				},
 				readOnly: {
-					runtimeWorkspaceRoots: undefined,
-					sandboxPolicy: { type: 'readOnly', networkAccess: false },
+					runtimeWorkspaceRoots: [repo.fsPath],
+					permissions: 'vscode-workspace-read-only',
 				},
 			});
 		} finally {
@@ -2693,6 +2808,7 @@ suite('CodexAgent prewarm eviction', () => {
 			const forkPromise = createSession(agent, {
 				workingDirectories: [requestedA, requestedB],
 				fork: { source: defaultChatOf(source.session), turnId: 'turn-1', turnIndex: 0 },
+				config: { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' },
 			});
 
 			const read = await readNextRequest(peer.outbound);
@@ -2729,6 +2845,9 @@ suite('CodexAgent prewarm eviction', () => {
 					model: fork.params.model,
 					modelProvider: fork.params.modelProvider,
 					selectedCapabilityRoots: fork.params.selectedCapabilityRoots,
+					approvalPolicy: fork.params.approvalPolicy,
+					approvalsReviewer: fork.params.approvalsReviewer,
+					permissions: fork.params.permissions,
 				},
 				workingDirectories: forkedEntry.workingDirectories?.map(directory => directory.fsPath),
 			}, {
@@ -2739,6 +2858,9 @@ suite('CodexAgent prewarm eviction', () => {
 					model: 'gpt-test',
 					modelProvider: 'vscode-proxy',
 					selectedCapabilityRoots: undefined,
+					approvalPolicy: 'on-request',
+					approvalsReviewer: 'auto_review',
+					permissions: 'vscode-workspace',
 				},
 				workingDirectories: [repoA.fsPath, repoB.fsPath],
 			});
@@ -2747,8 +2869,88 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
+	test('fork keeps additional writable directories out of workspace state', async () => {
+		const additionalDirectory = URI.file('/manual-write').fsPath;
+		const agent = await createAgent(disposables, {
+			multiRootEnabled: true,
+			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory] },
+		});
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const repo = URI.file('/repo');
+		const requested = URI.file('/requested');
+
+		try {
+			const source = await createSession(agent, { workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL } });
+			const sourceEntry = agent['_sessions'].get(AgentSession.id(source.session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'source-thread' }, cwd: repo.fsPath, runtimeWorkspaceRoots: [repo.fsPath, additionalDirectory] } });
+			await sourceEntry.materializePromise;
+
+			const forkPromise = createSession(agent, {
+				workingDirectories: [requested],
+				fork: { source: defaultChatOf(source.session), turnId: 'turn-1', turnIndex: 0 },
+			});
+			const read = await readNextRequest(peer.outbound);
+			peer.push({
+				id: read.id,
+				result: {
+					thread: {
+						id: 'source-thread',
+						cwd: repo.fsPath,
+						historyMode: 'paginated',
+						turns: [],
+					},
+				},
+			});
+			const historyPage = await readNextRequest(peer.outbound);
+			peer.push({ id: historyPage.id, result: { data: [{ id: 'turn-1' }], nextCursor: null, backwardsCursor: null } });
+			const fork = await readNextRequest(peer.outbound);
+			peer.push({
+				id: fork.id,
+				result: {
+					thread: { id: 'fork-thread', cwd: repo.fsPath },
+					cwd: repo.fsPath,
+					runtimeWorkspaceRoots: [repo.fsPath, additionalDirectory],
+				},
+			});
+			const forked = await forkPromise;
+			const forkedEntry = agent['_sessions'].get(AgentSession.id(forked.session))!;
+			const configurationService = agent['_configurationService'];
+			assert.ok(configurationService instanceof TestCodexConfigurationService);
+			configurationService.setSessionConfig({ [CodexSessionConfigKey.AdditionalDirectories]: [] });
+			const afterClear = agent['_turnStartOptions'](forkedEntry, 'gpt-test');
+
+			assert.deepStrictEqual({
+				startRuntimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
+				forkRuntimeWorkspaceRoots: fork.params.runtimeWorkspaceRoots,
+				forkedWorkingDirectories: forkedEntry.workingDirectories?.map(directory => directory.fsPath),
+				afterClearRuntimeWorkspaceRoots: afterClear.runtimeWorkspaceRoots,
+			}, {
+				startRuntimeWorkspaceRoots: [repo.fsPath, additionalDirectory],
+				forkRuntimeWorkspaceRoots: undefined,
+				forkedWorkingDirectories: [repo.fsPath],
+				afterClearRuntimeWorkspaceRoots: [repo.fsPath],
+			});
+		} finally {
+			peer.exit();
+		}
+	});
+
 	test('fork from a workspace-less session owns an independent managed directory', async () => {
-		const agent = await createAgent(disposables);
+		const agent = await createAgent(disposables, {
+			sessionConfig: {
+				[CodexSessionConfigKey.PermissionsPreset]: 'default',
+				[CodexSessionConfigKey.NetworkAccessEnabled]: true,
+			},
+		});
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -2767,8 +2969,27 @@ suite('CodexAgent prewarm eviction', () => {
 		// the managed temp folder Codex creates for it.
 		const sending = agent.chats.sendMessage(sourceChat, 'hello', undefined, undefined, 'turn-1');
 		const start = await readNextRequest(peer.outbound);
+		assert.strictEqual(start.params.config?.['features.default_mode_request_user_input'], true);
+		assert.ok(start.params.developerInstructions?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+		assert.deepStrictEqual({
+			approvalPolicy: start.params.approvalPolicy,
+			permissions: start.params.permissions,
+		}, {
+			approvalPolicy: 'on-request',
+			permissions: 'vscode-workspace-network',
+		});
 		peer.push({ id: start.id, result: { thread: { id: 'managed-source', cwd: start.params.cwd } } });
 		const sourceTurn = await readNextRequest(peer.outbound);
+		assert.ok(sourceTurn.params.collaborationMode?.settings.developer_instructions?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+		assert.deepStrictEqual({
+			approvalPolicy: sourceTurn.params.approvalPolicy,
+			permissions: sourceTurn.params.permissions,
+			runtimeWorkspaceRoots: sourceTurn.params.runtimeWorkspaceRoots,
+		}, {
+			approvalPolicy: 'on-request',
+			permissions: 'vscode-workspace-network',
+			runtimeWorkspaceRoots: [start.params.cwd],
+		});
 		peer.push({ id: sourceTurn.id, result: {} });
 		await sending;
 		const sourceDirectory = sourceEntry.managedWorkingDirectory;
@@ -2801,6 +3022,11 @@ suite('CodexAgent prewarm eviction', () => {
 		const forkDirectory = fork.params.cwd;
 		assert.ok(forkDirectory);
 		assert.notStrictEqual(forkDirectory, sourceDirectory.fsPath);
+		assert.deepStrictEqual({
+			approvalPolicy: fork.params.approvalPolicy,
+			permissions: fork.params.permissions,
+			requestUserInput: fork.params.config?.['features.default_mode_request_user_input'],
+		}, { approvalPolicy: 'on-request', permissions: 'vscode-workspace-network', requestUserInput: true });
 		peer.push({
 			id: fork.id,
 			result: {
@@ -2850,6 +3076,97 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
+	test('workspace-less turns honor the full-access permissions preset', async () => {
+		const agent = await createAgent(disposables, { sessionConfig: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' } });
+		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(source.session))!;
+		entry.managedWorkingDirectory = URI.file('/scratch/permissions');
+		const options = agent['_turnStartOptions'](entry, 'gpt-test');
+		assert.deepStrictEqual({ approvalPolicy: options.approvalPolicy, permissions: options.permissions }, {
+			approvalPolicy: 'never', permissions: ':danger-full-access',
+		});
+		entry.managedWorkingDirectory = undefined;
+	});
+
+	test('conversion releases scratch ownership only after confirmation and forks in the attached workspace', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = { kind: 'ready', client, usageSource: 'github', child: { kill: () => true } } as never;
+		agent['_registerWorkingDirectoryNotifications'](client, disposables.add(new DisposableStore()));
+		disposables.add(client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+		disposables.add(client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		agent['_refreshMcpInventory'] = async () => { };
+		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const sourceChat = defaultChatOf(source.session);
+		const sourceEntry = agent['_sessions'].get(AgentSession.id(source.session))!;
+		const sending = agent.chats.sendMessage(sourceChat, 'Add a welcome paragraph to the README', undefined, undefined, 'turn-1');
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'managed-source', cwd: start.params.cwd } } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+		const appTurn = { id: 'turn-1', items: [], itemsView: 'full', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000 };
+		peer.push({ method: 'turn/started', params: { threadId: 'managed-source', turn: { ...appTurn, status: 'inProgress' } } });
+		peer.push({ method: 'turn/completed', params: { threadId: 'managed-source', turn: appTurn } });
+		const scratch = sourceEntry.managedWorkingDirectory!;
+		assert.strictEqual((await agent['_metadataStore'].read(source.session)).managedWorkingDirectory?.fsPath, scratch.fsPath);
+		const folder = URI.file('/workspace/converted');
+		await agent['_fileService'].createFolder(folder);
+		const changing = agent.setWorkingDirectory(sourceChat, source.session, folder);
+		const update = await readNextRequest(peer.outbound);
+		peer.push({ id: update.id, result: {} });
+		await new Promise(resolve => setImmediate(resolve));
+		assert.deepStrictEqual({ cwd: sourceEntry.workingDirectory?.fsPath, scratchExists: fs.existsSync(scratch.fsPath) }, {
+			cwd: scratch.fsPath, scratchExists: true,
+		});
+		peer.push({ method: 'thread/settings/updated', params: { threadId: 'managed-source', threadSettings: { cwd: folder.fsPath } } });
+		await changing;
+		const metadata = await agent['_metadataStore'].read(source.session);
+		assert.strictEqual(await database.getMetadata('codex.ownsManagedWorkingDirectory'), 'false');
+
+		const forkSession = AgentSession.uri(agent.id, generateUuid());
+		const forkChat = defaultChatOf(forkSession);
+		const forking = createSession(agent, { session: forkSession, fork: { source: sourceChat, turnId: 'turn-1', turnIndex: 0 } });
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: 'managed-source', cwd: folder.fsPath } } });
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: 'managed-source', cwd: folder.fsPath, historyMode: 'paginated', turns: [] } } });
+		const history = await readNextRequest(peer.outbound);
+		peer.push({ id: history.id, result: { data: [{ id: 'turn-1' }], nextCursor: null, backwardsCursor: null } });
+		const fork = await readNextRequest(peer.outbound);
+		peer.push({ id: fork.id, result: { thread: { id: 'converted-fork', cwd: folder.fsPath }, cwd: folder.fsPath } });
+		await forking;
+		const forkEntry = agent['_sessions'].get(AgentSession.id(forkSession))!;
+		assert.deepStrictEqual({
+			resume: { method: resume.method, cwd: resume.params.cwd },
+			fork: { method: fork.method, threadId: fork.params.threadId, cwd: fork.params.cwd },
+			sourceManagedDirectory: sourceEntry.managedWorkingDirectory,
+			persistedManagedDirectory: metadata.managedWorkingDirectory,
+			ownsManagedWorkingDirectory: metadata.ownsManagedWorkingDirectory,
+			forkManagedDirectory: forkEntry.managedWorkingDirectory,
+			forkDirectory: forkEntry.workingDirectory?.fsPath,
+			scratchExists: fs.existsSync(scratch.fsPath),
+		}, {
+			resume: { method: 'thread/resume', cwd: folder.fsPath },
+			fork: { method: 'thread/fork', threadId: 'managed-source', cwd: undefined },
+			sourceManagedDirectory: undefined, persistedManagedDirectory: undefined, ownsManagedWorkingDirectory: undefined,
+			forkManagedDirectory: undefined, forkDirectory: folder.fsPath, scratchExists: false,
+		});
+		for (const { chat, session } of [{ chat: sourceChat, session: source.session }, { chat: forkChat, session: forkSession }]) {
+			const disposing = agent.chats.disposeChat(chat, { configurationResource: session, resource: chat });
+			const release = await readNextRequest(peer.outbound);
+			peer.push({ id: release.id, result: {} });
+			await disposing;
+		}
+		peer.exit();
+	});
+
 	test('cold resume restores persisted workspace roots', async () => {
 		const database = new TestSessionDatabase();
 		const repoA = URI.file('/repo-a');
@@ -2879,7 +3196,11 @@ suite('CodexAgent prewarm eviction', () => {
 			await new Promise(resolve => setImmediate(resolve));
 			const canonicalOverlay = await agentA['_metadataStore'].read(AgentSession.uri('codex', 'thread'));
 
-			const agentB = await createAgent(disposables, { multiRootEnabled: true, database });
+			const agentB = await createAgent(disposables, {
+				multiRootEnabled: true,
+				database,
+				sessionConfig: { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' },
+			});
 			peerB = disposables.add(createTestPeer());
 			agentB['_connection'] = {
 				kind: 'ready',
@@ -2944,9 +3265,17 @@ suite('CodexAgent prewarm eviction', () => {
 					cwd: resume.params.cwd,
 					runtimeWorkspaceRoots: resume.params.runtimeWorkspaceRoots,
 					selectedCapabilityRoots: resume.params.selectedCapabilityRoots,
+					approvalPolicy: resume.params.approvalPolicy,
+					approvalsReviewer: resume.params.approvalsReviewer,
+					permissions: resume.params.permissions,
 				},
-				turnRuntimeWorkspaceRoots: resumedTurn.params.runtimeWorkspaceRoots,
-				turnSelectedCapabilityRoots: resumedTurn.params.selectedCapabilityRoots,
+				turn: {
+					runtimeWorkspaceRoots: resumedTurn.params.runtimeWorkspaceRoots,
+					selectedCapabilityRoots: resumedTurn.params.selectedCapabilityRoots,
+					approvalPolicy: resumedTurn.params.approvalPolicy,
+					approvalsReviewer: resumedTurn.params.approvalsReviewer,
+					permissions: resumedTurn.params.permissions,
+				},
 			}, {
 				canonicalOverlay: [repoA.fsPath, repoB.fsPath],
 				metadata: [repoA.fsPath, repoB.fsPath],
@@ -2955,9 +3284,17 @@ suite('CodexAgent prewarm eviction', () => {
 					cwd: repoA.fsPath,
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
 					selectedCapabilityRoots: undefined,
+					approvalPolicy: 'on-request',
+					approvalsReviewer: 'auto_review',
+					permissions: 'vscode-workspace',
 				},
-				turnRuntimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
-				turnSelectedCapabilityRoots: undefined,
+				turn: {
+					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
+					selectedCapabilityRoots: undefined,
+					approvalPolicy: 'on-request',
+					approvalsReviewer: 'auto_review',
+					permissions: 'vscode-workspace',
+				},
 			});
 		} finally {
 			peerB?.exit();
