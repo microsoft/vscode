@@ -23,6 +23,7 @@ import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
+import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -46,11 +47,7 @@ import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigFor
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
-/**
- * Config key for the numeric "Context Size" selection (a context-window token count). Mapped to the
- * SDK's two-valued {@link SessionConfig.contextTier} by {@link getCopilotContextTier}.
- */
-export const ContextSizeConfigKey = 'contextSize';
+export { ContextSizeConfigKey };
 /**
  * @deprecated Legacy config key that stored the resolved tier string (`'default'` / `'long_context'`)
  * directly. Replaced by the numeric {@link ContextSizeConfigKey}; still read from persisted sessions
