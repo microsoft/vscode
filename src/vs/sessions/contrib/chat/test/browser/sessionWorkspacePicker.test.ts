@@ -601,6 +601,35 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
+	test('offers Dev Container execution through a capable provider when the recent provider differs', async () => {
+		const folderUri = URI.file('/agent-host/project');
+		const agentHostProvider = createMockProvider('local-agent-host', {
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			isDevContainerWorkspaceAvailable: async workspaceUri => extUri.isEqual(workspaceUri, folderUri),
+		});
+		const recentProvider = {
+			...createMockProvider('default-copilot'),
+			resolveWorkspace: (uri: URI) => agentHostProvider.resolveWorkspace(uri),
+		};
+		providersService.setProviders([recentProvider, agentHostProvider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: folderUri, providerId: recentProvider.id, checked: false }]);
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, storage);
+
+		picker.getItems();
+		await timeout(0);
+		const folderItem = picker.getItems().find(item => item.label === 'agent-host/project');
+		const submenu = folderItem?.submenuActions?.[0];
+
+		assert.deepStrictEqual({
+			providerId: folderItem?.item?.providerId,
+			submenu: submenu instanceof SubmenuAction ? submenu.actions.map(action => action.label) : undefined,
+		}, {
+			providerId: recentProvider.id,
+			submenu: ['Use Local', 'Use Dev Container'],
+		});
+	});
+
 	test('caches Dev Container availability across picker opens and invalidates when connector availability changes', async () => {
 		const folderUri = URI.file('/agent-host/project');
 		let available = true;
