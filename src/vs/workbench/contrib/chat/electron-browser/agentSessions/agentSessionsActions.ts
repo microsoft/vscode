@@ -30,7 +30,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidgetService } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { SessionType } from '../../common/chatSessionsService.js';
+import { isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
@@ -47,8 +47,10 @@ const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.c
 async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource): Promise<void> {
 	const nativeHostService = accessor.get(INativeHostService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
-	await nativeHostService.openAgentsWindow({ folderUri: folderUri?.scheme === Schemas.file ? folderUri : undefined, source });
+	await nativeHostService.openAgentsWindow({
+		folderUri: workspaceContextService.getWorkspace().folders[0]?.uri,
+		source,
+	});
 }
 
 function isOpenChatSessionInAgentsWindowOptions(value: unknown): value is { readonly agentsWindowOpenSource: AgentsWindowOpenSource } {
@@ -113,6 +115,20 @@ export class OpenWorkspaceInAgentsWindowTitleBarAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
+		if (configurationService.getValue<boolean>(ChatConfiguration.OpenInAgentsWindowRevealCurrentSession) === true
+			&& sessionResource
+			&& !isUntitledChatSession(sessionResource)
+			&& isLocalAgentHostTarget(getChatSessionType(sessionResource))) {
+			await accessor.get(ICommandService).executeCommand(
+				OpenChatSessionInAgentsWindowAction.ID,
+				{ agentsWindowOpenSource: AgentsWindowOpenSource.TitleBar },
+				sessionResource,
+			);
+			return;
+		}
+
 		await accessor.get(ICommandService).executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.TitleBar });
 	}
 }
@@ -490,15 +506,15 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		// session that we shouldn't try to restore on the other side.
 		const commandArgs: unknown[] = eligible && sessionResource ? [sessionResource] : [];
 
-		// Empty-workspace + local Copilot CLI: the local agent host can't
+		// Empty-workspace + local Copilot: the local agent host can't
 		// run without a folder, so frame the tip as the path forward rather
 		// than a generic "continue in agents" upsell.
 		const useEmptyWorkspaceCopy = emptyWorkspaceEligible && !eligible;
 		const message = useEmptyWorkspaceCopy
-			? localize('chat.agentsHandoff.tip.emptyWorkspace.message', "Copilot CLI [Agent Host] isn't available without an open folder")
+			? localize('chat.agentsHandoff.tip.emptyWorkspace.message', "Copilot isn't available without an open folder")
 			: localize('chat.agentsHandoff.tip.message', "Continue this session in the Agents Window");
 		const description = useEmptyWorkspaceCopy
-			? localize('chat.agentsHandoff.tip.emptyWorkspace.description', "Open the Agents Window to start a Copilot CLI session.")
+			? localize('chat.agentsHandoff.tip.emptyWorkspace.description', "Open the Agents Window to start a Copilot session.")
 			: mode === AgentsHandoffTipMode.Custom
 				? localize('chat.agentsHandoff.tip.description.copilot', "Free with your Copilot plan — get a dedicated, multi-pane view alongside your workspace.")
 				: localize('chat.agentsHandoff.tip.description', "Get a dedicated, multi-pane view alongside your workspace.");

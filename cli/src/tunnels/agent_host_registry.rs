@@ -22,11 +22,14 @@ use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tokio::net::TcpStream;
 use uuid::Uuid;
 
+use crate::async_pipe::get_socket_rw_stream;
 use crate::log;
 use crate::util::machine::process_exists;
 
@@ -49,6 +52,7 @@ const ENTRIES_DIRECTORY_NAME: &str = "entries";
 /// never written or locked; its still-live entries are merged on read and age
 /// out naturally as their owning processes exit.
 const LEGACY_METADATA_FILE_NAME: &str = "metadata.json";
+const ENDPOINT_REACHABILITY_TIMEOUT: Duration = Duration::from_secs(2);
 
 // ---- Schema -----------------------------------------------------------------
 
@@ -353,12 +357,13 @@ fn prepare_owner_only_directory(dir: &Path) -> io::Result<()> {
 
 // ---- Read ---------------------------------------------------------------------
 
-/// Reads and validates every live entry in the registry without taking a lock,
-/// merging a read-only legacy `metadata.json` array left by older builds.
+/// Reads and validates every PID-live entry in the registry without taking a
+/// lock, merging a read-only legacy `metadata.json` array left by older builds.
 /// Confirmed-dead entries are pruned (and their own files best-effort removed);
 /// the rest are deduped by identity — a live entry file winning over a colliding
 /// legacy entry — and returned in a deterministic order (standalone before
-/// editor, then by `instanceId`).
+/// editor, then by `instanceId`). [`list_live_endpoints`] additionally verifies
+/// endpoint reachability before reporting an entry as live.
 pub fn read_registry(
 	log: &log::Logger,
 	user_data_path: &Path,
@@ -407,16 +412,42 @@ fn read_entry_files(
 
 	let mut out = Vec::new();
 	for dir_entry in read_dir {
-		let dir_entry = dir_entry?;
+		// A failure to stat one directory entry must not hide every other
+		// endpoint, so skip it rather than failing the whole read.
+		let dir_entry = match dir_entry {
+			Ok(e) => e,
+			Err(error) => {
+				warning!(
+					log,
+					"Ignoring unreadable agent host endpoint directory entry: {}",
+					error
+				);
+				continue;
+			}
+		};
 		let file_name = dir_entry.file_name();
 		let name = file_name.to_string_lossy();
 		if !name.ends_with(".json") {
 			continue;
 		}
 		let path = dir_entry.path();
-		let entry = match read_entry_file(log, &path)? {
-			Some(entry) => entry,
-			None => continue,
+		let entry = match read_entry_file(log, &path) {
+			Ok(Some(entry)) => entry,
+			Ok(None) => continue,
+			// An entry we cannot read is an entry we cannot use, but it must
+			// not hide the ones we can. This is reached routinely on Windows:
+			// a file deleted by a concurrent prune stays listed in the
+			// directory until its last handle closes, and opening it in that
+			// window fails with `PermissionDenied` rather than `NotFound`.
+			Err(error) => {
+				warning!(
+					log,
+					"Ignoring unreadable agent host endpoint entry at {}: {}",
+					path.display(),
+					error
+				);
+				continue;
+			}
 		};
 		// A valid entry must live under its own canonical identity file name;
 		// otherwise a misnamed copy could shadow or delete the real entry.
@@ -629,14 +660,14 @@ pub fn remove_agent_host_endpoint(
 // ---- Endpoint enumeration ---------------------------------------------------------
 
 /// Reads the registry and returns every live endpoint (both `editor` and
-/// `standalone`), deduped by identity, pruned of dead-process entries, in a
-/// stable order (standalone before editor, then by `instanceId`). Backs `code
-/// agent ps|logs|stop`'s auto-discovery.
-pub fn list_live_endpoints(
+/// `standalone`), deduped by identity, pruned of dead-process entries, with the
+/// newest published entry first (and a deterministic type/`instanceId`
+/// tie-break). Backs `code agent ps|logs|stop`'s auto-discovery.
+pub async fn list_live_endpoints(
 	log: &log::Logger,
 	user_data_path: &Path,
 ) -> Vec<AgentHostEndpointMetadata> {
-	match read_registry(log, user_data_path) {
+	let entries = match read_registry(log, user_data_path) {
 		Ok(entries) => entries,
 		Err(e) => {
 			debug!(
@@ -645,19 +676,46 @@ pub fn list_live_endpoints(
 				metadata_directory(user_data_path).display(),
 				e
 			);
-			Vec::new()
+			return Vec::new();
+		}
+	};
+
+	let reachability = futures::future::join_all(entries.iter().map(endpoint_is_reachable)).await;
+	let mut live = Vec::with_capacity(entries.len());
+	for (entry, reachability) in entries.into_iter().zip(reachability) {
+		match reachability {
+			Ok(()) => live.push((entry_publish_time(user_data_path, &entry), entry)),
+			Err(reason) => {
+				debug!(
+					log,
+					"Filtering unreachable local agent host endpoint registry entry (instanceId {}): {}",
+					entry.instance_id,
+					reason
+				);
+			}
 		}
 	}
+
+	live.sort_by(|(a_published_at, a), (b_published_at, b)| {
+		b_published_at
+			.cmp(a_published_at)
+			.then_with(|| {
+				server_type_sort_rank(a.server_type).cmp(&server_type_sort_rank(b.server_type))
+			})
+			.then_with(|| a.instance_id.cmp(&b.instance_id))
+	});
+	live.into_iter().map(|(_, entry)| entry).collect()
 }
 
 /// Like [`list_live_endpoints`], but restricted to `standalone` entries;
 /// `editor` entries are owned by running VS Code windows and must never be
 /// selected, replaced, or killed by the standalone CLI.
-pub fn list_live_standalone_endpoints(
+pub async fn list_live_standalone_endpoints(
 	log: &log::Logger,
 	user_data_path: &Path,
 ) -> Vec<AgentHostEndpointMetadata> {
 	list_live_endpoints(log, user_data_path)
+		.await
 		.into_iter()
 		.filter(|e| e.server_type == AgentHostServerType::Standalone)
 		.collect()
@@ -681,14 +739,15 @@ pub struct LiveStandaloneEndpoint {
 /// Reads the registry and returns a live `standalone` `tcp` entry to reuse, if
 /// any, backing `code agent host`'s single-target TCP reuse. `editor` and
 /// non-`tcp` entries are never considered. When several live standalone entries
-/// exist, selection is deterministic (lowest `instanceId`) and a warning
-/// recommends `--address` to disambiguate. Callers wanting every live
+/// exist, the most recently published is selected and a warning recommends
+/// `--address` to disambiguate. Callers wanting every live
 /// standalone entry should use [`list_live_standalone_endpoints`].
-pub fn select_live_standalone_endpoint(
+pub async fn select_live_standalone_endpoint(
 	log: &log::Logger,
 	user_data_path: &Path,
 ) -> Option<LiveStandaloneEndpoint> {
-	let mut live: Vec<LiveStandaloneEndpoint> = list_live_standalone_endpoints(log, user_data_path)
+	let live: Vec<LiveStandaloneEndpoint> = list_live_standalone_endpoints(log, user_data_path)
+		.await
 		.into_iter()
 		.filter_map(|e| match e.endpoint {
 			AgentHostEndpointAddress::Tcp { host, port } => Some(LiveStandaloneEndpoint {
@@ -709,10 +768,9 @@ pub fn select_live_standalone_endpoint(
 	}
 
 	if live.len() > 1 {
-		live.sort_by(|a, b| a.instance_id.cmp(&b.instance_id));
 		warning!(
 			log,
-			"Multiple live standalone agent hosts are registered; selecting instance {} deterministically. Pass --address to target a specific one.",
+			"Multiple live standalone agent hosts are registered; selecting most recently published instance {}. Pass --address to target a specific one.",
 			live[0].instance_id
 		);
 	}
@@ -720,9 +778,53 @@ pub fn select_live_standalone_endpoint(
 	live.into_iter().next()
 }
 
+/// Returns whether an endpoint accepted a new connection within a bounded
+/// interval. The connection is immediately dropped without sending bytes or
+/// performing the agent-host handshake.
+async fn endpoint_is_reachable(entry: &AgentHostEndpointMetadata) -> Result<(), String> {
+	let result = tokio::time::timeout(ENDPOINT_REACHABILITY_TIMEOUT, async {
+		match &entry.endpoint {
+			AgentHostEndpointAddress::Socket { path } => {
+				let _stream = get_socket_rw_stream(Path::new(path))
+					.await
+					.map_err(|error| error.to_string())?;
+			}
+			AgentHostEndpointAddress::Tcp { host, port } => {
+				let _stream = TcpStream::connect((host.as_str(), *port))
+					.await
+					.map_err(|error| error.to_string())?;
+			}
+		}
+		Ok::<(), String>(())
+	})
+	.await;
+
+	match result {
+		Ok(result) => result,
+		Err(_) => Err(format!(
+			"connection timed out after {} seconds",
+			ENDPOINT_REACHABILITY_TIMEOUT.as_secs()
+		)),
+	}
+}
+
+/// Returns the timestamp of the per-instance entry file that was atomically
+/// published by its owner. Legacy-only entries use the legacy file's timestamp.
+fn entry_publish_time(user_data_path: &Path, entry: &AgentHostEndpointMetadata) -> SystemTime {
+	fs::metadata(entry_path(user_data_path, &entry.identity()))
+		.and_then(|metadata| metadata.modified())
+		.or_else(|_| {
+			fs::metadata(legacy_metadata_path(user_data_path))
+				.and_then(|metadata| metadata.modified())
+		})
+		.unwrap_or(SystemTime::UNIX_EPOCH)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::async_pipe::{get_socket_name, listen_socket_rw_stream, AsyncPipeListener};
+	use tokio::net::TcpListener;
 
 	fn standalone(pid: u32, instance_id: &str, port: u16) -> AgentHostEndpointMetadata {
 		AgentHostEndpointMetadata::new_standalone(
@@ -735,6 +837,133 @@ mod tests {
 			None,
 			None,
 		)
+	}
+
+	async fn tcp_listener() -> TcpListener {
+		TcpListener::bind(("127.0.0.1", 0)).await.unwrap()
+	}
+
+	fn standalone_for_listener(
+		listener: &TcpListener,
+		instance_id: &str,
+	) -> AgentHostEndpointMetadata {
+		standalone(
+			std::process::id(),
+			instance_id,
+			listener.local_addr().unwrap().port(),
+		)
+	}
+
+	async fn socket_listener() -> (AsyncPipeListener, String) {
+		let path = get_socket_name();
+		let listener = listen_socket_rw_stream(&path).await.unwrap();
+		(listener, path.to_string_lossy().to_string())
+	}
+
+	#[tokio::test]
+	async fn select_live_standalone_ignores_editor_entries() {
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let editor = AgentHostEndpointMetadata {
+			schema_version: AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
+			server_type: AgentHostServerType::Editor,
+			pid: std::process::id(),
+			instance_id: "editor-a".to_string(),
+			protocol_version: "0.1.0".to_string(),
+			connection_token: "editor-tok".to_string(),
+			endpoint: AgentHostEndpointAddress::Socket {
+				path: "/tmp/editor.sock".to_string(),
+			},
+			quality: None,
+			tunnel_name: None,
+		};
+		publish_agent_host_endpoint(&log, dir.path(), &editor).unwrap();
+
+		assert_eq!(
+			select_live_standalone_endpoint(&log, dir.path()).await,
+			None
+		);
+	}
+
+	#[tokio::test]
+	async fn select_live_standalone_returns_live_entry() {
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let listener = tcp_listener().await;
+		let entry = standalone_for_listener(&listener, "instance-a");
+		publish_agent_host_endpoint(&log, dir.path(), &entry).unwrap();
+
+		let selected = select_live_standalone_endpoint(&log, dir.path())
+			.await
+			.unwrap();
+		assert_eq!(selected.pid, std::process::id());
+		assert_eq!(selected.instance_id, "instance-a");
+		assert_eq!(selected.host, "127.0.0.1");
+		assert_eq!(selected.port, listener.local_addr().unwrap().port());
+	}
+
+	#[tokio::test]
+	async fn select_live_standalone_prefers_most_recently_published_entry() {
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let first_listener = tcp_listener().await;
+		let second_listener = tcp_listener().await;
+		let first = standalone_for_listener(&first_listener, "a-instance");
+		let second = standalone_for_listener(&second_listener, "b-instance");
+		publish_agent_host_endpoint(&log, dir.path(), &first).unwrap();
+		std::thread::sleep(Duration::from_millis(20));
+		publish_agent_host_endpoint(&log, dir.path(), &second).unwrap();
+
+		let selected = select_live_standalone_endpoint(&log, dir.path())
+			.await
+			.unwrap();
+		assert_eq!(selected.instance_id, "b-instance");
+	}
+
+	#[tokio::test]
+	async fn list_live_endpoints_filters_unreachable_entry_without_deleting_it() {
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let listener = tcp_listener().await;
+		let port = listener.local_addr().unwrap().port();
+		drop(listener);
+		let entry = standalone(std::process::id(), "unreachable", port);
+		publish_agent_host_endpoint(&log, dir.path(), &entry).unwrap();
+		let path = entry_path(dir.path(), &entry.identity());
+
+		assert!(list_live_endpoints(&log, dir.path()).await.is_empty());
+		assert!(path.exists());
+	}
+
+	#[tokio::test]
+	async fn list_live_endpoints_includes_reachable_entry() {
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let listener = tcp_listener().await;
+		let entry = standalone_for_listener(&listener, "reachable");
+		publish_agent_host_endpoint(&log, dir.path(), &entry).unwrap();
+
+		assert_eq!(list_live_endpoints(&log, dir.path()).await, vec![entry]);
+	}
+
+	#[tokio::test]
+	async fn list_live_endpoints_prefers_most_recently_published_entry() {
+		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let first_listener = tcp_listener().await;
+		let second_listener = tcp_listener().await;
+		let first = standalone_for_listener(&first_listener, "a-instance");
+		let second = standalone_for_listener(&second_listener, "b-instance");
+		publish_agent_host_endpoint(&log, dir.path(), &first).unwrap();
+		std::thread::sleep(Duration::from_millis(20));
+		publish_agent_host_endpoint(&log, dir.path(), &second).unwrap();
+
+		let instance_ids: Vec<_> = list_live_endpoints(&log, dir.path())
+			.await
+			.into_iter()
+			.map(|entry| entry.instance_id)
+			.collect();
+		assert_eq!(instance_ids, vec!["b-instance", "a-instance"]);
 	}
 
 	#[test]
@@ -1008,55 +1237,6 @@ mod tests {
 	}
 
 	#[test]
-	fn select_live_standalone_ignores_editor_entries() {
-		let dir = tempfile::tempdir().unwrap();
-		let log = log::Logger::test();
-		let editor = AgentHostEndpointMetadata {
-			schema_version: AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
-			server_type: AgentHostServerType::Editor,
-			pid: std::process::id(),
-			instance_id: "editor-a".to_string(),
-			protocol_version: "0.1.0".to_string(),
-			connection_token: "editor-tok".to_string(),
-			endpoint: AgentHostEndpointAddress::Socket {
-				path: "/tmp/editor.sock".to_string(),
-			},
-			quality: None,
-			tunnel_name: None,
-		};
-		publish_agent_host_endpoint(&log, dir.path(), &editor).unwrap();
-
-		assert_eq!(select_live_standalone_endpoint(&log, dir.path()), None);
-	}
-
-	#[test]
-	fn select_live_standalone_returns_live_entry() {
-		let dir = tempfile::tempdir().unwrap();
-		let log = log::Logger::test();
-		let entry = standalone(std::process::id(), "instance-a", 8080);
-		publish_agent_host_endpoint(&log, dir.path(), &entry).unwrap();
-
-		let selected = select_live_standalone_endpoint(&log, dir.path()).unwrap();
-		assert_eq!(selected.pid, std::process::id());
-		assert_eq!(selected.instance_id, "instance-a");
-		assert_eq!(selected.host, "127.0.0.1");
-		assert_eq!(selected.port, 8080);
-	}
-
-	#[test]
-	fn select_live_standalone_is_deterministic_with_multiple_live_entries() {
-		let dir = tempfile::tempdir().unwrap();
-		let log = log::Logger::test();
-		let first = standalone(std::process::id(), "b-instance", 8080);
-		let second = standalone(std::process::id(), "a-instance", 9090);
-		publish_agent_host_endpoint(&log, dir.path(), &first).unwrap();
-		publish_agent_host_endpoint(&log, dir.path(), &second).unwrap();
-
-		let selected = select_live_standalone_endpoint(&log, dir.path()).unwrap();
-		assert_eq!(selected.instance_id, "a-instance");
-	}
-
-	#[test]
 	fn concurrent_publishes_preserve_every_entry_without_a_lock() {
 		use std::sync::{Arc, Barrier};
 
@@ -1136,9 +1316,55 @@ mod tests {
 		assert_eq!(entries, vec![live]);
 	}
 
+	/// An entry file that cannot be opened must be skipped rather than
+	/// aborting the whole read. This is a real race on Windows, where a file
+	/// removed by a concurrent prune stays listed in the directory until its
+	/// last handle closes and opening it meanwhile fails with
+	/// `PermissionDenied` instead of `NotFound`.
 	#[test]
-	fn read_ignores_entry_files_whose_name_mismatches_identity() {
+	fn read_skips_unreadable_entry_files_without_hiding_readable_ones() {
 		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let live = standalone(std::process::id(), "live", 8080);
+		publish_agent_host_endpoint(&log, dir.path(), &live).unwrap();
+
+		let blocked = standalone(std::process::id(), "blocked", 9090);
+		publish_agent_host_endpoint(&log, dir.path(), &blocked).unwrap();
+		let blocked_path = entries_directory(dir.path()).join(entry_file_name(&blocked.identity()));
+
+		let _guard = make_unreadable(&blocked_path);
+		if fs::read(&blocked_path).is_ok() {
+			// Some environments (notably running as root) can read the file
+			// anyway, which would make this assert the opposite of its intent.
+			return;
+		}
+
+		let entries = read_registry(&log::Logger::test(), dir.path()).unwrap();
+		assert_eq!(entries, vec![live]);
+	}
+
+	/// Makes `path` fail to open for the lifetime of the returned guard, using
+	/// whatever mechanism the platform offers.
+	#[cfg(windows)]
+	fn make_unreadable(path: &Path) -> impl std::any::Any {
+		use std::os::windows::fs::OpenOptionsExt;
+		// Zero share mode: any other open of this path fails with
+		// `PermissionDenied`, exactly as a delete-pending file does.
+		fs::OpenOptions::new()
+			.read(true)
+			.share_mode(0)
+			.open(path)
+			.unwrap()
+	}
+
+	#[cfg(unix)]
+	fn make_unreadable(path: &Path) -> impl std::any::Any {
+		use std::os::unix::fs::PermissionsExt;
+		fs::set_permissions(path, fs::Permissions::from_mode(0o000)).unwrap();
+	}
+
+	#[test]
+	fn read_ignores_entry_files_whose_name_mismatches_identity() {		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
 		let legit = standalone(std::process::id(), "legit", 8080);
 		publish_agent_host_endpoint(&log, dir.path(), &legit).unwrap();
@@ -1263,63 +1489,68 @@ mod tests {
 		}
 	}
 
-	#[test]
-	fn list_live_endpoints_includes_editor_and_standalone_sorted_stably() {
+	#[tokio::test]
+	async fn list_live_endpoints_includes_reachable_editor_and_standalone() {
 		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
 		let pid = std::process::id();
-		let ed = editor(pid, "editor-b", "/tmp/editor-b.sock");
-		let sa = standalone(pid, "standalone-a", 8080);
+		let (_socket_listener, socket_path) = socket_listener().await;
+		let tcp_listener = tcp_listener().await;
+		let ed = editor(pid, "editor-b", &socket_path);
+		let sa = standalone_for_listener(&tcp_listener, "standalone-a");
 		publish_agent_host_endpoint(&log, dir.path(), &ed).unwrap();
 		publish_agent_host_endpoint(&log, dir.path(), &sa).unwrap();
 
-		let live = list_live_endpoints(&log, dir.path());
+		let live = list_live_endpoints(&log, dir.path()).await;
 
 		assert_eq!(live.len(), 2);
-		// Standalone sorts before editor per `server_type_sort_rank`.
-		assert_eq!(live[0].instance_id, "standalone-a");
-		assert_eq!(live[1].instance_id, "editor-b");
+		assert!(live.iter().any(|entry| entry.instance_id == "standalone-a"));
+		assert!(live.iter().any(|entry| entry.instance_id == "editor-b"));
 	}
 
-	#[test]
-	fn list_live_endpoints_excludes_dead_and_dedupes() {
+	#[tokio::test]
+	async fn list_live_endpoints_excludes_dead_and_dedupes() {
 		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
 		let dead_pid = u32::MAX - 1;
 		let dead = standalone(dead_pid, "dead", 100);
-		let live_entry = standalone(std::process::id(), "live", 200);
+		let listener = tcp_listener().await;
+		let live_entry = standalone_for_listener(&listener, "live");
 		publish_agent_host_endpoint(&log, dir.path(), &dead).unwrap();
 		publish_agent_host_endpoint(&log, dir.path(), &live_entry).unwrap();
 
-		let live = list_live_endpoints(&log, dir.path());
+		let live = list_live_endpoints(&log, dir.path()).await;
 
 		assert_eq!(live, vec![live_entry]);
 	}
 
-	#[test]
-	fn list_live_endpoints_returns_empty_when_registry_missing() {
+	#[tokio::test]
+	async fn list_live_endpoints_returns_empty_when_registry_missing() {
 		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
 
-		assert_eq!(list_live_endpoints(&log, dir.path()), Vec::new());
+		assert_eq!(list_live_endpoints(&log, dir.path()).await, Vec::new());
 	}
 
-	#[test]
-	fn list_live_standalone_endpoints_excludes_editor_but_includes_socket_standalones() {
+	#[tokio::test]
+	async fn list_live_standalone_endpoints_excludes_editor_but_includes_socket_standalones() {
 		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
 		let pid = std::process::id();
-		let ed = editor(pid, "editor-a", "/tmp/editor-a.sock");
-		let sa_tcp = standalone(pid, "standalone-tcp", 8080);
+		let (_editor_socket_listener, editor_socket_path) = socket_listener().await;
+		let (_standalone_socket_listener, standalone_socket_path) = socket_listener().await;
+		let tcp_listener = tcp_listener().await;
+		let ed = editor(pid, "editor-a", &editor_socket_path);
+		let sa_tcp = standalone_for_listener(&tcp_listener, "standalone-tcp");
 		let mut sa_socket = standalone(pid, "standalone-socket", 0);
 		sa_socket.endpoint = AgentHostEndpointAddress::Socket {
-			path: "/tmp/standalone.sock".to_string(),
+			path: standalone_socket_path,
 		};
 		publish_agent_host_endpoint(&log, dir.path(), &ed).unwrap();
 		publish_agent_host_endpoint(&log, dir.path(), &sa_tcp).unwrap();
 		publish_agent_host_endpoint(&log, dir.path(), &sa_socket).unwrap();
 
-		let standalones = list_live_standalone_endpoints(&log, dir.path());
+		let standalones = list_live_standalone_endpoints(&log, dir.path()).await;
 
 		assert_eq!(standalones.len(), 2);
 		assert!(standalones

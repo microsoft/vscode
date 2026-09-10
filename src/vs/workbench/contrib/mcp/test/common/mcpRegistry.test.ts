@@ -371,6 +371,38 @@ suite('Workbench - MCP - Registry', () => {
 		connection3.dispose();
 	});
 
+	test('resolveConnection preserves URI in resolved HTTP launch', async () => {
+		const definition: McpServerDefinition = {
+			...baseDefinition,
+			launch: {
+				type: McpServerTransportType.HTTP,
+				uri: URI.parse('https://mcp.example.com/mcp'),
+				headers: [],
+			},
+			variableReplacement: {
+				section: 'mcp',
+				target: ConfigurationTarget.WORKSPACE,
+			}
+		};
+
+		const delegate = new TestMcpHostDelegate();
+		store.add(registry.registerDelegate(delegate));
+		testCollection.serverDefinitions.set([definition], undefined);
+		store.add(registry.registerCollection(testCollection));
+
+		const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer, taskManager }) as McpServerConnection;
+		const launch = connection.launchDefinition;
+
+		assert.deepStrictEqual(launch.type === McpServerTransportType.HTTP ? {
+			isUri: URI.isUri(launch.uri),
+			url: launch.uri.toString(true),
+		} : { type: launch.type }, {
+			isUri: true,
+			url: 'https://mcp.example.com/mcp',
+		});
+		connection.dispose();
+	});
+
 	test('resolveConnection uses user-provided launch configuration', async () => {
 		// Create a collection with custom launch resolver
 		const customCollection: McpCollectionDefinition = {

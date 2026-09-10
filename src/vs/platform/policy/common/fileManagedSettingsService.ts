@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from '../../../base/common/async.js';
+import { Barrier, ThrottledDelayer } from '../../../base/common/async.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -39,6 +40,7 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 
 	private readonly throttledDelayer = this._register(new ThrottledDelayer(500));
+	private readonly initialized = new Barrier();
 
 	constructor(
 		private readonly file: URI,
@@ -49,12 +51,25 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 
 		const onDidChangeFile = Event.filter(fileService.onDidFilesChange, e => e.affects(file));
 		this._register(fileService.watch(file));
-		this._register(onDidChangeFile(() => this.throttledDelayer.trigger(() => this.refresh())));
+		this._register(onDidChangeFile(() => this.scheduleRefresh()));
 
-		// Initial read — routed through the same delayer (with no delay) so it is serialized
-		// against change-triggered refreshes and can't be clobbered by a racing read. Non-blocking;
-		// IPC clients handle eventual data arrival.
-		this.throttledDelayer.trigger(() => this.refresh(), 0);
+		this.scheduleRefresh(0);
+	}
+
+	async initialize(): Promise<ManagedSettingsData> {
+		await this.initialized.wait();
+		return this._managedSettings;
+	}
+
+	private scheduleRefresh(delay?: number): void {
+		void this.throttledDelayer.trigger(() => this.refresh(), delay).then(() => {
+			this.initialized.open();
+		}, error => {
+			if (!isCancellationError(error)) {
+				this.logService.error('[FileManagedSettingsService] Failed to schedule managed-settings refresh', error);
+				this.initialized.open();
+			}
+		});
 	}
 
 	private async refresh(): Promise<void> {

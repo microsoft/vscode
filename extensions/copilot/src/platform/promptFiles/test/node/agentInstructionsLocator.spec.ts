@@ -124,6 +124,26 @@ suite('AgentInstructionsLocator', () => {
 		expect(paths).toContain(`${parentFolder}/AGENTS.md`);
 	});
 
+	test('should collect parent instructions through a submodule .git file', async () => {
+		await mockFiles(fileSystem, [
+			{ path: `${parentFolder}/.git/HEAD`, contents: ['ref: refs/heads/main'] },
+			{ path: `${rootFolder}/.git`, contents: ['gitdir: ../.git/modules/submodule'] },
+			{ path: `${parentFolder}/AGENTS.md`, contents: ['Parent agent guidelines'] },
+			{ path: `${parentFolder}/.github/copilot-instructions.md`, contents: ['Parent copilot instructions'] },
+			{ path: `${rootFolder}/src/file.ts`, contents: ['console.log("test");'] },
+		]);
+
+		workspaceService.setTrusted(parentFolderUri, true);
+		await configService.setNonExtensionConfig(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+		await configService.setConfig(ConfigKey.UseInstructionFiles, true);
+
+		const result = await locator.listAgentInstructions(CancellationToken.None);
+		expect(result.map(file => file.uri.path)).toEqual([
+			`${parentFolder}/.github/copilot-instructions.md`,
+			`${parentFolder}/AGENTS.md`,
+		]);
+	});
+
 	test('copilot-instructions and AGENTS.md', async () => {
 		// Files at the workspace root only — `useCustomizationsInParentRepositories`
 		// is left at its default (off) so the locator only inspects `rootFolder`.

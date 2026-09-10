@@ -11,13 +11,17 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, SessionsWindowOpenTelemetry } from '../../browser/sessionsWindowOpenTelemetry.js';
+import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../browser/sessionsWindowOpenTelemetry.js';
+
+function isTelemetryData(data: unknown): data is Record<string, unknown> {
+	return typeof data === 'object' && data !== null;
+}
 
 class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: unknown }[] = [];
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
 
 	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
+		if (eventName && isTelemetryData(data)) {
 			this.events.push({ name: eventName, data });
 		}
 	}
@@ -27,21 +31,33 @@ suite('SessionsWindowOpenTelemetry', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('emits one window session start when initialized', () => {
+		const telemetryService = new TestTelemetryService();
+		new SessionsWindowSessionStartTelemetry(AgentsWindowOpenSource.TitleBar, false, telemetryService);
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			name: 'agents/windowSessionStart',
+			data: { sessionStart: true, source: 'titleBar', hasPreviouslyStartedSession: false },
+		}]);
+	});
+
 	test('emits captured initial state and close duration for a quick close', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, startTime: 10_000 }, async () => {
 			const lifecycleService = disposables.add(new TestLifecycleService());
 			const telemetryService = new TestTelemetryService();
 			let workspacePreselected = true;
+			let workspacePreselectionSource = 'existingSessions';
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.TitleBar,
 				() => true,
-				() => ({ workspacePreselected }),
+				() => ({ workspacePreselected, workspacePreselectionSource }),
 				telemetryService,
 				lifecycleService,
 			));
 
 			tracker.captureInitialViewState();
 			workspacePreselected = false;
+			workspacePreselectionSource = 'none';
 			await timeout(4_000);
 			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
 
@@ -51,7 +67,9 @@ suite('SessionsWindowOpenTelemetry', () => {
 					source: 'titleBar',
 					signInDialogShown: true,
 					workspacePreselected: true,
+					workspacePreselectionSource: 'existingSessions',
 					windowCloseDurationMs: 4_000,
+					emissionReason: 'close',
 				},
 			}]);
 			tracker.dispose();
@@ -66,7 +84,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.CommandPalette,
 				() => false,
-				() => ({ workspacePreselected: undefined }),
+				() => ({ workspacePreselected: undefined, workspacePreselectionSource: undefined }),
 				telemetryService,
 				lifecycleService,
 			));
@@ -80,11 +98,60 @@ suite('SessionsWindowOpenTelemetry', () => {
 					source: 'commandPalette',
 					signInDialogShown: false,
 					workspacePreselected: undefined,
+					workspacePreselectionSource: undefined,
 					windowCloseDurationMs: undefined,
+					emissionReason: 'timer',
 				},
 			}]);
 			tracker.dispose();
 			lifecycleService.dispose();
 		});
+	});
+
+	test('records lifecycle shutdown reasons exactly once', () => {
+		const reasons: readonly [ShutdownReason, 'quit' | 'reload' | 'otherShutdown'][] = [
+			[ShutdownReason.QUIT, 'quit'],
+			[ShutdownReason.RELOAD, 'reload'],
+			[ShutdownReason.LOAD, 'otherShutdown'],
+		];
+
+		for (const [shutdownReason, emissionReason] of reasons) {
+			const lifecycleService = disposables.add(new TestLifecycleService());
+			const telemetryService = new TestTelemetryService();
+			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
+				AgentsWindowOpenSource.CommandPalette,
+				() => false,
+				() => ({ workspacePreselected: undefined, workspacePreselectionSource: undefined }),
+				telemetryService,
+				lifecycleService,
+			));
+
+			lifecycleService.fireShutdown(shutdownReason);
+			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
+
+			assert.strictEqual(telemetryService.events.length, 1);
+			const event = telemetryService.events[0];
+			assert.deepStrictEqual({
+				name: event.name,
+				source: Reflect.get(event.data, 'source'),
+				signInDialogShown: Reflect.get(event.data, 'signInDialogShown'),
+				workspacePreselected: Reflect.get(event.data, 'workspacePreselected'),
+				workspacePreselectionSource: Reflect.get(event.data, 'workspacePreselectionSource'),
+				emissionReason: Reflect.get(event.data, 'emissionReason'),
+			}, {
+				name: 'agents/firstTimeWindowOpen',
+				source: 'commandPalette',
+				signInDialogShown: false,
+				workspacePreselected: undefined,
+				workspacePreselectionSource: undefined,
+				emissionReason,
+			});
+			assert.strictEqual(
+				typeof Reflect.get(event.data, 'windowCloseDurationMs'),
+				shutdownReason === ShutdownReason.QUIT ? 'number' : 'undefined',
+			);
+			tracker.dispose();
+			lifecycleService.dispose();
+		}
 	});
 });

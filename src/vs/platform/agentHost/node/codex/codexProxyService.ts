@@ -9,7 +9,7 @@ import { join } from '../../../../base/common/path.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { CopilotApiError, ICopilotApiService } from '../shared/copilotApiService.js';
-import { buildForwardedChatError, encodeForwardedChatError } from '../shared/forwardedChatError.js';
+import { buildForwardedChatError, encodeForwardedChatError } from '../shared/proxyChatError.js';
 import {
 	ILoopbackProxyHandle,
 	ILoopbackProxyRuntime,

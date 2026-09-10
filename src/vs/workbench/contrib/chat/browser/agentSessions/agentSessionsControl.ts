@@ -19,8 +19,6 @@ import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Throttler } from '../../../../../base/common/async.js';
@@ -60,6 +58,7 @@ export interface IAgentSessionsControlOptions {
 	readonly itemHeight?: number;
 	readonly sectionHeight?: number;
 
+	createNewChat(): void;
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
 	collapseOlderSections?(): boolean;
@@ -116,7 +115,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -566,7 +564,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this._register(list.onMouseDblClick(({ element }) => {
 			if (element === null) {
-				this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+				this.options.createNewChat();
 			}
 		}));
 

@@ -3148,6 +3148,23 @@ suite('Editor Controller', () => {
 		);
 	});
 
+	test('move right normalizes the cursor to the next wrapped line', () => {
+		withTestCodeEditor(
+			'text edit',
+			{
+				wordWrap: 'wordWrapColumn',
+				wordWrapColumn: 5,
+				wrappingIndent: 'none'
+			},
+			(editor, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+				moveRight(editor, viewModel);
+
+				assert.deepStrictEqual(viewModel.getCursorStates()[0].viewState.position, new Position(2, 1));
+			}
+		);
+	});
+
 	test('issue #123178: sticky tab in consecutive wrapped lines', () => {
 		const model = createTextModel('    aaaa        aaaa', undefined, { tabSize: 4 });
 

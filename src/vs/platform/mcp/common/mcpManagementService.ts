@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
@@ -186,8 +186,8 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 			case RegistryType.DOCKER: return 'docker';
 			case RegistryType.PYTHON: return 'uvx';
 			case RegistryType.NUGET: return 'dnx';
+			default: throw new Error(`Unsupported MCP server package registry type: ${packageType}`);
 		}
-		return packageType;
 	}
 
 	protected getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
@@ -534,6 +534,13 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		throw new Error('Not supported');
 	}
 
+	override async uninstall(server: ILocalMcpServer, options?: Omit<UninstallOptions, 'mcpResource'>): Promise<void> {
+		if (server.location && !this.uriIdentityService.extUri.isEqual(URI.revive(server.location), this.getLocation(server.name, server.version))) {
+			throw new Error(`Invalid MCP server location for ${server.name}`);
+		}
+		await super.uninstall(server, options);
+	}
+
 	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer): Promise<ILocalMcpServer> {
 		await this.updateMetadataFromGallery(gallery);
 		await this.updateLocal(gallery);
@@ -597,15 +604,27 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 				}
 				storedMcpServerInfo.readmeUrl = readmeUrl;
 			} catch (e) {
-				this.logService.error('MCP Management Service: failed to read manifest', location.toString(), e);
+				if (toFileOperationResult(e) === FileOperationResult.FILE_NOT_FOUND) {
+					this.logService.trace('MCP Management Service: manifest not found', manifestLocation.toString());
+				} else {
+					this.logService.error('MCP Management Service: failed to read manifest', location.toString(), e);
+				}
 			}
 		}
 		return storedMcpServerInfo;
 	}
 
 	protected getLocation(name: string, version?: string): URI {
-		name = name.replace('/', '.');
-		return this.uriIdentityService.extUri.joinPath(this.mcpLocation, version ? `${name}-${version}` : name);
+		const folderName = version ? `${name.replace('/', '.')}-${version}` : name.replace('/', '.');
+		const location = this.uriIdentityService.extUri.joinPath(this.mcpLocation, folderName);
+		if (
+			this.uriIdentityService.extUri.basename(location) !== folderName
+			|| this.uriIdentityService.extUri.isEqual(location, this.mcpLocation)
+			|| !this.uriIdentityService.extUri.isEqualOrParent(location, this.mcpLocation)
+		) {
+			throw new Error(`Invalid MCP server location for ${name}`);
+		}
+		return location;
 	}
 
 	protected override installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {

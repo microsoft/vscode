@@ -31,7 +31,8 @@ use super::CommandContext;
 /// standalone entry at all.
 pub async fn agent_kill(ctx: CommandContext, args: AgentKillArgs) -> Result<i32, AnyError> {
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
-	let candidates = agent_host_registry::list_live_standalone_endpoints(&ctx.log, &user_data_path);
+	let candidates =
+		agent_host_registry::list_live_standalone_endpoints(&ctx.log, &user_data_path).await;
 
 	if candidates.is_empty() {
 		return Err(CodeError::NoRunningAgentHost.into());

@@ -1,0 +1,23 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Painted via the CSS Custom Highlight API; see chatFindHighlights.ts. */
+::highlight(chat-find-current-match) {
+	background-color: var(--vscode-chat-findMatchBackground);
+	color: var(--vscode-editor-findMatchForeground);
+}
+
+::highlight(chat-find-other-match) {
+	background-color: var(--vscode-chat-findMatchHighlightBackground);
+	color: var(--vscode-editor-findMatchHighlightForeground);
+}
+
+.monaco-editor .chat-find-current-match {
+	background-color: var(--vscode-chat-findMatchBackground);
+}
+
+.monaco-editor .chat-find-other-match {
+	background-color: var(--vscode-chat-findMatchHighlightBackground);
+}

@@ -142,6 +142,7 @@ function callBuild(
 		restrictedMode?: boolean;
 		onRequestTrust?: () => void;
 		setupRequired?: boolean;
+		showManageModelsInSetupRequired?: boolean;
 		onRequestSetup?: () => void;
 		onSelect?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 		entitlementService?: IChatEntitlementService;
@@ -172,6 +173,7 @@ function callBuild(
 			showAutoModel: opts.showAutoModel ?? true,
 			restrictedMode: opts.restrictedMode ?? false,
 			setupRequired: opts.setupRequired ?? false,
+			showManageModelsInSetupRequired: opts.showManageModelsInSetupRequired ?? false,
 			isUBB: false,
 		},
 		actions: {
@@ -204,6 +206,36 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Action } as IActionListItem<IActionWidgetDropdownAction>), 'menuitemradio');
 		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Separator } as IActionListItem<IActionWidgetDropdownAction>), 'separator');
 		assert.strictEqual(provider.getWidgetRole(), 'menu');
+	});
+
+	test('search uses listbox options and announces the current model without menu check state', () => {
+		const provider = getModelPickerAccessibilityProvider(true);
+		const item: IActionListItem<IActionWidgetDropdownAction> = {
+			kind: ActionListItemKind.Action,
+			label: 'Test Model',
+			item: {
+				id: 'test-model',
+				label: 'Test Model',
+				enabled: true,
+				checked: true,
+				class: undefined,
+				tooltip: '',
+				run: () => { },
+			},
+		};
+		assert.deepStrictEqual({
+			role: provider.getRole(item),
+			listRole: provider.getWidgetRole(),
+			checked: provider.isChecked(item),
+			label: provider.getAriaLabel(item),
+			separatorRole: provider.getRole({ kind: ActionListItemKind.Separator }),
+		}, {
+			role: 'option',
+			listRole: 'listbox',
+			checked: undefined,
+			label: 'Test Model, Current model',
+			separatorRole: 'separator',
+		});
 	});
 
 	test('accessibility provider announces the Restricted Mode Trust action as a plain menuitem (not a radio)', () => {
@@ -240,6 +272,29 @@ suite('buildModelPickerItems', () => {
 			description: 'Copilot',
 			ariaDescription: 'Medium cost',
 		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
+	});
+
+	test('accessibility provider announces hover notices with their severity', () => {
+		const model = createModel('gpt-4.1', 'GPT-4.1');
+		model.metadata = {
+			...model.metadata,
+			priceCategory: 'medium',
+			warningText: { data_retention: 'Prompts are **retained** for 30 days.' },
+			infoText: { model_relocated: 'Now serves from a [new region](https://aka.ms/region).' },
+		} as ILanguageModelChatMetadata;
+		const provider = getModelPickerAccessibilityProvider();
+		const item = getActionItems(callBuild([model])).find(a => a.label === 'GPT-4.1')!;
+
+		assert.strictEqual(
+			provider.getAriaLabel(item),
+			'GPT-4.1, Medium cost, Warning: Prompts are retained for 30 days., Info: Now serves from a new region.');
+	});
+
+	test('accessibility provider leaves models without notices unchanged', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		const item = getActionItems(callBuild([createModel('gpt-4.1', 'GPT-4.1')])).find(a => a.label === 'GPT-4.1')!;
+
+		assert.strictEqual(provider.getAriaLabel(item), 'GPT-4.1');
 	});
 
 	test('auto model always appears first', () => {
@@ -339,21 +394,23 @@ suite('buildModelPickerItems', () => {
 	});
 
 	test('setupRequired shows an explanatory header and a Sign In action instead of auto', () => {
-		const items = callBuild([], { setupRequired: true, onRequestSetup: () => { } });
+		const items = callBuild([], { setupRequired: true, showManageModelsInSetupRequired: true, onRequestSetup: () => { } });
 		const actions = getActionItems(items);
 		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Sign in to use Copilot'));
-		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions.length, 2);
 		assert.strictEqual(actions[0].item?.id, 'setupRequiredSignIn');
 		assert.strictEqual(actions[0].item?.enabled, true);
 		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
-		assert.strictEqual(actions.some(a => a.item?.id === 'manageModels'), false);
+		assert.strictEqual(actions[1].item?.id, 'manageModels');
 	});
 
 	test('setupRequired Sign In action is disabled without a setup callback', () => {
 		const items = callBuild([], { setupRequired: true });
-		const signIn = getActionItems(items).find(a => a.item?.id === 'setupRequiredSignIn');
+		const actions = getActionItems(items);
+		const signIn = actions.find(a => a.item?.id === 'setupRequiredSignIn');
 		assert.strictEqual(signIn?.item?.enabled, false);
 		assert.strictEqual(signIn?.disabled, true);
+		assert.strictEqual(actions.some(a => a.item?.id === 'manageModels'), false);
 	});
 
 	test('setupRequired Sign In action invokes the setup callback', () => {

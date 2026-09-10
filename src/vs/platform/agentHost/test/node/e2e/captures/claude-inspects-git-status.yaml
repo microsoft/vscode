@@ -14,7 +14,7 @@ exchanges:
           name: Bash
           input:
             command: git status --short
-            description: Check git status
+            description: Show git status
       stopReason: tool_use
   - request:
       model: claude-opus-5
@@ -28,7 +28,7 @@ exchanges:
               name: Bash
               input:
                 command: git status --short
-                description: Check git status
+                description: Show git status
         - role: user
           content:
             - type: tool_result
@@ -38,6 +38,6 @@ exchanges:
                 ?? untracked.txt
     response:
       content: |-
-        Modified: tracked.txt
-        Untracked: untracked.txt
+        Modified: `tracked.txt`
+        Untracked: `untracked.txt`
       stopReason: end_turn

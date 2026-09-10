@@ -12,7 +12,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
-import { AgentSignal } from '../../common/agentService.js';
+import { AgentSignal } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -27,7 +28,7 @@ import type { SubagentRegistry } from './claudeSubagentRegistry.js';
  * the materializer service directly. The callback MUST start the SDK in
  * `resume` mode (i.e. pass `Options.resume = sessionId` instead of
  * `Options.sessionId`) and MUST NOT re-fire the agent's
- * `onDidMaterializeSession` event — that event is once-per-provisional
+ * `onDidMaterializeChat` event — that event is once-per-provisional
  * promotion (see `claudeAgent.ts` materialize path).
  */
 export interface IRematerializer {
@@ -131,7 +132,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		const observed = new Map((await query.mcpServerStatus()).map(server => [server.name, server.status !== 'disabled']));
 		for (const [serverName, enabled] of desired) {
 			// `desired` is session-scoped state, so it can name servers this
-			// particular chat's query does not have (a peer chat that has not
+			// particular chat's query does not have (another chat that has not
 			// finished connecting its servers, or a chat created after the
 			// session state was published). Toggling one of those always fails
 			// with `Server not found: <name>` and would take the turn down with
@@ -246,8 +247,8 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	constructor(
 		readonly sessionId: string,
-		readonly sessionUri: URI,
 		readonly chatChannelUri: URI,
+		resource: URI,
 		warm: WarmQuery,
 		abortController: AbortController,
 		dbRef: IReference<ISessionDatabase>,
@@ -271,7 +272,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, clientToolOwner,
+			ClaudeSdkMessageRouter, chatChannelUri, resource, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*
@@ -424,7 +425,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * If a previous turn aborted or crashed, this triggers a rebind via
 	 * the attached rematerializer before queueing.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
 		if (this._needsRebind) {
 			await this._rebindQuery('recover');
 		}
@@ -440,6 +441,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			sdkMessage: prompt,
 			sdkUuid: typeof prompt.uuid === 'string' ? prompt.uuid : turnId,
 			turnId,
+			clientContext,
 			stopWatch: StopWatch.create(false),
 			deferred: new DeferredPromise<void>(),
 		};
@@ -476,6 +478,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			sdkMessage: prompt,
 			sdkUuid,
 			turnId: parent.turnId,
+			clientContext: parent.clientContext,
 			stopWatch: parent.stopWatch,
 			deferred: new DeferredPromise<void>(),
 			steeringPendingId: pendingMessageId,
@@ -673,12 +676,15 @@ export class ClaudeSdkPipeline extends Disposable {
 						this._isResumed = true;
 					}
 				}
-				const turnId = this._queue.peekParent()?.turnId;
-				const turnDuration = this._queue.peekParent()?.stopWatch.elapsed();
+				const parent = this._queue.peekParent();
+				const turnId = parent?.turnId;
+				const clientContext = parent?.clientContext;
+				const turnDuration = parent?.stopWatch.elapsed();
 				try {
 					await this._router.handle(message, turnId, {
 						turnDuration,
 						mode: this._currentPermissionMode,
+						clientContext,
 					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);

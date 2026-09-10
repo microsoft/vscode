@@ -16,7 +16,7 @@ import {
 	type ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../../node/shared/copilotApiService.js';
-import { PROXY_ERROR_PREFIX, tryParseForwardedChatError } from '../../node/shared/forwardedChatError.js';
+import { PROXY_ERROR_PREFIX, tryParseForwardedChatError } from '../../node/shared/proxyChatError.js';
 import { ClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 
 /**

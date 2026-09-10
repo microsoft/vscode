@@ -197,14 +197,15 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		const allTools = this.toolsService.getEnabledTools(this.options.request, endpoint);
 
 		// Only include tools relevant for search operations.
-		// We include semantic_search (Codebase) and the basic search primitives.
-		// The Codebase tool checks for inSubAgent context to prevent nested tool calling loops.
 		const allowedSearchTools = new Set([
-			ToolName.Codebase,  // Semantic search
 			ToolName.FindFiles,
 			ToolName.FindTextInFiles,
 			ToolName.ReadFile
 		]);
+		const semanticSearchEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SubagentSemanticSearchEnabled, this._experimentationService);
+		if (semanticSearchEnabled) {
+			allowedSearchTools.add(ToolName.Codebase);
+		}
 
 		return allTools.filter(tool => allowedSearchTools.has(tool.name as ToolName));
 	}

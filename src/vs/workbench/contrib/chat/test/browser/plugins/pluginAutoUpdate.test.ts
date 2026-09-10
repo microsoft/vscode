@@ -5,13 +5,32 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IMeteredConnectionService } from '../../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { PluginAutoUpdate } from '../../../browser/pluginAutoUpdate.js';
 import { IPluginInstallService, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
+
+class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
+	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
+
+	constructor(public isConnectionMetered: boolean) {
+		super();
+	}
+
+	setIsConnectionMetered(isConnectionMetered: boolean): void {
+		this.isConnectionMetered = isConnectionMetered;
+		this._onDidChangeIsConnectionMetered.fire(isConnectionMetered);
+	}
+}
 
 suite('PluginAutoUpdate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -19,12 +38,13 @@ suite('PluginAutoUpdate', () => {
 	interface MockState {
 		marketplacesWithUpdates: ReturnType<typeof observableValue<ReadonlySet<string>>>;
 		updateAllCalls: IUpdateAllPluginsOptions[];
-		updateAllImpl: () => Promise<IUpdateAllPluginsResult>;
+		updateAllImpl: (token: CancellationToken) => Promise<IUpdateAllPluginsResult>;
 		clearUpdatesAvailableCalls: ReadonlySet<string>[];
 	}
 
-	function createContribution(stateOverrides?: Partial<MockState>): { contribution: PluginAutoUpdate; state: MockState } {
+	function createContribution(stateOverrides?: Partial<MockState>, isConnectionMetered = false): { contribution: PluginAutoUpdate; state: MockState; meteredConnectionService: TestMeteredConnectionService } {
 		const instantiationService = store.add(new TestInstantiationService());
+		const meteredConnectionService = store.add(new TestMeteredConnectionService(isConnectionMetered));
 
 		const state: MockState = {
 			marketplacesWithUpdates: observableValue<ReadonlySet<string>>('test.marketplacesWithUpdates', new Set()),
@@ -46,14 +66,15 @@ suite('PluginAutoUpdate', () => {
 		instantiationService.stub(IPluginInstallService, {
 			updateAllPlugins: async (options: IUpdateAllPluginsOptions, _token: CancellationToken): Promise<IUpdateAllPluginsResult> => {
 				state.updateAllCalls.push(options);
-				return state.updateAllImpl();
+				return state.updateAllImpl(_token);
 			},
 		} as Partial<IPluginInstallService> as IPluginInstallService);
 
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IMeteredConnectionService, meteredConnectionService);
 
 		const contribution = store.add(instantiationService.createInstance(PluginAutoUpdate));
-		return { contribution, state };
+		return { contribution, state, meteredConnectionService };
 	}
 
 	/** Waits for an in-flight microtask-driven update to settle. */
@@ -78,6 +99,90 @@ suite('PluginAutoUpdate', () => {
 			automatic: call.automatic,
 			marketplaceIds: [...call.marketplaceIds ?? []],
 		})), [{ silent: true, automatic: true, marketplaceIds: ['github:microsoft/plugins'] }]);
+	});
+
+	test('retains queued updates while metered and runs them when unmetered', async () => {
+		const { state, meteredConnectionService } = createContribution(undefined, true);
+
+		state.marketplacesWithUpdates.set(new Set(['github:microsoft/plugins']), undefined);
+		await flushMicrotasks();
+		assert.deepStrictEqual({
+			updateAllCalls: state.updateAllCalls,
+			clearUpdatesAvailableCalls: state.clearUpdatesAvailableCalls,
+		}, {
+			updateAllCalls: [],
+			clearUpdatesAvailableCalls: [],
+		});
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await flushMicrotasks();
+		await flushMicrotasks();
+
+		assert.deepStrictEqual({
+			updateAllCalls: state.updateAllCalls.map(call => [...call.marketplaceIds ?? []]),
+			clearUpdatesAvailableCalls: state.clearUpdatesAvailableCalls.map(ids => [...ids]),
+		}, {
+			updateAllCalls: [['github:microsoft/plugins']],
+			clearUpdatesAvailableCalls: [['github:microsoft/plugins']],
+		});
+	});
+
+	test('allows an in-flight update to finish after the connection becomes metered', async () => {
+		let resolveUpdate!: () => void;
+		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {
+			resolveUpdate = () => resolve({ updatedNames: [], failedNames: [] });
+		});
+		const { state, meteredConnectionService } = createContribution({
+			updateAllImpl: () => pendingUpdate,
+		});
+
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
+		await flushMicrotasks();
+		meteredConnectionService.setIsConnectionMetered(true);
+		resolveUpdate();
+		await pendingUpdate;
+		await flushMicrotasks();
+
+		assert.deepStrictEqual({
+			updateAllCalls: state.updateAllCalls.length,
+			clearUpdatesAvailableCalls: state.clearUpdatesAvailableCalls.length,
+			updateStillQueued: [...state.marketplacesWithUpdates.get()],
+		}, {
+			updateAllCalls: 1,
+			clearUpdatesAvailableCalls: 1,
+			updateStillQueued: [],
+		});
+
+		meteredConnectionService.setIsConnectionMetered(false);
+		await flushMicrotasks();
+		assert.strictEqual(state.updateAllCalls.length, 1);
+	});
+
+	test('disposing during an in-flight update does not restart queued work', async () => {
+		let resolveUpdate!: () => void;
+		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {
+			resolveUpdate = () => resolve({ updatedNames: [], failedNames: [] });
+		});
+		const { contribution, state } = createContribution({
+			updateAllImpl: () => pendingUpdate,
+		});
+
+		state.marketplacesWithUpdates.set(new Set(['a']), undefined);
+		await flushMicrotasks();
+		contribution.dispose();
+		resolveUpdate();
+		await pendingUpdate;
+		await flushMicrotasks();
+
+		assert.deepStrictEqual({
+			updateAllCalls: state.updateAllCalls.length,
+			clearUpdatesAvailableCalls: state.clearUpdatesAvailableCalls.length,
+			updateStillQueued: [...state.marketplacesWithUpdates.get()],
+		}, {
+			updateAllCalls: 1,
+			clearUpdatesAvailableCalls: 1,
+			updateStillQueued: [],
+		});
 	});
 
 	test('queues a marketplace reported while another update is in flight', async () => {

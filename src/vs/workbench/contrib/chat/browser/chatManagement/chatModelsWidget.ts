@@ -534,7 +534,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -590,7 +591,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		}
 
 		const deprecationLink = entry.vendorEntry.vendor.deprecation?.link;
-		if (deprecationLink) {
+		if (deprecationLink && !this.environmentService.isSessionsWindow) {
 			const icon = $('span');
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.linkExternal));
 			icon.setAttribute('aria-hidden', 'true');
@@ -1280,11 +1281,10 @@ export class ChatModelsWidget extends Disposable {
 		this.addButtonContainer = DOM.append(searchAndButtonContainer, $('.section-title-actions'));
 		const buttonOptions: IButtonOptions = {
 			...defaultButtonStyles,
-			supportIcons: true,
 		};
 
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models')}`;
+		this.addButton.label = localize('models.enableModelProvider', 'Add Models');
 		this.addButton.element.classList.add('models-add-model-button');
 		this.updateAddModelsButton();
 		this._register(this.addButton.onDidClick((e) => {
@@ -1303,7 +1303,7 @@ export class ChatModelsWidget extends Disposable {
 				...buttonOptions,
 				secondary: true,
 			}));
-			browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
+			browseMarketplaceButton.label = localize('models.installProviderExtensions', "Install Model Providers");
 			browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
 			this._register(browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
 		}

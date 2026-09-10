@@ -58,6 +58,25 @@ suite('SessionGitHubInfoResolver', () => {
 		assert.deepStrictEqual(snapshot(resolver.gitHubInfo.get()), { owner: 'owner', repo: 'repo', pullRequest: undefined });
 	});
 
+	test('uses the tracked upstream branch to resolve the pull request', async () => {
+		const gitHubService = new TestGitHubService();
+		gitHubService.setPullRequestNumber('owner', 'repo', 'pull-request-branch', 42);
+		const meta: SessionMeta = {
+			git: {
+				hasGitHubRemote: true,
+				githubOwner: 'owner',
+				githubRepo: 'repo',
+				branchName: 'agents/generated',
+				upstreamBranchName: 'origin/pull-request-branch',
+			},
+		};
+
+		const { resolver } = createResolver(meta, gitHubService);
+		await timeout(0);
+
+		assert.strictEqual(resolver.gitHubInfo.get()?.pullRequest?.number, 42);
+	});
+
 	test('without a GitHub service the pull request stays dormant', async () => {
 		const { resolver } = createResolver(gitMeta('owner', 'repo', 'feature'), undefined);
 		await timeout(0);

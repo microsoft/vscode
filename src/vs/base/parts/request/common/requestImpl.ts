@@ -30,6 +30,9 @@ export async function request(options: IRequestOptions, token: CancellationToken
 		if (options.disableCache) {
 			fetchInit.cache = 'no-store';
 		}
+		if (options.followRedirects === 0) {
+			fetchInit.redirect = 'manual';
+		}
 		const res = await fetch(options.url || '', fetchInit);
 		return {
 			res: {

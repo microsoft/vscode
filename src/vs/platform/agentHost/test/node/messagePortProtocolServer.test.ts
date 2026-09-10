@@ -99,4 +99,32 @@ suite('MessagePortProtocolServer', () => {
 			]),
 		});
 	});
+
+	test('reconnects the same IPC client after its transport closes', async () => {
+		const server = ds.add(new MessagePortProtocolServer<string>());
+		const transports: IProtocolTransport[] = [];
+		const messages: ProtocolMessage[][] = [];
+		ds.add(server.onConnection(transport => {
+			const received: ProtocolMessage[] = [];
+			transports.push(transport);
+			messages.push(received);
+			ds.add(transport.onMessage(message => received.push(message)));
+		}));
+
+		await server.call('renderer', 'connect');
+		await server.call('renderer', 'close');
+		await server.call('renderer', 'connect');
+		await server.call('renderer', 'send', '{"jsonrpc":"2.0","method":"reconnected"}');
+
+		assert.deepStrictEqual({
+			connectionCount: transports.length,
+			messages,
+		}, {
+			connectionCount: 2,
+			messages: [
+				[],
+				[{ jsonrpc: '2.0', method: 'reconnected' }],
+			],
+		});
+	});
 });
