@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,6 +22,8 @@ import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from 
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import type { ISessionsProvider, ISessionWorktreeOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ConfigureAutomationTool, ConfigureAutomationToolId, DeleteAutomationTool, DeleteAutomationToolId, ListAutomationsTool, ListAutomationsToolId, RunAutomationTool, RunAutomationToolId } from '../../browser/automationTools.js';
 
 const FOLDER = URI.parse('file:///workspace');
@@ -48,8 +51,12 @@ function createConfigureAutomationTool(
 	sessionsManagementService: ISessionsManagementService,
 	configurationService: TestConfigurationService,
 	telemetryService: ITelemetryService = NullTelemetryService,
+	provider?: ISessionsProvider,
 ): ConfigureAutomationTool {
-	return new ConfigureAutomationTool(automationService, sessionsManagementService, configurationService, telemetryService);
+	return new ConfigureAutomationTool(
+		automationService, sessionsManagementService, configurationService, telemetryService,
+		upcastPartial<ISessionsProvidersService>({ getProvider: () => provider }),
+	);
 }
 
 function createAutomation(overrides?: Partial<IAutomationDescriptor>): IAutomationDescriptor {
@@ -301,7 +308,7 @@ function getText(result: IToolResult): string {
 }
 
 suite('AutomationTools', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('tool data is gated by AI and Automations context keys', () => {
 		const automationService = new FakeAutomationService();
@@ -1160,6 +1167,11 @@ suite('AutomationTools', () => {
 			const candidates = [providerSessionType('local-agent-host', 'copilot', true), providerSessionType('local-agent-host', 'claude', true)];
 			const tool = createConfigureAutomationTool(
 				automationService, new FakeSessionsManagementService(undefined, false, candidates, candidates), createConfigurationService(),
+				NullTelemetryService,
+				upcastPartial<ISessionsProvider>({
+					id: 'local-agent-host',
+					getWorktreeOptions: async () => ({ supportsWorktree: true, currentBranch: 'main', branches: ['main'] }),
+				}),
 			);
 			const result = await invoke(tool, { automationId: existing.id, target });
 			const [update] = automationService.updated;
@@ -1248,6 +1260,192 @@ suite('AutomationTools', () => {
 			error: 'Session type "copilot" does not support worktree isolation.',
 			created: [],
 		});
+	});
+
+	for (const operation of ['create', 'update'] as const) {
+		for (const supportsWorktree of [true, false, undefined]) {
+			test(`configureAutomation ${operation} validates workspace worktree support: ${supportsWorktree}`, async () => {
+				const folderUri = URI.parse('vscode-agent-host://remote/workspace');
+				const providerId = 'remote-provider';
+				const sessionTypeId = 'claude';
+				const existing = createAutomation({
+					target: { kind: 'workspace', folderUri, providerId, sessionTypeId, isolation: { kind: 'folder' } },
+				});
+				const automationService = new FakeAutomationService([existing]);
+				const requests: Array<{ folderUri: URI; sessionTypeId: string; token: CancellationToken }> = [];
+				const tool = createConfigureAutomationTool(
+					automationService,
+					new FakeSessionsManagementService(undefined, false, [providerSessionType(providerId, sessionTypeId, true)]),
+					createConfigurationService(),
+					NullTelemetryService,
+					upcastPartial<ISessionsProvider>({
+						id: providerId,
+						getWorktreeOptions: async (folderUri, sessionTypeId, token) => {
+							requests.push({ folderUri, sessionTypeId, token });
+							return supportsWorktree === undefined ? undefined : { supportsWorktree, currentBranch: 'main', branches: ['main'] };
+						},
+					}),
+				);
+				const result = await invoke(tool, {
+					...(operation === 'create'
+						? { name: 'Worktree automation', prompt: 'Review the repository', schedule: { interval: 'manual' } }
+						: { automationId: existing.id }),
+					target: { kind: 'workspace', folderUri: folderUri.toString(), providerId, sessionTypeId, isolation: 'worktree', branch: 'main' },
+				});
+				const target: AutomationTarget = { kind: 'workspace', folderUri, providerId, sessionTypeId, isolation: { kind: 'worktree', branch: 'main' } };
+
+				assert.deepStrictEqual({
+					requests: requests.map(request => ({ ...request, folderUri: request.folderUri.toString() })),
+					error: result.toolResultError,
+					created: automationService.created.map(automation => automation.target),
+					updated: automationService.updated.map(update => update.patch.target),
+				}, {
+					requests: [{ folderUri: folderUri.toString(), sessionTypeId, token: CancellationToken.None }],
+					error: supportsWorktree ? undefined : 'The selected workspace does not support worktree isolation.',
+					created: supportsWorktree && operation === 'create' ? [target] : [],
+					updated: supportsWorktree && operation === 'update' ? [target] : [],
+				});
+			});
+		}
+	}
+
+	test('configureAutomation preserves worktree support for providers without workspace option discovery', async () => {
+		const automationService = new FakeAutomationService();
+		const tool = createConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined, false, [providerSessionType('fallback-provider', 'copilotcli', true)]),
+			createConfigurationService(),
+			NullTelemetryService,
+			upcastPartial<ISessionsProvider>({ id: 'fallback-provider' }),
+		);
+		const result = await invoke(tool, {
+			name: 'Fallback worktree', prompt: 'Review the repository', schedule: { interval: 'manual' },
+			target: { kind: 'workspace', folderUri: FOLDER.toString(), isolation: 'worktree', branch: 'main' },
+		});
+
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			targets: automationService.created.map(automation => automation.target),
+		}, {
+			error: undefined,
+			targets: [{ kind: 'workspace', folderUri: FOLDER, providerId: 'fallback-provider', sessionTypeId: 'copilotcli', isolation: { kind: 'worktree', branch: 'main' } }],
+		});
+	});
+
+	test('configureAutomation rejects worktree targets whose provider has disappeared', async () => {
+		const automationService = new FakeAutomationService();
+		const tool = createConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined, false, [providerSessionType('unavailable-provider', 'codex', true)]),
+			createConfigurationService(),
+		);
+		const result = await invoke(tool, {
+			name: 'Unavailable worktree', prompt: 'Do not save', schedule: { interval: 'manual' },
+			target: { kind: 'workspace', folderUri: FOLDER.toString(), isolation: 'worktree', branch: 'main' },
+		});
+
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			created: automationService.created,
+		}, {
+			error: 'Sessions provider "unavailable-provider" is no longer available.',
+			created: [],
+		});
+	});
+
+	test('configureAutomation leaves non-worktree and unrelated partial updates independent of repository availability', async () => {
+		const existing = createAutomation({
+			target: { kind: 'workspace', folderUri: FOLDER, providerId: 'remote-provider', sessionTypeId: 'custom', isolation: { kind: 'worktree', branch: 'main' } },
+		});
+		const automationService = new FakeAutomationService([existing]);
+		let lookups = 0;
+		const tool = createConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined, false, [providerSessionType('remote-provider', 'custom', true)]),
+			createConfigurationService(),
+			NullTelemetryService,
+			upcastPartial<ISessionsProvider>({
+				id: 'remote-provider',
+				getWorktreeOptions: async () => { lookups++; return undefined; },
+			}),
+		);
+		const results: IToolResult[] = [];
+		for (const isolation of ['default', 'folder']) {
+			results.push(await invoke(tool, {
+				name: 'Folder automation', prompt: 'Review the repository', schedule: { interval: 'manual' },
+				target: { kind: 'workspace', folderUri: FOLDER.toString(), isolation },
+			}));
+		}
+		results.push(await invoke(tool, { automationId: existing.id, enabled: false }));
+
+		assert.deepStrictEqual({
+			lookups,
+			errors: results.map(result => result.toolResultError),
+			created: automationService.created.length,
+			updated: automationService.updated,
+		}, { lookups: 0, errors: [undefined, undefined, undefined], created: 2, updated: [{ id: existing.id, patch: { enabled: false } }] });
+	});
+
+	test('configureAutomation cancellation interrupts workspace validation without writing', async () => {
+		const automationService = new FakeAutomationService();
+		const telemetryService = new TestTelemetryService();
+		const started = new DeferredPromise<void>();
+		const worktreeOptions = new DeferredPromise<ISessionWorktreeOptions | undefined>();
+		const cancellation = teardown.add(new CancellationTokenSource());
+		let requestToken: CancellationToken | undefined;
+		const tool = createConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined, false, [providerSessionType('remote-provider', 'codex', true)]),
+			createConfigurationService(),
+			telemetryService,
+			upcastPartial<ISessionsProvider>({
+				id: 'remote-provider',
+				getWorktreeOptions: async (_folderUri, _sessionTypeId, token) => {
+					requestToken = token;
+					await started.complete();
+					return worktreeOptions.p;
+				},
+			}),
+		);
+		const pending = invoke(tool, {
+			name: 'Cancelled worktree', prompt: 'Do not save', schedule: { interval: 'manual' },
+			target: { kind: 'workspace', folderUri: FOLDER.toString(), isolation: 'worktree', branch: 'main' },
+		}, SESSION_RESOURCE, cancellation.token);
+		await started.p;
+		cancellation.cancel();
+		const result = await pending;
+		await worktreeOptions.complete({ supportsWorktree: true, currentBranch: 'main', branches: ['main'] });
+
+		assert.deepStrictEqual({
+			status: JSON.parse(getText(result)).status,
+			cancelled: requestToken?.isCancellationRequested,
+			created: automationService.created,
+			events: telemetryService.events,
+		}, {
+			status: 'cancelled', cancelled: true, created: [],
+			events: [{ name: 'automation.configureOutcome', data: { operation: 'create', outcome: 'blocked' } }],
+		});
+	});
+
+	test('configureAutomation propagates workspace lookup errors instead of accepting the target', async () => {
+		const automationService = new FakeAutomationService();
+		const error = new Error('Remote repository lookup failed');
+		const tool = createConfigureAutomationTool(
+			automationService,
+			new FakeSessionsManagementService(undefined, false, [providerSessionType('remote-provider', 'copilotcli', true)]),
+			createConfigurationService(),
+			NullTelemetryService,
+			upcastPartial<ISessionsProvider>({
+				id: 'remote-provider',
+				getWorktreeOptions: async () => { throw error; },
+			}),
+		);
+
+		await assert.rejects(invoke(tool, {
+			name: 'Failed lookup', prompt: 'Do not save', schedule: { interval: 'manual' },
+			target: { kind: 'workspace', folderUri: FOLDER.toString(), isolation: 'worktree', branch: 'main' },
+		}), candidate => candidate === error);
+		assert.deepStrictEqual(automationService.created, []);
 	});
 
 	test('configureAutomation rechecks cancellation immediately before writing', async () => {
