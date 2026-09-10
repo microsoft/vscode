@@ -594,6 +594,14 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/home/dev/.copilot/hooks/backup-changes.json'), storage: PromptsStorage.user, type: PromptsType.hook, name: 'Backup Changes', description: 'Auto-stash uncommitted changes' },
 ];
 
+const nestedMigrationUserPrompts: readonly IFixtureFile[] = Array.from({ length: 5 }, (_, index) => ({
+	uri: URI.file(`/home/dev/.copilot/prompts/user-prompt-${index + 1}.prompt.md`),
+	storage: PromptsStorage.user,
+	type: PromptsType.prompt,
+	name: `User Prompt ${index + 1}`,
+	description: `Additional user prompt ${index + 1}`,
+}));
+
 const agentInstructions: IAgentInstructionFile[] = [
 	{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
 	{ uri: URI.file('/workspace/CLAUDE.md'), realPath: undefined, type: AgentInstructionFileType.claudeMd },
@@ -2056,6 +2064,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+			files: [...allFiles, ...nestedMigrationUserPrompts],
 			width: 550,
 			height: 500,
 		}),
