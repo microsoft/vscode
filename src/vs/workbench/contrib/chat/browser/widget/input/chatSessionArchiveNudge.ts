@@ -34,6 +34,7 @@ export interface IChatSessionArchiveNudgeOptions {
 	readonly pullRequestCount: number;
 	readonly onArchive: () => Promise<void>;
 	readonly onDismiss: () => void;
+	readonly onOpenCleanupSettings: () => Promise<unknown>;
 }
 
 /** A session-scoped suggestion whose owner decides when archiving is appropriate. */
@@ -47,6 +48,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 	private readonly recoveryElement: HTMLElement;
 	private readonly worktreeElement: HTMLElement;
 	private readonly archiveButton: Button;
+	private readonly cleanupSettingsButton: Button;
 	private readonly dismissAction: Action;
 	private archiving = false;
 	private titleTreatment: string | undefined;
@@ -99,6 +101,9 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.archiveButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
 		this.archiveButton.element.setAttribute('aria-describedby', this.descriptionElement.id);
 		this._register(this.archiveButton.onDidClick(() => this.archive()));
+		this.cleanupSettingsButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
+		this.cleanupSettingsButton.label = localize('chat.sessionArchiveNudge.configureAutomaticCleanup', "Configure Automatic Cleanup");
+		this._register(this.cleanupSettingsButton.onDidClick(() => void this.openCleanupSettings()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.equals(KeyCode.Escape)) {
@@ -225,10 +230,19 @@ export class ChatSessionArchiveNudge extends Disposable {
 		}
 	}
 
+	private async openCleanupSettings(): Promise<void> {
+		try {
+			await this.options.onOpenCleanupSettings();
+		} catch (error) {
+			this.notificationService.error(localize('chat.sessionArchiveNudge.openCleanupSettingsError', "Unable to open automatic cleanup settings: {0}", toErrorMessage(error)));
+		}
+	}
+
 	private setArchiving(archiving: boolean): void {
 		this.archiving = archiving;
 		this.domNode.setAttribute('aria-busy', String(archiving));
 		this.archiveButton.enabled = !archiving;
+		this.cleanupSettingsButton.enabled = !archiving;
 		this.dismissAction.enabled = !archiving;
 		this.updateButtonLabel();
 	}
