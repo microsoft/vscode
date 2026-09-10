@@ -1531,6 +1531,32 @@ suite('CodexAgent model refresh', () => {
 		}]);
 	});
 
+	test('publishes context size options for ChatGPT subscription models without Copilot models', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_connection'] = {
+			...createChatGPTConnection(),
+			readModelContextWindows: async () => new Map([['gpt-5.6-sol', { defaultSize: 272_000, maxSize: 872_000 }]]),
+		} as never;
+
+		await agent.refreshModels();
+
+		assert.deepStrictEqual(agent.models.get().map(model => ({
+			id: model.id,
+			maxContextWindow: model.maxContextWindow,
+			contextSize: model.configSchema?.properties.contextSize && {
+				enum: model.configSchema.properties.contextSize.enum,
+				default: model.configSchema.properties.contextSize.default,
+			},
+		})), [{
+			id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
+			maxContextWindow: 872_000,
+			contextSize: {
+				enum: [272_000, 872_000],
+				default: 272_000,
+			},
+		}]);
+	});
+
 	test('omits the thinking level when a Codex model advertises no reasoning efforts', async () => {
 		const agent = createAgent(disposables, async () => []);
 		agent['_connection'] = {
