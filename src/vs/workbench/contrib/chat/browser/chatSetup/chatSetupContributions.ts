@@ -48,7 +48,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { ExtensionRuntimeActionType, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { UpdateTitleBarEditorVisibleContext } from '../../../update/common/update.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -780,7 +780,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -791,20 +792,21 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 		this.registerListeners();
 		this.registerActions();
-
-		this.handleChatDisabled(false);
 	}
 
-	private handleChatDisabled(fromEvent: boolean): void {
-		const chatDisabled = this.configurationService.inspect(ChatAIDisabledSettingId);
-		if (chatDisabled.value === true) {
-			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally);
-			if (fromEvent) {
-				this.maybeHideAuxiliaryBar();
-			}
-		} else if (chatDisabled.value === false && fromEvent /* do not enable extensions unless its an explicit settings change */) {
-			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
+	private async handleChatDisabled(): Promise<void> {
+		const chatDisabled = this.configurationService.getValue(ChatAIDisabledSettingId) === true;
+		if (chatDisabled) {
+			this.maybeHideAuxiliaryBar();
 		}
+
+		// Enablement is derived, but the extension host still has to be told to pick the change up.
+		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
+		if (defaultChatExtension?.runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow) {
+			return this.hostService.reload(); // a remote extension host cannot be restarted in place
+		}
+
+		await this.extensionsWorkbenchService.updateRunningExtensions(chatDisabled ? localize('restartExtensionHost.reason.disable', "Disabling AI features") : localize('restartExtensionHost.reason.enable', "Enabling AI features"));
 	}
 
 	private async registerListeners(): Promise<void> {
@@ -815,7 +817,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 				return;
 			}
 
-			this.handleChatDisabled(true);
+			this.handleChatDisabled();
 		}));
 
 		// Extension installation
@@ -836,24 +838,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 		}));
-	}
-
-	private async maybeEnableOrDisableExtension(state: EnablementState.EnabledGlobally | EnablementState.EnabledWorkspace | EnablementState.DisabledGlobally | EnablementState.DisabledWorkspace): Promise<void> {
-		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
-		if (!defaultChatExtension?.local) {
-			return;
-		}
-
-		const workspace = state === EnablementState.EnabledWorkspace || state === EnablementState.DisabledWorkspace;
-		const canChange = workspace
-			? this.extensionEnablementService.canChangeWorkspaceEnablement(defaultChatExtension.local)
-			: this.extensionEnablementService.canChangeEnablement(defaultChatExtension.local);
-		if (!canChange) {
-			return;
-		}
-
-		await this.extensionsWorkbenchService.setEnablement([defaultChatExtension], state);
-		await this.extensionsWorkbenchService.updateRunningExtensions(state === EnablementState.EnabledGlobally || state === EnablementState.EnabledWorkspace ? localize('restartExtensionHost.reason.enable', "Enabling AI features") : localize('restartExtensionHost.reason.disable', "Disabling AI features"));
 	}
 
 	private maybeHideAuxiliaryBar(): void {
