@@ -29,7 +29,6 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IView } from '../../../../../../../workbench/common/views.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
@@ -331,8 +330,8 @@ function setupServices(
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
-function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, services: ReturnType<typeof setupServices>, options?: ConstructorParameters<typeof AgentHostSessionConfigPicker>[1]) {
-	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, options));
+function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, services: ReturnType<typeof setupServices>) {
+	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs));
 	const container = document.createElement('div');
 	picker.render(container);
 	return { picker, container };
@@ -341,62 +340,6 @@ function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeaked
 suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('offers provider-owned configuration in the automation controls menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.NewSessionControl)
-			.filter(isIMenuItem)
-			.find(item => item.command.id === 'sessions.agentHost.sessionConfigPicker');
-
-		assert.deepStrictEqual({
-			order: item?.order,
-			automationScoped: item?.when?.keys().includes(ChatContextKeys.inAutomationsDialog.key),
-		}, { order: 4, automationScoped: true });
-	});
-
-	test('edits automation enum and boolean options without duplicating repository or transient controls', async () => {
-		const services = setupServices(store);
-		const repositoryConfig = makeRepoConfig('main');
-		services.provider.set({
-			schema: {
-				type: 'object',
-				properties: {
-					...repositoryConfig.schema.properties,
-					[SessionConfigKey.WorktreeBranchTrack]: { type: 'boolean', title: 'Branch Tracking' },
-					[SessionConfigKey.AgentMerge]: { type: 'boolean', title: 'Agent Merge' },
-					[SessionConfigKey.Permissions]: { type: 'boolean', title: 'Permissions' },
-					[SessionConfigKey.ShellInitScripts]: { type: 'boolean', title: 'Shell Scripts' },
-					detail: { type: 'string', title: 'Detail', enum: ['low', 'high'] },
-					feature: { type: 'boolean', title: 'Feature' },
-				},
-			},
-			values: { ...repositoryConfig.values, detail: 'low', feature: false },
-		}, false);
-		const { container } = renderPicker(store, services, { includeRepositoryConfiguration: false });
-		const triggers = container.querySelectorAll<HTMLElement>('a.action-label');
-		triggers[0].click();
-		await new Promise(resolve => setTimeout(resolve));
-		services.actionWidget.delegate?.onSelect({ value: 'high', label: 'high' });
-		await new Promise(resolve => setTimeout(resolve));
-		container.querySelectorAll<HTMLElement>('a.action-label')[1].click();
-		await new Promise(resolve => setTimeout(resolve));
-		services.actionWidget.delegate?.onSelect({ value: 'true', label: 'On' });
-		await new Promise(resolve => setTimeout(resolve));
-
-		assert.deepStrictEqual({
-			triggers: triggers.length,
-			worktree: isolationSlot(container),
-			devContainer: container.querySelector('.sessions-chat-dev-container-checkbox'),
-			updates: services.provider.setSessionConfigValueArguments,
-		}, {
-			triggers: 2,
-			worktree: null,
-			devContainer: null,
-			updates: [
-				{ sessionId: SESSION_ID, property: 'detail', value: 'high' },
-				{ sessionId: SESSION_ID, property: 'feature', value: true },
-			],
-		});
-	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
 		const services = setupServices(store);
@@ -556,7 +499,7 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('generic auto-approve chips retain their contextual accessible name', () => {
 		const services = setupServices(store);
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, {}));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 		const trigger = document.createElement('span');
 		picker.renderTriggerForTest(trigger, SessionConfigKey.AutoApprove, {
 			title: 'Approval Mode',
@@ -818,7 +761,7 @@ suite('Agent Host Session Config Picker', () => {
 				}
 			});
 			services.provider.config = makeDynamicBranchConfig('main', 'folder');
-			const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, {}));
+			const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 
 			await picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'dev');
 			outcomes.push({
@@ -882,7 +825,7 @@ suite('Agent Host Session Config Picker', () => {
 			}
 		});
 		services.provider.config = makeDynamicBranchConfig('main', 'folder');
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, {}));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 
@@ -987,7 +930,7 @@ suite('Agent Host Session Config Picker', () => {
 	test('serializes interleaved branch and isolation selections before deciding checkout', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeDynamicBranchConfig('main', 'worktree');
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, {}));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 
 		await Promise.all([
 			picker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'featureA'),
@@ -1293,7 +1236,7 @@ suite('Agent Host Session Config Picker', () => {
 	test('does not render configuration controls when the workspace has no Git repository', () => {
 		const services = setupServices(store);
 		services.provider.config = makeNoGitConfig();
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, {}));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 
@@ -1323,7 +1266,7 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false, [SessionConfigKey.WorktreeCreateNewBranch]: true },
 		} as ResolveSessionConfigResult;
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, {}));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 
@@ -1343,7 +1286,7 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			values: { [SessionConfigKey.SandboxEnabled]: 'off' },
 		};
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, {}));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 

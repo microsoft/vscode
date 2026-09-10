@@ -73,15 +73,6 @@ export interface ISessionWorktreeConfiguration {
 	readonly branch?: string;
 }
 
-/** Repository branch choices and worktree support at a provider-owned workspace. */
-export interface ISessionWorktreeOptions {
-	readonly supportsWorktree: boolean;
-	readonly currentBranch: string | undefined;
-	readonly branches: readonly string[];
-	/** Present when the initial branches are a partial result set. */
-	readonly loadBranches?: (query: string, token: CancellationToken) => Promise<readonly string[]>;
-}
-
 /**
  * Presentation options for the sessions-core model picker. A provider returns
  * these from {@link ISessionsProvider.getModelPickerOptions} so it controls how
@@ -432,9 +423,6 @@ export interface ISessionsProvider {
 	 * Apply programmatic worktree settings to a new session as one operation.
 	 */
 	setWorktreeConfiguration?(sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void>;
-
-	/** Resolves worktree choices without creating a session; undefined means no repository was found. */
-	getWorktreeOptions?(folderUri: URI, sessionTypeId: string, token: CancellationToken): Promise<ISessionWorktreeOptions | undefined>;
 
 	/**
 	 * Set whether the worktree branch tracks its upstream for a session.
