@@ -683,6 +683,7 @@ interface ISessionItemTemplate {
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
+	readonly compactHoverDescription: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
 	readonly renderedSession: ISettableObservable<ISession | undefined>;
 	readonly pendingVoiceIndicator: HTMLElement;
@@ -826,6 +827,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			pausedClass: SESSION_TITLE_SHIMMER_PAUSED_CLASS,
 			animationNames: SESSION_TITLE_SHIMMER_ANIMATION_NAMES,
 		}));
+		const compactHoverDescription = DOM.append(titleRow, $('.session-compact-hover-description'));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		// Shown when a voice response arrived while this session was unfocused and
 		// is held until it is (mirrors the main window's sessions viewer).
@@ -893,7 +895,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -946,7 +948,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, this.getCreatorHoverData(element))).domNode,
+				content: new SessionSummaryHoverWidget(getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, this.getCreatorHoverData(element), this.options.compact())).domNode,
 				appearance: { showPointer: true },
 				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 				persistence: { hideOnHover: false },
@@ -1053,6 +1055,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
+			DOM.clearNode(template.compactHoverDescription);
 
 			// Compact quick chats have no details row.
 			if (isQuickChat && this.options.useCompactQuickChatRows) {
@@ -1062,6 +1065,37 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			const diffStats = getSessionDiffStats(element, reader);
+			const workspaceBadgeLabel = workspace && (
+				this.options.grouping() !== SessionsGrouping.Workspace ||
+				this.options.isPinned(element) ||
+				element.isArchived.read(reader) ||
+				this.options.isRenderedInCustomGroup?.(element)
+			)
+				? getWorkspaceBadgeLabel(workspace)
+				: undefined;
+			if (this.options.compact()) {
+				descriptionDisposable.clear();
+				timeDisposable.clear();
+
+				const isWorktree = getSessionWorkspaceKind(workspace, element.worktreePending?.read(reader)) === SessionWorkspaceKind.Worktree;
+				if (isWorktree) {
+					const worktreeIcon = DOM.append(template.detailsRow, $('span.session-details-icon'));
+					DOM.append(worktreeIcon, $(`span${ThemeIcon.asCSSSelector(Codicon.worktreeCompact)}`));
+				}
+				if (workspaceBadgeLabel) {
+					DOM.append(template.compactHoverDescription, $('span.session-badge', undefined, workspaceBadgeLabel));
+				}
+				if (diffStats) {
+					if (isWorktree) {
+						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+					}
+					const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
+					DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${diffStats.insertions}`;
+					DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${diffStats.deletions}`;
+				}
+				return;
+			}
+
 			let timeDate: Date | undefined;
 
 			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
@@ -1074,43 +1108,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const parts: HTMLElement[] = [];
 
 			const statusMessage = getSessionStatusMessage(sessionStatus, description);
-			if (this.options.compact()) {
-				if (statusMessage !== undefined) {
-					timeDisposable.clear();
-					const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-					if (typeof statusMessage === 'string') {
-						descriptionDisposable.clear();
-						statusEl.textContent = statusMessage;
-					} else {
-						descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
-					}
-				} else if (diffStats) {
-					descriptionDisposable.clear();
-					timeDisposable.clear();
-					const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
-					DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${diffStats.insertions}`;
-					DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${diffStats.deletions}`;
-				} else if (timeDate) {
-					descriptionDisposable.clear();
-					const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
-					const definiteTimeDate = timeDate;
-					const formatTime = () => {
-						const seconds = Math.round((Date.now() - definiteTimeDate.getTime()) / 1000);
-						return seconds < 60 ? localize('secondsDuration', "now") : fromNow(definiteTimeDate, true);
-					};
-					timeEl.textContent = formatTime();
-					const targetWindow = DOM.getWindow(timeEl);
-					const interval = targetWindow.setInterval(() => {
-						timeEl.textContent = formatTime();
-					}, 60_000);
-					timeDisposable.value = toDisposable(() => targetWindow.clearInterval(interval));
-				} else {
-					descriptionDisposable.clear();
-					timeDisposable.clear();
-				}
-				return;
-			}
-
 			if (sessionStatus !== SessionStatus.InProgress) {
 				let icon: ThemeIcon;
 				if (isQuickChat) {
@@ -1127,14 +1124,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			if (!hideDetails) {
 				const badgeLabel = isQuickChat
 					? localize('quickChatBadge', "No workspace")
-					: workspace && (
-						this.options.grouping() !== SessionsGrouping.Workspace ||
-						this.options.isPinned(element) ||
-						element.isArchived.read(reader) ||
-						this.options.isRenderedInCustomGroup?.(element)
-					)
-						? getWorkspaceBadgeLabel(workspace)
-						: undefined;
+					: workspaceBadgeLabel;
 				if (badgeLabel) {
 					const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
 					badgeEl.textContent = badgeLabel;

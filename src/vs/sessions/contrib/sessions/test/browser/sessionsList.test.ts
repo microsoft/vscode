@@ -1012,11 +1012,18 @@ suite('Sessions - SessionsList', () => {
 				title: 'Creator session',
 				onOpen,
 			},
+			true,
 		);
 
-		assert.deepStrictEqual(hover.createdBy, {
-			title: 'Creator session',
-			onOpen,
+		assert.deepStrictEqual({
+			createdBy: hover.createdBy,
+			updatedAt: hover.updatedAt,
+		}, {
+			createdBy: {
+				title: 'Creator session',
+				onOpen,
+			},
+			updatedAt: createdSession.updatedAt.get(),
 		});
 	});
 
@@ -3143,7 +3150,7 @@ suite('Sessions - SessionsList', () => {
 
 	suite('compact presentation', () => {
 
-		test('uses a single line with prioritized metadata and preserves the accessible label', () => {
+		test('uses a single line with worktree and diff metadata and preserves the accessible label', () => {
 			const session = createTestSession('Implement compact view', {
 				workspaceLabel: 'vscode',
 				changesSummary: { files: 2, additions: 12, deletions: 3 },
@@ -3167,7 +3174,11 @@ suite('Sessions - SessionsList', () => {
 				return {
 					compactClass: list.element.classList.contains('compact'),
 					height: row.style.height,
-					workspace: item.querySelector('.session-badge')?.textContent,
+					workspace: item.querySelector('.session-details-row .session-badge')?.textContent,
+					hasWorktreeIcon: item.querySelector('.session-details-icon > .codicon')?.classList.contains('codicon-worktree-compact') ?? false,
+					hasMetadataSeparator: !!item.querySelector('.session-details-icon + .session-separator.has-separator + .session-diff'),
+					hasHoverWorktreeIcon: item.querySelector('.session-compact-hover-description > .codicon')?.classList.contains('codicon-worktree-compact') ?? false,
+					hoverDescription: item.querySelector('.session-compact-hover-description')?.textContent,
 					diff: item.querySelector('.session-diff')?.textContent,
 					time: item.querySelector('.session-time')?.textContent,
 					ariaLabel: row.getAttribute('aria-label'),
@@ -3187,6 +3198,10 @@ suite('Sessions - SessionsList', () => {
 					compactClass: true,
 					height: '30px',
 					workspace: undefined,
+					hasWorktreeIcon: true,
+					hasMetadataSeparator: true,
+					hasHoverWorktreeIcon: false,
+					hoverDescription: 'vscode',
 					diff: '+12-3',
 					time: undefined,
 					ariaLabel: 'Implement compact view, updated now, State: Completed, in vscode',
@@ -3195,6 +3210,10 @@ suite('Sessions - SessionsList', () => {
 					compactClass: false,
 					height: '56px',
 					workspace: 'vscode',
+					hasWorktreeIcon: true,
+					hasMetadataSeparator: false,
+					hasHoverWorktreeIcon: false,
+					hoverDescription: '',
 					diff: '+12-3',
 					time: 'now',
 					ariaLabel: 'Implement compact view, updated now, State: Completed, in vscode',

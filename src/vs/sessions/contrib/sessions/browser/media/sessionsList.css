@@ -460,6 +460,12 @@
 		.session-ci-row {
 			grid-column: 1 / -1;
 		}
+
+		.session-approval-row {
+			margin-top: var(--vscode-spacing-size60);
+			padding-top: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness));
+			padding-bottom: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness));
+		}
 	}
 
 	.monaco-list-row:hover .session-item:not(.quick-chat),
@@ -467,6 +473,18 @@
 	.session-item.pinned:not(.quick-chat) {
 		.session-title-row {
 			grid-column: 1 / -1;
+
+			.session-title {
+				flex: 0 1 auto;
+			}
+
+			.session-compact-hover-description {
+				display: flex;
+			}
+
+			.session-title-toolbar {
+				margin-left: auto;
+			}
 		}
 
 		.session-details-row {
@@ -474,6 +492,28 @@
 		}
 	}
 
+	.monaco-list-row[aria-expanded="true"] .session-item:not(.quick-chat)::after {
+		top: calc(var(--vscode-spacing-size80) + var(--vscode-spacing-size120));
+	}
+
+}
+
+.session-compact-hover-description {
+	display: none;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size40);
+	margin-right: var(--vscode-spacing-size80);
+	max-width: 40%;
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+
+	.session-badge {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 }
 
 /* Approval prompt shown when a chat is waiting for the user to allow a pending
