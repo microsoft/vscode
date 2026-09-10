@@ -386,7 +386,7 @@ function ensureFileIconThemeLoaded(theme: FileIconThemeData): Promise<string | u
 			if (theme.isLoaded) {
 				return theme.styleSheetContent;
 			}
-			const languageService = disposables.add(new LanguageService());
+			const languageService = new LanguageService();
 			try {
 				return await theme.ensureLoaded(new FileIconThemeLoader(fixtureExtensionResourceLoaderService, languageService));
 			} finally {

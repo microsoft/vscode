@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 
 export function fixtureResourceUri(path: string): URI {
 	return isNative
-		? FileAccess.asFileUri(`../${path}`)
+		? URI.joinPath(FileAccess.asFileUri(''), '..', path)
 		: URI.parse(new URL(`/${path}`, mainWindow.document.baseURI).href);
 }
 

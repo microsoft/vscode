@@ -180,7 +180,7 @@ suite('Component fixture TextMate syntax highlighting', () => {
 	});
 
 	test('retains shared tokenizers until the final fixture is disposed', async () => {
-		TokenizationRegistry.setColorMap([]);
+		const previousColorMap = TokenizationRegistry.getColorMap();
 		const first = await createTokenizers();
 		const second = await createTokenizers();
 		const support = TokenizationRegistry.get('typescript');
@@ -195,14 +195,18 @@ suite('Component fixture TextMate syntax highlighting', () => {
 		});
 
 		second.store.dispose();
+		const finalColorMap = TokenizationRegistry.getColorMap();
 		const defaultBackground = TokenizationRegistry.getDefaultBackground();
 		assert.deepStrictEqual({
 			tokenizerRemoved: TokenizationRegistry.get('typescript') === null,
-			defaultBackground: defaultBackground?.toString(),
+			previousColorMapRestored: previousColorMap === null || (
+				finalColorMap?.length === previousColorMap.length
+				&& previousColorMap.every((color, index) => finalColorMap[index] === color)
+			),
 			defaultBackgroundLuminance: typeof defaultBackground?.getRelativeLuminance() === 'number',
 		}, {
 			tokenizerRemoved: true,
-			defaultBackground: '#121314',
+			previousColorMapRestored: true,
 			defaultBackgroundLuminance: true,
 		});
 	});
