@@ -12,6 +12,7 @@ export const AUTOMATION_BLUEPRINT_VERSION = 1;
 const AUTOMATION_BLUEPRINT_ID_PATTERN = /^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/;
 const AUTOMATION_BLUEPRINT_PROPERTIES = new Set(['version', 'id', 'name', 'description', 'schedule']);
 const AUTOMATION_BLUEPRINT_MANUAL_SCHEDULE_PROPERTIES = new Set(['kind']);
+const AUTOMATION_BLUEPRINT_HOURLY_SCHEDULE_PROPERTIES = new Set(['kind']);
 const AUTOMATION_BLUEPRINT_CRON_SCHEDULE_PROPERTIES = new Set(['kind', 'expression', 'timeZone']);
 
 export type AutomationBlueprintParseErrorCode =
@@ -90,14 +91,21 @@ export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): s
 		lines.push(`description: ${quoteYamlString(blueprint.description)}`);
 	}
 	lines.push('schedule:');
-	if (blueprint.schedule.interval === 'manual') {
-		lines.push('  kind: manual');
-	} else {
-		lines.push(
-			'  kind: cron',
-			`  expression: ${quoteYamlString(toCronExpression(blueprint.schedule))}`,
-			'  timeZone: local',
-		);
+	switch (blueprint.schedule.interval) {
+		case 'manual':
+			lines.push('  kind: manual');
+			break;
+		case 'hourly':
+			lines.push('  kind: hourly');
+			break;
+		case 'daily':
+		case 'weekly':
+			lines.push(
+				'  kind: cron',
+				`  expression: ${quoteYamlString(toCronExpression(blueprint.schedule))}`,
+				'  timeZone: local',
+			);
+			break;
 	}
 	lines.push('---', '', blueprint.prompt.trim(), '');
 	return lines.join('\n');
@@ -135,7 +143,7 @@ function normalizeSchedule(schedule: IAutomationSchedule): IAutomationSchedule {
 		case 'manual':
 			return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		case 'hourly':
-			return { interval: 'hourly', scheduleHour: 0, scheduleMinute: schedule.scheduleMinute, scheduleDay: 0 };
+			return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		case 'daily':
 			return { interval: 'daily', scheduleHour: schedule.scheduleHour, scheduleMinute: schedule.scheduleMinute, scheduleDay: 0 };
 		case 'weekly':
@@ -153,6 +161,10 @@ function readSchedule(root: YamlMapNode): IAutomationSchedule {
 	if (kind === 'manual') {
 		assertKnownProperties(node, AUTOMATION_BLUEPRINT_MANUAL_SCHEDULE_PROPERTIES, 'schedule.');
 		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+	}
+	if (kind === 'hourly') {
+		assertKnownProperties(node, AUTOMATION_BLUEPRINT_HOURLY_SCHEDULE_PROPERTIES, 'schedule.');
+		return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
 	if (kind !== 'cron') {
 		throw new AutomationBlueprintParseError('invalidField', 'schedule.kind');
@@ -172,7 +184,7 @@ function toCronExpression(schedule: IAutomationSchedule): string {
 		case 'manual':
 			throw new Error('Manual Automation schedules do not have cron expressions.');
 		case 'hourly':
-			return `${schedule.scheduleMinute} * * * *`;
+			throw new Error('Hourly Automation schedules do not have cron expressions.');
 		case 'daily':
 			return `${schedule.scheduleMinute} ${schedule.scheduleHour} * * *`;
 		case 'weekly':
@@ -188,9 +200,6 @@ function fromCronExpression(expression: string): IAutomationSchedule {
 	const scheduleMinute = parseCronValue(minuteValue, 0, 59);
 	if (scheduleMinute === undefined) {
 		throw new AutomationBlueprintParseError('unsupportedSchedule', expression);
-	}
-	if (hourValue === '*' && dayValue === '*') {
-		return { interval: 'hourly', scheduleHour: 0, scheduleMinute, scheduleDay: 0 };
 	}
 	const scheduleHour = parseCronValue(hourValue, 0, 23);
 	if (scheduleHour === undefined) {

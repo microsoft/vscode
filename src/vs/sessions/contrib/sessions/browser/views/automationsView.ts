@@ -1611,13 +1611,17 @@ function normalizeAutomationBlueprintResource(resource: URI): URI {
 	return joinPath(dirname(resource), `${name || 'automation'}${AUTOMATION_BLUEPRINT_FILE_SUFFIX}`);
 }
 
+function isAutomationBlueprintResource(resource: URI): boolean {
+	return resource.path.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX);
+}
+
 function getAutomationDropData(event: DragEvent): AutomationDropData {
 	const editors = extractEditorsDropData(event);
 	if (editors.length > 0) {
 		if (editors.length !== 1 || !editors[0].resource) {
 			return { kind: 'invalid', reason: 'multiple' };
 		}
-		return editors[0].resource.path.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)
+		return isAutomationBlueprintResource(editors[0].resource)
 			? { kind: 'resource', resource: editors[0].resource }
 			: { kind: 'invalid', reason: 'unsupported' };
 	}
@@ -2034,6 +2038,13 @@ registerAction2(class ImportAutomationAction extends Action2 {
 		if (!resource) {
 			return;
 		}
+		if (!isAutomationBlueprintResource(resource)) {
+			await dialogService.error(
+				localize('automationDropFailed', "Unable to import automation."),
+				localize('automationDropUnsupported', "Only .automation.md files can be imported."),
+			);
+			return;
+		}
 
 		await importAutomationBlueprint(
 			async () => (await fileService.readFile(resource)).value.toString(),
@@ -2130,17 +2141,29 @@ registerAction2(class ExportAutomationAction extends Action2 {
 			return;
 		}
 
-		const defaultUri = joinPath(await fileDialogService.defaultFilePath(), createAutomationBlueprintFileName(automation.name));
-		const selectedResource = await fileDialogService.showSaveDialog({
-			title: localize('exportAutomationDialogTitle', "Export Automation"),
-			saveLabel: localize('exportAutomationDialogSave', "Export"),
-			defaultUri,
-			filters: [{ name: localize('automationBlueprintFileFilter', "Automation Blueprint"), extensions: ['md'] }],
-		});
-		if (!selectedResource) {
-			return;
+		let defaultUri = joinPath(await fileDialogService.defaultFilePath(), createAutomationBlueprintFileName(automation.name));
+		let resource: URI;
+		while (true) {
+			const selectedResource = await fileDialogService.showSaveDialog({
+				title: localize('exportAutomationDialogTitle', "Export Automation"),
+				saveLabel: localize('exportAutomationDialogSave', "Export"),
+				defaultUri,
+				filters: [{ name: localize('automationBlueprintFileFilter', "Automation Blueprint"), extensions: ['md'] }],
+			});
+			if (!selectedResource) {
+				return;
+			}
+			const normalizedResource = normalizeAutomationBlueprintResource(selectedResource);
+			if (isEqual(selectedResource, normalizedResource)) {
+				resource = selectedResource;
+				break;
+			}
+			await dialogService.error(
+				localize('automationExportInvalidFileNameTitle', "Unable to export automation."),
+				localize('automationExportInvalidFileName', "Use a file name ending in exactly one .automation.md suffix."),
+			);
+			defaultUri = normalizedResource;
 		}
-		const resource = normalizeAutomationBlueprintResource(selectedResource);
 
 		try {
 			const content = serializeAutomationBlueprint(automationToBlueprint(automation));

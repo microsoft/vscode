@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -277,6 +278,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			reg.define(IMenuService, MenuService);
 			reg.defineInstance(IConfigurationService, configurationService);
 			reg.defineInstance(IContextKeyService, contextKeyService);
+			reg.defineInstance(IFileService, new class extends mock<IFileService>() { }());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
 			}());

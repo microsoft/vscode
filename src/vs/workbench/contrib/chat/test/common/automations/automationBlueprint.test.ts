@@ -54,11 +54,19 @@ suite('Automation blueprints', () => {
 				prompt: 'Review the workspace daily.',
 				schedule: { interval: 'daily' as const, scheduleHour: 13, scheduleMinute: 5, scheduleDay: 0 },
 			},
+			{
+				version: 1 as const,
+				id: 'hourly-review',
+				name: 'Hourly review',
+				prompt: 'Review the workspace every hour.',
+				schedule: { interval: 'hourly' as const, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			},
 		];
 
 		assert.deepStrictEqual({
 			roundTripped: blueprints.map(blueprint => parseAutomationBlueprint(serializeAutomationBlueprint(blueprint))),
 			manualDocument: serializeAutomationBlueprint(blueprints[0]),
+			hourlyDocument: serializeAutomationBlueprint(blueprints[2]),
 		}, {
 			roundTripped: blueprints,
 			manualDocument: [
@@ -74,6 +82,18 @@ suite('Automation blueprints', () => {
 				'Review the workspace.',
 				'',
 			].join('\n'),
+			hourlyDocument: [
+				'---',
+				'version: 1',
+				'id: "hourly-review"',
+				'name: "Hourly review"',
+				'schedule:',
+				'  kind: hourly',
+				'---',
+				'',
+				'Review the workspace every hour.',
+				'',
+			].join('\n'),
 		});
 	});
 
@@ -83,6 +103,7 @@ suite('Automation blueprints', () => {
 			'---\nversion: 2\nid: review\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: Review Task\nname: Review\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nenabled: true\nschedule:\n  kind: manual\n---\nReview.',
+			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "20 * * * *"\n  timeZone: local\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "0 24 * * *"\n  timeZone: local\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "0 9 * * 1"\n  timeZone: Europe/Berlin\n---\nReview.',
 		];
@@ -100,6 +121,7 @@ suite('Automation blueprints', () => {
 			{ code: 'unsupportedVersion', property: '2' },
 			{ code: 'invalidId', property: 'Review Task' },
 			{ code: 'unknownProperty', property: 'enabled' },
+			{ code: 'unsupportedSchedule', property: '20 * * * *' },
 			{ code: 'unsupportedSchedule', property: '0 24 * * *' },
 			{ code: 'unsupportedTimeZone', property: 'Europe/Berlin' },
 		]);
@@ -110,7 +132,7 @@ suite('Automation blueprints', () => {
 			id: 'runtime-id',
 			name: 'Résumé Review',
 			prompt: 'Review the workspace.',
-			schedule: { interval: 'hourly', scheduleHour: 14, scheduleMinute: 20, scheduleDay: 4 },
+			schedule: { interval: 'hourly', scheduleHour: 14, scheduleMinute: 99, scheduleDay: 4 },
 			target: { kind: 'workspace', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
 			enabled: true,
 			createdAt: '2026-01-01T00:00:00.000Z',
@@ -127,7 +149,7 @@ suite('Automation blueprints', () => {
 				id: 'resume-review',
 				name: 'Résumé Review',
 				prompt: 'Review the workspace.',
-				schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 20, scheduleDay: 0 },
+				schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			},
 			fileName: 'resume-review.automation.md',
 			serialized: [
@@ -136,9 +158,7 @@ suite('Automation blueprints', () => {
 				'id: "resume-review"',
 				'name: "Résumé Review"',
 				'schedule:',
-				'  kind: cron',
-				'  expression: "20 * * * *"',
-				'  timeZone: local',
+				'  kind: hourly',
 				'---',
 				'',
 				'Review the workspace.',

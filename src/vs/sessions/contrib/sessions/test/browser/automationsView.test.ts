@@ -29,7 +29,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService, ISaveDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -1164,39 +1164,93 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('exports to exactly one Automation blueprint suffix', async () => {
+	test('rejects importing a file without the Automation blueprint suffix', async () => {
+		const resource = URI.file('/shared/weekly-review.md');
+		let readCount = 0;
+		const fileService = new class extends mock<IFileService>() {
+			override async readFile(): Promise<IFileContent> {
+				readCount++;
+				throw new Error('Unexpected read');
+			}
+		}();
+		const { automationDialogService, dialogService, instantiationService } = setup('archive', NullHoverService, fileService);
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+			override async showOpenDialog(): Promise<URI[]> {
+				return [resource];
+			}
+		}());
+
+		const command = CommandsRegistry.getCommand('sessions.automations.import');
+		assert.ok(command);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+
+		assert.deepStrictEqual({
+			readCount,
+			dialogOptions: automationDialogService.lastOptions,
+			errors: dialogService.errors,
+		}, {
+			readCount: 0,
+			dialogOptions: undefined,
+			errors: [{
+				message: 'Unable to import automation.',
+				detail: 'Only .automation.md files can be imported.',
+			}],
+		});
+	});
+
+	test('confirms the normalized Automation blueprint destination before export', async () => {
 		const writes: { resource: URI; content: string }[] = [];
+		const saveDialogDefaults: (URI | undefined)[] = [];
+		const saveDialogResults = [
+			URI.file('/exports/review.automation.md.automation.md'),
+			URI.file('/exports/review.automation.md'),
+		];
 		const fileService = new class extends mock<IFileService>() {
 			override async writeFile(resource: URI, buffer: VSBuffer): Promise<IFileStatWithMetadata> {
 				writes.push({ resource, content: buffer.toString() });
 				return upcastPartial<IFileStatWithMetadata>({ resource });
 			}
 		}();
-		const { instantiationService } = setup('archive', NullHoverService, fileService);
+		const { dialogService, instantiationService } = setup('archive', NullHoverService, fileService);
 		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
 			override async defaultFilePath(): Promise<URI> {
 				return URI.file('/exports');
 			}
 
-			override async showSaveDialog(): Promise<URI> {
-				return URI.file('/exports/review.automation.md.automation.md');
+			override async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
+				saveDialogDefaults.push(options.defaultUri);
+				return saveDialogResults.shift();
 			}
 		}());
 		const command = CommandsRegistry.getCommand('sessions.automations.export');
 		assert.ok(command);
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, automation()));
 
-		assert.deepStrictEqual(writes.map(write => ({
-			path: write.resource.path,
-			hasCron: write.content.includes('expression: "0 * * * *"'),
-			hasLocalTimeZone: write.content.includes('timeZone: local'),
-			hasTarget: write.content.includes('/workspace'),
-		})), [{
-			path: '/exports/review.automation.md',
-			hasCron: true,
-			hasLocalTimeZone: true,
-			hasTarget: false,
-		}]);
+		assert.deepStrictEqual({
+			saveDialogDefaults: saveDialogDefaults.map(resource => resource?.path),
+			errors: dialogService.errors,
+			writes: writes.map(write => ({
+				path: write.resource.path,
+				hasHourlySchedule: write.content.includes('kind: hourly'),
+				hasCron: write.content.includes('kind: cron'),
+				hasTarget: write.content.includes('/workspace'),
+			})),
+		}, {
+			saveDialogDefaults: [
+				'/exports/daily-review.automation.md',
+				'/exports/review.automation.md',
+			],
+			errors: [{
+				message: 'Unable to export automation.',
+				detail: 'Use a file name ending in exactly one .automation.md suffix.',
+			}],
+			writes: [{
+				path: '/exports/review.automation.md',
+				hasHourlySchedule: true,
+				hasCron: false,
+				hasTarget: false,
+			}],
+		});
 	});
 
 	test('imports a dropped Automation blueprint through the same review flow', async () => {
