@@ -69,7 +69,7 @@ import { INotebookCellList } from './view/notebookRenderingCommon.js';
 import { BackLayerWebView } from './view/renderers/backLayerWebView.js';
 import { CodeCellRenderer, MarkupCellRenderer, NotebookCellListDelegate } from './view/renderers/cellRenderer.js';
 import { IAckOutputHeight, IMarkupCellInitialization } from './view/renderers/webviewMessages.js';
-import { CodeCellViewModel, outputDisplayLimit } from './viewModel/codeCellViewModel.js';
+import { CodeCellViewModel, outputDisplayLimit as defaultOutputDisplayLimit } from './viewModel/codeCellViewModel.js';
 import { NotebookEventDispatcher } from './viewModel/eventDispatcher.js';
 import { MarkupCellViewModel } from './viewModel/markupCellViewModel.js';
 import { CellViewModel, NotebookViewModel } from './viewModel/notebookViewModelImpl.js';
@@ -79,7 +79,7 @@ import { NotebookEditorContextKeys } from './viewParts/notebookEditorWidgetConte
 import { NotebookOverviewRuler } from './viewParts/notebookOverviewRuler.js';
 import { ListTopCellToolbar } from './viewParts/notebookTopCellToolbar.js';
 import { NotebookTextModel } from '../common/model/notebookTextModel.js';
-import { CellEditType, CellKind, INotebookFindOptions, NotebookFindScopeType, RENDERER_NOT_AVAILABLE, SelectionStateType } from '../common/notebookCommon.js';
+import { CellEditType, CellKind, INotebookFindOptions, NotebookFindScopeType, RENDERER_NOT_AVAILABLE, SelectionStateType, NotebookSetting } from '../common/notebookCommon.js';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED } from '../common/notebookContextKeys.js';
 import { INotebookExecutionService } from '../common/notebookExecutionService.js';
 import { INotebookKernelService } from '../common/notebookKernelService.js';
@@ -2485,6 +2485,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const outputs = viewCell.outputsViewModels;
+		const outputDisplayLimit = this.configurationService.getValue<number>(NotebookSetting.outputDisplayLimit) || defaultOutputDisplayLimit;
 		for (const output of outputs.slice(0, outputDisplayLimit)) {
 			const [mimeTypes, pick] = output.resolveMimeTypes(this.textModel!, undefined);
 			if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {

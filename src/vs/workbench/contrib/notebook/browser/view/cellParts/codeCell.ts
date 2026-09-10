@@ -26,7 +26,8 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from '../../notebookBrowser.js';
-import { CodeCellViewModel, outputDisplayLimit } from '../../viewModel/codeCellViewModel.js';
+import { CodeCellViewModel, outputDisplayLimit as defaultOutputDisplayLimit } from '../../viewModel/codeCellViewModel.js';
+import { NotebookSetting } from '../../../common/notebookCommon.js';
 import { CellPartsCollection } from '../cellPart.js';
 import { NotebookCellEditorPool } from '../notebookCellEditorPool.js';
 import { CodeCellRenderTemplate, collapsedCellTTPolicy } from '../notebookRenderingCommon.js';
@@ -72,6 +73,7 @@ export class CodeCell extends Disposable {
 		};
 
 		this._cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
+		const outputDisplayLimit = this.configurationService.getValue<number>(NotebookSetting.outputDisplayLimit) || defaultOutputDisplayLimit;
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: outputDisplayLimit });
 		this.cellParts = this._register(templateData.cellParts.concatContentPart([this._cellEditorOptions, this._outputContainerRenderer], DOM.getWindow(notebookEditor.getDomNode())));
 
