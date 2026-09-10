@@ -24,6 +24,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
@@ -36,6 +37,7 @@ import {
 import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover } from './commandAutoApprover.js';
+import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 
 /**
  * Event fields needed for auto-approval decisions.
@@ -62,6 +64,7 @@ const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	SKIP_OPTION,
 ];
 const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
+const SANDBOX_BYPASS_META_KEY = 'agentHost.sandboxBypass';
 
 const HOME_DIR = URI.file(homedir());
 
@@ -458,7 +461,9 @@ export class SessionPermissionManager extends Disposable {
 				riskAssessment: state.riskAssessment,
 				edits: state.edits,
 				editable: state.editable,
-				...(state._meta ? { _meta: state._meta } : {}),
+				...(e.requestSandboxBypass
+					? { _meta: { ...state._meta, [SANDBOX_BYPASS_META_KEY]: true } }
+					: state._meta ? { _meta: state._meta } : {}),
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
@@ -486,15 +491,23 @@ export class SessionPermissionManager extends Disposable {
 
 	/**
 	 * Handles the side effect of a `ChatToolCallConfirmed` action when the
-	 * user selected "Allow in this Session". Adds the tool to the session's
-	 * permission allow list so future calls are auto-approved.
+	 * user selected "Allow in this Session": persist a sandbox opt-out for
+	 * escapes, or a tool permission for ordinary confirmations.
 	 */
 	handleToolCallConfirmed(chatChannel: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
 		if (!isAhpChatChannel(chatChannel)) {
 			throw new Error(`Tool call confirmations must be handled on an AHP chat channel: ${chatChannel}`);
 		}
-		const sessionKey = parseRequiredSessionUriFromChatUri(chatChannel);
+		const sessionKey = resolveAgentHostSession(URI.parse(chatChannel)).toString();
 		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
+			const part = this._stateManager.getSessionState(chatChannel)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
+			if (part?.kind === ResponsePartKind.ToolCall && readToolCallMeta(part.toolCall)[SANDBOX_BYPASS_META_KEY] === true) {
+				const policy = this._configService.getSessionSandboxPolicy(sessionKey);
+				if (!policy?.enabled || policy.allowBypass) {
+					this._configService.updateSessionConfig(sessionKey, { [SessionConfigKey.SandboxEnabled]: 'off' });
+				}
+				return;
+			}
 			const toolName = this._getToolNameForToolCall(chatChannel, toolCallId);
 			if (toolName) {
 				this._addToolToSessionPermissions(sessionKey, toolName);

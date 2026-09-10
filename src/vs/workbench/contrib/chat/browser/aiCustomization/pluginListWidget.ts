@@ -1571,7 +1571,6 @@ export class PluginListWidget extends Disposable {
 		if (shouldLoadPluginMarketplaceSnapshot(this.visible, this.marketplaceSnapshot.state, this.isBrowseMarketplaceAvailable())) {
 			void this.queryMarketplaceSnapshot();
 		}
-		this.renderDiscoverySnapshot(content);
 
 		const installedList = this.renderCardSection(
 			content,
@@ -1825,48 +1824,6 @@ export class PluginListWidget extends Disposable {
 
 	private rememberCardFocusElement(element: HTMLElement): void {
 		this.firstCardFocusElement ??= element;
-	}
-
-	private renderDiscoverySnapshot(parent: HTMLElement): void {
-		const marketplaceItems = this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
-		if (marketplaceItems.length === 0) {
-			if (this.marketplaceSnapshot.state === 'failed') {
-				this.renderDiscoveryError(parent);
-			}
-			return;
-		}
-		const recommendedKeys = this.pluginMarketplaceService.recommendedPlugins.get();
-		const recommended = marketplaceItems.filter(item => recommendedKeys.has(getMarketplaceRecommendationKey(item)));
-		const snapshotItems = [
-			...recommended,
-			...marketplaceItems.filter(item => !recommendedKeys.has(getMarketplaceRecommendationKey(item))),
-		].slice(0, 3);
-		const grid = this.renderCardSection(
-			parent,
-			localize('featuredPlugins', "Featured"),
-			localize('discoverMorePluginsDescription', "Curated plugins that add tools and expertise."),
-			'plugin-discovery-section',
-		);
-		grid.classList.add('plugin-inventory-list');
-		this.createPluginSectionList(grid, localize('featuredPlugins', "Featured"), snapshotItems.map(item => ({ type: 'marketplace-item', item })), false);
-	}
-
-	private renderDiscoveryError(parent: HTMLElement): void {
-		this.renderCardSection(
-			parent,
-			localize('pluginDiscoveryUnavailable', "Available plugins could not be loaded"),
-			localize('pluginDiscoveryUnavailableDescription', "Check your connection, then try loading results from the configured marketplaces again."),
-			'plugin-discovery-section',
-			undefined,
-			header => {
-				const retry = this.cardDisposables.add(new Button(header, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('retryPluginDiscovery', "Retry Loading Plugins") }));
-				retry.label = localize('retry', "Retry");
-				this.cardDisposables.add(retry.onDidClick(() => {
-					this.marketplaceSnapshot.reset();
-					void this.queryMarketplaceSnapshot();
-				}));
-			},
-		);
 	}
 
 	private renderBrowseMarketplaceCards(): void {

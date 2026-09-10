@@ -113,6 +113,21 @@ The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations 
 - Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
 - Owns the restore flow (`restoreSession`, `_restorePeerChats`).
+- Owns the automatic merged-pull-request session lifecycle through
+  `AgentHostSessionLifecycle`: the application-scoped policy is synchronized
+  into root config; candidates are filtered from the registry using only the
+  persisted archive/GitHub fields needed for cleanup; and every related pull
+  request is authoritatively refreshed before a candidate is restored. A
+  session is eligible only when no related pull request is open and at least
+  one related pull request is merged; closed-unmerged PRs do not block it.
+  Pull request state is refreshed again immediately before lifecycle side
+  effects so reopening a closed PR blocks the action. Eligible sessions are
+  archived through the normal `SessionIsArchivedChanged` action and side-effect
+  path, which removes the worktree when Git confirms that the branch tracks an
+  upstream with no unpushed or uncommitted work. Permanent deletion applies the
+  same safe cleanup to a retained worktree before deleting the session. Archive
+  and deletion thresholds accept any positive whole number of days; zero
+  disables the corresponding lifecycle.
 
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:
@@ -177,6 +192,8 @@ If a provider cannot enumerate yet, its initial discovery attempt emits nothing;
 Legacy registry migration uses the `listChatsToMigrate()` contract. An array is authoritative even when empty. `undefined` means the catalog is unavailable and must not advance migration markers; Agent Service retries an unavailable registration-time catalog once before listing, and persistent unavailability rejects aggregate `listSessions()` with a typed provider-catalog error so clients preserve their last successful snapshots. `AgentChatMigrationDeferred` means the catalog cannot be enumerated until an external readiness action, such as downloading an optional SDK: it does not advance the provider marker and does not block healthy providers' aggregate listing. A provider's later discovery signal force-retries its migration partition before additively registering the signal's unknown/external entries, and a subsequent list refresh can retry a still-deferred provider. `BaseAgentHostSessionsProvider` retries failures with exponential backoff; `AgentHostSessionListStore` leaves its cache invalid and retries on the next controller, lifecycle, or workspace refresh trigger. Replacement retry ownership is compare-and-swap single-flight: overlapping list computations that observed the same failed attempt await the first caller's installed retry rather than queueing another provider enumeration. Successful providers retain their completed migration state when a sibling provider is unavailable.
 
 Session-list clients treat only a successful return as authoritative. `BaseAgentHostSessionsProvider` and `AgentHostSessionListStore` retain their last successful snapshots when `listSessions()` rejects; a successful empty array still clears the snapshot. This separation prevents transport, authentication, or catalog failures from becoming deletion deltas.
+
+Discovery can hydrate the title of an already-registered, surfaced session after a lazy provider activates without advancing its modified time. That change invalidates the pending list snapshot and queues reconciliation; the fresh title is published in place after applying persisted custom-title overrides. It must not require retracting the row, changing external-session filters, or materializing the conversation.
 
 Provider-private discovery helpers name their concrete source: Claude uses `_listClaudeCodeChats()` / `_emitClaudeCodeChats()`, Codex uses `_listCodexChats()` / `_emitCodexChats()`, and Copilot uses `_discoverCopilotChats()` / `_emitCopilotChats()`. Providers filter known session metadata before emitting; Agent Service still performs the authoritative additive registry write and atomic tombstone check. Copilot treats the existence of a per-session database (under `{userDataPath}/agentSessionData`, never the shared Copilot home) as "known", which also keeps peer-chat backings out of the payload; it additionally drops a chat whose SDK context carries no working directory, because `_doResumeSession` requires one and a discovered chat has no other source for it.
 
@@ -407,6 +424,12 @@ Codex supports multiple chats per session. Each conversation — the session's d
 - Initializing `chats.createChat` binds a thread to the exact host-supplied chat URI at provisioning time (including restored/forked threads); `materializeChat` re-attaches any chat's backing thread on restore.
 - A cold `getChatMetadata` read caches the backing thread's summary, timestamps, and working directories on the live runtime. Later metadata reads return those fields from memory (the app-server may be blocked on a dynamic tool call), so hydrating a runtime must never erase an already-listed session title.
 
+Restoring or continuing a thread retains its saved model when available. When that model is absent from the catalog, restoration waits for queued model discovery and selects the first available model from the same native provider (whose declared default is ordered first), dropping the unavailable model's configuration. It never switches billing providers, even when another provider lists the same model name. If the saved provider has no available models, its saved selection remains intact so history stays readable; only a thread without a saved selection uses the global default. The restored metadata, runtime, and next send use the same selection, while historical turns retain their original model attribution. `thread/resume` must explicitly supply both the selected model and provider so the SDK does not choose its configured default model instead. Explicit model selections for creation and model changes still require a catalog entry and the corresponding provider authentication.
+
+When a restored Agent Host conversation's intended model is missing from the picker, the widget must not put the displayed fallback model or its configuration on the next request. Omitting that override lets the host resolve the conversation's selection within its native provider; an explicit model choice replaces the intended selection and is forwarded normally.
+
+Metadata and history reads use `thread/read` and `thread/turns/list` without resuming the thread or claiming its writer lock, so a thread still open in another Codex client remains readable. The first send resumes the backing thread, applies pending launch configuration, and replaces a never-persisted backing only when the SDK reports that its rollout is missing. Reads still retry when their app-server connection is replaced.
+
 An additional chat is backed by a **fresh top-level thread minted eagerly** in `chats.createChat` (via `thread/start` or `thread/fork` at the requested turn, reusing `_forkSession`). For these internal peer backings only, the backing entry and URI are keyed by the app-server-assigned thread id. This does not couple the parent AH session id to its default thread id; it gives the peer-chat-backing marker a stable `codex:/<threadId>` database across restart. `_createChat`/`fork` therefore return `backingSession: AgentSession.uri(this.id, threadId)` so the orchestrator suppresses that backing from the top-level session list (invariant I7), plus an opaque `providerData` blob (the backing thread id + model) that `materializeChat` decodes on restore. The additional chat inherits the parent session's working directory, model, and permissions. Exact disposal/release affects only the addressed chat's own thread — there is no cascade between chats of the same session. The persisted `codex.threadId`, `codex.cwd`, and `codex.model` keys and app-server protocol are unchanged, and Codex still never recognizes or derives a default-chat URI. The orchestrator registry contains the parent AH session, not these chat backing URIs; provider-owned discovery pushes external chats through `onDidDiscoverChats`. Capabilities are `multipleChats: { fork: true }`.
 
 
@@ -502,6 +525,26 @@ Membership changes re-enter the same seam: a `session/chatAdded` envelope fans e
 ### 8f. Session config (already centralized)
 
 Live provider runtimes that react to session config subscribe to `IAgentConfigurationService.onDidSessionConfigChange` with their explicit config resource. `AgentSideEffects` does not enumerate chats or fan config values through provider hooks.
+
+Copilot advertises the optional `sandboxEnabled` session property (`default`,
+`on`, or `off`). Omission and `default` follow the root sandbox settings;
+selections are saved in session-config metadata and restored across window reloads
+and agent-host restarts. The effective sandbox state is recomputed from the saved
+selection, current root settings, and the runtime's current managed policy.
+Chats and subagents share their configuration owner's selection. New sessions
+and forks do not copy it. Codex retains its native sandbox/permission preset;
+Claude does not advertise this unsupported control.
+
+Both the Copilot SDK sandbox and custom terminal sandbox read the same effective
+session configuration. The launcher subscribes to `onEvent` before create/resume
+to capture the runtime's authoritative managed-settings snapshot. Missing
+snapshots log an error and continue with the available session selection, root
+settings, and any known managed policy. Failed SDK sandbox updates fail closed. Runtime-owned sandbox floors
+are transient, cannot be set through client config, and permanently replace
+disallowed `off` selections with `default`; policy removal cannot revive them.
+Managed asks remain one-time-only. An ordinary sandbox escape's “Allow in this
+Session” changes the owner's sandbox selection, not global settings or tool
+allow lists.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed and registered by `createAgentServiceComposition`. Consumers resolve their service identifiers through constructor injection; `AgentService` neither owns nor exposes them.
 

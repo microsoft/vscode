@@ -31,7 +31,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getGitHubPullRequestRefs, IChat, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
@@ -83,7 +83,7 @@ function getGitHubRepositoryHoverData(owner: string, repo: string, openerService
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
 export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: { readonly artifacts: readonly ISessionArtifact[]; remove(artifactIds: readonly string[]): Promise<void> }): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status }) => {
-		const artifacts = artifactActions?.artifacts.filter(artifact => artifact.isArtifact && artifact.kind === SessionArtifactKind.PullRequest && artifact.isGitHub === true && artifact.link && linkKey(artifact.link.toString(true)) === linkKey(ref.uri.toString(true)));
+		const artifacts = artifactActions?.artifacts.filter(artifact => artifact.isArtifact && artifact.kind === SessionArtifactKind.PullRequest && artifact.link && linkKey(artifact.link.toString(true)) === linkKey(ref.uri.toString(true)));
 		const title = pullRequest?.title ?? ref.title;
 		const label = title
 			? localize('sessionChatPills.pullRequestWithTitle', "Pull Request #{0}: {1}", ref.number, title)
@@ -374,7 +374,12 @@ export class SessionChatInputToolbar extends Disposable {
 						return;
 					}
 					layoutService.revealEditorPartExplicitly();
-					void sessionChangesService.openChangesEditor(session.resource, { changesetSelection: { kind: 'id', id: undefined } });
+					void sessionChangesService.openChangesEditor(session.resource, {
+						changesetSelection: {
+							kind: 'id',
+							id: SESSION_CHANGES_CHANGESET_ID
+						}
+					});
 				},
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),
