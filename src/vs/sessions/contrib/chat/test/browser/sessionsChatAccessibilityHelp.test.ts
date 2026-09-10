@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
@@ -32,15 +34,17 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IConfigurationService, configuration);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 			const nudgeHelp = provider.provideContent().split('\n').find(line => line.includes('suggestion may appear'));
 
 			assert.deepStrictEqual({
-				controls: nudgeHelp?.includes(`Use Tab or Shift+Tab to reach ${action} or ${dismiss}, then Enter or Space to activate it.`),
+				controls: nudgeHelp?.includes(`Use Tab or Shift+Tab to reach ${action}, Configure Automatic Cleanup, or ${dismiss}, then Enter or Space to activate it.`),
+				cleanupSettings: nudgeHelp?.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions.'),
 				escape: nudgeHelp?.includes(`${dismiss}, or Escape while the suggestion is focused, hides the suggestion`),
 				focus: nudgeHelp?.includes('returns focus to the chat input'),
 				close: nudgeHelp?.includes('Close'),
-			}, { controls: true, escape: true, focus: true, close: false });
+			}, { controls: true, cleanupSettings: true, escape: true, focus: true, close: false });
 		});
 	}
 });

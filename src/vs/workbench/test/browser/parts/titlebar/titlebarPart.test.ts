@@ -89,6 +89,44 @@ suite('TitlebarPart colors', () => {
 			missingInactiveColors: { title: 'rgb(17, 34, 51)', shell: '#334455' },
 		});
 	});
+
+	test('uses title bar foreground colors for action toolbar icons', () => {
+		const workbench = document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		workbench.style.color = '#abcdef';
+		workbench.style.setProperty('--vscode-titleBar-activeForeground', '#112233');
+		workbench.style.setProperty('--vscode-titleBar-inactiveForeground', '#445566');
+
+		const titlebar = document.createElement('div');
+		titlebar.className = 'part titlebar';
+		const titlebarContainer = document.createElement('div');
+		titlebarContainer.className = 'titlebar-container';
+		const titlebarRight = document.createElement('div');
+		titlebarRight.className = 'titlebar-right';
+		const actionToolbar = document.createElement('div');
+		actionToolbar.className = 'action-toolbar-container';
+		const icon = document.createElement('span');
+		icon.className = 'codicon';
+		actionToolbar.appendChild(icon);
+		titlebarRight.appendChild(actionToolbar);
+		titlebarContainer.appendChild(titlebarRight);
+		titlebar.appendChild(titlebarContainer);
+		workbench.appendChild(titlebar);
+		document.body.appendChild(workbench);
+
+		try {
+			const active = mainWindow.getComputedStyle(icon).color;
+			titlebar.classList.add('inactive');
+			const inactive = mainWindow.getComputedStyle(icon).color;
+
+			assert.deepStrictEqual({ active, inactive }, {
+				active: 'rgb(17, 34, 51)',
+				inactive: 'rgb(68, 85, 102)',
+			});
+		} finally {
+			workbench.remove();
+		}
+	});
 });
 
 suite('Workbench - Titlebar Part', () => {

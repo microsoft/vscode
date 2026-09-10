@@ -10,6 +10,7 @@ import { autorun, observableValue } from '../../../../../base/common/observable.
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -22,6 +23,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../github/common/types.js';
 import { getPullRequestKey } from '../../../github/common/utils.js';
+import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
 
 suite('SessionArchiveNudge', () => {
@@ -92,6 +94,13 @@ suite('SessionArchiveNudge', () => {
 			}
 		}();
 		const requests: string[] = [];
+		const commands: { id: string; args: readonly unknown[] }[] = [];
+		const commandService = new class extends mock<ICommandService>() {
+			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+				commands.push({ id, args });
+				return undefined;
+			}
+		}();
 		let references = 0;
 		let polling = 0;
 		let refreshes = 0;
@@ -128,12 +137,12 @@ suite('SessionArchiveNudge', () => {
 		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);
 		function createNudge() {
-			const nudge = store.add(new SessionArchiveNudge(current, configuration, entitlement, github, service));
+			const nudge = store.add(new SessionArchiveNudge(current, configuration, entitlement, github, service, commandService));
 			store.add(autorun(reader => nudge.options.read(reader)));
 			return nudge;
 		}
 		return {
-			current, configuration, entitlement, storage, archived, unarchived, deleted, changed, events, requests, archiveTargets,
+			current, configuration, entitlement, storage, archived, unarchived, deleted, changed, events, requests, archiveTargets, commands,
 			get service() { return service; },
 			get counts() { return { references, polling, refreshes }; },
 			createNudge,
@@ -402,6 +411,18 @@ suite('SessionArchiveNudge', () => {
 			targets: [session.sessionId],
 			visible: false,
 		});
+	});
+
+	test('opens both automatic cleanup settings from the nudge', async () => {
+		const context = setup();
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		await nudge.options.get()!.onOpenCleanupSettings();
+
+		assert.deepStrictEqual(context.commands, [{
+			id: 'workbench.action.openSettings',
+			args: [AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY],
+		}]);
 	});
 
 	test('keeps the nudge available after an archive error and rejects a stale action', async () => {

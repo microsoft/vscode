@@ -123,7 +123,7 @@
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon + .chat-input-picker-label {
-	margin-left: 2px;
+	margin-left: var(--vscode-spacing-size60);
 }
 
 .chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section {

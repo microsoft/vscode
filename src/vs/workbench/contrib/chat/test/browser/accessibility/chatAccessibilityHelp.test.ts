@@ -63,7 +63,8 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			shown: shown.includes('An archive suggestion appears'),
 			hidden: hidden.includes('An archive suggestion appears'),
-			keyboard: shown.includes('Tab or Shift+Tab to reach Archive or Dismiss Archive Suggestion, then press Enter or Space'),
+			keyboard: shown.includes('Tab or Shift+Tab to reach Archive, Configure Automatic Cleanup, or Dismiss Archive Suggestion, then press Enter or Space'),
+			cleanupSettings: shown.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions'),
 			disclosure: shown.includes('What Does "Archive" Do? is collapsed by default'),
 			disclosureKeyboard: shown.includes('Enter or Space to expand or collapse it'),
 			focus: shown.includes('Escape while it is focused, returns to the chat input'),
@@ -76,6 +77,7 @@ suite('Chat Accessibility Help', () => {
 			shown: true,
 			hidden: false,
 			keyboard: true,
+			cleanupSettings: true,
 			disclosure: true,
 			disclosureKeyboard: true,
 			focus: true,
@@ -99,7 +101,8 @@ suite('Chat Accessibility Help', () => {
 	test('uses the configured Mark as Done wording for nudge help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, true, ChatSessionArchiveActionWording.MarkAsDone);
 		assert.deepStrictEqual({
-			keyboard: help.includes('Tab or Shift+Tab to reach Mark as Done or Dismiss Mark as Done Suggestion'),
+			keyboard: help.includes('Tab or Shift+Tab to reach Mark as Done, Configure Automatic Cleanup, or Dismiss Mark as Done Suggestion'),
+			cleanupSettings: help.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions'),
 			disclosure: help.includes('What Does "Mark as Done" Do? is collapsed by default'),
 			focusRemainingTasks: help.includes('hides it from the sessions list so you can focus on your remaining tasks'),
 			retained: help.includes('The session is not deleted'),
@@ -107,7 +110,7 @@ suite('Chat Accessibility Help', () => {
 			recovery: help.includes('"Done" section of the sessions list. You can restore it anytime'),
 			worktree: help.includes('worktree created for the session, if any, will be deleted. You can recreate it by restoring the session'),
 			archiveDisclosure: help.includes('What Does "Archive" Do?'),
-		}, { keyboard: true, disclosure: true, focusRemainingTasks: true, retained: true, agentRecovery: true, recovery: true, worktree: true, archiveDisclosure: false });
+		}, { keyboard: true, cleanupSettings: true, disclosure: true, focusRemainingTasks: true, retained: true, agentRecovery: true, recovery: true, worktree: true, archiveDisclosure: false });
 	});
 
 	test('only describes inline attachment references when supported', () => {

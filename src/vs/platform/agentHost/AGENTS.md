@@ -95,6 +95,10 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 ### Orchestrator layer
 
+Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
+
+The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits the existing `sessionArtifacts` database metadata write, then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed deletion leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
+
 **`AgentService` (`node/agentService.ts`):**
 - Resolves the `(session, chat)` → `(agent, session URI, chat URI)` mapping for orchestration.
 - Uses `IAgentHostProviderService` for provider ownership and session routing. Its `getProviderForSession` path falls back through the session URI's scheme when a restored session was not associated in this process lifetime.
@@ -521,6 +525,26 @@ Membership changes re-enter the same seam: a `session/chatAdded` envelope fans e
 ### 8f. Session config (already centralized)
 
 Live provider runtimes that react to session config subscribe to `IAgentConfigurationService.onDidSessionConfigChange` with their explicit config resource. `AgentSideEffects` does not enumerate chats or fan config values through provider hooks.
+
+Copilot advertises the optional `sandboxEnabled` session property (`default`,
+`on`, or `off`). Omission and `default` follow the root sandbox settings;
+selections are saved in session-config metadata and restored across window reloads
+and agent-host restarts. The effective sandbox state is recomputed from the saved
+selection, current root settings, and the runtime's current managed policy.
+Chats and subagents share their configuration owner's selection. New sessions
+and forks do not copy it. Codex retains its native sandbox/permission preset;
+Claude does not advertise this unsupported control.
+
+Both the Copilot SDK sandbox and custom terminal sandbox read the same effective
+session configuration. The launcher subscribes to `onEvent` before create/resume
+to capture the runtime's authoritative managed-settings snapshot. Missing
+snapshots log an error and continue with the available session selection, root
+settings, and any known managed policy. Failed SDK sandbox updates fail closed. Runtime-owned sandbox floors
+are transient, cannot be set through client config, and permanently replace
+disallowed `off` selections with `default`; policy removal cannot revive them.
+Managed asks remain one-time-only. An ordinary sandbox escape's “Allow in this
+Session” changes the owner's sandbox selection, not global settings or tool
+allow lists.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed and registered by `createAgentServiceComposition`. Consumers resolve their service identifiers through constructor injection; `AgentService` neither owns nor exposes them.
 

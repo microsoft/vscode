@@ -671,6 +671,10 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 
+		if (signal.kind === 'model_call_completed') {
+			// Root signals already carry their owning turn, even after that turn ended.
+			agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, signal.turnId);
+		}
 		const turnId = this._stateManager.getActiveTurnId(sessionKey);
 		if (turnId) {
 			if (signal.kind === 'model_call_completed') {
@@ -902,7 +906,9 @@ export class AgentSideEffects extends Disposable {
 			this._logService.trace(`[AgentSideEffects] Dropping stale model_call_completed for ${sessionKey}: producerTurnId=${signal.turnId}, activeTurnId=${turnId}`);
 			return;
 		}
-		agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, turnId);
+		if (turnIdRouting === 'remap') {
+			agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, turnId);
+		}
 		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId);
 	}
 
@@ -1001,7 +1007,7 @@ export class AgentSideEffects extends Disposable {
 		const agent = this._options.getAgent(parentSessionUri);
 		if (agent) {
 			const interactionMode = getConfiguredSessionMode(this._stateManager.getSessionState(parentSessionUri)?.config);
-			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, taskModelSource);
+			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, taskModelSource, URI.parse(chatURI));
 			this._turnTracker.setCurrentStage(subagentChatUri, turnId, 'provider');
 		}
 
@@ -1077,7 +1083,7 @@ export class AgentSideEffects extends Disposable {
 		const agent = this._options.getAgent(subagent.sessionUri);
 		if (agent) {
 			const interactionMode = getConfiguredSessionMode(this._stateManager.getSessionState(subagent.sessionUri)?.config);
-			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, subagent.taskModelSource);
+			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, subagent.taskModelSource, URI.parse(parentChatURI));
 			this._turnTracker.setCurrentStage(subagent.chatUri, turnId, 'provider');
 		}
 		this._subagentChats.set({ ...subagent, immediateParentChatUri: correlatedParentChatUri, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);

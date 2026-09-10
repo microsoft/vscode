@@ -1243,4 +1243,27 @@ suite('Agent Host Session Config Picker', () => {
 
 		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders, not a worktreeBranchTrack chip');
 	});
+
+	test('leaves sandbox enablement to the permission picker', () => {
+		const services = setupServices(store);
+		services.provider.config = {
+			schema: {
+				type: 'object',
+				properties: {
+					[SessionConfigKey.SandboxEnabled]: {
+						title: 'Sandbox', type: 'string', enum: ['default', 'on', 'off'], sessionMutable: true,
+					},
+				},
+			},
+			values: { [SessionConfigKey.SandboxEnabled]: 'off' },
+		};
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const container = document.createElement('div');
+		picker.render(container);
+
+		assert.deepStrictEqual(
+			Array.from(container.querySelectorAll('.sessions-chat-dropdown-label'), label => label.textContent),
+			[],
+		);
+	});
 });

@@ -119,6 +119,8 @@
 
 .chat-session-archive-nudge-footer {
 	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
 }
 
 .chat-session-archive-nudge-footer > .monaco-button {
