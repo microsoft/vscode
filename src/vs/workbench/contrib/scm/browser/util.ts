@@ -51,15 +51,15 @@ export function isSCMResourceNode(element: unknown): element is IResourceNode<IS
 }
 
 export function isSCMHistoryItemViewModelTreeElement(element: unknown): element is SCMHistoryItemViewModelTreeElement {
-	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItemViewModel';
+	return element !== null && element !== undefined && (element as SCMHistoryItemViewModelTreeElement).type === 'historyItemViewModel';
 }
 
 export function isSCMHistoryItemLoadMoreTreeElement(element: unknown): element is SCMHistoryItemLoadMoreTreeElement {
-	return (element as SCMHistoryItemLoadMoreTreeElement).type === 'historyItemLoadMore';
+	return element !== null && element !== undefined && (element as SCMHistoryItemLoadMoreTreeElement).type === 'historyItemLoadMore';
 }
 
 export function isSCMHistoryItemChangeViewModelTreeElement(element: unknown): element is SCMHistoryItemChangeViewModelTreeElement {
-	return (element as SCMHistoryItemChangeViewModelTreeElement).type === 'historyItemChangeViewModel';
+	return element !== null && element !== undefined && (element as SCMHistoryItemChangeViewModelTreeElement).type === 'historyItemChangeViewModel';
 }
 
 export function isSCMHistoryItemChangeNode(element: unknown): element is IResourceNode<ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement> {
