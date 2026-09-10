@@ -26,22 +26,25 @@ export interface IAutoApprovalCommandParseResult {
 }
 
 /**
- * Matches a PowerShell command token of the form `-flag=` or `--flag=` at the
- * start of input or following whitespace. Used to work around a tree-sitter
- * PowerShell grammar limitation where POSIX-style `--flag=value` arguments
- * (e.g. `git log --format="a|b"`) are parsed as assignment expressions and
- * truncate the surrounding command.
+ * Matches PowerShell command tokens of the form `-flag=` or `--flag=` at the
+ * start of input or following whitespace. Also matches standalone `--` tokens
+ * used by native CLIs as argument/path separators. Used to work around
+ * tree-sitter PowerShell grammar limitations where POSIX-style native CLI
+ * arguments are parsed as invalid shell syntax.
  *
  * See https://github.com/microsoft/vscode/issues/294010
  * TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
  */
 const pwshFlagEqualsRegex = /(^|\s)(-{1,2}[\w-]+)=/g;
+const pwshStandaloneDoubleDashRegex = /(^|\s)--(?=\s|$)/g;
 
 const envOptionsWithValue = new Set(['-u', '--unset', '-C', '--chdir', '-a', '--argv0']);
 
 // TODO: Remove once upstream tree-sitter PowerShell grammer is updated.
-function maskPwshFlagEquals(commandLine: string): string {
-	return commandLine.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `);
+function maskPwshPosixNativeArgs(commandLine: string): string {
+	return commandLine
+		.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `)
+		.replace(pwshStandaloneDoubleDashRegex, (_, pre) => `${pre}__`);
 }
 
 export class TreeSitterCommandParser extends Disposable {
@@ -60,11 +63,11 @@ export class TreeSitterCommandParser extends Disposable {
 
 	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
 		if (languageId === TreeSitterCommandParserLanguage.PowerShell) {
-			const masked = maskPwshFlagEquals(commandLine);
+			const masked = maskPwshPosixNativeArgs(commandLine);
 			if (masked !== commandLine) {
 				const captures = await this._queryTree(languageId, masked, '(command) @command');
 				// Masked command line has identical character positions, so slice the original
-				// to preserve the user-visible text (including the `=` characters).
+				// to preserve the user-visible text (including the masked characters).
 				return captures.map(e => commandLine.substring(e.node.startIndex, e.node.endIndex));
 			}
 		}
@@ -73,7 +76,7 @@ export class TreeSitterCommandParser extends Disposable {
 	}
 
 	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {
-		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
+		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshPosixNativeArgs(commandLine) : commandLine;
 		const querySource = languageId === TreeSitterCommandParserLanguage.PowerShell
 			? '(command) @command (assignment_expression) @unanalyzable (invokation_expression) @unanalyzable'
 			: '(command) @command (variable_assignment) @unanalyzable (declaration_command) @unanalyzable';
