@@ -29,9 +29,28 @@ import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js'
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
+import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards workspace acknowledgement only from a new-session widget', () => {
+		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+		const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+			selectWorkspace: (folder: URI, options?: ISelectWorkspaceOptions) => {
+				calls.push({ folder, options });
+				return 'applied';
+			},
+		});
+		const results = [undefined, Object.create(NewChatInSessionWidget.prototype), widget].map(_widget => {
+			const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget });
+			return view.selectWorkspace(URI.file('/requested'), { isDefault: true });
+		});
+		assert.deepStrictEqual({ results, calls }, {
+			results: ['notReady', 'notReady', 'applied'],
+			calls: [{ folder: URI.file('/requested'), options: { isDefault: true } }],
+		});
+	});
 
 	/** Reaches the banner without standing up the widget's whole service graph. */
 	interface ISubSessionTipRenderer {
@@ -679,6 +698,38 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('keeps request attachment pills opaque over the chat background', () => {
+		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
+		const appendAttachment = (part: HTMLElement) => {
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
+			const value = dom.append(request, dom.$('.value'));
+			const attachments = dom.append(value, dom.$('.chat-attached-context'));
+			return dom.append(attachments, dom.$('.chat-attached-context-attachment.agent-feedback-attachment'));
+		};
+		const attachment = appendAttachment(dom.append(workbench, dom.$('.part.sessionspart.has-chat-background')));
+		const plainAttachment = appendAttachment(dom.append(workbench, dom.$('.part.sessionspart')));
+		dom.getWindow(workbench).document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+
+		const style = dom.getWindow(attachment).getComputedStyle(attachment);
+		const plainStyle = dom.getWindow(plainAttachment).getComputedStyle(plainAttachment);
+		assert.deepStrictEqual({
+			backgroundColor: style.backgroundColor,
+			backgroundImage: style.backgroundImage,
+			plainBackgroundColor: plainStyle.backgroundColor,
+			plainBackgroundImage: plainStyle.backgroundImage,
+		}, {
+			backgroundColor: 'rgb(32, 32, 32)',
+			backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3))',
+			plainBackgroundColor: 'rgba(0, 0, 0, 0)',
+			plainBackgroundImage: 'none',
+		});
+	});
+
 	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
 		test(`keeps the agent merge card opaque over the chat background (${theme})`, () => {
 			const workbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`);
@@ -756,7 +807,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('keeps the checkpoint and fork controls opaque over the chat background', () => {
+	test('keeps checkpoint and fork row containers transparent over the chat background', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
 		const appendCheckpointRows = (part: HTMLElement) => {
@@ -764,11 +815,15 @@ suite('Sessions - Chat View', () => {
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const checkpoint = dom.append(session, dom.$('.checkpoint-container'));
 			const restore = dom.append(session, dom.$('.checkpoint-restore-container'));
+			const checkpointToolbar = dom.append(checkpoint, dom.$('.monaco-toolbar'));
+			const restoreToolbar = dom.append(restore, dom.$('.monaco-toolbar'));
 			return {
-				checkpointToolbar: dom.append(checkpoint, dom.$('.monaco-toolbar')),
+				checkpointToolbar,
+				checkpointAction: dom.append(dom.append(checkpointToolbar, dom.$('.action-item')), dom.$('.action-label')),
 				label: dom.append(restore, dom.$('span.checkpoint-label-text')),
 				separator: dom.append(restore, dom.$('span.checkpoint-dot-separator')),
-				restoreToolbar: dom.append(restore, dom.$('.monaco-toolbar')),
+				restoreToolbar,
+				restoreAction: dom.append(dom.append(restoreToolbar, dom.$('.action-item')), dom.$('.action-label')),
 			};
 		};
 		const background = appendCheckpointRows(dom.append(workbench, dom.$('.part.sessionspart.has-chat-background')));
@@ -782,19 +837,27 @@ suite('Sessions - Chat View', () => {
 			label: fill(background.label),
 			separator: fill(background.separator),
 			restoreToolbar: fill(background.restoreToolbar),
+			checkpointAction: fill(background.checkpointAction),
+			restoreAction: fill(background.restoreAction),
 			plainCheckpointToolbar: fill(plain.checkpointToolbar),
 			plainLabel: fill(plain.label),
 			plainSeparator: fill(plain.separator),
 			plainRestoreToolbar: fill(plain.restoreToolbar),
+			plainCheckpointAction: fill(plain.checkpointAction),
+			plainRestoreAction: fill(plain.restoreAction),
 		}, {
-			checkpointToolbar: 'rgb(32, 32, 32)',
-			label: 'rgb(32, 32, 32)',
-			separator: 'rgb(32, 32, 32)',
-			restoreToolbar: 'rgb(32, 32, 32)',
+			checkpointToolbar: 'rgba(0, 0, 0, 0)',
+			label: 'rgba(0, 0, 0, 0)',
+			separator: 'rgba(0, 0, 0, 0)',
+			restoreToolbar: 'rgba(0, 0, 0, 0)',
+			checkpointAction: 'rgb(32, 32, 32)',
+			restoreAction: 'rgb(32, 32, 32)',
 			plainCheckpointToolbar: 'rgba(0, 0, 0, 0)',
 			plainLabel: 'rgba(0, 0, 0, 0)',
 			plainSeparator: 'rgba(0, 0, 0, 0)',
 			plainRestoreToolbar: 'rgba(0, 0, 0, 0)',
+			plainCheckpointAction: 'rgba(0, 0, 0, 0)',
+			plainRestoreAction: 'rgba(0, 0, 0, 0)',
 		});
 	});
 

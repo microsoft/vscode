@@ -72,7 +72,7 @@ import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agent
 import { getCopilotHomePath } from '../../common/copilotHome.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
-import { basename, join } from '../../../../base/common/path.js';
+import { basename, dirname, join } from '../../../../base/common/path.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
@@ -4072,6 +4072,32 @@ suite('CopilotAgent', () => {
 	}).timeout(30_000);
 
 	suite('quick chat scratch directory', () => {
+		test('does not discover workspace customizations from scratch', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
+			const agent = createTestAgent(disposables, { userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'qc-customizations');
+				const result = await provisionSession(agent, { session });
+				const scratchDir = result.resolvedWorkingDirectory;
+				assert.ok(scratchDir);
+				const scratchInstructions = URI.joinPath(scratchDir, '.github', 'copilot-instructions.md');
+				await fs.mkdir(dirname(scratchInstructions.fsPath), { recursive: true });
+				await fs.writeFile(scratchInstructions.fsPath, 'scratch instructions');
+
+				const customizations = await getDefaultChatCustomizations(agent, session);
+				const uris = customizations.flatMap(customization => [
+					customization.uri,
+					...(customization.type === CustomizationType.Directory ? customization.children?.map(child => child.uri) ?? [] : []),
+				]);
+
+				assert.deepStrictEqual(uris.includes(scratchInstructions.toString()), false);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
+
 		test('resume recreates a reaped quick chat scratch dir (ensure-exists on restore)', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
 			const sessionId = 'qc-resume';

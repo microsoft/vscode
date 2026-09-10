@@ -1614,7 +1614,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const defaultChatTitleKey = customChatTitleMetadataKey(buildDefaultChatUri(session));
 				const changesetKeys = this._changesetCoordinator.getListMetadataKeys(session);
 				const metadataKeys: Record<string, true> = changesetKeys
-					? { customTitle: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+					? { customTitle: true, configValues: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
 					: { customTitle: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 				const persisted = await ref.object.getMetadataObject(metadataKeys);
 				if (persisted[CHAT_BACKING_METADATA_KEY]) {
@@ -1913,7 +1913,7 @@ export class AgentService extends Disposable implements IAgentService {
 				status,
 				project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 				workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
-				changes: metadata.changes,
+				changes: await this._migrateLegacyChangesetAggregate(registered.session, metadata, database),
 				meta: registered.external ? withSessionMultiRootMetadata(meta, undefined) : meta,
 				chats: [
 					{
@@ -1930,6 +1930,30 @@ export class AgentService extends Disposable implements IAgentService {
 				],
 			}, {}, true, database, metadataFallbacks),
 		};
+	}
+
+	/**
+	 * Resolves the changeset aggregate for a catalog payload, migrating legacy
+	 * per-kind blobs into the modern changes summary while the reconciliation
+	 * database is already open. Listing itself stays database-free, so this is
+	 * where the migration that the provider/session fallback performs happens
+	 * for catalog-served rows.
+	 */
+	private async _migrateLegacyChangesetAggregate(session: URI, metadata: IAgentSessionMetadata, database: AgentHostCatalogDatabaseReference | undefined): Promise<ChangesSummary | undefined> {
+		if (metadata.changes !== undefined || !database) {
+			return metadata.changes;
+		}
+		const changesetKeys = this._changesetCoordinator.getListMetadataKeys(session.toString());
+		if (!changesetKeys) {
+			return metadata.changes;
+		}
+		try {
+			const persisted = await database.object.getMetadataObject({ configValues: true, ...changesetKeys });
+			return this._changesetCoordinator.decorateListEntry(metadata, persisted as Record<string, string | undefined>).changes;
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to resolve changeset aggregate for ${session.toString()}`, error);
+			return metadata.changes;
+		}
 	}
 
 	private async _getCatalogReconciliationMetadata(agent: IAgent, registered: IRegisteredSession, isChatBacking: boolean): Promise<IAgentSessionMetadata | undefined> {
@@ -6945,8 +6969,9 @@ export class AgentService extends Disposable implements IAgentService {
 			...promises
 		]);
 		if (restoredConfig) {
+			const previousConfig = this._stateManager.getSessionState(sessionStr)?.config;
 			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
-			this._changesetCoordinator.onSessionConfigRestored(sessionStr);
+			this._changesetCoordinator.onSessionConfigRestored(sessionStr, previousConfig);
 			// Seeded config bypasses `onDidChangeSessionConfig`, so heal the
 			// index for a session enabled before it was introduced.
 			this._syncAgentMergeIndex(session, undefined, restoredConfig);

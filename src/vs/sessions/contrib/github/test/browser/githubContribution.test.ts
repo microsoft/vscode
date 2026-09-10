@@ -12,10 +12,12 @@ import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposab
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IPromptChoice, IPromptOptions, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
@@ -24,7 +26,9 @@ import { GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.j
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
 import { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
+import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG } from '../../common/sessionLifecycleSettings.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from '../../browser/githubReferenceList.js';
 import { IGitHubService } from '../../browser/githubService.js';
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -194,6 +198,12 @@ suite('GitHubReferenceList', () => {
 
 suite('GitHubPullRequestPollingContribution', () => {
 
+	// Capture registrations before configuration registry tests clear the global registry.
+	const automaticCleanupSettings = Object.entries(Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties())
+		.filter(([, property]) => property.tags?.includes(AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG))
+		.map(([key]) => key)
+		.sort();
+
 	const store = new DisposableStore();
 	const logService = new NullLogService();
 	let sessionsManagementService: TestSessionsManagementService;
@@ -228,6 +238,13 @@ suite('GitHubPullRequestPollingContribution', () => {
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('tags only the two automatic cleanup settings for the settings query', () => {
+		assert.deepStrictEqual({ query: AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, settings: automaticCleanupSettings }, {
+			query: '@tag:agentSessionCleanup',
+			settings: [AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING],
+		});
+	});
 
 	test('starts polling existing and added pull request sessions', () => {
 		const existingSession = sessionsManagementService.addSession('existing', makeGitHubInfo(1));

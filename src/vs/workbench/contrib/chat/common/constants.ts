@@ -54,6 +54,9 @@ export enum ChatConfiguration {
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	SessionCatalogEnabled = 'chat.agentSessions.sessionCatalog.enabled',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
+	UnifiedWorkspacePicker = 'sessions.chat.unifiedWorkspacePicker.enabled',
+	AutoArchiveMergedSessionsAfterDays = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays',
+	AutoDeleteArchivedMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -141,6 +144,8 @@ export enum ChatConfiguration {
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
+
+export const AGENT_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';
 
 /**
  * The "kind" of agents for custom agents.

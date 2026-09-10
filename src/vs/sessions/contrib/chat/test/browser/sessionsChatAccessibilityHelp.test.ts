@@ -36,7 +36,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
-			const nudgeHelp = provider.provideContent().split('\n').find(line => line.includes('suggestion may appear'));
+			const content = provider.provideContent();
+			const nudgeHelp = content.split('\n').find(line => line.includes('suggestion may appear'));
 
 			assert.deepStrictEqual({
 				controls: nudgeHelp?.includes(`Use Tab or Shift+Tab to reach ${action}, Configure Automatic Cleanup, or ${dismiss}, then Enter or Space to activate it.`),
@@ -44,7 +45,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 				escape: nudgeHelp?.includes(`${dismiss}, or Escape while the suggestion is focused, hides the suggestion`),
 				focus: nudgeHelp?.includes('returns focus to the chat input'),
 				close: nudgeHelp?.includes('Close'),
-			}, { controls: true, cleanupSettings: true, escape: true, focus: true, close: false });
+				onboarding: content.includes('The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight.'),
+			}, { controls: true, cleanupSettings: true, escape: true, focus: true, close: false, onboarding: true });
 		});
 	}
 });
