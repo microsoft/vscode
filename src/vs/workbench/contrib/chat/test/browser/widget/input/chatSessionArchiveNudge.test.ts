@@ -30,6 +30,7 @@ suite('ChatSessionArchiveNudge', () => {
 			pullRequestCount: 1,
 			onArchive: async () => { },
 			onDismiss: () => { },
+			onOpenCleanupSettings: async () => { },
 			...overrides,
 		};
 	}
@@ -76,9 +77,9 @@ suite('ChatSessionArchiveNudge', () => {
 		const container = createContainer();
 		const widget = store.add(instantiationService.createInstance(ChatSessionArchiveNudge, options(overrides)));
 		container.appendChild(widget.domNode);
-		const archive = widget.domNode.querySelector<HTMLElement>('.monaco-button')!;
+		const [archive, cleanupSettings] = widget.domNode.querySelectorAll<HTMLElement>('.monaco-button');
 		const dismiss = widget.domNode.querySelector<HTMLElement>('.action-label')!;
-		return { widget, archive, dismiss, configurationService, errors, warnings, container };
+		return { widget, archive, cleanupSettings, dismiss, configurationService, errors, warnings, container };
 	}
 
 	async function setWording(configurationService: TestConfigurationService, wording: ChatSessionArchiveActionWording): Promise<void> {
@@ -99,7 +100,7 @@ suite('ChatSessionArchiveNudge', () => {
 	}
 
 	test('explains reversible archiving without suggesting folder cleanup', () => {
-		const { widget, archive, dismiss } = createWidget();
+		const { widget, archive, cleanupSettings, dismiss } = createWidget();
 		const description = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-description')!;
 		const details = widget.domNode.querySelector<HTMLDetailsElement>('details')!;
 		const worktree = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-worktree')!;
@@ -118,6 +119,7 @@ suite('ChatSessionArchiveNudge', () => {
 			worktreeHidden: worktree.hidden,
 			button: archive.textContent,
 			buttonDescription: archive.getAttribute('aria-describedby'),
+			cleanupSettingsButton: cleanupSettings.textContent,
 			dismissLabel: dismiss.getAttribute('aria-label'),
 			groupLabel: widget.domNode.getAttribute('aria-labelledby'),
 		}, {
@@ -133,8 +135,27 @@ suite('ChatSessionArchiveNudge', () => {
 			worktreeHidden: true,
 			button: 'Archive',
 			buttonDescription: description.id,
+			cleanupSettingsButton: 'Configure Automatic Cleanup',
 			dismissLabel: 'Dismiss Archive Suggestion',
 			groupLabel: widget.domNode.querySelector('h3')?.id,
+		});
+	});
+
+	test('opens automatic cleanup settings and reports failures', async () => {
+		let opens = 0;
+		const success = createWidget({ onOpenCleanupSettings: async () => { opens++; } });
+		success.cleanupSettings.click();
+		await Promise.resolve();
+		const failure = createWidget({ onOpenCleanupSettings: async () => { throw new Error('Settings unavailable'); } });
+		failure.cleanupSettings.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			opens,
+			errors: failure.errors,
+		}, {
+			opens: 1,
+			errors: ['Unable to open automatic cleanup settings: Settings unavailable'],
 		});
 	});
 
@@ -480,7 +501,7 @@ suite('ChatSessionArchiveNudge', () => {
 	});
 
 	test('leaves Tab and Shift+Tab to the normal input flow', () => {
-		const { widget, archive, dismiss } = createWidget();
+		const { widget, archive, cleanupSettings, dismiss } = createWidget();
 		const summary = widget.domNode.querySelector('summary')!;
 		dismiss.focus();
 		const tab = pressKey(dismiss, 'Tab', 9);
@@ -492,18 +513,22 @@ suite('ChatSessionArchiveNudge', () => {
 		assert.deepStrictEqual({
 			dismissTabIndex: dismiss.tabIndex,
 			archiveTabIndex: archive.tabIndex,
+			cleanupSettingsTabIndex: cleanupSettings.tabIndex,
 			summaryTabIndex: summary.tabIndex,
 			dismissBeforeSummary: !!(dismiss.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING),
 			summaryBeforeArchive: !!(summary.compareDocumentPosition(archive) & Node.DOCUMENT_POSITION_FOLLOWING),
+			archiveBeforeCleanupSettings: !!(archive.compareDocumentPosition(cleanupSettings) & Node.DOCUMENT_POSITION_FOLLOWING),
 			tabPrevented: tab.defaultPrevented,
 			summaryTabPrevented: summaryTab.defaultPrevented,
 			shiftTabPrevented: shiftTab.defaultPrevented,
 		}, {
 			dismissTabIndex: 0,
 			archiveTabIndex: 0,
+			cleanupSettingsTabIndex: 0,
 			summaryTabIndex: 0,
 			dismissBeforeSummary: true,
 			summaryBeforeArchive: true,
+			archiveBeforeCleanupSettings: true,
 			tabPrevented: false,
 			summaryTabPrevented: false,
 			shiftTabPrevented: false,
@@ -551,7 +576,7 @@ suite('ChatSessionArchiveNudge', () => {
 			onArchive: () => { archives++; return pending.p; },
 			onDismiss: () => { dismissals++; },
 		};
-		const { widget, archive, dismiss } = createWidget(callbacks);
+		const { widget, archive, cleanupSettings, dismiss } = createWidget(callbacks);
 		archive.click();
 		widget.setOptions(options({ ...callbacks, hasWorktree: true, pullRequestCount: 2 }));
 		archive.click();
@@ -562,6 +587,7 @@ suite('ChatSessionArchiveNudge', () => {
 		const busy = {
 			ariaBusy: widget.domNode.getAttribute('aria-busy'),
 			archiveDisabled: archive.getAttribute('aria-disabled'),
+			cleanupSettingsDisabled: cleanupSettings.getAttribute('aria-disabled'),
 			dismissDisabled: dismiss.getAttribute('aria-disabled'),
 			label: archive.textContent,
 		};
@@ -574,7 +600,7 @@ suite('ChatSessionArchiveNudge', () => {
 		}, {
 			archives: 1,
 			dismissals: 0,
-			busy: { ariaBusy: 'true', archiveDisabled: 'true', dismissDisabled: 'true', label: 'Archiving...' },
+			busy: { ariaBusy: 'true', archiveDisabled: 'true', cleanupSettingsDisabled: 'true', dismissDisabled: 'true', label: 'Archiving...' },
 			idle: 'false',
 			label: 'Archive',
 		});

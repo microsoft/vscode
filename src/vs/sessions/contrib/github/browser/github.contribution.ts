@@ -25,6 +25,7 @@ import { getGitHubPullRequestRefs, isActiveSessionStatus, ISession } from '../..
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
+import { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../common/sessionLifecycleSettings.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
 
@@ -38,8 +39,7 @@ const DEFAULT_AUTO_ARCHIVE_AFTER_DAYS = 15;
 const DEFAULT_AUTO_DELETE_AFTER_DAYS = 15;
 const AUTO_ARCHIVE_PROMPTED_STORAGE_KEY = 'sessions.github.autoArchiveMerged.prompted';
 
-export const AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
-export const AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
+export { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING };
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
@@ -405,7 +405,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 					label: localize('autoArchiveMergedSessions.openSettings', "Open Settings"),
 					isSecondary: true,
 					run: () => {
-						void this._commandService.executeCommand('workbench.action.openSettings', 'chat.agentSessions.auto').catch(onUnexpectedError);
+						void this._commandService.executeCommand('workbench.action.openSettings', AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY).catch(onUnexpectedError);
 					},
 				},
 			],
