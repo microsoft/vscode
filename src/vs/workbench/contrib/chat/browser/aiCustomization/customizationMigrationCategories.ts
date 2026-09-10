@@ -69,6 +69,8 @@ export interface ICustomizationMigrationCategory {
 	readonly cardActionLabel: string;
 	readonly cardActionAriaLabel: string;
 	readonly pageTitle: string;
+	readonly pageLinkLabel: string;
+	readonly pageLinkUrl: string;
 	readonly pageEmptyMessage: string;
 	readonly migrateButtonTooltip: string;
 	readonly backLabel: string;
@@ -110,10 +112,12 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.PromptFiles),
 	shortcutLabel: localize('promptMigrationShortcutLabel', "Migrate Prompts"),
 	shortcutTooltip: localize('promptMigrationShortcutTooltip', "Convert deprecated prompt files to skills"),
-	cardLabel: localize('promptMigrationCardLabel', "Prompt Files"),
-	cardActionLabel: localize('promptMigrationCardAction', "Review Migration"),
-	cardActionAriaLabel: localize('promptMigrationCardActionAriaLabel', "Review prompt file migration"),
+	cardLabel: localize('promptMigrationCardLabel', "Migrate Prompt Files"),
+	cardActionLabel: localize('promptMigrationCardAction', "Convert to Skills..."),
+	cardActionAriaLabel: localize('promptMigrationCardActionAriaLabel', "Convert prompt files to skills"),
 	pageTitle: localize('promptMigrationPageTitle', "Migrate Prompt Files"),
+	pageLinkLabel: localize('promptMigrationLearnMore', "Learn more about agent skills"),
+	pageLinkUrl: SKILLS_DOCUMENTATION_URL,
 	pageEmptyMessage: localize('promptMigrationPageEmpty', "No prompt files are available to migrate."),
 	migrateButtonTooltip: localize('promptMigrationPageButtonTooltip', "Convert selected prompt files to skills"),
 	backLabel: localize('backToPromptMigration', "Back to Migrate Prompt Files"),
@@ -137,10 +141,67 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 		];
 	},
 
+	getShortcutAriaLabel(count) {
+		return localize('promptMigrationShortcutAriaLabelWithCount', "Prompts, {0} deprecated prompt files need migration", count);
+	},
+
 	getCardDescription(customizations, harnessLabel) {
-		return customizations.length === 1
-			? localize('promptMigrationCardDescriptionSingle', "{0} will ignore this prompt file. Convert it to a skill to keep it available.", harnessLabel)
-			: localize('promptMigrationCardDescription', "{0} will ignore these prompt files. Convert them to skills to keep them available.", harnessLabel);
+		const { workspaceCount, userCount, totalCount } = countPromptStorages(customizations);
+		if (workspaceCount > 0 && userCount > 0) {
+			return localize(
+				'promptMigrationCardDescriptionWorkspaceAndUser',
+				"Prompt files are deprecated for this harness. Found {0} prompt files ({1} workspace, {2} global) that local VS Code can still run, but {3} ignores. Convert them to skills to keep them available.",
+				totalCount, workspaceCount, userCount, harnessLabel,
+			);
+		}
+		if (workspaceCount > 0) {
+			return localize(
+				'promptMigrationCardDescriptionWorkspace',
+				"Prompt files are deprecated for this harness. Found {0} workspace prompt files that local VS Code can still run, but {1} ignores. Convert them to skills to keep them available.",
+				workspaceCount, harnessLabel,
+			);
+		}
+		return localize(
+			'promptMigrationCardDescriptionUser',
+			"Prompt files are deprecated for this harness. Found {0} global prompt files that local VS Code can still run, but {1} ignores. Convert them to skills to keep them available.",
+			userCount, harnessLabel,
+		);
+	},
+
+	getPageDescription(customizations, harnessLabel) {
+		const { workspaceCount, userCount, totalCount } = countPromptStorages(customizations);
+		if (totalCount === 0) {
+			return localize('promptMigrationPageDescription', "Select prompt files to convert into skills for the active harness.");
+		}
+		if (workspaceCount > 0 && userCount > 0) {
+			return localize(
+				'promptMigrationPageDescriptionWorkspaceAndUser',
+				"Prompt files are not supported for this harness. Found {0} prompt files ({1} workspace, {2} user) that local VS Code can still run, but {3} ignores. Convert them to skills to keep them available.",
+				totalCount, workspaceCount, userCount, harnessLabel,
+			);
+		}
+		if (workspaceCount > 0) {
+			return localize(
+				'promptMigrationPageDescriptionWorkspace',
+				"Prompt files are not supported for this harness. Found {0} workspace prompt files that local VS Code can still run, but {1} ignores. Convert them to skills to keep them available.",
+				workspaceCount, harnessLabel,
+			);
+		}
+		return localize(
+			'promptMigrationPageDescriptionUser',
+			"Prompt files are not supported for this harness. Found {0} user prompt files that local VS Code can still run, but {1} ignores. Convert them to skills to keep them available.",
+			userCount, harnessLabel,
+		);
+	},
+
+	getBanner(_customizations, harnessLabel) {
+		return {
+			message: localize(
+				'promptMigrationBannerMessage',
+				"Prompts are no longer supported by {0}. Convert them to skills to keep them available in both VS Code and this harness.",
+				harnessLabel,
+			),
+		};
 	},
 
 	getConfirmation(customizations) {
@@ -178,7 +239,7 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 };
 
 /**
- * Relocates agents and instructions kept in the active profile's User Data prompts folder
+ * Relocates agents and instructions kept in the profile's User Data prompts folder
  * to the active harness roots. These files keep their type and content; only their
  * location changes. User Data prompt files are intentionally left to
  * {@link promptFilesMigrationCategory} so every prompt file is converted in one place.
@@ -190,16 +251,16 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.UserData),
 	shortcutLabel: localize('userDataMigrationShortcutLabel', "Migrate User Data"),
 	shortcutTooltip: localize('userDataMigrationShortcutTooltip', "Move user data agents and instructions to the active harness"),
-	cardLabel: localize('userDataMigrationCardLabel', "VS Code Profile Customizations"),
-	cardActionLabel: localize('userDataMigrationCardAction', "Review Profile Files"),
-	cardActionAriaLabel: localize('userDataMigrationCardActionAriaLabel', "Review VS Code profile customizations that need migration"),
-	pageTitle: localize('userDataMigrationPageTitle', "Migrate VS Code profile customizations"),
+	cardLabel: localize('userDataMigrationCardLabel', "Migrate User Data Customizations"),
+	cardActionLabel: localize('userDataMigrationCardAction', "Migrate..."),
+	cardActionAriaLabel: localize('userDataMigrationCardActionAriaLabel', "Migrate user data customizations to the active harness"),
+	pageTitle: localize('userDataMigrationPageTitle', "Migrate User Data Customizations"),
 	pageLinkLabel: localize('userDataMigrationLearnMore', "Learn more about agent customizations"),
 	pageLinkUrl: CUSTOMIZATION_DOCUMENTATION_URL,
-	pageEmptyMessage: localize('userDataMigrationPageEmpty', "No VS Code profile customizations are available to migrate."),
-	migrateButtonTooltip: localize('userDataMigrationPageButtonTooltip', "Move the selected VS Code profile customizations to the active harness"),
-	backLabel: localize('backToUserDataMigration', "Back to Migrate VS Code profile customizations"),
-	noFilesMigratedMessage: localize('userDataMigrationNoFilesMigrated', "No VS Code profile customizations were migrated."),
+	pageEmptyMessage: localize('userDataMigrationPageEmpty', "No user data customizations are available to migrate."),
+	migrateButtonTooltip: localize('userDataMigrationPageButtonTooltip', "Move the selected user data customizations to the active harness"),
+	backLabel: localize('backToUserDataMigration', "Back to Migrate User Data Customizations"),
+	noFilesMigratedMessage: localize('userDataMigrationNoFilesMigrated', "No user data customizations were migrated."),
 
 	isCandidate: isUserDataMigrationCandidate,
 	getCandidatePresentation: getFileCandidatePresentation,
@@ -219,38 +280,102 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 		];
 	},
 
+	getShortcutAriaLabel(count) {
+		return count === 1
+			? localize('userDataMigrationShortcutAriaLabelSingle', "User data, 1 customization needs migration")
+			: localize('userDataMigrationShortcutAriaLabelWithCount', "User data, {0} customizations need migration", count);
+	},
+
 	getCardDescription(customizations, harnessLabel) {
-		const { agentCount, instructionsCount } = countUserDataTypes(customizations);
+		const { agentCount, instructionsCount, totalCount } = countUserDataTypes(customizations);
 		if (agentCount > 0 && instructionsCount > 0) {
 			return localize(
 				'userDataMigrationCardDescriptionMixed',
-				"{0} will ignore these agents and instruction files. Move them to portable Copilot folders to keep them available.",
-				harnessLabel,
+				"User data customizations are only used by VS Code. Found {0} customizations that {1} ignores. Move them to keep them available.",
+				totalCount, harnessLabel,
 			);
 		}
 		if (agentCount > 0) {
 			return agentCount === 1
 				? localize(
 					'userDataMigrationCardDescriptionAgent',
-					"{0} will ignore this agent. Move it to a portable Copilot folder to keep it available.",
+					"User data customizations are only used by VS Code. Found 1 agent that {0} ignores. Move it to keep it available.",
 					harnessLabel,
 				)
 				: localize(
 					'userDataMigrationCardDescriptionAgents',
-					"{0} will ignore these agents. Move them to portable Copilot folders to keep them available.",
-					harnessLabel,
+					"User data customizations are only used by VS Code. Found {0} agents that {1} ignores. Move them to keep them available.",
+					agentCount, harnessLabel,
 				);
 		}
 		return instructionsCount === 1
 			? localize(
 				'userDataMigrationCardDescriptionInstruction',
-				"{0} will ignore this instruction file. Move it to a portable Copilot folder to keep it available.",
+				"User data customizations are only used by VS Code. Found 1 instruction file that {0} ignores. Move it to keep it available.",
 				harnessLabel,
 			)
 			: localize(
 				'userDataMigrationCardDescriptionInstructions',
-				"{0} will ignore these instruction files. Move them to portable Copilot folders to keep them available.",
+				"User data customizations are only used by VS Code. Found {0} instruction files that {1} ignores. Move them to keep them available.",
+				instructionsCount, harnessLabel,
+			);
+	},
+
+	getBanner(_customizations, harnessLabel, destinationLabel) {
+		return {
+			message: destinationLabel
+				? localize(
+					'userDataMigrationBannerMessageWithDestination',
+					"They are stored in user data, which only VS Code reads. Move them to '{0}' so both VS Code and this harness can use them, keeping their name, type, and content.",
+					destinationLabel,
+				)
+				: localize(
+					'userDataMigrationBannerMessage',
+					"They are stored in user data, which only VS Code reads. Migrating moves them into the folders {0} reads, keeping their name, type, and content, so you can keep using them.",
+					harnessLabel,
+				),
+			consequence: localize(
+				'userDataMigrationBannerConsequence',
+				"Migrated files aren't currently included in Settings Sync.",
+			),
+		};
+	},
+
+	getPageDescription(customizations, harnessLabel) {
+		const { agentCount, instructionsCount, totalCount } = countUserDataTypes(customizations);
+		if (totalCount === 0) {
+			return localize('userDataMigrationPageDescription', "Select user data customizations to move to the active harness.");
+		}
+		if (agentCount > 0 && instructionsCount > 0) {
+			return localize(
+				'userDataMigrationPageDescriptionAgentsAndInstructions',
+				"Found {0} customizations in user data that local VS Code can still use, but {1} ignores. Move them to the harness folders to keep their type and content.",
+				totalCount, harnessLabel,
+			);
+		}
+		if (agentCount > 0) {
+			return agentCount === 1
+				? localize(
+					'userDataMigrationPageDescriptionAgent',
+					"Found 1 agent in user data that local VS Code can still use, but {0} ignores. Move it to the harness agents folder to keep it available.",
+					harnessLabel,
+				)
+				: localize(
+					'userDataMigrationPageDescriptionAgents',
+					"Found {0} agents in user data that local VS Code can still use, but {1} ignores. Move them to the harness agents folder to keep them available.",
+					agentCount, harnessLabel,
+				);
+		}
+		return instructionsCount === 1
+			? localize(
+				'userDataMigrationPageDescriptionInstruction',
+				"Found 1 instruction file in user data that local VS Code can still use, but {0} ignores. Move it to the harness instructions folder to keep it available.",
 				harnessLabel,
+			)
+			: localize(
+				'userDataMigrationPageDescriptionInstructions',
+				"Found {0} instruction files in user data that local VS Code can still use, but {1} ignores. Move them to the harness instructions folder to keep them available.",
+				instructionsCount, harnessLabel,
 			);
 	},
 
@@ -258,40 +383,40 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 		const { agentCount, instructionsCount, totalCount } = countUserDataTypes(customizations);
 		let detail: string;
 		if (agentCount > 0 && instructionsCount > 0) {
-			detail = localize('userDataMigrationConfirmDetailMixed', "This moves {0} customizations out of their VS Code-only folder.", totalCount);
+			detail = localize('userDataMigrationConfirmDetailMixed', "This moves {0} customizations out of user data.", totalCount);
 		} else if (agentCount > 0) {
 			detail = agentCount === 1
-				? localize('userDataMigrationConfirmDetailAgent', "This moves 1 agent out of its VS Code-only folder.")
-				: localize('userDataMigrationConfirmDetailAgents', "This moves {0} agents out of their VS Code-only folder.", agentCount);
+				? localize('userDataMigrationConfirmDetailAgent', "This moves 1 agent out of user data.")
+				: localize('userDataMigrationConfirmDetailAgents', "This moves {0} agents out of user data.", agentCount);
 		} else {
 			detail = instructionsCount === 1
-				? localize('userDataMigrationConfirmDetailInstruction', "This moves 1 instruction file out of its VS Code-only folder.")
-				: localize('userDataMigrationConfirmDetailInstructions', "This moves {0} instruction files out of their VS Code-only folder.", instructionsCount);
+				? localize('userDataMigrationConfirmDetailInstruction', "This moves 1 instruction file out of user data.")
+				: localize('userDataMigrationConfirmDetailInstructions', "This moves {0} instruction files out of user data.", instructionsCount);
 		}
 		return {
 			message: destinationLabel
-				? localize('userDataMigrationConfirmMessageWithDestination', "Migrate VS Code-only customizations to '{0}'?", destinationLabel)
-				: localize('userDataMigrationConfirmMessage', "Migrate VS Code-only customizations to {0}?", harnessLabel),
+				? localize('userDataMigrationConfirmMessageWithDestination', "Migrate user data customizations to '{0}'?", destinationLabel)
+				: localize('userDataMigrationConfirmMessage', "Migrate user data customizations to {0}?", harnessLabel),
 			detail,
 			primaryButton: localize('userDataMigrationConfirmButton', "Migrate"),
-			deleteOriginalsLabel: localize('userDataMigrationDeleteOriginalFilesCheckbox', "Delete the original files from the VS Code-only folder after migration"),
+			deleteOriginalsLabel: localize('userDataMigrationDeleteOriginalFilesCheckbox', "Delete the original files from user data after migration"),
 		};
 	},
 
 	getMigratedMessage(migratedCount) {
 		return migratedCount === 1
-			? localize('userDataMigrationCompletedSingle', "Migrated 1 VS Code-only customization.")
-			: localize('userDataMigrationCompleted', "Migrated {0} VS Code-only customizations.", migratedCount);
+			? localize('userDataMigrationCompletedSingle', "Migrated 1 user data customization.")
+			: localize('userDataMigrationCompleted', "Migrated {0} user data customizations.", migratedCount);
 	},
 
 	getFailedMessage(failedFileNames, hiddenFileCount) {
 		const failedCount = failedFileNames.length + hiddenFileCount;
 		if (failedCount === 1) {
-			return localize('userDataMigrationFileFailed', "Failed to migrate 1 VS Code-only customization: {0}.", failedFileNames[0]);
+			return localize('userDataMigrationFileFailed', "Failed to migrate 1 user data customization: {0}.", failedFileNames[0]);
 		}
 		return hiddenFileCount > 0
-			? localize('userDataMigrationFilesFailedWithRemainder', "Failed to migrate {0} VS Code-only customizations: {1}, and {2} more.", failedCount, failedFileNames.join(', '), hiddenFileCount)
-			: localize('userDataMigrationFilesFailed', "Failed to migrate {0} VS Code-only customizations: {1}.", failedCount, failedFileNames.join(', '));
+			? localize('userDataMigrationFilesFailedWithRemainder', "Failed to migrate {0} user data customizations: {1}, and {2} more.", failedCount, failedFileNames.join(', '), hiddenFileCount)
+			: localize('userDataMigrationFilesFailed', "Failed to migrate {0} user data customizations: {1}.", failedCount, failedFileNames.join(', '));
 	},
 };
 

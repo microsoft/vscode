@@ -3,28 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/aiCustomizationManagement.css';
+import './media/customizationMigrationDashboard.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { triggerConfettiAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
 
 const $ = DOM.$;
-
-const quietButtonStyles = {
-	...defaultButtonStyles,
-	buttonSecondaryBackground: 'transparent',
-	buttonSecondaryHoverBackground: 'var(--vscode-list-hoverBackground)',
-	buttonSecondaryForeground: 'var(--vscode-textLink-foreground)',
-	buttonSecondaryBorder: 'transparent',
-};
 
 export interface ICustomizationMigrationDashboardDestination {
 	readonly targetType: PromptsType;
@@ -34,559 +26,315 @@ export interface ICustomizationMigrationDashboardDestination {
 	readonly ariaLabel: string;
 }
 
+export interface ICustomizationMigrationDashboardCategory {
+	readonly id: CustomizationMigrationCategoryId;
+	readonly label: string;
+	readonly description: string;
+	readonly count: number;
+	readonly countLabel: string;
+	readonly highRisk?: boolean;
+}
+
 export interface ICustomizationMigrationDashboardScope {
 	readonly storage: PromptsStorage;
 	readonly label: string;
 	readonly count: number;
 	readonly skipped: boolean;
+	readonly started?: boolean;
+	readonly hasConfigurableDestinations: boolean;
+	readonly categories: readonly ICustomizationMigrationDashboardCategory[];
 }
 
-export interface ICustomizationMigrationMetadataPreview {
-	readonly unsupportedHeaderKeys: readonly string[];
-	readonly sourceMetadata: string;
-	readonly targetMetadata: string;
-}
-
-export interface ICustomizationMigrationDashboardReviewItem {
-	readonly customization: MigratableConfiguration;
-	readonly label: string;
-	readonly sourceLabel: string;
-	readonly targetLabel: string;
-	readonly selected: boolean;
-	readonly metadataPreview?: ICustomizationMigrationMetadataPreview;
-	readonly metadataPreviewError?: string;
-}
-
-export interface ICustomizationMigrationDashboardResult {
-	readonly migratedCount: number;
-	readonly remainingCount: number;
-	readonly skippedWorkspace: boolean;
-	readonly celebrate: boolean;
+export interface ICustomizationMigrationDashboardActivity {
+	readonly id: string;
+	readonly categoryLabel: string;
+	readonly scopeLabel: string;
+	readonly storage: PromptsStorage;
+	readonly items: readonly {
+		readonly label: string;
+		readonly sourceLabel: string;
+		readonly targetLabel: string;
+		readonly operation: 'converted' | 'moved' | 'copied' | 'server';
+	}[];
 }
 
 export interface ICustomizationMigrationDashboardOverview {
 	readonly scopes: readonly ICustomizationMigrationDashboardScope[];
-	readonly result?: ICustomizationMigrationDashboardResult;
-}
-
-export interface ICustomizationMigrationDashboardReview {
-	readonly title: string;
-	readonly items: readonly ICustomizationMigrationDashboardReviewItem[];
+	/** Most recent activity first. */
+	readonly activity: readonly ICustomizationMigrationDashboardActivity[];
+	readonly result?: { readonly migratedCount: number };
 }
 
 export interface ICustomizationMigrationDashboardCallbacks {
-	readonly configureLocations: () => void;
+	readonly configureLocations: (storage: PromptsStorage) => void;
 	readonly dismissResult: () => void;
-	readonly migrate: (items: readonly ICustomizationMigrationDashboardReviewItem[], keepOriginalFiles: boolean) => void;
-	readonly reviewScope: (storage: PromptsStorage) => void;
-	readonly reviewWithAgent: () => void;
-	readonly setItemSelected: (item: ICustomizationMigrationDashboardReviewItem, selected: boolean) => void;
+	readonly reviewCategory: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
 	readonly setWorkspaceSkipped: (skipped: boolean) => void;
-	readonly showOverview: () => void;
+	readonly dismissActivity: (id: string) => void;
+	readonly onDidChangeContent?: () => void;
 }
 
 export class CustomizationMigrationDashboard extends Disposable {
 	readonly element: HTMLElement;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
-	private firstFocusableElement: HTMLElement | undefined;
-	private currentReview: ICustomizationMigrationDashboardReview | undefined;
-	private readonly selectedReviewItems = new Set<ICustomizationMigrationDashboardReviewItem>();
-	private reviewMoveCount: HTMLElement | undefined;
-	private reviewConvertCount: HTMLElement | undefined;
-	private reviewWarningCount: HTMLElement | undefined;
-	private migrateButton: Button | undefined;
-	private readonly metadataButtons = new Map<string, HTMLElement>();
-	private migrating = false;
+	private readonly focusTargets = new Map<string, HTMLElement>();
+	private readonly expandedActivity = new Set<string>();
+	private readonly activityDetails = new Map<string, HTMLDetailsElement>();
+	private pendingFocus: string | undefined;
 
 	constructor(
 		parent: HTMLElement,
 		private readonly callbacks: ICustomizationMigrationDashboardCallbacks,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
-		this.element = DOM.append(parent, $('.customization-health'));
+		this.element = DOM.append(parent, $('.customization-migration-dashboard'));
 	}
 
 	showLoading(title: string, description: string, retry?: () => void): void {
+		this.pendingFocus ??= this.getFocusedKey();
 		this.prepareRender();
-		const page = this.renderPageHeader(title, description);
-		const state = DOM.append(page, $('section.customization-health-state'));
-		state.setAttribute('aria-live', 'polite');
+		const page = this.renderHeader(title, description);
+		page.setAttribute('aria-busy', String(!retry));
 		if (retry) {
-			const retryButton = this.renderDisposables.add(new Button(state, {
-				...defaultButtonStyles,
-				secondary: true,
-				ariaLabel: localize('retryCustomizationMigration', "Retry loading customizations"),
-			}));
-			retryButton.label = localize('retry', "Retry");
-			this.firstFocusableElement = retryButton.element;
-			this.renderDisposables.add(retryButton.onDidClick(retry));
+			this.button(page, 'retry', localize('retry', "Retry"), localize('retryMigrations', "Retry loading migrations"), retry);
 		}
+		this.callbacks.onDidChangeContent?.();
 	}
 
 	showOverview(overview: ICustomizationMigrationDashboardOverview): void {
+		const focusedKey = this.pendingFocus ?? this.getFocusedKey();
+		this.pendingFocus = undefined;
 		this.prepareRender();
-		const page = this.renderPageHeader(
-			localize('customizationHealthCheckTitle', "Customization health check"),
-			localize('customizationHealthCheckDescription', "Check that your customizations are available to the agents you use."),
+		const page = this.renderHeader(
+			localize('migrationsTitle', "Migrations"),
+			overview.scopes.every(scope => scope.count === 0)
+				? localize('migrationsCompletedDescription', "Your file migrations are complete. See the checklist below for the status of each location.")
+				: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
 		);
-		const supportedCount = overview.scopes.reduce((total, scope) => total + (scope.skipped ? 0 : scope.count), 0);
-		const summary = DOM.append(page, $('.customization-health-summary'));
-		summary.setAttribute('aria-label', localize('customizationHealthSummaryAriaLabel', "Customization health summary"));
-		const summaryPill = DOM.append(summary, $('span.customization-health-summary-pill'));
-		if (supportedCount === 0) {
-			summaryPill.classList.add('healthy');
-			summaryPill.textContent = localize('customizationHealthGood', "In good health");
-		} else {
-			summaryPill.classList.add('attention');
-			summaryPill.textContent = supportedCount === 1
-				? localize('customizationHealthMigrationCountSingle', "1 supported migration")
-				: localize('customizationHealthMigrationCount', "{0} supported migrations", supportedCount);
-		}
 
 		if (overview.result) {
-			this.renderResult(page, overview.result);
+			this.renderResult(page, overview);
 		}
 
-		const migrations = DOM.append(page, $('section.customization-health-migrations'));
-		const sectionHeader = DOM.append(migrations, $('.customization-health-section-header'));
-		const headingGroup = DOM.append(sectionHeader, $('.customization-health-section-heading'));
-		const heading = DOM.append(headingGroup, $('h2'));
-		heading.id = 'customization-health-supported-migrations';
-		heading.textContent = localize('customizationHealthSupportedMigrations', "Supported migrations");
-		DOM.append(headingGroup, $('p')).textContent = localize(
-			'customizationHealthSupportedMigrationsDescription',
-			"Review your profile and workspace. Skip the workspace if you do not own it.",
-		);
-		migrations.setAttribute('aria-labelledby', heading.id);
-
-		const locationsButton = this.renderDisposables.add(new Button(sectionHeader, {
-			...quietButtonStyles,
-			secondary: true,
-			ariaLabel: localize('customizationHealthMigrationLocationsAriaLabel', "Customize migration locations"),
-		}));
-		locationsButton.label = localize('customizationHealthMigrationLocations', "Migration Locations");
-		this.firstFocusableElement ??= locationsButton.element;
-		this.renderDisposables.add(locationsButton.onDidClick(this.callbacks.configureLocations));
-
-		const scopeList = DOM.append(migrations, $('.customization-health-scope-list'));
+		const checklist = DOM.append(page, $('section.migration-checklist-section', { 'aria-label': localize('migrationChecklist', "Your migration checklist") }));
+		const header = DOM.append(checklist, $('.migration-section-header'));
+		const heading = DOM.append(header, $('h2', { tabindex: -1 }, localize('migrationChecklist', "Your migration checklist")));
+		this.focusTargets.set('checklist', heading);
+		const completedCount = overview.scopes.filter(scope => scope.count === 0 || scope.skipped).length;
+		DOM.append(header, $('span.migration-checklist-progress', { role: 'status' }, localize('migrationProgress', "{0} of {1} complete", completedCount, overview.scopes.length)));
+		const list = DOM.append(checklist, $('ol.migration-checklist', { role: 'list' }));
+		for (const scope of overview.scopes) {
+			this.renderScope(list, scope);
+		}
 		if (overview.scopes.length === 0) {
-			DOM.append(scopeList, $('p.customization-health-empty')).textContent = localize(
-				'customizationHealthNoMigrations',
-				"No supported migrations remain.",
-			);
-		} else {
-			for (const scope of overview.scopes) {
-				this.renderScope(scopeList, scope);
-			}
-		}
-	}
-
-	showReview(review: ICustomizationMigrationDashboardReview): void {
-		this.prepareRender();
-		this.currentReview = review;
-		for (const item of review.items) {
-			if (item.selected) {
-				this.selectedReviewItems.add(item);
-			}
+			DOM.append(checklist, $('p.migration-empty', {}, localize('noMigrations', "No migrations are needed.")));
 		}
 
-		const page = DOM.append(this.element, $('section.customization-health-page.customization-health-review-page'));
-		const backButton = this.renderBackButton(page, localize('backToCustomizationMigrations', "Back to Migrations"), this.callbacks.showOverview);
-		this.firstFocusableElement = backButton.element;
-		const title = DOM.append(page, $('h1'));
-		title.textContent = review.title;
-
-		const summary = DOM.append(page, $('.customization-health-review-summary'));
-		this.reviewMoveCount = this.renderMetric(summary, localize('customizationHealthWillMove', "will move"));
-		this.reviewConvertCount = this.renderMetric(summary, localize('customizationHealthWillConvert', "will convert"));
-		this.reviewWarningCount = this.renderMetric(summary, localize('customizationHealthMetadataWarnings', "metadata warnings"));
-
-		const sections = DOM.append(page, $('.customization-health-review-sections'));
-		for (const type of [PromptsType.agent, PromptsType.instructions, PromptsType.prompt]) {
-			const items = review.items.filter(item => item.customization.type === type);
-			if (items.length > 0) {
-				this.renderReviewSection(sections, type, items);
+		const activityIds = new Set(overview.activity.map(activity => activity.id));
+		for (const id of this.expandedActivity) {
+			if (!activityIds.has(id)) {
+				this.expandedActivity.delete(id);
 			}
 		}
-
-		const footer = DOM.append(page, $('.customization-health-review-footer'));
-		const cancelButton = this.renderDisposables.add(new Button(footer, {
-			...defaultButtonStyles,
-			secondary: true,
-			ariaLabel: localize('cancelCustomizationMigration', "Cancel customization migration"),
-		}));
-		cancelButton.label = localize('cancel', "Cancel");
-		this.renderDisposables.add(cancelButton.onDidClick(this.callbacks.showOverview));
-
-		const actions = DOM.append(footer, $('.customization-health-review-footer-actions'));
-		const keepOriginalsContainer = DOM.append(actions, $('.customization-health-keep-originals'));
-		const keepOriginalsLabel = localize(
-			'customizationHealthKeepOriginals',
-			"Keep original files",
-		);
-		const keepOriginals = this.renderDisposables.add(new Checkbox(
-			keepOriginalsLabel,
-			false,
-			defaultCheckboxStyles,
-		));
-		keepOriginalsContainer.appendChild(keepOriginals.domNode);
-		const keepOriginalsText = DOM.append(keepOriginalsContainer, $('span'));
-		keepOriginalsText.textContent = keepOriginalsLabel;
-		this.renderDisposables.add(DOM.addDisposableListener(keepOriginalsText, 'click', () => {
-			keepOriginals.checked = !keepOriginals.checked;
-		}));
-
-		this.migrateButton = this.renderDisposables.add(new Button(actions, {
-			...defaultButtonStyles,
-			ariaLabel: localize('migrateSelectedCustomizations', "Migrate selected customizations"),
-		}));
-		this.renderDisposables.add(this.migrateButton.onDidClick(() => {
-			this.callbacks.migrate([...this.selectedReviewItems], keepOriginals.checked);
-		}));
-		this.updateReviewSummary();
-	}
-
-	setMigrating(migrating: boolean): void {
-		this.migrating = migrating;
-		this.updateReviewSummary();
+		if (overview.activity.length) {
+			this.renderActivity(page, overview.activity);
+		}
+		this.callbacks.onDidChangeContent?.();
+		if (focusedKey) {
+			(this.focusTargets.get(focusedKey) ?? this.focusTargets.get('checklist'))?.focus();
+		}
 	}
 
 	focus(): void {
-		this.firstFocusableElement?.focus();
+		this.focusTargets.get('title')?.focus();
+	}
+
+	focusDestination(storage: PromptsStorage): void {
+		this.focusTargets.get(`destinations:${storage}`)?.focus();
 	}
 
 	private prepareRender(): void {
 		this.renderDisposables.clear();
+		this.focusTargets.clear();
+		this.activityDetails.clear();
 		DOM.clearNode(this.element);
-		this.firstFocusableElement = undefined;
-		this.currentReview = undefined;
-		this.selectedReviewItems.clear();
-		this.reviewMoveCount = undefined;
-		this.reviewConvertCount = undefined;
-		this.reviewWarningCount = undefined;
-		this.migrateButton = undefined;
-		this.metadataButtons.clear();
-		this.migrating = false;
 	}
 
-	private renderPageHeader(title: string, description: string): HTMLElement {
-		const page = DOM.append(this.element, $('section.customization-health-page'));
-		const heading = DOM.append(page, $('h1'));
-		heading.tabIndex = -1;
-		heading.textContent = title;
-		this.firstFocusableElement = heading;
-		DOM.append(page, $('p.customization-health-lede')).textContent = description;
+	private getFocusedKey(): string | undefined {
+		const active = DOM.getActiveElement();
+		return [...this.focusTargets].find(([, element]) => element === active)?.[0];
+	}
+
+	private renderHeader(title: string, description: string): HTMLElement {
+		const page = DOM.append(this.element, $('.migration-page'));
+		const heading = DOM.append(page, $('h1', { tabindex: -1 }, title));
+		this.focusTargets.set('title', heading);
+		DOM.append(page, $('p.migration-intro', {}, description));
 		return page;
 	}
 
-	private renderResult(page: HTMLElement, result: ICustomizationMigrationDashboardResult): void {
-		const resultElement = DOM.append(page, $('section.customization-health-result'));
-		resultElement.tabIndex = -1;
-		resultElement.setAttribute('aria-live', 'polite');
-		const header = DOM.append(resultElement, $('.customization-health-result-header'));
-		const text = DOM.append(header, $('.customization-health-result-text'));
-		DOM.append(text, $('h2')).textContent = result.migratedCount === 1
-			? localize('customizationHealthMigratedSingle', "1 customization migrated")
-			: localize('customizationHealthMigrated', "{0} customizations migrated", result.migratedCount);
-		let description: string;
-		if (result.remainingCount > 0) {
-			description = result.remainingCount === 1
-				? localize('customizationHealthMigrationRemainingSingle', "The customization was moved to a supported location. 1 migration remains.")
-				: localize('customizationHealthMigrationRemaining', "The customizations were moved to supported locations. {0} migrations remain.", result.remainingCount);
-		} else if (result.skippedWorkspace) {
-			description = localize('customizationHealthMigrationCompleteSkipped', "Your profile has no remaining migrations. The workspace is skipped.");
-		} else {
-			description = localize('customizationHealthMigrationComplete', "Your profile and workspace have no remaining migrations.");
+	private renderScope(parent: HTMLElement, scope: ICustomizationMigrationDashboardScope): void {
+		const complete = scope.count === 0;
+		const state = complete ? 'complete' : scope.skipped ? 'skipped' : scope.started ? 'progress' : 'pending';
+		const stateLabel = complete ? localize('migrated', "Migrated")
+			: scope.skipped ? localize('skipped', "Skipped")
+				: scope.started ? localize('inProgress', "In progress") : '';
+		const item = DOM.append(parent, $(`li.migration-scope.is-${state}`));
+		item.dataset.storage = scope.storage;
+		const header = DOM.append(item, $('.migration-scope-header'));
+		const info = DOM.append(header, $('.migration-scope-info'));
+		const title = DOM.append(info, $('h3.migration-scope-title'));
+		const label = DOM.append(title, $('span.migration-scope-label', {}, scope.label));
+		this.hover(label, scope.label);
+		if (stateLabel) {
+			DOM.append(title, $('span.migration-scope-state', {}, stateLabel));
 		}
-		DOM.append(text, $('p')).textContent = description;
+		DOM.append(info, $('p.migration-scope-description', {}, complete
+			? localize('noRemainingMigrations', "No remaining migrations.")
+			: scope.storage === PromptsStorage.local
+				? localize('workspaceMigrations', "Workspace customizations. Skip this workspace if you do not own it.")
+				: localize('profileMigrations', "Personal customizations")));
+		const actions = DOM.append(header, $('.migration-scope-actions'));
+		if (scope.storage === PromptsStorage.local && !complete) {
+			this.button(actions, `skip:${scope.storage}`,
+				scope.skipped ? localize('includeWorkspace', "Include Workspace") : localize('skipWorkspace', "Skip Workspace"),
+				scope.skipped ? localize('includeWorkspaceLabel', "Include workspace {0}", scope.label) : localize('skipWorkspaceLabel', "Skip workspace {0}", scope.label),
+				() => this.callbacks.setWorkspaceSkipped(!scope.skipped), 'link');
+		}
+		if (!complete && scope.hasConfigurableDestinations) {
+			const destinations = this.button(actions, `destinations:${scope.storage}`, '', localize('changeDestinations', "Change destinations for {0}", scope.label),
+				() => this.callbacks.configureLocations(scope.storage), 'icon', Codicon.settings);
+			destinations.element.setAttribute('aria-haspopup', 'listbox');
+		}
 
-		const actions = DOM.append(header, $('.customization-health-result-actions'));
-		const dismissButton = this.renderDisposables.add(new Button(actions, {
-			...quietButtonStyles,
-			secondary: true,
-			ariaLabel: localize('dismissCustomizationMigrationResult', "Dismiss migration result"),
-		}));
-		dismissButton.label = localize('dismiss', "Dismiss");
-		this.renderDisposables.add(dismissButton.onDidClick(this.callbacks.dismissResult));
-		const reviewButton = this.renderDisposables.add(new Button(actions, {
+		const categories = scope.categories.filter(category => category.count > 0).slice().sort((a, b) => Number(!!b.highRisk) - Number(!!a.highRisk));
+		if (!scope.skipped && categories.length) {
+			const categoryList = DOM.append(item, $('.migration-categories'));
+			for (const category of categories) {
+				const row = DOM.append(categoryList, $('.migration-category'));
+				const content = DOM.append(row, $('.migration-category-info'));
+				const categoryHeading = DOM.append(content, $('.migration-category-heading'));
+				DOM.append(categoryHeading, $('h4', {}, category.label));
+				DOM.append(categoryHeading, $('span.migration-count', {}, category.countLabel));
+				if (category.highRisk) {
+					const risk = DOM.append(categoryHeading, $('span.migration-risk', {}, localize('highRisk', "High risk")));
+					this.hover(risk, localize('highRiskDescription', "Conversion can remove prompt-only metadata and change how prompts are invoked."));
+				}
+				DOM.append(content, $('p.migration-category-description', {}, category.description));
+				this.button(row, `review:${scope.storage}:${category.id}`, localize('review', "Review"),
+					localize('reviewMigrationCategory', "Review {0} from {1}", category.label, scope.label),
+					() => this.callbacks.reviewCategory(category.id, scope.storage));
+			}
+		}
+	}
+
+	private renderResult(parent: HTMLElement, overview: ICustomizationMigrationDashboardOverview): void {
+		const result = overview.result!;
+		const strip = DOM.append(parent, $('section.migration-result', { 'aria-label': localize('migrationComplete', "Migration complete") }));
+		DOM.append(strip, $('h2', { role: 'status' }, result.migratedCount === 1
+			? localize('oneMigrationComplete', "1 customization migrated")
+			: localize('migrationsComplete', "{0} customizations migrated", result.migratedCount)));
+		const actions = DOM.append(strip, $('.migration-result-actions'));
+		if (overview.activity.length) {
+			const latest = overview.activity[0];
+			this.button(actions, 'viewChanges', localize('viewChanges', "View Changes"), localize('viewMigrationChanges', "View migration changes"), () => {
+				const details = this.activityDetails.get(latest.id);
+				if (details) {
+					details.open = true;
+					this.expandedActivity.add(latest.id);
+					this.callbacks.onDidChangeContent?.();
+					this.focusTargets.get(`activity:${latest.id}`)?.focus();
+					details.scrollIntoView({ block: 'nearest' });
+				}
+			}, 'link');
+		}
+		this.button(actions, 'dismissResult', '', localize('dismissMigrationResult', "Dismiss migration result"), () => {
+			this.pendingFocus = 'checklist';
+			this.callbacks.dismissResult();
+		}, 'icon', Codicon.close);
+	}
+
+	private renderActivity(parent: HTMLElement, activity: readonly ICustomizationMigrationDashboardActivity[]): void {
+		const section = DOM.append(parent, $('section.migration-activity', { 'aria-label': localize('migrationActivity', "Migration activity") }));
+		const heading = DOM.append(section, $('h2', { tabindex: -1 }, localize('migrationActivity', "Migration activity")));
+		this.focusTargets.set('activity', heading);
+		const list = DOM.append(section, $('.migration-activity-list'));
+		for (const [index, entry] of activity.entries()) {
+			const row = DOM.append(list, $('.migration-activity-entry'));
+			const details = DOM.append(row, $<HTMLDetailsElement>('details.migration-activity-details'));
+			details.open = this.expandedActivity.has(entry.id);
+			this.activityDetails.set(entry.id, details);
+			const summary = DOM.append(details, $('summary'));
+			this.focusTargets.set(`activity:${entry.id}`, summary);
+			const leading = DOM.append(summary, $('.migration-activity-summary-leading'));
+			const disclosure = DOM.append(leading, $('span.migration-activity-disclosure'));
+			disclosure.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+			disclosure.setAttribute('aria-hidden', 'true');
+			const title = DOM.append(leading, $('.migration-activity-title'));
+			DOM.append(title, $('strong', {}, localize('migrationActivityTitle', "{0} · {1}", entry.categoryLabel, entry.scopeLabel)));
+			DOM.append(title, $('span', {}, entry.items.length === 1
+				? localize('oneActivityMigration', "1 item migrated")
+				: localize('activityMigrations', "{0} items migrated", entry.items.length)));
+			const updateDisclosure = () => {
+				if (details.open) {
+					this.expandedActivity.add(entry.id);
+				} else {
+					this.expandedActivity.delete(entry.id);
+				}
+				this.callbacks.onDidChangeContent?.();
+			};
+			updateDisclosure();
+			this.renderDisposables.add(DOM.addDisposableListener(details, 'toggle', updateDisclosure));
+			const items = DOM.append(details, $('ul.migration-activity-items'));
+			for (const item of entry.items) {
+				const itemElement = DOM.append(items, $('li.migration-activity-item'));
+				const itemHeader = DOM.append(itemElement, $('.migration-activity-item-header'));
+				DOM.append(itemHeader, $('strong', {}, item.label));
+				const operation = item.operation === 'converted' ? localize('convertedToSkill', "Converted to skill")
+					: item.operation === 'copied' ? localize('copiedFile', "Copied file")
+						: item.operation === 'server' ? localize('movedServer', "Moved server") : localize('movedFile', "Moved file");
+				DOM.append(itemHeader, $('span.migration-operation', {}, operation));
+				const paths = DOM.append(itemElement, $('dl.migration-paths'));
+				DOM.append(paths, $('dt', {}, localize('migrationFrom', "From")));
+				DOM.append(paths, $('dd', {}, item.sourceLabel));
+				DOM.append(paths, $('dt', {}, localize('migrationTo', "To")));
+				DOM.append(paths, $('dd', {}, item.targetLabel));
+			}
+			const actions = DOM.append(row, $('.migration-activity-actions'));
+			this.button(actions, `dismissActivity:${entry.id}`, '',
+				localize('dismissMigrationActivity', "Dismiss {0} activity from {1}", entry.categoryLabel, entry.scopeLabel), () => {
+					const next = activity[index + 1] ?? activity[index - 1];
+					this.pendingFocus = next ? `activity:${next.id}` : 'checklist';
+					this.callbacks.dismissActivity(entry.id);
+				}, 'icon', Codicon.close);
+		}
+	}
+
+	private button(parent: HTMLElement, key: string, label: string, ariaLabel: string, run: () => void, kind: 'secondary' | 'link' | 'icon' = 'secondary', icon?: ThemeIcon): Button {
+		const button = this.renderDisposables.add(new Button(parent, {
 			...defaultButtonStyles,
 			secondary: true,
-			ariaLabel: localize('reviewCustomizationMigrationWithAgent', "Review migrated customizations with an agent"),
+			buttonSecondaryBackground: 'transparent',
+			buttonSecondaryForeground: kind === 'link' ? 'var(--vscode-textLink-foreground)' : 'var(--vscode-foreground)',
+			buttonSecondaryHoverBackground: 'var(--vscode-list-hoverBackground)',
+			buttonSecondaryBorder: kind === 'secondary' ? 'var(--vscode-contrastBorder, var(--vscode-widget-border))' : 'transparent',
+			ariaLabel,
+			title: false,
 		}));
-		reviewButton.label = localize('reviewWithAgent', "Review with an Agent");
-		this.renderDisposables.add(reviewButton.onDidClick(this.callbacks.reviewWithAgent));
-
-		if (result.celebrate && !DOM.getWindow(resultElement).matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			DOM.getWindow(resultElement).requestAnimationFrame(() => triggerConfettiAnimation(resultElement));
+		button.element.classList.add(`migration-${kind}-button`);
+		button.label = label;
+		if (icon) {
+			DOM.append(button.element, $('span', { class: ThemeIcon.asClassName(icon), 'aria-hidden': 'true' }));
 		}
-	}
-
-	private renderScope(parent: HTMLElement, scope: ICustomizationMigrationDashboardScope): void {
-		const section = DOM.append(parent, $('section.customization-health-scope'));
-		section.dataset.migrationStorage = scope.storage;
-		const heading = DOM.append(section, $('.customization-health-scope-heading'));
-		const title = DOM.append(heading, $('h3'));
-		title.textContent = scope.label;
-		const count = DOM.append(heading, $('span'));
-		count.textContent = scope.skipped
-			? scope.count === 1
-				? localize('customizationHealthExcludedMigrationSingle', "1 migration excluded")
-				: localize('customizationHealthExcludedMigrations', "{0} migrations excluded", scope.count)
-			: scope.count === 1
-				? localize('customizationHealthScopeMigrationSingle', "1 migration")
-				: localize('customizationHealthScopeMigrations', "{0} migrations", scope.count);
-
-		const actions = DOM.append(section, $('.customization-health-scope-actions'));
-		if (scope.storage === PromptsStorage.local) {
-			const skipButton = this.renderDisposables.add(new Button(actions, {
-				...quietButtonStyles,
-				secondary: true,
-				ariaLabel: scope.skipped
-					? localize('includeWorkspaceMigrationAriaLabel', "Include workspace migrations")
-					: localize('skipWorkspaceMigrationAriaLabel', "Skip workspace migrations"),
-			}));
-			skipButton.label = scope.skipped
-				? localize('includeWorkspaceMigration', "Include Workspace")
-				: localize('skipWorkspaceMigration', "Skip Workspace");
-			this.firstFocusableElement ??= skipButton.element;
-			this.renderDisposables.add(skipButton.onDidClick(() => this.callbacks.setWorkspaceSkipped(!scope.skipped)));
-		}
-		if (!scope.skipped) {
-			const reviewButton = this.renderDisposables.add(new Button(actions, {
-				...defaultButtonStyles,
-				ariaLabel: localize('reviewCustomizationMigrationScope', "Review migrations for {0}", scope.label),
-			}));
-			reviewButton.label = localize('review', "Review");
-			this.firstFocusableElement ??= reviewButton.element;
-			this.renderDisposables.add(reviewButton.onDidClick(() => this.callbacks.reviewScope(scope.storage)));
-		}
-	}
-
-	private renderBackButton(parent: HTMLElement, label: string, callback: () => void): Button {
-		const button = this.renderDisposables.add(new Button(parent, {
-			...quietButtonStyles,
-			secondary: true,
-			supportIcons: true,
-			ariaLabel: label,
-		}));
-		button.element.classList.add('customization-health-back');
-		button.label = `$(${Codicon.arrowLeft.id}) ${label}`;
-		this.renderDisposables.add(button.onDidClick(callback));
+		this.focusTargets.set(key, button.element);
+		this.hover(button.element, ariaLabel);
+		this.renderDisposables.add(button.onDidClick(run));
 		return button;
 	}
 
-	private renderMetric(parent: HTMLElement, label: string): HTMLElement {
-		const metric = DOM.append(parent, $('.customization-health-metric'));
-		const value = DOM.append(metric, $('strong'));
-		DOM.append(metric, $('span')).textContent = label;
-		return value;
-	}
-
-	private renderReviewSection(
-		parent: HTMLElement,
-		type: PromptsType,
-		items: readonly ICustomizationMigrationDashboardReviewItem[],
-	): void {
-		const section = DOM.append(parent, $('section.customization-health-review-section'));
-		const headingRow = DOM.append(section, $('.customization-health-review-section-heading'));
-		const heading = DOM.append(headingRow, $('h2'));
-		const description = DOM.append(section, $('p.customization-health-review-section-description'));
-		switch (type) {
-			case PromptsType.agent:
-				heading.textContent = localize('customizationHealthAgents', "Agents");
-				description.textContent = localize(
-					'customizationHealthAgentsDescription',
-					"Move custom agent definitions into the shared agents folder so they remain available to supported agent experiences.",
-				);
-				break;
-			case PromptsType.instructions:
-				heading.textContent = localize('customizationHealthInstructions', "Instructions");
-				description.textContent = localize(
-					'customizationHealthInstructionsDescription',
-					"Move instruction files into the shared instructions folder so their guidance continues to apply in supported agent experiences.",
-				);
-				break;
-			default:
-				heading.textContent = localize('customizationHealthPromptsToSkills', "Prompts to skills");
-				description.textContent = localize(
-					'customizationHealthPromptsToSkillsDescription',
-					"Convert reusable prompt files into skills so agents can discover and run them as supported customizations.",
-				);
-				break;
-		}
-		const count = DOM.append(headingRow, $('span.customization-health-review-section-count'));
-		count.textContent = this.getReviewSectionCountLabel(type, items.length);
-
-		const rows = DOM.append(section, $('.customization-health-review-rows'));
-		for (const item of items) {
-			this.renderReviewItem(rows, item);
-		}
-	}
-
-	private getReviewSectionCountLabel(type: PromptsType, count: number): string {
-		switch (type) {
-			case PromptsType.agent:
-				return count === 1
-					? localize('customizationHealthAgentCountSingle', "1 agent")
-					: localize('customizationHealthAgentCount', "{0} agents", count);
-			case PromptsType.instructions:
-				return count === 1
-					? localize('customizationHealthInstructionCountSingle', "1 instruction file")
-					: localize('customizationHealthInstructionCount', "{0} instruction files", count);
-			default:
-				return count === 1
-					? localize('customizationHealthPromptCountSingle', "1 prompt")
-					: localize('customizationHealthPromptCount', "{0} prompts", count);
-		}
-	}
-
-	private renderReviewItem(parent: HTMLElement, item: ICustomizationMigrationDashboardReviewItem): void {
-		const row = DOM.append(parent, $('.customization-health-review-row'));
-		const header = DOM.append(row, $('.customization-health-review-row-header'));
-		const leading = DOM.append(header, $('.customization-health-review-row-leading'));
-		const selectionLabel = localize('selectCustomizationForMigration', "Select {0} for migration", item.label);
-		const checkbox = this.renderDisposables.add(new Checkbox(selectionLabel, item.selected, defaultCheckboxStyles));
-		leading.appendChild(checkbox.domNode);
-		DOM.append(leading, $('strong')).textContent = item.label;
-		this.renderDisposables.add(checkbox.onChange(() => {
-			if (checkbox.checked) {
-				this.selectedReviewItems.add(item);
-			} else {
-				this.selectedReviewItems.delete(item);
-			}
-			this.callbacks.setItemSelected(item, checkbox.checked);
-			this.updateReviewSummary();
-		}));
-
-		const badges = DOM.append(header, $('.customization-health-review-badges'));
-		if (item.metadataPreview) {
-			DOM.append(badges, $('span.customization-health-metadata-badge')).textContent = localize(
-				'customizationHealthMetadataChanges',
-				"Metadata changes",
-			);
-		}
-		DOM.append(badges, $('span.customization-health-operation-badge')).textContent = item.customization.type === PromptsType.prompt
-			? localize('customizationHealthConvertToSkill', "Convert to skill")
-			: localize('customizationHealthMoveFile', "Move file");
-
-		const details = DOM.append(row, $('.customization-health-review-row-details'));
-		const paths = DOM.append(details, $('.customization-health-paths'));
-		this.renderPath(paths, localize('customizationHealthFrom', "From"), item.sourceLabel);
-		this.renderPath(paths, localize('customizationHealthTo', "To"), item.targetLabel);
-		if (item.metadataPreview) {
-			const metadataButton = this.renderDisposables.add(new Button(details, {
-				...defaultButtonStyles,
-				secondary: true,
-				ariaLabel: localize('viewMetadataChangesForCustomization', "View metadata changes for {0}", item.label),
-			}));
-			metadataButton.label = localize('viewMetadataChanges', "View Metadata Changes");
-			this.metadataButtons.set(this.getItemKey(item), metadataButton.element);
-			this.renderDisposables.add(metadataButton.onDidClick(() => this.showMetadataPreview(item)));
-		} else if (item.metadataPreviewError) {
-			const error = DOM.append(details, $('span.customization-health-metadata-error'));
-			error.textContent = item.metadataPreviewError;
-		}
-	}
-
-	private renderPath(parent: HTMLElement, label: string, value: string): void {
-		const row = DOM.append(parent, $('.customization-health-path'));
-		DOM.append(row, $('span.customization-health-path-label')).textContent = label;
-		DOM.append(row, $('span.customization-health-path-value')).textContent = value;
-	}
-
-	private showMetadataPreview(item: ICustomizationMigrationDashboardReviewItem): void {
-		if (!item.metadataPreview || !this.currentReview) {
-			return;
-		}
-		const review = this.currentReview;
-		this.renderDisposables.clear();
-		DOM.clearNode(this.element);
-		const page = DOM.append(this.element, $('section.customization-health-page.customization-health-metadata-page'));
-		const backButton = this.renderBackButton(page, localize('backToMigrationReview', "Back to Migration Review"), () => {
-			const selectedItems = new Set(this.selectedReviewItems);
-			this.showReview({
-				...review,
-				items: review.items.map(reviewItem => ({
-					...reviewItem,
-					selected: selectedItems.has(reviewItem),
-				})),
-			});
-			this.metadataButtons.get(this.getItemKey(item))?.focus();
-		});
-		this.firstFocusableElement = backButton.element;
-		DOM.append(page, $('h1')).textContent = item.label;
-		DOM.append(page, $('p.customization-health-metadata-path')).textContent = item.sourceLabel;
-
-		const warning = DOM.append(page, $('.customization-health-metadata-warning'));
-		DOM.append(warning, $('strong')).textContent = localize(
-			'customizationHealthMetadataNotCarriedOver',
-			"Not carried over: {0}",
-			item.metadataPreview.unsupportedHeaderKeys.join(', '),
-		);
-		DOM.append(warning, $('p')).textContent = localize(
-			'customizationHealthMetadataWarningDescription',
-			"Prompt migration keeps name, description, argument-hint, and the Markdown body. It removes these prompt-only fields and adds disable-model-invocation: true to the generated skill.",
-		);
-
-		const comparison = DOM.append(page, $('.customization-health-metadata-comparison'));
-		comparison.setAttribute('aria-label', localize(
-			'customizationHealthMetadataComparison',
-			"Prompt and generated skill metadata comparison",
-		));
-		this.renderMetadataPane(
-			comparison,
-			localize('customizationHealthCurrentPromptMetadata', "Current prompt metadata"),
-			item.metadataPreview.sourceMetadata,
-			'removed',
-			item.metadataPreview.unsupportedHeaderKeys,
-		);
-		this.renderMetadataPane(
-			comparison,
-			localize('customizationHealthGeneratedSkillMetadata', "Generated skill metadata"),
-			item.metadataPreview.targetMetadata,
-			'added',
-			['disable-model-invocation'],
-		);
-		backButton.element.focus();
-	}
-
-	private renderMetadataPane(
-		parent: HTMLElement,
-		title: string,
-		metadata: string,
-		emphasis: 'added' | 'removed',
-		emphasizedKeys: readonly string[],
-	): void {
-		const pane = DOM.append(parent, $('section.customization-health-metadata-pane'));
-		DOM.append(pane, $('h2')).textContent = title;
-		const pre = DOM.append(pane, $('pre'));
-		const emphasizedKeySet = new Set(emphasizedKeys);
-		for (const line of metadata.split('\n')) {
-			const lineElement = DOM.append(pre, $('span'));
-			const key = line.match(/^(?<key>[^:#][^:]*):/)?.groups?.key;
-			if (key && emphasizedKeySet.has(key)) {
-				lineElement.classList.add(emphasis);
-			}
-			lineElement.textContent = `${line}\n`;
-		}
-	}
-
-	private updateReviewSummary(): void {
-		if (!this.currentReview || !this.reviewMoveCount || !this.reviewConvertCount || !this.reviewWarningCount || !this.migrateButton) {
-			return;
-		}
-		const selectedItems = [...this.selectedReviewItems];
-		this.reviewMoveCount.textContent = String(selectedItems.filter(item => item.customization.type !== PromptsType.prompt).length);
-		this.reviewConvertCount.textContent = String(selectedItems.filter(item => item.customization.type === PromptsType.prompt).length);
-		this.reviewWarningCount.textContent = String(selectedItems.filter(item => item.metadataPreview).length);
-		this.migrateButton.enabled = selectedItems.length > 0 && !this.migrating;
-		this.migrateButton.label = selectedItems.length === 1
-			? localize('customizationHealthMigrateSingle', "Migrate 1")
-			: localize('customizationHealthMigrateCount', "Migrate {0}", selectedItems.length);
-	}
-
-	private getItemKey(item: ICustomizationMigrationDashboardReviewItem): string {
-		return `${item.customization.uri.toString()}:${item.customization.storage}`;
+	private hover(element: HTMLElement, content: string): void {
+		this.renderDisposables.add(this.hoverService.setupDelayedHover(element, { content }));
 	}
 }

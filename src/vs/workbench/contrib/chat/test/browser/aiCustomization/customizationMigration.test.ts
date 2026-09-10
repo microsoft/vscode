@@ -246,46 +246,25 @@ suite('customizationMigration', () => {
 			failed: category.getFailedMessage(['reviewer.agent.md'], 0),
 		}, {
 			agent: {
-				card: 'Copilot will ignore this agent. Move it to a portable Copilot folder to keep it available.',
+				card: 'User data customizations are only used by VS Code. Found 1 agent that Copilot ignores. Move it to keep it available.',
 				confirmation: {
-					message: 'Migrate VS Code-only customizations to \'~/.copilot/agents\'?',
-					detail: 'This moves 1 agent out of its VS Code-only folder.',
+					message: 'Migrate user data customizations to \'~/.copilot/agents\'?',
+					detail: 'This moves 1 agent out of user data.',
 					primaryButton: 'Migrate',
-					deleteOriginalsLabel: 'Delete the original files from the VS Code-only folder after migration',
+					deleteOriginalsLabel: 'Delete the original files from user data after migration',
 				},
 			},
 			instruction: {
-				card: 'Copilot will ignore this instruction file. Move it to a portable Copilot folder to keep it available.',
-				confirmation: 'This moves 1 instruction file out of its VS Code-only folder.',
+				card: 'User data customizations are only used by VS Code. Found 1 instruction file that Copilot ignores. Move it to keep it available.',
+				confirmation: 'This moves 1 instruction file out of user data.',
 			},
 			mixed: {
-				card: 'Copilot will ignore these agents and instruction files. Move them to portable Copilot folders to keep them available.',
-				confirmation: 'This moves 2 customizations out of their VS Code-only folder.',
+				card: 'User data customizations are only used by VS Code. Found 2 customizations that Copilot ignores. Move them to keep them available.',
+				confirmation: 'This moves 2 customizations out of user data.',
 			},
-			migrated: 'Migrated 1 VS Code-only customization.',
-			failed: 'Failed to migrate 1 VS Code-only customization: reviewer.agent.md.',
+			migrated: 'Migrated 1 user data customization.',
+			failed: 'Failed to migrate 1 user data customization: reviewer.agent.md.',
 		});
-	});
-
-	test('uses concise dashboard copy for prompt files', () => {
-		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
-		const workspacePrompt: IPromptPath = {
-			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
-			storage: PromptsStorage.local,
-			type: PromptsType.prompt,
-			source: PromptFileSource.GitHubWorkspace,
-		};
-		const userPrompt: IPromptPath = {
-			uri: URI.file('/user-data/prompts/release.prompt.md'),
-			storage: PromptsStorage.user,
-			type: PromptsType.prompt,
-			source: PromptFileSource.UserData,
-		};
-
-		assert.strictEqual(
-			category.getCardDescription([workspacePrompt, userPrompt], 'Copilot'),
-			'Copilot will ignore these prompt files. Convert them to skills to keep them available.',
-		);
 	});
 
 	test('migrates prompt headers into a skill file', () => {
@@ -475,6 +454,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: [],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [{ uri: migratedUri.path, type: PromptsType.skill }],
+				migratedSources: [{ uri: skill.uri, storage: skill.storage }],
 			},
 			migratedContents: [
 				'---\nname: release\n---\nRelease safely.',
@@ -524,6 +504,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: ['SKILL.md'],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [],
+				migratedSources: [],
 			},
 			sourceContents: [
 				'---\nname: release\n---\nRelease safely.',

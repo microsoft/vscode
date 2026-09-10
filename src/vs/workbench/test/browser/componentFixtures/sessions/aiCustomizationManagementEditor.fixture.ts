@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -29,6 +30,7 @@ import { PluginFormat } from '../../../../../platform/agentPlugins/common/plugin
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
@@ -728,6 +730,9 @@ interface IRenderEditorOptions {
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
+	readonly migrationActivity?: boolean;
+	readonly migrationCategory?: CustomizationMigrationCategoryId;
+	readonly migrationPartialSelection?: boolean;
 }
 
 // ============================================================================
@@ -810,6 +815,26 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			});
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
+			if (options.migrationActivity) {
+				const storageService = ctx.disposableStore.add(new InMemoryStorageService());
+				storageService.store('chat.customizationMigration.activity.profile.agent-host-copilotcli', {
+					skipped: false,
+					started: true,
+					activity: Array.from({ length: 4 }, (_, activityIndex) => ({
+						id: `activity-${activityIndex}`,
+						categoryLabel: 'Prompts to skills',
+						scopeLabel: 'Your profile',
+						storage: PromptsStorage.user,
+						items: Array.from({ length: 4 }, (_, itemIndex) => ({
+							label: `migrated-prompt-${activityIndex}-${itemIndex}`,
+							sourceLabel: `/user-data/prompts/migrated-prompt-${activityIndex}-${itemIndex}.prompt.md`,
+							targetLabel: `~/.copilot/skills/migrated-prompt-${activityIndex}-${itemIndex}/SKILL.md`,
+							operation: 'converted',
+						})),
+					})),
+				}, StorageScope.PROFILE, StorageTarget.MACHINE);
+				reg.defineInstance(IStorageService, storageService);
+			}
 			if (options.enableHovers) {
 				reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
 					override getContainer() { return ctx.container; }
@@ -880,7 +905,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				harnessService,
 				new class extends mock<IAgentHostActiveClientService>() {
 					override acquireMcpServerSupportScope() {
-						if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers) {
+						if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers && !options.migrationDashboard) {
 							return undefined;
 						}
 						const support: IAgentHostMcpServerSupportSnapshot = {
@@ -926,7 +951,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					showGettingStartedBanner: true,
 				};
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
-				override readonly activeProjectLabel = observableValue('label', 'workspace');
+				override readonly activeProjectLabel = observableValue('label', options.migrationDashboard ? 'vscode' : 'workspace');
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override clearOverrideProjectRoot() { }
@@ -2161,6 +2186,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	MigrationDashboardActivityScrollable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationActivity: true,
+			height: 500,
+		}),
+	}),
+
 	ToolsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, {
@@ -2214,6 +2249,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Tools,
 			],
 			emptyToolExtensions: true,
+		}),
+	}),
+
+	PromptMigration: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
 		}),
 	}),
 

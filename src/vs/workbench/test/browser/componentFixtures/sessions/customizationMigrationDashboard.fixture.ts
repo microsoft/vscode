@@ -3,115 +3,112 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from '../../../../../base/browser/dom.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
-	type ICustomizationMigrationDashboardReviewItem,
+	ICustomizationMigrationDashboardOverview,
 } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationDashboard.js';
-import { PromptFileSource, PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
-const reviewItems: readonly ICustomizationMigrationDashboardReviewItem[] = [
-	{
-		customization: {
-			uri: URI.file('/user-data/prompts/release-manager.agent.md'),
-			type: PromptsType.agent,
-			storage: PromptsStorage.user,
-			source: PromptFileSource.UserData,
-		},
-		label: 'release-manager',
-		sourceLabel: 'VS Code profile',
-		targetLabel: '~/.agents/agents/release-manager.agent.md',
-		selected: true,
-	},
-	{
-		customization: {
-			uri: URI.file('/user-data/prompts/typescript-style.instructions.md'),
-			type: PromptsType.instructions,
-			storage: PromptsStorage.user,
-			source: PromptFileSource.UserData,
-		},
-		label: 'typescript-style',
-		sourceLabel: 'VS Code profile',
-		targetLabel: '~/.agents/instructions/typescript-style.instructions.md',
-		selected: true,
-	},
-	{
-		customization: {
-			uri: URI.file('/user-data/prompts/prepare-release.prompt.md'),
-			type: PromptsType.prompt,
-			storage: PromptsStorage.user,
-			source: PromptFileSource.UserData,
-		},
-		label: 'prepare-release',
-		sourceLabel: 'VS Code profile',
-		targetLabel: '~/.agents/skills/prepare-release/SKILL.md',
-		selected: true,
-		metadataPreview: {
-			unsupportedHeaderKeys: ['model', 'tools'],
-			sourceMetadata: '---\nname: prepare-release\ndescription: Prepare a release\nmodel: GPT-5\ntools: [search, edit]\n---',
-			targetMetadata: '---\nname: prepare-release\ndescription: Prepare a release\ndisable-model-invocation: true\n---',
-		},
-	},
-];
+function overview(): ICustomizationMigrationDashboardOverview {
+	return {
+		scopes: [
+			{
+				storage: PromptsStorage.user, label: 'Your profile', count: 20, skipped: false, hasConfigurableDestinations: true,
+				categories: [
+					{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills so they can be invoked by supported agents.', count: 5, countLabel: '5 prompts', highRisk: true },
+					{ id: CustomizationMigrationCategoryId.UserData, label: 'User Data', description: 'Move agents and instructions to shared locations so they remain available to supported agent experiences.', count: 15, countLabel: '8 agents · 7 instructions' },
+				],
+			},
+			{
+				storage: PromptsStorage.local, label: 'vscode', count: 9, skipped: false, hasConfigurableDestinations: true,
+				categories: [
+					{ id: CustomizationMigrationCategoryId.PromptFiles, label: 'Prompts to skills', description: 'Convert prompts to skills so they can be invoked by supported agents.', count: 7, countLabel: '7 prompts', highRisk: true },
+					{ id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move supported workspace servers to the root .mcp.json so agents can discover them directly.', count: 2, countLabel: '2 servers' },
+				],
+			},
+		],
+		activity: [],
+	};
+}
 
 export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
-	HealthCheck: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+	Migrations: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: ctx => renderDashboard(ctx, 860, 'overview'),
 	}),
-	HealthCheckNarrow: defineComponentFixture({
+	MigrationsNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderDashboard(ctx, 420, 'overview'),
+		render: ctx => renderDashboard(ctx, 360, 'overview'),
 	}),
-	HealthCheckReview: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		render: ctx => renderDashboard(ctx, 860, 'review'),
-	}),
-	HealthCheckMetadata: defineComponentFixture({
+	MigrationsActivity: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderDashboard(ctx, 860, 'metadata'),
+		render: ctx => renderDashboard(ctx, 860, 'activity'),
+	}),
+	MigrationsActivityNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 360, 'activity'),
+	}),
+	MigrationsSkipped: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 860, 'skipped'),
+	}),
+	MigrationsZero: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 860, 'zero'),
 	}),
 });
 
-function renderDashboard(
-	{ container, disposableStore }: ComponentFixtureContext,
-	width: number,
-	view: 'overview' | 'review' | 'metadata',
-): void {
-	container.classList.add('ai-customization-management-editor');
+function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'activity' | 'skipped' | 'zero'): void {
+	const { container, disposableStore, theme } = ctx;
 	container.style.width = `${width}px`;
-	container.style.height = '620px';
-	container.style.boxSizing = 'border-box';
+	container.style.height = state === 'activity' ? '900px' : width < 500 ? '1000px' : '740px';
 	container.style.overflow = 'auto';
-
-	const host = DOM.append(container, DOM.$('.prompt-migration-content-container'));
-	host.classList.toggle('narrow-layout', width < 500);
-	const dashboard = disposableStore.add(new CustomizationMigrationDashboard(host, {
-		configureLocations: () => { },
-		dismissResult: () => { },
-		migrate: () => { },
-		reviewScope: () => { },
-		reviewWithAgent: () => { },
-		setItemSelected: () => { },
-		setWorkspaceSkipped: () => { },
-		showOverview: () => { },
-	}));
-	if (view === 'overview') {
-		dashboard.showOverview({
+	container.style.background = 'var(--vscode-editor-background)';
+	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
+	let model = overview();
+	if (state === 'skipped') {
+		model = { ...model, scopes: model.scopes.map(scope => ({ ...scope, skipped: scope.storage === PromptsStorage.local })) };
+	} else if (state === 'zero') {
+		model = { ...model, scopes: model.scopes.map(scope => ({ ...scope, count: 0, categories: [] })) };
+	} else if (state === 'activity') {
+		model = {
 			scopes: [
-				{ storage: PromptsStorage.user, label: 'Your profile', count: 20, skipped: false },
-				{ storage: PromptsStorage.local, label: 'vscode', count: 9, skipped: false },
+				{ ...model.scopes[0], count: 0, categories: [], started: true },
+				{ ...model.scopes[1], started: true },
 			],
-		});
-		return;
+			result: { migratedCount: 3 },
+			activity: [{
+				id: 'profile-prompts', categoryLabel: 'Prompts to skills', scopeLabel: 'Your profile', storage: PromptsStorage.user,
+				items: [
+					{ label: 'prepare-release', sourceLabel: 'VS Code profile/prepare-release.prompt.md', targetLabel: '~/.agents/skills/prepare-release/SKILL.md', operation: 'converted' },
+					{ label: 'release-manager', sourceLabel: 'VS Code profile/release-manager.agent.md', targetLabel: '~/.agents/agents/release-manager.agent.md', operation: 'moved' },
+					{ label: 'typescript-style', sourceLabel: 'VS Code profile/typescript-style.instructions.md', targetLabel: '~/.agents/instructions/typescript-style.instructions.md', operation: 'copied' },
+				],
+			}],
+		};
 	}
-	dashboard.showReview({ title: 'Review your profile migration', items: reviewItems });
-	if (view === 'metadata') {
-		const metadataButton = [...container.querySelectorAll<HTMLElement>('.monaco-button')]
-			.find(button => button.textContent?.includes('View Metadata Changes'));
-		metadataButton?.click();
+	const dashboard = disposableStore.add(instantiationService.createInstance(CustomizationMigrationDashboard, container, {
+		configureLocations: () => { },
+		reviewCategory: () => { },
+		setWorkspaceSkipped: skipped => {
+			model = { ...model, scopes: model.scopes.map(scope => scope.storage === PromptsStorage.local ? { ...scope, skipped } : scope) };
+			dashboard.showOverview(model);
+		},
+		dismissResult: () => {
+			model = { ...model, result: undefined };
+			dashboard.showOverview(model);
+		},
+		dismissActivity: id => {
+			model = { ...model, activity: model.activity.filter(entry => entry.id !== id) };
+			dashboard.showOverview(model);
+		},
+	}));
+	dashboard.showOverview(model);
+	if (state === 'activity') {
+		container.querySelector<HTMLElement>('.migration-result .migration-link-button')?.click();
+		container.scrollTop = 0;
 	}
 }
