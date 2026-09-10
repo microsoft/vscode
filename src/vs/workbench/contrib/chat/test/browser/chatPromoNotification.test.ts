@@ -161,8 +161,13 @@ function createMockCommandService() {
 function createMockWidgetService(options: { sessionScheme?: string } = {}) {
 	const switched: string[] = [];
 	const requested: string[] = [];
+	const listeners = new Set<() => void>();
 	const widget = {
 		focusInput() { },
+		onDidChangeViewModel: (listener: () => void) => {
+			listeners.add(listener);
+			return { dispose: () => listeners.delete(listener) };
+		},
 		viewModel: options.sessionScheme
 			? { sessionResource: URI.from({ scheme: options.sessionScheme, path: '/session' }) }
 			: undefined,
@@ -181,7 +186,13 @@ function createMockWidgetService(options: { sessionScheme?: string } = {}) {
 		_serviceBrand: undefined,
 		revealWidget: async () => widget,
 	} as unknown as IChatWidgetService;
-	return { service, switched, requested };
+	const resolveSession = (scheme: string) => {
+		widget.viewModel = { sessionResource: URI.from({ scheme, path: '/session' }) };
+		for (const listener of listeners) {
+			listener();
+		}
+	};
+	return { service, switched, requested, resolveSession };
 }
 
 function createMockViewsService(disposables: Pick<DisposableStore, 'add'>, visible = false) {
@@ -1162,6 +1173,39 @@ suite('ChatPromoNotificationContribution', () => {
 				{ id: CHAT_OPEN_ACTION_ID, args: [] },
 				{ id: 'workbench.action.chat.openNewChatSessionInPlace.local', args: ['sidebar'] },
 			],
+			switched: ['copilot:gpt-5.5'],
+		});
+	});
+
+	test('try-model waits for a cold Chat to resolve its harness before switching', async () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([{
+			identifier: 'copilot:gpt-5.5',
+			metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Get 20% off', showBanner: true } },
+		}], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const commands = createMockCommandService();
+		const widget = createMockWidgetService();
+
+		disposables.add(createContribution(
+			lmService,
+			notifService.service,
+			storageService,
+			commands.service,
+			ChatClosedPromoNotification.CopilotIconPopup,
+			undefined,
+			widget.service,
+		));
+
+		const done = CommandsRegistry.getCommand(CHAT_PROMO_TRY_MODEL_COMMAND_ID)?.handler(undefined!, 'copilot:gpt-5.5');
+		setTimeout(() => widget.resolveSession('openai-codex'), 0);
+		await done;
+
+		assert.deepStrictEqual({
+			commands: commands.executed.map(command => command.id),
+			switched: widget.switched,
+		}, {
+			commands: [ARM_CHAT_PROMO_COMMAND_ID, CHAT_OPEN_ACTION_ID, 'workbench.action.chat.openNewChatSessionInPlace.local'],
 			switched: ['copilot:gpt-5.5'],
 		});
 	});

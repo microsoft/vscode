@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -19,7 +20,7 @@ import { ChatClosedPromoNotification, ChatConfiguration } from '../common/consta
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { getChatSessionType } from '../common/model/chatUri.js';
 import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, IChatWidgetService } from './chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from './chat.js';
 import { ARM_CHAT_PROMO_COMMAND_ID, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, DISARM_CHAT_PROMO_COMMAND_ID, findChatIconAnchor, IChatPromoCardInput } from './chatPromoWidget.js';
 import { addDismissedNotificationId, ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationContext, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, matchesModelIdentifier, readDismissedNotificationIds } from './widget/input/chatInputNotificationService.js';
 
@@ -288,8 +289,11 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		let widget = await this._chatWidgetService.revealWidget();
 		widget?.focusInput();
 
+		if (widget) {
+			await this._whenSessionResolved(widget);
+		}
 		const sessionResource = widget?.viewModel?.sessionResource;
-		const currentHarness = sessionResource ? getChatSessionType(sessionResource) : localChatSessionType;
+		const currentHarness = sessionResource ? getChatSessionType(sessionResource) : undefined;
 		if (currentHarness !== targetHarness) {
 			await this._commandService.executeCommand(`workbench.action.chat.openNewChatSessionInPlace.${targetHarness}`, 'sidebar');
 			widget = await this._chatWidgetService.revealWidget() ?? widget;
@@ -301,6 +305,29 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		}
 		if (!widget.input.switchModelByIdentifier(modelIdentifier, true, true)) {
 			await widget.input.requestModelByIdentifier(modelIdentifier);
+		}
+	}
+
+	/**
+	 * Chat opened from a collapsed state resolves its session asynchronously, so
+	 * its harness is unknown for a moment. Wait for it rather than guessing.
+	 */
+	private async _whenSessionResolved(widget: IChatWidget): Promise<void> {
+		if (widget.viewModel?.sessionResource) {
+			return;
+		}
+		const store = new DisposableStore();
+		try {
+			await new Promise<void>(resolve => {
+				store.add(widget.onDidChangeViewModel(() => {
+					if (widget.viewModel?.sessionResource) {
+						resolve();
+					}
+				}));
+				store.add(disposableTimeout(resolve, 2000));
+			});
+		} finally {
+			store.dispose();
 		}
 	}
 
