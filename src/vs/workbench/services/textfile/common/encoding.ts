@@ -325,10 +325,8 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	// ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
 	const limitedBuffer = buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES);
 
-	// before guessing jschardet calls toString('binary') on input if it is a Buffer,
-	// since we are using it inside browser environment as well we do conversion ourselves
-	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
-	const binaryString = encodeLatin1(limitedBuffer.buffer);
+	// jschardet >= 4 accepts a Uint8Array directly, in Node and in the browser alike,
+	// so no latin1 round-trip is needed.
 
 	// ensure to convert candidate encodings to jschardet encoding names if provided
 	if (candidateGuessEncodings) {
@@ -338,9 +336,9 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		}
 	}
 
-	let guessed: { encoding: string | undefined } | undefined;
+	let guessed: { encoding: string | null } | undefined;
 	try {
-		guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
+		guessed = jschardet.detect(limitedBuffer.buffer, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
 	} catch (error) {
 		return null; // jschardet throws for unknown encodings (https://github.com/microsoft/vscode/issues/239928)
 	}
@@ -359,7 +357,9 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 	'ibm866': 'cp866',
-	'big5': 'cp950'
+	'big5': 'cp950',
+	'cp932': 'shiftjis',
+	'cp949': 'euckr'
 };
 
 function normalizeEncoding(encodingName: string): string {
@@ -378,15 +378,6 @@ function toJschardetEncoding(encodingName: string): string | undefined {
 	const mapped = GUESSABLE_ENCODINGS[normalizedEncodingName];
 
 	return mapped ? mapped.guessableName : undefined;
-}
-
-function encodeLatin1(buffer: Uint8Array): string {
-	let result = '';
-	for (let i = 0; i < buffer.length; i++) {
-		result += String.fromCharCode(buffer[i]);
-	}
-
-	return result;
 }
 
 /**
