@@ -705,7 +705,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	private async discoverSkills(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<SkillCustomization[]> {
 		const skillDiscovery = await raceCancellationError(client.rpc.skills.discover(discoveryRequest), token);
 		const skills = await Promise.all(skillDiscovery.skills.map(async skill => {
-			if (!skill.path) {
+			if (!skill.path || skill.source === 'plugin' || skill.source === 'builtin') {
 				return undefined;
 			}
 			const uri = this._pathToUri(skill.path);

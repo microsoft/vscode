@@ -119,6 +119,61 @@ suite('SessionCustomizationDiscovery', () => {
 		]);
 	});
 
+	test('excludes plugin and built-in skills from directory customizations', async () => {
+		const errors: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error): void {
+				errors.push(String(message));
+			}
+		}();
+		instantiationService.stub(ILogService, logService);
+
+		const pluginSkill = await seed('/home/.copilot/installed-plugins/example/skills/example/SKILL.md', '---\nname: example\n---\n');
+		const builtinSkill = await seed('/runtime/skills/builtin/SKILL.md', '---\nname: builtin\n---\n');
+		const projectSkill = await seed('/workspace/.github/skills/project/SKILL.md', '---\nname: project\n---\n');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ agents: [] }),
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [{ path: '/workspace/.github/skills' }] }),
+					discover: async () => ({
+						skills: [
+							{ name: 'example', description: '', path: pluginSkill.path, source: 'plugin', enabled: true, userInvocable: true },
+							{ name: 'builtin', description: '', path: builtinSkill.path, source: 'builtin', enabled: true, userInvocable: true },
+							{ name: 'project', description: '', path: projectSkill.path, source: 'project', enabled: true, userInvocable: true },
+						],
+					}),
+				},
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			errors,
+			skillDirectories: customizations
+				.filter(customization => customization.contents === 'skill')
+				.map(customization => ({
+					uri: customization.uri,
+					children: customization.children?.map(child => child.uri),
+				})),
+		}, {
+			errors: [],
+			skillDirectories: [{
+				uri: URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/skills' }).toString(),
+				children: [projectSkill.toString()],
+			}],
+		});
+	});
+
 	test('discover includes hooks from recursive and fixed hook locations', async () => {
 		await seed('/workspace/.github/hooks/pre-tool.json', '{"PreToolUse": []}');
 		await seed('/workspace/.github/copilot/settings.json', '{"hooks": {"PreToolUse": []}}');
