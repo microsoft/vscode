@@ -45,11 +45,15 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		const workingDirectory = URI.parse(workingDirectoryStr);
 
 		const gitState = readSessionGitState(sessionState._meta);
-		const branchName = gitState?.branchName ?? await this._gitService.getCurrentBranch(workingDirectory);
+		const branchName = await (this._gitService.getCurrentBranchName?.(workingDirectory) ?? this._gitService.getCurrentBranch(workingDirectory));
 		if (!branchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine current branch for ${workingDirectory}`);
 		}
 		this._throwIfCancelled(token);
+
+		if (gitState?.branchName && gitState.branchName !== branchName) {
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Current branch changed from ${gitState.branchName} to ${branchName} for ${workingDirectory}`);
+		}
 
 		const branch = await this._gitService.getBranch(workingDirectory, branchName);
 		if (branch?.kind !== GitRefType.Head) {
@@ -58,7 +62,8 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		if (!branch.upstream?.remote) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not resolve the remote for the branch for ${workingDirectory}, ${branchName}`);
 		}
-		
+		this._throwIfCancelled(token);
+
 		const upstreamRefPrefix = `refs/remotes/${branch.upstream.remote}/`;
 		if (!branch.upstream.ref.startsWith(upstreamRefPrefix)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not resolve the upstream branch for ${workingDirectory}, ${branchName}`);

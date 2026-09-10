@@ -114,9 +114,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
-		name = name.startsWith('refs/heads/') ? name : `refs/heads/${name}`;
-		const refs = await this.getBranches(workingDirectory, { pattern: name });
-		return refs.length > 0 ? refs[0] : undefined;
+		const ref = name.startsWith('refs/') ? name : `refs/heads/${name}`;
+		const refs = await this.getBranches(workingDirectory, { pattern: ref });
+		return refs.find(branch => branch.ref === ref);
 	}
 
 	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
