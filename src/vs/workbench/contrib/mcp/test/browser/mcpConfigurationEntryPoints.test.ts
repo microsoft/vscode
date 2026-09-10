@@ -16,7 +16,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IGalleryMcpServer, IInstallableMcpServer } from '../../../../../platform/mcp/common/mcpManagement.js';
@@ -104,9 +104,12 @@ suite('MCP configuration entry points', () => {
 		});
 		instantiation.stub(IUriIdentityService, { extUri });
 		instantiation.stub(IFileService, {
-			exists: async resource => {
+			resolve: async resource => {
 				existenceChecks.push(resource.path);
-				return existing.some(file => resource.path === folder.toResource(file).path);
+				if (existing.some(file => resource.path === folder.toResource(file).path)) {
+					return upcastPartial<IFileStatWithMetadata>({ resource });
+				}
+				throw new FileOperationError('Not found', FileOperationResult.FILE_NOT_FOUND);
 			},
 			createFile: async () => { throw new Error('The destination UI must not create files'); },
 			writeFile: async () => { throw new Error('The destination UI must not write files'); },
@@ -213,6 +216,20 @@ suite('MCP configuration entry points', () => {
 		await new OpenWorkspaceFolderMcpResourceCommand().run(fixture.instantiation);
 		assert.deepStrictEqual({ opened: fixture.opened, installs: fixture.installs }, { opened: [], installs: [] });
 	});
+
+	for (const operation of ['open', 'add'] as const) {
+		test(`${operation} surfaces file provider failures instead of treating them as absence`, async () => {
+			const fixture = setup(true);
+			const error = new FileOperationError('Provider unavailable', FileOperationResult.FILE_OTHER_ERROR);
+			fixture.instantiation.stub(IFileService, 'resolve', async () => { throw error; });
+			if (operation === 'open') {
+				await assert.rejects(fixture.destination.selectForOpen(fixture.folder), error);
+			} else {
+				await assert.rejects(fixture.destination.selectForAdd(fixture.folder, installable), error);
+			}
+			assert.deepStrictEqual({ pickers: fixture.quickInput.pickLabels, installs: fixture.installs }, { pickers: [], installs: [] });
+		});
+	}
 
 	test('multi-root open preserves folder selection and inspects only the selected folder', async () => {
 		const fixture = setup(true, [], true);

@@ -69,8 +69,9 @@ suite('MCP Discovery - workspaceDotMcpDiscovery', () => {
 			onDidChange: collectionChanges.event,
 			pauseNextRead: () => delayNextRead = new DeferredPromise<void>(),
 			updateFolderIndex: (index: number) => {
+				const previousFolder = folder;
 				folder = new WorkspaceFolder({ uri: root, name: folder.name, index });
-				folderChanges.fire({ added: [], removed: [], changed: [folder] });
+				folderChanges.fire({ added: [], removed: [], changed: [previousFolder] });
 			},
 			update: (next: string | undefined) => {
 				content = next;

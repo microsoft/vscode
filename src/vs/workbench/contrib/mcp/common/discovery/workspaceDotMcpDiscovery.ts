@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { parseWorkspaceRootMcpConfiguration, WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
@@ -42,8 +42,14 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 			for (const removed of [...e.removed, ...e.changed]) {
 				this._collections.deleteAndDispose(removed.uri.toString());
 			}
-			for (const added of [...e.added, ...e.changed]) {
+			for (const added of e.added) {
 				this._watchFolder(added);
+			}
+			for (const changed of e.changed) {
+				const current = this._workspaceContextService.getWorkspace().folders.find(folder => isEqual(folder.uri, changed.uri));
+				if (current) {
+					this._watchFolder(current);
+				}
 			}
 		}));
 

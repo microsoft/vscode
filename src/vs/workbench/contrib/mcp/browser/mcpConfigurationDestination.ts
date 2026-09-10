@@ -6,7 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { IInstallableMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
 import { getWorkspaceRootMcpConfigurationError, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -38,6 +38,18 @@ export class McpConfigurationDestination {
 		return folder.toResource(kind === WorkspaceMcpConfigKind.Root ? WORKSPACE_ROOT_MCP_CONFIG_FILE : WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]);
 	}
 
+	private async exists(resource: URI): Promise<boolean> {
+		try {
+			await this.fileService.resolve(resource);
+			return true;
+		} catch (error) {
+			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return false;
+			}
+			throw error;
+		}
+	}
+
 	getExplicitTarget(resource: URI | string): IWorkspaceMcpConfigurationTarget {
 		const uri = URI.isUri(resource) ? resource : URI.parse(resource);
 		const folder = this.workspaceService.getWorkspaceFolder(uri);
@@ -57,7 +69,7 @@ export class McpConfigurationDestination {
 	async selectForOpen(folder: IWorkspaceFolder): Promise<URI | undefined> {
 		const root = this.resource(folder, WorkspaceMcpConfigKind.Root);
 		const legacy = this.resource(folder, WorkspaceMcpConfigKind.LegacyVscode);
-		const [hasRoot, hasLegacy] = await Promise.all([this.fileService.exists(root), this.fileService.exists(legacy)]);
+		const [hasRoot, hasLegacy] = await Promise.all([this.exists(root), this.exists(legacy)]);
 		if (hasRoot && hasLegacy) {
 			const kind = await this.pick(folder, false);
 			return kind === undefined ? undefined : this.resource(folder, kind);
@@ -86,7 +98,7 @@ export class McpConfigurationDestination {
 		if (error) {
 			return this.pick(folder, true, error);
 		}
-		if (!await this.fileService.exists(this.resource(folder, WorkspaceMcpConfigKind.LegacyVscode))) {
+		if (!await this.exists(this.resource(folder, WorkspaceMcpConfigKind.LegacyVscode))) {
 			return WorkspaceMcpConfigKind.Root;
 		}
 		return this.pick(folder, true);
