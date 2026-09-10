@@ -32,6 +32,18 @@ export interface CreatedPullRequest {
  */
 export type AutoMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
 
+export interface GitHubRepositoryMergeCapabilities {
+	readonly autoMergeAllowed: boolean;
+	readonly mergeMethods: readonly AutoMergeMethod[];
+}
+
+interface GitHubRepositoryMergeResponse {
+	readonly allow_auto_merge?: unknown;
+	readonly allow_merge_commit?: unknown;
+	readonly allow_squash_merge?: unknown;
+	readonly allow_rebase_merge?: unknown;
+}
+
 interface GitHubPullRequestResponseItem {
 	readonly number?: unknown;
 	readonly html_url?: unknown;
@@ -145,6 +157,9 @@ export interface IAgentHostOctoKitService {
 
 	/** Fetches the title and body of an issue or pull request. */
 	getIssueOrPullRequest(owner: string, repo: string, number: number, token: string, signal: AbortSignal): Promise<GitHubIssueOrPullRequest>;
+
+	/** Fetches the repository's auto-merge and merge-method settings. */
+	getRepositoryMergeCapabilities(owner: string, repo: string, token: string, signal: AbortSignal): Promise<GitHubRepositoryMergeCapabilities>;
 
 	/**
 	 * Enables auto-merge on a pull request so GitHub merges it automatically
@@ -320,6 +335,26 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
 	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal): Promise<void> {
 		await this._makeGraphQLRequest(ENABLE_AUTO_MERGE_MUTATION, { pullRequestId, mergeMethod }, token, signal);
+	}
+
+	async getRepositoryMergeCapabilities(owner: string, repo: string, token: string, signal: AbortSignal): Promise<GitHubRepositoryMergeCapabilities> {
+		const response = await this._makeGHAPIRequest<GitHubRepositoryMergeResponse>(`repos/${owner}/${repo}`, 'GET', token, signal);
+		const data = response.data;
+		if (typeof data?.allow_auto_merge !== 'boolean' || typeof data.allow_merge_commit !== 'boolean'
+			|| typeof data.allow_squash_merge !== 'boolean' || typeof data.allow_rebase_merge !== 'boolean') {
+			throw new Error(`Failed to fetch repository merge capabilities for ${owner}/${repo}`);
+		}
+		const mergeMethods: AutoMergeMethod[] = [];
+		if (data.allow_merge_commit) {
+			mergeMethods.push('MERGE');
+		}
+		if (data.allow_squash_merge) {
+			mergeMethods.push('SQUASH');
+		}
+		if (data.allow_rebase_merge) {
+			mergeMethods.push('REBASE');
+		}
+		return { autoMergeAllowed: data.allow_auto_merge, mergeMethods };
 	}
 
 	private async _makeGHAPIRequest<T>(

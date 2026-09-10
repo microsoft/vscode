@@ -5068,6 +5068,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			hideFromTranscript: options.hideFromTranscript,
+			metadata: options.metadata,
 		};
 
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
@@ -5186,6 +5187,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			attachedContext,
 			agentHostSessionConfig: this.getCreateSessionConfig(chatId),
 			hideFromTranscript: options.hideFromTranscript,
+			metadata: options.metadata,
 		};
 
 		// Chat session model was already created by createNewChat and
