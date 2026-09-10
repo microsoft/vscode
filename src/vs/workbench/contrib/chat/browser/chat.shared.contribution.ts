@@ -2495,7 +2495,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ChatCustomizationsAgentFilesMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.agentFilesMigration.enabled', "Controls whether the Chat Customizations editor offers to update agent files that use handoffs unsupported by Agent Host. When disabled, the migration card and sidebar shortcut are hidden."),
+			description: nls.localize('chat.customizations.agentFilesMigration.enabled', "Controls whether the Chat Customizations editor offers to update agent files that use deprecated header attributes. When disabled, the migration card and sidebar shortcut are hidden."),
 			default: true,
 		},
 		[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: {

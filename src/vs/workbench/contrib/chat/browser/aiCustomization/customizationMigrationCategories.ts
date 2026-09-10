@@ -429,7 +429,7 @@ const agentFilesMigrationCategory: ICustomizationMigrationCategory = {
 	sourceTypes: [PromptsType.agent],
 	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.AgentFiles),
 	migrateInPlace: true,
-	shortcutLabel: localize('agentFilesMigrationShortcutLabel', "Agent Files"),
+	shortcutLabel: localize('agentFilesMigrationShortcutLabel', "Migrate Agent Files"),
 	shortcutTooltip: localize('agentFilesMigrationShortcutTooltip', "Update agent files for compatibility with the active harness"),
 	cardLabel: localize('agentFilesMigrationCardLabel', "Update Agent Files"),
 	cardActionLabel: localize('agentFilesMigrationCardAction', "Review..."),
@@ -437,7 +437,7 @@ const agentFilesMigrationCategory: ICustomizationMigrationCategory = {
 	pageTitle: localize('agentFilesMigrationPageTitle', "Update Agent Files"),
 	pageLinkLabel: localize('agentFilesMigrationLearnMore', "Learn more about custom agents"),
 	pageLinkUrl: CUSTOMIZATION_DOCUMENTATION_URL,
-	pageEmptyMessage: localize('agentFilesMigrationPageEmpty', "No agent files with unsupported handoffs are available to update."),
+	pageEmptyMessage: localize('agentFilesMigrationPageEmpty', "No agent files with unsupported header attributes are available to update."),
 	migrateButtonTooltip: localize('agentFilesMigrationButtonTooltip', "Update agent files for compatibility"),
 	backLabel: localize('agentFilesMigrationBackLabel', "Back to Agent Files Migration"),
 	noFilesMigratedMessage: localize('agentFilesMigrationNoFilesUpdated', "No agent files were updated."),
@@ -468,8 +468,8 @@ const agentFilesMigrationCategory: ICustomizationMigrationCategory = {
 
 	getCardDescription(customizations, harnessLabel) {
 		return customizations.length === 1
-			? localize('agentFilesMigrationCardDescriptionSingle', "Found 1 agent file with a handoff that {0} ignores.", harnessLabel)
-			: localize('agentFilesMigrationCardDescription', "Found {0} agent files with handoffs that {1} ignores.", customizations.length, harnessLabel);
+			? localize('agentFilesMigrationCardDescriptionSingle', "Found 1 agent file with header properties that {0} ignores.", harnessLabel)
+			: localize('agentFilesMigrationCardDescription', "Found {0} agent files with header properties that {1} ignores.", customizations.length, harnessLabel);
 	},
 
 	getPageDescription(customizations, harnessLabel) {
