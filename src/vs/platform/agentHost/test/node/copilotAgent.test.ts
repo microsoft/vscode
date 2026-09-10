@@ -11129,7 +11129,7 @@ suite('CopilotAgent', () => {
 		 * stubbing only the SDK-backed chat. The `_createAgentSession` seam
 		 * returns this.
 		 */
-		function makeFakeChatSession(sessionUri: URI, sdkSessionId: string, getMessages?: () => Promise<readonly Turn[]>, owned?: IDisposable): { rec: IFakeChatRecorder; fake: CopilotAgentSession } {
+		function makeFakeChatSession(sessionUri: URI, sdkSessionId: string, getMessages?: () => Promise<readonly Turn[]>, owned?: IDisposable, abort?: () => Promise<void>): { rec: IFakeChatRecorder; fake: CopilotAgentSession } {
 			const rec: IFakeChatRecorder = {
 				initialized: false,
 				disposed: false,
@@ -11160,7 +11160,10 @@ suite('CopilotAgent', () => {
 					rec.modelCalls.push({ id, effort: reasoningEffort, tier: contextTier, ...(autoTier !== undefined ? { autoTier } : {}) });
 				},
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
-				async abort(): Promise<void> { rec.aborted++; },
+				async abort(): Promise<void> {
+					rec.aborted++;
+					await abort?.();
+				},
 				discardActiveTurn(): void { rec.discardedTurns++; },
 				async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<boolean> {
 					rec.debugLogCalls.push({ outputDirectory: outputDirectory.toString(), includeSessionLogs });
@@ -12481,6 +12484,42 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('waits for an in-flight abort before sending a replacement turn', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'abort-before-replacement');
+				const chat = URI.parse(buildChatUri(session, 'peer-a'));
+				const abortStarted = new DeferredPromise<void>();
+				const abortGate = new DeferredPromise<void>();
+				const target = makeFakeChatSession(session, 'sdk-a', undefined, undefined, async () => {
+					abortStarted.complete();
+					await abortGate.p;
+				});
+				setPeerChatStub(agent, chat, target.fake);
+
+				const abort = agent.chats.abort(chat, exactChatContext(session, chat));
+				await abortStarted.p;
+				const send = agent.chats.sendMessage(chat, 'replacement', undefined, undefined, 'turn-2', undefined, exactChatContext(session, chat));
+				await timeout(0);
+				const sendsBeforeAbortCompleted = [...target.rec.sends];
+				abortGate.complete();
+				await Promise.all([abort, send]);
+
+				assert.deepStrictEqual({
+					aborted: target.rec.aborted,
+					sendsBeforeAbortCompleted,
+					sends: target.rec.sends,
+				}, {
+					aborted: 1,
+					sendsBeforeAbortCompleted: [],
+					sends: [{ prompt: 'replacement', turnId: 'turn-2', mode: undefined, senderClientId: undefined }],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('drops a queued send when abort arrives before the session materializes', async () => {
 			const agent = createTestAgent(disposables);
 			try {

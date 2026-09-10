@@ -40,6 +40,7 @@ function createStatusService(status?: IAgentHostPullRequestStatus, onDidChangePu
 		getPullRequestStatus: () => status,
 		markPullRequestMerged: () => { },
 		refresh: async () => { },
+		resolveForLifecycle: async () => status,
 		dispose: () => { },
 	};
 }

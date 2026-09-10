@@ -109,6 +109,21 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 - Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
 - Owns the restore flow (`restoreSession`, `_restorePeerChats`).
+- Owns the automatic merged-pull-request session lifecycle through
+  `AgentHostSessionLifecycle`: the application-scoped policy is synchronized
+  into root config; candidates are filtered from the registry using only the
+  persisted archive/GitHub fields needed for cleanup; and every related pull
+  request is authoritatively refreshed before a candidate is restored. A
+  session is eligible only when no related pull request is open and at least
+  one related pull request is merged; closed-unmerged PRs do not block it.
+  Pull request state is refreshed again immediately before lifecycle side
+  effects so reopening a closed PR blocks the action. Eligible sessions are
+  archived through the normal `SessionIsArchivedChanged` action and side-effect
+  path, which removes the worktree when Git confirms that the branch tracks an
+  upstream with no unpushed or uncommitted work. Permanent deletion applies the
+  same safe cleanup to a retained worktree before deleting the session. Archive
+  and deletion thresholds accept any positive whole number of days; zero
+  disables the corresponding lifecycle.
 
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:
