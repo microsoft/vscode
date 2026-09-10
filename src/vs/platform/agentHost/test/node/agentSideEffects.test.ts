@@ -5717,6 +5717,9 @@ suite('AgentSideEffects', () => {
 
 			// Persist a custom title in the DB
 			await sessionDb.setMetadata('customTitle', 'My Custom Title');
+			await localService.listSessions();
+			localService.markStartupComplete();
+			await localService.whenDeferredWorkSettled();
 			await localService.whenCatalogReconciliationIdle();
 
 			const sessions = await localService.listSessions();
