@@ -283,6 +283,9 @@ export interface IChatListWidgetOptions {
 
 	/** Scrollable space kept below the last item, for content floating over the list. */
 	readonly paddingBottom?: number;
+
+	/** Tab index applied to the transcript tree root. */
+	readonly tabIndex?: 0 | -1;
 }
 
 /**
@@ -611,6 +614,9 @@ export class ChatListWidget extends Disposable {
 				}
 			}
 		));
+		if (options.tabIndex !== undefined) {
+			this._tree.getHTMLElement().tabIndex = options.tabIndex;
+		}
 
 		// Create scroll-down button
 		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
