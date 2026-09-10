@@ -70,6 +70,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 	declare readonly _serviceBrand: undefined;
 	private readonly mcpServerMigration: McpServerCustomizationMigrator;
 	private readonly reportedAssessmentContexts = new Set<string>();
+	private assessmentGeneration = 0;
 	private activeContextKey = '';
 	private activeContextGeneration = 0;
 
@@ -91,6 +92,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			this.updateActiveContext(sessionResource);
 		}));
 		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
+			this.assessmentGeneration++;
 			this.updateActiveContext(this.customizationHarnessService.activeSessionResource.get());
 		}));
 	}
@@ -267,7 +269,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		const sessionType = getChatSessionType(sessionResource);
 		const target = this.chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId ?? 'unknown';
 		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
-		const context = JSON.stringify([target, ...roots.map(root => getComparisonKey(root))]);
+		const context = JSON.stringify([target, this.assessmentGeneration, ...roots.map(root => getComparisonKey(root))]);
 		if (this.reportedAssessmentContexts.has(context)) {
 			return;
 		}

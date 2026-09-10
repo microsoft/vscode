@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -582,11 +582,13 @@ suite('CustomizationMigrationService', () => {
 				dispose: () => { },
 			}),
 		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		const onDidChangeCustomizations = store.add(new Emitter<void>());
 		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
-			override readonly onDidChangeCustomizations = Event.None;
+			override readonly onDidChangeCustomizations = onDidChangeCustomizations.event;
 			override getClientWorkingDirectoryUris() { return []; }
 		}();
 		const assessmentReported = new DeferredPromise<void>();
+		const updatedAssessmentReported = new DeferredPromise<void>();
 		const telemetryEvents: unknown[] = [];
 		const telemetryService = new class extends NullTelemetryServiceShape {
 			constructor() {
@@ -599,6 +601,8 @@ suite('CustomizationMigrationService', () => {
 					telemetryEvents.push(data);
 					if (telemetryEvents.length === 4) {
 						assessmentReported.complete();
+					} else if (telemetryEvents.length === 8) {
+						updatedAssessmentReported.complete();
 					}
 				}
 			}
@@ -618,18 +622,24 @@ suite('CustomizationMigrationService', () => {
 		await assessmentReported.p;
 		await service.computeMigrationHint(URI.from({ scheme: sessionType, path: '/another-session' }));
 		await timeout(0);
+		const repeatedAssessmentCount = telemetryEvents.length;
+		onDidChangeCustomizations.fire();
+		await service.computeMigrationHint(URI.from({ scheme: sessionType, path: '/after-customization-change' }));
+		await updatedAssessmentReported.p;
 
-		assert.deepStrictEqual({ hint, telemetryEvents }, {
+		assert.deepStrictEqual({ hint, repeatedAssessmentCount, telemetryEvents: telemetryEvents.slice(0, 4), updatedAssessmentCount: telemetryEvents.length }, {
 			hint: {
 				message: 'Found 1 MCP server that is not fully supported by Copilot.',
 				target: CustomizationMigrationHintTarget.McpServers,
 			},
+			repeatedAssessmentCount: 4,
 			telemetryEvents: [
 				{ target: 'copilot-cli', customizationType: PromptsType.agent, source: PromptFileSource.CopilotPersonal, nativeCount: 1, mappedCount: 1, unsupportedCount: 0 },
 				{ target: 'copilot-cli', customizationType: PromptsType.instructions, source: PromptFileSource.CopilotPersonal, nativeCount: 0, mappedCount: 0, unsupportedCount: 1 },
 				{ target: 'copilot-cli', customizationType: PromptsType.hook, source: PromptFileSource.CopilotPersonal, nativeCount: 0, mappedCount: 0, unsupportedCount: 1 },
 				{ target: 'copilot-cli', customizationType: CustomizationMigrationType.McpServers, source: AgentHostMcpServerSourceKind.UserProfile, nativeCount: 1, mappedCount: 1, unsupportedCount: 1 },
 			],
+			updatedAssessmentCount: 8,
 		});
 	});
 
