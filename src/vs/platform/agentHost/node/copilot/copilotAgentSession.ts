@@ -6713,10 +6713,10 @@ export class CopilotAgentSession extends Disposable {
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId) {
 				this._activeRootSdkTurnId = e.data.turnId;
-				if (turn) {
-					turn.sdkTurnIds.add(e.data.turnId);
+				if (this._currentTurn.value) {
+					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
 					if (e.data.interactionId) {
-						turn.interactionIds.add(e.data.interactionId);
+						this._currentTurn.value.interactionIds.add(e.data.interactionId);
 					}
 				}
 				const telemetryMessageId = this._currentTurn.value?.id ?? e.data.turnId;
