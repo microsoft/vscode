@@ -1907,7 +1907,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[mcpWorkspaceRootConfig]: {
 			type: 'boolean',
-			default: false,
+			default: product.quality === 'insider',
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			markdownDescription: nls.localize('mcp.workspaceRootConfig.enabled', "Offer the workspace root `.mcp.json` file when adding MCP servers manually. When `.vscode/mcp.json` exists, choose which file to add to. Marketplace installations continue to use `.vscode/mcp.json`. Existing `.mcp.json` files can be opened and read independently of this setting."),
