@@ -11,7 +11,7 @@ import { findOnboardingTarget } from '../../../../../workbench/contrib/onboardin
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -45,7 +45,7 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -843,6 +843,65 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('session hover diff stats', () => {
+		test('does not read or observe detailed changes when the summary is available', () => {
+			const changesSummary = observableValue<ISessionChangesSummary>('summary', { files: 7, additions: 40, deletions: 20 });
+			const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
+			const changesets = observableValue<readonly ISessionChangeset[]>('changesets', []);
+			let detailedReads = 0;
+			let changesetReads = 0;
+			const session: ISession = {
+				...createTestSession('Session').session,
+				changesSummary,
+				changes: derived(reader => {
+					detailedReads++;
+					return changes.read(reader);
+				}),
+				changesets: derived(reader => {
+					changesetReads++;
+					return changesets.read(reader);
+				}),
+			};
+			const results: ReturnType<typeof getSessionDiffStats>[] = [];
+			disposables.add(autorun(reader => results.push(getSessionDiffStats(session, reader))));
+
+			changes.set([{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 3, deletions: 1 }], undefined);
+			changesets.set([], undefined);
+			changesSummary.set({ files: 0, additions: 0, deletions: 0 }, undefined);
+
+			assert.deepStrictEqual({ results, detailedReads, changesetReads }, {
+				results: [{ files: 7, insertions: 40, deletions: 20 }, undefined],
+				detailedReads: 0,
+				changesetReads: 0,
+			});
+		});
+
+		test('uses the default changeset only while the summary is absent', () => {
+			const changesSummary = observableValue<ISessionChangesSummary | undefined>('summary', undefined);
+			const changes = observableValue<readonly ISessionFileChange[]>('changes', [
+				{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 3, deletions: 1 },
+			]);
+			const changeset = upcastPartial<ISessionChangeset>({ isDefault: constObservable(true), changes });
+			const session: ISession = {
+				...createTestSession('Session').session,
+				changesSummary,
+				changesets: constObservable([changeset]),
+			};
+			const results: ReturnType<typeof getSessionDiffStats>[] = [];
+			disposables.add(autorun(reader => results.push(getSessionDiffStats(session, reader))));
+
+			changesSummary.set({ files: 7, additions: 40, deletions: 20 }, undefined);
+			changes.set([{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 5, deletions: 2 }], undefined);
+			changesSummary.set(undefined, undefined);
+			changes.set([], undefined);
+
+			assert.deepStrictEqual(results, [
+				{ files: 1, insertions: 3, deletions: 1 },
+				{ files: 7, insertions: 40, deletions: 20 },
+				{ files: 1, insertions: 5, deletions: 2 },
+				undefined,
+			]);
+		});
+
 		test('prefers the list summary and falls back to detailed changes only when absent', () => {
 			const base = createTestSession('Session').session;
 			const changes = [
@@ -1001,6 +1060,7 @@ suite('Sessions - SessionsList', () => {
 			isQuickChat: constObservable(false),
 			worktreePending: constObservable(false),
 			changes: constObservable([]),
+			changesets: constObservable([]),
 			workspace: constObservable({
 				uri: root,
 				label: 'vscode',

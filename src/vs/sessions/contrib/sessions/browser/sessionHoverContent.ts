@@ -13,24 +13,12 @@ import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/con
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubPullRequestRef, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
-/** Prefers the summary available for inactive sessions, falling back to detailed file changes. */
+/** Shared session diff counts, omitting entries without line changes. */
 export function getSessionDiffStats(session: ISession, reader?: IReader): { files: number; insertions: number; deletions: number } | undefined {
-	const changes = session.changes.read(reader);
-	const summary = session.changesSummary?.read(reader);
-	const files = summary ? summary.files : changes.length;
-	let insertions = 0;
-	let deletions = 0;
-	if (summary) {
-		insertions = summary.additions;
-		deletions = summary.deletions;
-	} else {
-		for (const change of changes) {
-			insertions += change.insertions;
-			deletions += change.deletions;
-		}
-	}
-	return insertions > 0 || deletions > 0 ? { files, insertions, deletions } : undefined;
+	const stats = readSessionChangesStats(session, reader);
+	return stats && (stats.insertions > 0 || stats.deletions > 0) ? stats : undefined;
 }
 
 /**
