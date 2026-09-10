@@ -123,11 +123,6 @@
 	> .monaco-tree-sticky-row.request {
 		z-index: 1;
 		background-color: transparent;
-
-		> .monaco-tl-row > .monaco-tl-contents,
-		.interactive-item-container.interactive-request {
-			background-color: transparent;
-		}
 	}
 }
 
