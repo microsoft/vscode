@@ -49,7 +49,7 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 	readonly selections: (string | undefined)[] = [];
 	readonly inputs: (string | undefined)[] = [];
 	readonly pickLabels: string[][] = [];
-	readonly pickOptions: { placeholder?: string; descriptions: (string | undefined)[] }[] = [];
+	readonly pickOptions: { placeholder?: string; descriptions: (string | undefined)[]; details: (string | undefined)[] }[] = [];
 
 	override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[] | undefined>;
 	override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T | undefined>;
@@ -57,7 +57,7 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 	override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | T[] | undefined> {
 		const items = (await picks).filter((item): item is T => item.type !== 'separator');
 		this.pickLabels.push(items.map(item => item.label));
-		this.pickOptions.push({ placeholder: options?.placeHolder, descriptions: items.map(item => item.description) });
+		this.pickOptions.push({ placeholder: options?.placeHolder, descriptions: items.map(item => item.description), details: items.map(item => item.detail) });
 		assert.ok(this.selections.length, `Unexpected picker: ${items.map(item => item.label).join(', ')}`);
 		const label = this.selections.shift();
 		if (label === undefined) {
@@ -238,12 +238,14 @@ suite('MCP configuration entry points', () => {
 			assert.deepStrictEqual({
 				result,
 				pickers: fixture.quickInput.pickLabels,
-				explanation: !!fixture.quickInput.pickOptions[0].placeholder,
+				placeholder: fixture.quickInput.pickOptions[0].placeholder,
+				details: fixture.quickInput.pickOptions[0].details,
 				checked: fixture.existenceChecks,
 			}, {
 				result: selection ? WorkspaceMcpConfigKind.LegacyVscode : undefined,
 				pickers: [[legacyFile]],
-				explanation: true,
+				placeholder: 'This server requires .vscode/mcp.json',
+				details: ['\'inputs\' is not supported in .mcp.json. Use .vscode/mcp.json.'],
 				checked: [],
 			});
 		});
@@ -398,7 +400,7 @@ suite('MCP configuration entry points', () => {
 			installs: [],
 			opened: [],
 			started: [],
-			errors: [new Error('MCP server \'same-name\' uses \'${...}\', which is not supported in .mcp.json. Install it in .vscode/mcp.json instead.')],
+			errors: [new Error('\'${...}\' is not supported in .mcp.json. Use .vscode/mcp.json.')],
 		});
 	});
 

@@ -64,6 +64,14 @@ suite('McpWorkspaceConfiguration', () => {
 		assert.ok(error?.includes('.vscode/mcp.json'));
 	});
 
+	test('keeps compatibility errors concise regardless of server name length', () => {
+		const error = getWorkspaceRootMcpConfigurationError({
+			name: 'long-server-name-'.repeat(20),
+			config: { type: McpServerType.LOCAL, command: 'node', cwd: '/workspace' },
+		});
+		assert.strictEqual(error, '\'cwd\' is not supported in .mcp.json. Use .vscode/mcp.json.');
+	});
+
 	test('reads both JSONC shapes and skips invalid entries without changing other configurations', () => {
 		const servers = '"local": { "command": "node" }, "bad": null, "array": [], "unsupported": { "type": "ws" }, "remote": { "url": "https://example.com/mcp" },';
 		assert.deepStrictEqual([

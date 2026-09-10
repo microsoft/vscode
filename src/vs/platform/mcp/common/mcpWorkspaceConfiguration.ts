@@ -19,7 +19,7 @@ export const WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX = 'workspace-dot-mcp.';
 
 /** Validates new root-file installs without silently dropping unsupported configuration. */
 export function getWorkspaceRootMcpConfigurationError(server: IInstallableMcpServer): string | undefined {
-	const unsupported = (property: string) => localize('unsupportedWorkspaceRootMcpConfiguration', "MCP server '{0}' uses '{1}', which is not supported in .mcp.json. Install it in .vscode/mcp.json instead.", server.name, property);
+	const unsupported = (property: string) => localize('unsupportedWorkspaceRootMcpProperty', "'{0}' is not supported in .mcp.json. Use .vscode/mcp.json.", property);
 	if (server.inputs !== undefined && (!Array.isArray(server.inputs) || server.inputs.length > 0)) {
 		return unsupported('inputs');
 	}

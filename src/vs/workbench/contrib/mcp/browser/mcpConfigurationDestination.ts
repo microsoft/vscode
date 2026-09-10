@@ -109,7 +109,7 @@ export class McpConfigurationDestination {
 		});
 		const selected = await this.quickInputService.pick(items, {
 			title: adding ? localize('mcp.config.add', "Add MCP Server to {0}", folder.name) : localize('mcp.config.open', "Open MCP Configuration in {0}", folder.name),
-			placeHolder: rootError ?? (adding ? localize('mcp.config.add.placeholder', "Select the configuration file for the new server") : localize('mcp.config.open.placeholder', "Select the configuration file to open")),
+			placeHolder: rootError ? localize('mcp.config.legacyRequired', "This server requires .vscode/mcp.json") : (adding ? localize('mcp.config.add.placeholder', "Select the configuration file for the new server") : localize('mcp.config.open.placeholder', "Select the configuration file to open")),
 			ignoreFocusLost: true,
 		});
 		return selected?.kind;
