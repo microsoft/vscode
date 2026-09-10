@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as os from 'os';
+import { timeout } from '../../../base/common/async.js';
 import { dirname, join } from '../../../base/common/path.js';
 import { format2 } from '../../../base/common/strings.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -81,6 +82,8 @@ const inFlight = new Map<string, Promise<string>>();
 
 /** Abort a download after this long without any connection/response progress. */
 const DOWNLOAD_INACTIVITY_TIMEOUT_MS = 60_000;
+const PUBLISH_LOCK_RETRY_MS = 100;
+const INVALID_PUBLISH_LOCK_STALE_MS = 30_000;
 
 /**
  * Ensure the Foundry Local shared libraries are present in `<cacheRoot>`,
@@ -160,10 +163,7 @@ export async function provisionRuntime(overrideDir: string, platformKey: string,
 			throw new Error(`Foundry Local native runtime download from ${url} completed but expected files are missing.`);
 		}
 
-		if (fs.existsSync(targetDir) && !hasAllRuntimeFiles(targetDir, platformKey)) {
-			await fs.promises.rm(targetDir, { recursive: true, force: true });
-		}
-		await promoteDir(stagingTarget, targetDir);
+		await publishRuntime(stagingTarget, overrideDir, platformKey, token);
 	} finally {
 		await fs.promises.rm(staging, { recursive: true, force: true }).catch(() => { /* best effort */ });
 	}
@@ -174,6 +174,96 @@ export async function provisionRuntime(overrideDir: string, platformKey: string,
 	}
 
 	await fs.promises.writeFile(foundryMarkerPath(overrideDir, platformKey), `${version}\n`).catch(() => { /* best effort marker */ });
+}
+
+/** Publish a staged runtime without replacing a complete concurrent winner. */
+export async function publishRuntime(stagingTarget: string, overrideDir: string, platformKey: string, token: CancellationToken): Promise<void> {
+	const lock = await acquireRuntimePublishLock(overrideDir, platformKey, token);
+	try {
+		throwIfCancelled(token);
+		const targetDir = foundryPrebuildDir(overrideDir, platformKey);
+		if (hasAllRuntimeFiles(targetDir, platformKey)) {
+			return;
+		}
+		await fs.promises.rm(targetDir, { recursive: true, force: true });
+		await promoteDir(stagingTarget, targetDir);
+	} finally {
+		await releaseRuntimePublishLock(lock);
+	}
+}
+
+interface IRuntimePublishLock {
+	readonly path: string;
+	readonly handle: fs.promises.FileHandle;
+}
+
+async function acquireRuntimePublishLock(overrideDir: string, platformKey: string, token: CancellationToken): Promise<IRuntimePublishLock> {
+	await fs.promises.mkdir(overrideDir, { recursive: true });
+	const lockPath = join(overrideDir, `.publish-${platformKey}.lock`);
+	while (true) {
+		throwIfCancelled(token);
+		try {
+			const handle = await fs.promises.open(lockPath, 'wx');
+			try {
+				await handle.writeFile(`${process.pid}\n`);
+				return { path: lockPath, handle };
+			} catch (err) {
+				await handle.close();
+				await removeFileIfExists(lockPath);
+				throw err;
+			}
+		} catch (err) {
+			if ((err as NodeJS.ErrnoException).code !== 'EEXIST') {
+				throw err;
+			}
+		}
+
+		if (await isStaleRuntimePublishLock(lockPath)) {
+			await removeFileIfExists(lockPath);
+			continue;
+		}
+		await timeout(PUBLISH_LOCK_RETRY_MS);
+	}
+}
+
+async function releaseRuntimePublishLock(lock: IRuntimePublishLock): Promise<void> {
+	await lock.handle.close();
+	await removeFileIfExists(lock.path);
+}
+
+async function removeFileIfExists(path: string): Promise<void> {
+	try {
+		await fs.promises.unlink(path);
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+			throw err;
+		}
+	}
+}
+
+async function isStaleRuntimePublishLock(lockPath: string): Promise<boolean> {
+	try {
+		const pid = Number.parseInt(await fs.promises.readFile(lockPath, 'utf8'), 10);
+		if (Number.isSafeInteger(pid) && pid > 0) {
+			return !isPidAlive(pid);
+		}
+		const stat = await fs.promises.stat(lockPath);
+		return Date.now() - stat.mtimeMs >= INVALID_PUBLISH_LOCK_STALE_MS;
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+			return false;
+		}
+		throw err;
+	}
+}
+
+function isPidAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (err) {
+		return (err as NodeJS.ErrnoException).code === 'EPERM';
+	}
 }
 
 /** Path of the per-platform completion marker inside a versioned override dir. */
