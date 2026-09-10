@@ -83,6 +83,22 @@ suite('SessionCustomizationDiscovery', () => {
 		].sort((a, b) => a.localeCompare(b)));
 	});
 
+	test('discovers user customizations without scanning a workspace root', async () => {
+		const workspaceInstructions = await seed('/workspace/.github/copilot-instructions.md', 'workspace instructions');
+		const userInstructions = await seed('/home/.copilot/copilot-instructions.md', 'user instructions');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [], userHome, inMemoryPathToUri));
+		const files = (await discovery.scan(CancellationToken.None))
+			.flatMap(directory => directory.files.map(file => file.uri.toString()));
+
+		assert.deepStrictEqual({
+			workspace: files.includes(workspaceInstructions.toString()),
+			user: files.includes(userInstructions.toString()),
+		}, {
+			workspace: false,
+			user: true,
+		});
+	});
+
 	test('groups discovered customizations by parent folder', async () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
@@ -1038,13 +1054,6 @@ suite('SessionCustomizationDiscovery', () => {
 			.sort((a, b) => a.localeCompare(b));
 
 		assert.deepStrictEqual(files, [first.toString(), second.toString()].sort((a, b) => a.localeCompare(b)));
-	});
-
-	test('constructor rejects an empty working-directory set (non-empty, primary-first invariant)', () => {
-		assert.throws(
-			() => instantiationService.createInstance(SessionCustomizationDiscovery, [], userHome, URI.file),
-			/at least one working directory/,
-		);
 	});
 
 	test('scan discovers hooks from the primary working directory only', async () => {

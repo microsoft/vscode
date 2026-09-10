@@ -16,6 +16,8 @@ import { INativeEnvironmentService } from '../../../../../platform/environment/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -78,6 +80,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
 	const runStartupAccountProbe = agent['_probeAccountAtStartup'].bind(agent);
 	agent['_probeAccountAtStartup'] = async () => { };
@@ -1474,6 +1477,7 @@ suite('CodexAgent model refresh', () => {
 			rateLimitUpsell: null,
 		});
 		await second;
+		const latestObservedAt = agent['_openAIAccountRateLimitUpdatedAt'];
 		resolveFirst({
 			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: 100 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
 			rateLimitsByLimitId: null,
@@ -1483,8 +1487,36 @@ suite('CodexAgent model refresh', () => {
 		});
 		await first;
 
-		assert.deepStrictEqual(agent['_openAIAccountRateLimit'], { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 });
+		assert.deepStrictEqual({
+			rateLimit: agent['_openAIAccountRateLimit'],
+			hasObservationTime: Number.isFinite(latestObservedAt),
+			observedAt: agent['_openAIAccountRateLimitUpdatedAt'],
+		}, {
+			rateLimit: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 },
+			hasObservationTime: true,
+			observedAt: latestObservedAt,
+		});
 	});
+
+	for (const state of [
+		{ usageSource: 'openai', status: 'signedOut' },
+		{ usageSource: 'openai', status: 'unavailable', authType: 'apiKey' },
+		{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'another@example.com' },
+	] as const) {
+		test(`clears quota snapshots when the ChatGPT account becomes ${state.status}`, () => {
+			const agent = createAgent(disposables, async () => []);
+			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'person@example.com' });
+			agent['_openAIAccountRateLimit'] = { usedPercent: 90, windowDurationMins: 7 * 24 * 60 };
+			agent['_openAIAccountRateLimitUpdatedAt'] = Date.now();
+
+			agent['_setOpenAIAccountState'](state);
+
+			assert.deepStrictEqual({ rateLimit: agent['_openAIAccountRateLimit'], observedAt: agent['_openAIAccountRateLimitUpdatedAt'] }, {
+				rateLimit: undefined,
+				observedAt: undefined,
+			});
+		});
+	}
 
 	test('surfaces current ChatGPT subscription models in the ChatGPT group', async () => {
 		const agent = createAgent(disposables, async () => []);

@@ -185,11 +185,11 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 			const documentSnapshot = await this.getSnapshot(uri);
 			ranges = getParamRanges(options.input, documentSnapshot);
 			const languageId = documentSnapshot.languageId;
-			if (options.chatRequestId !== undefined && uri.scheme === 'file' && (languageId === 'typescript' || languageId === 'javascript')) {
+			if (options.chatSessionResource !== undefined && options.chatRequestId !== undefined && uri.scheme === 'file' && (languageId === 'typescript' || languageId === 'javascript')) {
 				const startLine = ranges.start - 1;
 				const endLine = ranges.end - 1;
 				try {
-					const grepResultMatches = this.grepResultService.getGrepResult(options.chatRequestId, uri, startLine, endLine);
+					const grepResultMatches = this.grepResultService.getGrepResult(options.chatSessionResource, uri, startLine, endLine);
 					if (grepResultMatches !== undefined && grepResultMatches.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
 						const regionResult: RegionResult | undefined = await this.regionContextProvider.getRegions(documentSnapshot.uri, documentSnapshot.languageId, grepResultMatches, { start: startLine, end: endLine});
 						if (regionResult !== undefined && regionResult.regions.length > 0 && documentSnapshot.version === documentSnapshot.document.version) {
