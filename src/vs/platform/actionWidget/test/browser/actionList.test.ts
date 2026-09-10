@@ -1070,6 +1070,26 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('removing the focused row toolbar restores focus inside the remaining list', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('one'), toolbarActions: [toAction({ id: 'remove', label: 'Remove', run: () => { } })] },
+				action('two'),
+				action('three'),
+			],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.focus();
+		widget.updateItems([action('two'), action('three')]);
+
+		assert.deepStrictEqual({
+			focusInside: widget.domNode.contains(document.activeElement),
+			focusedItem: widget.getFocusedElement()?.item?.id,
+			rows: getVisibleRowText(widget),
+		}, { focusInside: true, focusedItem: 'two', rows: ['two', 'three'] });
+	});
+
 	test('shows a row hover panel once the hover delay elapses', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{ ...action('auto'), hover: { content: 'Auto routes based on your task' } }, action('other')],

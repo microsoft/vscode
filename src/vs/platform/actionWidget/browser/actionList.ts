@@ -1414,14 +1414,13 @@ export class ActionListWidget<T> extends Disposable {
 						if ((el.item as { id?: string })?.id === focusedItemId) {
 							this._list.setFocus([i]);
 							this._list.reveal(i);
-							// Move DOM focus back to the list when the list had it: the splice
-							// above destroyed the previously focused row, leaving DOM focus on
-							// the body.
-							if (listHasFocus) {
-								this._list.domFocus();
-							}
 							break;
 						}
+					}
+					if (listHasFocus) {
+						// The focused row or its toolbar may have been removed by the update.
+						this._focusCheckedOrFirst();
+						this._list.domFocus();
 					}
 				}
 			}

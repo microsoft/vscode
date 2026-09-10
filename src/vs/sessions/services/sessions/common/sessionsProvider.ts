@@ -355,6 +355,9 @@ export interface ISessionsProvider {
 	 */
 	renameSession(sessionId: string, title: string): Promise<void>;
 
+	/** Remove a recorded artifact without changing independent session associations. */
+	removeSessionArtifact?(sessionId: string, artifactId: string): Promise<void>;
+
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.
 	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
