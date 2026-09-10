@@ -281,7 +281,7 @@ registerAction2(class extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const uri = extractURI(context);
 		// Use existing reveal command
-		await commandService.executeCommand('revealFileInOS', uri);
+		await commandService.executeCommand('revealUriInOS', uri);
 	}
 });
 

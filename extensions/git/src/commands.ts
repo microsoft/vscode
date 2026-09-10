@@ -4462,7 +4462,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await commands.executeCommand('revealFileInOS', resourceState.resourceUri);
+		await commands.executeCommand('revealUriInOS', resourceState.resourceUri);
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false, staged = false): Promise<boolean> {
