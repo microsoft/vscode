@@ -19,7 +19,7 @@ function pipeLoggingToParent(): void {
 	 * Prevent circular stringify and convert arguments to real array
 	 */
 	function safeToString(args: ArrayLike<unknown>): string {
-		const seen: unknown[] = [];
+		const ancestors: unknown[] = [];
 		const argsArray: unknown[] = [];
 
 		// Massage some arguments with special treatment
@@ -50,15 +50,22 @@ function pipeLoggingToParent(): void {
 		}
 
 		try {
-			const res = JSON.stringify(argsArray, function (key, value: unknown) {
+			const res = JSON.stringify(argsArray, function (this: unknown, key, value: unknown) {
 
-				// Objects get special treatment to prevent circles
-				if (isObject(value) || Array.isArray(value)) {
-					if (seen.indexOf(value) !== -1) {
+				// Objects get special treatment to prevent circles. Only the current
+				// ancestor path is tracked, so a value that is shared across arguments
+				// or sibling properties is serialized in full rather than as circular.
+				if (typeof value === 'object' && value !== null) {
+					// `this` is the object holding `key`, pop the subtrees that are already done
+					while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+						ancestors.pop();
+					}
+
+					if (ancestors.indexOf(value) !== -1) {
 						return '[Circular]';
 					}
 
-					seen.push(value);
+					ancestors.push(value);
 				}
 
 				return value;
@@ -82,14 +89,6 @@ function pipeLoggingToParent(): void {
 		} catch (error) {
 			// Can happen if the parent channel is closed meanwhile
 		}
-	}
-
-	function isObject(obj: unknown): boolean {
-		return typeof obj === 'object'
-			&& obj !== null
-			&& !Array.isArray(obj)
-			&& !(obj instanceof RegExp)
-			&& !(obj instanceof Date);
 	}
 
 	function safeSendConsoleMessage(severity: 'log' | 'warn' | 'error', args: string): void {
