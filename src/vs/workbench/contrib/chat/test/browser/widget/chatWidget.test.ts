@@ -79,6 +79,22 @@ suite('ChatWidget', () => {
 		};
 	}
 
+	test('forwards sticky scroll DOM state from the list widget', () => {
+		const stickyScrollDomNode = mainWindow.document.createElement('div');
+		const onDidChangeStickyScrollDomNode = store.add(new Emitter<HTMLElement | undefined>()).event;
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			listWidget: { stickyScrollDomNode, onDidChangeStickyScrollDomNode },
+		}) as ChatWidget;
+
+		assert.deepStrictEqual({
+			domNode: widget.stickyScrollDomNode,
+			event: widget.onDidChangeStickyScrollDomNode,
+		}, {
+			domNode: stickyScrollDomNode,
+			event: onDidChangeStickyScrollDomNode,
+		});
+	});
+
 	test('does not send a picker fallback over an existing agent host conversation model', () => {
 		const savedModelId = 'agent-host-codex:@provider=openai:future-model';
 		const fallbackModelId = 'agent-host-codex:@provider=vscode-proxy:default-model';

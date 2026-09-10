@@ -12,7 +12,7 @@ import { createAgentHostSandboxToggle } from '../../../../../platform/agentHost/
 import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, getAgentHostCopilotSandboxSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -26,32 +26,13 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
+import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { isWellKnownAutoApproveSchema, isWellKnownModeSchema, shouldCombineModeAndPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 
-const REQUIRED_AUTO_APPROVE_VALUE = 'default';
-const REQUIRED_MODE_VALUE = 'interactive';
 const REQUIRED_PERMISSION_MODE_VALUE = 'default';
 const REQUIRED_CODEX_APPROVALS_VALUE = 'default';
 
-/**
- * Returns `true` when an `autoApprove` session-config property uses the
- * shape the unified permission picker expects: a string enum that is a
- * subset of `default | assisted | autoApprove | autopilot` and contains at least
- * `default`.
- *
- * Callers use this to decide whether to render the unified
- * {@link PermissionPicker} (with its built-in warning dialogs, autopilot
- * gating, and policy enforcement) or fall back to the generic per-property
- * picker.
- */
-export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema): boolean {
-	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
-		return false;
-	}
-	if (!schema.enum.includes(REQUIRED_AUTO_APPROVE_VALUE)) {
-		return false;
-	}
-	return schema.enum.every(value => typeof value === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(value));
-}
+export { isWellKnownAutoApproveSchema, isWellKnownModeSchema };
 
 /**
  * {@link IPermissionPickerDelegate} backed by the active session's AHP
@@ -76,6 +57,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
+	readonly isModePickerCombined: IObservable<boolean>;
 	readonly isResolving: IObservable<boolean>;
 	readonly managedSandboxEnforced: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass: IObservable<boolean>;
@@ -146,6 +128,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IChatPhoneInputPresenter phoneInputPresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 		this.managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced;
@@ -159,6 +142,11 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			this._watchProviders(e.added);
 			this._configChangedSignal.trigger(undefined);
 		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker)) {
+				this._configChangedSignal.trigger(undefined);
+			}
+		}));
 
 		this.currentPermissionLevel = derived(this, reader => this._readLevel(reader));
 		this.sandboxEnabled = derived(this, reader => {
@@ -167,7 +155,18 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const value = session && this._getProvider(session.providerId)?.getSessionConfig(session.sessionId)?.values[SessionConfigKey.SandboxEnabled];
 			return value === 'on' ? true : value === 'off' ? false : undefined;
 		});
-		this.isApplicable = derived(this, reader => this._readIsWellKnown(reader));
+		this.isModePickerCombined = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			const config = session ? this._getProvider(session.providerId)?.getSessionConfig(session.sessionId) : undefined;
+			return !phoneInputPresenter.enabled.read(reader) && shouldCombineModeAndPermissions(
+				this._configurationService.getValue<boolean>(ChatConfiguration.ExperimentalModePermissionsPicker) === true,
+				session?.sessionType === CopilotCLISessionType.id,
+				config?.schema.properties[SessionConfigKey.Mode],
+				config?.schema.properties[SessionConfigKey.AutoApprove],
+			);
+		});
+		this.isApplicable = derived(this, reader => this._readIsWellKnown(reader) && !this.isModePickerCombined.read(reader));
 		this.isResolving = derived(this, reader => {
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
@@ -294,25 +293,6 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			this._providerSubscriptions.set(provider.id, subscriptions);
 		}
 	}
-}
-
-/**
- * Returns `true` when a `mode` session-config property uses the shape the
- * dedicated agent-host mode picker expects: a string enum that contains
- * at least `interactive`.
- *
- * Callers use this to decide whether to render the dedicated mode picker
- * (with mode-specific icons and behavior) or fall back to the generic
- * per-property picker.
- */
-export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): boolean {
-	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
-		return false;
-	}
-	if (!schema.enum.includes(REQUIRED_MODE_VALUE)) {
-		return false;
-	}
-	return true;
 }
 
 export function isWellKnownModeValue(schema: SessionConfigPropertySchema, value: string): boolean {

@@ -272,7 +272,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.sandbox',
 						label: sandboxToggle.label,
-						icon: Codicon.blank,
+						icon: Codicon.shield,
 						checked: false,
 						enabled: true,
 						standaloneToggle: sandboxToggle,

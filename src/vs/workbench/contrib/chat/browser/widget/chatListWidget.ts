@@ -375,6 +375,14 @@ export class ChatListWidget extends Disposable {
 		return this._container;
 	}
 
+	get stickyScrollDomNode(): HTMLElement | undefined {
+		return this._tree.stickyScrollDomNode;
+	}
+
+	get onDidChangeStickyScrollDomNode(): Event<HTMLElement | undefined> {
+		return this._tree.onDidChangeStickyScrollDomNode;
+	}
+
 	get scrollTop(): number {
 		return this._tree.scrollTop;
 	}
