@@ -22,6 +22,7 @@ import { getChatSessionType } from '../common/model/chatUri.js';
 import { CHAT_OPEN_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidget, IChatWidgetService } from './chat.js';
 import { ARM_CHAT_PROMO_COMMAND_ID, CHAT_PROMO_DISMISS_COMMAND_ID, CHAT_PROMO_TRY_MODEL_COMMAND_ID, DISARM_CHAT_PROMO_COMMAND_ID, findChatIconAnchor, IChatPromoCardInput } from './chatPromoWidget.js';
+import { getModelProviderIcon } from './widget/input/modelPicker/modelProviderIcons.js';
 import { addDismissedNotificationId, ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationContext, IChatInputNotificationService, IChatInputNotificationSwitchToModelAction, matchesModelIdentifier, readDismissedNotificationIds } from './widget/input/chatInputNotificationService.js';
 
 const PROMO_NOTIFICATION_ID = 'copilot.promoNotification';
@@ -280,6 +281,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 			promoId: promo.id,
 			tryLabel: localize('chat.promo.tryModel', "Try {0}", model.metadata.name),
 			modelIdentifier: model.identifier,
+			providerIcon: getModelProviderIcon(model).id,
 		};
 	}
 

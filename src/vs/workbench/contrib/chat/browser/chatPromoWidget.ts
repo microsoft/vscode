@@ -33,6 +33,7 @@ export interface IChatPromoCardInput {
 	readonly promoId: string;
 	readonly tryLabel: string;
 	readonly modelIdentifier: string;
+	readonly providerIcon?: string;
 }
 
 /**
@@ -237,7 +238,7 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		const body = dom.append(container, dom.$('.body'));
 		const header = dom.append(body, dom.$('.header'));
 		const hero = dom.append(header, dom.$('.hero'));
-		const iconEl = dom.append(hero, dom.$(ThemeIcon.asCSSSelector(Codicon.sparkle)));
+		const iconEl = dom.append(hero, dom.$(ThemeIcon.asCSSSelector(this.providerThemeIcon(info))));
 		iconEl.classList.add('provider-icon');
 		iconEl.setAttribute('aria-hidden', 'true');
 		const copy = dom.append(hero, dom.$('.copy'));
@@ -272,6 +273,10 @@ export class ChatPromoWidgetContribution extends Disposable implements IWorkbenc
 		}));
 
 		return container;
+	}
+
+	private providerThemeIcon(info: IChatPromoCardInput): ThemeIcon {
+		return (info.providerIcon ? ThemeIcon.fromId(info.providerIcon) : undefined) ?? Codicon.sparkle;
 	}
 
 	override dispose(): void {

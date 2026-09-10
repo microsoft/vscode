@@ -593,6 +593,7 @@ suite('ChatPromoNotificationContribution', () => {
 			promoId: 'promo-1',
 			tryLabel: 'Try GPT-5.5',
 			modelIdentifier: 'copilot:gpt-5.5',
+			providerIcon: 'chat-model-provider-openai',
 		});
 	});
 
@@ -1208,6 +1209,35 @@ suite('ChatPromoNotificationContribution', () => {
 			commands: [ARM_CHAT_PROMO_COMMAND_ID, CHAT_OPEN_ACTION_ID, 'workbench.action.chat.openNewChatSessionInPlace.local'],
 			switched: ['copilot:gpt-5.5'],
 		});
+	});
+
+	test('the promo card shows the model vendor icon', async () => {
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		disposables.add(toDisposable(() => container.remove()));
+		const statusbar = dom.append(container, dom.$('.part.statusbar'));
+		const entry = dom.append(statusbar, dom.$('div', { id: 'chat.statusBarEntry' }));
+		dom.append(entry, dom.$('.codicon.codicon-copilot'));
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(ILayoutService, { mainContainer: container });
+		instantiation.stub(ICommandService, createMockCommandService().service);
+		let card: HTMLElement | undefined;
+		instantiation.stub(IHoverService, {
+			hideHover() { },
+			showInstantHover(options) {
+				card = options.content as HTMLElement;
+				return undefined;
+			}
+		});
+		instantiation.stub(ITelemetryService, NullTelemetryService);
+		disposables.add(instantiation.createInstance(ChatPromoWidgetContribution));
+		const payload: IChatPromoCardInput = {
+			title: 'Model promo', promoId: 'promo', tryLabel: 'Try Claude', modelIdentifier: 'copilot:claude',
+			providerIcon: 'chat-model-provider-claude',
+		};
+		await CommandsRegistry.getCommand(ARM_CHAT_PROMO_COMMAND_ID)!.handler(undefined!, payload);
+		entry.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+		assert.strictEqual(card?.querySelector('.provider-icon')?.className, 'codicon codicon-chat-model-provider-claude provider-icon');
 	});
 
 	test('popup pip follows a replaced status entry and restores its icon on disposal', async () => {
