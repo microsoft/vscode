@@ -65,7 +65,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ISessionWorktreeOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -3230,8 +3230,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.filter(agent => this._shouldAdvertiseAgent(agent.provider))
 			.map((agent): ISessionType => ({
 				id: agent.provider,
-				// Isolation is host-owned; the workspace schema determines the available choices.
-				supportsWorktreeConfiguration: true,
+				supportsWorktreeConfiguration: agent.provider === CopilotCLISessionType.id,
 				authRequirement: resolveAgentAuthRequirement(agent),
 				// The chat session contribution and language models for an agent-host
 				// agent are registered under its resource scheme (`agent-host-<provider>`),
@@ -4240,46 +4239,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {
 		return this._getNewSession(sessionId)?.getConfigValues();
-	}
-
-	async getWorktreeOptions(folderUri: URI, sessionTypeId: string, token: CancellationToken): Promise<ISessionWorktreeOptions | undefined> {
-		const connection = this.connection;
-		if (!connection) {
-			throw new Error(`[${this.id}] Cannot resolve worktree options without an agent host connection`);
-		}
-		const resolved = await raceCancellationError(connection.resolveSessionConfig({
-			provider: sessionTypeId,
-			workingDirectory: folderUri,
-			config: { [SessionConfigKey.Isolation]: 'folder' },
-		}), token);
-		const branchSchema = resolved.schema.properties[SessionConfigKey.Branch];
-		if (!branchSchema) {
-			return undefined;
-		}
-		const isolationSchema = resolved.schema.properties[SessionConfigKey.Isolation];
-		const currentBranch = resolved.values[SessionConfigKey.Branch];
-		const loadBranches = branchSchema.enumDynamic ? async (query: string, token: CancellationToken): Promise<readonly string[]> => {
-			if (this.connection !== connection) {
-				throw new Error(`[${this.id}] The agent host connection changed while loading branches`);
-			}
-			const result = await raceCancellationError(connection.sessionConfigCompletions({
-				provider: sessionTypeId,
-				workingDirectory: folderUri,
-				config: resolved.values,
-				property: SessionConfigKey.Branch,
-				query: query || undefined,
-			}), token);
-			return result.items.map(item => item.value);
-		} : undefined;
-		const branches = loadBranches
-			? await loadBranches('', token)
-			: (branchSchema.enum ?? []).filter((branch): branch is string => typeof branch === 'string');
-		return {
-			supportsWorktree: isolationSchema?.enum?.includes('worktree') === true && !isolationSchema.readOnly,
-			currentBranch: typeof currentBranch === 'string' ? currentBranch : undefined,
-			branches,
-			...(loadBranches ? { loadBranches } : {}),
-		};
 	}
 
 	async setIsolationMode(sessionId: string, mode: string): Promise<void> {

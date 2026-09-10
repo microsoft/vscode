@@ -7,8 +7,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Delayer } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -34,7 +32,6 @@ export interface IBranchPickerState {
 	readonly missing?: boolean;
 	readonly showChevron?: boolean;
 	readonly isolation?: IBranchPickerIsolationState;
-	readonly filterBranches?: (query: string, token: CancellationToken) => Promise<readonly IBranchPickerBranch[]>;
 }
 
 /**
@@ -83,7 +80,6 @@ interface IBranchPickerItem {
  */
 export class BranchPicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IBranchPickerItem>[]>(200));
 	private _state: IBranchPickerState = {
 		label: localize('branchPicker.select', "Branch"),
 		branches: [],
@@ -211,13 +207,8 @@ export class BranchPicker extends Disposable {
 		}
 
 		const trigger = this._triggerElement;
-		const filterBranches = this._state.filterBranches;
-		let filterPending = false;
 		const delegate: IActionListDelegate<IBranchPickerItem> = {
 			onSelect: item => {
-				if (filterPending) {
-					return;
-				}
 				this._actionWidgetService.hide();
 				if (item.kind === 'retry') {
 					this._options.onRetry?.();
@@ -225,27 +216,7 @@ export class BranchPicker extends Disposable {
 					this._options.onSelectBranch(item.name);
 				}
 			},
-			onFilter: filterBranches ? (query, token) => {
-				filterPending = true;
-				this._actionWidgetService.updateItems(this._getItems({ ...this._state, status: 'loading' }));
-				return this._filterDelayer.trigger(async () => {
-					try {
-						const branches = await filterBranches(query, token);
-						return this._getItems({ ...this._state, branches, status: branches.length > 0 ? 'ready' : 'empty' });
-					} catch (error) {
-						if (token.isCancellationRequested) {
-							throw error;
-						}
-						return this._getItems({ ...this._state, status: 'error' });
-					} finally {
-						if (!token.isCancellationRequested) {
-							filterPending = false;
-						}
-					}
-				});
-			} : undefined,
 			onHide: () => {
-				this._filterDelayer.cancel();
 				this._isOpen = false;
 				trigger?.setAttribute('aria-expanded', 'false');
 				if (trigger?.isConnected) {
@@ -275,20 +246,19 @@ export class BranchPicker extends Disposable {
 				},
 				getWidgetAriaLabel: () => localize('branchPicker.ariaLabel', "Branch Picker"),
 			},
-			filterBranches || branchCount > FILTER_THRESHOLD
+			branchCount > FILTER_THRESHOLD
 				? { showFilter: true, filterPlaceholder: localize('branchPicker.filter', "Filter branches…") }
 				: undefined,
 		);
 	}
 
-	private _getItems(state = this._state): readonly IActionListItem<IBranchPickerItem>[] {
-		switch (state.status) {
+	private _getItems(): readonly IActionListItem<IBranchPickerItem>[] {
+		switch (this._state.status) {
 			case 'loading':
 				return [{
 					kind: ActionListItemKind.Action,
 					label: localize('branchPicker.loading', "Loading branches…"),
 					disabled: true,
-					showAlways: true,
 					item: { kind: 'branch' },
 				}];
 			case 'error':
@@ -307,7 +277,7 @@ export class BranchPicker extends Disposable {
 					item: { kind: 'branch' },
 				}];
 			case 'ready':
-				return state.branches.map(branch => ({
+				return this._state.branches.map(branch => ({
 					kind: ActionListItemKind.Action,
 					label: branch.name,
 					detail: branch.unavailable ? localize('branchPicker.unavailable', "Unavailable locally") : undefined,

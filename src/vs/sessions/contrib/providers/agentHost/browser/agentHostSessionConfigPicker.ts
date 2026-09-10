@@ -59,7 +59,7 @@ import { AgentHostModePicker } from './agentHostModePicker.js';
 import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownCodexApprovalsSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
-import { omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { CheckoutOperationPreAction, checkoutOperationMeta, isCheckoutOperationDirtyWorkingTreeErrorData } from '../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
 import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -99,15 +99,6 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 					IsQuickChatSessionContext.negate(),
-				),
-			}, {
-				id: Menus.NewSessionControl,
-				group: 'navigation',
-				order: 4,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
-					ChatContextKeys.enabled,
-					ChatContextKeys.inAutomationsDialog,
 				),
 			}],
 		});
@@ -388,7 +379,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	constructor(
 		protected readonly _session: IObservable<IActiveSession | undefined>,
-		private readonly _options: { readonly includeRepositoryConfiguration?: boolean } = {},
 		@IActionWidgetService protected readonly _actionWidgetService: IActionWidgetService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
@@ -487,9 +477,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		// chips must remain interactive.
 		const isLoading = provider.isSessionConfigResolving(session.sessionId).get();
 
-		const properties = this._orderProperties(Object.entries(this._options.includeRepositoryConfiguration === false
-			? omitAutomationSessionTemplateConfigValues(resolvedConfig.schema.properties)
-			: resolvedConfig.schema.properties));
+		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 		let renderedIsolationCheckbox = false;
 
 		for (const [property, schema] of properties) {
@@ -1442,15 +1430,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			'sessions.agentHost.sessionConfigPicker',
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, session, {}));
-			},
-		));
-		this._register(actionViewItemService.register(
-			Menus.NewSessionControl,
-			'sessions.agentHost.sessionConfigPicker',
-			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, session, { includeRepositoryConfiguration: false }));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, session));
 			},
 		));
 		this._register(actionViewItemService.register(

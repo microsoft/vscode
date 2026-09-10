@@ -69,11 +69,10 @@ import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../shared/workspacelessInstructions.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
-import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
-import { IAgentHostWorktreeIsolation } from '../shared/worktreeIsolation.js';
+import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from '../shared/worktreeIsolation.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -1253,6 +1252,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _metadataStore: CodexSessionMetadataStore;
 	private _lastSignInRequest: string | undefined;
 	private _lastSignOutRequest: string | undefined;
+	private readonly _worktree: IAgentHostWorktreePendingState;
 
 	/**
 	 * The agent host's server-tool host (feedback "comments" today, more in the
@@ -1280,12 +1280,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
-		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 	) {
 		super();
+		this._worktree = worktree;
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._githubMcpServerEnabled = this._isGitHubMcpServerEnabled();
 		this._publishAccountInfo({ status: 'unknown' });
@@ -1927,50 +1927,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		return resolved.filter(candidate => candidate !== undefined);
 	}
 
-	/** Resolve native workspace agents in the host-owned worktree without rewriting their persisted selection identity. */
-	private async _resolveSelectedAgent(session: ICodexSession): Promise<AgentSelection | undefined> {
-		const agent = session.agent;
-		if (!agent || !session.workingDirectory) {
-			return agent;
-		}
-		const agentUri = URI.parse(agent.uri);
-		const agentsDirectory = extUriBiasedIgnorePathCase.dirname(agentUri);
-		const sourceRoot = extUriBiasedIgnorePathCase.dirname(extUriBiasedIgnorePathCase.dirname(agentsDirectory));
-		if (!extUriBiasedIgnorePathCase.isEqual(agentsDirectory, URI.joinPath(sourceRoot, '.github', 'agents'))
-			|| extUriBiasedIgnorePathCase.isEqual(sourceRoot, session.workingDirectory)) {
-			return agent;
-		}
-		const worktree = await this._worktree.readWorktreeMetadata(session.configurationResource);
-		if (!worktree?.repositoryRoot || !worktree.worktreePath
-			|| !extUriBiasedIgnorePathCase.isEqual(session.workingDirectory, worktree.worktreePath)) {
-			return agent;
-		}
-		if (!extUriBiasedIgnorePathCase.isEqual(sourceRoot, worktree.repositoryRoot)) {
-			try {
-				const checkoutRoot = await this._gitService.getRepositoryRoot(sourceRoot);
-				if (!checkoutRoot || !extUriBiasedIgnorePathCase.isEqual(checkoutRoot, sourceRoot)
-					|| !extUriBiasedIgnorePathCase.isEqual(await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot), worktree.repositoryRoot)) {
-					return agent;
-				}
-			} catch (error) {
-				this._logService.warn('[Codex] Failed to resolve the selected workspace agent repository', error);
-				return agent;
-			}
-		}
-		return {
-			...agent,
-			uri: URI.joinPath(worktree.worktreePath, '.github', 'agents', extUriBiasedIgnorePathCase.basename(agentUri)).toString(),
-		};
-	}
-
 	private async _buildCustomizationLaunch(session: ICodexSession): Promise<ICodexCustomizationLaunch> {
 		const plugins = this._enabledClientPlugins(session);
-		const [workspaceAgents, workspaceSkills, selectedAgent] = await Promise.all([
+		const [workspaceAgents, workspaceSkills] = await Promise.all([
 			discoverCodexWorkspaceAgents(this._customizationWorkingDirectories(session), this._fileService),
 			discoverCodexWorkspaceSkills(this._customizationWorkingDirectories(session), this._fileService),
-			this._resolveSelectedAgent(session),
 		]);
-		const customization = await codexCustomizationConfig(workspaceAgents.agents, plugins, selectedAgent, this._fileService);
+		const customization = await codexCustomizationConfig(workspaceAgents.agents, plugins, session.agent, this._fileService);
 		const developerInstructions = [
 			customization.developerInstructions,
 			session.managedWorkingDirectory ? AGENT_HOST_WORKSPACELESS_INSTRUCTIONS : '',
@@ -2002,7 +1965,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			})),
 		];
 		const signature = JSON.stringify({
-			agent: selectedAgent?.uri,
+			agent: session.agent?.uri,
 			agentRoles: customization.agentRoles,
 			developerInstructions,
 			selectedCapabilityRoots: selectedCapabilityRoots.map(root => root.location.path),

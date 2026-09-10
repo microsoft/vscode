@@ -753,47 +753,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
-	test('advertises host-owned worktree configuration for every agent', () => {
-		agentHost.setAgents(['copilotcli', 'claude', 'codex', 'custom'].map(provider => ({
-			provider, displayName: provider, description: '', models: [],
-		})));
-		const configurationService = new TestConfigurationService({ [AgentHostCodexAgentEnabledSettingId]: true });
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
-
-		assert.deepStrictEqual(provider.sessionTypes.map(type => ({
-			id: type.id,
-			supportsWorktreeConfiguration: type.supportsWorktreeConfiguration,
-		})), ['copilotcli', 'claude', 'codex', 'custom'].map(id => ({
-			id, supportsWorktreeConfiguration: true,
-		})));
-	});
-
-	test('resolves workspace-specific worktree support from the host schema', async () => {
-		const provider = createProvider(disposables, agentHost);
-		const results = [];
-		for (const supportsWorktree of [true, false]) {
-			agentHost.resolveSessionConfigResult = {
-				schema: {
-					type: 'object',
-					properties: {
-						isolation: { type: 'string', title: 'Isolation', enum: supportsWorktree ? ['folder', 'worktree'] : ['folder'] },
-						branch: { type: 'string', title: 'Branch', enum: ['main', 'release'] },
-					},
-				},
-				values: { isolation: 'folder', branch: 'main' },
-			};
-			results.push(await provider.getWorktreeOptions(URI.file('/workspace'), 'claude', CancellationToken.None));
-		}
-		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: {} };
-		results.push(await provider.getWorktreeOptions(URI.file('/workspace'), 'claude', CancellationToken.None));
-
-		assert.deepStrictEqual(results, [
-			{ supportsWorktree: true, currentBranch: 'main', branches: ['main', 'release'] },
-			{ supportsWorktree: false, currentBranch: 'main', branches: ['main', 'release'] },
-			undefined,
-		]);
-	});
-
 	test('shares the root-state listener across session adapters', () => {
 		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
 		const provider = createProvider(disposables, agentHost);
