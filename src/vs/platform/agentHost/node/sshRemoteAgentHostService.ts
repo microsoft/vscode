@@ -61,6 +61,7 @@ import {
 	buildAgentRelayCommand,
 	extractAgentHostWebSocketURL,
 	filterLiveAgentHostEndpoints,
+	getNewAgentHostRegistrationTimeoutMs,
 	getRemoteCLIDataDir,
 	redactToken,
 	resolveRemotePlatform,
@@ -69,7 +70,7 @@ import {
 	validateAgentHostTelemetryLevel,
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
-import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
+import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResult } from './remoteAgentHostCliInstaller.js';
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 
@@ -939,7 +940,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 				this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.os}-${platform.arch}`);
 				reportProgress(localize('sshProgressInstallingCLI', "Checking remote CLI installation..."));
-				cliBin = await this._ensureCLIInstalled(sshClient, platform, reportProgress);
+				const cliInstallation = await this._ensureCLIInstalled(sshClient, platform, reportProgress);
+				cliBin = cliInstallation.cliBin;
 				cliDataDir = getRemoteCLIDataDir(this._serverDataFolderName);
 
 				// 3. Discover every live endpoint on the remote via the shared registry.
@@ -963,7 +965,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 						this._logService.warn(`${LOG_PREFIX} Spawn command for dedicated agent host reported an error: ${err instanceof Error ? err.message : String(err)}`);
 					});
 					reportProgress(localize('sshProgressAwaitingAgent', "Waiting for the new agent host to register..."));
-					return waitForNewStandaloneEndpoint(exec, cliBin, cliDataDir, userDataPath, live);
+					return waitForNewStandaloneEndpoint(exec, cliBin, cliDataDir, userDataPath, live, {
+						timeoutMs: getNewAgentHostRegistrationTimeoutMs(cliInstallation.installed),
+						progress: elapsedMs => reportProgress(localize('sshProgressStillAwaitingAgent', "Waiting for the new agent host to register... ({0} seconds elapsed)", Math.floor(elapsedMs / 1000))),
+					});
 				};
 
 				// Deterministic dedicated (standalone) selection: reuse a live
@@ -2079,9 +2084,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * at `~/<serverDataFolderName>/<archive>`. Existing CLIs self-update
 	 * against the latest release before reuse.
 	 *
-	 * Returns the resolved CLI binary path to run.
+	 * Returns the resolved CLI binary path and its install outcome.
 	 */
-	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<string> {
+	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<IRemoteAgentHostCliInstallResult> {
 		return ensureRemoteAgentHostCliInstalled(bindSshExec(client), platform, {
 			serverDataFolderName: this._serverDataFolderName,
 			quality: this._quality,

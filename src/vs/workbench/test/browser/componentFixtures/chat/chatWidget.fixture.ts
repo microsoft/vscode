@@ -15,14 +15,14 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ElicitationState, IChatQuestion, IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ElicitationState, IChatQuestion, IChatService, IChatSystemNotificationPart } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
@@ -35,9 +35,8 @@ import { SessionType } from '../../../../contrib/chat/common/chatSessionsService
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
-import { ChatTurnStatusPillsSetting, isChatTurnStatusPillsEnabled } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
 import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
 import { ChatPetWidget } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
 
@@ -55,18 +54,25 @@ export interface IFixtureFileChange {
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
+	readonly timestamp?: number;
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
+		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean }
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly details?: string;
 	readonly responseComplete?: boolean;
+	/** Whether the request is a host-initiated turn rendered with its specialized presentation. */
+	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: ChatRequestSource;
+	/** Whether the request half of the turn stays out of the transcript. */
+	readonly requestHidden?: boolean;
 	/**
 	 * Per-turn file changes surfaced via {@link IChatResponseFileChangesService},
-	 * used by the turn changes summary. Requires `turnStatusPills` on the fixture
+	 * used by the turn changes summary. Requires `agentHostSession` on the fixture
 	 * options to be rendered.
 	 */
 	readonly fileChanges?: ReadonlyArray<IFixtureFileChange>;
@@ -77,6 +83,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	/** Total horizontal padding reserved when laying out response content and embedded editors. */
+	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
 	/** Whether to populate the response footer with an action. */
@@ -97,13 +105,14 @@ export interface IChatWidgetFixtureOptions {
 	 */
 	readonly decorateInputPart?: (inputPart: ChatInputPart, instantiationService: IInstantiationService) => void;
 	/**
-	 * When set, renders the chat as an agent host session and enables the turn
-	 * changes summary (`chat.turnStatusPills`), so completed turns with
+	 * When set, renders the chat as an agent host session, so completed turns with
 	 * {@link IFixtureMessage.fileChanges} show workspace changes and external
 	 * Markdown previews under the response.
 	 */
-	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
+	readonly agentHostSession?: boolean;
 	readonly linkPresentationService?: ILinkPresentationService;
+	/** Registers fixture-specific services after the shared chat service graph. */
+	readonly additionalServices?: (registration: ServiceRegistration) => void;
 	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
 	/** Selects the input-height consumer used by the ResizeObserver harness. */
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
@@ -159,7 +168,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// the turn changes summary via the stubbed IChatResponseFileChangesService.
 	const requestDiffs = new Map<string, readonly IEditSessionEntryDiff[]>();
 	const requestFileEdits = new Map<string, readonly IChatResponseFileEdit[]>();
-	const needsTurnPills = isChatTurnStatusPillsEnabled(options.turnStatusPills);
+	const isAgentHostSession = options.agentHostSession === true;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -186,7 +195,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				override register() { return { dispose() { } }; }
 			}());
 
-			if (needsTurnPills) {
+			if (isAgentHostSession) {
 				reg.defineInstance(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
 					override getChangesForRequest(_sessionResource: URI, requestId: string) {
 						return constObservable(requestDiffs.get(requestId) ?? []);
@@ -221,6 +230,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					override async assess(): Promise<IToolRiskAssessment | undefined> { return new Promise(() => { }); }
 				}());
 			}
+			options.additionalServices?.(reg);
 		},
 	});
 
@@ -233,16 +243,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	if (options.verbose !== undefined) {
 		configService.setUserConfiguration(ChatConfiguration.Verbose, options.verbose);
 	}
-	if (needsTurnPills) {
-		configService.setUserConfiguration(ChatConfiguration.TurnStatusPills, options.turnStatusPills);
-	}
-
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
 	// real ChatViewModel + ChatListWidget — the same components used in production.
 	// The turn changes summary only renders for agent host sessions, whose frontend
 	// resource uses the session type as the scheme (e.g. `agent-host-copilotcli:/…`),
 	// which is what `getChatSessionType` / `toAgentHostBackendSessionUri` recognize.
-	const sessionResource = needsTurnPills
+	const sessionResource = isAgentHostSession
 		? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/turn-pills-session' })
 		: undefined;
 	const chatService = instantiationService.get(IChatService) as MockChatService;
@@ -254,7 +260,30 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	chatService.addSession(model);
 
 	for (const message of options.messages) {
-		const request = model.addRequest(makeUserMessage(message.user), { variables: [] }, 0);
+		const request = model.addRequest(
+			makeUserMessage(message.user),
+			{ variables: [] },
+			0,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			message.isSystemInitiated,
+			undefined,
+			undefined,
+			undefined,
+			message.timestamp,
+			undefined,
+			undefined,
+			message.requestHidden,
+			message.requestSource,
+		);
 		const response = request.response!;
 		if (message.fileChanges) {
 			const fileEdits = message.fileChanges.map(makeFileDiff);
@@ -266,6 +295,8 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(part.text) });
 			} else if (part.kind === 'progress') {
 				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(part.text) });
+			} else if (part.kind === 'systemNotification') {
+				model.acceptResponseProgress(request, part.notification);
 			} else if (part.kind === 'questionCarousel') {
 				model.acceptResponseProgress(request, {
 					kind: 'questionCarousel',
@@ -421,6 +452,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			location: ChatAgentLocation.Chat,
 			paddingBottom: options.persistentContentHeight,
 			rendererOptions: {
+				contentHorizontalPadding: options.contentHorizontalPadding,
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 			},
 		},
@@ -455,7 +487,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					? Math.max(0, Math.max(116, inputHeight) - inputHeight)
 					: Math.max(0, height - inputHeight);
 				listContainer.style.height = `${contentHeight}px`;
-				listContainer.dataset['expectedHeight'] = String(contentHeight);
+				listContainer.dataset.expectedHeight = String(contentHeight);
 				listWidget.layout(contentHeight, width);
 			} finally {
 				layouting = false;
@@ -780,7 +812,7 @@ async function renderResizeObserverLoopHarness(context: ComponentFixtureContext,
 		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
 			warningCount++;
 			warnings.textContent = `Warnings: ${warningCount}`;
-			warnings.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+			warnings.dataset.observerContext = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
 			status.textContent = 'Captured ResizeObserver warning';
 		}
 	}));
@@ -881,11 +913,11 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	const status = dom.append(context.container, dom.$('.disabled-pet-resize-observer-status'));
 	status.role = 'status';
 	status.textContent = 'Running disabled pet observer probe';
-	status.dataset['warningCount'] = '0';
+	status.dataset.warningCount = '0';
 	context.disposableStore.add(dom.addDisposableListener(targetWindow, dom.EventType.ERROR, event => {
 		if (event instanceof ErrorEvent && event.message.includes('ResizeObserver loop')) {
-			status.dataset['warningCount'] = String(Number(status.dataset['warningCount']) + 1);
-			status.dataset['observerContext'] = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
+			status.dataset.warningCount = String(Number(status.dataset.warningCount) + 1);
+			status.dataset.observerContext = dom.getRecentDisposableResizeObserverContextForLoopError(event.message, targetWindow) ?? event.message;
 		}
 	}));
 

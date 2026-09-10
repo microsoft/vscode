@@ -120,6 +120,9 @@ export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.ex
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 
+/** Configuration key controlling automatic pull request association for the checked-out branch. */
+export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
+
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
  * agent-host provider. When `true`, the Copilot provider advertises the
@@ -775,6 +778,11 @@ export interface IAgentHostManagementService {
 	 * `createChat` (`title` and `model`).
 	 */
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
+	claimDetachedWorktree(handle: string): Promise<void>;
+	deleteDetachedWorktree(handle: string): Promise<void>;
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -813,6 +821,11 @@ export interface IAgentService {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
+	claimDetachedWorktree?(handle: string): Promise<void>;
+	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
+	deleteDetachedWorktree?(handle: string): Promise<void>;
+	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -1114,6 +1127,11 @@ export interface IAgentConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
+	claimDetachedWorktree?(handle: string): Promise<void>;
+	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
+	deleteDetachedWorktree?(handle: string): Promise<void>;
+	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 	completions(params: CompletionsParams): Promise<CompletionsResult>;

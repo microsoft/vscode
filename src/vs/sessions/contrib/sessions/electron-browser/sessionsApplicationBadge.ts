@@ -10,20 +10,26 @@ import { autorun, derived, IObservable, observableFromEvent } from '../../../../
 import { isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IApplicationBadge, INativeHostService } from '../../../../platform/native/common/native.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import product from '../../../../platform/product/common/product.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../../workbench/common/theme.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';
+export const SESSIONS_APPLICATION_BADGE_DEFAULT = product.quality !== 'stable';
 
 /**
- * Renders the number of sessions that need the user's attention — unread or
- * waiting for input, archived ones excluded — as a badge on the application
- * icon in the dock (macOS), the launcher (Linux) or the taskbar (Windows).
+ * Renders the number of unarchived sessions that need the user's attention:
+ * unread sessions no longer in progress, sessions waiting for input, and
+ * non-in-progress sessions with failing CI on an open, non-draft pull request.
+ * The badge appears on the application icon in the dock (macOS), the launcher
+ * (Linux) or the taskbar (Windows).
  */
 export class SessionsApplicationBadge extends Disposable implements IWorkbenchContribution {
 
@@ -41,16 +47,19 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 	private readonly _sessions: IObservable<readonly ISession[]>;
 	private readonly _colorTheme: IObservable<IColorTheme>;
 	private readonly _count: IObservable<number>;
+	private readonly _blockedSessions: BlockedSessions;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._enabled = observableConfigValue(SESSIONS_APPLICATION_BADGE_SETTING, false, this._configurationService);
+		this._enabled = observableConfigValue(SESSIONS_APPLICATION_BADGE_SETTING, SESSIONS_APPLICATION_BADGE_DEFAULT, this._configurationService);
+		this._blockedSessions = this._register(instantiationService.createInstance(BlockedSessions));
 
 		this._sessions = observableFromEvent(this, this._sessionsManagementService.onDidChangeSessions, () => this._sessionsManagementService.getSessions());
 
@@ -61,13 +70,15 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 				return 0;
 			}
 
+			const blockedSessionIds = new Set(this._blockedSessions.blockedSessions.read(reader).map(session => session.sessionId));
 			let count = 0;
 			for (const session of this._sessions.read(reader)) {
 				if (session.isArchived.read(reader)) {
 					continue;
 				}
 
-				if (!session.isRead.read(reader) || session.status.read(reader) === SessionStatus.NeedsInput) {
+				if (blockedSessionIds.has(session.sessionId)
+					|| (!session.isRead.read(reader) && session.status.read(reader) !== SessionStatus.InProgress)) {
 					count++;
 				}
 			}

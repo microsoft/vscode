@@ -21,6 +21,7 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { parseChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -30,7 +31,7 @@ import { ACTIVE_GROUP } from '../../../../../services/editor/common/editorServic
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { formatCopilotCreditsLabel } from '../../../common/chatService/chatService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { AUTO_RAW_MODEL_ID, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
@@ -40,6 +41,7 @@ import { getCompactCodicon } from '../../chatIcons.js';
 
 export interface IOpenSubagentChatContext {
 	readonly chatResource: string;
+	readonly isChatAvailable?: boolean;
 	readonly parentSessionResource?: string;
 	readonly title?: string;
 	readonly agentType?: string;
@@ -256,6 +258,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		@INotificationService notificationService: INotificationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(context, openInEditor ? createEditorOpenSubagentAction(action, chatWidgetService, notificationService) : createOpenSubagentAction(action), options);
 		this._sourceAction = action;
@@ -266,6 +269,12 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
 			if (this.accessibilityService.isMotionReduced()) {
 				this._finishToolTransition();
+			}
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(ChatConfiguration.SubagentsShowCreditUsage)) {
+				this._updateCredits();
+				this.updateTooltip();
 			}
 		}));
 	}
@@ -409,9 +418,11 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	private _setEnabled(enabled: boolean): void {
-		this._action.enabled = enabled;
-		this._sourceAction.enabled = enabled;
+		const canOpen = enabled && asOpenSubagentChatContext(this._context)?.isChatAvailable !== false;
+		this._action.enabled = canOpen;
+		this._sourceAction.enabled = canOpen;
 		this.updateEnabled();
+		this.updateAriaLabel();
 	}
 
 	private _setModelName(modelName: string | undefined): void {
@@ -423,12 +434,21 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	private _setCredits(credits: number | undefined): void {
 		// Zero-cost subagents report 0 rather than nothing, so normalize both to hidden.
-		const show = typeof credits === 'number' && credits > 0;
-		this._reportedCredits = show ? credits : undefined;
+		this._reportedCredits = typeof credits === 'number' && credits > 0 ? credits : undefined;
+		this._updateCredits();
+	}
+
+	private _updateCredits(): void {
+		const credits = this._reportedCredits;
+		const show = credits !== undefined && this._showCreditUsage;
 		if (this._creditsElement) {
 			this._creditsElement.textContent = show ? formatCopilotCreditsLabel(credits) : '';
 			this._creditsElement.classList.toggle('hidden', !show);
 		}
+	}
+
+	private get _showCreditUsage(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.SubagentsShowCreditUsage) === true;
 	}
 
 	private _setAgentType(agentType: string | undefined): void {
@@ -649,7 +669,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		const details: string[] = [];
-		if (this._confirmationCount > 0) {
+		if (!this._action.enabled) {
+			details.push(localize('chat.subagent.openChat.unavailable', "Subagent chat is not available yet."));
+		} else if (this._confirmationCount > 0) {
 			details.push(this._confirmationCount === 1
 				? localize('chat.subagent.openChat.confirmationTooltip', "Open subagent chat (1 confirmation needed)")
 				: localize('chat.subagent.openChat.confirmationsTooltip', "Open subagent chat ({0} confirmations needed)", this._confirmationCount));
@@ -662,7 +684,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		if (this._reportedModelName) {
 			details.push(localize('chat.subagent.modelTooltip', "Model: {0}", this._reportedModelName));
 		}
-		if (this._reportedCredits !== undefined) {
+		if (this._reportedCredits !== undefined && this._showCreditUsage) {
 			details.push(formatCopilotCreditsLabel(this._reportedCredits));
 		}
 		if (this._displayedToolAccessibleLabel && this._displayedActivityIsTool) {
@@ -680,10 +702,11 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		const enabled = this._action.enabled;
+		const hidden = !asOpenSubagentChatContext(this._context);
 		this.element.classList.toggle('disabled', !enabled);
-		this.element.classList.toggle('hidden', !enabled);
+		this.element.classList.toggle('hidden', hidden);
 		this.element.setAttribute('aria-disabled', String(!enabled));
-		this.element.setAttribute('aria-hidden', String(!enabled));
+		this.element.setAttribute('aria-hidden', String(hidden));
 	}
 
 	protected override updateAriaLabel(): void {
@@ -691,7 +714,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		const label = this._resolvedTitle
-			? localize('chat.subagent.openChat.aria', "Open subagent chat: {0}", this._resolvedTitle)
+			? this._action.enabled
+				? localize('chat.subagent.openChat.aria', "Open subagent chat: {0}", this._resolvedTitle)
+				: localize('chat.subagent.pendingChat.aria', "Subagent: {0}", this._resolvedTitle)
 			: this._action.label;
 		const status = this._renderedStatus === 'running'
 			? localize('chat.subagent.status.working', "Subagent is working")

@@ -11,7 +11,7 @@ import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable,
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -206,7 +206,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		this.activeSessionChangesetOperationsObs = derived(reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
-			const operations = changeset?.operations.read(reader) ?? [];
+			const operations = (changeset?.operations.read(reader) ?? [])
+				.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID);
 			return activeSessionBaseBranchProtected.read(reader)
 				? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID)
 				: operations;
@@ -379,11 +380,19 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			// Pull request state
 			const gitHubInfo = gitRepository?.gitHubInfo.read(reader);
 			const hasPullRequest = gitHubInfo?.pullRequest?.uri !== undefined;
-			const hasOpenPullRequest = hasPullRequest &&
-				(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestError.id ||
-					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestComment.id);
+			const hostPullRequestState = gitHubInfo?.pullRequest?.state;
+			const livePullRequestState = gitHubInfo?.pullRequest?.liveState;
+			const hasTerminalPullRequestState = hostPullRequestState === 'closed'
+				|| hostPullRequestState === 'merged'
+				|| livePullRequestState === 'closed'
+				|| livePullRequestState === 'merged';
+			const hasOpenPullRequest = hasPullRequest && !hasTerminalPullRequestState
+				&& (hostPullRequestState === 'open'
+					|| livePullRequestState === 'open'
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestError.id
+					|| gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestComment.id);
 
 			// Repository state
 			const hasGitHubRemote = gitRepository?.hasGitHubRemote ?? false;

@@ -15,7 +15,7 @@ export type AutoModeTier = typeof autoModeTiers[number];
  * The tiers offered in the model picker. `fast` is excluded: it is the profile
  * inline chat falls back to when the user has not picked a tier, and is not
  * offered as a choice. It remains reachable through the internal
- * {@link ConfigKey.Advanced.AutoModeTierOverride} setting.
+ * {@link ConfigKey.Shared.AutoModeTierOverride} setting.
  */
 export const selectableAutoModeTiers: readonly AutoModeTier[] = ['efficiency', 'balance', 'intelligence'];
 
@@ -40,10 +40,11 @@ const retiredAutoModeTiers: Readonly<Record<string, AutoModeTier>> = {
 
 /**
  * Maps a retired tier name to its current one, leaving anything else untouched.
- * Only raw inputs that bypass the picker schema need this, notably the override setting.
+ * Needed for raw inputs that predate the rename, such as the override setting or a persisted picker
+ * value restored before its model's schema has loaded.
  */
-export function normalizeAutoModeTier(value: string): string {
-	return retiredAutoModeTiers[value] ?? value;
+export function normalizeAutoModeTier(value: unknown): unknown {
+	return typeof value === 'string' ? retiredAutoModeTiers[value] ?? value : value;
 }
 
 /**

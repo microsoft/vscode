@@ -10,6 +10,9 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -64,7 +67,7 @@ suite('OpenSubagentChatActionViewItem', () => {
 		]);
 	});
 
-	test('disables and hides the action until its peer chat resolves', () => {
+	test('keeps the rich pill visible but disables opening until its peer chat resolves', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ISessionsService, {
 			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
@@ -95,8 +98,8 @@ suite('OpenSubagentChatActionViewItem', () => {
 		}, {
 			enabled: false,
 			sourceActionEnabled: false,
-			hidden: true,
-			ariaHidden: 'true',
+			hidden: false,
+			ariaHidden: 'false',
 			modelHidden: true,
 		});
 	});
@@ -171,6 +174,10 @@ suite('OpenSubagentChatActionViewItem', () => {
 			{},
 			false,
 		));
+		viewItem.trackEnabled((_context, update) => {
+			update(true);
+			return Disposable.None;
+		});
 		const container = document.createElement('div');
 		viewItem.render(container);
 
@@ -220,6 +227,10 @@ suite('OpenSubagentChatActionViewItem', () => {
 			{},
 			false,
 		));
+		viewItem.trackEnabled((_context, update) => {
+			update(true);
+			return Disposable.None;
+		});
 		const container = document.createElement('div');
 
 		viewItem.render(container);
@@ -235,8 +246,9 @@ suite('OpenSubagentChatActionViewItem', () => {
 		});
 	});
 
-	test('renders the credit cost alongside the model', () => {
+	test('renders the credit cost alongside the model when enabled', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.SubagentsShowCreditUsage, true);
 		instantiationService.stub(ISessionsService, {
 			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
 			visibleSessions: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
@@ -258,6 +270,10 @@ suite('OpenSubagentChatActionViewItem', () => {
 			{},
 			false,
 		));
+		viewItem.trackEnabled((_context, update) => {
+			update(true);
+			return Disposable.None;
+		});
 		const container = document.createElement('div');
 
 		viewItem.render(container);

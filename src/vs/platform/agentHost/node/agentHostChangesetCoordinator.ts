@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agent.js';
-import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
+import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
@@ -14,7 +14,8 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
+import { readAgentMergeSessionState } from '../common/agentMerge.js';
+import { isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -57,6 +58,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
 		this._register(gitStateService.onDidChangeSessionGitHubState(sessionStr => this._changesetOperationService.updateOperations(sessionStr)));
 		this._register(this._stateManager.onDidChangeSessionWorkingDirectories(({ session }) => this.onDidChangeSessionWorkingDirectories(session)));
+		this._register(this._stateManager.onDidChangeSessionConfig(event => this.onDidChangeSessionConfig(event.session, event.previous, event.current)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -91,6 +93,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetFileMonitor.onSessionRestored(sessionStr);
 	}
 
+	/** Refreshes config-dependent catalogue entries after restored session config is seeded. */
+	onSessionConfigRestored(sessionStr: string): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
+	}
+
 	/**
 	 * Called when a provisional session is materialized (working directory
 	 * becomes known). Recomputes every current changeset subscription.
@@ -117,6 +124,14 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetOperationService.updateOperations(sessionStr);
 	}
 
+	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
+		const wasEnabled = readAgentMergeSessionState(previous?.values)?.enabled === true;
+		const isEnabled = readAgentMergeSessionState(current?.values)?.enabled === true;
+		if (wasEnabled !== isEnabled) {
+			this._changesets.refreshChangesetCatalog(session);
+		}
+	}
+
 	// ---- Subscription hooks -------------------------------------------------
 
 	/**
@@ -134,14 +149,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const parsed = parseChangesetUri(resourceStr);
 
 		if (!parsed && !isAhpChatChannel(resourceStr) && this._stateManager.getSessionState(resourceStr)) {
-			// For the session URI, we add a subscription for the branch
-			// changeset since this is the changeset that is being used to
-			// track the changes that are being used to calculate the diff
-			// statistics for the session changes.
-			this._addSubscription(resourceStr, buildBranchChangesetUri(resourceStr));
-			this._changesets.refreshBranchChangeset(resourceStr);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
-
+			this.ensureSessionSubscription(resourceStr);
 			return;
 		}
 
@@ -175,6 +183,20 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._addSubscription(parsed.sessionUri, resourceStr);
 			return;
 		}
+	}
+
+	/** Installs implicit summary interest once state exists, including after a concurrent cold restore. */
+	ensureSessionSubscription(session: string): void {
+		if (
+			!this._stateManager.getSessionState(session) ||
+			this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
+		) {
+			return;
+		}
+
+		this._addSubscription(session, session);
+		this._changesets.refreshSessionChangeset(session);
+		this._changesetFileMonitor.trackSessionChanges(session, session);
 	}
 
 	/**

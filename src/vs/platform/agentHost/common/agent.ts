@@ -27,6 +27,16 @@ export class AgentHostStartError extends Error {
 	}
 }
 
+/** Reports a provider CWD error after the new directory became irreversible and authoritative. */
+export class AgentWorkingDirectoryChangedError extends Error {
+	constructor(
+		readonly workingDirectory: URI,
+		message: string,
+	) {
+		super(message);
+	}
+}
+
 export function isInvalidUtilityProcessConfigurationMessage(message: string): boolean {
 	return /^Invalid value for (?:args|env|execArgv)$/.test(message);
 }
@@ -85,13 +95,15 @@ export interface IAgentHostNetworkEndpoint {
 
 export interface IAgentHostManagedSettingsSnapshot {
 	readonly account?: string;
-	readonly source: 'server' | 'device' | 'client' | 'mixed' | 'none';
+	readonly source: 'server' | 'device' | 'client' | 'policyHelper' | 'mixed' | 'none';
 	readonly serverManaged: boolean;
 	readonly deviceManaged: boolean;
 	readonly clientManaged?: boolean;
+	readonly policyHelperManaged?: boolean;
 	readonly failClosed: boolean;
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
+	readonly sandboxEnabledByUndeterminedPolicy?: boolean;
 	readonly managedKeys: readonly string[];
 	readonly settings?: unknown;
 }
@@ -249,6 +261,11 @@ export const CODEX_AGENT_PROVIDER_ID = 'codex' as const;
  */
 export type IAgentCapabilities = AgentCapabilities;
 
+/** Agent Host-only capabilities that are not serialized to protocol clients. */
+export interface IAgentHostCapabilities {
+	readonly workspaceConversion: boolean;
+}
+
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
 	readonly provider: AgentProvider;
@@ -278,6 +295,8 @@ export interface AuthenticateParams {
 
 	/** The bearer token value (RFC 6750). */
 	readonly token: string;
+	/** The access token's remaining lifetime in seconds, when known. */
+	readonly expiresIn?: number;
 }
 
 /** Request for a previously accepted bearer token. */
@@ -448,6 +467,8 @@ export interface IAgentChatContext {
 	readonly customizations?: readonly Customization[];
 	/** Per-operation host instructions that providers add to model context without persisting as user content. */
 	readonly hostInstructions?: readonly string[];
+	/** Whether the current turn is an automated Agent Merge repair turn. */
+	readonly agentMergeTurn?: boolean;
 }
 
 export type AgentChatOperationContext = URI | IAgentChatContext;
@@ -907,6 +928,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly parentToolCallId?: string;
 }
 
+export type AgentSubagentTaskModelSource = 'task_argument' | 'subagent_configuration' | 'custom_agent_definition' | 'unset';
+
 /**
  * A subagent was spawned by a tool call. The host creates a child session
  * silently and routes subsequent inner-tool events to it.
@@ -921,6 +944,7 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+	readonly taskModelSource?: AgentSubagentTaskModelSource;
 	/**
 	 * The spawning Task tool's short (typically 3-5 word) `description`
 	 * input, e.g. "Review package.json structure". Distinct from
@@ -1106,6 +1130,9 @@ export interface IAgent {
 	/** Unique provider identifier. */
 	readonly id: AgentProvider;
 
+	/** Capabilities consumed only inside the Agent Host process. */
+	readonly agentHostCapabilities: IAgentHostCapabilities;
+
 	/** Provider descriptor and capabilities. */
 	getDescriptor(): IAgentDescriptor;
 
@@ -1140,6 +1167,14 @@ export interface IAgent {
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/**
+	 * Changes the working directory of an exact chat's existing provider-native
+	 * backing. Callers MUST gate this operation on
+	 * {@link IAgentHostCapabilities.workspaceConversion}; implementations that do
+	 * not advertise the capability MUST reject the call.
+	 */
+	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
@@ -1206,6 +1241,9 @@ export interface IAgent {
 	/** Provides chats that are ready to be registered as Agent Host sessions. */
 	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
 
+	/** Starts the provider's memoized native chat discovery pass. */
+	startChatDiscovery?(): Promise<void>;
+
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
 
@@ -1225,6 +1263,16 @@ export interface IAgent {
 
 	// ---- Metadata -----------------------------------------------------------
 
+	/**
+	 * Warms a short-lived, in-memory cache of per-session metadata from a single
+	 * bulk provider call, so a subsequent burst of {@link getChatMetadata} calls
+	 * (e.g. a `listSessions` pass over a large catalogue) can be served without
+	 * one provider round-trip per session. Returns a disposable that clears the
+	 * cache; callers dispose it once the burst is complete. Optional: providers
+	 * without a cheap bulk read simply omit it and pay per session.
+	 */
+	prewarmSessionMetadata?(): Promise<IDisposable>;
+
 	/** Retrieve metadata for an exact registered chat. Ambient catalogue reads never set {@link IAgentChatMetadataOptions.activation}. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined>;
 
@@ -1233,7 +1281,7 @@ export interface IAgent {
 	getProtectedResources(): ProtectedResourceMetadata[];
 
 	/** An empty token revokes the credential previously forwarded for this resource. */
-	authenticate(resource: string, token: string): Promise<boolean>;
+	authenticate(resource: string, token: string, expiresIn?: number): Promise<boolean>;
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;

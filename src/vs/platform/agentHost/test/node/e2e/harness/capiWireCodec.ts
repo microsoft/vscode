@@ -62,10 +62,10 @@ export function parseSseEvents(body: string): ISseEvent[] {
 
 // #region Anthropic Messages dialect
 
-/** A content block in an Anthropic assistant message (the subset we capture). */
+/** Shared captured content; `format: 'custom'` preserves Responses freeform tool calls. */
 export type AnthropicContentBlock =
 	| { readonly type: 'text'; text: string }
-	| { readonly type: 'tool_use'; readonly id: string; readonly name: string; input: unknown };
+	| { readonly type: 'tool_use'; readonly id: string; readonly name: string; readonly format?: 'custom'; input: unknown };
 
 /** The captured/replayed shape of an Anthropic `/v1/messages` assistant reply. */
 export interface IAnthropicMessage {
@@ -77,7 +77,7 @@ export interface IAnthropicMessage {
 export const ANTHROPIC_MESSAGES_PATH = '/v1/messages';
 
 interface IMutableTextBlock { type: 'text'; text: string }
-interface IMutableToolUseBlock { type: 'tool_use'; id: string; name: string; input: unknown }
+interface IMutableToolUseBlock { type: 'tool_use'; id: string; name: string; format?: 'custom'; input: unknown }
 type MutableBlock = IMutableTextBlock | IMutableToolUseBlock;
 
 /**
@@ -333,7 +333,7 @@ export const RESPONSES_PATH = '/responses';
 
 /**
  * Aggregate a streamed `/responses` SSE body into a message. Reads the
- * authoritative `response.output_item.done` items (message + function_call) and
+ * authoritative `response.output_item.done` items (messages and tool calls) and
  * the final usage; reasoning items (opaque encrypted content) are dropped.
  */
 export function aggregateResponsesSse(sseBody: string): IAnthropicMessage | undefined {
@@ -345,7 +345,7 @@ export function aggregateResponsesSse(sseBody: string): IAnthropicMessage | unde
 	for (const evt of events) {
 		if (evt.type === 'response.output_item.done') {
 			seen = true;
-			const item = evt['item'] as { type?: string; content?: Array<{ type?: string; text?: string }>; name?: string; arguments?: string; call_id?: string; id?: string };
+			const item = evt['item'] as { type?: string; content?: Array<{ type?: string; text?: string }>; name?: string; arguments?: string; input?: string; call_id?: string; id?: string };
 			if (item.type === 'message') {
 				const text = (item.content ?? []).filter(c => c.type === 'output_text').map(c => c.text ?? '').join('');
 				if (text) {
@@ -353,6 +353,11 @@ export function aggregateResponsesSse(sseBody: string): IAnthropicMessage | unde
 				}
 			} else if (item.type === 'function_call') {
 				blocks.push({ type: 'tool_use', id: item.call_id ?? item.id ?? '', name: item.name ?? '', input: safeParseJson(item.arguments ?? '{}') });
+			} else if (item.type === 'custom_tool_call') {
+				if (typeof item.input !== 'string') {
+					throw new Error('Responses custom tool call is missing its string input');
+				}
+				blocks.push({ type: 'tool_use', id: item.call_id ?? item.id ?? '', name: item.name ?? '', format: 'custom', input: item.input });
 			}
 		} else if (evt.type === 'response.completed') {
 			usage = usageFromResponsesEvent(evt);
@@ -415,7 +420,7 @@ function responsesInputToMessages(input: unknown): Array<{ role: string; content
 	}
 	const messages: Array<{ role: string; content: unknown }> = [];
 	for (const raw of input) {
-		const item = raw as { type?: string; role?: string; content?: unknown; name?: string; arguments?: string; call_id?: string; output?: unknown };
+		const item = raw as { type?: string; role?: string; content?: unknown; name?: string; arguments?: string; input?: string; call_id?: string; output?: unknown };
 		switch (item.type) {
 			case 'message': {
 				// Skip harness-injected instruction messages (Codex uses the
@@ -433,7 +438,14 @@ function responsesInputToMessages(input: unknown): Array<{ role: string; content
 			case 'function_call':
 				messages.push({ role: 'assistant', content: [{ type: 'tool_use', name: item.name, input: safeParseJson(item.arguments ?? '{}') }] });
 				break;
+			case 'custom_tool_call':
+				if (typeof item.input !== 'string') {
+					throw new Error('Responses custom tool call history is missing its string input');
+				}
+				messages.push({ role: 'assistant', content: [{ type: 'tool_use', name: item.name, format: 'custom', input: item.input }] });
+				break;
 			case 'function_call_output':
+			case 'custom_tool_call_output':
 				messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: item.call_id, content: summarizeResponsesOutput(item.output) }] });
 				break;
 			// reasoning / other items are dropped from the readable capture
@@ -478,9 +490,16 @@ export function responsesMessageToSse(message: IAnthropicMessage): string {
 
 	const outputItems: ResponsesOutputItem[] = message.content.map((block, index): ResponsesOutputItem => {
 		const id = `item_${index}`;
-		return block.type === 'text'
-			? { id, type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: block.text, annotations: [], logprobs: [] }] }
-			: { id, type: 'function_call', name: block.name, call_id: block.id, arguments: JSON.stringify(block.input ?? {}), status: 'completed' };
+		if (block.type === 'text') {
+			return { id, type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: block.text, annotations: [], logprobs: [] }] };
+		}
+		if (block.format === 'custom') {
+			if (typeof block.input !== 'string') {
+				throw new Error('Cannot replay a custom tool call without string input');
+			}
+			return { id, type: 'custom_tool_call', name: block.name, call_id: block.id, input: block.input, status: 'completed' };
+		}
+		return { id, type: 'function_call', name: block.name, call_id: block.id, arguments: JSON.stringify(block.input ?? {}), status: 'completed' };
 	});
 	const outputText = message.content.filter((b): b is Extract<AnthropicContentBlock, { type: 'text' }> => b.type === 'text').map(b => b.text).join('');
 	const usage = {
@@ -506,7 +525,9 @@ export function responsesMessageToSse(message: IAnthropicMessage): string {
 		// as `SHELL_VALUE_73SHELL_VALUE_73`).
 		const addedItem = item.type === 'message'
 			? { ...item, status: 'in_progress' as const, content: [] }
-			: { ...item, status: 'in_progress' as const, arguments: '' };
+			: item.type === 'custom_tool_call'
+				? { ...item, status: 'in_progress' as const, input: '' }
+				: { ...item, status: 'in_progress' as const, arguments: '' };
 		chunks.push(sseEvent('response.output_item.added', { type: 'response.output_item.added', sequence_number: seq++, output_index: index, item: addedItem }));
 		if (item.type === 'message') {
 			const text = item.content[0].text;
@@ -515,6 +536,9 @@ export function responsesMessageToSse(message: IAnthropicMessage): string {
 			chunks.push(sseEvent('response.output_text.delta', { type: 'response.output_text.delta', sequence_number: seq++, item_id: item.id, output_index: index, content_index: 0, delta: text, logprobs: [] }));
 			chunks.push(sseEvent('response.output_text.done', { type: 'response.output_text.done', sequence_number: seq++, item_id: item.id, output_index: index, content_index: 0, text, logprobs: [] }));
 			chunks.push(sseEvent('response.content_part.done', { type: 'response.content_part.done', sequence_number: seq++, item_id: item.id, output_index: index, content_index: 0, part }));
+		} else if (item.type === 'custom_tool_call') {
+			chunks.push(sseEvent('response.custom_tool_call_input.delta', { type: 'response.custom_tool_call_input.delta', sequence_number: seq++, item_id: item.id, output_index: index, delta: item.input }));
+			chunks.push(sseEvent('response.custom_tool_call_input.done', { type: 'response.custom_tool_call_input.done', sequence_number: seq++, item_id: item.id, output_index: index, input: item.input }));
 		} else {
 			chunks.push(sseEvent('response.function_call_arguments.delta', { type: 'response.function_call_arguments.delta', sequence_number: seq++, item_id: item.id, output_index: index, delta: item.arguments }));
 			chunks.push(sseEvent('response.function_call_arguments.done', { type: 'response.function_call_arguments.done', sequence_number: seq++, item_id: item.id, output_index: index, arguments: item.arguments }));
@@ -528,6 +552,7 @@ export function responsesMessageToSse(message: IAnthropicMessage): string {
 
 type ResponsesOutputItem =
 	| { readonly id: string; readonly type: 'message'; readonly role: 'assistant'; readonly status: 'completed'; readonly content: Array<{ type: 'output_text'; text: string; annotations: unknown[]; logprobs: unknown[] }> }
+	| { readonly id: string; readonly type: 'custom_tool_call'; readonly name: string; readonly call_id: string; readonly input: string; readonly status: 'completed' }
 	| { readonly id: string; readonly type: 'function_call'; readonly name: string; readonly call_id: string; readonly arguments: string; readonly status: 'completed' };
 
 // #endregion

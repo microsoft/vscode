@@ -47,6 +47,8 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	dispose(): void {
 		this._disposables.dispose();
 		dispose(this._notebookSerializer.values());
+		dispose(this._notebookCellStatusBarRegistrations.values());
+		this._notebookCellStatusBarRegistrations.clear();
 	}
 
 	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): void {

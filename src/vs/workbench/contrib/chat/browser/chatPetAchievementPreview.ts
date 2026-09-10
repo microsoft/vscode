@@ -24,9 +24,8 @@ export function renderChatPetAchievementPreview(
 	logService: ILogService,
 ): IDisposable {
 	const store = new DisposableStore();
-	const targetWindow = DOM.getWindow(canvas);
-	const bodyImage = targetWindow.document.createElement('img');
-	const accessoryImage = accessory ? targetWindow.document.createElement('img') : undefined;
+	const bodyImage = DOM.$('img') as HTMLImageElement;
+	const accessoryImage = accessory ? DOM.$('img') as HTMLImageElement : undefined;
 	const accessorySource = accessory ? getChatPetAccessoryImageSource(accessory) : undefined;
 	const bodySource = FileAccess.asBrowserUri(`vs/workbench/contrib/chat/browser/widget/media/chatPet/buddy-idle-${variant}-96.png`).toString(true);
 	let bodyLoaded = !unlocked;

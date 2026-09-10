@@ -5,6 +5,7 @@
 
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, type IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -12,19 +13,17 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../../../../platform/agentHost/common/automationMigration.js';
+import { AGENT_HOST_AUTOMATION_MIGRATION_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY, applyLegacyAutomationSessionConfig, migrateLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationMigration.js';
 import { isAgentHostAutomationCatalogMigrated, isAgentHostLegacyAutomationImport, isAgentHostLegacyAutomationImportPending } from '../../../../../platform/agentHost/common/meta/automationMeta.js';
-import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, ROOT_STATE_URI, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import type { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationActiveRunError, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { publishAutomationMigration } from '../../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
+import { assertAutomationSessionTemplate, type AutomationRunTrigger, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationActiveRunError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, combineAutomationCatalogueStates, type AutomationMutationGuard, type IAutomationRunClaim, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, isAutomationActiveRunError, serializeAutomationEditableState, type IUpdateAutomationOptions, type IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { IAutomation, IAutomationSnapshotImportResult, IGuardedAutomationSnapshotRemovalResult, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAutomationStorageService } from '../../../automations/common/automationStorageService.js';
 
@@ -76,6 +75,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _catalogReference: IReference<IAgentSubscription<AutomationState>>;
 	private readonly _catalog: IAgentSubscription<AutomationState>;
 	private readonly _catalogChanged;
+	private readonly _catalogError;
 	private readonly _ready = observableValue(this, false);
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
 	private readonly _pendingWaits = this._register(new DisposableMap<number, DisposableStore>());
@@ -83,10 +83,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _archiveKey: string;
 	private readonly _archivedRuns;
 	private _migrationPromise: Promise<void> | undefined;
-	private _lastPreflightDeferralKey: string | undefined;
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
 	constructor(
 		private readonly _providerId: string,
@@ -95,7 +95,6 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		private readonly _boundaryMapper: IAgentHostAutomationBoundaryMapper | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAutomationStorageService private readonly _automationStorageService: IAutomationStorageService,
 	) {
 		super();
@@ -115,6 +114,14 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		));
 		this._catalog = this._catalogReference.object;
 		this._catalogChanged = observableSignalFromEvent(this, this._catalog.onDidChange);
+		this._catalogError = observableSignalFromEvent(this, this._catalog.onDidError ?? Event.None);
+		this.catalogueState = derived(this, reader => {
+			this._catalogChanged.read(reader);
+			this._catalogError.read(reader);
+			const hostState = this._catalog.value instanceof Error ? 'error' : this._catalog.verifiedValue ? 'ready' : 'loading';
+			const legacyState = this._ready.read(reader) ? 'ready' : this._legacySource?.catalogueState.read(reader) ?? 'ready';
+			return combineAutomationCatalogueStates([hostState, legacyState]);
+		});
 		if (this._catalog.onDidError) {
 			this._register(this._catalog.onDidError(error => this._logService.error(`[AgentHostAutomationStore] Catalogue subscription failed: ${error.message}`)));
 		}
@@ -125,7 +132,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				&& (isAgentHostAutomationCatalogMigrated(catalog)
 					|| catalog.entries.some(automation => automation.operations.includes(AutomationOperation.Run)))
 				&& !catalog.entries.some(automation => isAgentHostLegacyAutomationImportPending(automation.definition))
-				&& (!this._legacySource || this._legacySource.automations.read(reader).length === 0)
+				&& (!this._legacySource || (
+					this._legacySource.catalogueState.read(reader) === 'ready'
+					&& this._legacySource.canCompleteMigration?.() !== false
+					&& this._legacySource.automations.read(reader).length === 0
+				))
 				&& !this._migrationPromise
 				&& !this._ready.read(reader)) {
 				this._ready.set(true, undefined);
@@ -204,6 +215,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			prompt: options.prompt,
 			schedule: options.schedule,
 			target: options.target,
+			sessionTemplate: options.sessionTemplate,
 			modelId: options.modelId,
 			mode: options.mode,
 			permissionLevel: options.permissionLevel,
@@ -223,7 +235,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this._requireOperation(id, AutomationOperation.Update);
 		const current = this._requireAutomation(id);
 		const updated = this._applyPatch(current, patch);
-		const state = await this._replaceDescriptor(updated);
+		const state = await this._replaceDescriptor(updated, false, undefined, patch.sessionTemplate === null);
 		return this._requireProjectedAutomation(state);
 	}
 
@@ -425,35 +437,14 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			? discovered.flatMap(automation => source.runsFor(automation.id).get().filter(isNonTerminalRun))
 			: [];
 		if (activeRuns.length > 0) {
-			const deferralKey = activeRuns.map(run => run.id).sort().join(',');
-			if (this._lastPreflightDeferralKey !== deferralKey) {
-				this._lastPreflightDeferralKey = deferralKey;
-				publishAutomationMigration(this._telemetryService, {
-					outcome: 'deferred',
-					discoveredCount: discovered.length,
-					migratedCount: 0,
-					failedCount: 0,
-					durationMs: Date.now() - startedAt,
-				});
-			}
 			this._logService.info(`[AgentHostAutomationStore] Automation migration deferred: activeRuns=${activeRuns.length}.`);
 			throw new AutomationActiveRunError(activeRuns[0].automationId, activeRuns[0].id);
 		}
-		this._lastPreflightDeferralKey = undefined;
 		this._logService.info(`[AgentHostAutomationStore] Automation migration started: discovered=${discovered.length}.`);
-		publishAutomationMigration(this._telemetryService, {
-			outcome: 'started',
-			discoveredCount: discovered.length,
-			migratedCount: 0,
-			failedCount: 0,
-			durationMs: 0,
-		});
 		let migratedCount = 0;
 		let failedCount = 0;
 		try {
-			if (source?.canCompleteMigration?.() === false) {
-				throw new Error('Legacy Automation storage cannot be migrated safely by this version.');
-			}
+			this._requireLegacySourceReadable();
 			const failures: Error[] = [];
 			for (const automation of discovered) {
 				try {
@@ -479,6 +470,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 			this._requireLegacySourceDrained();
 			await this._waitForCatalog(() => true);
+			this._requireLegacySourceDrained();
 			const resources = discovered.map(automation => automationResource(automation.id));
 			this._connection.dispatch(ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
@@ -496,16 +488,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			// covers reconnect races and cross-provider transfers that stage
 			// pending without a subsequent acknowledgement path.
 			await this._drainPendingImports();
+			this._requireLegacySourceDrained();
 			this._ready.set(true, undefined);
 			const durationMs = Date.now() - startedAt;
 			this._logService.info(`[AgentHostAutomationStore] Automation migration completed: discovered=${discovered.length}, migrated=${resources.length}, failed=0, durationMs=${durationMs}.`);
-			publishAutomationMigration(this._telemetryService, {
-				outcome: 'completed',
-				discoveredCount: discovered.length,
-				migratedCount: resources.length,
-				failedCount: 0,
-				durationMs,
-			});
 		} catch (error) {
 			if (isCancellationError(error)) {
 				throw error;
@@ -513,26 +499,12 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			const durationMs = Date.now() - startedAt;
 			if (isAutomationActiveRunError(error)) {
 				this._logService.info(`[AgentHostAutomationStore] Automation migration deferred after ${migratedCount} item(s) while a run became active.`);
-				publishAutomationMigration(this._telemetryService, {
-					outcome: 'deferred',
-					discoveredCount: discovered.length,
-					migratedCount,
-					failedCount: 0,
-					durationMs,
-				});
 				throw error;
 			}
 			if (error instanceof AggregateError) {
 				failedCount = Math.max(failedCount, error.errors.length);
 			}
 			this._logService.error(`[AgentHostAutomationStore] Automation migration failed: discovered=${discovered.length}, migrated=${migratedCount}, failed=${failedCount}, durationMs=${durationMs}, error=${error instanceof Error ? error.message : String(error)}.`);
-			publishAutomationMigration(this._telemetryService, {
-				outcome: 'failed',
-				discoveredCount: discovered.length,
-				migratedCount,
-				failedCount,
-				durationMs,
-			});
 			throw error;
 		}
 	}
@@ -544,7 +516,14 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 	}
 
+	private _requireLegacySourceReadable(): void {
+		if (this._legacySource && (this._legacySource.catalogueState.get() !== 'ready' || this._legacySource.canCompleteMigration?.() === false)) {
+			throw new Error('Legacy Automation storage cannot be migrated safely by this version.');
+		}
+	}
+
 	private _requireLegacySourceDrained(): void {
+		this._requireLegacySourceReadable();
 		const remaining = this._legacySource?.automations.get().length ?? 0;
 		if (remaining > 0) {
 			throw new Error(`Automation migration source changed during migration; ${remaining} definition(s) remain.`);
@@ -663,7 +642,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			this._logService.warn(`[AgentHostAutomationStore] Cannot project Automation with no provider: resource=${state.resource}.`);
 			return undefined;
 		}
-		const config = state.definition.session.config;
+		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
 		return {
 			id: automationId(state.resource),
@@ -671,9 +650,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			prompt: state.definition.message.text,
 			schedule: projectSchedule(state.definition.triggers),
 			target,
-			modelId: this._projectModelId(state.definition.session.model?.id, state.definition.session.provider),
-			mode: readString(config?.[SessionConfigKey.Mode]),
-			permissionLevel: readString(config?.[SessionConfigKey.AutoApprove]),
+			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
@@ -782,13 +759,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean): Promise<AutomationEntry> {
+	private async _replaceDescriptor(descriptor: IAutomationDescriptor, imported = false, importPending?: boolean, resetSessionTemplate = false): Promise<AutomationEntry> {
 		const resource = automationResource(descriptor.id);
 		const current = this._findAutomationEntry(descriptor.id);
 		if (!current) {
 			throw new Error(`Automation does not exist: ${descriptor.id}`);
 		}
-		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending);
+		const definition = this._definitionFromDescriptor(descriptor, current.definition, imported, importPending, resetSessionTemplate);
 		const expected = this._requireProjectedAutomation({ ...current, definition });
 		const state = await this._dispatchAndWait(
 			{
@@ -829,11 +806,29 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return state;
 	}
 
-	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean): AutomationDefinition {
-		const config = { ...existing?.session.config };
-		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(descriptor.modelId);
-		setOptional(config, SessionConfigKey.Mode, descriptor.mode);
-		setOptional(config, SessionConfigKey.AutoApprove, descriptor.permissionLevel);
+	private _definitionFromDescriptor(descriptor: IAutomationDescriptor, existing?: AutomationDefinition, imported = false, importPending?: boolean, resetSessionTemplate = false): AutomationDefinition {
+		const sessionTemplate = descriptor.sessionTemplate;
+		assertAutomationSessionTemplate(sessionTemplate);
+		const modelId = sessionTemplate ? sessionTemplate.modelId : descriptor.modelId;
+		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(modelId);
+		const existingSession = existing && existing.session.provider === provider ? existing.session : undefined;
+		let projectedConfig: Record<string, unknown>;
+		if (sessionTemplate) {
+			projectedConfig = {
+				...pickAutomationDefinitionOwnedConfigValues(existingSession?.config),
+				...omitAutomationSessionTemplateConfigValues({ ...sessionTemplate.config }),
+			};
+		} else if (resetSessionTemplate) {
+			projectedConfig = pickAutomationDefinitionOwnedConfigValues(existingSession?.config);
+		} else {
+			projectedConfig = applyLegacyAutomationSessionConfig(
+				provider,
+				existingSession?.config,
+				descriptor.mode,
+				descriptor.permissionLevel,
+			);
+		}
+		const config = imported ? migrateLegacyAutomationSessionConfig(provider, projectedConfig) : projectedConfig;
 		if (descriptor.target.kind === 'workspace') {
 			setOptional(config, SessionConfigKey.Isolation, descriptor.target.isolation.kind === 'default' ? undefined : descriptor.target.isolation.kind);
 			setOptional(config, SessionConfigKey.Branch, descriptor.target.isolation.kind === 'worktree' ? descriptor.target.isolation.branch : undefined);
@@ -855,7 +850,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
 			session: {
 				provider,
-				model: descriptor.modelId ? { id: this._toHostModelId(descriptor.modelId, provider) } : undefined,
+				model: modelId ? {
+					id: this._toHostModelId(modelId, provider),
+					...(sessionTemplate?.modelConfiguration !== undefined ? { config: sessionTemplate.modelConfiguration } : {}),
+				} : undefined,
+				agent: resetSessionTemplate ? undefined : sessionTemplate ? sessionTemplate.agent : existingSession?.agent,
 				workingDirectories: descriptor.target.kind === 'workspace'
 					? [(this._boundaryMapper?.toHost(descriptor.target.folderUri) ?? descriptor.target.folderUri).toString()]
 					: undefined,
@@ -900,23 +899,38 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	private _applyPatch(current: IAutomationDescriptor, patch: IUpdateAutomationOptions): IAutomationDescriptor {
+		assertAutomationSessionTemplateAuthority(current, patch);
 		const now = new Date();
 		const schedule = patch.schedule ?? current.schedule;
 		const enabled = patch.enabled ?? current.enabled;
 		const target = patch.target ?? current.target;
 		const targetAuthorityChanged = patch.target !== undefined
 			&& (patch.target.providerId !== current.target.providerId || patch.target.sessionTypeId !== current.target.sessionTypeId);
+		const currentModelId = current.sessionTemplate?.modelId ?? current.modelId;
+		const currentMode = readString(current.sessionTemplate?.config?.[SessionConfigKey.Mode]) ?? current.mode;
+		const currentPermissionLevel = readString(current.sessionTemplate?.config?.[SessionConfigKey.AutoApprove]) ?? current.permissionLevel;
+		const templatePatched = patch.sessionTemplate !== undefined;
+		const modelId = templatePatched || patch.modelId === null
+			? undefined
+			: patch.modelId ?? (targetAuthorityChanged ? undefined : currentModelId);
+		const mode = templatePatched || patch.mode === null ? undefined : patch.mode ?? (targetAuthorityChanged ? undefined : currentMode);
+		const permissionLevel = templatePatched || patch.permissionLevel === null ? undefined : patch.permissionLevel ?? (targetAuthorityChanged ? undefined : currentPermissionLevel);
+		const provider = target.sessionTypeId ?? this._providerFromModelId(modelId);
+		const sessionTemplate = patch.sessionTemplate === null
+			? undefined
+			: patch.sessionTemplate ?? (targetAuthorityChanged
+				? undefined
+				: synchronizeAutomationSessionTemplate(current.sessionTemplate, provider, modelId, mode, permissionLevel));
 		return {
 			...current,
 			...(patch.name !== undefined ? { name: patch.name } : {}),
 			...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
 			schedule,
 			target,
-			modelId: patch.modelId === null
-				? undefined
-				: patch.modelId ?? (targetAuthorityChanged ? undefined : current.modelId),
-			mode: patch.mode === null ? undefined : patch.mode ?? current.mode,
-			permissionLevel: patch.permissionLevel === null ? undefined : patch.permissionLevel ?? current.permissionLevel,
+			sessionTemplate,
+			modelId,
+			mode,
+			permissionLevel,
 			enabled,
 			updatedAt: now.toISOString(),
 		};
@@ -1223,6 +1237,31 @@ function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['t
 
 function readString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
+}
+
+function projectAutomationSessionTemplate(definition: AutomationDefinition, modelId: string | undefined): IAutomationSessionTemplate | undefined {
+	const config = omitAutomationSessionTemplateConfigValues({ ...definition.session.config });
+	return createAutomationSessionTemplate(modelId, definition.session.model?.config, definition.session.agent, config);
+}
+
+function synchronizeAutomationSessionTemplate(template: IAutomationSessionTemplate | undefined, provider: string | undefined, modelId: string | undefined, mode: string | undefined, permissionLevel: string | undefined): IAutomationSessionTemplate | undefined {
+	if (!template) {
+		return undefined;
+	}
+	const config = applyLegacyAutomationSessionConfig(provider, template.config, mode, permissionLevel);
+	return createAutomationSessionTemplate(modelId, modelId === template.modelId ? template.modelConfiguration : undefined, template.agent, config);
+}
+
+function createAutomationSessionTemplate(modelId: string | undefined, modelConfiguration: IAutomationSessionTemplate['modelConfiguration'], agent: IAutomationSessionTemplate['agent'], config: Readonly<Record<string, unknown>>): IAutomationSessionTemplate | undefined {
+	if (!modelId && !agent && Object.keys(config).length === 0) {
+		return undefined;
+	}
+	return {
+		...(modelId ? { modelId } : {}),
+		...(modelId && modelConfiguration !== undefined ? { modelConfiguration } : {}),
+		...(agent ? { agent: { uri: agent.uri } } : {}),
+		...(Object.keys(config).length > 0 ? { config } : {}),
+	};
 }
 
 function setOptional(target: Record<string, unknown>, key: string, value: unknown): void {

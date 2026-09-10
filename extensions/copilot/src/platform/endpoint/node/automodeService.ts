@@ -16,7 +16,6 @@ import { ILogService } from '../../log/common/logService';
 import { isAbortError } from '../../networking/common/fetcherService';
 import { IChatEndpoint } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/common/requestLogger';
-import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChatAutoModeTier, isSelectableAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../common/autoModeTiers';
 import { ICAPIClientService } from '../common/capiClient';
@@ -162,7 +161,6 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IExperimentationService private readonly _expService: IExperimentationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -364,7 +362,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	}
 
 	areAutoModeTiersSupported(): boolean {
-		return this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AutoModeTiersEnabled, this._expService);
+		return this._configurationService.getConfig(ConfigKey.Shared.AutoModeTiersEnabled);
 	}
 
 	/**
@@ -402,13 +400,11 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * pin below unreachable.
 	 */
 	private _resolveTier(chatRequest: IAutoModeRoutingRequest | undefined): AutoModeTier | undefined {
-		const override = this._configurationService.getConfig(ConfigKey.Advanced.AutoModeTierOverride);
+		const override = this._configurationService.getConfig(ConfigKey.Shared.AutoModeTierOverride);
 		if (override) {
-			// Normalized because the override is a raw string setting, so unlike a picker value it never
-			// passes through the schema filter that drops retired names.
 			const normalized = normalizeAutoModeTier(override);
 			// The override is internal, so unlike the picker it may select `fast`.
-			if ((autoModeTiers as readonly string[]).includes(normalized)) {
+			if (autoModeTiers.some(tier => tier === normalized)) {
 				return normalized as AutoModeTier;
 			}
 			this._logService.warn(`[AutomodeService] Ignoring auto tier override '${override}' — not one of [${autoModeTiers.join(', ')}].`);
@@ -416,7 +412,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		if (!this.areAutoModeTiersSupported()) {
 			return undefined;
 		}
-		const configured = chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY];
+		const configured = normalizeAutoModeTier(chatRequest?.modelConfiguration?.[AUTO_MODE_TIER_PROPERTY]);
 		if (isSelectableAutoModeTier(configured) && configured !== defaultAutoModeTier) {
 			return configured;
 		}

@@ -56,6 +56,7 @@ Key properties:
 
 - **Sequence-based matching**, keyed by `(method, path)`: the *Nth* request to an endpoint replays the *Nth* recorded response. There is **no request-body matching** — the recorded responses drive the agent, so it reproduces the same call sequence. The recorded request is separately *asserted* (see [Asserting the model request](#asserting-the-model-request)).
 - **Wire-agnostic**: works for Anthropic Messages (`/v1/messages`) and OpenAI Responses (`/responses`) SSE dialects.
+- **Freeform tools**: Responses `custom_tool_call` items retain `format: custom` and their raw string input in captures, so replay preserves native tools such as `apply_patch` rather than converting them to JSON function calls.
 - **Strict on replay**: a request with no recorded response is a hard cache miss that fails the test — CI can never silently reach real CAPI.
 - **Complete on replay**: every recorded model response must be consumed before teardown, so a provider that stops early cannot pass by leaving the remainder of its fixture unused.
 - **Ancillary bootstrap endpoints are stubbed, not recorded** (see [What's stubbed](#whats-stubbed-vs-recorded)) — keeps identity, tokens, and the model catalog out of fixtures.
@@ -424,7 +425,7 @@ Getting the host into that configuration needs a feature that genuinely reaches 
 | Flag / condition | Effect |
 |---|---|
 | `enabled` | Skips the whole suite if the SDK isn't present. |
-| `supportsSubagents` | Gates the two subagent tests. |
+| `supportsSubagents` | Gates subagent routing, custom-agent execution, and restoration scenarios. |
 | `supportsWorktreeIsolation` | Gates the worktree test. |
 | `planModeStyle` | Gates the plan-mode test and selects its provider contract: `session-state` for a plan document or `input-request` for an interactive planning question. |
 | `fileOperationStrategy` | Selects native file-tool prompts or pinned portable shell commands for shared file-operation scenarios. |
@@ -437,10 +438,11 @@ File-operation capability and coverage are separate concerns. A provider with no
 
 ### Interpreting Codex pending tests
 
-On platforms where Codex unified-shell replay is stable, the baseline suite has 11 intentionally pending registrations:
+On platforms where Codex unified-shell replay is stable, the baseline suite has 12 intentionally pending registrations:
 
 - freeform and multi-select questions, because `request_user_input` requires non-empty, mutually exclusive options;
 - native streaming file creation and the two subagent scenarios, because Codex advertises neither capability;
+- client-plugin discovery, because plugin synchronization can race the first turn and leave it incomplete;
 - the three live workspace-agent watcher scenarios, because Codex discovers workspace customizations initially but does not watch them;
 - mid-turn abort, which is record-only for every provider;
 - worktree include-file coverage, which remains behind its documented known-issue gate; and

@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
-import { parseSessionArtifactInput, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
-import { readSessionArtifacts, SESSION_ARTIFACT_TYPES, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
+import { readSessionArtifacts, SESSION_ARTIFACT_TYPES, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { parseRequiredSessionUriFromChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolExecutionContext, IServerToolGroup } from './agentServerToolHost.js';
 
-const addArtifactInputSchema: ToolDefinition['inputSchema'] = {
+const artifactClassification = 'An issue or pull request you create or attempt to fix, change, or unblock is an artifact; inspection or review alone makes it a reference.';
+
+const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 	type: 'object',
 	properties: {
 		type: {
@@ -22,13 +26,26 @@ const addArtifactInputSchema: ToolDefinition['inputSchema'] = {
 		label: { type: 'string', description: 'Short label shown to the user.' },
 		isArtifact: {
 			type: 'boolean',
-			description: 'Required. `true` for an artifact — something this session produced, such as a pull request or issue it opened, a plan file it wrote outside the workspace, or another side effect of its work. `false` for a reference — something it did not produce but the user should look at, such as the pull request or commit that introduced a bug, or a website that matters for the task.',
+			description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are notable results you produced beyond ordinary workspace edits, such as a report written outside the workspace. References are existing resources the user should look at because of this task.`,
 		},
 		link: { type: 'string', description: 'URL of the pull request, issue, commit or website. Required for those kinds.' },
 		uri: { type: 'string', description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.' },
 		commitHash: { type: 'string', description: 'The commit hash. Required for the `commit` kind.' },
 	},
 	required: ['type', 'label', 'isArtifact'],
+};
+
+const addArtifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
+	type: 'object',
+	properties: {
+		items: {
+			type: 'array',
+			minItems: 1,
+			description: 'Artifacts and references to record in this call. Batch related entries when practical.',
+			items: artifactInputSchema,
+		},
+	},
+	required: ['items'],
 };
 
 const removeArtifactInputSchema: ToolDefinition['inputSchema'] = {
@@ -48,7 +65,7 @@ export const artifactServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.AddArtifactOrReference,
 		title: 'Add Artifact or Reference',
-		description: 'Record an artifact or a reference so it is surfaced next to the chat input. An artifact is something this session produced that is not just an ordinary workspace edit: a pull request or issue it opened, a plan or report file it wrote outside the workspace, or another side effect of its work. A reference is something the session did not produce but the user should look at because of this task: the pull request or commit that introduced a bug, an issue it investigated, or a website worth reading. Set `isArtifact` accordingly. Do not record routine files you merely edited.',
+		description: `Record one or more artifacts or references so they are surfaced next to the chat input. Use \`items\` and batch related entries in one call when practical. ${artifactClassification} Other artifacts are notable results you produced beyond ordinary workspace edits, such as a plan or report written outside the workspace. References are noteworthy existing resources the user will likely want to view. Do not record routine files, incidental resources, or sessions and chats created with session-management tools.`,
 		inputSchema: addArtifactInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -83,6 +100,23 @@ function entryNoun(isArtifact: boolean): string {
 
 const REMOVED_ARTIFACT_MESSAGE = 'Removed artifact';
 const REMOVED_REFERENCE_MESSAGE = 'Removed reference';
+
+interface IArtifactDisplayInput {
+	readonly label?: unknown;
+	readonly isArtifact?: unknown;
+}
+
+function artifactDisplayInputs(args: unknown): readonly IArtifactDisplayInput[] {
+	if (!args || typeof args !== 'object' || Array.isArray(args)) {
+		return [];
+	}
+	const input = args as Record<string, unknown>;
+	const items = input.items;
+	if (!Array.isArray(items)) {
+		return [input];
+	}
+	return items.map(item => item && typeof item === 'object' && !Array.isArray(item) ? item : {});
+}
 
 function describeArtifact(artifact: ISessionArtifact): string {
 	const value = artifact.link ?? artifact.uri ?? artifact.commitHash ?? '';
@@ -123,10 +157,21 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 		isEnabled(): boolean {
 			return accessor?.isEnabled() === true;
 		},
+		isEnabledForSession(): boolean {
+			return true;
+		},
 		getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
-					const { label, isArtifact } = (args ?? {}) as { label?: unknown; isArtifact?: unknown };
+					const inputs = artifactDisplayInputs(args);
+					if (inputs.length > 1) {
+						return {
+							displayName: 'Add Artifacts or References',
+							invocationMessage: `Add ${inputs.length} artifacts or references`,
+							pastTenseMessage: `Added ${inputs.length} artifacts or references`,
+						};
+					}
+					const { label, isArtifact } = inputs[0] ?? {};
 					// The flag is only trusted for display when the agent actually sent
 					// a boolean; `execute` rejects anything else.
 					const noun = typeof isArtifact === 'boolean' ? entryNoun(isArtifact) : 'artifact or reference';
@@ -163,13 +208,27 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 			const artifacts = new SessionArtifacts(stateManager, context);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
-					const input = parseSessionArtifactInput(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
-					const result = artifacts.read().add(input, generateUuid);
-					if (!result.added) {
-						return `Already recorded: ${describeArtifact(result.artifact)}`;
+					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
+					for (const input of inputs) {
+						if (input.uri && URI.parse(input.uri).scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
+							throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);
+						}
 					}
-					artifacts.write(result.artifacts, accessor);
-					return `Added ${entryNoun(result.artifact.isArtifact)}: ${describeArtifact(result.artifact)}`;
+					let collection = artifacts.read();
+					let changed = false;
+					const messages: string[] = [];
+					for (const input of inputs) {
+						const result = collection.add(input, generateUuid);
+						collection = new SessionArtifactCollection(result.artifacts);
+						changed ||= result.added;
+						messages.push(result.added
+							? `Added ${entryNoun(result.artifact.isArtifact)}: ${describeArtifact(result.artifact)}`
+							: `Already recorded: ${describeArtifact(result.artifact)}`);
+					}
+					if (changed) {
+						artifacts.write(collection.artifacts, accessor);
+					}
+					return messages.join('\n');
 				}
 				case ArtifactServerToolName.RemoveArtifactOrReference: {
 					const id = (rawArgs as { id?: unknown } | undefined)?.id;
@@ -198,7 +257,6 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 }
 
 /**
- * The instruction appended to every agent's host instructions while the
- * artifact tools are enabled.
+ * The instruction added to the first outgoing turn while artifact tools are enabled.
  */
-export const ARTIFACT_TOOLS_INSTRUCTION = `Record the notable results of your work with \`${ArtifactServerToolName.AddArtifactOrReference}\` (types: ${SESSION_ARTIFACT_TYPES.join(', ')}; use \`${SessionArtifactType.Resource}\` when nothing else fits) so they are surfaced next to the chat input. Pass \`isArtifact: true\` for an artifact — something this session produced beyond ordinary workspace edits, such as a pull request or issue you opened, a plan or report file you wrote outside the workspace, or another side effect of your work. Pass \`isArtifact: false\` for a reference — something you did not produce but the user should look at because of this task, such as the pull request or commit that introduced a bug, an issue you investigated, or a website worth reading. Record each one once, and do not record routine files you merely edited or commits you create unless the user asks for them.`;
+export const ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to the chat input. ${artifactClassification} Other artifacts are durable results you produce beyond ordinary workspace edits; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools.`;

@@ -142,6 +142,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	variableData: Adapt.t(m => m.variableData, chatVariableSchema),
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data
 	hiddenFromTranscript: Adapt.v(m => m.isHiddenFromTranscript),
+	requestHiddenFromTranscript: Adapt.v(m => m.isRequestHiddenFromTranscript && !m.isHiddenFromTranscript ? true : undefined),
 	isCanceled: Adapt.v(() => undefined), // deprecated, modelState is used instead
 
 	response: Adapt.t(m => m.response?.entireResponse.value.filter((p): p is PersistedResponsePart => p.kind !== 'mcpAuthenticationRequired' && p.kind !== 'mcpServersStartingSlow' && p.kind !== 'voiceProgress'), Adapt.array(responsePartSchema)),
@@ -170,6 +171,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	elapsedMs: Adapt.v(m => m.response?.elapsedMs ?? (m.response?.completedAt ? Math.max(0, m.response.completedAt - m.response.confirmationAdjustedTimestamp.get()) : undefined)),
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
+	requestSource: Adapt.v(m => m.requestSource),
 	systemInitiatedLabel: Adapt.v(m => m.systemInitiatedLabel),
 	terminalExecutionId: Adapt.v(m => m.terminalExecutionId),
 	origin: Adapt.v(m => m.origin ? serializeChatRequestOrigin(m.origin) : undefined, objectsEqual),

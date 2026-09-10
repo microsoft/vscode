@@ -27,7 +27,7 @@ import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
-import { AgentSession } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession } from '../../../common/agent.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
@@ -137,6 +137,9 @@ function createChatGPTConnection(account: unknown = { type: 'chatgpt', email: 'p
 				if (method === 'model/list') {
 					return modelListResponse;
 				}
+				if (method === 'thread/list') {
+					return { data: [], nextCursor: null };
+				}
 				throw new Error(`Unexpected request: ${method}`);
 			},
 		},
@@ -172,7 +175,7 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual({ connectionRequested, metadata, migrated, models: agent.models.get() }, {
 			connectionRequested: false,
 			metadata: undefined,
-			migrated: [],
+			migrated: AgentChatMigrationDeferred,
 			models: [],
 		});
 
@@ -189,10 +192,12 @@ suite('CodexAgent model refresh', () => {
 			connectionRequested,
 			// One enumeration, not one per caller that happened to want the connection.
 			enumerations: requests.filter(method => method === 'model/list').length,
+			discoveries: requests.filter(method => method === 'thread/list').length,
 			models: agent.models.get().map(model => ({ provider: model.provider, id: model.id, name: model.name, meta: model._meta })),
 		}, {
 			connectionRequested: true,
 			enumerations: 1,
+			discoveries: 0,
 			models: [{
 				provider: 'codex',
 				id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
@@ -203,7 +208,7 @@ suite('CodexAgent model refresh', () => {
 	});
 
 	test('restored model waits for an authentication refresh queued behind activation', async () => {
-		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 		const firstRefreshStarted = new DeferredPromise<void>();
 		const releaseFirstRefresh = new DeferredPromise<void>();
 		const authenticatedRefreshStarted = new DeferredPromise<void>();
@@ -224,7 +229,6 @@ suite('CodexAgent model refresh', () => {
 				await firstRefreshStarted.complete();
 				await releaseFirstRefresh.p;
 			}
-			return false;
 		};
 
 		agent['_activate']();
@@ -255,7 +259,7 @@ suite('CodexAgent model refresh', () => {
 	});
 
 	test('model resolution starts discovery when the catalog is empty', async () => {
-		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 		const agent = createAgent(disposables, async () => copilotModels);
 		agent['_githubToken'] = 'token';
 		agent['_isSdkResolvableWithoutDownload'] = async () => false;
@@ -270,8 +274,125 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
+	test('restores an unlisted model when no models from its provider are available', async () => {
+		const copilotModels = [{ id: 'other-client-model', name: 'Other Client Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
+		const agent = createAgent(disposables, async () => copilotModels);
+		agent['_githubToken'] = 'token';
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		await agent.refreshModels();
+		const selectedModel = { id: toCodexModelSelectionId('openai', 'other-client-model') };
+		const session = { model: selectedModel };
+
+		const resolved = await agent['_resolveModel'](session as never);
+
+		assert.deepStrictEqual({ resolved, sessionModel: session.model }, {
+			resolved: selectedModel,
+			sessionModel: selectedModel,
+		});
+	});
+
+	test('restores an unavailable model using its provider default instead of the global default', async () => {
+		const copilotModels = [{ id: 'other-client-model', name: 'Other Client Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
+		const agent = createAgent(disposables, async () => copilotModels);
+		const connection = createChatGPTConnection();
+		agent['_githubToken'] = 'token';
+		agent['_refreshProviderConfiguration'] = async () => { };
+		agent['_ensureConnection'] = async () => {
+			agent['_connection'] = connection as never;
+			return connection as never;
+		};
+		agent['_activate']();
+		const session = { model: { id: toCodexModelSelectionId('openai', 'other-client-model'), config: { thinkingLevel: 'high' } } };
+
+		const resolved = await agent['_resolveModel'](session as never);
+
+		assert.deepStrictEqual({ resolved, sessionModel: session.model, globalDefault: agent.models.get()[0].id }, {
+			resolved: { id: toCodexModelSelectionId('openai', 'gpt-5.6-sol') },
+			sessionModel: { id: toCodexModelSelectionId('openai', 'gpt-5.6-sol') },
+			globalDefault: toCodexModelSelectionId('vscode-proxy', 'other-client-model'),
+		});
+	});
+
+	test('restored model waits for native discovery even when Copilot models are already loaded', async () => {
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
+		const agent = createAgent(disposables, async () => copilotModels);
+		agent['_githubToken'] = 'token';
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		await agent.refreshModels();
+		const selectedModel = { id: toCodexModelSelectionId('openai', 'native-model'), config: { thinkingLevel: 'high' } };
+		const refreshStarted = new DeferredPromise<void>();
+		const releaseRefresh = new DeferredPromise<void>();
+		agent['_refreshProviderConfiguration'] = async () => { };
+		agent['_refreshCodexModels'] = async () => {
+			await refreshStarted.complete();
+			await releaseRefresh.p;
+			agent['_codexModels'] = [{ ...agent.models.get()[0], id: selectedModel.id }];
+		};
+		agent['_activate']();
+		await refreshStarted.p;
+		const session = { model: selectedModel };
+		let resolved = false;
+		const resolution = agent['_resolveModel'](session as never).then(model => {
+			resolved = true;
+			return model;
+		});
+		await new Promise<void>(resolve => setImmediate(resolve));
+		const resolvedBeforeDiscovery = resolved;
+		await releaseRefresh.complete();
+
+		assert.deepStrictEqual({ resolvedBeforeDiscovery, model: await resolution, sessionModel: session.model }, {
+			resolvedBeforeDiscovery: false,
+			model: selectedModel,
+			sessionModel: selectedModel,
+		});
+	});
+
+	test('restores a saved model even when discovery returns an empty catalog', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+		const selectedModel = { id: toCodexModelSelectionId('openai', 'other-client-model'), config: { reasoningEffort: 'high' } };
+		const session = { model: selectedModel };
+
+		const resolved = await agent['_resolveModel'](session as never);
+
+		assert.deepStrictEqual({ resolved, sessionModel: session.model }, {
+			resolved: selectedModel,
+			sessionModel: selectedModel,
+		});
+	});
+
+	test('model resolution still rejects an empty catalog without a saved model', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+
+		await assert.rejects(agent['_resolveModel']({ model: undefined } as never), /Codex has no available models/);
+	});
+
+	test('starts host-requested chat discovery when Codex activates', async () => {
+		const agent = createAgent(disposables, async () => [], { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+		const requests: string[] = [];
+		const connection = createChatGPTConnection(undefined, requests);
+		agent['_ensureConnection'] = async () => {
+			agent['_connection'] = connection as never;
+			return connection as never;
+		};
+
+		await agent.startChatDiscovery();
+		const discoveriesBeforeActivation = requests.filter(method => method === 'thread/list').length;
+		agent['_activate']();
+		await agent['_codexChatDiscovery'];
+
+		assert.deepStrictEqual({
+			discoveriesBeforeActivation,
+			discoveriesAfterActivation: requests.filter(method => method === 'thread/list').length,
+		}, {
+			discoveriesBeforeActivation: 0,
+			discoveriesAfterActivation: 1,
+		});
+	});
+
 	test('queues a fresh model refresh when Codex activates during an ambient refresh', async () => {
-		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 		const ambientRefreshStarted = new DeferredPromise<void>();
 		const ambientCodexRefreshFinished = new DeferredPromise<void>();
 		const releaseAmbientRefresh = new DeferredPromise<void>();
@@ -808,6 +929,40 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
+	test('does not publish Copilot models disabled for the model picker', async () => {
+		const models = [
+			{ id: 'picker-enabled', name: 'Picker Enabled', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' },
+			{ id: 'picker-disabled', name: 'Picker Disabled', model_picker_enabled: false, supported_endpoints: ['/responses'], vendor: 'OpenAI' },
+		] as CCAModel[];
+		const agent = createAgent(disposables, async () => models);
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await agent.refreshModels();
+
+		assert.deepStrictEqual(agent.models.get().map(model => model.id), [
+			toCodexModelSelectionId('vscode-proxy', 'picker-enabled'),
+		]);
+	});
+
+	test('publishes only OpenAI Copilot models', async () => {
+		const models = [
+			{ id: 'grok-4.5', name: 'Grok 4.5', model_picker_enabled: true, supported_endpoints: ['/responses'], capabilities: { family: 'grok-4.5' }, vendor: 'xAI' },
+			{ id: 'grok-4.6', name: 'Grok 4.6', model_picker_enabled: true, supported_endpoints: ['/responses'], capabilities: { family: 'grok-4.6' }, vendor: 'xAI' },
+			{ id: 'mai-code-1.1-flash', name: 'MAI-Code-1.1-Flash', model_picker_enabled: true, supported_endpoints: ['/responses'], capabilities: { family: 'oswe-vscode-modelD' }, vendor: 'Microsoft' },
+			{ id: 'gpt-5.6', name: 'GPT-5.6', model_picker_enabled: true, supported_endpoints: ['/responses'], capabilities: { family: 'gpt-5.6' }, vendor: 'OpenAI' },
+		] as CCAModel[];
+		const agent = createAgent(disposables, async () => models);
+		agent['_isSdkResolvableWithoutDownload'] = async () => false;
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await agent.refreshModels();
+
+		assert.deepStrictEqual(agent.models.get().map(model => model.id), [
+			toCodexModelSelectionId('vscode-proxy', 'gpt-5.6'),
+		]);
+	});
+
 	test('waits for an app-server already starting when signed-out use becomes enabled', async () => {
 		const agent = createAgent(disposables, async () => [], {});
 		const connection = createChatGPTConnection();
@@ -829,7 +984,7 @@ suite('CodexAgent model refresh', () => {
 	});
 
 	test('publishes no ChatGPT models when the app server reports no account', async () => {
-		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const copilotModels = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 		const agent = createAgent(disposables, async () => copilotModels, { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 		agent['_githubToken'] = 'token';
 		agent['_connection'] = createChatGPTConnection(null) as never;
@@ -867,7 +1022,7 @@ suite('CodexAgent model refresh', () => {
 
 	test('keeps the last known-good models when a periodic refresh fails', async () => {
 		let shouldFail = false;
-		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 		const agent = createAgent(disposables, async () => {
 			if (shouldFail) {
 				throw new Error('transient failure');
@@ -887,7 +1042,7 @@ suite('CodexAgent model refresh', () => {
 
 	test('retries Copilot model discovery after a transient authentication refresh failure', async () => {
 		let attempts = 0;
-		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] }] as CCAModel[];
+		const models = [{ id: 'gpt-5.5', name: 'GPT-5.5', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 		const agent = createAgent(disposables, async () => {
 			attempts++;
 			if (attempts === 1) {
@@ -963,7 +1118,7 @@ suite('CodexAgent model refresh', () => {
 	});
 
 	test('omits the thinking level when a Copilot model advertises no reasoning efforts', async () => {
-		const model = { id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] } as CCAModel;
+		const model = { id: 'gpt-5.5', name: 'GPT-5.5', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' } as CCAModel;
 		const agent = createAgent(disposables, async () => [model]);
 
 		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
