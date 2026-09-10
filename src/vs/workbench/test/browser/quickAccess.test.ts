@@ -24,6 +24,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { IContextKeyService, ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { AnythingQuickAccessProvider } from '../../contrib/search/browser/anythingQuickAccess.js';
+import { IFileQuery, ISearchComplete, ISearchService, SearchCompletionExitCode } from '../../services/search/common/search.js';
+import { IQuickChatService } from '../../contrib/chat/browser/chat.js';
+import { TestFileService, createFileStat } from '../common/workbenchTestServices.js';
+import { IFileStatWithPartialMetadata } from '../../../platform/files/common/files.js';
+import { IPreparedQuery, prepareQuery } from '../../../base/common/fuzzyScorer.js';
+import { Event } from '../../../base/common/event.js';
 
 suite('QuickAccess', () => {
 
@@ -578,6 +585,108 @@ suite('QuickAccess', () => {
 
 		disposables.dispose();
 		restore();
+	});
+
+	//#endregion
+
+	//#region file search tests
+
+	class TestSearchService implements ISearchService {
+		declare readonly _serviceBrand: undefined;
+
+		fileSearchCallCount = 0;
+
+		// When set, `fileSearch` only resolves once its token is cancelled. Used
+		// to assert that a relative path hit returns without waiting for the fuzzy
+		// search and that the no longer needed search is cancelled.
+		blockFileSearchUntilCancelled = false;
+
+		fileSearchCancelled = false;
+
+		fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
+			this.fileSearchCallCount++;
+			if (this.blockFileSearchUntilCancelled) {
+				return new Promise<ISearchComplete>(resolve => {
+					const listener = token?.onCancellationRequested(() => {
+						listener?.dispose();
+						this.fileSearchCancelled = true;
+						resolve({ results: [], messages: [], exit: SearchCompletionExitCode.Normal });
+					});
+				});
+			}
+			return Promise.resolve({ results: [], messages: [], exit: SearchCompletionExitCode.Normal });
+		}
+
+		textSearch(): never { throw new Error('Method not implemented.'); }
+		aiTextSearch(): never { throw new Error('Method not implemented.'); }
+		getAIName(): never { throw new Error('Method not implemented.'); }
+		textSearchSplitSyncAsync(): never { throw new Error('Method not implemented.'); }
+		schemeHasFileSearchProvider(): never { throw new Error('Method not implemented.'); }
+		async clearCache(): Promise<void> { }
+		registerSearchResultProvider(): never { throw new Error('Method not implemented.'); }
+	}
+
+	class TestExistingFilesFileService extends TestFileService {
+		constructor(private readonly existingFiles: Set<string>) {
+			super();
+		}
+
+		override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+			if (this.existingFiles.has(resource.path)) {
+				return createFileStat(resource);
+			}
+			throw new Error('File not found');
+		}
+	}
+
+	type ProviderWithFileSearch = { doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> };
+
+	function createFileSearchProvider(existingFiles: Set<string>): { provider: ProviderWithFileSearch; searchService: TestSearchService } {
+		const searchService = new TestSearchService();
+		const localInstantiationService = workbenchInstantiationService({
+			fileService: () => new TestExistingFilesFileService(existingFiles)
+		}, disposables);
+		localInstantiationService.stub(ISearchService, searchService);
+		localInstantiationService.stub(IQuickChatService, new class implements IQuickChatService {
+			declare readonly _serviceBrand: undefined;
+			readonly onDidClose = Event.None;
+			readonly enabled = false;
+			readonly focused = false;
+			toggle(): void { }
+			focus(): void { }
+			open(): void { }
+			close(): void { }
+			openInChatView(): void { }
+		});
+
+		const provider = disposables.add(localInstantiationService.createInstance(AnythingQuickAccessProvider));
+
+		return { provider: provider as unknown as ProviderWithFileSearch, searchService };
+	}
+
+	test('file search - existing relative path returns without waiting for the fuzzy file search and cancels it', async () => {
+		// The test workspace folder is `/testWorkspace`, so `src/serialization.rs`
+		// resolves to `/testWorkspace/src/serialization.rs`.
+		const { provider, searchService } = createFileSearchProvider(new Set(['/testWorkspace/src/serialization.rs']));
+
+		// The fuzzy search only resolves once cancelled; the relative path hit must
+		// still return and must cancel the no longer needed search.
+		searchService.blockFileSearchUntilCancelled = true;
+
+		const results = await provider.doFileSearch(prepareQuery('src/serialization.rs'), CancellationToken.None);
+
+		assert.strictEqual(results.length, 1);
+		assert.strictEqual(results[0].path, '/testWorkspace/src/serialization.rs');
+		assert.strictEqual(searchService.fileSearchCancelled, true);
+	});
+
+	test('file search - non-existing relative path falls back to the fuzzy file search', async () => {
+		const { provider, searchService } = createFileSearchProvider(new Set());
+
+		const results = await provider.doFileSearch(prepareQuery('src/serialization.rs'), CancellationToken.None);
+
+		assert.strictEqual(searchService.fileSearchCallCount, 1);
+		assert.strictEqual(results.length, 0);
 	});
 
 	//#endregion
