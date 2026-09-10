@@ -581,7 +581,7 @@ export class SCMInputWidget {
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
-		this.lineLengthContainer = append(this.element, $('.scm-editor-line-length'));
+		this.lineLengthContainer = append(this.editorContainer, $('.scm-editor-line-length'));
 		this.lineLengthContainer.classList.add('hidden');
 		this.toolbarContainer = append(this.element, $('.scm-editor-toolbar'));
 
@@ -703,34 +703,42 @@ export class SCMInputWidget {
 
 	private renderLineLength(): void {
 		const enabled = this.configurationService.getValue<boolean>('scm.showInputLineLength') === true;
+		const position = enabled && this.model ? this.inputEditor.getPosition() : undefined;
 
-		if (!enabled || !this.model) {
-			this.lineLengthContainer.classList.add('hidden');
+		const wasHidden = this.lineLengthContainer.classList.contains('hidden');
+
+		if (position) {
+			// Track the 50/72 convention: report the length of the line the cursor is on.
+			this.lineLengthContainer.textContent = String(this.inputEditor.getModel()?.getLineLength(position.lineNumber) ?? 0);
+			this.lineLengthContainer.classList.remove('hidden');
+		} else {
 			this.lineLengthContainer.textContent = '';
+			this.lineLengthContainer.classList.add('hidden');
+		}
+
+		if (wasHidden === this.lineLengthContainer.classList.contains('hidden')) {
 			return;
 		}
 
-		const position = this.inputEditor.getPosition();
+		// The visible counter reserves editor width; re-layout so input text is
+		// never rendered beneath it.
+		this.layout();
+	}
 
-		if (!position) {
-			this.lineLengthContainer.classList.add('hidden');
-			this.lineLengthContainer.textContent = '';
-			return;
+	private getLineLengthReservedWidth(): number {
+		if (this.lineLengthContainer.classList.contains('hidden')) {
+			return 0;
 		}
 
-		// Report the length of the line the cursor is on, so the counter tracks the
-		// subject line (line 1) and body lines independently. This is what makes the
-		// 50/72 commit convention observable while typing.
-		const length = this.inputEditor.getModel()?.getLineLength(position.lineNumber) ?? 0;
-
-		this.lineLengthContainer.textContent = String(length);
-		this.lineLengthContainer.classList.remove('hidden');
+		// Reserve the counter's own width plus its `right` offset.
+		return this.lineLengthContainer.offsetWidth + 4;
 	}
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
 		const toolbarWidth = this.getToolbarWidth();
-		const dimension = new Dimension(this.element.clientWidth - toolbarWidth, editorHeight);
+		const lineLengthWidth = this.getLineLengthReservedWidth();
+		const dimension = new Dimension(this.element.clientWidth - toolbarWidth - lineLengthWidth, editorHeight);
 
 		if (dimension.width < 0) {
 			this.lastLayoutWasTrash = true;
