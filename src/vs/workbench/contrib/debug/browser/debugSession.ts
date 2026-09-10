@@ -75,6 +75,7 @@ export class DebugSession implements IDebugSession {
 	});
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
+	private readonly steppingThreadIds = new Set<number>();
 	private repl: ReplModel;
 	private stoppedDetails: IRawStoppedDetails[] = [];
 	private readonly statusQueue = this.rawListeners.add(new ThreadStatusScheduler());
@@ -740,7 +741,13 @@ export class DebugSession implements IDebugSession {
 		}
 
 		this.setLastSteppingGranularity(threadId, granularity);
-		await this.raw.next({ threadId, granularity });
+		this.steppingThreadIds.add(threadId);
+		try {
+			await this.raw.next({ threadId, granularity });
+		} catch (e) {
+			this.steppingThreadIds.delete(threadId);
+			throw e;
+		}
 	}
 
 	async stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
@@ -750,7 +757,13 @@ export class DebugSession implements IDebugSession {
 		}
 
 		this.setLastSteppingGranularity(threadId, granularity);
-		await this.raw.stepIn({ threadId, targetId, granularity });
+		this.steppingThreadIds.add(threadId);
+		try {
+			await this.raw.stepIn({ threadId, targetId, granularity });
+		} catch (e) {
+			this.steppingThreadIds.delete(threadId);
+			throw e;
+		}
 	}
 
 	async stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
@@ -760,7 +773,13 @@ export class DebugSession implements IDebugSession {
 		}
 
 		this.setLastSteppingGranularity(threadId, granularity);
-		await this.raw.stepOut({ threadId, granularity });
+		this.steppingThreadIds.add(threadId);
+		try {
+			await this.raw.stepOut({ threadId, granularity });
+		} catch (e) {
+			this.steppingThreadIds.delete(threadId);
+			throw e;
+		}
 	}
 
 	async stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
@@ -770,7 +789,13 @@ export class DebugSession implements IDebugSession {
 		}
 
 		this.setLastSteppingGranularity(threadId, granularity);
-		await this.raw.stepBack({ threadId, granularity });
+		this.steppingThreadIds.add(threadId);
+		try {
+			await this.raw.stepBack({ threadId, granularity });
+		} catch (e) {
+			this.steppingThreadIds.delete(threadId);
+			throw e;
+		}
 	}
 
 	async continue(threadId: number): Promise<void> {
@@ -1159,8 +1184,13 @@ export class DebugSession implements IDebugSession {
 			});
 
 			// We need to pass focus to other sessions / threads with a timeout in case a quick stop event occurs #130321
+			// However, when this continue was caused by a step request (next / stepIn / stepOut / stepBack) we keep
+			// the focus on the thread being stepped so it does not swap to another stopped session / thread.
+			const isStepping = this.steppingThreadIds.has(event.body.threadId);
 			this.lastContinuedThreadId = allThreads ? undefined : event.body.threadId;
-			this.passFocusScheduler.schedule();
+			if (!isStepping) {
+				this.passFocusScheduler.schedule();
+			}
 			this._onDidChangeState.fire();
 		}));
 
@@ -1366,6 +1396,9 @@ export class DebugSession implements IDebugSession {
 			async (threadId, token) => {
 				const hasLotsOfThreads = event.threadId === undefined && this.threadIds.length > 10;
 
+				// The thread has stopped again, so it is no longer stepping.
+				this.steppingThreadIds.delete(threadId);
+
 				// If the focus for the current session is on a non-existent thread, clear the focus.
 				const focusedThread = this.debugService.getViewModel().focusedThread;
 				const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
@@ -1382,8 +1415,9 @@ export class DebugSession implements IDebugSession {
 					const focus = async () => {
 						if (focusedThreadDoesNotExist || (!event.preserveFocusHint && thread.getCallStack().length)) {
 							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-							if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
-								// Only take focus if nothing is focused, or if the focus is already on the current session
+							// Take focus if nothing is focused, if the focus is already on the current session,
+							// or if this thread hit a breakpoint or exception
+							if (!focusedStackFrame || focusedStackFrame.thread.session === this || stoppedOnBreakpointOrException(thread.stoppedDetails?.reason)) {
 								const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
 								await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
 							}
@@ -1596,6 +1630,23 @@ export class DebugSession implements IDebugSession {
 		if (isImportant) {
 			this.notificationService.notify({ message: data.output.toString(), severity: data.sev, source: this.name });
 		}
+	}
+}
+
+/**
+ * Returns whether the given stopped reason indicates that a thread hit a breakpoint
+ * (of any kind) or an exception. Such stops should always grab focus, even across sessions.
+ */
+export function stoppedOnBreakpointOrException(reason: string | undefined): boolean {
+	switch (reason) {
+		case 'breakpoint':
+		case 'function breakpoint':
+		case 'data breakpoint':
+		case 'instruction breakpoint':
+		case 'exception':
+			return true;
+		default:
+			return false;
 	}
 }
 
