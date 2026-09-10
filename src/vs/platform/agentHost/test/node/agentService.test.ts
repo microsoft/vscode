@@ -1313,6 +1313,44 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		for (const enabled of [true, false]) {
+			test(`session catalog ${enabled ? 'enabled' : 'disabled'} reports comparable listing metrics`, async () => {
+				const logs: string[] = [];
+				class RecordingLogService extends NullLogService {
+					override trace(message: string): void { logs.push(message); }
+					override info(message: string): void { logs.push(message); }
+				}
+				const svc = disposables.add(createTestAgentService(
+					new RecordingLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, new TestAgentHostOrchestratorDatabase(),
+				));
+				getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: enabled });
+				registerTestAgentProvider(svc, copilotAgent);
+				await svc.createSession({ provider: 'copilot' });
+				await svc.listSessions();
+				svc.markStartupComplete();
+				await svc.whenDeferredWorkSettled();
+				await svc.whenCatalogReconciliationIdle();
+				logs.length = 0;
+				(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
+				await svc.listSessions();
+
+				const line = logs.find(entry => entry.includes('listSessions computed'));
+				assert.ok(line, 'listing should report perf metrics');
+				assert.deepStrictEqual({
+					mode: /catalog (enabled|disabled)/.exec(line)?.[1],
+					catalogServed: /(\d+) catalog-served/.exec(line)?.[1],
+					providerFallback: /(\d+) provider fallback/.exec(line)?.[1],
+					hasResolvePhase: /resolve \d+ms/.test(line),
+				}, {
+					mode: enabled ? 'enabled' : 'disabled',
+					catalogServed: enabled ? '1' : '0',
+					providerFallback: enabled ? '0' : '1',
+					hasResolvePhase: true,
+				});
+			});
+		}
+
+		for (const enabled of [true, false]) {
 			test(`session catalog ${enabled ? 'enabled serves the list centrally' : 'disabled serves the list from providers'}`, async () => {
 				class MetadataCountingAgent extends MockAgent {
 					metadataCalls = 0;

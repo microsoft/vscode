@@ -3008,9 +3008,15 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		const repairSessions = new Set<string>();
+		// Comparable across both catalog modes: `catalogServed` rows cost no provider
+		// or session-database read, `providerFallback` rows cost both. The split is the
+		// measurement that makes a with/without-flag comparison meaningful.
+		let catalogServed = 0;
+		let providerFallback = 0;
 		const persistedFallbackTitles = new Map<string, string>();
 		const fallbackLimiter = new Limiter<IAgentSessionMetadata | undefined>(4);
 		let results: readonly (IAgentSessionMetadata | undefined)[];
+		const resolvePhaseStartedAt = Date.now();
 		try {
 			results = await Promise.all(catalogResults.map(result => fallbackLimiter.queue(async (): Promise<IAgentSessionMetadata | undefined> => {
 				if (!result) {
@@ -3019,11 +3025,13 @@ export class AgentService extends Disposable implements IAgentService {
 				const { registeredSession, central } = result;
 				const { session } = registeredSession;
 				if (central.eligible) {
+					catalogServed++;
 					return central.metadata;
 				}
 				if (central.chatBacking) {
 					return undefined;
 				}
+				providerFallback++;
 				repairSessions.add(session.toString());
 				if (central.error) {
 					this._logService.warn(`[AgentService] Failed to read central catalog row for ${session.toString()}`, central.error);
@@ -3050,6 +3058,7 @@ export class AgentService extends Disposable implements IAgentService {
 				disposable.dispose();
 			}
 		}
+		const resolvePhaseMs = Date.now() - resolvePhaseStartedAt;
 		// A late listing can still find catalog misses after disposal (a
 		// queued reconciliation resolves after teardown); scheduling a repair
 		// then would leak the timer, since a disposed holder drops its value.
@@ -3156,7 +3165,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Legacy rows and per-session fallbacks can open session databases, so listing can still be slow.
 		const duration = Date.now() - startedAt;
-		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (${additions.length} state-manager fallback)`;
+		// Emitted identically in both catalog modes so a with/without-flag run can be
+		// compared directly: `catalogServed` rows are cache reads, `providerFallback`
+		// rows each cost a provider round-trip plus session-database reads.
+		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (catalog ${this._isSessionCatalogEnabled() ? 'enabled' : 'disabled'}, ${catalogServed} catalog-served, ${providerFallback} provider fallback, resolve ${resolvePhaseMs}ms, ${additions.length} state-manager fallback)`;
 		if (duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
 			this._logService.info(message);
 		} else {
