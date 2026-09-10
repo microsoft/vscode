@@ -154,8 +154,9 @@ async function startAgentHost(): Promise<void> {
 		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
-		//     forwarded as an env var by the starters). Claude defaults to on,
-		//     Codex defaults to off.
+		//     forwarded as an env var by the starters). Claude defaults to on.
+		//     Codex defaults to on outside Stable and off in Stable; if a starter
+		//     does not forward its resolved value, the host fallback is off.
 		//  2. The SDK being reachable. Claude is a devDependency of this repo
 		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
 		//     always succeeds in dev; in built products the SDK ships via

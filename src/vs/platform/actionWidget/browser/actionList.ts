@@ -158,6 +158,8 @@ export interface IActionListItem<T> {
 	 * collapsible sections.
 	 */
 	readonly section?: string;
+	/** Keeps a visual highlight within this group, initially on its checked item, then on its hovered or focused item. */
+	readonly focusGroup?: string;
 	/**
 	 * When true, clicking this item toggles the section's collapsed state
 	 * instead of selecting it.
@@ -281,6 +283,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		private readonly _hideDefaultKeybindingTooltip: boolean,
 		private readonly _registerStandaloneToggle: (item: IActionListItem<T>, toggle: Switch) => IDisposable,
+		private readonly _highlightedItemByGroup: ReadonlyMap<string, T>,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -334,21 +337,21 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
 		// Clear previous element disposables
 		data.elementDisposables.clear();
+		data.container.classList.toggle('focus-group-highlighted', element.focusGroup !== undefined
+			&& element.item !== undefined && this._highlightedItemByGroup.get(element.focusGroup) === element.item);
 
 		if (element.iconClasses?.length) {
 			data.icon.className = ['icon', ...element.iconClasses].join(' ');
 			data.icon.style.color = '';
 		} else if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
-			if (element.group.icon.color) {
-				data.icon.style.color = asCssVariable(element.group.icon.color.id);
-			}
+			data.icon.style.color = element.group.icon.color ? asCssVariable(element.group.icon.color.id) : '';
 		} else {
 			data.icon.className = ThemeIcon.asClassName(Codicon.lightBulb);
 			data.icon.style.color = 'var(--vscode-editorLightBulb-foreground)';
 		}
 
-		if (!element.item || !element.label) {
+		if ((!element.item && !element.standaloneToggle) || !element.label) {
 			return;
 		}
 
@@ -665,6 +668,8 @@ export interface IActionListOptions {
 
 	/** Optional action item id to focus when the list opens. */
 	readonly initialFocusItemId?: string;
+	/** Initially focuses the checked or first enabled action in this focus group. */
+	readonly initialFocusGroup?: string;
 
 	/** Show immediate, persistent previews for the focused or hovered row. */
 	readonly persistentHover?: boolean;
@@ -732,6 +737,8 @@ export interface IActionListOptions {
 	 * Optional fixed side of the anchor where the action list should render.
 	 */
 	readonly anchorPosition?: AnchorPosition;
+	/** Uses the available height instead of the usual fractional viewport cap. */
+	readonly useFullHeight?: boolean;
 }
 
 /**
@@ -745,6 +752,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private readonly _list: List<IActionListItem<T>>;
 	private _initialFocusItemId: string | undefined;
+	private _initialFocusGroup: string | undefined;
 
 	protected readonly _actionLineHeight: number;
 	protected readonly _headerLineHeight = 24;
@@ -781,6 +789,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _headerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
+	private readonly _highlightedItemByGroup = new Map<string, T>();
 	private readonly _standaloneToggles = new Map<IActionListItem<T>, Switch>();
 	private _visibleMenuItems: readonly IActionListItem<T>[];
 
@@ -807,6 +816,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._visibleMenuItems = items;
 		this._initialFocusItemId = this._options?.initialFocusItemId;
 		this._filterText = this._options?.showFilter ? this._options.initialFilterValue ?? '' : '';
+		this._initialFocusGroup = this._options?.initialFocusGroup;
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		if (this._options?.inlineDescription) {
@@ -902,7 +912,7 @@ export class ActionListWidget<T> extends Disposable {
 						this._standaloneToggles.delete(item);
 					}
 				});
-			}, this._keybindingService, this._openerService),
+			}, this._highlightedItemByGroup, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -1222,6 +1232,13 @@ export class ActionListWidget<T> extends Disposable {
 			this._collapsedSections.delete(section);
 		} else {
 			this._collapsedSections.add(section);
+			const focusedItem = this.getFocusedElement();
+			if (focusedItem?.section === section && !focusedItem.isSectionToggle) {
+				const toggleIndex = this._visibleMenuItems.findIndex(item => item.section === section && item.isSectionToggle);
+				if (toggleIndex >= 0) {
+					this._list.setFocus([toggleIndex]);
+				}
+			}
 		}
 		this._options?.onDidToggleSection?.(section, this._collapsedSections.has(section));
 		this._applyFilter();
@@ -1404,6 +1421,7 @@ export class ActionListWidget<T> extends Disposable {
 		const listHasFocus = dom.isAncestorOfActiveElement(this._list.getHTMLElement());
 
 		this._visibleMenuItems = visible;
+		this._restoreFocusGroupHighlights();
 		this._list.splice(0, this._list.length, visible);
 
 		// Notify the parent that a re-layout is needed
@@ -1559,8 +1577,9 @@ export class ActionListWidget<T> extends Disposable {
 		// otherwise keeps it from re-anchoring against a trigger that the same action
 		// just re-rendered.
 		const suppressHover = this._suppressHover;
-		this._suppressHover ||= preserveHover;
+		this._suppressHover ||= preserveHover || (!this._currentSubmenuElement && !this._options?.persistentHover);
 		try {
+			// Restoring focus after a passive refresh must not open an unrequested hover.
 			this._applyFilter(false, false, preserveHover ? focusItemId ?? expandedItemId : undefined);
 		} finally {
 			this._suppressHover = suppressHover;
@@ -1631,10 +1650,13 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _focusCheckedOrFirst(): void {
+		const suppressHover = this._suppressHover;
 		this._suppressHover = true;
 		try {
 			const initialFocusItemId = this._initialFocusItemId;
 			this._initialFocusItemId = undefined;
+			const initialFocusGroup = this._initialFocusGroup;
+			this._initialFocusGroup = undefined;
 			if (initialFocusItemId) {
 				for (let i = 0; i < this._list.length; i++) {
 					const element = this._list.element(i);
@@ -1643,6 +1665,25 @@ export class ActionListWidget<T> extends Disposable {
 						this._list.reveal(i);
 						return;
 					}
+				}
+			}
+			if (initialFocusGroup) {
+				let focusIndex: number | undefined;
+				for (let i = 0; i < this._list.length; i++) {
+					const element = this._list.element(i);
+					if (element.focusGroup !== initialFocusGroup || !this.focusCondition(element)) {
+						continue;
+					}
+					focusIndex ??= i;
+					if ((element.item as { checked?: boolean })?.checked) {
+						focusIndex = i;
+						break;
+					}
+				}
+				if (focusIndex !== undefined) {
+					this._list.setFocus([focusIndex]);
+					this._list.reveal(focusIndex);
+					return;
 				}
 			}
 			const [focusedIndex] = this._list.getFocus();
@@ -1669,7 +1710,7 @@ export class ActionListWidget<T> extends Disposable {
 				this._list.reveal(focused[0]);
 			}
 		} finally {
-			this._suppressHover = false;
+			this._suppressHover = suppressHover;
 			if (this._options?.filterAsCombobox) {
 				// The focused row may be unchanged when the filter regains DOM focus.
 				this._updateFilterActiveDescendant();
@@ -2038,12 +2079,41 @@ export class ActionListWidget<T> extends Disposable {
 
 		// Show hover on focus change (suppress during programmatic initial focus)
 		if (!this._suppressHover) {
+			this._updateFocusGroupHighlight(element);
 			if (this._options?.persistentHover) {
 				this._cancelSubmenuShow();
 				this._resetSubmenuPointer();
 				this._list.reveal(focusIndex);
 			}
 			this._showHoverForElement(element, focusIndex);
+		}
+	}
+
+	private _restoreFocusGroupHighlights(): void {
+		for (const [group, item] of this._highlightedItemByGroup) {
+			if (!this._allMenuItems.some(candidate => candidate.focusGroup === group && candidate.item === item)) {
+				this._highlightedItemByGroup.delete(group);
+			}
+		}
+		for (const element of this._allMenuItems) {
+			if (element.focusGroup !== undefined && element.item !== undefined
+				&& (element.item as { checked?: boolean })?.checked === true && !this._highlightedItemByGroup.has(element.focusGroup)) {
+				this._highlightedItemByGroup.set(element.focusGroup, element.item);
+			}
+		}
+	}
+
+	private _updateFocusGroupHighlight(element: IActionListItem<T>): void {
+		const group = element.focusGroup;
+		if (group === undefined || element.item === undefined || this._highlightedItemByGroup.get(group) === element.item) {
+			return;
+		}
+		const previous = this._highlightedItemByGroup.get(group);
+		this._highlightedItemByGroup.set(group, element.item);
+		for (const [index, candidate] of this._visibleMenuItems.entries()) {
+			if (candidate.focusGroup === group && (candidate.item === previous || candidate.item === element.item)) {
+				this._getRowElement(index)?.classList.toggle('focus-group-highlighted', candidate.item === element.item);
+			}
 		}
 	}
 
@@ -2143,7 +2213,6 @@ export class ActionListWidget<T> extends Disposable {
 			return;
 		}
 
-		this._submenuDisposables.clear();
 		this._currentSubmenuElement = element;
 		this._clearSubmenuContainer();
 
@@ -2243,7 +2312,8 @@ export class ActionListWidget<T> extends Disposable {
 		if (hasSubmenuActions) {
 			// Convert submenu actions into ActionListWidget items
 			const submenuItems: IActionListItem<IAction>[] = [];
-			const submenuGroups = element.submenuActions!.filter((a): a is SubmenuAction => a instanceof SubmenuAction);
+			const submenuActions = element.submenuActions!;
+			const submenuGroups = submenuActions.filter((a): a is SubmenuAction => a instanceof SubmenuAction);
 			const groupsWithActions = submenuGroups.filter(g => g.actions.length > 0);
 			for (let gi = 0; gi < groupsWithActions.length; gi++) {
 				const group = groupsWithActions[gi];
@@ -2276,7 +2346,7 @@ export class ActionListWidget<T> extends Disposable {
 				}
 			}
 			// Also include non-SubmenuAction items directly
-			for (const action of element.submenuActions!) {
+			for (const action of submenuActions) {
 				if (!(action instanceof SubmenuAction)) {
 					const extendedAction = action as IAction & { onRemove?: () => void };
 					submenuItems.push({
@@ -2340,18 +2410,9 @@ export class ActionListWidget<T> extends Disposable {
 					dom.EventHelper.stop(e, true);
 					this._hideSubmenu();
 					this._list.domFocus();
-				} else if (e.key === 'Enter') {
+				} else if (e.key === 'Enter' || e.key === ' ') {
 					dom.EventHelper.stop(e, true);
-					const focused = submenuWidget.getFocusedElement();
-					if (focused?.item) {
-						focused.item.run();
-						const parentItem = this._currentSubmenuElement?.item;
-						this._hideSubmenu();
-						if (parentItem) {
-							this._delegate.onSelect(parentItem);
-						}
-						this.hide();
-					}
+					submenuWidget.acceptSelected();
 				} else if (e.key === 'ArrowDown') {
 					dom.EventHelper.stop(e, true);
 					submenuWidget.focusNext();
@@ -2457,8 +2518,6 @@ export class ActionListWidget<T> extends Disposable {
 	private _hideSubmenu(): void {
 		this._cancelSubmenuHide();
 		this._cancelSubmenuShow();
-		this._submenuDisposables.clear();
-		this._currentSubmenuWidget = undefined;
 		this._currentSubmenuElement = undefined;
 		this._submenuSide = undefined;
 		this._clearSubmenuContainer();
@@ -2477,6 +2536,8 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._submenuContainer.contains(dom.getActiveElement())) {
 			this._list.domFocus();
 		}
+		this._submenuDisposables.clear();
+		this._currentSubmenuWidget = undefined;
 		if (this._submenuPanelClassName) {
 			this._submenuContainer.classList.remove(this._submenuPanelClassName);
 			this._submenuPanelClassName = undefined;
@@ -2561,6 +2622,7 @@ export class ActionListWidget<T> extends Disposable {
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
+			this._updateFocusGroupHighlight(element);
 			// Check if the hover target is inside a toolbar - if so, skip the splice
 			// to avoid re-rendering which would destroy the element mid-hover.
 			// But still maintain submenu state for items with submenu actions.
@@ -2657,6 +2719,7 @@ export class ActionList<T> extends Disposable {
 	/** Height to size against instead of the current contents. Survives re-layouts. */
 	private _fixedContentHeight: number | undefined;
 	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
+	private readonly _useFullHeight: boolean;
 	private readonly _widgetClassName: string | undefined;
 
 	get domNode(): HTMLElement {
@@ -2716,6 +2779,7 @@ export class ActionList<T> extends Disposable {
 		super();
 		this._anchor = anchor;
 		this._preferredAnchorPosition = options?.anchorPosition;
+		this._useFullHeight = options?.useFullHeight ?? false;
 		this._widgetClassName = options?.widgetClassName;
 
 		this._widget = this._register(instantiationService.createInstance(
@@ -2843,7 +2907,7 @@ export class ActionList<T> extends Disposable {
 			availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
 		}
 
-		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
+		const viewportMaxHeight = this._useFullHeight ? targetWindow.innerHeight : Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
 		if (this._preferredAnchorPosition !== undefined) {
 			const maxHeight = Math.min(availableHeight, viewportMaxHeight);

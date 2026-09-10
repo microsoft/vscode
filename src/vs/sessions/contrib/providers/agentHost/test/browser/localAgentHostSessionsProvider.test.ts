@@ -3969,17 +3969,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
 			[SessionConfigKey.Branch]: 'legacy-branch',
+			[SessionConfigKey.SandboxEnabled]: 'off',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
 
+		const initialSandbox = agentHost.resolveSessionConfigRequests.at(-1)?.config?.[SessionConfigKey.SandboxEnabled];
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, 'off');
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
 		await provider.setSessionConfigValue(session.sessionId, '__proto__', 'polluted');
 
 		assert.deepStrictEqual(
-			storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
-			{ [SessionConfigKey.Isolation]: 'folder' },
+			{
+				initialSandbox,
+				remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+			},
+			{ initialSandbox: undefined, remembered: { [SessionConfigKey.Isolation]: 'folder' } },
 		);
 	});
 

@@ -30,7 +30,9 @@ class TestTelemetryService implements ITelemetryService {
 		this.events.push({ eventName, data });
 	}
 	publicLogError(): void { }
-	publicLog2(): void { }
+	publicLog2(eventName: string, data?: ITelemetryData): void {
+		this.publicLog(eventName, data);
+	}
 	publicLogError2(): void { }
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
@@ -254,5 +256,64 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			{ turn: 'host-turn', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: 0 } },
 			{ turn: undefined, diagnostics: { ahCorrelationOutcome: 'responseAlreadyForwarded', ahActiveRootTurnIdAtResponse: 'root-candidate' } },
 		]));
+	});
+
+	test('records host ownership independently of SDK response forwarding', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		forwarder.recordModelCallTurnCorrelation('sdk-session', 'call', 'host-turn', 'late');
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.modelCallTurnCorrelated',
+			data: { sdkSessionId: 'sdk-session', modelCallId: 'call', turnId: 'host-turn', mappingStatus: 'late' },
+		}]);
+	});
+
+	test('reports usage availability on successes and errors without changing counters', () => {
+		const cases: { metrics: Record<string, number>; status: string }[] = [
+			{ metrics: {}, status: 'notReported' },
+			{ metrics: { promptTokenCount: 0, completionTokens: 0, promptCacheTokenCount: 0 }, status: 'known' },
+			{ metrics: { promptTokenCount: 100, completionTokens: 5, promptCacheTokenCount: 80 }, status: 'known' },
+			{ metrics: { promptTokenCount: 100 }, status: 'partial' },
+			{ metrics: { promptTokenCount: 0, completionTokens: NaN, promptCacheTokenCount: -1 }, status: 'partial' },
+			{ metrics: { promptTokenCount: Infinity, completionTokens: NaN, promptCacheTokenCount: -1 }, status: 'notReported' },
+		];
+		for (const kind of ['response.success', 'response.error']) {
+			for (const { metrics, status } of cases) {
+				const telemetryService = new TestTelemetryService();
+				const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+				forwarder.forward({
+					sessionId: 'sdk-session',
+					restricted: false,
+					event: {
+						kind,
+						properties: { ahCorrelationOutcome: 'sdk-value', usageStatus: 'sdk-value' },
+						metrics,
+					},
+				}, 'host-turn', { ahCorrelationOutcome: 'activeTurnFallback' });
+				const data = telemetryService.events[0].data!;
+				assert.strictEqual(data.usageStatus, status);
+				assert.strictEqual(data.ahCorrelationOutcome, 'activeTurnFallback');
+				assert.strictEqual(Object.hasOwn(data, 'correlationStatus'), false);
+				for (const [key, value] of Object.entries(metrics)) {
+					assert.strictEqual(data[key], value);
+				}
+				for (const key of ['promptTokenCount', 'completionTokens', 'promptCacheTokenCount']) {
+					if (!Object.hasOwn(metrics, key)) {
+						assert.strictEqual(Object.hasOwn(data, key), false);
+					}
+				}
+			}
+		}
+	});
+
+	test('does not emit restricted response metadata when restricted telemetry is disabled', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		forwarder.forward({
+			sessionId: 'sdk-session',
+			restricted: true,
+			event: { kind: 'response.error', properties: {}, metrics: {} },
+		}, 'host-turn', { ahCorrelationOutcome: 'mappingAvailable' });
+		assert.deepStrictEqual(telemetryService.events, []);
 	});
 });

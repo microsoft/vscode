@@ -18,7 +18,7 @@ import { systemNotificationToChatPart } from '../../../../../workbench/contrib/c
 import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/media/sessionView.css';
@@ -28,6 +28,7 @@ const fixtureWidth = 800;
 const fixtureHeight = 720;
 const plainContentHorizontalPadding = 64;
 const backgroundContentHorizontalPadding = 88;
+const codiconsBackground = { kind: 'codicons' } as const;
 
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
 	const part = dom.append(container, dom.$('.part.sessionspart'));
@@ -36,7 +37,7 @@ function createChatBackgroundPart(container: HTMLElement, disposableStore: Dispo
 	part.style.height = '100%';
 	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part));
-	renderer.setBackground({ kind: 'codicons' });
+	renderer.setBackground(codiconsBackground);
 	return part;
 }
 
@@ -60,6 +61,33 @@ const assistantResponse = [
 	'```',
 	'',
 	'The wallpaper remains visible around the response.',
+].join('\n');
+
+const stickyAssistantResponse = [
+	assistantResponse,
+	'## Validation notes',
+	'',
+	'The sticky request must preserve the wallpaper coordinate system while this longer response scrolls beneath it. Transparent image pixels and the spaces between glyphs reveal the session base rather than response text.',
+	'',
+	'### Layout checks',
+	'',
+	'- Keep the full background canvas width.',
+	'- Offset it by the source and sticky bounds.',
+	'- Clip only at the sticky viewport.',
+	'- Keep the request bubble opaque above the decorative layer.',
+	'',
+	'```ts',
+	'const replicaBounds = {',
+	'\tleft: source.left - sticky.left,',
+	'\ttop: source.top - sticky.top,',
+	'\twidth: source.width,',
+	'\theight: source.height,',
+	'};',
+	'```',
+	'',
+	'## Final review',
+	'',
+	'Switch between image, Codicons, and no background without rebuilding the sticky row or changing its keyboard and pointer behavior.',
 ].join('\n');
 
 async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions): Promise<void> {
@@ -122,6 +150,53 @@ async function renderAssistantResponse(context: ComponentFixtureContext, withBac
 			row.observe(pills.element);
 		},
 	});
+}
+
+async function renderStickyBackgroundContinuity(context: ComponentFixtureContext): Promise<void> {
+	let stickyScrollDomNode: HTMLElement | undefined;
+	let scrollToStickyRequest: (() => void) | undefined;
+	await renderChatView(context, true, {
+		height: 560,
+		listHeight: 360,
+		inputVisible: false,
+		stickyScroll: true,
+		messages: [{
+			user: 'Implement sticky background continuity so this long request remains readable while the response scrolls beneath it, without restarting or independently repeating the configured Sessions wallpaper.',
+			assistant: [{ kind: 'markdown', text: stickyAssistantResponse }],
+		}],
+		onRendered: ({ listWidget }) => {
+			stickyScrollDomNode = listWidget.stickyScrollDomNode;
+			scrollToStickyRequest = () => {
+				const maximumScrollTop = listWidget.scrollHeight - listWidget.renderHeight;
+				if (maximumScrollTop <= 0) {
+					throw new Error('Sticky background fixture content does not overflow');
+				}
+				listWidget.scrollTop = Math.min(160, maximumScrollTop);
+			};
+		},
+	});
+
+	if (!stickyScrollDomNode || !scrollToStickyRequest) {
+		throw new Error('Sticky background fixture did not initialize sticky scroll');
+	}
+	const source = context.container.querySelector<HTMLElement>('.part.sessionspart > .sessions-chat-background');
+	if (!source) {
+		throw new Error('Sticky background fixture did not render the source canvas');
+	}
+	const replica = context.disposableStore.add(new SessionsChatBackgroundReplica(source, stickyScrollDomNode));
+	replica.setBackground(codiconsBackground);
+	replica.layout();
+
+	const targetWindow = dom.getWindow(context.container);
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	await nextFrame();
+	scrollToStickyRequest();
+	await nextFrame();
+	await nextFrame();
+
+	if (!stickyScrollDomNode.querySelector('.monaco-tree-sticky-row.request')) {
+		throw new Error('Sticky background fixture did not activate the real sticky request row');
+	}
 }
 
 async function renderAgentMergeBackground(context: ComponentFixtureContext): Promise<void> {
@@ -191,5 +266,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The Agents chat without a wallpaper keeps the assistant response unboxed. The heading, Markdown table, code editor, and response footer use the normal transcript alignment, while the user request and composer retain their established surfaces.'],
 		render: context => renderAssistantResponse(context, false),
+	}),
+	StickyBackgroundContinuity: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A real scrolled Agents chat keeps its long user request pinned above a continuous Codicons canvas. The sticky viewport shows the same glyph coordinates as the full transcript background, opaque session color fills the gaps between glyphs, and the request bubble remains opaque above the decorative replica.'],
+		render: renderStickyBackgroundContinuity,
 	}),
 });

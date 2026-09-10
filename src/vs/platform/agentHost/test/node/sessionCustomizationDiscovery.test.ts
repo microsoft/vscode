@@ -8,6 +8,7 @@ import type { CopilotClient } from '@github/copilot-sdk';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -724,6 +725,52 @@ suite('SessionCustomizationDiscovery', () => {
 		await assert.rejects(cancelled);
 		const directories = await nonCancelled;
 		assert.ok(directories.some(directory => directory.type === DiscoveredType.Agent));
+	});
+
+	test('discover propagates cancellation without logging an error', async () => {
+		const errors: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error): void {
+				errors.push(String(message));
+			}
+		}();
+		instantiationService.stub(ILogService, logService);
+
+		const agentDiscoveryStarted = new DeferredPromise<void>();
+		const agentDiscovery = new DeferredPromise<{ agents: [] }>();
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: () => {
+						agentDiscoveryStarted.complete();
+						return agentDiscovery.p;
+					},
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ skills: [] }),
+				},
+			},
+		} as unknown as CopilotClient;
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const cancelSource = disposables.add(new CancellationTokenSource());
+		const discovering = discovery.discover(client, cancelSource.token).then(
+			() => false,
+			error => error instanceof CancellationError,
+		);
+
+		await agentDiscoveryStarted.p;
+		cancelSource.cancel();
+		const wasCancellationError = await discovering;
+		agentDiscovery.complete({ agents: [] });
+
+		assert.deepStrictEqual({ wasCancellationError, errors }, { wasCancellationError: true, errors: [] });
 	});
 
 	test('discovers agents, skills, instructions, and hooks across workspace and home roots', async () => {

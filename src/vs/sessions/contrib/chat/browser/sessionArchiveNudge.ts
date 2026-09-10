@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -21,6 +22,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestState } from '../../github/common/types.js';
 import { getPullRequestKey, parseGitHubPullRequestUrl } from '../../github/common/utils.js';
+import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../github/common/sessionLifecycleSettings.js';
 
 export const SESSION_ARCHIVE_NUDGE_SETTING = 'chat.agentSessions.archiveNudge.enabled';
 
@@ -172,6 +174,7 @@ export class SessionArchiveNudge extends Disposable {
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IGitHubService gitHubService: IGitHubService,
 		@ISessionArchiveNudgeService private readonly _nudgeService: ISessionArchiveNudgeService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 
@@ -231,6 +234,7 @@ export class SessionArchiveNudge extends Disposable {
 			hasWorktree: state.hasWorktree,
 			pullRequestCount: state.pullRequestCount,
 			onDismiss: () => this._nudgeService.dismiss(state),
+			onOpenCleanupSettings: () => commandService.executeCommand('workbench.action.openSettings', AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY),
 			onArchive: async () => {
 				const current = this._state.get();
 				if (!current || current.session !== state.session) {
