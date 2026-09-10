@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { resolve } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { type ClientRequestMethod, type ClientRequestParams, type ICodexAppServerClient, JsonRpcError } from '../../../node/codex/codexAppServerClient.js';
@@ -81,8 +82,9 @@ suite('CodexProviderConfiguration', () => {
 	});
 
 	test('opens the effective CODEX_HOME configuration', () => {
-		const registration = createCodexProviderConfiguration(URI.file('/users/test'), URI.file('/custom codex').fsPath);
-		assert.strictEqual(registration.configurationFile?.resource, URI.file('/custom codex/config.toml').toString());
+		const codexHome = URI.file(isWindows ? 'C:\\custom codex' : '/custom codex');
+		const registration = createCodexProviderConfiguration(URI.file('/users/test'), codexHome.fsPath);
+		assert.strictEqual(registration.configurationFile?.resource, URI.joinPath(codexHome, 'config.toml').toString());
 	});
 
 	test('resolves a relative CODEX_HOME against the host working directory', () => {
