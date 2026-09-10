@@ -95,6 +95,9 @@ import { ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateT
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { CreatePullRequestContextView } from './createPullRequestContextView.js';
+import { CreatePullRequestChatRequest } from './createPullRequestChatRequest.js';
+import { isSessionPullRequestOperation } from '../common/pullRequestCreation.js';
 
 const $ = dom.$;
 
@@ -314,11 +317,18 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
+		@ISessionsService sessionsService: ISessionsService,
 	) {
 		super();
 
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const dropdownMenu = this._register(menuService.createMenu(Menus.ChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
+		const createPullRequestContextView = this._register(instantiationService.createInstance(CreatePullRequestContextView));
+		const createPullRequestChatRequest = instantiationService.createInstance(CreatePullRequestChatRequest);
+		this._register(autorun(reader => {
+			changesViewService.activeSessionResourceObs.read(reader);
+			createPullRequestContextView.close();
+		}));
 
 		// Whether the primary button's work is in flight. Read by the button
 		// config provider below, which `buttonBar.update` calls synchronously
@@ -339,7 +349,12 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				}
 			}
 		));
-		this._register(buttonBar.onWillRun(e => unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService)));
+		this._register(buttonBar.onWillRun(e => {
+			const operation = changesViewService.activeSessionChangesetOperationsObs.get().find(operation => operation.id === e.action.id);
+			if (!operation || !isSessionPullRequestOperation(operation)) {
+				unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService);
+			}
+		}));
 		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
 
 		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
@@ -404,6 +419,21 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				tooltip: op.description ?? op.label,
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => {
+					if (isSessionPullRequestOperation(op)) {
+						const state = changesViewService.activeSessionStateObs.read(undefined);
+						const session = sessionsService.activeSession.read(undefined);
+						createPullRequestContextView.show(container, op.pullRequestCreation, {
+							branchName: state?.branchName,
+							baseBranchName: state?.baseBranchName,
+							sendToChat: session ? options => createPullRequestChatRequest.send(session, options) : undefined,
+							onRestoreFocus: () => buttonBar.buttons[0]?.focus(),
+						}, options => {
+							if (!options.draft) {
+								unlockChatPetCreatePullRequestAchievement(op.id, chatPetService);
+							}
+						});
+						return;
+					}
 					this.logService.info(`[ChangesWorkbenchButtonBarWidget] Invoking changeset operation from the title bar: operation=${op.id}`);
 					return changeset.invokeOperation(op.id);
 				},

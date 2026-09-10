@@ -111,6 +111,10 @@ Capabilities describe operations supported by the backing provider and remain ob
 
 Sessions and chats expose provider-neutral file changes and changesets. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
 
+Features may extend individual changeset operation descriptors through contribution-owned contracts, keeping feature-specific capabilities out of `ISessionChangeset`. The Changes contribution defines the Create PR operation's preparation and submission contract and owns its form; providers attach that capability only to supported operations and own generation, creation, and transport. Preparation is read-only, and submission uses confirmed values, saving any Agent Merge configuration as session-only overrides after creation.
+
+The form also supports requesting creation in the originating session's main chat through the normal send lifecycle, without invoking programmatic PR creation. That message contains the PR details and GitHub merge instructions, while Agent Merge choices are applied through the session configuration API after the message is sent. The Changes contribution remembers form options and the last-used submission method across sessions in profile storage; remembering choices does not itself change session configuration or retain PR content.
+
 Turn-level file changes route through `IChatResponseFileChangesService`. The editor workbench opens its standard multi-diff presentation; the Agents Window registers `SessionsChatResponseFileChangesService` to select its canonical Changes editor. Providers expose the data but do not choose the presentation.
 
 ### Artifacts, references, and customizations
