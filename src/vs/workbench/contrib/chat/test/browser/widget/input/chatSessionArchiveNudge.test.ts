@@ -15,11 +15,13 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
+import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchAssignmentService } from '../../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT, ChatSessionArchiveNudge, IChatSessionArchiveNudgeOptions } from '../../../../browser/widget/input/chatSessionArchiveNudge.js';
+import '../../../../../../browser/media/style.css';
 
 suite('ChatSessionArchiveNudge', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,6 +32,7 @@ suite('ChatSessionArchiveNudge', () => {
 			pullRequestCount: 1,
 			onArchive: async () => { },
 			onDismiss: () => { },
+			onOpenCleanupSettings: async () => { },
 			...overrides,
 		};
 	}
@@ -76,9 +79,9 @@ suite('ChatSessionArchiveNudge', () => {
 		const container = createContainer();
 		const widget = store.add(instantiationService.createInstance(ChatSessionArchiveNudge, options(overrides)));
 		container.appendChild(widget.domNode);
-		const archive = widget.domNode.querySelector<HTMLElement>('.monaco-button')!;
+		const [archive, cleanupSettings] = widget.domNode.querySelectorAll<HTMLElement>('.monaco-button');
 		const dismiss = widget.domNode.querySelector<HTMLElement>('.action-label')!;
-		return { widget, archive, dismiss, configurationService, errors, warnings, container };
+		return { widget, archive, cleanupSettings, dismiss, configurationService, errors, warnings, container };
 	}
 
 	async function setWording(configurationService: TestConfigurationService, wording: ChatSessionArchiveActionWording): Promise<void> {
@@ -98,8 +101,25 @@ suite('ChatSessionArchiveNudge', () => {
 		return keydown;
 	}
 
+	for (const wording of [ChatSessionArchiveActionWording.Archive, ChatSessionArchiveActionWording.MarkAsDone]) {
+		test(`uses the primary button treatment for ${wording}`, () => {
+			const { archive, cleanupSettings } = createWidget(undefined, undefined, wording);
+			assert.deepStrictEqual({
+				archiveSecondary: archive.classList.contains('secondary'),
+				archiveBackground: archive.style.backgroundColor,
+				cleanupSecondary: cleanupSettings.classList.contains('secondary'),
+				cleanupBackground: cleanupSettings.style.backgroundColor,
+			}, {
+				archiveSecondary: false,
+				archiveBackground: defaultButtonStyles.buttonBackground,
+				cleanupSecondary: true,
+				cleanupBackground: defaultButtonStyles.buttonSecondaryBackground,
+			});
+		});
+	}
+
 	test('explains reversible archiving without suggesting folder cleanup', () => {
-		const { widget, archive, dismiss } = createWidget();
+		const { widget, archive, cleanupSettings, dismiss } = createWidget();
 		const description = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-description')!;
 		const details = widget.domNode.querySelector<HTMLDetailsElement>('details')!;
 		const worktree = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-worktree')!;
@@ -118,6 +138,7 @@ suite('ChatSessionArchiveNudge', () => {
 			worktreeHidden: worktree.hidden,
 			button: archive.textContent,
 			buttonDescription: archive.getAttribute('aria-describedby'),
+			cleanupSettingsButton: cleanupSettings.textContent,
 			dismissLabel: dismiss.getAttribute('aria-label'),
 			groupLabel: widget.domNode.getAttribute('aria-labelledby'),
 		}, {
@@ -133,8 +154,27 @@ suite('ChatSessionArchiveNudge', () => {
 			worktreeHidden: true,
 			button: 'Archive',
 			buttonDescription: description.id,
+			cleanupSettingsButton: 'Configure Automatic Cleanup',
 			dismissLabel: 'Dismiss Archive Suggestion',
 			groupLabel: widget.domNode.querySelector('h3')?.id,
+		});
+	});
+
+	test('opens automatic cleanup settings and reports failures', async () => {
+		let opens = 0;
+		const success = createWidget({ onOpenCleanupSettings: async () => { opens++; } });
+		success.cleanupSettings.click();
+		await Promise.resolve();
+		const failure = createWidget({ onOpenCleanupSettings: async () => { throw new Error('Settings unavailable'); } });
+		failure.cleanupSettings.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			opens,
+			errors: failure.errors,
+		}, {
+			opens: 1,
+			errors: ['Unable to open automatic cleanup settings: Settings unavailable'],
 		});
 	});
 
@@ -169,13 +209,42 @@ suite('ChatSessionArchiveNudge', () => {
 		});
 	}
 
-	test('uses the purple theme color for the merged icon', async () => {
-		const { widget } = createWidget();
+	test('keeps the merged icon purple in the workbench without recoloring other icons', async () => {
+		const refetch = store.add(new Emitter<void>());
+		let iconTreatment: string | undefined;
+		const { widget, container, dismiss } = createWidget(undefined, createAssignmentService(name =>
+			name === CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT ? iconTreatment : undefined, refetch.event));
+		container.classList.add('monaco-workbench');
 		widget.domNode.style.setProperty('--vscode-charts-purple', '#a371f7');
+		widget.domNode.style.setProperty('--vscode-icon-foreground', '#cccccc');
+		await timeout(0);
+		const workbenchIconRule = [...document.styleSheets, ...document.adoptedStyleSheets]
+			.flatMap(sheet => Array.from(sheet.cssRules))
+			.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
+			.find(rule => rule instanceof CSSStyleRule && rule.selectorText === '.monaco-workbench .codicon');
+		assert.ok(workbenchIconRule);
+		// Load the real workbench icon rule last to exercise the product's stylesheet order.
+		dom.append(container, dom.$('style')).textContent = workbenchIconRule.cssText;
 		await timeout(0);
 		const icon = widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-icon')!;
+		const colors = () => ({
+			icon: dom.getWindow(icon).getComputedStyle(icon).color,
+			dismiss: dom.getWindow(dismiss).getComputedStyle(dismiss).color,
+		});
+		const merged = colors();
+		iconTreatment = 'archive';
+		refetch.fire();
+		await timeout(0);
+		const alternate = colors();
+		iconTreatment = undefined;
+		refetch.fire();
+		await timeout(0);
 
-		assert.strictEqual(dom.getWindow(icon).getComputedStyle(icon).color, 'rgb(163, 113, 247)');
+		assert.deepStrictEqual({ merged, alternate, restored: colors() }, {
+			merged: { icon: 'rgb(163, 113, 247)', dismiss: 'rgb(204, 204, 204)' },
+			alternate: { icon: 'rgb(204, 204, 204)', dismiss: 'rgb(204, 204, 204)' },
+			restored: { icon: 'rgb(163, 113, 247)', dismiss: 'rgb(204, 204, 204)' },
+		});
 	});
 
 	for (const width of [360, 720]) {
@@ -480,7 +549,7 @@ suite('ChatSessionArchiveNudge', () => {
 	});
 
 	test('leaves Tab and Shift+Tab to the normal input flow', () => {
-		const { widget, archive, dismiss } = createWidget();
+		const { widget, archive, cleanupSettings, dismiss } = createWidget();
 		const summary = widget.domNode.querySelector('summary')!;
 		dismiss.focus();
 		const tab = pressKey(dismiss, 'Tab', 9);
@@ -492,18 +561,22 @@ suite('ChatSessionArchiveNudge', () => {
 		assert.deepStrictEqual({
 			dismissTabIndex: dismiss.tabIndex,
 			archiveTabIndex: archive.tabIndex,
+			cleanupSettingsTabIndex: cleanupSettings.tabIndex,
 			summaryTabIndex: summary.tabIndex,
 			dismissBeforeSummary: !!(dismiss.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING),
 			summaryBeforeArchive: !!(summary.compareDocumentPosition(archive) & Node.DOCUMENT_POSITION_FOLLOWING),
+			archiveBeforeCleanupSettings: !!(archive.compareDocumentPosition(cleanupSettings) & Node.DOCUMENT_POSITION_FOLLOWING),
 			tabPrevented: tab.defaultPrevented,
 			summaryTabPrevented: summaryTab.defaultPrevented,
 			shiftTabPrevented: shiftTab.defaultPrevented,
 		}, {
 			dismissTabIndex: 0,
 			archiveTabIndex: 0,
+			cleanupSettingsTabIndex: 0,
 			summaryTabIndex: 0,
 			dismissBeforeSummary: true,
 			summaryBeforeArchive: true,
+			archiveBeforeCleanupSettings: true,
 			tabPrevented: false,
 			summaryTabPrevented: false,
 			shiftTabPrevented: false,
@@ -551,7 +624,7 @@ suite('ChatSessionArchiveNudge', () => {
 			onArchive: () => { archives++; return pending.p; },
 			onDismiss: () => { dismissals++; },
 		};
-		const { widget, archive, dismiss } = createWidget(callbacks);
+		const { widget, archive, cleanupSettings, dismiss } = createWidget(callbacks);
 		archive.click();
 		widget.setOptions(options({ ...callbacks, hasWorktree: true, pullRequestCount: 2 }));
 		archive.click();
@@ -562,6 +635,7 @@ suite('ChatSessionArchiveNudge', () => {
 		const busy = {
 			ariaBusy: widget.domNode.getAttribute('aria-busy'),
 			archiveDisabled: archive.getAttribute('aria-disabled'),
+			cleanupSettingsDisabled: cleanupSettings.getAttribute('aria-disabled'),
 			dismissDisabled: dismiss.getAttribute('aria-disabled'),
 			label: archive.textContent,
 		};
@@ -574,7 +648,7 @@ suite('ChatSessionArchiveNudge', () => {
 		}, {
 			archives: 1,
 			dismissals: 0,
-			busy: { ariaBusy: 'true', archiveDisabled: 'true', dismissDisabled: 'true', label: 'Archiving...' },
+			busy: { ariaBusy: 'true', archiveDisabled: 'true', cleanupSettingsDisabled: 'true', dismissDisabled: 'true', label: 'Archiving...' },
 			idle: 'false',
 			label: 'Archive',
 		});

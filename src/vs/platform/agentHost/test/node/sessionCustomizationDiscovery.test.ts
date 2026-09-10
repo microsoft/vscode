@@ -8,6 +8,7 @@ import type { CopilotClient } from '@github/copilot-sdk';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -80,6 +81,22 @@ suite('SessionCustomizationDiscovery', () => {
 			wsCopilotInstructions.toString(),
 			wsGeminiInstructions.toString(),
 		].sort((a, b) => a.localeCompare(b)));
+	});
+
+	test('discovers user customizations without scanning a workspace root', async () => {
+		const workspaceInstructions = await seed('/workspace/.github/copilot-instructions.md', 'workspace instructions');
+		const userInstructions = await seed('/home/.copilot/copilot-instructions.md', 'user instructions');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [], userHome, inMemoryPathToUri));
+		const files = (await discovery.scan(CancellationToken.None))
+			.flatMap(directory => directory.files.map(file => file.uri.toString()));
+
+		assert.deepStrictEqual({
+			workspace: files.includes(workspaceInstructions.toString()),
+			user: files.includes(userInstructions.toString()),
+		}, {
+			workspace: false,
+			user: true,
+		});
 	});
 
 	test('groups discovered customizations by parent folder', async () => {
@@ -726,6 +743,52 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.ok(directories.some(directory => directory.type === DiscoveredType.Agent));
 	});
 
+	test('discover propagates cancellation without logging an error', async () => {
+		const errors: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error): void {
+				errors.push(String(message));
+			}
+		}();
+		instantiationService.stub(ILogService, logService);
+
+		const agentDiscoveryStarted = new DeferredPromise<void>();
+		const agentDiscovery = new DeferredPromise<{ agents: [] }>();
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: () => {
+						agentDiscoveryStarted.complete();
+						return agentDiscovery.p;
+					},
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ skills: [] }),
+				},
+			},
+		} as unknown as CopilotClient;
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const cancelSource = disposables.add(new CancellationTokenSource());
+		const discovering = discovery.discover(client, cancelSource.token).then(
+			() => false,
+			error => error instanceof CancellationError,
+		);
+
+		await agentDiscoveryStarted.p;
+		cancelSource.cancel();
+		const wasCancellationError = await discovering;
+		agentDiscovery.complete({ agents: [] });
+
+		assert.deepStrictEqual({ wasCancellationError, errors }, { wasCancellationError: true, errors: [] });
+	});
+
 	test('discovers agents, skills, instructions, and hooks across workspace and home roots', async () => {
 		const wsAgent = await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
 		const wsSkill = await seed('/workspace/.github/skills/bar/SKILL.md', 'skill body');
@@ -991,13 +1054,6 @@ suite('SessionCustomizationDiscovery', () => {
 			.sort((a, b) => a.localeCompare(b));
 
 		assert.deepStrictEqual(files, [first.toString(), second.toString()].sort((a, b) => a.localeCompare(b)));
-	});
-
-	test('constructor rejects an empty working-directory set (non-empty, primary-first invariant)', () => {
-		assert.throws(
-			() => instantiationService.createInstance(SessionCustomizationDiscovery, [], userHome, URI.file),
-			/at least one working directory/,
-		);
 	});
 
 	test('scan discovers hooks from the primary working directory only', async () => {

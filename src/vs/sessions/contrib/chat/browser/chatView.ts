@@ -54,6 +54,7 @@ import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
 import { SessionArchiveNudge } from './sessionArchiveNudge.js';
+import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
@@ -185,6 +186,9 @@ export class ChatView extends AbstractChatView {
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
+	private readonly _stickyScrollBackgroundReplica = this._register(new MutableDisposable<SessionsChatBackgroundReplica>());
+	private _stickyScrollBackgroundContainer: HTMLElement | undefined;
+
 	/** Tracks the current chat's interactivity and hides the input for read-only chats. */
 	private readonly _interactiveDisposable = this._register(new MutableDisposable());
 
@@ -269,6 +273,7 @@ export class ChatView extends AbstractChatView {
 				supportsChangingModes: true,
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
+				transcriptTabIndex: -1,
 				enableFind: true,
 				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				renderGettingStartedTip: () => shouldShowSessionChatTip(this._currentSessionObs.get()?.status.get()),
@@ -276,7 +281,8 @@ export class ChatView extends AbstractChatView {
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
-		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatItemHorizontalPadding()));
+		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
+		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatBackground()));
 		const transcript = this._widget.transcriptDomNode;
 		this._register(addDisposableListener(transcript, EventType.CONTEXT_MENU, event => {
 			if (isHighContrast(this.themeService.getColorTheme().type)) {
@@ -657,16 +663,54 @@ export class ChatView extends AbstractChatView {
 		}
 		size(this._widgetContainer, width, widgetHeight);
 		this._widget.layout(widgetHeight, width);
+		this._layoutStickyScrollBackground();
 	}
 
-	private _updateChatItemHorizontalPadding(): void {
-		const horizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
+	private _updateChatBackground(): void {
+		const background = this.chatBackgroundService.getBackground();
+		this._updateChatItemHorizontalPadding(!!background);
+		const replica = this._stickyScrollBackgroundReplica.value;
+		if (replica) {
+			replica.setBackground(background);
+			replica.layout();
+		}
+	}
+
+	private _updateChatItemHorizontalPadding(hasBackground: boolean): void {
+		const horizontalPadding = getSessionChatItemHorizontalPadding(hasBackground);
 		if (horizontalPadding === this._chatItemHorizontalPadding) {
 			return;
 		}
 
 		this._chatItemHorizontalPadding = horizontalPadding;
 		this._widget.setContentHorizontalPadding(horizontalPadding);
+	}
+
+	private _layoutStickyScrollBackground(): void {
+		const stickyContainer = this._widget.stickyScrollDomNode;
+		if (stickyContainer !== this._stickyScrollBackgroundContainer) {
+			this._stickyScrollBackgroundReplica.clear();
+			this._stickyScrollBackgroundContainer = undefined;
+		}
+
+		if (!stickyContainer) {
+			return;
+		}
+
+		let replica = this._stickyScrollBackgroundReplica.value;
+		if (!replica) {
+			const sessionsPart = this.element.closest('.part.sessionspart');
+			const source = sessionsPart ? Array.from(sessionsPart.children).find(element => element.classList.contains('sessions-chat-background')) : undefined;
+			if (!isHTMLElement(source)) {
+				return;
+			}
+
+			replica = new SessionsChatBackgroundReplica(source, stickyContainer);
+			this._stickyScrollBackgroundReplica.value = replica;
+			this._stickyScrollBackgroundContainer = stickyContainer;
+			replica.setBackground(this.chatBackgroundService.getBackground());
+		}
+		replica.layout();
 	}
 
 	/**

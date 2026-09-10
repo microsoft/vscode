@@ -19,10 +19,7 @@ import { McpCollectionProvenance, McpCollectionSortOrder, McpServerDefinition, M
 import { IMcpDiscovery } from './mcpDiscovery.js';
 import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
 
-/**
- * Discovers MCP servers defined in `.mcp.json` files at workspace folder roots.
- * Accepts wrapped or flat JSONC while preserving native discovery launch and trust semantics.
- */
+/** Discovers workspace-root `.mcp.json` files, which inherit workspace trust. */
 export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscovery {
 	readonly fromGallery = false;
 
@@ -69,7 +66,7 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 			label: `${folder.name}/.mcp.json`,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority || null,
 			scope: StorageScope.WORKSPACE,
-			trustBehavior: McpServerTrust.Kind.TrustedOnNonce as const,
+			trustBehavior: McpServerTrust.Kind.Trusted as const,
 			serverDefinitions,
 			configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
 			order: McpCollectionSortOrder.WorkspaceFolder + 1,
@@ -81,6 +78,7 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 		const store = new DisposableStore();
 		const collectionRegistration = store.add(new MutableDisposable());
 		let updateSequence = 0;
+		let isLazyCollection = true;
 
 		const updateFile = async () => {
 			const sequence = updateSequence;
@@ -106,7 +104,8 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 				collectionRegistration.clear();
 			} else {
 				serverDefinitions.set(definitions, undefined);
-				if (!collectionRegistration.value) {
+				if (isLazyCollection || !collectionRegistration.value) {
+					isLazyCollection = false;
 					collectionRegistration.value = this._mcpRegistry.registerCollection(collection);
 				}
 			}
@@ -118,7 +117,16 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 			updateSequence++;
 			throttler.schedule();
 		}));
-		updateFile();
+		let initialUpdate: Promise<void> | undefined;
+		const loadInitial = () => initialUpdate ??= updateFile();
+		collectionRegistration.value = this._mcpRegistry.registerCollection({
+			...collection,
+			lazy: {
+				isCached: false,
+				load: loadInitial,
+			},
+		});
+		void loadInitial();
 
 		this._collections.set(folder.uri.toString(), store);
 	}

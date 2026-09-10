@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ClickAnimation } from '../../../base/browser/ui/animations/animations.js';
 import { MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
@@ -13,7 +14,7 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { createSessionActionViewItemProvider, SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../browser/sessionActionViewItem.js';
+import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../browser/sessionActionViewItem.js';
 
 suite('SessionActionViewItem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,5 +57,15 @@ suite('SessionActionViewItem', () => {
 		const provider = createSessionActionViewItemProvider(instantiationService, new TestConfigurationService());
 
 		assert.strictEqual(provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}), undefined);
+	});
+
+	test('shares configured archive animation options with specialized view items', () => {
+		assert.deepStrictEqual({
+			enabled: getSessionArchiveActionViewItemOptions({ icon: true }, new TestConfigurationService({ [SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING]: true })),
+			disabled: getSessionArchiveActionViewItemOptions({ icon: true }, new TestConfigurationService({ [SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING]: false })),
+		}, {
+			enabled: { icon: true, onClickAnimation: ClickAnimation.Confetti },
+			disabled: undefined,
+		});
 	});
 });
