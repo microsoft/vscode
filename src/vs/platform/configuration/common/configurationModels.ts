@@ -27,6 +27,17 @@ function freeze<T>(data: T): T {
 
 type InspectValue<V> = IInspectValue<V> & { merged?: V };
 
+export function getPlatformOverrideIdentifier(os: OperatingSystem): string {
+	switch (os) {
+		case OperatingSystem.Windows:
+			return 'windows';
+		case OperatingSystem.Macintosh:
+			return 'osx';
+		case OperatingSystem.Linux:
+			return 'linux';
+	}
+}
+
 export class ConfigurationModel implements IConfigurationModel {
 
 	static createEmptyModel(logService: ILogService): ConfigurationModel {
@@ -815,14 +826,7 @@ export class Configuration {
 	}
 
 	protected get platformOverrideIdentifier(): string {
-		switch (this.os) {
-			case OperatingSystem.Windows:
-				return 'windows';
-			case OperatingSystem.Macintosh:
-				return 'osx';
-			case OperatingSystem.Linux:
-				return 'linux';
-		}
+		return getPlatformOverrideIdentifier(this.os);
 	}
 
 	getValue(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): unknown {

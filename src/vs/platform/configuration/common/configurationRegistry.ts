@@ -1084,7 +1084,7 @@ const OVERRIDE_IDENTIFIER_REGEX = new RegExp(OVERRIDE_IDENTIFIER_PATTERN, 'g');
 export const OVERRIDE_PROPERTY_PATTERN = `^(${OVERRIDE_IDENTIFIER_PATTERN})+$`;
 export const OVERRIDE_PROPERTY_REGEX = new RegExp(OVERRIDE_PROPERTY_PATTERN);
 export const PLATFORM_OVERRIDE_IDENTIFIERS = ['windows', 'osx', 'linux'] as const;
-export const LANGUAGE_OVERRIDE_PROPERTY_PATTERN = `^(?!.*\\[(?:${PLATFORM_OVERRIDE_IDENTIFIERS.join('|')})\\])(${OVERRIDE_IDENTIFIER_PATTERN})+$`;
+export const LANGUAGE_OVERRIDE_PROPERTY_PATTERN = `^(?!.*\\[\\s*(?:${PLATFORM_OVERRIDE_IDENTIFIERS.join('|')})\\s*\\])(${OVERRIDE_IDENTIFIER_PATTERN})+$`;
 
 export function isPlatformOverrideIdentifier(identifier: string): boolean {
 	return (PLATFORM_OVERRIDE_IDENTIFIERS as readonly string[]).includes(identifier);

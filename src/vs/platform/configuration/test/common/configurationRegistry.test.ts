@@ -47,15 +47,21 @@ suite('ConfigurationRegistry', () => {
 			language: languageOverrideRegex.test('[typescript]'),
 			multipleLanguages: languageOverrideRegex.test('[typescript][javascript]'),
 			windows: languageOverrideRegex.test('[windows]'),
+			windowsWithWhitespace: languageOverrideRegex.test('[ windows ]'),
 			mac: languageOverrideRegex.test('[osx]'),
+			macWithWhitespace: languageOverrideRegex.test('[ osx\t]'),
 			linux: languageOverrideRegex.test('[linux]'),
+			linuxWithWhitespace: languageOverrideRegex.test('[\tlinux ]'),
 			combined: languageOverrideRegex.test('[osx][typescript]')
 		}, {
 			language: true,
 			multipleLanguages: true,
 			windows: false,
+			windowsWithWhitespace: false,
 			mac: false,
+			macWithWhitespace: false,
 			linux: false,
+			linuxWithWhitespace: false,
 			combined: false
 		});
 	});
