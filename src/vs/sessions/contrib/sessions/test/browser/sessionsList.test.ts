@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -21,6 +23,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -41,13 +45,13 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
+import { getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, ISortChangeRecord } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
@@ -836,6 +840,102 @@ suite('Sessions - SessionsList', () => {
 				showMore: undefined,
 			});
 		});
+	});
+
+	suite('session hover diff stats', () => {
+		test('prefers the list summary and falls back to detailed changes only when absent', () => {
+			const base = createTestSession('Session').session;
+			const changes = [
+				{ modifiedUri: URI.file('/workspace/a.ts'), insertions: 3, deletions: 1 },
+				{ uri: URI.file('/workspace/b.ts'), insertions: 2, deletions: 4 },
+			];
+			const summary = { files: 7, additions: 40, deletions: 20 };
+			const zeroSummary = { files: 0, additions: 0, deletions: 0 };
+			const stats = (changesSummary: ISessionChangesSummary | undefined, detailedChanges = changes) => getSessionDiffStats({
+				...base,
+				changes: constObservable(detailedChanges),
+				changesSummary: constObservable(changesSummary),
+			});
+
+			assert.deepStrictEqual({
+				summaryOnly: stats(summary, []),
+				summaryAndDetails: stats(summary),
+				detailsOnly: stats(undefined),
+				zeroSummary: stats(zeroSummary),
+				noChanges: stats(undefined, []),
+				noLineChanges: stats(undefined, [{ modifiedUri: URI.file('/workspace/binary'), insertions: 0, deletions: 0 }]),
+			}, {
+				summaryOnly: { files: 7, insertions: 40, deletions: 20 },
+				summaryAndDetails: { files: 7, insertions: 40, deletions: 20 },
+				detailsOnly: { files: 2, insertions: 5, deletions: 5 },
+				zeroSummary: undefined,
+				noChanges: undefined,
+				noLineChanges: undefined,
+			});
+		});
+
+		for (const flat of [false, true]) {
+			test(`shows matching row and hover summaries without selecting sessions in the ${flat ? 'flat' : 'main'} list`, () => {
+				const changesSummary = observableValue<ISessionChangesSummary | undefined>('summary', { files: 3, additions: 12, deletions: 4 });
+				const sessions = ['First', 'Second'].map(title => {
+					const base = createTestSession(title).session;
+					const root = URI.file(`/workspace/${title}`);
+					return {
+						...base,
+						changesSummary,
+						workspace: constObservable({
+							...base.workspace.get()!,
+							folders: [{ root, workingDirectory: root, name: title, description: undefined }],
+						}),
+					};
+				});
+				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+				const harness = createListHarness(disposables, sessions, instantiationService => {
+					instantiationService.stub(IHoverService, {
+						...NullHoverService,
+						setupDelayedHover: (target, options) => {
+							hovers.set(target, typeof options === 'function' ? options : () => options);
+							return toDisposable(() => hovers.delete(target));
+						},
+					});
+				});
+				const container = harness.createContainer();
+				if (flat) {
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, { onSessionOpen: () => { } }));
+					list.setSessions(sessions);
+					list.layout(300, 400);
+				} else {
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+						grouping: () => SessionsGrouping.Date,
+						sorting: () => SessionsSorting.Created,
+						onSessionOpen: () => { },
+					}));
+					list.layout(300, 400);
+				}
+				const readSummaries = () => [...container.querySelectorAll<HTMLElement>('.session-item')].map(row => {
+					const hover = hovers.get(row)?.().content;
+					assert.ok(hover instanceof HTMLElement);
+					return {
+						row: [row.querySelector('.session-diff-added')?.textContent, row.querySelector('.session-diff-removed')?.textContent],
+						hover: [hover.querySelector('.session-summary-hover-insertions')?.textContent, hover.querySelector('.session-summary-hover-deletions')?.textContent],
+						files: hover.textContent?.includes(`${changesSummary.get()?.files} files changed`),
+					};
+				});
+				const initial = readSummaries();
+				changesSummary.set({ files: 5, additions: 30, deletions: 10 }, undefined);
+				const updated = readSummaries();
+				changesSummary.set({ files: 0, additions: 0, deletions: 0 }, undefined);
+				const cleared = readSummaries();
+				harness.store.dispose();
+
+				assert.deepStrictEqual({ initial, updated, cleared, remainingHovers: hovers.size }, {
+					initial: Array(2).fill({ row: ['+12', '-4'], hover: ['+12', '-4'], files: true }),
+					updated: Array(2).fill({ row: ['+30', '-10'], hover: ['+30', '-10'], files: true }),
+					cleared: Array(2).fill({ row: [undefined, undefined], hover: [undefined, undefined], files: false }),
+					remainingHovers: 0,
+				});
+			});
+		}
 	});
 
 	test('created session hover includes its creator action', () => {
