@@ -272,6 +272,9 @@ function setupServices(
 		// No `phone-layout` class → `isPhoneLayout` is false → isolation renders as a checkbox.
 		override readonly mainContainer = document.createElement('div');
 		override readonly isSinglePaneLayoutEnabled = true;
+		override revealEditorPartExplicitly(): void {
+			actionWidget.events.push('revealEditorPartExplicitly');
+		}
 		override suppressEditorPartAutoVisibility() {
 			actionWidget.events.push('suppressEditorPartAutoVisibility');
 			return { dispose: () => actionWidget.events.push('releaseEditorPartAutoVisibility') };
@@ -1002,7 +1005,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	for (const uncommittedChanges of [undefined, 0, 1]) {
+	for (const uncommittedChanges of [undefined, 0, 1, 2]) {
 		test(`current branch action selects the Changes tab before focusing the Changes view with ${uncommittedChanges} uncommitted files`, async () => {
 			const services = setupServices(store);
 			services.provider.config = makeDynamicBranchConfig('main');
@@ -1020,6 +1023,32 @@ suite('Agent Host Session Config Picker', () => {
 
 			assert.deepStrictEqual(services.actionWidget.events, [
 				'hide',
+				...((uncommittedChanges ?? 0) > 0 ? ['revealEditorPartExplicitly'] : []),
+				'suppressEditorPartAutoVisibility',
+				`openChangesEditor:${SESSION_RESOURCE.toString()}`,
+				'releaseEditorPartAutoVisibility',
+				`openView:${CHANGES_VIEW_ID}:true`,
+			]);
+		});
+	}
+
+	for (const [initialChanges, currentChanges] of [[0, 1], [1, 0]]) {
+		test(`current branch action uses the latest uncommitted count after changing from ${initialChanges} to ${currentChanges}`, async () => {
+			const services = setupServices(store);
+			services.provider.config = makeDynamicBranchConfig('main');
+			services.provider.completions = [{ value: 'main', label: 'main' }];
+			services.workspaceObs.set(makeWorkspace(initialChanges), undefined);
+			const { container } = renderPicker(store, services);
+
+			branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
+			await new Promise(resolve => setTimeout(resolve));
+			const action = services.actionWidget.items.find(item => item.label === 'main')?.toolbarActions?.[0];
+			services.workspaceObs.set(makeWorkspace(currentChanges), undefined);
+			await action?.run();
+
+			assert.deepStrictEqual(services.actionWidget.events, [
+				'hide',
+				...(currentChanges > 0 ? ['revealEditorPartExplicitly'] : []),
 				'suppressEditorPartAutoVisibility',
 				`openChangesEditor:${SESSION_RESOURCE.toString()}`,
 				'releaseEditorPartAutoVisibility',

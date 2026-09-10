@@ -970,6 +970,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		this._actionWidgetService.hide();
 		const session = this._session.get();
 		if (this._layoutService.isSinglePaneLayoutEnabled && session) {
+			if ((this._getRepositoryBranchState(session.sessionId).uncommittedChanges ?? 0) > 0) {
+				this._layoutService.revealEditorPartExplicitly();
+			}
 			const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 			try {
 				await this._sessionChangesService.openChangesEditor(session.resource);
