@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -167,6 +168,7 @@ interface IAutomationsFixtureOptions {
 	readonly populated: boolean;
 	readonly catalogueState?: AutomationCatalogueState;
 	readonly pluginTemplate?: boolean;
+	readonly showDropTarget?: boolean;
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
@@ -182,6 +184,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	PluginTemplates: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, pluginTemplate: true }),
+	}),
+	DropTarget: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: true, showDropTarget: true }),
 	}),
 	NarrowEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -323,6 +329,15 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	node.element.style.height = '100%';
 	ctx.container.appendChild(node.element);
 	node.layout(options.width, options.height);
+	if (options.showDropTarget) {
+		const dataTransfer = new DataTransfer();
+		dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([URI.file('/shared/review.automation.md').toString()]));
+		node.element.querySelector<HTMLElement>('.automations-cards-widget')?.dispatchEvent(new DragEvent('dragenter', {
+			bubbles: true,
+			cancelable: true,
+			dataTransfer,
+		}));
+	}
 }
 
 function createPopulatedData(): IAutomationsFixtureData {

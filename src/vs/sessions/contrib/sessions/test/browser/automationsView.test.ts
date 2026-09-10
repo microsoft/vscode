@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
-import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { DataTransfers } from '../../../../../base/browser/dnd.js';
+import { EventType, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import type { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -585,7 +586,7 @@ suite('AutomationsCardsWidget', () => {
 		return !!button && button.style.display !== 'none';
 	}
 
-	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService) {
+	function setup(archiveWording: 'archive' | 'done' = 'archive', hoverService: IHoverService = NullHoverService, fileService?: IFileService) {
 		const automationService = new FakeAutomationService();
 		const automationDialogService = new FakeAutomationDialogService();
 		const agentPluginService = new FakeAgentPluginService();
@@ -615,6 +616,9 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(ISessionsService, sessionsService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IConfigurationService, configurationService);
+		if (fileService) {
+			instantiationService.stub(IFileService, fileService);
+		}
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 		instantiationService.stub(IContextKeyService, contextKeyService);
@@ -878,124 +882,171 @@ suite('AutomationsCardsWidget', () => {
 			templateSections: 1,
 			templateNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
 		});
+	});
 
-		test('shows enabled plugin Automation templates and opens them disabled by default', async () => {
-			const { agentPluginService, automationDialogService, widget } = setup();
-			const pluginEnablement = observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile);
-			agentPluginService.setPlugins([upcastPartial<IAgentPlugin>({
-				uri: URI.file('/plugins/review'),
-				label: 'Review plugin',
-				enablement: pluginEnablement,
-				automations: observableValue('pluginAutomations', [{
-					uri: URI.file('/plugins/review/automations/weekly-review.automation.md'),
-					blueprint: {
-						version: 1,
-						id: 'weekly-review',
-						name: 'Weekly review',
-						description: 'Review the past week.',
-						prompt: 'Review the workspace for the past week.',
-						schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
-					},
-				}]),
-			})]);
-
-			const cards = widget.element.querySelectorAll<HTMLButtonElement>('.automations-template-card');
-			cards[cards.length - 1].click();
-			await timeout(0);
-			const enabledNames = Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent);
-			const sourceBadge = cards[cards.length - 1].querySelector('.automations-template-card-badge')?.textContent;
-			const sourceLabel = cards[cards.length - 1].querySelector('.automations-template-card-source')?.textContent;
-			const initialValues = getCreateInitialValues(automationDialogService.lastOptions);
-
-			pluginEnablement.set(ContributionEnablementState.DisabledProfile, undefined);
-			const disabledNames = Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent);
-
-			assert.deepStrictEqual({
-				enabledNames,
-				sourceBadge,
-				sourceLabel,
-				initialValues,
-				disabledNames,
-			}, {
-				enabledNames: ['Catch up on main', 'Issue triage', 'Find bugs', 'Weekly review'],
-				sourceBadge: 'Plugin',
-				sourceLabel: 'From Review plugin',
-				initialValues: {
+	test('shows enabled plugin Automation templates and opens them disabled by default', async () => {
+		const { agentPluginService, automationDialogService, widget } = setup();
+		const pluginEnablement = observableValue('pluginEnablement', ContributionEnablementState.EnabledProfile);
+		agentPluginService.setPlugins([upcastPartial<IAgentPlugin>({
+			uri: URI.file('/plugins/review'),
+			label: 'Review plugin',
+			enablement: pluginEnablement,
+			automations: observableValue('pluginAutomations', [{
+				uri: URI.file('/plugins/review/automations/weekly-review.automation.md'),
+				blueprint: {
+					version: 1,
+					id: 'weekly-review',
 					name: 'Weekly review',
+					description: 'Review the past week.',
 					prompt: 'Review the workspace for the past week.',
 					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
-					enabled: false,
 				},
-				disabledNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
-			});
+			}]),
+		})]);
+
+		const cards = widget.element.querySelectorAll<HTMLButtonElement>('.automations-template-card');
+		cards[cards.length - 1].click();
+		await timeout(0);
+		const enabledNames = Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent);
+		const sourceBadge = cards[cards.length - 1].querySelector('.automations-template-card-badge')?.textContent;
+		const sourceLabel = cards[cards.length - 1].querySelector('.automations-template-card-source')?.textContent;
+		const initialValues = getCreateInitialValues(automationDialogService.lastOptions);
+
+		pluginEnablement.set(ContributionEnablementState.DisabledProfile, undefined);
+		const disabledNames = Array.from(widget.element.querySelectorAll('.automations-template-card-name-text'), element => element.textContent);
+
+		assert.deepStrictEqual({
+			enabledNames,
+			sourceBadge,
+			sourceLabel,
+			initialValues,
+			disabledNames,
+		}, {
+			enabledNames: ['Catch up on main', 'Issue triage', 'Find bugs', 'Weekly review'],
+			sourceBadge: 'Plugin',
+			sourceLabel: 'From Review plugin',
+			initialValues: {
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				enabled: false,
+			},
+			disabledNames: ['Catch up on main', 'Issue triage', 'Find bugs'],
 		});
+	});
 
-		test('imports an Automation blueprint through review with disabled defaults', async () => {
-			const { automationDialogService, automationService, instantiationService } = setup();
-			const resource = URI.file('/shared/weekly-review.automation.md');
-			instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
-				override async showOpenDialog(): Promise<URI[]> {
-					return [resource];
-				}
-			}());
-			instantiationService.stub(IFileService, new class extends mock<IFileService>() {
-				override async readFile(): Promise<IFileContent> {
-					return upcastPartial<IFileContent>({
-						resource,
-						value: VSBuffer.fromString([
-							'---',
-							'version: 1',
-							'id: weekly-review',
-							'name: Weekly review',
-							'schedule:',
-							'  interval: weekly',
-							'  hour: 10',
-							'  minute: 30',
-							'  day: 5',
-							'---',
-							'Review the workspace for the past week.',
-						].join('\n')),
-					});
-				}
+	test('imports an Automation blueprint through review with disabled defaults', async () => {
+		const { automationDialogService, automationService, instantiationService } = setup();
+		const resource = URI.file('/shared/weekly-review.automation.md');
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+			override async showOpenDialog(): Promise<URI[]> {
+				return [resource];
+			}
+		}());
+		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+			override async readFile(): Promise<IFileContent> {
+				return upcastPartial<IFileContent>({
+					resource,
+					value: VSBuffer.fromString([
+						'---',
+						'version: 1',
+						'id: weekly-review',
+						'name: Weekly review',
+						'schedule:',
+						'  interval: weekly',
+						'  hour: 10',
+						'  minute: 30',
+						'  day: 5',
+						'---',
+						'Review the workspace for the past week.',
+					].join('\n')),
+				});
+			}
 
-				override async writeFile(): Promise<IFileStatWithMetadata> {
-					throw new Error('Unexpected write');
-				}
-			}());
-			automationDialogService.result = {
-				kind: 'create',
-				value: {
-					name: 'Weekly review',
-					prompt: 'Review the workspace for the past week.',
-					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
-					target: workspaceTarget(),
-					enabled: false,
-				},
-			};
+			override async writeFile(): Promise<IFileStatWithMetadata> {
+				throw new Error('Unexpected write');
+			}
+		}());
+		automationDialogService.result = {
+			kind: 'create',
+			value: {
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				target: workspaceTarget(),
+				enabled: false,
+			},
+		};
 
-			const command = CommandsRegistry.getCommand('sessions.automations.import');
-			assert.ok(command);
-			await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		const command = CommandsRegistry.getCommand('sessions.automations.import');
+		assert.ok(command);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
 
-			const initialValues = getCreateInitialValues(automationDialogService.lastOptions);
-			assert.deepStrictEqual({
-				initialValues,
-				createCalls: automationService.createCalls,
-			}, {
-				initialValues: {
-					name: 'Weekly review',
-					prompt: 'Review the workspace for the past week.',
-					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
-					enabled: false,
-				},
-				createCalls: [{
-					name: 'Weekly review',
-					prompt: 'Review the workspace for the past week.',
-					schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
-					target: workspaceTarget(),
-					enabled: false,
-				}],
-			});
+		const initialValues = getCreateInitialValues(automationDialogService.lastOptions);
+		assert.deepStrictEqual({
+			initialValues,
+			createCalls: automationService.createCalls,
+		}, {
+			initialValues: {
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				enabled: false,
+			},
+			createCalls: [{
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				target: workspaceTarget(),
+				enabled: false,
+			}],
+		});
+	});
+
+	test('imports a dropped Automation blueprint through the same review flow', async () => {
+		const resource = URI.file('/shared/weekly-review.automation.md');
+		const fileService = new class extends mock<IFileService>() {
+			override async readFile(): Promise<IFileContent> {
+				return upcastPartial<IFileContent>({
+					resource,
+					value: VSBuffer.fromString([
+						'---',
+						'version: 1',
+						'id: weekly-review',
+						'name: Weekly review',
+						'schedule:',
+						'  interval: weekly',
+						'  hour: 10',
+						'  minute: 30',
+						'  day: 5',
+						'---',
+						'Review the workspace for the past week.',
+					].join('\n')),
+				});
+			}
+		}();
+		const { automationDialogService, widget } = setup('archive', NullHoverService, fileService);
+		const dataTransfer = new DataTransfer();
+		dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([resource.toString()]));
+
+		widget.element.dispatchEvent(new DragEvent(EventType.DRAG_ENTER, { bubbles: true, cancelable: true, dataTransfer }));
+		const overlayVisibleWhileDragging = widget.element.querySelector('.automations-drop-overlay')?.classList.contains('visible');
+		widget.element.dispatchEvent(new DragEvent(EventType.DROP, { bubbles: true, cancelable: true, dataTransfer }));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			overlayVisibleWhileDragging,
+			overlayVisibleAfterDrop: widget.element.querySelector('.automations-drop-overlay')?.classList.contains('visible'),
+			initialValues: getCreateInitialValues(automationDialogService.lastOptions),
+		}, {
+			overlayVisibleWhileDragging: true,
+			overlayVisibleAfterDrop: false,
+			initialValues: {
+				name: 'Weekly review',
+				prompt: 'Review the workspace for the past week.',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				enabled: false,
+			},
 		});
 	});
 

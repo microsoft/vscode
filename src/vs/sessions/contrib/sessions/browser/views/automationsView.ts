@@ -27,7 +27,7 @@ import { type AutomationCatalogueState, IAutomationService } from '../../../../.
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, IAutomationBlueprint, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
+import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -41,6 +41,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -123,6 +124,12 @@ interface IAutomationTemporaryRunRow extends IDisposable {
 	readonly element: HTMLElement;
 	readonly title: HTMLElement;
 }
+
+type AutomationDropData =
+	| { readonly kind: 'resource'; readonly resource: URI }
+	| { readonly kind: 'file'; readonly file: File }
+	| { readonly kind: 'invalid'; readonly reason: 'multiple' | 'unsupported' }
+	| { readonly kind: 'none' };
 
 /**
  * Card-style view of automations for the Agents window sessions grid.
@@ -218,6 +225,7 @@ class AutomationCardsSection extends Disposable {
 	private readonly errorContainer: HTMLElement;
 	private readonly templatesContainer: HTMLElement;
 	private readonly partialStateContainer: HTMLElement;
+	private readonly dropOverlay: HTMLElement;
 	private readonly partialLoadingIcon: HTMLElement;
 	private readonly partialErrorIcon: HTMLElement;
 	private readonly partialStateMessage: HTMLElement;
@@ -247,6 +255,7 @@ class AutomationCardsSection extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -278,6 +287,23 @@ class AutomationCardsSection extends Disposable {
 		this.errorCreateButton = this.renderErrorState();
 		this.templatesContainer = DOM.append(parent, $('.automations-templates'));
 		this.templatesContainer.style.display = 'none';
+		this.dropOverlay = DOM.append(this.focusRoot, $('.automations-drop-overlay'));
+		this.dropOverlay.setAttribute('role', 'status');
+		this.dropOverlay.setAttribute('aria-live', 'polite');
+		const dropIcon = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-icon'));
+		dropIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.cloudUpload));
+		dropIcon.setAttribute('aria-hidden', 'true');
+		const dropTitle = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-title'));
+		dropTitle.textContent = localize('automationDropTitle', "Drop to import automation");
+		const dropDescription = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-description'));
+		dropDescription.textContent = localize('automationDropDescription', "You can review the Automation before creating it.");
+		this._register(new DOM.DragAndDropObserver(this.focusRoot, {
+			onDragEnter: event => this.updateDropOverlay(event),
+			onDragOver: event => this.updateDropOverlay(event),
+			onDragLeave: () => this.hideDropOverlay(),
+			onDragEnd: () => this.hideDropOverlay(),
+			onDrop: event => this.handleDrop(event),
+		}));
 		const focusTracker = this._register(DOM.trackFocus(this.focusRoot));
 		this._register(focusTracker.onDidBlur(() => this.clearPendingFocus()));
 		this._register(DOM.addDisposableListener(this.focusRoot, DOM.EventType.FOCUS_OUT, (event: FocusEvent) => {
@@ -297,6 +323,46 @@ class AutomationCardsSection extends Disposable {
 			this.persistentCards.clear();
 			this.latestAutomations.clear();
 		}));
+	}
+
+	private updateDropOverlay(event: DragEvent): void {
+		const dropData = getAutomationDropData(event);
+		const canImport = dropData.kind === 'resource' || dropData.kind === 'file';
+		this.dropOverlay.classList.toggle('visible', canImport);
+		if (canImport && event.dataTransfer) {
+			event.dataTransfer.dropEffect = 'copy';
+		}
+	}
+
+	private hideDropOverlay(): void {
+		this.dropOverlay.classList.remove('visible');
+	}
+
+	private handleDrop(event: DragEvent): void {
+		const dropData = getAutomationDropData(event);
+		this.hideDropOverlay();
+		if (dropData.kind === 'none') {
+			return;
+		}
+		DOM.EventHelper.stop(event, true);
+		if (dropData.kind === 'invalid') {
+			const detail = dropData.reason === 'multiple'
+				? localize('automationDropMultiple', "Drop one Automation blueprint file at a time.")
+				: localize('automationDropUnsupported', "Only .automation.md files can be imported.");
+			void this.dialogService.error(localize('automationDropFailed', "Unable to import automation."), detail);
+			return;
+		}
+		const readContent = dropData.kind === 'resource'
+			? async () => (await this.fileService.readFile(dropData.resource)).value.toString()
+			: async () => VSBuffer.wrap(new Uint8Array(await dropData.file.arrayBuffer())).toString();
+		void importAutomationBlueprint(
+			readContent,
+			this.automationDialogService,
+			this.automationService,
+			this.configurationService,
+			this.dialogService,
+			this.logService,
+		);
 	}
 
 	render(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[]): void {
@@ -1353,6 +1419,95 @@ function getAutomationBlueprintErrorMessage(error: unknown): string {
 	}
 }
 
+function getAutomationDropData(event: DragEvent): AutomationDropData {
+	const editors = extractEditorsDropData(event);
+	if (editors.length > 0) {
+		if (editors.length !== 1 || !editors[0].resource) {
+			return { kind: 'invalid', reason: 'multiple' };
+		}
+		return editors[0].resource.path.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)
+			? { kind: 'resource', resource: editors[0].resource }
+			: { kind: 'invalid', reason: 'unsupported' };
+	}
+
+	const files: File[] = [];
+	if (event.dataTransfer?.files) {
+		for (let index = 0; index < event.dataTransfer.files.length; index++) {
+			const file = event.dataTransfer.files.item(index);
+			if (file) {
+				files.push(file);
+			}
+		}
+	}
+	if (files.length === 0) {
+		return { kind: 'none' };
+	}
+	if (files.length !== 1) {
+		return { kind: 'invalid', reason: 'multiple' };
+	}
+	return files[0].name.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)
+		? { kind: 'file', file: files[0] }
+		: { kind: 'invalid', reason: 'unsupported' };
+}
+
+async function importAutomationBlueprint(
+	readContent: () => Promise<string>,
+	automationDialogService: IAutomationDialogService,
+	automationService: IAutomationService,
+	configurationService: IConfigurationService,
+	dialogService: IDialogService,
+	logService: ILogService,
+): Promise<void> {
+	const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+	if (!isEnabled()) {
+		await showAutomationsDisabled(dialogService);
+		return;
+	}
+
+	let blueprint;
+	try {
+		blueprint = parseAutomationBlueprint(await readContent());
+	} catch (error) {
+		logService.error('[Automations] Failed to read Automation blueprint', error);
+		await dialogService.error(
+			localize('automationImportReadFailed', "Failed to import automation."),
+			getAutomationBlueprintErrorMessage(error),
+		);
+		return;
+	}
+
+	const result = await automationDialogService.showAutomationDialog({
+		initialValues: {
+			name: blueprint.name,
+			prompt: blueprint.prompt,
+			schedule: blueprint.schedule,
+			enabled: false,
+		},
+	});
+	if (!result || result.kind !== 'create') {
+		return;
+	}
+	if (!isEnabled()) {
+		await showAutomationsDisabled(dialogService);
+		return;
+	}
+
+	try {
+		const automation = await automationService.createAutomation(result.value, () => {
+			if (!isEnabled()) {
+				throw new Error(localize('automationsDisabledBeforeImport', "Automations were disabled before the imported automation could be saved."));
+			}
+		});
+		status(localize('automationImportedStatus', "Imported automation {0}", automation.name));
+	} catch (error) {
+		logService.error('[Automations] Failed to import Automation blueprint', error);
+		await dialogService.error(
+			localize('automationImportFailed', "Failed to import automation."),
+			getErrorMessage(error),
+		);
+	}
+}
+
 async function showAutomationsDisabled(dialogService: IDialogService): Promise<void> {
 	await dialogService.info(
 		localize('automationsDisabledTitle', "Automations are disabled."),
@@ -1489,12 +1644,18 @@ export class AutomationsCustomViewContribution extends Disposable {
 			}
 		}));
 
-		// Render the "New Automation" button as primary instead of secondary
+		// Header actions share one control treatment while preserving primary/secondary hierarchy.
 		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(PrimaryButtonActionViewItem, undefined, action, options);
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false);
+		}));
+		this._register(actionViewItemService.register(Menus.CustomViewAutomations, 'sessions.automations.import', (action, options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true);
 		}));
 	}
 }
@@ -1563,18 +1724,18 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 	);
 }
 
-class PrimaryButtonActionViewItem extends BaseActionViewItem {
+class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 
 	private button: Button | undefined;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean) {
 		super(context, action, options);
 	}
 
 	override render(container: HTMLElement): void {
 		this.element = container;
 		container.classList.add('chat-pill-item');
-		const button = this.button = this._register(new Button(container, { secondary: false, ...defaultButtonStyles }));
+		const button = this.button = this._register(new Button(container, { secondary: this.secondary, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
 		this._register(button.onDidClick(() => {
 			if (this._action.enabled) {
@@ -1682,49 +1843,14 @@ registerAction2(class ImportAutomationAction extends Action2 {
 			return;
 		}
 
-		let blueprint: IAutomationBlueprint;
-		try {
-			const content = await fileService.readFile(resource);
-			blueprint = parseAutomationBlueprint(content.value.toString());
-		} catch (error) {
-			logService.error('[Automations] Failed to read Automation blueprint', error);
-			await dialogService.error(
-				localize('automationImportReadFailed', "Failed to import automation."),
-				getAutomationBlueprintErrorMessage(error),
-			);
-			return;
-		}
-
-		const result = await automationDialogService.showAutomationDialog({
-			initialValues: {
-				name: blueprint.name,
-				prompt: blueprint.prompt,
-				schedule: blueprint.schedule,
-				enabled: false,
-			},
-		});
-		if (!result || result.kind !== 'create') {
-			return;
-		}
-		if (!isEnabled()) {
-			await showAutomationsDisabled(dialogService);
-			return;
-		}
-
-		try {
-			const automation = await automationService.createAutomation(result.value, () => {
-				if (!isEnabled()) {
-					throw new Error(localize('automationsDisabledBeforeImport', "Automations were disabled before the imported automation could be saved."));
-				}
-			});
-			status(localize('automationImportedStatus', "Imported automation {0}", automation.name));
-		} catch (error) {
-			logService.error('[Automations] Failed to import Automation blueprint', error);
-			await dialogService.error(
-				localize('automationImportFailed', "Failed to import automation."),
-				getErrorMessage(error),
-			);
-		}
+		await importAutomationBlueprint(
+			async () => (await fileService.readFile(resource)).value.toString(),
+			automationDialogService,
+			automationService,
+			configurationService,
+			dialogService,
+			logService,
+		);
 	}
 });
 

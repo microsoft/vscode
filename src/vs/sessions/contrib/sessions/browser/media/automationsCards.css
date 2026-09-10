@@ -9,6 +9,42 @@
 	overflow: hidden;
 }
 
+.automations-drop-overlay {
+	position: absolute;
+	inset: var(--vscode-spacing-size80);
+	z-index: 10;
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) dashed var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: color-mix(in srgb, var(--session-view-background) 92%, transparent);
+	color: var(--session-view-foreground);
+	pointer-events: none;
+}
+
+.automations-drop-overlay.visible {
+	display: flex;
+}
+
+.automations-drop-overlay-icon {
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-focusBorder);
+}
+
+.automations-drop-overlay-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-drop-overlay-description {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
 .monaco-workbench .automations-cards-content:focus,
 .monaco-workbench .automations-cards-widget:focus {
 	outline: none;
