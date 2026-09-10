@@ -1182,11 +1182,11 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	for (const { name, classes, gap } of [
-		{ name: 'default density', classes: 'modern-ui floating-panels', gap: 8 },
-		{ name: 'compact density', classes: 'modern-ui floating-panels modern-ui-compact', gap: 4 },
-		{ name: 'compact activity bar', classes: 'modern-ui floating-panels activitybar-compact', gap: 0 },
-		{ name: 'classic layout', classes: '', gap: 0 },
+	for (const { name, classes, gap, applicationScrollbarZIndex } of [
+		{ name: 'default density', classes: 'modern-ui floating-panels', gap: 8, applicationScrollbarZIndex: '0' },
+		{ name: 'compact density', classes: 'modern-ui floating-panels modern-ui-compact', gap: 4, applicationScrollbarZIndex: '0' },
+		{ name: 'compact activity bar', classes: 'modern-ui floating-panels activitybar-compact', gap: 0, applicationScrollbarZIndex: '0' },
+		{ name: 'classic layout', classes: '', gap: 0, applicationScrollbarZIndex: '11' },
 	]) {
 		test(`keeps compact application menu spacing independent of the activity rail in ${name}`, async () => {
 			const root = document.createElement('div');
@@ -1239,6 +1239,18 @@ suite('ModernUIContribution', () => {
 			applicationMenu.querySelector<HTMLElement>('.action-menu-item')!.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
 			const submenu = applicationMenu.querySelector<HTMLElement>('.monaco-submenu .monaco-menu');
 			assert.ok(submenu);
+			const applicationScrollableElement = applicationMenu.parentElement;
+			assert.ok(applicationScrollableElement);
+			const applicationScrollbar = applicationScrollableElement.querySelector<HTMLElement>(':scope > .scrollbar.vertical');
+			assert.ok(applicationScrollbar);
+			applicationScrollbar.classList.add('visible');
+			const submenuContainer = submenu.closest<HTMLElement>('.monaco-submenu');
+			assert.ok(submenuContainer);
+			const submenuScrollableElement = submenu.parentElement;
+			assert.ok(submenuScrollableElement);
+			const submenuScrollbar = submenuScrollableElement.querySelector<HTMLElement>(':scope > .scrollbar.vertical');
+			assert.ok(submenuScrollbar);
+			submenuScrollbar.classList.add('visible');
 
 			const referenceHost = appendElement(root, 'reference-menu');
 			disposables.add(new Menu(referenceHost, actions, {}, unthemedMenuStyles));
@@ -1258,12 +1270,18 @@ suite('ModernUIContribution', () => {
 				railGap: getWindow(root).getComputedStyle(railItems[1]).marginTop,
 				applicationMargins: applicationRows.map(row => row.marginTop),
 				applicationRowStep: applicationRows[1].offset,
+				applicationScrollbarZIndex: getWindow(applicationScrollbar).getComputedStyle(applicationScrollbar).zIndex,
 				submenu: menuGeometry(submenu),
+				submenuContainerZIndex: getWindow(submenuContainer).getComputedStyle(submenuContainer).zIndex,
+				submenuScrollbarZIndex: getWindow(submenuScrollbar).getComputedStyle(submenuScrollbar).zIndex,
 			}, {
 				railGap: `${gap}px`,
 				applicationMargins: ['0px', '0px', '0px'],
 				applicationRowStep: 24,
+				applicationScrollbarZIndex,
 				submenu: menuGeometry(referenceMenu),
+				submenuContainerZIndex: '1',
+				submenuScrollbarZIndex: '11',
 			});
 		});
 	}

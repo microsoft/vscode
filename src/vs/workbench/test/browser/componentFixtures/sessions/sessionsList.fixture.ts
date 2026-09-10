@@ -21,6 +21,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -53,7 +54,13 @@ import { IChat, ISession, ISessionChangesSummary, ISessionFolder, ISessionWorksp
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../../sessions/common/sessionCommands.js';
+// eslint-disable-next-line local/code-import-patterns
+import { createSessionArchiveTour } from '../../../../../sessions/contrib/onboardingTours/browser/tours/sessionArchiveTour.js';
+import { SpotlightOverlay } from '../../../../contrib/onboarding/browser/spotlight/spotlightOverlay.js';
+import { ONBOARDING_TARGET_ATTR } from '../../../../contrib/onboarding/browser/spotlight/onboardingTarget.js';
 // eslint-disable-next-line local/code-import-patterns
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../../../../sessions/contrib/sessions/browser/automationsNewBadge.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -231,6 +238,7 @@ interface IRenderOptions {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly showFocusedToolbar?: boolean;
 	readonly focusSelectedSession?: boolean;
+	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
 }
 
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
@@ -385,9 +393,25 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);
+				override hideCustomView(): void { }
 			}());
 		},
 	});
+	if (options.archiveOnboarding) {
+		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding).archive;
+		const archiveAction = instantiationService.createInstance(MenuItemAction, {
+			id: ARCHIVE_SESSION_COMMAND_ID, title: presentation.title, icon: presentation.icon,
+		}, undefined, undefined, undefined, undefined);
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(id: MenuId): IMenu {
+				return {
+					onDidChange: Event.None,
+					getActions: () => id === SessionItemToolbarMenuId ? [['navigation', [archiveAction]]] : [],
+					dispose: () => { },
+				};
+			}
+		}());
+	}
 	if (showHeader) {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const newSessionAction = new MenuItemAction(
@@ -430,8 +454,11 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	const width = options.width ?? 340;
-	container.style.width = `${width}px`;
-	container.style.height = options.phone ? '260px' : '220px';
+	container.style.width = `${options.archiveOnboarding ? width + 420 : width}px`;
+	container.style.height = options.archiveOnboarding ? '420px' : options.phone ? '260px' : '220px';
+	if (options.archiveOnboarding) {
+		container.style.position = 'relative';
+	}
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	if (options.phone) {
 		container.classList.add('agent-sessions-workbench', 'phone-layout');
@@ -453,6 +480,35 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		approvalModel,
 	}));
 	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
+	if (options.archiveOnboarding) {
+		listHost.style.width = `${width}px`;
+		const reveal = disposableStore.add(list.revealArchiveAction(sessions[0]));
+		const target = container.querySelector<HTMLElement>(`[${ONBOARDING_TARGET_ATTR}="${CSS.escape(reveal.targetId)}"]`);
+		if (!target) {
+			throw new Error('Expected the production session archive action.');
+		}
+		const step = createSessionArchiveTour(reveal.targetId, options.archiveOnboarding, async () => { }).presentation.payload.steps[0];
+		const overlay = disposableStore.add(new SpotlightOverlay(container));
+		const finish = () => {
+			overlay.hide();
+			reveal.dispose();
+		};
+		disposableStore.add(overlay.onDidClickNext(finish));
+		disposableStore.add(overlay.onDidSkip(finish));
+		overlay.show(target, {
+			title: step.title,
+			description: step.description,
+			stepIndex: 0,
+			stepCount: 1,
+			canGoBack: false,
+			isLastStep: true,
+			nextButtonLabel: step.nextButtonLabel,
+		}, {
+			placement: step.placement,
+			advanceOnTargetClick: step.advanceOnTargetClick,
+			hideNext: step.hideNext,
+		});
+	}
 
 	if (options.showAutomations) {
 		await list.resetAutomationsNewBadge();
@@ -529,6 +585,15 @@ const GROUPED_SESSIONS: readonly ISessionSpec[] = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_ArchiveOnboarding: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, archiveOnboarding: ChatSessionArchiveActionWording.Archive }),
+	}),
+	SessionsList_MarkAsDoneOnboarding: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, archiveOnboarding: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
 	SessionsList_CustomGroup: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, groups: [GROUP] }),
 	}),

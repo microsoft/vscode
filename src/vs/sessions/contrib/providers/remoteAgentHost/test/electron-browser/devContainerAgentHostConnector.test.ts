@@ -63,7 +63,7 @@ suite('Dev Container Agent Host Connector', () => {
 		});
 	});
 
-	test('registers an experimental, disabled-by-default user setting', () => {
+	test('registers a disabled-by-default user setting', () => {
 		assert.deepStrictEqual({
 			default: devContainerAgentHostEnabledProperty.default,
 			scope: devContainerAgentHostEnabledProperty.scope,
@@ -72,7 +72,7 @@ suite('Dev Container Agent Host Connector', () => {
 		}, {
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'onExP'],
+			tags: ['onExP'],
 			experiment: { mode: 'auto' },
 		});
 	});
