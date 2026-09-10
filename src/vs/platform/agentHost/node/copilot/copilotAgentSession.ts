@@ -705,6 +705,9 @@ class CopilotTurn extends Disposable {
 	 */
 	readonly toolCounts = new Map<string, number>();
 	readonly mainModelCallIds = new Set<string>();
+	/** Root SDK correlations are valid only while their owning protocol turn is active. */
+	readonly sdkTurnIds = new Set<string>();
+	readonly interactionIds = new Set<string>();
 	toolCallRounds = 0;
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
@@ -783,6 +786,8 @@ class CopilotTurn extends Disposable {
 	 * Rejects {@link eventId} before disposal so pending fork-boundary checks do not hang.
 	 */
 	override dispose(): void {
+		this.sdkTurnIds.clear();
+		this.interactionIds.clear();
 		if (!this._eventId.isSettled) {
 			this._eventId.error(new Error(`Turn ${this.id} was disposed before its SDK event id was recorded`));
 		}
@@ -829,10 +834,6 @@ export class CopilotAgentSession extends Disposable {
 	 * the same id, so mappings live until session teardown.
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
-	/** Maps SDK root-agent turn ids to their owning host protocol turn ids. */
-	private readonly _hostTurnIdsBySdkTurnId = new Map<string, string>();
-	/** Maps runtime interactions to their owning host protocol turn ids. */
-	private readonly _hostTurnIdsByInteractionId = new Map<string, string>();
 	private _activeRootSdkTurnId: string | undefined;
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
@@ -1367,13 +1368,14 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring unroutable subagent model.call_finished: agentId=${event.agentId}, sdkTurnId=${event.data.turnId}`);
 			return;
 		}
+		const turn = this._currentTurn.value;
 		let turnId: string | undefined;
 		if (event.agentId) {
 			turnId = this._turnId;
 		} else if (event.data.interactionId) {
-			turnId = this._hostTurnIdsByInteractionId.get(event.data.interactionId);
+			turnId = turn?.interactionIds.has(event.data.interactionId) ? turn.id : undefined;
 		} else {
-			turnId = this._hostTurnIdsBySdkTurnId.get(event.data.turnId);
+			turnId = turn?.sdkTurnIds.has(event.data.turnId) ? turn.id : undefined;
 		}
 		if (!turnId) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring model.call_finished without a host turn mapping: sdkTurnId=${event.data.turnId}`);
@@ -1393,23 +1395,10 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Promotes a pending steering message into its own protocol turn:
-	 * closes the in-flight turn (so its responseParts settle into history)
-	 * and dispatches {@link ActionType.ChatTurnStarted} for a fresh
-	 * turn whose user message is the steering content. The action's
-	 * `queuedMessageId` atomically clears the corresponding pending
-	 * steering message from the session state.
-	 *
-	 * All subsequent SDK events (message deltas, tool calls, …) emitted
-	 * by the agent now reference the new `_turnId`, so the steering
-	 * response lands in the new turn rather than being folded into the
-	 * original.
-	 *
-	 * Returns the new turn id so callers (notably the `user.message`
-	 * handler) can associate the SDK event id with the steering turn for
-	 * history.truncate / sessions.fork mapping.
+	 * Closes the in-flight protocol turn and promotes a pending steering message into its own turn.
+	 * Carries the active SDK turn association forward so subsequent events can target the steering turn.
 	 */
-	private _beginSteeringTurn(steering: PendingMessage): string {
+	private _beginSteeringTurn(steering: PendingMessage): void {
 		this._completeActiveTurn();
 		const newTurnId = generateUuid();
 		this._emitAction({
@@ -1432,10 +1421,9 @@ export class CopilotAgentSession extends Disposable {
 			turn.messageCharLen = steering.message.text.length;
 			turn.markRunning();
 		}
-		if (this._activeRootSdkTurnId) {
-			this._hostTurnIdsBySdkTurnId.set(this._activeRootSdkTurnId, newTurnId);
+		if (this._activeRootSdkTurnId && turn) {
+			turn.sdkTurnIds.add(this._activeRootSdkTurnId);
 		}
-		return newTurnId;
 	}
 
 	/**
@@ -5025,9 +5013,9 @@ export class CopilotAgentSession extends Disposable {
 			this._currentTurn.value?.markRunning();
 			const steering = this._takeMatchingPendingSteering(e.data.content);
 			if (steering) {
-				const turnId = this._beginSteeringTurn(steering);
+				this._beginSteeringTurn(steering);
 				if (e.data.interactionId) {
-					this._hostTurnIdsByInteractionId.set(e.data.interactionId, turnId);
+					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
 				}
 			}
 			if (this._turnId) {
@@ -6725,10 +6713,10 @@ export class CopilotAgentSession extends Disposable {
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId) {
 				this._activeRootSdkTurnId = e.data.turnId;
-				if (this._currentTurn.value) {
-					this._hostTurnIdsBySdkTurnId.set(e.data.turnId, this._currentTurn.value.id);
+				if (turn) {
+					turn.sdkTurnIds.add(e.data.turnId);
 					if (e.data.interactionId) {
-						this._hostTurnIdsByInteractionId.set(e.data.interactionId, this._currentTurn.value.id);
+						turn.interactionIds.add(e.data.interactionId);
 					}
 				}
 				const telemetryMessageId = this._currentTurn.value?.id ?? e.data.turnId;
