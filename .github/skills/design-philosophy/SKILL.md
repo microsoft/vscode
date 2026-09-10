@@ -181,7 +181,7 @@ Moves are the **concrete mechanics** - the tokens, ramps, and tiers. On their ow
 
 This is the one section that touches implementation - and even here, the goal is to keep the *conversation* about design. Treat the Moves as the **shared vocabulary that lets an agreed design be built consistently**, not as the opening move in a review. Reach for them *after* you've named the feeling and the principle, never instead of it.
 
-The current size-token IDs, values, and descriptions live in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts), which is the size-registry source of truth. This skill explains how to choose among registered size roles; do not infer the current size registry from examples here. CSS authoring guidance is in [design-tokens.instructions.md](../../instructions/design-tokens.instructions.md).
+The size and font tokens live in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts); the full reference is in [design-tokens.instructions.md](../../instructions/design-tokens.instructions.md).
 
 <a id="design-tokens"></a>
 ### Tokens are the source of truth, not the pixel
@@ -210,8 +210,8 @@ Pills (radius ≈ half the height) are **fully round** (`--vscode-cornerRadius-c
 <a id="spacing-ramp"></a>
 ### The spacing ramp - on-scale or off-scale
 
-Padding, margin, and gap come from the spacing roles currently registered in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts).
-- **Decision rule:** a value either lands on the registered ramp or it does not. Use the design-token validator (`npm run stylelint -- <path>`) to identify the nearest registered step; the default `npm run stylelint` run only reports these suggestions under `src/vs/sessions`, so pass the file or folder explicitly for CSS elsewhere. Report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
+Padding, margin, and gap come from the **spacing ramp** (0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40).
+- **Decision rule:** a value either lands *on* the ramp or it doesn't. Off-scale values (3, 5, 7, 14, 26…) break the rhythm; snap to the nearest step, ties rounding up. Report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
 - **Serves:** *Room to breathe* (2), *Sameness signals sameness* (6).
 
 <a id="type-ramp"></a>
@@ -222,12 +222,10 @@ Text styles are **roles**, not arbitrary sizes: `heading1–3`, `body1–2`, `la
 - **Serves:** *One thing leads* (4), *Sameness signals sameness* (6).
 
 <a id="icon-sizes"></a>
-### Icon boxes - explicit geometry
+### Icon sizes - two sizes, chosen by context
 
-The current proposal adds only `iconSize.small`, a representation-neutral 16px box for shared-control geometry. Do not infer a broader size scale from this pilot.
-
-- **Decision rule:** use the registered box when equivalent icon sources must occupy the same layout area. Optical correction happens inside the box and must not move adjacent content.
-- **Codicon rule:** follow the Codicon compatibility section in [design-token guidance](../../instructions/design-tokens.instructions.md) for standard versus purpose-specific sizes. When selecting the compact role, use the corresponding `*Compact` glyph when one exists so the icon is tuned for that size rather than only scaled.
+Codicons are **16px (base)** or **12px (compact)** - nothing in between; `14px` is always a bug. At the compact size, also swap to the `*Compact` glyph (`Codicon.close` → `Codicon.closeCompact`) so the icon is *optically* tuned, not just scaled.
+- **Decision rule:** size tracks the **density and rank of the context**. Use **base (16px)** for standalone or primary actions and comfortable click targets; use **compact (12px)** for dense rows, inline glyphs, and secondary chrome where the icon rides alongside text. So the answer to "16 or 12?" is *"what is this icon's role here?"* - not a taste call. Say *"this icon should be compact,"* not *"shrink it a bit."*
 - **Serves:** *One thing leads* (4), *Sameness signals sameness* (6).
 
 <a id="one-stroke"></a>
@@ -281,8 +279,8 @@ Lead with the **role / tier / ramp**, not the number - then name the principle s
 | "make this 14px" | "this should use the **`label1` / `body1` type role**" | 4 · One thing leads |
 | "the title looks thin" | "the heading is **missing the `semiBold` weight**" | 4 · One thing leads |
 | "font-weight 500 here" | "**500 is off the ramp** - snap to `semiBold` (600)" | 6 · Sameness |
-| "shrink this icon a touch" | "this icon should use a **less prominent registered role**" | 4 · One thing leads |
-| "this icon uses an arbitrary size" | "choose the **registered icon role** that matches this context" | 6 · Sameness |
+| "shrink this icon a touch" | "this icon should be the **compact (12px) size + `*Compact` glyph**" | 4 · One thing leads |
+| "this icon is 14px" | "codicons are **16 or 12 only** - pick base or compact" | 6 · Sameness |
 | "add margin to the icon and label" | "the **lowest composition that understands both elements** owns their relationship; express it once there" | 6 · Sameness |
 | "this ordinary border is too thick" | "standard borders are **one stroke (1px)** - this should/shouldn't have one; preserve thicker focus/semantic strokes" | 1 · Quiet at rest |
 | "change this grey hex" | "this is the **wrong theme token** / it **vanishes in light/HC**" | 6 · Sameness |

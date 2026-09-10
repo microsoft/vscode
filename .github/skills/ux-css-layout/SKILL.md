@@ -268,13 +268,15 @@ For `IconLabel` and list/tree renderers, this is handled automatically. For cust
 
 ## 10. Design-System Size Tokens (spacing, radius, font, codicon, stroke)
 
-VS Code ships design-system size tokens from `src/vs/platform/theme/common/sizes/baseSizes.ts`, which is the source of truth for current IDs, values, and descriptions. Read current values there instead of copying them into this skill. The auto-injected `.github/instructions/design-tokens.instructions.md` contains CSS authoring guidance; this section captures layout-specific decision logic.
+VS Code ships a design-system **size** ramp, registered in `src/vs/platform/theme/common/sizes/baseSizes.ts` and emitted as `--vscode-*` CSS variables. When writing or editing CSS, prefer the token var over a raw px value wherever a token exists. The full tables + rationale live in the auto-injected `.github/instructions/design-tokens.instructions.md` (canonical source — keep this section in sync with it). This section captures the **decision logic** for deeper styling tasks.
 
 > Every `--vscode-*` size var you reference must already exist in `build/lib/stylelint/vscode-known-variables.json` (`"sizes"` array, alphabetically sorted) or stylelint/hygiene fails. Adding a *new* token means adding it both in `baseSizes.ts` and that JSON file.
 
 ### Spacing — `padding`, `margin`, `gap`
 
-Use the registered spacing family for padding, margin, and gap. What matters is selecting an intentional step rather than introducing an arbitrary relationship. Use the design-token validator (`npm run stylelint -- <path>`) for current on-ramp values and nearest-step guidance; the default `npm run stylelint` run only emits these suggestions under `src/vs/sessions`, so pass the path explicitly for CSS elsewhere in `src/vs`. Leave structural percentages and relative units, and deliberate `var()`/`calc()` expressions, to case-by-case review.
+Scale (px): `0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40` → `--vscode-spacing-sizeNone`, `--vscode-spacing-size20` … `--vscode-spacing-size400` (token number = px × 10, so `size200` = 20px).
+
+**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale**. What breaks rhythm is an **off-scale** value (3, 5, 7, 14, 26px…). Snap off-scale values to the nearest scale value, **ties round up** (`5px → 6px`, `3px → 4px`, `1px → 2px`, `26px → 28px`). Each length of a shorthand is checked independently (`0 5px → 0 6px`). Leave `auto`, `%`, `em`/`rem`, `var()`/`calc()` untouched.
 
 ### Corner radius — `border-radius`
 
@@ -317,15 +319,16 @@ The legacy Agents-specific `--vscode-agents-fontSize-*` and `--vscode-agents-fon
 - **"Strong" is not a separate size.** "Body 1 Strong" = the matching `--vscode-fontSize-*` size token + `semiBold`. Never add a strong *size*.
 - `normal` ≡ 400 → `regular`. Leave `inherit`, `lighter`, `bolder`, `var()`/`calc()` untouched.
 
-### Icon size
+### Codicon size — icon `font-size`
 
-The current proposal registers only `iconSize.small`, a representation-neutral 16px box for shared-control geometry. Image and SVG sources should contain-fit inside the selected area without distorting their aspect ratio. Optical transforms stay inside that area and do not affect surrounding layout. Do not infer a broader icon-size scale from this pilot.
+Codicons are **only ever 16px or 12px** — never `14px` or any in-between value.
 
-### Codicon compatibility — icon `font-size`
+| px | Variable | Use |
+|----|----------|-----|
+| 16 | `--vscode-codiconFontSize` (base) | default icon size |
+| 12 | `--vscode-codiconFontSize-compact` | dense/inline chrome |
 
-Follow the Codicon compatibility section in [design-token guidance](../../instructions/design-tokens.instructions.md) for standard versus purpose-specific sizes; do not infer the allowed roles from this skill.
-
-**Compact-glyph convention:** when selecting the compact Codicon role, also swap the registered glyph to its `*Compact` variant when one exists. CSS `font-size` alone only scales the icon; it does not select the optically tuned glyph. Only swap the glyph when no CSS selector targets the original glyph class, otherwise update that selector too or size through a glyph-independent wrapper.
+**Compact-glyph convention:** when sizing an icon at the compact 12px size, also swap the registered glyph to its `*Compact` variant (e.g. `Codicon.close` → `Codicon.closeCompact`, `Codicon.add` → `Codicon.addCompact`). CSS `font-size` alone only scales the icon — it does **not** change to the visually-optimized compact glyph; that requires changing the registered icon (Action2 `icon:` / `renderIcon`). **Only swap the glyph when no CSS selector targets the original glyph class** (e.g. `.codicon-close`); selectors keyed on the glyph class (`.codicon-add`, `.codicon-chevron-down`) break when the class becomes `-compact`, so update those selectors too (or size via a glyph-independent wrapper class like `.monaco-button`). Some icons (settings/sliders, agent, vm, info, lock, plus) have **no** compact variant — keep the regular glyph at 12px.
 
 ### Stroke — border width
 
