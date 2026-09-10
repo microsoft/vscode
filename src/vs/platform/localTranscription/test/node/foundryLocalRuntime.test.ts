@@ -78,11 +78,16 @@ flakySuite('FoundryLocalRuntime', () => {
 		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), false);
 	});
 
-	test('isRuntimeProvisioned: false when the preload addon is missing (partial cache)', () => {
-		writePayload(testDir, platformKey);
-		writeMarker(testDir, platformKey);
-		fs.rmSync(join(testDir, 'prebuilds', platformKey, 'foundry_local_preload.node'));
-		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), false);
+	test('requiredRuntimeFileNames: includes only shared libraries', () => {
+		assert.deepStrictEqual({
+			linux: requiredRuntimeFileNames('linux-x64'),
+			darwin: requiredRuntimeFileNames('darwin-arm64'),
+			win32: requiredRuntimeFileNames('win32-x64'),
+		}, {
+			linux: ['libfoundry_local.so', 'libonnxruntime.so.1', 'libonnxruntime-genai.so'],
+			darwin: ['libfoundry_local.dylib', 'libonnxruntime.1.dylib', 'libonnxruntime-genai.dylib'],
+			win32: ['foundry_local.dll', 'onnxruntime.dll', 'onnxruntime-genai.dll'],
+		});
 	});
 
 	test('isRuntimeProvisioned: a different arch marker does not satisfy this arch', () => {
@@ -233,7 +238,7 @@ flakySuite('FoundryLocalRuntime', () => {
 	});
 
 	test('provisionRuntime: rejects an incomplete payload and writes no marker', async () => {
-		const tgz = await makeTarball(platformKey, { omitRuntimeFile: 'foundry_local_preload.node' });
+		const tgz = await makeTarball(platformKey, { omitRuntimeFile: 'libfoundry_local.so' });
 		const server = await startServer({ [`${platformKey}.tgz`]: tgz });
 		try {
 			const overrideDir = join(testDir, '1.2.3');
