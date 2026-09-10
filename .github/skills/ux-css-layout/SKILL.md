@@ -274,9 +274,7 @@ VS Code ships a design-system **size** ramp, registered in `src/vs/platform/them
 
 ### Spacing — `padding`, `margin`, `gap`
 
-Scale (px): `0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40` → `--vscode-spacing-sizeNone`, `--vscode-spacing-size10` … `--vscode-spacing-size400` (token number = px × 10, so `size200` = 20px).
-
-**What matters is the value, not the token.** Adopting the `var()` is optional — a raw px value is fine **as long as it lands on the scale**. What breaks rhythm is an **off-scale** value (5, 7, 14, 26px…). Snap off-scale values to the nearest scale value, **ties round up** (`5px → 6px`, `7px → 8px`, `26px → 28px`). Each length of a shorthand is checked independently (`0 5px → 0 6px`). Leave `auto`, `%`, `em`/`rem`, `var()`/`calc()` untouched.
+Read the current spacing IDs and values from `baseSizes.ts`. Select an intentional registered step rather than an arbitrary relationship, and use the design-token validator for nearest-step guidance. Leave structural percentages and relative units, and deliberate `var()`/`calc()` expressions, to case-by-case review.
 
 ### Corner radius — `border-radius`
 

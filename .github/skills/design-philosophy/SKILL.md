@@ -210,8 +210,8 @@ Pills (radius ≈ half the height) are **fully round** (`--vscode-cornerRadius-c
 <a id="spacing-ramp"></a>
 ### The spacing ramp - on-scale or off-scale
 
-Padding, margin, and gap come from the **spacing ramp** (0, 1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40).
-- **Decision rule:** a value either lands *on* the ramp or it doesn't. Off-scale values (5, 7, 14, 26…) break the rhythm; snap to the nearest step, ties rounding up. Report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
+Padding, margin, and gap come from the spacing ramp registered in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts).
+- **Decision rule:** select an intentional registered step rather than an arbitrary value. Use the design-token validator for current nearest-step guidance, and report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
 - **Serves:** *Room to breathe* (2), *Sameness signals sameness* (6).
 
 <a id="type-ramp"></a>
