@@ -31,7 +31,7 @@ import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automa
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { basename, isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -1600,6 +1600,17 @@ function getAutomationBlueprintErrorMessage(error: unknown): string {
 	}
 }
 
+function normalizeAutomationBlueprintResource(resource: URI): URI {
+	let name = basename(resource);
+	while (name.toLowerCase().endsWith(AUTOMATION_BLUEPRINT_FILE_SUFFIX)) {
+		name = name.slice(0, -AUTOMATION_BLUEPRINT_FILE_SUFFIX.length);
+	}
+	if (name.toLowerCase().endsWith('.md')) {
+		name = name.slice(0, -'.md'.length);
+	}
+	return joinPath(dirname(resource), `${name || 'automation'}${AUTOMATION_BLUEPRINT_FILE_SUFFIX}`);
+}
+
 function getAutomationDropData(event: DragEvent): AutomationDropData {
 	const editors = extractEditorsDropData(event);
 	if (editors.length > 0) {
@@ -2120,15 +2131,16 @@ registerAction2(class ExportAutomationAction extends Action2 {
 		}
 
 		const defaultUri = joinPath(await fileDialogService.defaultFilePath(), createAutomationBlueprintFileName(automation.name));
-		const resource = await fileDialogService.showSaveDialog({
+		const selectedResource = await fileDialogService.showSaveDialog({
 			title: localize('exportAutomationDialogTitle', "Export Automation"),
 			saveLabel: localize('exportAutomationDialogSave', "Export"),
 			defaultUri,
-			filters: [{ name: localize('automationBlueprintFileFilter', "Automation Blueprint"), extensions: ['automation.md'] }],
+			filters: [{ name: localize('automationBlueprintFileFilter', "Automation Blueprint"), extensions: ['md'] }],
 		});
-		if (!resource) {
+		if (!selectedResource) {
 			return;
 		}
+		const resource = normalizeAutomationBlueprintResource(selectedResource);
 
 		try {
 			const content = serializeAutomationBlueprint(automationToBlueprint(automation));

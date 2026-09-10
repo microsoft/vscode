@@ -464,6 +464,12 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
+.automations-template-section > .automations-templates-description,
+.automations-template-section > .automations-templates-grid {
+	width: calc(100% - var(--vscode-codiconFontSize) - var(--vscode-spacing-size60));
+	margin-left: calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
+}
+
 .automations-templates-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));

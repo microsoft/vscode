@@ -1164,6 +1164,41 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('exports to exactly one Automation blueprint suffix', async () => {
+		const writes: { resource: URI; content: string }[] = [];
+		const fileService = new class extends mock<IFileService>() {
+			override async writeFile(resource: URI, buffer: VSBuffer): Promise<IFileStatWithMetadata> {
+				writes.push({ resource, content: buffer.toString() });
+				return upcastPartial<IFileStatWithMetadata>({ resource });
+			}
+		}();
+		const { instantiationService } = setup('archive', NullHoverService, fileService);
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+			override async defaultFilePath(): Promise<URI> {
+				return URI.file('/exports');
+			}
+
+			override async showSaveDialog(): Promise<URI> {
+				return URI.file('/exports/review.automation.md.automation.md');
+			}
+		}());
+		const command = CommandsRegistry.getCommand('sessions.automations.export');
+		assert.ok(command);
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, automation()));
+
+		assert.deepStrictEqual(writes.map(write => ({
+			path: write.resource.path,
+			hasCron: write.content.includes('expression: "0 * * * *"'),
+			hasLocalTimeZone: write.content.includes('timeZone: local'),
+			hasTarget: write.content.includes('/workspace'),
+		})), [{
+			path: '/exports/review.automation.md',
+			hasCron: true,
+			hasLocalTimeZone: true,
+			hasTarget: false,
+		}]);
+	});
+
 	test('imports a dropped Automation blueprint through the same review flow', async () => {
 		const resource = URI.file('/shared/weekly-review.automation.md');
 		const fileService = new class extends mock<IFileService>() {
