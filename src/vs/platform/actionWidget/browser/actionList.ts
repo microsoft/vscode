@@ -1274,7 +1274,12 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			this._allMenuItems = [...items];
 			this._applyFilter(true);
-		}).catch(() => { /* best-effort */ });
+		}).catch(() => { /* best-effort */ }).finally(() => {
+			// Retain cancelled requests so an interrupted IME search can restart with unchanged text.
+			if (this._filterCts.value === cts && !cts.token.isCancellationRequested) {
+				this._filterCts.clear();
+			}
+		});
 	}
 
 	private _applyFilter(skipTextFilter = false, fireLayout = true, focusItemId?: string): void {
