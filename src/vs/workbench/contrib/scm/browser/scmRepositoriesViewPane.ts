@@ -483,9 +483,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const viewState = this.loadTreeViewState();
 		this.createTree(treeContainer, viewState);
 
-		// View state that is applied when the view becomes visible. Initially this is the
-		// persisted view state, afterwards it is the view state captured when the view was
-		// hidden, so that the expand/collapse state is preserved across view switches.
+		// Refresh this state when hidden so subsequent inputs preserve the current tree state.
 		let treeViewState = viewState;
 
 		this.onDidChangeBodyVisibility(async visible => {
