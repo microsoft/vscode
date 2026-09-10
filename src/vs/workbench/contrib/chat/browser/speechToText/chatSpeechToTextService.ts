@@ -9,6 +9,7 @@ import { VSBuffer, encodeBase64 } from '../../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { computeLevenshteinDistance } from '../../../../../base/common/diff/diff.js';
 import { joinPath } from '../../../../../base/common/resources.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
@@ -155,6 +156,10 @@ type DictationBackend = 'nemo' | 'mai';
 
 export function isDictationEntitled(entitlement: ChatEntitlement, isInternal: boolean, usesMai: boolean): boolean {
 	return !usesMai || entitlement !== ChatEntitlement.Enterprise || isInternal;
+}
+
+export function resolveDictationBackend(configuredModel: string | undefined, web: boolean): DictationBackend {
+	return web || configuredModel === DICTATION_MAI_MODEL_ID ? 'mai' : 'nemo';
 }
 
 /** How long to wait after `ptt_end` for the backend's final transcript before returning what we have. */
@@ -615,7 +620,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	/** Read the configured dictation backend, derived from the selected model. */
 	private _getBackend(): DictationBackend {
-		return this._configurationService.getValue<string>(DICTATION_MODEL_SETTING) === DICTATION_MAI_MODEL_ID ? 'mai' : 'nemo';
+		return resolveDictationBackend(this._configurationService.getValue<string>(DICTATION_MODEL_SETTING), isWeb);
 	}
 
 	private _isEntitledForBackend(backend: DictationBackend): boolean {

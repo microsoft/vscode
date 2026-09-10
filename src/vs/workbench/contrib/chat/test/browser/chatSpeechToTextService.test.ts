@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupSystemPrompt, isDictationEntitled, selectAuthoritativeDictationTranscript, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupSystemPrompt, isDictationEntitled, resolveDictationBackend, selectAuthoritativeDictationTranscript, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
@@ -383,6 +383,20 @@ suite('ChatSpeechToTextService', () => {
 
 		assert.doesNotThrow(() => service._pushAudio(new Float32Array([0.5]), mainWindow));
 		assert.deepStrictEqual(failures, [error]);
+	});
+
+	test('uses MAI on web and preserves the configured backend on desktop', () => {
+		assert.deepStrictEqual({
+			webWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', true),
+			webWithMai: resolveDictationBackend('mai', true),
+			desktopWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', false),
+			desktopWithMai: resolveDictationBackend('mai', false),
+		}, {
+			webWithLocalModel: 'mai',
+			webWithMai: 'mai',
+			desktopWithLocalModel: 'nemo',
+			desktopWithMai: 'mai',
+		});
 	});
 
 	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {

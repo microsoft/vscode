@@ -8,7 +8,7 @@ import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.j
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -134,7 +134,7 @@ import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSumma
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
-import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, DICTATION_MAI_MODEL_ID, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
 import './telemetry/chatEditorTopologyTelemetry.js';
 import './telemetry/chatModelCountTelemetry.js';
@@ -318,7 +318,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'dictation.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('dictation.enabled', "Enables dictation across the product (chat input, editor, and terminal). When enabled on a supported platform, a microphone button appears in the chat input and the dictation shortcut becomes available; the on-device transcription model is downloaded on first use and runs locally."),
+			markdownDescription: nls.localize('dictation.enabled', "Enables dictation across the product (chat input, editor, and terminal). When enabled, a microphone button appears in the chat input and the dictation shortcut becomes available. Desktop uses the selected transcription model; web uses cloud transcription."),
 			default: true,
 			tags: ['experimental'],
 			policy: {
@@ -337,7 +337,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: [
 				DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
-				'mai',
+				DICTATION_MAI_MODEL_ID,
 			],
 			enumItemLabels: [
 				nls.localize('dictation.model.nemotronMultilingual.label', "Nemotron 3.5 ASR (Multilingual) — On-Device"),
@@ -347,8 +347,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('dictation.model.nemotronMultilingual', "NVIDIA Nemotron 3.5 multilingual streaming RNN-T, run on-device through Microsoft Foundry Local. Works offline; no audio leaves the device. Automatic language selection follows the Voice Mode language setting; when that setting is Automatic, dictation uses the configured display language when supported, then the system or browser locale, with model detection as a fallback. Downloaded on first use and cached on disk."),
 				nls.localize('dictation.model.mai', "Cloud transcription through the same Microsoft AI voice service used by Voice Mode. Requires a network connection and GitHub sign-in; audio is streamed to the service."),
 			],
-			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
-			default: DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
+			markdownDescription: nls.localize('dictation.model', "The model used for dictation on desktop. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service. Web always uses cloud transcription."),
+			default: isWeb ? DICTATION_MAI_MODEL_ID : DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			policy: {
