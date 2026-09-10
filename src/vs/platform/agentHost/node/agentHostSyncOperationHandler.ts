@@ -12,7 +12,7 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../comm
 import { readSessionGitState, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID, IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService } from '../common/agentHostGitService.js';
 
 export class AgentHostSyncOperationHandler implements IChangesetOperationHandler {
 
@@ -51,13 +51,33 @@ export class AgentHostSyncOperationHandler implements IChangesetOperationHandler
 		}
 		this._throwIfCancelled(token);
 
+		const branch = await this._gitService.getBranch(workingDirectory, branchName);
+		if (branch?.kind !== GitRefType.Head) {
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not resolve the branch details for ${workingDirectory}, ${branchName}`);
+		}
+		if (!branch.upstream?.remote) {
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not resolve the remote for the branch for ${workingDirectory}, ${branchName}`);
+		}
+		
+		const upstreamRefPrefix = `refs/remotes/${branch.upstream.remote}/`;
+		if (!branch.upstream.ref.startsWith(upstreamRefPrefix)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not resolve the upstream branch for ${workingDirectory}, ${branchName}`);
+		}
+		const upstreamBranchName = branch.upstream.ref.substring(upstreamRefPrefix.length);
+
 		this._logService.info(`[AgentHostSyncOperationHandler] Syncing branch ${branchName} for session ${sessionUri}`);
 		try {
 			// Pull
-			await this._gitService.pull(workingDirectory);
+			await this._gitService.pull(workingDirectory, {
+				remote: branch.upstream.remote,
+				ref: upstreamBranchName
+			});
 
 			// Push
-			await this._gitService.push(workingDirectory);
+			await this._gitService.push(workingDirectory, {
+				remote: branch.upstream.remote,
+				ref: `${branch.ref}:refs/heads/${upstreamBranchName}`
+			});
 		} catch (err) {
 			this._throwIfCancelled(token);
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to sync changes: ${err instanceof Error ? err.message : String(err)}`);
