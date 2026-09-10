@@ -50,6 +50,39 @@ suite('MultiDiffEditorLayoutDebug', () => {
 		]);
 	});
 
+	test('treats undefined object properties as absent JSON properties', () => {
+		const previous = {
+			added: undefined,
+			removed: { value: 1 },
+			nested: {
+				added: undefined,
+				removed: { value: 2 },
+			},
+		};
+		const next = {
+			added: { value: 3 },
+			removed: undefined,
+			nested: {
+				added: { value: 4 },
+				removed: undefined,
+			},
+		};
+
+		const operations = createJsonPatch(previous, next);
+		assert.deepStrictEqual({
+			operations,
+			result: JSON.parse(applyJsonPatchToText(JSON.stringify(previous), operations)),
+		}, {
+			operations: [
+				{ op: 'remove', path: '/removed' },
+				{ op: 'add', path: '/added', value: { value: 3 } },
+				{ op: 'remove', path: '/nested/removed' },
+				{ op: 'add', path: '/nested/added', value: { value: 4 } },
+			],
+			result: JSON.parse(JSON.stringify(next)),
+		});
+	});
+
 	test('composes nested patches', () => {
 		const initial = { value: 1, nested: { enabled: false } };
 		const updatedValue = { value: 2, nested: { enabled: false } };

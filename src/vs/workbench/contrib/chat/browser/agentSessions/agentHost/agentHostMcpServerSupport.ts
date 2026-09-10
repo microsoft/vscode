@@ -116,6 +116,8 @@ export interface IAgentHostMcpServerSupport {
 	readonly delivery: AgentHostMcpServerDelivery;
 	/** Whether that delivery preserves the configuration's behavior. */
 	readonly compatibility: AgentHostMcpServerCompatibility;
+	/** The exact configuration projected through the current Agent Host delivery path. */
+	readonly projectedConfiguration?: IMcpServerConfiguration;
 }
 
 export interface IAgentHostMcpServerSupportAssessment {
@@ -166,7 +168,7 @@ export async function assessMcpServersForCopilotAgentHost(
 
 	const resolved = await resolveMcpServersForAgentHostDelivery(servers, configurationResolverService, sessionType, workingDirectories);
 	return {
-		servers: resolved.map(({ server, source, applicability, delivery, compatibility }) => ({
+		servers: resolved.map(({ server, source, applicability, delivery, compatibility, projectedConfiguration }) => ({
 			id: server.definition.id,
 			name: server.definition.label,
 			collectionId: server.collection.id,
@@ -175,6 +177,7 @@ export async function assessMcpServersForCopilotAgentHost(
 			applicability,
 			delivery,
 			compatibility,
+			projectedConfiguration,
 		})),
 		discoveryComplete: lazyCollectionState === LazyCollectionState.AllKnown,
 	};
@@ -626,6 +629,7 @@ function projectMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConfi
 		case McpServerTransportType.HTTP:
 			return {
 				type: McpServerType.REMOTE,
+				transport: launch.transport === 'sse' ? 'sse' : 'http',
 				url: launch.uri.toString(),
 				headers: launch.headers.length > 0 ? Object.fromEntries(launch.headers) : undefined,
 			};

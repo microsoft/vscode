@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -15,10 +16,12 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
+import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
+import { IChatListItemRendererOptions } from '../../../browser/chat.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
+import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
@@ -75,6 +78,65 @@ suite('ChatWidget', () => {
 			result: () => ({ confirmationCount, finishedCount, focusCount }),
 		};
 	}
+
+	test('forwards sticky scroll DOM state from the list widget', () => {
+		const stickyScrollDomNode = mainWindow.document.createElement('div');
+		const onDidChangeStickyScrollDomNode = store.add(new Emitter<HTMLElement | undefined>()).event;
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			listWidget: { stickyScrollDomNode, onDidChangeStickyScrollDomNode },
+		}) as ChatWidget;
+
+		assert.deepStrictEqual({
+			domNode: widget.stickyScrollDomNode,
+			event: widget.onDidChangeStickyScrollDomNode,
+		}, {
+			domNode: stickyScrollDomNode,
+			event: onDidChangeStickyScrollDomNode,
+		});
+	});
+
+	test('does not send a picker fallback over an existing agent host conversation model', () => {
+		const savedModelId = 'agent-host-codex:@provider=openai:future-model';
+		const fallbackModelId = 'agent-host-codex:@provider=vscode-proxy:default-model';
+		const configuration = { thinkingLevel: 'medium' };
+		const scenarios = [
+			{ provider: 'codex', hasRequests: true, intendedModelId: savedModelId },
+			{ provider: 'codex', hasRequests: true, intendedModelId: fallbackModelId },
+			{ provider: 'codex', hasRequests: false, intendedModelId: savedModelId },
+			{ provider: undefined, hasRequests: true, intendedModelId: savedModelId },
+			{ provider: 'codex', hasRequests: true, intendedModelId: undefined },
+		];
+		const selections = scenarios.map(scenario => {
+			const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+			Object.defineProperties(widget, {
+				_lockedAgent: { value: { agentHostProviderId: scenario.provider } },
+				viewModel: {
+					value: {
+						model: {
+							inputModel: { intendedModel: scenario.intendedModelId ? { modelId: scenario.intendedModelId } : undefined },
+							getRequests: () => scenario.hasRequests ? [{}] : [],
+						},
+					},
+				},
+				input: {
+					value: {
+						currentLanguageModel: fallbackModelId,
+						getModelConfiguration: () => configuration,
+					},
+				},
+			});
+			return widget.getSelectedModelRequestOptions();
+		});
+
+		const selectedFallback = { userSelectedModelId: fallbackModelId, userSelectedModelConfiguration: configuration };
+		assert.deepStrictEqual(selections, [
+			{ userSelectedModelId: undefined, userSelectedModelConfiguration: undefined },
+			selectedFallback,
+			selectedFallback,
+			selectedFallback,
+			selectedFallback,
+		]);
+	});
 
 	test('saves non-untitled editors before sending by default', async () => {
 		const configurationService = new TestConfigurationService();
@@ -145,6 +207,123 @@ suite('ChatWidget', () => {
 			shouldShowChatTip(0, false, false),
 			shouldShowChatTip(0, false, true),
 		], [true, false]);
+	});
+
+	test('tracks unvisited completions and needs-input precedence', () => {
+		const active = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: false,
+			containsFocus: true,
+			requestWasActive: false,
+			requestBecameActive: true,
+			hasUnvisitedCompletion: false,
+		});
+		const completedWhileWindowBlurred = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: false,
+			requestWasActive: active.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: active.hasUnvisitedCompletion,
+		});
+		const windowRefocusedElsewhere = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: false,
+			requestWasActive: completedWhileWindowBlurred.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: completedWhileWindowBlurred.hasUnvisitedCompletion,
+		});
+		const chatRefocused = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: true,
+			requestWasActive: windowRefocusedElsewhere.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: windowRefocusedElsewhere.hasUnvisitedCompletion,
+		});
+		const needsInput = computeChatSessionStateIndicatorState({
+			requestNeedsInput: true,
+			isIdle: false,
+			containsFocus: true,
+			requestWasActive: chatRefocused.requestActive,
+			requestBecameActive: false,
+			hasUnvisitedCompletion: chatRefocused.hasUnvisitedCompletion,
+		});
+		const fastUnfocusedCompletion = computeChatSessionStateIndicatorState({
+			requestNeedsInput: false,
+			isIdle: true,
+			containsFocus: false,
+			requestWasActive: false,
+			requestBecameActive: true,
+			hasUnvisitedCompletion: false,
+		});
+
+		assert.deepStrictEqual({ active, completedWhileWindowBlurred, windowRefocusedElsewhere, chatRefocused, needsInput, fastUnfocusedCompletion }, {
+			active: { state: 'inProgress', requestActive: true, hasUnvisitedCompletion: false },
+			completedWhileWindowBlurred: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+			windowRefocusedElsewhere: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+			chatRefocused: { state: 'idle', requestActive: false, hasUnvisitedCompletion: false },
+			needsInput: { state: 'needsInput', requestActive: true, hasUnvisitedCompletion: false },
+			fastUnfocusedCompletion: { state: 'idle', requestActive: false, hasUnvisitedCompletion: true },
+		});
+	});
+
+	test('keeps queued work active unless an error or cancellation strands it', () => {
+		const base = {
+			requestInProgress: false,
+			requestNeedsInput: false,
+			pendingRequestCount: 1,
+			lastResponseIsCanceled: false,
+			lastResponseHasError: false,
+		};
+
+		assert.deepStrictEqual({
+			queued: computeChatModelIsIdle(base),
+			canceled: computeChatModelIsIdle({ ...base, lastResponseIsCanceled: true }),
+			failed: computeChatModelIsIdle({ ...base, lastResponseHasError: true }),
+			drained: computeChatModelIsIdle({ ...base, pendingRequestCount: 0 }),
+		}, {
+			queued: false,
+			canceled: true,
+			failed: true,
+			drained: true,
+		});
+	});
+
+	test('coalesces a queued request handoff without an idle completion state', async () => {
+		const onDidChange = store.add(new Emitter<'pendingChanged' | 'addRequest'>());
+		const states: ReturnType<typeof computeChatSessionStateIndicatorState>[] = [];
+		let pendingRequestCount = 1;
+		let requestInProgress = false;
+		store.add(Event.accumulate(onDidChange.event)(events => {
+			states.push(computeChatSessionStateIndicatorState({
+				requestNeedsInput: false,
+				isIdle: computeChatModelIsIdle({
+					requestInProgress,
+					requestNeedsInput: false,
+					pendingRequestCount,
+					lastResponseIsCanceled: false,
+					lastResponseHasError: false,
+				}),
+				containsFocus: false,
+				requestWasActive: true,
+				requestBecameActive: events.includes('addRequest'),
+				hasUnvisitedCompletion: false,
+			}));
+		}));
+
+		pendingRequestCount = 0;
+		onDidChange.fire('pendingChanged');
+		requestInProgress = true;
+		onDidChange.fire('addRequest');
+		await timeout(10);
+
+		assert.deepStrictEqual(states, [{
+			state: 'inProgress',
+			requestActive: true,
+			hasUnvisitedCompletion: false,
+		}]);
 	});
 
 	test('sticky request click survives synchronous template disposal during reveal', () => {
@@ -279,6 +458,51 @@ suite('ChatWidget', () => {
 			['setInputPartMaxHeightOverride', 600],
 			['layoutForInputHeight', 420, 720],
 		]);
+	});
+
+	test('passes read-only transitions to the renderer independently of request editing', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let rerenders = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_visible: observableValue('visible', true),
+			_readOnlyContextKey: { set: () => { } },
+			chatSuggestNextWidget: { hide: () => { } },
+			hasInputFocus: () => false,
+			setInputVisible: () => { },
+			renderChatSuggestNextWidget: () => { },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				rerender: () => rerenders++,
+			},
+		});
+
+		widget.setReadOnly(true);
+		widget.setReadOnly(false);
+
+		assert.deepStrictEqual({ rendererOptions, rerenders }, {
+			rendererOptions: [{ editable: false, readOnly: true }, { editable: true, readOnly: false }],
+			rerenders: 2,
+		});
+	});
+
+	test('re-lays out embedded editors when chat item padding changes', () => {
+		const rendererOptions: IChatListItemRendererOptions[] = [];
+		let layouts = 0;
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			bodyDimension: { width: 800, height: 600 },
+			listWidget: {
+				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+			},
+			_layoutListForInputHeight: () => layouts++,
+		});
+
+		widget.setContentHorizontalPadding(88);
+
+		assert.deepStrictEqual({ rendererOptions, layouts }, {
+			rendererOptions: [{ contentHorizontalPadding: 88 }],
+			layouts: 1,
+		});
 	});
 
 	test('captures and restores transcript scroll state', () => {

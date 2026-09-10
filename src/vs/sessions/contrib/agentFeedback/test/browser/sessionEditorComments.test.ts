@@ -22,6 +22,7 @@ suite('SessionEditorComments', () => {
 	test('merges and sorts feedback and PR review comments by resource and range', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'review-a', pullRequest, uri: fileA, range: new Range(3, 1, 3, 1), body: 'review a', author: 'reviewer' },
 				{ id: 'review-b', pullRequest, uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', author: 'reviewer' },
@@ -43,6 +44,7 @@ suite('SessionEditorComments', () => {
 	test('groups nearby comments only within the same resource', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'review-a', pullRequest, uri: fileA, range: new Range(13, 1, 13, 1), body: 'review a', author: 'reviewer' },
 				{ id: 'review-b', pullRequest, uri: fileB, range: new Range(11, 1, 11, 1), body: 'review b', author: 'reviewer' },
@@ -66,6 +68,7 @@ suite('SessionEditorComments', () => {
 	test('filters resource comments and detects authored feedback presence', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'review-b', pullRequest, uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', author: 'reviewer' },
 			],
@@ -82,6 +85,7 @@ suite('SessionEditorComments', () => {
 	test('includes PR review comments when prReviewState is loaded', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
 				{ id: 'pr-thread-2', pullRequest, uri: fileB, range: new Range(1, 1, 1, 1), body: 'Looks wrong', author: 'reviewer' },
@@ -102,6 +106,7 @@ suite('SessionEditorComments', () => {
 	test('merges PR review comments with feedback sorted correctly', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(7, 1, 7, 1), body: 'PR comment', author: 'reviewer' },
 			],
@@ -144,6 +149,7 @@ suite('SessionEditorComments', () => {
 	test('hides a created PR-review mirror and shows the raw PR comment instead', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
 			],
@@ -158,6 +164,7 @@ suite('SessionEditorComments', () => {
 	test('shows an accepted PR-review mirror and hides the superseded raw PR comment', () => {
 		const prState: IPRReviewState = {
 			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
 			comments: [
 				{ id: 'pr-thread-1', pullRequest, uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
 			],

@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.64.0",
+  "version": "0.66.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.136.0",
+    "vscode": "^1.138.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -92,6 +92,7 @@
     "agentsWindowConfiguration",
     "chatDebug",
     "chatHooks",
+    "envIsConnectionMetered",
     "extensionsAny",
     "newSymbolNamesProvider",
     "interactive",
@@ -2708,6 +2709,12 @@
         "category": "Developer"
       },
       {
+        "command": "github.copilot.debug.logTypeScriptContainers",
+        "title": "%github.copilot.command.logTypeScriptContainers%",
+        "enablement": "editorLangId == typescript || editorLangId == javascript",
+        "category": "Developer"
+      },
+      {
         "command": "github.copilot.debug.validateNesRename",
         "title": "%github.copilot.command.validateNesRename%",
         "category": "Developer"
@@ -4138,6 +4145,22 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.claudeOpusDefaultReasoningEffort": {
+            "type": "string",
+            "default": "",
+            "enum": [
+              "",
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "markdownDescription": "%github.copilot.config.claudeOpusDefaultReasoningEffort%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.gpt55ReadFileTool.enabled": {
             "type": "boolean",
             "default": true,
@@ -4383,17 +4406,6 @@
               "advanced"
             ]
           },
-          "github.copilot.chat.autoModeTierOverride": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null,
-            "markdownDescription": "Overrides the routing tier that the `Auto` model requests, ignoring both the tier picked in the model picker and the tier inline chat defaults to. Accepts `eco`, `balanced`, `max`, or `fast`. Used by evals.\n\n**Note**: This is an advanced debugging setting.",
-            "tags": [
-              "advanced"
-            ]
-          },
           "github.copilot.chat.anthropic.promptCaching.extendedTtl": {
             "type": "boolean",
             "default": false,
@@ -4544,15 +4556,6 @@
               "advanced",
               "experimental",
               "onExp"
-            ]
-          },
-          "github.copilot.chat.workspace.prototypeAdoCodeSearchEndpointOverride": {
-            "type": "string",
-            "default": "",
-            "markdownDescription": "%github.copilot.config.workspace.prototypeAdoCodeSearchEndpointOverride%",
-            "tags": [
-              "advanced",
-              "experimental"
             ]
           },
           "github.copilot.chat.feedback.onChange": {
@@ -4951,16 +4954,6 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.inlineEdits.nextCursorPrediction.displayLine": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.inlineEdits.nextCursorPrediction.displayLine%",
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.inlineEdits.nextCursorPrediction.currentFileMaxTokens": {
             "type": "number",
             "default": 3000,
@@ -5074,15 +5067,6 @@
             "markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
             "tags": [
               "advanced"
-            ]
-          },
-          "github.copilot.chat.autoMode.tiers.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.chat.autoMode.tiers.enabled%",
-            "tags": [
-              "advanced",
-              "onExp"
             ]
           },
           "github.copilot.chat.agent.modelDetails.enabled": {
@@ -5246,14 +5230,14 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.agentDebugLog.enabled": {
+          "github.copilot.chat.searchSubagent.subagentSemanticSearchEnabled": {
             "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.chat.agentDebugLog.enabled%",
-            "deprecationMessage": "%github.copilot.config.chat.agentDebugLog.enabled.deprecated%",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.searchSubagent.subagentSemanticSearchEnabled%",
             "tags": [
               "advanced",
-              "experimental"
+              "experimental",
+              "onExp"
             ]
           },
           "github.copilot.chat.agentDebugLog.fileLogging.enabled": {
@@ -7104,7 +7088,7 @@
     "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
     "undici": "^7.24.1",
-    "vscode-tas-client": "^0.3.1",
+    "vscode-tas-client": "^0.3.3",
     "web-tree-sitter": "^0.23.0"
   },
   "overrides": {

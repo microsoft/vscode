@@ -135,18 +135,21 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Retrieves the SDK event ID previously stored for a turn.
 	 * Returns `undefined` if no event ID has been set.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getTurnEventId(turnId: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the SDK event ID of the turn inserted immediately after the
 	 * given turn, or `undefined` if the given turn is the last one.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getNextTurnEventId(turnId: string): Promise<string | undefined>;
 
 	/**
 	 * Returns the SDK event ID of the earliest turn in insertion order,
 	 * or `undefined` if there are no turns.
+	 * Observes event ID writes submitted before this read.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined>;
 
@@ -179,6 +182,27 @@ export interface ISessionDatabase extends IDisposable {
 	 * and its provider event id when one has been recorded.
 	 */
 	getTurnDelegations(): Promise<Map<string, string>>;
+
+	/**
+	 * Persists the JSON-serialized successful workspace transition for a turn.
+	 * Idempotent — last writer wins per turn.
+	 */
+	setTurnWorkspaceTransition(turnId: string, transition: string): Promise<void>;
+
+	/**
+	 * Atomically persists converted session metadata and the workspace
+	 * transition associated with its deferred continuation turn.
+	 */
+	setWorkspaceConversion(turnId: string, transition: string, metadata: Readonly<Record<string, string>>): Promise<void>;
+
+	/** Deletes a persisted workspace transition without deleting its owning turn. */
+	deleteTurnWorkspaceTransition(turnId: string): Promise<void>;
+
+	/**
+	 * Returns every persisted workspace transition, keyed by both the turn's
+	 * own id and its provider event id when one has been recorded.
+	 */
+	getTurnWorkspaceTransitions(): Promise<Map<string, string>>;
 
 	/**
 	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
@@ -303,6 +327,11 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
 
 	/**
+	 * Atomically delete metadata keys.
+	 */
+	deleteMetadata(keys: readonly string[]): Promise<void>;
+
+	/**
 	 * Atomically stores metadata values only when `key` is absent. Values named
 	 * by `copies` are read from their source keys and copied when present.
 	 */
@@ -401,6 +430,7 @@ export interface ISessionDataService {
 	 * Equivalent to {@link getSessionDataDir} but without requiring a full URI.
 	 */
 	getSessionDataDirById(sessionId: string): URI;
+	listSessionDataIds?(prefix: string): Promise<readonly string[]>;
 
 	/**
 	 * Opens (or creates) a per-session SQLite database. The database file is
@@ -418,6 +448,7 @@ export interface ISessionDataService {
 	 * already exists on disk**. Returns `undefined` when no database has
 	 * been created yet, avoiding the side effect of materializing empty
 	 * database files during read-only operations like listing sessions.
+	 * Errors other than file-not-found are propagated.
 	 */
 	tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined>;
 

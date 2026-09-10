@@ -20,7 +20,7 @@ import { ITerminalInstance, ITerminalService } from '../../../../../workbench/co
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ChatInteractivity, IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -59,6 +59,7 @@ type TestActiveSession = IActiveSession & {
 	loading: ReturnType<typeof observableValue<boolean>>;
 	isArchived: ReturnType<typeof observableValue<boolean>>;
 	worktreePending: ReturnType<typeof observableValue<boolean>>;
+	remoteConnectionStatus?: ReturnType<typeof observableValue<SessionRemoteConnectionStatus>>;
 };
 
 function makeAgentSession(opts: {
@@ -70,6 +71,7 @@ function makeAgentSession(opts: {
 	worktreePending?: boolean;
 	sessionId?: string;
 	providerId?: string;
+	remoteConnectionStatus?: SessionRemoteConnectionStatus;
 }): TestActiveSession {
 	const folder = opts.repository || opts.worktree ? {
 		root: opts.repository ?? opts.worktree!,
@@ -121,6 +123,7 @@ function makeAgentSession(opts: {
 		mode: chat.mode,
 		loading: observableValue('test.loading', opts.loading ?? false),
 		worktreePending: observableValue('test.worktreePending', opts.worktreePending ?? false),
+		...(opts.remoteConnectionStatus ? { remoteConnectionStatus: observableValue('test.remoteConnectionStatus', opts.remoteConnectionStatus) } : {}),
 		isArchived: chat.isArchived,
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
@@ -570,6 +573,83 @@ suite('SessionsTerminalContribution', () => {
 		session.worktreePending.set(false, undefined);
 		await tick();
 		assert.deepStrictEqual(createdTerminals.map(terminal => terminal.cwd.fsPath), [worktreeUri.fsPath]);
+	});
+
+	test('defers remote terminal creation until the host connects', async () => {
+		const worktreeUri = URI.file('/remote/worktree');
+		sessionProviders.set('agenthost-test', { id: 'agenthost-test', remoteAddress: 'remote-test' } as unknown as ISessionsProvider);
+		const session = makeAgentSession({
+			providerId: 'agenthost-test',
+			providerType: AgentSessionProviders.Background,
+			worktree: toAgentHostUri(worktreeUri, 'remote-test'),
+			remoteConnectionStatus: { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning },
+		});
+
+		activeSessionObs.set(session, undefined);
+		await tick();
+		session.remoteConnectionStatus!.set({ kind: 'incompatible' }, undefined);
+		await tick();
+		session.remoteConnectionStatus!.set({ kind: 'connecting' }, undefined);
+		await tick();
+		const ensured = await contribution.ensureTerminal(worktreeUri, false, session);
+
+		assert.deepStrictEqual({
+			created: createdTerminals,
+			defaultCwd: defaultCwdCalls.at(-1),
+			ensured,
+		}, {
+			created: [],
+			defaultCwd: undefined,
+			ensured: [],
+		});
+
+		session.remoteConnectionStatus!.set({ kind: 'connected' }, undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			created: createdTerminals.map(terminal => terminal.cwd.path),
+			addresses: agentHostTerminalAddresses,
+			defaultCwd: defaultCwdCalls.at(-1)?.path,
+		}, {
+			created: [worktreeUri.path],
+			addresses: ['remote-test'],
+			defaultCwd: worktreeUri.path,
+		});
+	});
+
+	test('keeps an existing remote terminal during a transient reconnect', async () => {
+		const worktreeUri = URI.file('/remote/worktree');
+		sessionProviders.set('agenthost-test', { id: 'agenthost-test', remoteAddress: 'remote-test' } as unknown as ISessionsProvider);
+		const session = makeAgentSession({
+			providerId: 'agenthost-test',
+			providerType: AgentSessionProviders.Background,
+			worktree: toAgentHostUri(worktreeUri, 'remote-test'),
+			remoteConnectionStatus: { kind: 'connected' },
+		});
+
+		activeSessionObs.set(session, undefined);
+		await tick();
+		session.remoteConnectionStatus!.set({ kind: 'reconnecting' }, undefined);
+		await tick();
+		const duringReconnect = {
+			created: createdTerminals.map(terminal => terminal.cwd.path),
+			defaultCwd: defaultCwdCalls.at(-1),
+		};
+		session.remoteConnectionStatus!.set({ kind: 'connected' }, undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			duringReconnect,
+			created: createdTerminals.map(terminal => terminal.cwd.path),
+			defaultCwd: defaultCwdCalls.at(-1)?.path,
+		}, {
+			duringReconnect: {
+				created: [worktreeUri.path],
+				defaultCwd: undefined,
+			},
+			created: [worktreeUri.path],
+			defaultCwd: worktreeUri.path,
+		});
 	});
 
 	test('disposes terminal creation that becomes stale while the worktree is pending', async () => {

@@ -37,8 +37,11 @@ interface ISessionsPartTestHarness {
 class TestSessionView implements IDisposable {
 	readonly element = document.createElement('div');
 	readonly minimumWidth = 200;
+	readonly partVisibility: boolean[] = [];
 
-	setPartVisible(_visible: boolean): void { }
+	setPartVisible(visible: boolean): void {
+		this.partVisibility.push(visible);
+	}
 	dispose(): void { }
 }
 
@@ -96,5 +99,29 @@ suite('Sessions - Sessions Part', () => {
 
 	test('pointer activation expands only a minimum-width session', () => {
 		assertActivation(() => new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, button: 0 }));
+	});
+
+	test('combines content and grid visibility for mounted session views', () => {
+		const view = new TestSessionView();
+		const partVisibilityEvents: boolean[] = [];
+		const part: SessionsPart = Object.assign(Object.create(SessionsPart.prototype), {
+			_isPartVisible: true,
+			_contentVisible: true,
+			_slots: [{ view }],
+			_onDidVisibilityChange: { fire: (visible: boolean) => partVisibilityEvents.push(visible) },
+		});
+
+		part.setVisible(false);
+		part.setContentVisible(false);
+		part.setContentVisible(true);
+		part.setVisible(true);
+
+		assert.deepStrictEqual({
+			sessionView: view.partVisibility,
+			part: partVisibilityEvents,
+		}, {
+			sessionView: [false, false, false, true],
+			part: [false, true],
+		});
 	});
 });

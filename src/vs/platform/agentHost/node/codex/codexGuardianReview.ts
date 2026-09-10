@@ -7,6 +7,7 @@ import type { GuardianApprovalReviewAction } from './protocol/generated/v2/Guard
 import type { ItemGuardianApprovalReviewCompletedNotification } from './protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
 import type { RequestPermissionProfile } from './protocol/generated/v2/RequestPermissionProfile.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
+import { localize } from '../../../../nls.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 
 /**
@@ -198,4 +199,22 @@ export function formatGuardianDenialNotification(summary: IGuardianActionSummary
 	// Leading blank line separates the blockquote from any preceding Markdown
 	// part; trailing newline keeps subsequent model output on its own block.
 	return `\n\n${quoted}\n`;
+}
+
+/** Compose a compact, collapsible notification for a review that did not decide. */
+export function formatGuardianReviewStatusNotification(summary: IGuardianActionSummary, status: 'timedOut' | 'aborted', rationale: string | null): string {
+	const title = status === 'timedOut'
+		? localize('codex.guardianReview.timedOut', "Auto-review timed out")
+		: localize('codex.guardianReview.aborted', "Auto-review stopped");
+	const detail = summary.detail?.trim();
+	const action = detail ? `${summary.title} ${inlineCode(detail)}` : summary.title;
+	const lines = [
+		title,
+		localize('codex.guardianReview.requestedAction', "Requested action: {0}", action),
+	];
+	const reason = rationale?.trim();
+	if (reason) {
+		lines.push('', reason);
+	}
+	return lines.join('\n');
 }

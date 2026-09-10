@@ -13,7 +13,7 @@ import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAc
 import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { AnnotationsState, AutomationCatalogState, AutomationRunState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
@@ -103,6 +103,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected _confirmedState: T | undefined;
 	private _error: Error | undefined;
 	private _bufferedEnvelopes: ActionEnvelope[] | undefined;
+	private _awaitingSnapshotRefresh = false;
 
 	protected readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
@@ -140,9 +141,45 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 * Apply an initial snapshot from the server.
 	 */
 	handleSnapshot(state: T, fromSeq: number): void {
+		this._awaitingSnapshotRefresh = false;
 		this._confirmedState = state;
 		this._error = undefined;
 		this._onSnapshotApplied(fromSeq);
+		this._onDidChange.fire(this.value as T);
+	}
+
+	/**
+	 * Buffer incoming envelopes until the next {@link handleSnapshot}.
+	 *
+	 * Needed when a subscription that already holds confirmed state is
+	 * re-subscribed to be reseated from a restarted host: the snapshot is
+	 * computed at some `fromSeq`, but the channel is already live, so newer
+	 * actions can reach the client before the subscribe response does.
+	 * Applying them first and then installing the older snapshot would drop
+	 * them silently — losing, say, the action that ends a turn.
+	 */
+	beginSnapshotRefresh(): void {
+		this._awaitingSnapshotRefresh = true;
+	}
+
+	/**
+	 * Abandon a refresh started by {@link beginSnapshotRefresh} when the
+	 * snapshot never arrives, applying whatever was buffered meanwhile so the
+	 * subscription does not silently lose those actions too.
+	 */
+	cancelSnapshotRefresh(): void {
+		if (!this._awaitingSnapshotRefresh) {
+			return;
+		}
+		this._awaitingSnapshotRefresh = false;
+		const buffered = this._bufferedEnvelopes;
+		if (!buffered || this._confirmedState === undefined) {
+			return;
+		}
+		this._bufferedEnvelopes = undefined;
+		for (const envelope of buffered) {
+			this._reconcile(envelope, envelope.origin?.clientId === this._clientId);
+		}
 		this._onDidChange.fire(this.value as T);
 	}
 
@@ -165,7 +202,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 
 		// Buffer actions that arrive before the snapshot has been applied.
 		// They're replayed in _onSnapshotApplied().
-		if (this._confirmedState === undefined) {
+		if (this._confirmedState === undefined || this._awaitingSnapshotRefresh) {
 			if (!this._bufferedEnvelopes) {
 				this._bufferedEnvelopes = [];
 			}
@@ -577,13 +614,13 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 }
 
 /** Subscription to the singleton host-owned automation catalogue. */
-export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationCatalogState> {
+export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationState> {
 
 	constructor(clientId: string, log: (msg: string) => void) {
 		super(clientId, log);
 	}
 
-	protected override _applyReducer(state: AutomationCatalogState, action: StateAction): AutomationCatalogState {
+	protected override _applyReducer(state: AutomationState, action: StateAction): AutomationState {
 		return automationReducer(state, action as AutomationAction, this._log);
 	}
 
@@ -1180,6 +1217,20 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
+	 * Put a subscription into snapshot-refresh mode ahead of an explicit
+	 * re-`subscribe` that reseats it from a restarted host. See
+	 * {@link BaseAgentSubscription.beginSnapshotRefresh}.
+	 */
+	beginSnapshotRefresh(resource: URI): void {
+		this._subscriptions.get(resource)?.sub.beginSnapshotRefresh();
+	}
+
+	/** Abandon a refresh started by {@link beginSnapshotRefresh}. */
+	cancelSnapshotRefresh(resource: URI): void {
+		this._subscriptions.get(resource)?.sub.cancelSnapshotRefresh();
+	}
+
+	/**
 	 * Mark a set of subscriptions as no longer resumable on the server
 	 * (reported via `ReconnectReplayResult.missing`). The subscriptions
 	 * themselves stay alive so consumers continue to hold valid references,
@@ -1249,6 +1300,14 @@ export function isActionEnvelopeRelevantToSubscriptionUris(envelope: ActionEnvel
 	if (isAhpRootChannel(envelope.channel)) {
 		for (const uri of subscribedUris) {
 			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	if (isAhpAutomationCatalogChannel(envelope.channel)) {
+		for (const uri of subscribedUris) {
+			if (isAhpAutomationCatalogChannel(uri)) {
 				return true;
 			}
 		}

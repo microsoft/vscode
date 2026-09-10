@@ -5,12 +5,12 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -25,7 +25,7 @@ import { GitHubCheckStatus, GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID 
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../services/sessions/common/session.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
 import { ISessionInputBanner, ISessionInputBannerAction, SessionInputBannerWidget } from './sessionInputBannerWidget.js';
 
 const STORAGE_KEY_DISMISSED = 'sessions.inputBanners.dismissedItems';
@@ -105,14 +105,9 @@ export class SessionInputBanners extends Disposable {
 		return session;
 	});
 
-	private readonly _agentMergeEnabled = derived(this, reader => {
+	private readonly _agentMergeConfiguration = derived(this, reader => {
 		const session = this._session.read(reader);
-		const provider = session && this.sessionsProvidersService.getProvider(session.providerId);
-		if (!session || !provider || !isAgentHostProvider(provider)) {
-			return false;
-		}
-		observableSignalFromEvent(reader.store, Event.filter(provider.onDidChangeSessionConfig, sessionId => sessionId === session.sessionId)).read(reader);
-		return provider.getAgentMergeSessionState(session.sessionId)?.enabled === true;
+		return session ? getSessionAgentMergeConfigurationObservable(session, this.sessionsProvidersService, this.configurationService).read(reader) : undefined;
 	});
 
 	private readonly _states: IObservable<readonly BannerState[]> = derived(this, reader => {
@@ -131,57 +126,56 @@ export class SessionInputBanners extends Disposable {
 			.filter(item => item.state === AgentFeedbackState.Created);
 		const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 		const pullRequests = getGitHubPullRequestRefs(gitHubInfo);
-		const firstPullRequest = pullRequests[0];
+		const onlyPullRequest = pullRequests.length === 1 ? pullRequests[0] : undefined;
 		const dismissed = this._dismissed.read(reader);
 		const legacyCIDismissed = this._legacyCIDismissed.read(reader).has(session.sessionId);
 		const legacyCommentsDismissed = this._legacyCommentsDismissed.read(reader).has(session.sessionId);
+		const agentMerge = this._agentMergeConfiguration.read(reader);
 		const states: BannerState[] = [];
 
-		if (!this._agentMergeEnabled.read(reader)) {
-			for (const pullRequest of pullRequests) {
-				const id = pullRequestBannerId(session.sessionId, pullRequest);
-				if (dismissed.has(id)) {
-					continue;
-				}
-
-				const comments = legacyCommentsDismissed
-					? []
-					: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, firstPullRequest));
-				const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
-				const livePullRequest = prModelRef.object.pullRequest.read(reader);
-				let failed = 0;
-				let completed = 0;
-				let pending = 0;
-				if (!legacyCIDismissed && livePullRequest && !livePullRequest.isDraft && livePullRequest.state === GitHubPullRequestState.Open) {
-					const ciModelRef = reader.store.add(this.gitHubService.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number, livePullRequest.headSha));
-					const ciModel = ciModelRef.object;
-					if (!ciModel.fixRequested.read(reader)) {
-						const checks = ciModel.checks.read(reader);
-						failed = getFailedChecks(checks).length;
-						completed = checks.filter(check => check.status === GitHubCheckStatus.Completed).length;
-						pending = checks.length - completed;
-					}
-				}
-
-				if (failed === 0 && comments.length === 0) {
-					continue;
-				}
-
-				states.push({
-					id,
-					kind: 'pullRequest',
-					sessionId: session.sessionId,
-					sessionResource: session.resource,
-					pullRequest,
-					title: livePullRequest?.title ?? pullRequest.title,
-					failed,
-					completed,
-					pending,
-					commentIds: comments.map(comment => comment.id),
-					firstCommentId: comments[0]?.id,
-					multiplePullRequests: pullRequests.length > 1,
-				});
+		for (const pullRequest of pullRequests) {
+			const id = pullRequestBannerId(session.sessionId, pullRequest);
+			if (dismissed.has(id)) {
+				continue;
 			}
+
+			const comments = legacyCommentsDismissed || (agentMerge?.enabled && agentMerge.actions.addressReviews)
+				? []
+				: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, onlyPullRequest));
+			const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
+			const livePullRequest = prModelRef.object.pullRequest.read(reader);
+			let failed = 0;
+			let completed = 0;
+			let pending = 0;
+			if (!legacyCIDismissed && !(agentMerge?.enabled && agentMerge.actions.fixCI) && livePullRequest && !livePullRequest.isDraft && livePullRequest.state === GitHubPullRequestState.Open) {
+				const ciModelRef = reader.store.add(this.gitHubService.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number, livePullRequest.headSha));
+				const ciModel = ciModelRef.object;
+				if (!ciModel.fixRequested.read(reader)) {
+					const checks = ciModel.checks.read(reader);
+					failed = getFailedChecks(checks).length;
+					completed = checks.filter(check => check.status === GitHubCheckStatus.Completed).length;
+					pending = checks.length - completed;
+				}
+			}
+
+			if (failed === 0 && comments.length === 0) {
+				continue;
+			}
+
+			states.push({
+				id,
+				kind: 'pullRequest',
+				sessionId: session.sessionId,
+				sessionResource: session.resource,
+				pullRequest,
+				title: livePullRequest?.title ?? pullRequest.title,
+				failed,
+				completed,
+				pending,
+				commentIds: comments.map(comment => comment.id),
+				firstCommentId: comments[0]?.id,
+				multiplePullRequests: pullRequests.length > 1,
+			});
 		}
 
 		const agentComments = legacyCommentsDismissed
@@ -205,6 +199,7 @@ export class SessionInputBanners extends Disposable {
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IAgentFeedbackService private readonly feedbackService: IAgentFeedbackService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -234,7 +229,8 @@ export class SessionInputBanners extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
-			if (!session || this._agentMergeEnabled.read(reader)) {
+			const agentMerge = this._agentMergeConfiguration.read(reader);
+			if (!session || (agentMerge?.enabled && agentMerge.actions.fixCI && agentMerge.actions.addressReviews)) {
 				return;
 			}
 			const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
@@ -245,6 +241,9 @@ export class SessionInputBanners extends Disposable {
 				reader.store.add(prModel.startPolling());
 				const livePullRequest = prModel.pullRequest.read(reader);
 				if (!livePullRequest || livePullRequest.isDraft || livePullRequest.state !== GitHubPullRequestState.Open) {
+					continue;
+				}
+				if (agentMerge?.enabled && agentMerge.actions.fixCI) {
 					continue;
 				}
 				const ciModelRef = reader.store.add(this.gitHubService.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number, livePullRequest.headSha));
@@ -316,11 +315,18 @@ export class SessionInputBanners extends Disposable {
 				label: localize('inputBanner.agentReview', "Agent Review"),
 				hover: localize('inputBanner.agentReviewHover', "In-product agent review comments"),
 			} : undefined;
-		const showReference = compact || state.kind === 'pullRequest' && state.multiplePullRequests;
+		const showReference = state.kind === 'pullRequest' ? state.multiplePullRequests : compact;
 		const position = compact
 			? localize('inputBanner.positionAria', "Item {0} of {1}", index + 1, total)
 			: undefined;
-		const ariaLabel = [position, showReference ? reference?.label : undefined, text].filter(Boolean).join(', ');
+		const referenceLabel = showReference ? reference?.label : undefined;
+		const ariaLabel = position && referenceLabel
+			? localize('inputBanner.ariaLabelWithPositionAndReference', "{0}, {1}, {2}", position, referenceLabel, text)
+			: position
+				? localize('inputBanner.ariaLabelWithPosition', "{0}, {1}", position, text)
+				: referenceLabel
+					? localize('inputBanner.ariaLabelWithReference', "{0}, {1}", referenceLabel, text)
+					: text;
 
 		return {
 			id: state.id,
@@ -374,7 +380,7 @@ export class SessionInputBanners extends Disposable {
 		const hasComments = state.commentIds.length > 0;
 		const fixCI: ISessionInputBannerAction = {
 			id: 'fixCI',
-			label: localize('inputBanner.fixCI', "Fix CI"),
+			label: localize('inputBanner.fixChecks', "Fix Checks"),
 			primary: true,
 			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
 			run: () => state.debug ? undefined : this._fixChecks(state),
@@ -388,7 +394,7 @@ export class SessionInputBanners extends Disposable {
 		};
 		const primary = hasCI && hasComments ? {
 			id: 'fixCIAndAddressComments',
-			label: localize('inputBanner.fixCIAndAddressComments', "Fix CI & Address Comments"),
+			label: localize('inputBanner.fixChecksAndAddressComments', "Fix Checks & Address Comments"),
 			primary: true,
 			dropdownActions: [fixCI, addressComments],
 			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.sessionResource),
@@ -397,20 +403,15 @@ export class SessionInputBanners extends Disposable {
 
 		const revealCI: ISessionInputBannerAction = {
 			id: 'revealCI',
-			label: localize('inputBanner.revealCI', "Reveal CI"),
+			label: localize('inputBanner.revealChecks', "Reveal"),
 			run: () => { if (!state.debug) { void this._revealPullRequest(state.pullRequest); } },
 		};
 		const revealComments: ISessionInputBannerAction = {
 			id: 'revealComments',
-			label: localize('inputBanner.revealComments', "Reveal Comments"),
+			label: localize('inputBanner.revealPRComments', "Reveal"),
 			run: () => { if (!state.debug && state.firstCommentId) { this._revealComment(state.sessionResource, state.firstCommentId); } },
 		};
-		const reveal = hasCI && hasComments ? {
-			...revealCI,
-			dropdownActions: [revealComments],
-		} : hasCI ? revealCI : revealComments;
-
-		return [primary, reveal];
+		return hasCI && hasComments ? [primary] : [primary, hasCI ? revealCI : revealComments];
 	}
 
 	private _agentCommentActions(state: IAgentCommentsBannerState): readonly ISessionInputBannerAction[] {
@@ -422,7 +423,7 @@ export class SessionInputBanners extends Disposable {
 			run: () => state.debug ? undefined : this._addressComments(state, '/act-on-feedback'),
 		}, {
 			id: 'revealComments',
-			label: localize('inputBanner.revealComments', "Reveal Comments"),
+			label: localize('inputBanner.revealAgentComments', "Reveal"),
 			run: () => { if (!state.debug && state.firstCommentId) { this._revealComment(state.sessionResource, state.firstCommentId); } },
 		}];
 	}

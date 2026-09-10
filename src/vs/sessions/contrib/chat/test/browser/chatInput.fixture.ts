@@ -5,6 +5,9 @@
 
 import { renderChatInput } from '../../../../../workbench/test/browser/componentFixtures/chat/renderChatInput.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 
 // Loaded here (rather than in the workbench-layer fixture) so the
 // `.interactive-input-part` padding (32px each side) that the `isSessionsWindow`
@@ -12,26 +15,75 @@ import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGro
 import '../../browser/media/chatView.css';
 
 /**
- * Wraps the fixture context so the chat input renders inside the sessions window
- * DOM ancestry the sessions CSS expects:
- * `.agent-sessions-workbench > .part.sessionspart > .interactive-session`.
- * This is what scopes the `.interactive-input-part` 32px horizontal padding that
- * the `isSessionsWindow` layout path accounts for. Returns a derived context whose
- * `container` is the `.part.sessionspart` element the input should render into.
+ * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart`, returning the sessions part as the input container by default.
+ * With a background, adds `.has-chat-background` and returns a nested `.chat-view` as the input container.
  */
-function sessionsWindowContext(context: ComponentFixtureContext): ComponentFixtureContext {
+function sessionsWindowContext(context: ComponentFixtureContext, withBackground = false): ComponentFixtureContext {
 	context.container.classList.add('agent-sessions-workbench');
 	const sessionsPart = document.createElement('div');
 	sessionsPart.classList.add('part', 'sessionspart');
 	context.container.appendChild(sessionsPart);
-	return { ...context, container: sessionsPart };
+	if (!withBackground) {
+		return { ...context, container: sessionsPart };
+	}
+
+	sessionsPart.classList.add('has-chat-background');
+	sessionsPart.style.backgroundImage = 'linear-gradient(135deg, var(--vscode-editor-background), var(--vscode-textLink-foreground))';
+	const chatView = document.createElement('div');
+	chatView.classList.add('chat-view');
+	sessionsPart.appendChild(chatView);
+	return { ...context, container: chatView };
 }
+
+const responsiveModel: ILanguageModelChatMetadataAndIdentifier = {
+	identifier: 'openai-gpt-5.6-luna-responsive',
+	metadata: {
+		extension: new ExtensionIdentifier('fixture.extension'),
+		id: 'gpt-5.6-luna-responsive',
+		name: 'GPT-5.6 Luna Responsive Preview',
+		vendor: 'openai',
+		family: 'gpt',
+		version: '1',
+		maxInputTokens: 128000,
+		maxOutputTokens: 4096,
+		isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+		configurationSchema: {
+			properties: {
+				effort: {
+					type: 'string',
+					group: 'navigation',
+					enum: ['low', 'medium', 'high'],
+					enumItemLabels: ['Low', 'Medium', 'Max 1M'],
+					default: 'high',
+				},
+			},
+		},
+	},
+};
+
+const responsiveCollapseWidths = [560, 500, 440, 380, 320, 260, 220, 180];
+const responsiveResizeCycles = [
+	...responsiveCollapseWidths,
+	...[...responsiveCollapseWidths].reverse(),
+	...responsiveCollapseWidths,
+	...[...responsiveCollapseWidths].reverse(),
+	...responsiveCollapseWidths,
+	...[...responsiveCollapseWidths].reverse(),
+];
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 	SessionsWindow: defineComponentFixture({
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			isSessionsWindow: true,
 			value: 'word word word word word word word word word word word word word word word word word word word word word word word word',
+		})
+	}),
+	SessionsWindowBackgroundControls: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderChatInput(sessionsWindowContext(context, true), {
+			isSessionsWindow: true,
+			value: 'Implement the approved plan',
+			secondaryPickerLabels: ['Plan', 'Allow All'],
 		})
 	}),
 	// Partial multi-line selection so the reverse-rounded selection corners are
@@ -42,6 +94,47 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 			isSessionsWindow: true,
 			value: 'asdasd asdasd asdasd\nasd\nasdasd asdasd asdasd asdasd',
 			selection: { startLineNumber: 1, startColumn: 3, endLineNumber: 3, endColumn: 8 },
+		})
+	}),
+	ResponsiveModelResizeCycleExpanded: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			models: [responsiveModel],
+			width: 600,
+			resizeWidths: [...responsiveResizeCycles, 600],
+		})
+	}),
+	ResponsiveModelResizeCycleEllipsized: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			models: [responsiveModel],
+			width: 600,
+			resizeWidths: [...responsiveResizeCycles, 380],
+		})
+	}),
+	ResponsiveModelResizeCycleCompact: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Agents active-session chat input shows its compact model codicon centered with equal padding inside a 22-pixel square control while the model configuration remains visible.'],
+		virtualTime: { enabled: false },
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			models: [responsiveModel],
+			width: 600,
+			resizeWidths: [...responsiveResizeCycles, 320],
+		})
+	}),
+	ResponsiveModelResizeCycleMinimal: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The Agents active-session chat input shows compact model and permission codicons centered with equal padding inside matching 22-pixel square controls, aligned with the expanded toolbar height.'],
+		virtualTime: { enabled: false },
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			models: [responsiveModel],
+			voiceControl: 'voiceListening',
+			width: 600,
+			resizeWidths: [...responsiveResizeCycles, 260],
 		})
 	}),
 });
