@@ -230,7 +230,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 				return { status: 'incomplete' };
 			}
 
-			const shouldReportImported = !candidate.catalog;
+			const shouldReportImported = !candidate.catalog && !candidate.current && !candidate.legacy;
 			if (!effectiveCandidate.current) {
 				const registered = await this._database.registerSessionV2(session, resolution.identity, { checkTombstone: true });
 				if (!registered) {

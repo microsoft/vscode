@@ -36,6 +36,7 @@ import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../.
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
+import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_NOT_FOUND, ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -11394,6 +11395,32 @@ suite('AgentHostChatContribution', () => {
 			);
 		});
 
+		test('preserves the request source when reconnecting to an active Agent Merge turn', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-agent-merge');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...makeSessionStateWithActiveTurn(sessionUri.toString()),
+				activeTurn: createActiveTurn('turn-active', {
+					text: 'Repair the pull request',
+					origin: { kind: MessageKind.SystemNotification },
+					_meta: toAgentMergeMessageMeta(),
+				}, '2025-01-01T00:00:00.000Z'),
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-agent-merge' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.deepStrictEqual(session.history.filter(item => item.type === 'request').map(item => ({
+				id: item.id,
+				isSystemInitiated: item.isSystemInitiated,
+				requestSource: item.requestSource,
+			})), [
+				{ id: 'turn-completed', isSystemInitiated: undefined, requestSource: undefined },
+				{ id: 'turn-active', isSystemInitiated: true, requestSource: 'agentMerge' },
+			]);
+		});
+
 		test('sets isCompleteObs to false and populates progressObs for active turn', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
@@ -12536,6 +12563,54 @@ suite('AgentHostChatContribution', () => {
 
 			// isCompleteObs should be false (turn in progress)
 			assert.strictEqual(chatSession.isCompleteObs!.get(), false);
+		}));
+
+		test('forwards Agent Merge identity only for marked system-initiated turns', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/agent-merge-identity' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const initialTurn = registered.impl.invoke(makeRequest({ message: 'Init', sessionResource }), () => { }, [], CancellationToken.None);
+			await timeout(10);
+			const dispatch = agentHostService.turnActions[0];
+			const initialAction = dispatch.action as ITurnStartedAction;
+			const session = dispatch.channel.toString();
+			agentHostService.fireAction({ channel: session, action: initialAction, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: initialAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await initialTurn;
+
+			const events: IChatSessionServerRequest[] = [];
+			disposables.add(chatSession.onDidStartServerRequest!(event => events.push(event)));
+			const messages = [
+				{ text: 'Repair the pull request', origin: { kind: MessageKind.SystemNotification }, _meta: toAgentMergeMessageMeta() },
+				{ text: 'Repair the pull request', origin: { kind: MessageKind.SystemNotification } },
+				{ text: 'Repair the pull request', origin: { kind: MessageKind.User }, _meta: toAgentMergeMessageMeta() },
+			];
+			let serverSeq = 3;
+			for (const [index, message] of messages.entries()) {
+				const turnId = `server-turn-${index}`;
+				agentHostService.fireAction({
+					channel: session,
+					action: { type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z', turnId, message } as ChatAction,
+					serverSeq: serverSeq++, origin: undefined,
+				});
+				await timeout(10);
+				agentHostService.fireAction({
+					channel: session,
+					action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId } as ChatAction,
+					serverSeq: serverSeq++, origin: undefined,
+				});
+				await timeout(10);
+			}
+
+			assert.deepStrictEqual(events.map(event => ({ isSystemInitiated: event.isSystemInitiated, requestSource: event.requestSource })), [
+				{ isSystemInitiated: true, requestSource: 'agentMerge' },
+				{ isSystemInitiated: true, requestSource: undefined },
+				{ isSystemInitiated: false, requestSource: undefined },
+			]);
 		}));
 
 		test('server-initiated turn streams progress through progressObs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

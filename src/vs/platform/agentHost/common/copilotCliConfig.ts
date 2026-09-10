@@ -34,8 +34,6 @@ export const enum CopilotCliConfigKey {
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Enable concise reasoning summaries for supported models. Off by default. */
 	ReasoningSummary = 'reasoningSummary',
-	/** Let the Auto router score prior turns instead of the latest message alone. Off by default. */
-	MultiTurnContextRouting = 'multiTurnContextRouting',
 	/** Offer the Auto model's "Optimize for" picker. Shares the Copilot extension's setting and experiment. */
 	AutoModeTiers = 'autoModeTiers',
 	/** Override Auto's "Optimize for" preference, even when the picker is disabled. */
@@ -68,8 +66,6 @@ export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilo
 export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot.reasoningEffortOverride';
 
 export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
-
-export const AgentHostMultiTurnContextRoutingEnabledSettingId = 'chat.agentHost.copilot.multiTurnContextRouting.enabled';
 
 export const CopilotAutoModeTiersEnabledSettingId = 'github.copilot.chat.autoMode.tiers.enabled';
 
@@ -203,12 +199,6 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.reasoningSummary.title', "Reasoning Summary"),
 		description: localize('agentHost.config.reasoningSummary.description', "When enabled, requests concise reasoning summaries for supported Copilot SDK sessions."),
-		default: false,
-	}),
-	[CopilotCliConfigKey.MultiTurnContextRouting]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.multiTurnContextRouting.title', "Auto Multi-Turn Context Routing"),
-		description: localize('agentHost.config.multiTurnContextRouting.description', "When enabled, Auto model selection sends prior user messages to the router so it scores the conversation so far instead of the latest message alone."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({
