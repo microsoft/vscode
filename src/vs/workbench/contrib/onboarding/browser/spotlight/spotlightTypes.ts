@@ -15,6 +15,7 @@ export type SpotlightPlacement = 'above' | 'below' | 'left' | 'right' | 'auto';
 /** Behavior when a spotlight target is not rendered when its step is reached. */
 export type SpotlightMissingTargetBehavior =
 	| { readonly kind: 'skip' }
+	| { readonly kind: 'abort' }
 	| { readonly kind: 'wait'; readonly timeoutMs: number };
 
 /**
@@ -39,13 +40,16 @@ export interface ISpotlightStep {
 	/** Callout body (localized string or markdown). */
 	readonly description: string | IMarkdownString;
 
+	/** Localized primary button label, replacing the default Next or Done. */
+	readonly nextButtonLabel?: string;
+
 	/** Preferred placement of the callout. Defaults to `'auto'`. */
 	readonly placement?: SpotlightPlacement;
 
 	/** When present and unsatisfied, the step is skipped. */
 	readonly when?: ContextKeyExpression;
 
-	/** Missing-target behavior. Defaults to waiting two seconds before skipping. */
+	/** Defaults to waiting two seconds before skipping; `abort` ends the run immediately if the target is missing. */
 	readonly missingTarget?: SpotlightMissingTargetBehavior;
 
 	/** Opens or expands the target through its owner before the step begins. */

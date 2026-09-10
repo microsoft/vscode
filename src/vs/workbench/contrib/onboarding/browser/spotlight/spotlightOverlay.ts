@@ -35,6 +35,8 @@ type PointerSide = 'top' | 'right' | 'bottom' | 'left';
 export interface ISpotlightContent {
 	readonly title: string;
 	readonly description: string | IMarkdownString;
+	/** Localized primary button label, replacing the default Next or Done. */
+	readonly nextButtonLabel?: string;
 	/** Zero-based index of the current step. */
 	readonly stepIndex: number;
 	/** Total number of steps in the tour. */
@@ -383,9 +385,9 @@ export class SpotlightOverlay extends Disposable {
 
 		this._skipButton.element.style.display = content.isLastStep ? 'none' : '';
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
-		this._nextButton.label = content.isLastStep
+		this._nextButton.label = content.nextButtonLabel ?? (content.isLastStep
 			? localize('spotlight.done', "Done")
-			: localize('spotlight.next', "Next");
+			: localize('spotlight.next', "Next"));
 	}
 
 	private _onKeyDown(e: KeyboardEvent): void {

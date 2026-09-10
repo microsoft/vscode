@@ -70,7 +70,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 		const target = await this._resolveTarget(context.targetWindow, step.targetId, context.cancellationToken, step.missingTarget);
 		if (!target) {
-			return context.cancellationToken.isCancellationRequested
+			return context.cancellationToken.isCancellationRequested || step.missingTarget?.kind === 'abort'
 				? { action: 'abort', shown: false }
 				: { action: 'skipStep', shown: false };
 		}
@@ -178,6 +178,10 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 					break;
 				}
 				if (!target) {
+					if (step.missingTarget?.kind === 'abort') {
+						aborted = true;
+						break;
+					}
 					skippedStepIndexes.add(index);
 					index += direction;
 					continue;
@@ -232,7 +236,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			return undefined;
 		}
 		let element = findOnboardingTarget(targetWindow, targetId);
-		if (element || behavior?.kind === 'skip') {
+		if (element || behavior?.kind === 'skip' || behavior?.kind === 'abort') {
 			return element;
 		}
 		const timeoutMs = behavior?.kind === 'wait' ? Math.max(0, behavior.timeoutMs) : TARGET_RESOLVE_TIMEOUT;
@@ -296,6 +300,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		const content: ISpotlightContent = {
 			title: step.title,
 			description: step.description,
+			nextButtonLabel: step.nextButtonLabel,
 			stepIndex: index,
 			stepCount,
 			canGoBack,

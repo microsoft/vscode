@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISpotlightContent, SpotlightOverlay } from '../../browser/spotlight/spotlightOverlay.js';
+import { OnboardingDismissReason } from '../../common/onboardingScenario.js';
 
 /** Minimal fake ResizeObserver so the widget can be tested without real layout churn. */
 class FakeResizeObserver implements ResizeObserver {
@@ -183,6 +184,69 @@ suite('SpotlightOverlay', () => {
 			backHidden: true,
 			nextLabel: 'Done',
 		});
+	});
+
+	test('custom acknowledgment is the only visible button and Escape still skips', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 0, 0, 50, 50);
+		const skipReasons: OnboardingDismissReason[] = [];
+		const advances: string[] = [];
+		disposables.add(overlay.onDidSkip(reason => skipReasons.push(reason)));
+		disposables.add(overlay.onDidClickNext(source => advances.push(source)));
+
+		overlay.show(target, content({ canGoBack: false, isLastStep: true, nextButtonLabel: 'Understood' }));
+
+		const buttons = getButtons(container);
+		const next = buttons[2];
+		const callout = container.getElementsByClassName('spotlight-callout')[0];
+		for (const element of [next, callout]) {
+			const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'keyCode', { get: () => 27 /* Escape */ });
+			element.dispatchEvent(event);
+		}
+		const tab = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, shiftKey: true });
+		Object.defineProperty(tab, 'keyCode', { get: () => 9 /* Tab */ });
+		next.dispatchEvent(tab);
+		next.click();
+
+		assert.deepStrictEqual({
+			visibleButtons: buttons.filter(button => button.style.display !== 'none').map(button => button.textContent),
+			primaryFocused: mainWindow.document.activeElement === next,
+			skipReasons,
+			advances,
+		}, {
+			visibleButtons: ['Understood'],
+			primaryFocused: true,
+			skipReasons: [OnboardingDismissReason.EscapeKey, OnboardingDismissReason.EscapeKey],
+			advances: ['button'],
+		});
+	});
+
+	test('custom label and hidden End Tour reset between shows', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 0, 0, 50, 50);
+		const visibleButtons = () => getButtons(container).filter(button => button.style.display !== 'none').map(button => button.textContent);
+		const snapshots: (string | null)[][] = [];
+
+		overlay.show(target, content({ canGoBack: false, isLastStep: true, nextButtonLabel: 'Understood' }));
+		snapshots.push(visibleButtons());
+		overlay.show(target, content());
+		snapshots.push(visibleButtons());
+		overlay.show(target, content({ canGoBack: false, isLastStep: true, nextButtonLabel: 'Understood' }));
+		overlay.hide();
+		overlay.show(target, content());
+		snapshots.push(visibleButtons());
+		overlay.show(target, content({ canGoBack: false, isLastStep: true }));
+		snapshots.push(visibleButtons());
+
+		assert.deepStrictEqual(snapshots, [
+			['Understood'],
+			['End Tour', 'Back', 'Next'],
+			['End Tour', 'Back', 'Next'],
+			['Done'],
+		]);
 	});
 
 	test('allowTargetInteraction arranges click blockers around the target', () => {
