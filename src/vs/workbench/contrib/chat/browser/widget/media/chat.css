@@ -1963,7 +1963,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
-	padding: 0 var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-small);
 	display: flex;
 	align-items: center;
@@ -2045,7 +2045,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			}
 
 			.codicon + .chat-input-picker-label {
-				margin-left: 2px;
+				margin-left: var(--vscode-spacing-size60);
 			}
 
 			.codicon {
@@ -2070,6 +2070,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
@@ -2078,7 +2079,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
-	padding: 0 var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-small);
 	display: flex;
 	align-items: center;
@@ -2154,6 +2155,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item.disabled .codicon,
 .monaco-workbench .interactive-session .chat-input-toolbars .action-label.disabled .codicon {
 	color: var(--vscode-disabledForeground) !important;
+}
+
+.interactive-session :is(.chat-input-toolbars, .chat-secondary-toolbar) .monaco-action-bar .action-item .action-label .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {

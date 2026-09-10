@@ -224,10 +224,18 @@
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
 	align-items: center;
-	padding: 0 var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size60);
 	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 	background-color: var(--session-view-background);
+}
+
+.new-chat-bottom-container .sessions-chat-picker-slot > .action-label.agent-host-mode-permissions-trigger {
+	padding: 0;
+}
+
+.new-chat-bottom-container .agent-host-mode-picker-button:active {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 /* Over a chat background these chips sit straight on the wallpaper with nothing
@@ -385,7 +393,7 @@
 	align-items: center;
 	box-sizing: border-box;
 	height: var(--chat-input-control-height);
-	padding: 0 var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size60);
 	background-color: transparent;
 	border: none;
 	color: var(--vscode-icon-foreground);
