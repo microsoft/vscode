@@ -11,16 +11,17 @@ import { ChatConfiguration } from '../../common/constants.js';
 import '../../browser/agentSessionsConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+const registeredAgentSessionsSettings = [
+	ChatConfiguration.UnifiedWorkspacePicker,
+	ChatConfiguration.AutoArchiveMergedSessionsAfterDays,
+	ChatConfiguration.AutoDeleteArchivedMergedSessionsAfterDays,
+].map(key => configurationProperties[key] !== undefined);
 
 suite('Chat configuration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
-		assert.deepStrictEqual([
-			ChatConfiguration.UnifiedWorkspacePicker,
-			ChatConfiguration.AutoArchiveMergedSessionsAfterDays,
-			ChatConfiguration.AutoDeleteArchivedMergedSessionsAfterDays,
-		].map(key => configurationProperties[key] !== undefined), [true, true, true]);
+		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 });
