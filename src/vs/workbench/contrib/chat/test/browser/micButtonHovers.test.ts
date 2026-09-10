@@ -21,8 +21,8 @@ suite('MicButtonHovers', () => {
 		const webFallback = new TestConfigurationService({ [DICTATION_MODEL_SETTING]: DEFAULT_LOCAL_TRANSCRIPTION_MODEL });
 
 		assert.deepStrictEqual({
-			onDevice: getDictationHoverMarkdown('Dictate', onDevice).value,
-			cloud: getDictationHoverMarkdown('Dictate', cloud).value,
+			onDevice: getDictationHoverMarkdown('Dictate', onDevice, false).value,
+			cloud: getDictationHoverMarkdown('Dictate', cloud, false).value,
 			webFallback: getDictationHoverMarkdown('Dictate', webFallback, true).value,
 		}, {
 			onDevice: '**Dictate**\n\nTypes what you say into the input. Transcribes on-device with the Nemotron 3.5 ASR multilingual model.',
