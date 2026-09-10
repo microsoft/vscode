@@ -763,6 +763,51 @@ suite('Strings', () => {
 		assert.ok(strings.multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
 	});
 
+	suite('getLeftDeleteOffset', () => {
+		function backspaceSteps(str: string): string[] {
+			const steps: string[] = [];
+			let s = str;
+			let offset = s.length;
+			while (offset > 0) {
+				const newOffset = strings.getLeftDeleteOffset(offset, s);
+				s = s.substring(0, newOffset) + s.substring(offset);
+				offset = newOffset;
+				steps.push(s);
+			}
+			return steps;
+		}
+
+		test('deletes an emoji modifier sequence as a single unit', () => {
+			// Skin tone modifier: baby + Fitzpatrick type-5 modifier.
+			assert.deepStrictEqual(backspaceSteps('\u{1F476}\u{1F3FE}'), ['']);
+		});
+
+		test('deletes a ZWJ emoji sequence component by component', () => {
+			// Family emoji: man ZWJ man ZWJ girl ZWJ girl.
+			assert.deepStrictEqual(
+				backspaceSteps('\u{1F468}\u{200D}\u{1F468}\u{200D}\u{1F467}\u{200D}\u{1F467}'),
+				['\u{1F468}\u{200D}\u{1F468}\u{200D}\u{1F467}', '\u{1F468}\u{200D}\u{1F468}', '\u{1F468}', '']
+			);
+		});
+
+		test('issue: deletes a complete flag emoji as a single unit, without leaving a dangling regional indicator', () => {
+			// Flag emoji are two regional indicator code points (UAX #29 GB12/GB13); they must not be split.
+			assert.deepStrictEqual(backspaceSteps('\u{1F1FA}\u{1F1F8}'), ['']); // 🇺🇸
+		});
+
+		test('issue: deletes adjacent flag emoji one flag at a time, not one indicator at a time', () => {
+			assert.deepStrictEqual(backspaceSteps('\u{1F1FA}\u{1F1F8}\u{1F1EC}\u{1F1E7}'), ['\u{1F1FA}\u{1F1F8}', '']); // 🇺🇸🇬🇧
+		});
+
+		test('deletes a trailing unpaired regional indicator alone, then the completed flag as a unit', () => {
+			assert.deepStrictEqual(backspaceSteps('\u{1F1FA}\u{1F1F8}\u{1F1EC}'), ['\u{1F1FA}\u{1F1F8}', '']); // 🇺🇸🇬
+		});
+
+		test('leaves non-emoji text untouched (single code point per backspace)', () => {
+			assert.deepStrictEqual(backspaceSteps('ab'), ['a', '']);
+		});
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
