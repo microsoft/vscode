@@ -2629,7 +2629,7 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
-	test('[D7 single-pane] contributes Toggle Details before Maximize with the editor title layout actions', () => {
+	test('[D7 single-pane] contributes Toggle Details after Maximize with the editor title layout actions', () => {
 		createSinglePaneController();
 
 		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
@@ -2646,15 +2646,15 @@ suite('LayoutController (desktop)', () => {
 			group: items[0].group,
 			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
 			order: items[0].order,
-			beforeMaximize: (items[0].order ?? 0) < (maximizeItem.order ?? 0),
+			afterMaximize: (items[0].order ?? 0) > (maximizeItem.order ?? 0),
 			hasToggled: !!items[0].command.toggled,
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 		}, {
 			group: 'navigation',
 			icon: Codicon.listSelection.id,
-			order: 9,
-			beforeMaximize: true,
+			order: 10,
+			afterMaximize: true,
 			hasToggled: true,
 			gatedOnEditorArea: true,
 			gatedOnDockedDetails: true,
