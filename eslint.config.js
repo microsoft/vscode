@@ -36,6 +36,8 @@ const allowedBracketNotationFiles = fs.readFileSync(path.join(import.meta.dirnam
 	.map(line => line.trim())
 	.filter(line => line && !line.startsWith('#'));
 
+const bracketNotationEnvironmentReceivers = ['process.env', 'safeProcess.env'];
+
 export default defineConfig(
 	// Global ignores
 	{
@@ -150,7 +152,7 @@ export default defineConfig(
 			]
 		},
 	},
-	// Disallow bracket notation for property names that can use dot notation.
+	// Environment variable names are dictionary keys, not API members.
 	{
 		files: [
 			'**/*.{js,cjs,mjs,ts,tsx,mts,cts}',
@@ -161,7 +163,38 @@ export default defineConfig(
 			'local': pluginLocal,
 		},
 		rules: {
-			'local/code-no-bracket-notation-for-identifiers': 'warn',
+			'local/code-no-bracket-notation-for-identifiers': ['warn', { allow: bracketNotationEnvironmentReceivers }],
+		},
+	},
+	// Keep exceptions for local dictionary names scoped to their consumers.
+	{
+		files: [
+			'src/vs/code/node/cli.ts',
+			'src/vs/code/test/node/bootstrapESM.test.ts',
+			'src/vs/platform/environment/common/environmentService.ts',
+			'src/vs/platform/environment/node/argvHelper.ts',
+			'src/vs/platform/product/common/product.ts',
+			'src/vs/platform/shell/node/shellEnv.ts',
+			'src/vs/platform/utilityProcess/electron-main/utilityProcess.ts',
+			'src/vs/server/node/remoteTerminalChannel.ts',
+		],
+		ignores: allowedBracketNotationFiles,
+		rules: {
+			'local/code-no-bracket-notation-for-identifiers': ['warn', { allow: [...bracketNotationEnvironmentReceivers, 'env'] }],
+		},
+	},
+	{
+		files: ['src/vs/platform/windows/electron-main/windowsMainService.ts'],
+		ignores: allowedBracketNotationFiles,
+		rules: {
+			'local/code-no-bracket-notation-for-identifiers': ['warn', { allow: [...bracketNotationEnvironmentReceivers, 'configuration.userEnv', 'openConfig.userEnv'] }],
+		},
+	},
+	{
+		files: ['test/smoke/test/index.js'],
+		ignores: allowedBracketNotationFiles,
+		rules: {
+			'local/code-no-bracket-notation-for-identifiers': ['warn', { allow: [...bracketNotationEnvironmentReceivers, 'opts'] }],
 		},
 	},
 	// TS
