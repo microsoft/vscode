@@ -209,7 +209,7 @@ export class AICustomizationItemNormalizer {
 			uri: item.uri,
 			name: item.name,
 			filename: item.uri.scheme === Schemas.file
-				? this.labelService.getUriLabel(item.uri, { relative: isWorkspaceItem })
+				? this.labelService.getUriLabel(item.uri, { relative: isWorkspaceItem, noPrefix: isWorkspaceItem })
 				: basename(item.uri),
 			description: item.description,
 			source,

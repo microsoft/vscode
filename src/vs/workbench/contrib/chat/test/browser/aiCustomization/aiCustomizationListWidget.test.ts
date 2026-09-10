@@ -14,7 +14,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getCustomizationItemHoverContent, getTargetedCreateActionLabel, getWorkspaceCustomizationGroupKey, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -28,6 +28,7 @@ import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -194,7 +195,7 @@ suite('aiCustomizationListWidget', () => {
 			status: 'degraded',
 		};
 
-		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. Review the current changes. Needs attention');
+		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. review.prompt.md. Needs attention');
 	});
 
 	test('virtualized row actions use a focused-row tab stop and skip disabled controls', () => {
@@ -461,23 +462,48 @@ suite('aiCustomizationListWidget', () => {
 	});
 
 	suite('getCustomizationSecondaryText', () => {
-		test('keeps hook descriptions intact', () => {
+		test('shows hook source paths instead of descriptions', () => {
 			assert.strictEqual(
-				getCustomizationSecondaryText('echo "setup". echo "run".', 'hook.json', PromptsType.hook),
-				'echo "setup". echo "run".'
+				getCustomizationSecondaryText('.github/hooks/hook.json'),
+				'.github/hooks/hook.json'
 			);
 		});
 
-		test('truncates non-hook descriptions to the first line', () => {
+		test('shows prompt source paths instead of descriptions', () => {
 			assert.strictEqual(
-				getCustomizationSecondaryText('Show the first line.\nHide the rest.', 'prompt.md', PromptsType.prompt),
-				'Show the first line.'
+				getCustomizationSecondaryText('.github/prompts/example.prompt.md'),
+				'.github/prompts/example.prompt.md'
+			);
+		});
+
+		test('shows the source path instead of the description for skills', () => {
+			assert.strictEqual(
+				getCustomizationSecondaryText('.github/skills/example/SKILL.md'),
+				'.github/skills/example/SKILL.md'
+			);
+		});
+
+		test('shows descriptions in hover content', () => {
+			const item: IAICustomizationListItem = {
+				id: 'example',
+				uri: URI.file('/workspace/.github/skills/example/SKILL.md'),
+				name: 'Example',
+				filename: '.github/skills/example/SKILL.md',
+				description: 'Use this skill for example tasks.',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+
+			assert.strictEqual(
+				getCustomizationItemHoverContent(item, '.github/skills/example/SKILL.md'),
+				'Use this skill for example tasks.'
 			);
 		});
 
 		test('falls back to filename when description is missing', () => {
 			assert.strictEqual(
-				getCustomizationSecondaryText(undefined, 'prompt.md', PromptsType.prompt),
+				getCustomizationSecondaryText('prompt.md'),
 				'prompt.md'
 			);
 		});
@@ -618,6 +644,11 @@ suite('aiCustomizationListWidget', () => {
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
 			});
+			instaService.stub(IWorkspaceContextService, {
+				getWorkspace: () => ({ id: 'test', folders: [] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
 
 			const activeSessionResource = observableValue('test', URI.parse('test:///session'));
 			const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
@@ -690,6 +721,75 @@ suite('aiCustomizationListWidget', () => {
 			widget.layout(900, 320);
 
 			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '830px');
+		});
+
+		test('groups workspace customizations by folder in a multi-root workspace', async () => {
+			const firstFolderUri = URI.file('Q:\\workspace\\first');
+			const secondFolderUri = URI.file('Q:\\workspace\\second');
+			const firstFolder = { uri: firstFolderUri, name: 'First', index: 0, toResource: (path: string) => URI.joinPath(firstFolderUri, path) };
+			const secondFolder = { uri: secondFolderUri, name: 'Second', index: 1, toResource: (path: string) => URI.joinPath(secondFolderUri, path) };
+			instaService.stub(IWorkspaceContextService, {
+				getWorkspace: () => ({ id: 'multi-root', folders: [firstFolder, secondFolder] }),
+				getWorkspaceFolder: uri => uri.path.includes('/first/') ? firstFolder : uri.path.includes('/second/') ? secondFolder : null,
+				onDidChangeWorkspaceFolders: Event.None,
+			});
+			instaService.stub(IAICustomizationWorkspaceService, 'getActiveProjectRoot', () => firstFolderUri);
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+				id: 'first-skill',
+				uri: URI.joinPath(firstFolderUri, '.github/skills/first/SKILL.md'),
+				name: 'First skill',
+				filename: '.github/skills/first/SKILL.md',
+				description: 'First skill description',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			}, {
+				id: 'second-skill',
+				uri: URI.joinPath(secondFolderUri, '.github/skills/second/SKILL.md'),
+				name: 'Second skill',
+				filename: '.github/skills/second/SKILL.md',
+				description: 'Second skill description',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 2),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			let createRequest: URI | undefined;
+			disposables.add(widget.onDidRequestCreateManual(event => createRequest = event.workspaceFolder));
+			widget.element.querySelector<HTMLButtonElement>('.plugin-card-section .customization-create-action')?.click();
+
+			assert.deepStrictEqual(
+				{
+					sections: Array.from(widget.element.querySelectorAll('.plugin-card-section')).map(section => ({
+						title: section.querySelector('.plugin-card-section-title')?.textContent,
+						items: Array.from(section.querySelectorAll('.item-name')).map(item => item.textContent),
+						sources: Array.from(section.querySelectorAll('.item-description')).map(item => item.textContent),
+					})),
+					createRequest: createRequest?.toString(),
+				},
+				{
+					sections: [
+						{ title: 'First', items: ['First skill'], sources: ['.github/skills/first/SKILL.md'] },
+						{ title: 'Second', items: ['Second skill'], sources: ['.github/skills/second/SKILL.md'] },
+						{ title: 'User', items: [], sources: [] },
+					],
+					createRequest: firstFolderUri.toString(),
+				}
+			);
+			assert.notStrictEqual(getWorkspaceCustomizationGroupKey(firstFolderUri), getWorkspaceCustomizationGroupKey(secondFolderUri));
 		});
 
 		test('instruction rows use an overflow menu without loaded status or targeting badges', async () => {

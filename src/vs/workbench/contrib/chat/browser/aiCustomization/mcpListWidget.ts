@@ -29,6 +29,7 @@ import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -60,6 +61,7 @@ import { createCustomizationCardPrimaryAction, CustomizationCardListController, 
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 
 const $ = DOM.$;
 
@@ -74,6 +76,17 @@ function isCopilotExtension(id: ExtensionIdentifier): boolean {
 
 function getPluginUriFromCollectionId(collectionId: string | undefined): string | undefined {
 	return collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX) ? collectionId.slice(PLUGIN_COLLECTION_PREFIX.length) : undefined;
+}
+
+export function getMcpServerSecondaryText(sourceUri: URI | undefined, pluginLabel: string | undefined, labelService: ILabelService): string | undefined {
+	if (pluginLabel) {
+		return localize('fromPlugin', "Plugin: {0}", pluginLabel);
+	}
+	return sourceUri ? labelService.getUriLabel(sourceUri, { relative: true, noPrefix: true }) : undefined;
+}
+
+export function getMcpServerHoverContent(description: string | undefined, secondaryText: string | undefined): string | undefined {
+	return description?.trim() || secondaryText;
 }
 
 /**
@@ -201,6 +214,7 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@IOutputService private readonly outputService: IOutputService,
@@ -251,34 +265,22 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 		}
 		// Always re-created: these capture `element`, which is a fresh object on every refresh.
 		templateData.elementDisposables.clear();
+		const secondaryText = this.getSecondaryText(element);
+		templateData.description.textContent = secondaryText ?? '';
+		templateData.description.style.display = secondaryText ? '' : 'none';
+		const hoverContent = getMcpServerHoverContent(this.getDescription(element), secondaryText);
+		if (hoverContent) {
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => ({
+				content: hoverContent,
+				appearance: { compact: true, skipFadeInAnimation: true },
+			})));
+		}
 
 		if (element.type === 'builtin-item') {
 			templateData.container.classList.add('builtin');
 			templateData.container.classList.toggle('has-detail', false);
 			templateData.name.textContent = formatDisplayName(element.label);
-			if (element.description) {
-				templateData.description.textContent = truncateToFirstLine(element.description);
-				templateData.description.style.display = '';
-			} else {
-				templateData.description.textContent = '';
-				templateData.description.style.display = 'none';
-			}
 			this.updateKnownServerStatus(templateData, element);
-
-			// Add hover with plugin provenance for plugin-sourced builtin items
-			const pluginUriStr = getPluginUriFromCollectionId(element.collectionId);
-			if (pluginUriStr) {
-				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
-					const plugin = this.agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUriStr);
-					if (plugin) {
-						return {
-							content: `${element.label}\n${localize('fromPlugin', "Plugin: {0}", plugin.label)}`,
-							appearance: { compact: true, skipFadeInAnimation: true },
-						};
-					}
-					return { content: element.label, appearance: { compact: true, skipFadeInAnimation: true } };
-				}));
-			}
 			return;
 		}
 
@@ -286,8 +288,6 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 			templateData.container.classList.remove('builtin');
 			templateData.container.classList.toggle('has-detail', false);
 			templateData.name.textContent = formatDisplayName(element.server.name);
-			templateData.description.textContent = '';
-			templateData.description.style.display = 'none';
 			this.updateActiveSessionStatus(templateData, element);
 			return;
 		}
@@ -301,14 +301,6 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 		const isGallery = !element.server.local;
 		const hasDetail = !!description || isGallery;
 		templateData.container.classList.toggle('has-detail', hasDetail);
-		if (description) {
-			templateData.description.textContent = truncateToFirstLine(description);
-			templateData.description.style.display = '';
-		} else {
-			templateData.description.textContent = '';
-			templateData.description.style.display = 'none';
-		}
-
 		if (element.activeSessionServer !== undefined) {
 			this.updateKnownServerStatus(templateData, element);
 		} else if (this.workspaceService.isSessionsWindow) {
@@ -321,6 +313,29 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 				this.updateStatus(templateData, element, disabled ? 'disabled' : connectionState?.state);
 			}));
 		}
+	}
+
+	private getDescription(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string | undefined {
+		return element.type === 'server-item'
+			? element.server.description
+			: element.type === 'builtin-item'
+				? element.description
+				: undefined;
+	}
+
+	private getSecondaryText(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string | undefined {
+		const activeSessionServer = getActiveSessionServer(element);
+		const localServer = element.type === 'session-server-item' ? undefined : element.localServer;
+		const pluginUriString = getPluginUriFromCollectionId(localServer?.collection.id);
+		const sourceUri = createInstalledMcpServerDetailInput(element).source?.uri;
+		const plugin = pluginUriString
+			? this.agentPluginService.plugins.get().find(candidate => candidate.uri.toString() === pluginUriString)
+			: activeSessionServer?.isPluginProvided && sourceUri
+				? this.agentPluginService.plugins.get().find(candidate => isEqualOrParent(sourceUri, candidate.uri))
+				: undefined;
+		const disabledReason = activeSessionServer?.disabledReason;
+		const pluginLabel = plugin?.label ?? (disabledReason?.source === 'plugin' ? disabledReason.plugin.name : undefined);
+		return getMcpServerSecondaryText(sourceUri, pluginLabel, this.labelService);
 	}
 
 	private updateKnownServerStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpBuiltinItemEntry): void {

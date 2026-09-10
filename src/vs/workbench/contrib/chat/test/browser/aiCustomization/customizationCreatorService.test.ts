@@ -15,7 +15,8 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
-import { CustomizationLocationPicker, resolveUserTargetDirectory } from '../../../browser/aiCustomization/customizationCreatorService.js';
+import { CustomizationLocationPicker, filterCustomizationSourceFolders, getCustomizationLocationPickItems, resolveUserTargetDirectory } from '../../../browser/aiCustomization/customizationCreatorService.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('customizationCreatorService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -81,10 +82,97 @@ suite('customizationCreatorService', () => {
 			harnessService,
 			new class extends mock<IInstantiationService>() { }(),
 			new class extends mock<ILabelService>() { }(),
+			new class extends mock<IWorkspaceContextService>() { }(),
 		);
 
 		const result = await picker.resolveTargetDirectoryWithPicker(sessionResource, PromptsType.agent, 'local');
 
 		assert.strictEqual(result, targetDirectory);
+	});
+
+	test('identifies workspace folders in a multi-root location picker', () => {
+		const firstWorkspace = URI.file('/workspace/first');
+		const secondWorkspace = URI.file('/workspace/second');
+		const firstFolder = { uri: firstWorkspace, name: 'First', index: 0, toResource: (path: string) => URI.joinPath(firstWorkspace, path) };
+		const secondFolder = { uri: secondWorkspace, name: 'Second', index: 1, toResource: (path: string) => URI.joinPath(secondWorkspace, path) };
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI, options?: { noPrefix?: boolean }): string {
+				assert.strictEqual(options?.noPrefix, true);
+				return resource.path.split('/').slice(-2).join('/');
+			}
+		}();
+		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
+			override readonly onDidChangeWorkspaceFolders = Event.None;
+			override getWorkspace() { return { id: 'multi-root', folders: [firstFolder, secondFolder] }; }
+			override getWorkspaceFolder(resource: URI) {
+				return resource.path.startsWith(firstWorkspace.path) ? firstFolder : resource.path.startsWith(secondWorkspace.path) ? secondFolder : null;
+			}
+		}();
+		const items = getCustomizationLocationPickItems(
+			[
+				{ uri: URI.joinPath(firstWorkspace, '.github/agents'), label: 'Workspace', source: PromptsStorage.local },
+				{ uri: URI.joinPath(secondWorkspace, '.github/agents'), label: 'Workspace', source: PromptsStorage.local },
+			],
+			labelService,
+			workspaceContextService,
+		);
+
+		assert.deepStrictEqual(items.map(({ label, description }) => ({ label, description })), [
+			{ label: 'First', description: '.github/agents' },
+			{ label: 'Second', description: '.github/agents' },
+		]);
+	});
+
+	test('omits the repeated workspace name in a folder-scoped location picker', () => {
+		const workspace = URI.file('/workspace/vscode');
+		const workspaceFolder = { uri: workspace, name: 'vscode', index: 0, toResource: (path: string) => URI.joinPath(workspace, path) };
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI): string {
+				return resource.path.split('/').slice(-2).join('/');
+			}
+		}();
+		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() { return { id: 'multi-root', folders: [workspaceFolder, { ...workspaceFolder, name: 'other', index: 1 }] }; }
+			override getWorkspaceFolder() { return workspaceFolder; }
+		}();
+		const items = getCustomizationLocationPickItems(
+			[
+				{ uri: URI.joinPath(workspace, '.agents/skills'), label: '.agents/skills', source: PromptsStorage.local },
+				{ uri: URI.joinPath(workspace, '.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+			],
+			labelService,
+			workspaceContextService,
+			workspace,
+		);
+
+		assert.deepStrictEqual(items.map(({ label, description }) => ({ label, description })), [
+			{ label: '.agents/skills', description: undefined },
+			{ label: '.github/skills', description: undefined },
+		]);
+	});
+
+	test('filters creation locations to the selected workspace folder', () => {
+		const firstWorkspace = URI.file('/workspace/first');
+		const secondWorkspace = URI.file('/workspace/second');
+		const firstFolder = { uri: firstWorkspace, name: 'First', index: 0, toResource: (path: string) => URI.joinPath(firstWorkspace, path) };
+		const secondFolder = { uri: secondWorkspace, name: 'Second', index: 1, toResource: (path: string) => URI.joinPath(secondWorkspace, path) };
+		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
+			override getWorkspaceFolder(resource: URI) {
+				return resource.path.startsWith(firstWorkspace.path) ? firstFolder : resource.path.startsWith(secondWorkspace.path) ? secondFolder : null;
+			}
+		}();
+		const folders = [
+			{ uri: URI.joinPath(firstWorkspace, '.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+			{ uri: URI.joinPath(firstWorkspace, '.claude/skills'), label: '.claude/skills', source: PromptsStorage.local },
+			{ uri: URI.joinPath(secondWorkspace, '.github/skills'), label: '.github/skills', source: PromptsStorage.local },
+			{ uri: URI.file('/user/skills'), label: 'User', source: PromptsStorage.user },
+		];
+
+		const filtered = filterCustomizationSourceFolders(folders, 'local', firstWorkspace, workspaceContextService);
+
+		assert.deepStrictEqual(filtered.map(folder => folder.uri.toString()), [
+			URI.joinPath(firstWorkspace, '.github/skills').toString(),
+			URI.joinPath(firstWorkspace, '.claude/skills').toString(),
+		]);
 	});
 });

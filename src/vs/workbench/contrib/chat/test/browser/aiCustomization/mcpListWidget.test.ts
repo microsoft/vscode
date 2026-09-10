@@ -37,6 +37,8 @@ import {
 	getAgentHostMcpServerEnablementActions,
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
+	getMcpServerHoverContent,
+	getMcpServerSecondaryText,
 	getMcpStatusPresentation,
 	isMcpServerCollectionVisible,
 	isPrimaryMcpServerEnabled,
@@ -52,6 +54,7 @@ import {
 	setPrimaryMcpServerEnablement,
 	shouldLoadMcpGallerySnapshot,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -195,6 +198,25 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows source provenance in rows and descriptions in hovers', () => {
+		const labelService = {
+			getUriLabel: () => '.vscode/mcp.json',
+		} as unknown as ILabelService;
+		const source = URI.file('/workspace/.vscode/mcp.json');
+
+		assert.deepStrictEqual({
+			source: getMcpServerSecondaryText(source, undefined, labelService),
+			plugin: getMcpServerSecondaryText(source, 'Example Plugin', labelService),
+			descriptionHover: getMcpServerHoverContent('  Server description.  ', '.vscode/mcp.json'),
+			fallbackHover: getMcpServerHoverContent(undefined, '.vscode/mcp.json'),
+		}, {
+			source: '.vscode/mcp.json',
+			plugin: 'Plugin: Example Plugin',
+			descriptionHover: 'Server description.',
+			fallbackHover: '.vscode/mcp.json',
+		});
+	});
 
 	test('classifies active-session-only MCP servers as built-in entries', () => {
 		const server = createAgentHostServer({ name: 'node_repl' });
@@ -896,7 +918,8 @@ suite('mcpListWidget', () => {
 				() => { },
 				{ isSessionsWindow: true } as IAICustomizationWorkspaceService,
 				{ plugins: observableValue<readonly never[]>('plugins', []) } as unknown as IAgentPluginService,
-				{ setupManagedHover: () => Disposable.None } as unknown as IHoverService,
+				{ setupManagedHover: () => Disposable.None, setupDelayedHover: () => Disposable.None } as unknown as IHoverService,
+				{ getUriLabel: (resource: URI) => resource.path } as unknown as ILabelService,
 				agentHostCustomizationService,
 				customizationHarnessService,
 				{ showChannel: async () => { } } as unknown as IOutputService,
