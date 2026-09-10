@@ -14,11 +14,10 @@
 .monaco-icon-label::before {
 
 	/* svg icons rendered as background image */
-	background-size: 16px;
+	background-size: var(--vscode-iconSize-small);
 	background-position: left center;
 	background-repeat: no-repeat;
-	padding-right: 6px;
-	width: 16px;
+	width: var(--vscode-iconSize-small);
 	height: 22px;
 	line-height: inherit !important;
 	display: inline-block;
@@ -31,11 +30,27 @@
 	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
+.monaco-icon-label.monaco-icon-label-spacing-none::before {
+	padding-inline-end: var(--vscode-spacing-sizeNone);
+}
+
+.monaco-icon-label.monaco-icon-label-spacing-default::before {
+	padding-inline-end: var(--vscode-spacing-size60);
+}
+
 .monaco-icon-label-iconpath {
-	width: 16px;
+	flex: 0 0 auto;
+	width: var(--vscode-iconSize-small);
 	height: 22px;
-	margin-right: 6px;
 	display: flex;
+}
+
+.monaco-icon-label.monaco-icon-label-spacing-none > .monaco-icon-label-iconpath {
+	margin-inline-end: var(--vscode-spacing-sizeNone);
+}
+
+.monaco-icon-label.monaco-icon-label-spacing-default > .monaco-icon-label-iconpath {
+	margin-inline-end: var(--vscode-spacing-size60);
 }
 
 .monaco-icon-label-container.disabled {

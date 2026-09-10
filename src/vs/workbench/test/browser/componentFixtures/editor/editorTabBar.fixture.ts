@@ -631,7 +631,13 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 		DecorationsOff: defineComponentFixture({ render: render(modernUI, { partOptions: { decorations: { badges: false, colors: false } } }) }),
 
 		// pinnedTabSizing
-		PinnedTabSizingCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }) }),
+		PinnedTabSizingCompact: defineComponentFixture({
+			...(modernUI ? {
+				labels: { kind: 'screenshot' as const },
+				expectedVisualDescriptions: ['A horizontal editor tab bar begins with three compact pinned icon-only tabs followed by normal labelled tabs. Each compact icon occupies its tab without empty label separation, while the labelled tabs retain their normal icon-label relationship.'],
+			} : {}),
+			render: render(modernUI, { partOptions: { pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }),
+		}),
 		PinnedTabSizingShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabSizing: 'shrink' }, editors: stickyEditorSpecs() }) }),
 
 		// titleScrollbarSizing

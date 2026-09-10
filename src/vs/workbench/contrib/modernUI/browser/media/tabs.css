@@ -145,16 +145,8 @@
 	transform: translateX(-1px);
 }
 
-.modern-ui-tabs .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label::before {
-	padding-right: 0;
-}
-
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label > .monaco-icon-label-container {
 	display: none;
-}
-
-.modern-ui-tabs .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label > .monaco-icon-label-iconpath {
-	margin-right: 0;
 }
 
 .modern-ui-tabs .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {

@@ -1817,6 +1817,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				},
 				icon: editor.getIcon(),
 				hideIcon: options.showIcons === false,
+				iconLabelSpacing: this.useModernUITabs && options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex) ? 'none' : undefined,
 				namePrefix,
 			}
 		);

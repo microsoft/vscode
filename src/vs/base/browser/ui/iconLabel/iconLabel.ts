@@ -31,6 +31,11 @@ export interface IIconLabelValueOptions {
 	descriptionTitle?: string | IManagedHoverTooltipMarkdownString;
 	suffix?: string;
 	hideIcon?: boolean;
+	/**
+	 * Selects the label-owned spacing after its leading icon. Use `none` when the
+	 * composition intentionally renders only the icon; omission defaults to `default`.
+	 */
+	iconLabelSpacing?: 'none' | 'default';
 	extraClasses?: readonly string[];
 	bold?: boolean;
 	italic?: boolean;
@@ -131,7 +136,7 @@ export class IconLabel extends Disposable {
 	}
 
 	setLabel(label: string | string[], description?: string, options?: IIconLabelValueOptions): void {
-		const labelClasses = ['monaco-icon-label'];
+		const labelClasses = ['monaco-icon-label', `monaco-icon-label-spacing-${options?.iconLabelSpacing ?? 'default'}`];
 		const containerClasses = ['monaco-icon-label-container'];
 		let ariaLabel: string = '';
 		if (options) {
