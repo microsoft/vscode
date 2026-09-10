@@ -91,7 +91,7 @@ import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfer
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { getSessionSummaryHoverData } from '../sessionHoverContent.js';
+import { getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -1057,8 +1057,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				return;
 			}
 
-			const changes = element.changes.read(reader);
-			const changesSummary = element.changesSummary?.read(reader);
+			const diffStats = getSessionDiffStats(element, reader);
 			let timeDate: Date | undefined;
 
 			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
@@ -1102,28 +1101,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			// Diff stats
-			if (!isQuickChat && !hideDetails && (changesSummary || changes.length > 0)) {
-				let insertions = 0, deletions = 0;
-
-				if (changesSummary) {
-					insertions = changesSummary.additions;
-					deletions = changesSummary.deletions;
-				} else if (changes.length > 0) {
-					for (const change of changes) {
-						insertions += change.insertions;
-						deletions += change.deletions;
-					}
+			if (!isQuickChat && !hideDetails && diffStats) {
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
-
-				if (insertions > 0 || deletions > 0) {
-					if (parts.length > 0) {
-						DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-					}
-					const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
-					DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${insertions}`;
-					DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${deletions}`;
-					parts.push(diffEl);
-				}
+				const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
+				DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${diffStats.insertions}`;
+				DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${diffStats.deletions}`;
+				parts.push(diffEl);
 			}
 
 			const statusMessage = getSessionStatusMessage(sessionStatus, description);
