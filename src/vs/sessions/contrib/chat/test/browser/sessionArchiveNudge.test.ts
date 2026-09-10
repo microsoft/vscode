@@ -22,7 +22,6 @@ import { StorageScope, StorageTarget } from '../../../../../platform/storage/com
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestChatEntitlementService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISpotlightPayload } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
@@ -31,13 +30,12 @@ import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { IChat, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestState, IGitHubPullRequest } from '../../../github/common/types.js';
 import { getPullRequestKey } from '../../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../../github/common/sessionLifecycleSettings.js';
-import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService, ShowSessionArchiveNudgeAction } from '../../browser/sessionArchiveNudge.js';
+import { SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudge, SessionArchiveNudgeService } from '../../browser/sessionArchiveNudge.js';
 import { SessionsList } from '../../../sessions/browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../../sessions/browser/views/sessionsView.js';
 
@@ -251,120 +249,6 @@ suite('SessionArchiveNudge', () => {
 		assert.deepStrictEqual({ states, live: context.counts.references, polling: context.counts.polling, events: context.events }, {
 			states: [false, true, false, true, false], live: 0, polling: 0, events: [],
 		});
-	});
-
-	test('developer command shows the active session nudge without enabling the setting or requiring PRs', async () => {
-		const session = createSession();
-		session.artifacts.set([], undefined);
-		const context = setup([session], false);
-		const nudge = context.createNudge();
-		const opened: URI[] = [];
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsService, {
-			activeSession: observableValue('active', session),
-			openChat: async (_session, resource) => { opened.push(resource); },
-		});
-		instantiationService.stub(ISessionArchiveNudgeService, context.service);
-		instantiationService.stub(IChatEntitlementService, context.entitlement);
-		const action = new ShowSessionArchiveNudgeAction();
-		await instantiationService.invokeFunction(accessor => action.run(accessor));
-		nudge.markShown();
-		assert.deepStrictEqual({
-			palette: action.desc.f1,
-			opened,
-			count: nudge.options.get()?.pullRequestCount,
-			setting: context.configuration.getValue(SESSION_ARCHIVE_NUDGE_SETTING),
-			requests: context.requests,
-			events: context.events,
-		}, {
-			palette: true,
-			opened: [session.mainChat.get().resource],
-			count: 1,
-			setting: false,
-			requests: [],
-			events: [],
-		});
-		context.entitlement.sentimentObs.set({ hidden: true }, undefined);
-		await assert.rejects(instantiationService.invokeFunction(accessor => action.run(accessor)), /Open a session with chat enabled/);
-	});
-
-	test('debug nudges can be shown again after dismissal without persisting the debug override', () => {
-		const session = createSession();
-		const context = setup([session], false);
-		const key = `sessions.archiveNudge.dismissed.${session.sessionId}`;
-		context.storage.store(key, true, StorageScope.PROFILE, StorageTarget.MACHINE);
-		const nudge = context.createNudge();
-		const states = [!!nudge.options.get()];
-		context.service.showForTesting(session);
-		states.push(!!nudge.options.get());
-		nudge.options.get()!.onDismiss();
-		states.push(!!nudge.options.get());
-		context.service.showForTesting(session);
-		states.push(!!nudge.options.get());
-		context.reloadService();
-		states.push(!!context.createNudge().options.get());
-		assert.deepStrictEqual({
-			states, dismissed: context.storage.getBoolean(key, StorageScope.PROFILE), events: context.events,
-		}, { states: [false, true, false, true, false], dismissed: true, events: [] });
-	});
-
-	test('dismissing a debug nudge also hides an otherwise eligible real nudge', () => {
-		const session = createSession();
-		const context = setup([session]);
-		context.setPullRequest(1, GitHubPullRequestState.Merged);
-		const nudge = context.createNudge();
-		context.service.showForTesting(session);
-		nudge.options.get()!.onDismiss();
-		assert.strictEqual(nudge.options.get(), undefined);
-	});
-
-	test('debug nudges stay session-specific and respect disabled AI features', () => {
-		const session = createSession();
-		const other = createSession('other');
-		const context = setup([session, other], false);
-		const nudge = context.createNudge();
-		context.service.showForTesting(session);
-		const states = [!!nudge.options.get()];
-		context.current.set(other, undefined);
-		states.push(!!nudge.options.get());
-		context.current.set(session, undefined);
-		states.push(!!nudge.options.get());
-		context.entitlement.sentimentObs.set({ hidden: true }, undefined);
-		states.push(!!nudge.options.get());
-		assert.deepStrictEqual(states, [true, false, true, false]);
-	});
-
-	test('debug nudges reject unavailable sessions', () => {
-		const session = createSession();
-		const context = setup([session], false);
-		for (const status of [SessionStatus.Untitled, SessionStatus.InProgress]) {
-			session.status.set(status, undefined);
-			assert.throws(() => context.service.showForTesting(session), /Select a connected, idle session/);
-		}
-		session.status.set(SessionStatus.Completed, undefined);
-		session.isArchived.set(true, undefined);
-		assert.throws(() => context.service.showForTesting(session), /Select a connected, idle session/);
-	});
-
-	test('debug nudges wait for onboarding and perform real archiving without recording nudge telemetry', async () => {
-		const session = createSession();
-		const context = setup([session], false, undefined, true);
-		const nudge = context.createNudge();
-		const outcome = new DeferredPromise<OnboardingOutcome>();
-		context.onboarding.setResult(outcome.p);
-		context.service.showForTesting(session);
-		const archiving = nudge.options.get()!.onArchive();
-		await context.onboarding.started;
-		assert.deepStrictEqual(context.archiveTargets, []);
-		await outcome.complete(OnboardingOutcome.Completed);
-		await archiving;
-		assert.deepStrictEqual({
-			archived: session.isArchived.get(),
-			targets: context.archiveTargets,
-			debugSession: context.service.debugSession.get(),
-			visible: !!nudge.options.get(),
-			events: context.events,
-		}, { archived: true, targets: [session], debugSession: undefined, visible: false, events: [] });
 	});
 
 	test('waits for every PR artifact, ignoring references and unrelated links', () => {

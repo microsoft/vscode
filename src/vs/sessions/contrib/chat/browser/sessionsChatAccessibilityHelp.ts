@@ -23,7 +23,6 @@ import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } f
 import { SESSION_ARCHIVE_NUDGE_SETTING } from './sessionArchiveNudge.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import product from '../../../../platform/product/common/product.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -49,9 +48,6 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.promptOptions', "When prompt options appear above the new-session input, use Tab and Shift+Tab to move between them, then press Enter or Space to insert one. You can select a different option while the input is empty, exactly matches the inserted prompt, or only has its editable placeholder removed; other edits disable the options without hiding them. Clearing the input also clears the selected option. Use the Close action to hide the options and return focus to the input."));
 		content.push(localize('sessionsChat.promptTemplatePlaceholder', "When the new-session prompt contains a highlighted task placeholder, place the caret inside it and replace it{0} to type your task.", `<keybinding:${REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.feedbackComments', "When pull requests have failing checks or unreviewed comments, one banner appears above the input. If several pull requests need attention, use the Previous Banner and Next Banner buttons to move between them. A pull request with both failing checks and comments uses a split button: activate the main action to address both, or use its More Actions button to address only the checks or comments. In-product agent review comments appear as their own carousel item."));
-		if (product.quality !== 'stable') {
-			content.push(localize('sessionsChat.debugArchiveNudge', "For testing, run Developer: Show Session Archive Nudge from the Command Palette to show the suggestion for the active idle session, even without a merged pull request. Use Shift+Tab from the input to reach it. Its Archive or Mark as Done button performs the real action, including first-use onboarding."));
-		}
 		if (accessor.get(IConfigurationService).getValue<boolean>(SESSION_ARCHIVE_NUDGE_SETTING)) {
 			content.push(localize('sessionsChat.archiveNudgeOnboarding', "The first time you activate the suggestion's Archive or Mark as Done button, a spotlight may reveal that session's action in the sessions list. The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight. Use Tab or Shift+Tab to move between the highlighted action and Understood, and Enter or Space to activate either. The session is then archived or marked as done, and the spotlight will not appear again."));
 			content.push(getChatSessionArchiveActionWording(accessor.get(IConfigurationService)) === ChatSessionArchiveActionWording.MarkAsDone

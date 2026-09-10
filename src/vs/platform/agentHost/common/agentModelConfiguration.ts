@@ -19,6 +19,17 @@ export function createContextSizeConfigSchemaProperty(billing: ICAPIModelBilling
 	const tokenPrices = billing?.tokenPrices;
 	const defaultMax = tokenPrices?.contextMax;
 	const longContextMax = tokenPrices?.longContext?.contextMax;
+	return createContextSizeConfigSchemaPropertyFromLimits(
+		defaultMax,
+		longContextMax,
+		hasLongContextSurcharge(billing) ? defaultMax : longContextMax,
+	);
+}
+
+/**
+ * Synthesizes the shared context-size picker property from provider-owned limits.
+ */
+export function createContextSizeConfigSchemaPropertyFromLimits(defaultMax: number | undefined, longContextMax: number | undefined, selectedDefault = defaultMax): ConfigPropertySchema | undefined {
 	if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
 		return undefined;
 	}
@@ -27,7 +38,7 @@ export function createContextSizeConfigSchemaProperty(billing: ICAPIModelBilling
 		type: 'number',
 		title: localize('copilot.modelContextSize.title', "Context Size"),
 		description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-		default: hasLongContextSurcharge(billing) ? defaultMax : longContextMax,
+		default: selectedDefault === longContextMax ? longContextMax : defaultMax,
 		enum: [defaultMax, longContextMax],
 		enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
 		enumDescriptions: [
