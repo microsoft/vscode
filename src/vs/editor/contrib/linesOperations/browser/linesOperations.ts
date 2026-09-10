@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveElement, getWindow, isHTMLInputElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as nls from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -1114,6 +1115,24 @@ export class TransposeAction extends EditorAction {
 
 export abstract class AbstractCaseAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		// If focus is in a native text input/textarea (e.g. find widget input),
+		// transform the selected text there instead of in the editor
+		const activeElement = getActiveElement();
+		if (activeElement && (isHTMLInputElement(activeElement) || isHTMLTextAreaElement(activeElement))) {
+			const selStart = activeElement.selectionStart;
+			const selEnd = activeElement.selectionEnd;
+			if (selStart !== null && selEnd !== null && selStart !== selEnd) {
+				const value = activeElement.value;
+				const selectedText = value.substring(selStart, selEnd);
+				const wordSeparators = editor.getOption(EditorOption.wordSeparators);
+				const transformedText = this._modifyText(selectedText, wordSeparators);
+				// Use execCommand to support native undo in the input
+				activeElement.focus();
+				getWindow(activeElement).document.execCommand("insertText", false, transformedText);
+				return;
+			}
+		}
+
 		const selections = editor.getSelections();
 		if (selections === null) {
 			return;
