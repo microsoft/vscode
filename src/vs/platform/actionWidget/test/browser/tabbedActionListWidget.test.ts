@@ -724,6 +724,80 @@ suite('TabbedActionListWidget', () => {
 		);
 	});
 
+	test('refreshing pins preserves collapsed sizing across tabs and search', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		anchor.style.cssText = 'position: fixed; top: 400px; width: 120px; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		const content = document.createElement('button');
+		content.textContent = 'Unpin Model';
+		let pinned = true;
+		let searching = false;
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Copilot' }, { id: 'Other' }],
+			initialTab: 'Copilot',
+			sizingTab: 'Copilot',
+			showCheckedItemHover: true,
+			createActionList: (tab, forSizing) => {
+				const model = {
+					...action('model'),
+					item: { id: 'model', checked: true },
+					section: pinned ? undefined : 'other',
+					hover: { content, expandable: true },
+				};
+				return {
+					items: searching && !forSizing ? ['one', 'two', 'three', 'four', 'five', 'six'].map(action) : tab === 'Copilot' ? [
+						...(pinned ? [{ kind: ActionListItemKind.Separator, label: 'Pinned' }, model] : []),
+						action('suggested'),
+						{ ...action('other-models'), section: 'other', isSectionToggle: true },
+						...(pinned ? [] : [model]),
+						...['one', 'two', 'three'].map(id => ({ ...action(id), section: 'other' })),
+					] : [action('provider-model')],
+					listOptions: { collapsedByDefault: new Set(['other']), anchorPosition: AnchorPosition.ABOVE, persistentHover: true },
+				};
+			},
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		const listHeight = () => contextView.getContextViewElement().querySelector<HTMLElement>('.actionList')!.offsetHeight;
+		const initialHeight = listHeight();
+		const toggleOther = () => {
+			const row = Array.from(contextView.getContextViewElement().querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.find(row => row.textContent === 'other-models');
+			assert.ok(row);
+			row.click();
+		};
+		content.focus();
+		pinned = false;
+		widget.refreshActiveList({ focusItemId: 'model', preserveHover: true });
+		toggleOther();
+		await Promise.resolve();
+		const afterUnpin = listHeight();
+		const tabHeights = [];
+		for (const index of [1, 0]) {
+			contextView.getContextViewElement().querySelectorAll<HTMLElement>('.tabbed-action-list-tabstrip .monaco-button')[index].click();
+			tabHeights.push(listHeight());
+		}
+		searching = true;
+		widget.refreshActiveList();
+		const searchHeight = listHeight();
+		pinned = true;
+		widget.refreshActiveList();
+		const afterPin = listHeight();
+		widget.hide();
+
+		assert.deepStrictEqual({ afterUnpin, tabHeights, searchHeight, afterPin }, {
+			afterUnpin: initialHeight / 2,
+			tabHeights: [initialHeight / 2, initialHeight / 2],
+			searchHeight: initialHeight / 2,
+			afterPin: initialHeight,
+		});
+	});
+
 	for (const initialFooterHeight of [20, 80]) {
 		test(`resizing the footer preserves the fixed popup height when opened with a ${initialFooterHeight}px footer`, async () => {
 			const { widget, contextView } = createWidget(disposables);
