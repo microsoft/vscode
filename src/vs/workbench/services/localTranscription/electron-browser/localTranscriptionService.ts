@@ -7,6 +7,7 @@ import { getDelayedChannel, IChannel, ProxyChannel } from '../../../../base/part
 import { arch, platform } from '../../../../base/common/process.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -55,6 +56,7 @@ export class LocalTranscriptionService extends Disposable {
 	private readonly _workerEvents = this._register(new DisposableStore());
 	private _channel: IChannel | undefined;
 	private _proxy: ILocalTranscriptionService | undefined;
+	private _workerGeneration = 0;
 
 	constructor(
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
@@ -66,12 +68,12 @@ export class LocalTranscriptionService extends Disposable {
 
 	private _getChannel(): IChannel {
 		if (!this._channel) {
-			this._channel = getDelayedChannel(this._createWorkerChannel());
+			this._channel = getDelayedChannel(this._createWorkerChannel(this._workerGeneration));
 		}
 		return this._channel;
 	}
 
-	private async _createWorkerChannel(): Promise<IChannel> {
+	private async _createWorkerChannel(generation: number): Promise<IChannel> {
 		const worker = await this.utilityProcessWorkerWorkbenchService.createWorker({
 			moduleId: 'vs/platform/localTranscription/node/localTranscriptionMain',
 			type: 'localTranscription',
@@ -82,6 +84,10 @@ export class LocalTranscriptionService extends Disposable {
 			// disabled) to avoid a Team ID mismatch dlopen failure.
 			allowLoadingUnsignedLibraries: true
 		});
+		if (generation !== this._workerGeneration || this._store.isDisposed) {
+			worker.dispose();
+			throw new CancellationError();
+		}
 		this._worker.value = worker;
 
 		const channel = worker.client.getChannel(localTranscriptionChannelName);
@@ -126,21 +132,36 @@ export class LocalTranscriptionService extends Disposable {
 	pushAudio(chunk: Parameters<ILocalTranscriptionService['pushAudio']>[0]) { return this._getProxy().pushAudio(chunk); }
 	stop() { return this._getProxy().stop(); }
 	async cancel(): Promise<void> {
-		if (!this._proxy) {
+		const proxy = this._proxy;
+		if (!proxy) {
+			return;
+		}
+		const worker = this._detachWorker();
+		if (!worker) {
 			return;
 		}
 		try {
-			await this._proxy.cancel();
+			await proxy.cancel();
 		} finally {
-			this._resetWorker();
+			worker.dispose();
 		}
 	}
 
-	private _resetWorker(): void {
+	private _detachWorker(): IUtilityProcessWorker | undefined {
+		this._workerGeneration++;
 		this._channel = undefined;
 		this._proxy = undefined;
 		this._workerEvents.clear();
-		this._worker.clear();
+		return this._worker.clearAndLeak();
+	}
+
+	private _resetWorker(): void {
+		this._detachWorker()?.dispose();
+	}
+
+	override dispose(): void {
+		this._workerGeneration++;
+		super.dispose();
 	}
 
 	/**
