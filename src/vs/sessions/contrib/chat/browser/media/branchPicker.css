@@ -22,6 +22,6 @@
 	user-select: none;
 }
 
-.monaco-workbench .sessions-chat-branch-picker-host:focus {
+.monaco-workbench .sessions-chat-branch-picker-host[tabindex]:focus {
 	outline: none;
 }
