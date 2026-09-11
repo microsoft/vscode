@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createPullRequestHover } from '../../browser/pullRequestHover.js';
-import { GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
 
 function makePullRequest(overrides: Partial<IGitHubPullRequest> = {}): IGitHubPullRequest {
 	return {
@@ -74,5 +74,43 @@ suite('createPullRequestHover', () => {
 		headBranch.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
 		assert.deepStrictEqual({ clicks, bubbledToRow }, { clicks: ['base', 'head'], bubbledToRow: false });
+	});
+
+	test('shows overall CI status for open pull requests', () => {
+		const render = (ciStatus: GitHubCIOverallStatus, pullRequest = makePullRequest()) => {
+			const { element } = createPullRequestHover({
+				owner: 'owner',
+				repo: 'repo',
+				number: 1,
+				repositoryHref: 'https://example.com',
+				referenceHref: 'https://example.com/1',
+				pullRequest,
+				ciStatus,
+				density: 'default',
+			});
+			const checks = element.querySelector<HTMLElement>('.sessions-pr-hover-checks');
+			return {
+				text: checks?.textContent,
+				status: checks?.dataset.status,
+				icon: checks?.querySelector('.codicon')?.className,
+				iconAriaHidden: checks?.querySelector('.codicon')?.getAttribute('aria-hidden'),
+			};
+		};
+
+		assert.deepStrictEqual({
+			pending: render(GitHubCIOverallStatus.Pending),
+			success: render(GitHubCIOverallStatus.Success),
+			failure: render(GitHubCIOverallStatus.Failure),
+			neutral: render(GitHubCIOverallStatus.Neutral),
+			draft: render(GitHubCIOverallStatus.Success, makePullRequest({ isDraft: true })),
+			merged: render(GitHubCIOverallStatus.Success, makePullRequest({ state: GitHubPullRequestState.Merged })),
+		}, {
+			pending: { text: 'Checks running', status: 'pending', icon: 'codicon codicon-sync-compact', iconAriaHidden: 'true' },
+			success: { text: 'Checks passed', status: 'success', icon: 'codicon codicon-pass-filled-compact', iconAriaHidden: 'true' },
+			failure: { text: 'Checks failed', status: 'failure', icon: 'codicon codicon-error-compact', iconAriaHidden: 'true' },
+			neutral: { text: undefined, status: undefined, icon: undefined, iconAriaHidden: undefined },
+			draft: { text: 'Checks passed', status: 'success', icon: 'codicon codicon-pass-filled-compact', iconAriaHidden: 'true' },
+			merged: { text: undefined, status: undefined, icon: undefined, iconAriaHidden: undefined },
+		});
 	});
 });

@@ -404,6 +404,7 @@ suite('ChatPills', () => {
 			id,
 			label: `Pull Request #${id}`,
 			ariaLabel: `Open Pull Request #${id}`,
+			ariaDescription: `open. Checks passed. https://github.com/microsoft/vscode/pull/${id}`,
 			open: () => { },
 		});
 		const sections = observableValue<readonly IChatPillSection[]>('chatPills.openSections', [{
@@ -453,7 +454,12 @@ suite('ChatPills', () => {
 			expandedAfterEmpty: button.getAttribute('aria-expanded'),
 		}, {
 			shownLabels: ['Pull Requests', 'Pull Request #1', 'Pull Request #2', 'Pull Request #3'],
-			shownAriaLabels: ['Pull Requests', 'Open Pull Request #1', 'Open Pull Request #2', 'Open Pull Request #3'],
+			shownAriaLabels: [
+				'Pull Requests',
+				'Open Pull Request #1, open. Checks passed. https://github.com/microsoft/vscode/pull/1',
+				'Open Pull Request #2, open. Checks passed. https://github.com/microsoft/vscode/pull/2',
+				'Open Pull Request #3, open. Checks passed. https://github.com/microsoft/vscode/pull/3',
+			],
 			updatedLabels: ['Pull Requests', 'Pull Request #2', 'Pull Request #3'],
 			expandedAfterUpdate: 'true',
 			dropdownFocusPreserved: true,

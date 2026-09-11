@@ -32,7 +32,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
-import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
+import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
@@ -651,6 +651,7 @@ suite('SessionChatInputToolbar', () => {
 				}),
 				icon: Codicon.gitPullRequestDraft,
 				status: {},
+				ciStatus: GitHubCIOverallStatus.Pending,
 			},
 			{
 				ref,
@@ -669,7 +670,7 @@ suite('SessionChatInputToolbar', () => {
 				icon: Codicon.gitPullRequestDraft,
 				status: {},
 			},
-			{ ref: { ...ref, state: 'merged' }, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Open, isDraft: false }), icon: Codicon.gitPullRequest, status: {} },
+			{ ref: { ...ref, state: 'merged' }, pullRequest: upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Open, isDraft: false }), icon: Codicon.gitPullRequest, status: { hasFailingChecks: true }, ciStatus: GitHubCIOverallStatus.Failure },
 			{ ref: { ...ref, liveState: 'closed', state: 'open' }, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} },
 			{ ref: { ...ref, state: 'merged' }, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} },
 			{ ref, pullRequest: undefined, icon: Codicon.gitPullRequestDone, status: {} },
@@ -688,6 +689,7 @@ suite('SessionChatInputToolbar', () => {
 		const closedDraftHover = typeof entries[1].hover?.content === 'function' ? entries[1].hover.content() : undefined;
 		assert.deepStrictEqual({
 			states: entries.map(entry => entry.pullRequestState),
+			descriptions: entries.slice(0, 3).map(entry => entry.ariaDescription),
 			openDraftHover: {
 				status: openDraftHover?.querySelector('.sessions-pr-hover-status')?.textContent,
 				date: openDraftHover?.querySelector('.sessions-pr-hover-date')?.textContent,
@@ -698,6 +700,11 @@ suite('SessionChatInputToolbar', () => {
 			},
 		}, {
 			states: ['draft', 'closed', 'open', 'closed', 'merged', 'merged', 'open'],
+			descriptions: [
+				'draft. Checks running. https://github.com/microsoft/vscode/pull/1',
+				'closed. https://github.com/microsoft/vscode/pull/1',
+				'failing checks. https://github.com/microsoft/vscode/pull/1',
+			],
 			openDraftHover: { status: 'Draft', date: 'on Sep 1' },
 			closedDraftHover: { status: 'Closed', date: 'on Sep 1' },
 		});

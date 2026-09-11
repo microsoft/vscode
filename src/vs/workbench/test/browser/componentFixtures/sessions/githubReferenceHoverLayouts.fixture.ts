@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 // eslint-disable-next-line local/code-import-patterns
-import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../../../sessions/contrib/github/common/types.js';
+import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../../../sessions/contrib/github/common/types.js';
 // eslint-disable-next-line local/code-import-patterns
 import { createIssueHoverElement } from '../../../../../sessions/contrib/github/browser/issueHover.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -40,7 +40,7 @@ function createPullRequest(): IGitHubPullRequest {
 		number: 335387,
 		title: 'Preserve recorded GitHub titles in pills',
 		body: 'Preserves issue and pull request titles when artifacts are promoted into dedicated GitHub pills, keeping the Agents Window and regular chat presentation consistent.',
-		state: GitHubPullRequestState.Merged,
+		state: GitHubPullRequestState.Open,
 		author: { login: 'chryw', avatarUrl: '' },
 		headRef: 'agents/popup-title-for-issue',
 		headSha: '02265cde4ce',
@@ -48,7 +48,7 @@ function createPullRequest(): IGitHubPullRequest {
 		isDraft: false,
 		createdAt: hoursAgo(72),
 		updatedAt: hoursAgo(48),
-		mergedAt: hoursAgo(48),
+		mergedAt: undefined,
 		mergeable: true,
 		mergeableState: 'clean',
 	};
@@ -108,6 +108,7 @@ function renderPullRequestHover(context: ComponentFixtureContext, density: 'defa
 		repositoryHref,
 		referenceHref: `${repositoryHref}/pull/${pullRequest.number}`,
 		pullRequest,
+		ciStatus: GitHubCIOverallStatus.Success,
 		density,
 		onDidClickBaseBranch: () => { },
 		onDidClickHeadBranch: () => { },

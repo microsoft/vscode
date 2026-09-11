@@ -46,9 +46,11 @@
 
 .sessions-pr-hover-status-row {
 	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
 }
 
-.sessions-pr-hover-status {
+.sessions-pr-hover :is(.sessions-pr-hover-status, .sessions-pr-hover-checks) {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
@@ -61,8 +63,20 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.sessions-pr-hover-status .codicon {
+.sessions-pr-hover :is(.sessions-pr-hover-status, .sessions-pr-hover-checks) .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.sessions-pr-hover-checks[data-status='pending'] .codicon {
+	color: var(--vscode-testing-iconQueued, var(--vscode-editorWarning-foreground));
+}
+
+.sessions-pr-hover-checks[data-status='failure'] .codicon {
+	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
+}
+
+.sessions-pr-hover-checks[data-status='success'] .codicon {
+	color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
 }
 
 .sessions-pr-hover-title {

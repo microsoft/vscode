@@ -295,7 +295,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			undefined,
 			[],
 			{
-				getAriaLabel: item => item.item?.ariaLabel ?? item.label ?? '',
+				getAriaLabel: item => [item.item?.ariaLabel ?? item.label, item.ariaDescription].filter(Boolean).join(', '),
 				getWidgetAriaLabel: () => this._pillOptions.title,
 			},
 			{ minWidth: 240, maxWidth: 460, widgetClassName: 'show-file-icons chat-pill-dropdown' },

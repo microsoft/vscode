@@ -7,9 +7,11 @@ import './media/pullRequestHover.css';
 
 import { $, append } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } from '../common/types.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../common/types.js';
 import { appendGitHubHoverTitle, getGitHubHoverDate, getGitHubHoverDescription } from './githubHover.js';
 
 export interface IPullRequestHoverData {
@@ -19,6 +21,7 @@ export interface IPullRequestHoverData {
 	readonly repositoryHref: string;
 	readonly referenceHref: string;
 	readonly pullRequest: IGitHubPullRequest;
+	readonly ciStatus?: GitHubCIOverallStatus;
 	readonly density: 'default' | 'compact';
 	readonly onDidClickRepository?: () => void;
 	readonly onDidClickReference?: () => void;
@@ -62,6 +65,14 @@ export function createPullRequestHover(data: IPullRequestHoverData): IPullReques
 		statusIconElement.style.color = asCssVariable(statusIcon.color.id);
 	}
 	append(statusElement, $('span.sessions-pr-hover-status-label', undefined, status.label));
+	const checksStatus = getPullRequestChecksStatus(data.pullRequest, data.ciStatus);
+	if (checksStatus) {
+		const checksElement = append(statusRow, $('span.sessions-pr-hover-checks'));
+		checksElement.dataset.status = checksStatus.kind;
+		const checksIcon = append(checksElement, renderIcon(checksStatus.icon));
+		checksIcon.setAttribute('aria-hidden', 'true');
+		append(checksElement, $('span.sessions-pr-hover-checks-label', undefined, checksStatus.label));
+	}
 
 	const body = getGitHubHoverDescription(data.pullRequest.body, localize('agentSessions.pullRequestHover.bodyFallback', "No description provided."));
 	const description = append(hoverElement, $('.sessions-pr-hover-description'));
@@ -116,6 +127,25 @@ function getPullRequestStatus(pullRequest: IGitHubPullRequest): { readonly kind:
 		return { kind: 'draft', label: localize('agentSessions.pullRequestHover.draft', "Draft") };
 	}
 	return { kind: 'open', label: localize('agentSessions.pullRequestHover.open', "Open") };
+}
+
+function getPullRequestChecksStatus(pullRequest: IGitHubPullRequest, ciStatus: GitHubCIOverallStatus | undefined): { readonly kind: 'pending' | 'success' | 'failure'; readonly label: string; readonly icon: ThemeIcon } | undefined {
+	if (pullRequest.state !== GitHubPullRequestState.Open || !ciStatus || ciStatus === GitHubCIOverallStatus.Neutral) {
+		return undefined;
+	}
+	switch (ciStatus) {
+		case GitHubCIOverallStatus.Pending:
+			return { kind: 'pending', label: localize('agentSessions.pullRequestHover.checksRunning', "Checks running"), icon: Codicon.syncCompact };
+		case GitHubCIOverallStatus.Failure:
+			return { kind: 'failure', label: localize('agentSessions.pullRequestHover.checksFailed', "Checks failed"), icon: Codicon.errorCompact };
+		case GitHubCIOverallStatus.Success:
+			return { kind: 'success', label: localize('agentSessions.pullRequestHover.checksPassed', "Checks passed"), icon: Codicon.passFilledCompact };
+	}
+}
+
+/** Returns the localized CI summary shown in a pull request reference hover. */
+export function getPullRequestChecksStatusLabel(pullRequest: IGitHubPullRequest, ciStatus: GitHubCIOverallStatus | undefined): string | undefined {
+	return getPullRequestChecksStatus(pullRequest, ciStatus)?.label;
 }
 
 function appendBranchPill(container: HTMLElement, label: string, kind: 'base' | 'head', onDidClick: (() => void) | undefined): HTMLButtonElement | undefined {
