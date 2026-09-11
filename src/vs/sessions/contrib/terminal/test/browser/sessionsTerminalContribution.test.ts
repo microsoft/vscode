@@ -2335,6 +2335,52 @@ suite('SessionsTerminalContribution', () => {
 		assert.ok(restoredGroup, 'restored group should exist');
 		assert.deepStrictEqual(restoredGroup.terminalInstances.map(i => i.instanceId), [t1.instanceId, t2.instanceId, t3.instanceId], 'all 3 terminals should rejoin the same group in order');
 	});
+
+	test('showAllTerminals restores 3-level split terminals in parent-first order even when enumerated in reverse order', async () => {
+		const cwd1 = URI.file('/worktree1');
+		const cwd2 = URI.file('/worktree2');
+		const session1 = makeAgentSession({ sessionId: 'test:session-1', worktree: cwd1, providerType: AgentSessionProviders.Background });
+		const session2 = makeAgentSession({ sessionId: 'test:session-2', worktree: cwd2, providerType: AgentSessionProviders.Background });
+
+		// Activate Session 1 — t1 is created
+		activeSessionObs.set(session1, undefined);
+		await tick();
+		const t1 = terminalInstances.get(1)!;
+
+		// Create t2 and t3 and split into the same group: [t1, t2, t3]
+		const t2 = makeTerminalInstance(nextInstanceId++, cwd1.fsPath);
+		const t3 = makeTerminalInstance(nextInstanceId++, cwd1.fsPath);
+		terminalInstances.set(t2.instanceId, t2);
+		terminalInstances.set(t3.instanceId, t3);
+		const group = terminalGroups.find(g => g.terminalInstances.some(i => i.instanceId === t1.instanceId))!;
+		group.terminalInstances.push(t2, t3);
+
+		// Switch to Session 2 — all 3 terminals are backgrounded
+		activeSessionObs.set(session2, undefined);
+		await tick();
+
+		assert.ok(backgroundedInstances.has(t1.instanceId));
+		assert.ok(backgroundedInstances.has(t2.instanceId));
+		assert.ok(backgroundedInstances.has(t3.instanceId));
+
+		// Reorder terminalInstances map in reverse order: [t3, t2, t1]
+		terminalInstances.delete(t1.instanceId);
+		terminalInstances.delete(t2.instanceId);
+		terminalInstances.delete(t3.instanceId);
+		terminalInstances.set(t3.instanceId, t3);
+		terminalInstances.set(t2.instanceId, t2);
+		terminalInstances.set(t1.instanceId, t1);
+
+		showBackgroundCalls.length = 0;
+
+		// Invoke Show All Terminals
+		await contribution.showAllTerminals();
+
+		assert.deepStrictEqual(showBackgroundCalls, [t1.instanceId, t2.instanceId, t3.instanceId], 'showBackgroundTerminal must be called parent-first');
+		const restoredGroup = terminalGroups.find(g => g.terminalInstances.some(i => i.instanceId === t1.instanceId));
+		assert.ok(restoredGroup, 'restored group should exist');
+		assert.deepStrictEqual(restoredGroup.terminalInstances.map(i => i.instanceId), [t1.instanceId, t2.instanceId, t3.instanceId], 'all 3 terminals should rejoin the same group in order');
+	});
 });
 
 function tick(): Promise<void> {
