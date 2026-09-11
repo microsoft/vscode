@@ -69,6 +69,8 @@ export interface IPermissionPickerDelegate {
 	 */
 	readonly isSandboxToggleApplicable?: () => boolean;
 	readonly getSandboxToggleSettingId?: () => string | undefined;
+	/** Tracks asynchronous setting ID changes, including agent host switches. */
+	readonly sandboxToggleSettingId?: IObservable<string | undefined>;
 	readonly sandboxToggleConfigurationKeys?: readonly string[];
 	readonly managedSandboxEnforced?: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass?: IObservable<boolean>;
@@ -314,7 +316,13 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				this.renderLabel(this.element);
 			}
 		}));
+		let sandboxSettingId: string | undefined;
 		this._register(autorun(reader => {
+			const settingId = delegate.sandboxToggleSettingId?.read(reader);
+			if (settingId !== sandboxSettingId) {
+				sandboxSettingId = settingId;
+				this.hide();
+			}
 			delegate.isApplicable?.read(reader);
 			delegate.isResolving?.read(reader);
 			delegate.sandboxEnabled?.read(reader);
