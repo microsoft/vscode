@@ -140,11 +140,11 @@ export function createAgentServiceComposition(
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
 			},
 		));
-		const agentMergeTools = instantiationService.createInstance(
+		const agentMergeTools = owned.add(instantiationService.createInstance(
 			AgentMergeTools,
 			() => agentMergeController.isEnabled(),
 			session => agentMergeController.getTurnContext(session),
-		);
+		));
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
 		const sessionServerToolAccessor: ISessionServerToolAccessor = {

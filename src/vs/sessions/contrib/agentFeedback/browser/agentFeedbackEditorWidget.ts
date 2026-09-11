@@ -565,6 +565,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			return;
 		}
 
+		if (comment.kind === AgentFeedbackKind.PRReview && comment.sourcePRReviewCommentId) {
+			this._codeReviewService.dismissPRReviewComment(this._sessionResource, comment.sourcePRReviewCommentId);
+		}
 		this._agentFeedbackService.removeFeedback(this._sessionResource, comment.sourceId);
 	}
 

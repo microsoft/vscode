@@ -254,7 +254,8 @@
 }
 
 .automations-card:hover .automations-card-actions,
-.automations-card:focus-within .automations-card-actions {
+.automations-card:focus-within .automations-card-actions,
+.automations-card .automations-card-actions.menu-open {
 	opacity: 1;
 }
 

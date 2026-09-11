@@ -60,7 +60,7 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
-import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
+import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionTurnFileChange, ISessionType, ISessionUsage, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts } from './agentHostSessionArtifacts.js';
@@ -3893,6 +3893,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		}
 		const remembered = migrateLegacyAutopilotConfig(config);
+		if (workspace && rememberedValues[SessionConfigKey.Isolation] === undefined) {
+			remembered[SessionConfigKey.Isolation] = this._baseConfigurationService.getValue<boolean>(USE_WORKTREE_SETTING) !== false ? 'worktree' : 'folder';
+		}
 
 		// `chat.defaultConfiguration` controls both axes. Per axis the
 		// precedence is: enterprise policy > remembered pick > effective
@@ -4031,11 +4034,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			: constObservable(false);
 	}
 
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
-		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
-
-		// Remember portable config picks across sessions.
+	private _rememberSessionConfigValue(property: string, normalizedValue: unknown): void {
 		if (typeof normalizedValue === 'string' && isRememberedSessionConfigKey(property)) {
 			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 			const nextRememberedValues = Object.create(null) as Record<string, string>;
@@ -4047,6 +4046,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			nextRememberedValues[property] = normalizedValue;
 			this._storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify(nextRememberedValues), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
+	}
+
+	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
+		this._rememberSessionConfigValue(property, normalizedValue);
 
 		// Mark resolution before firing so the first picker render is already inert.
 		const newSession = this._getNewSession(sessionId);
@@ -5248,6 +5253,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
+		}
+
+		if (newSession.workspaceUri && !newSession.getInitialSessionTemplate()) {
+			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
+			if (rememberedValues[SessionConfigKey.Isolation] === undefined) {
+				this._rememberSessionConfigValue(SessionConfigKey.Isolation, newSession.getConfig()?.values[SessionConfigKey.Isolation]);
+			}
 		}
 
 		newSession.setStatus(SessionStatus.InProgress);
