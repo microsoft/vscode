@@ -213,6 +213,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			actionBar.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			actionBar.style.setProperty('--vscode-spacing-size240', '24px');
 			actionBar.style.setProperty('--vscode-spacing-size120', '12px');
+			actionBar.style.setProperty('--vscode-spacing-size20', '2px');
 			actionBar.style.setProperty('--vscode-spacing-size60', '6px');
 			actionBar.style.setProperty('--vscode-spacing-sizeNone', '0px');
 			actionBar.style.setProperty('--vscode-strokeThickness', '1px');
@@ -244,10 +245,12 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 					buttonHeights: [rendered.modeButton, rendered.permissionsButton].map(button => button.getBoundingClientRect().height),
 					buttonPadding: [rendered.modeButton, rendered.permissionsButton].map(button => dom.getWindow(button).getComputedStyle(button).padding),
 					contentInsets,
+					surfaceGap: rendered.permissionsButton.getBoundingClientRect().left - rendered.modeButton.getBoundingClientRect().right,
 					labelGap,
 					totalChrome: contentInsets[0].left + labelGap + contentInsets[1].right,
 					divider: {
 						position: dividerStyle.position,
+						left: dividerStyle.left,
 						width: dividerStyle.width,
 						height: dividerStyle.height,
 						color: dividerStyle.backgroundColor,
@@ -263,10 +266,12 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			buttonHeights: [surface.buttonHeight, surface.buttonHeight],
 			buttonPadding: ['0px 4px', '0px 4px'],
 			contentInsets: [{ left: 4, right: 4 }, { left: 4, right: 4 }],
-			labelGap: 8,
-			totalChrome: 16,
+			surfaceGap: 2,
+			labelGap: 10,
+			totalChrome: 18,
 			divider: {
 				position: 'absolute',
+				left: '-1px',
 				width: '1px',
 				height: '12px',
 				color: 'rgb(18, 52, 86)',

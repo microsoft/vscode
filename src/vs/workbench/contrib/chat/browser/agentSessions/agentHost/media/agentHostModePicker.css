@@ -109,11 +109,12 @@
 
 .agent-host-mode-permissions-trigger .agent-host-permissions-button {
 	position: relative;
+	margin-left: var(--vscode-spacing-size20);
 }
 
 .agent-host-mode-permissions-trigger .agent-host-permissions-button::before {
 	position: absolute;
-	left: 0;
+	left: calc(-1 * var(--vscode-spacing-size20) / 2);
 	top: 50%;
 	width: var(--vscode-strokeThickness);
 	height: var(--vscode-spacing-size120);

@@ -249,10 +249,10 @@ suite('AgentHostModePicker', () => {
 			expanded: {
 				padding: '0px',
 				height: 22,
-				gap: 8,
+				gap: 10,
 				leftInset: 4,
 				rightInset: 4,
-				totalChrome: 16,
+				totalChrome: 18,
 				iconSizes: [
 					{ width: 12, height: 12, fontSize: '12px' },
 					{ width: 12, height: 12, fontSize: '12px' },
