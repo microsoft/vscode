@@ -14,6 +14,7 @@ import { LocalCommandContribution } from './localCommand/localCommandContributio
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
+import { PullRequestChatContribution } from './pullRequest/pullRequestChatContribution.js';
 import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
@@ -31,6 +32,7 @@ export function registerBuiltInChatContributions(
 	const registrations = new DisposableStore();
 	registrations.add(contributions.registerContribution(LocalCommandContribution));
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
+	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));

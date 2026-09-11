@@ -339,7 +339,12 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 		a.pullRequest?.title === b.pullRequest?.title &&
 		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
 		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid &&
-		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) => x.owner === y.owner && x.repo === y.repo && x.number === y.number);
+		arrayEquals(a.issues ?? [], b.issues ?? [], (x, y) =>
+			x.owner === y.owner &&
+			x.repo === y.repo &&
+			x.number === y.number &&
+			isEqual(x.uri, y.uri) &&
+			x.title === y.title);
 }
 
 function dateEquals(a: Date | undefined, b: Date | undefined): boolean {
@@ -351,12 +356,17 @@ function markdownStringEquals(a: IMarkdownString | undefined, b: IMarkdownString
 }
 
 /** Maps the GitHub issue URLs recorded on the session's metadata to issue references. */
-function toGitHubIssueRefs(issueUrls: readonly string[] | undefined): readonly IGitHubIssueRef[] | undefined {
+function toGitHubIssueRefs(issueUrls: readonly string[] | undefined, titles: ReadonlyMap<string, string>): readonly IGitHubIssueRef[] | undefined {
 	const refs: IGitHubIssueRef[] = [];
 	for (const url of issueUrls ?? []) {
 		const reference = parseGitHubIssueUrl(url);
 		if (reference) {
-			refs.push({ ...reference, uri: URI.parse(url) });
+			const title = titles.get(linkKey(url));
+			refs.push({
+				...reference,
+				uri: URI.parse(url),
+				...(title ? { title } : {}),
+			});
 		}
 	}
 	return refs.length > 0 ? refs : undefined;
@@ -390,7 +400,7 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 	const state = readSessionGitHubState(meta);
 	const gitState = readSessionGitState(meta);
-	const { pullRequestUrls, pullRequestTitles, issueUrls } = partitionSessionArtifacts(meta);
+	const { pullRequestUrls, pullRequestTitles, issueUrls, issueTitles } = partitionSessionArtifacts(meta);
 
 	// Recorded pull requests lead discovered ones, so the first is the newest.
 	const allPullRequests = toGitHubPullRequestRefs(state, dedupeLinks(pullRequestUrls, getSessionRelatedPullRequestUrls(state)), pullRequestTitles);
@@ -411,7 +421,7 @@ function toGitHubInfo(meta: SessionMeta | undefined): IGitHubInfo | undefined {
 
 	const pullRequests = allPullRequests?.filter(belongsToRepository);
 	const pullRequest = pullRequests?.at(0);
-	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls))?.filter(belongsToRepository);
+	const issues = toGitHubIssueRefs(dedupeLinks(issueUrls), issueTitles)?.filter(belongsToRepository);
 
 	return {
 		owner: repository.owner,
@@ -5068,6 +5078,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			agentIdSilent: contribution?.type,
 			attachedContext,
 			hideFromTranscript: options.hideFromTranscript,
+			metadata: options.metadata,
 		};
 
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
@@ -5186,6 +5197,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			attachedContext,
 			agentHostSessionConfig: this.getCreateSessionConfig(chatId),
 			hideFromTranscript: options.hideFromTranscript,
+			metadata: options.metadata,
 		};
 
 		// Chat session model was already created by createNewChat and

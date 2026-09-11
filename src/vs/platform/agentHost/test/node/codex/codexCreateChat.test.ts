@@ -21,6 +21,8 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
@@ -227,6 +229,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, logService);
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
 	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
@@ -668,14 +671,28 @@ suite('CodexAgent createChat', () => {
 		entry.threadId = 'hook-trust-resume-thread';
 		entry.needsResume = true;
 		entry.unsubscribeBeforeResume = true;
+		entry.hasNativeHistory = undefined;
 		agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
 		setWorkspaceTrust(agent, [folder]);
 
 		const resuming = agent['_resumeSession'](entry);
-		const unsubscribe = await readNextRequest(peer.outbound);
-		peer.push({ id: unsubscribe.id, result: {} });
+		const providerRead = await readNextRequest(peer.outbound);
+		peer.push({
+			id: providerRead.id,
+			result: {
+				thread: {
+					id: entry.threadId,
+					cwd: folder.fsPath,
+					modelProvider: 'vscode-proxy',
+					historyMode: 'legacy',
+					turns: [],
+				},
+			},
+		});
 		const hooks = await readNextRequest(peer.outbound);
 		respondToHooksList(peer, hooks, folder.fsPath);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
 		const resume = await readNextRequest(peer.outbound);
 		peer.push({ id: resume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
 		await resuming;
@@ -683,10 +700,10 @@ suite('CodexAgent createChat', () => {
 		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 
 		assert.deepStrictEqual({
-			methods: [unsubscribe.method, hooks.method, resume.method],
+			methods: [providerRead.method, hooks.method, unsubscribe.method, resume.method],
 			state: resume.params.config?.['hooks.state'],
 		}, {
-			methods: ['thread/unsubscribe', 'hooks/list', 'thread/resume'],
+			methods: ['thread/read', 'hooks/list', 'thread/unsubscribe', 'thread/resume'],
 			state: {
 				[`${folder.fsPath}/.codex/hooks.json:session_start:0:0`]: { trusted_hash: 'current-project-hash' },
 			},
@@ -3475,6 +3492,8 @@ suite('CodexAgent chat backing durability', () => {
 			const turns = await reading;
 			const rematerializationReceiptsAfterRead = receipts.length;
 			const sending = agent.chats.sendMessage(chat, 'continue', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const providerRead = await readNextRequest(peer.outbound);
+			peer.push({ id: providerRead.id, error: { code: -32000, message: 'no rollout found for thread id missing-rollout-thread' } });
 			const unsubscribe = await readNextRequest(peer.outbound);
 			peer.push({ id: unsubscribe.id, result: {} });
 			const resume = await readNextRequest(peer.outbound);
@@ -3492,6 +3511,7 @@ suite('CodexAgent chat backing durability', () => {
 				materializedBeforeReplacement,
 				rematerializationReceiptsAfterRead,
 				rematerializationReceipts: receipts.length,
+				providerRead: { method: providerRead.method, threadId: providerRead.params.threadId },
 				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
 				resume: { method: resume.method, threadId: resume.params.threadId },
 				start: { method: start.method, cwd: start.params.cwd },
@@ -3507,6 +3527,7 @@ suite('CodexAgent chat backing durability', () => {
 				materializedBeforeReplacement: true,
 				rematerializationReceiptsAfterRead: 0,
 				rematerializationReceipts: 1,
+				providerRead: { method: 'thread/read', threadId: 'missing-rollout-thread' },
 				unsubscribe: { method: 'thread/unsubscribe', threadId: 'missing-rollout-thread' },
 				resume: { method: 'thread/resume', threadId: 'missing-rollout-thread' },
 				start: { method: 'thread/start', cwd: folder.fsPath },

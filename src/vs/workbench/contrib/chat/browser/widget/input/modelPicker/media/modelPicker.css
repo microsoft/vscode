@@ -20,7 +20,6 @@
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
 	padding: 0;
 	overflow: visible;
-	height: auto;
 	position: relative;
 	cursor: default;
 }
