@@ -2499,6 +2499,8 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
 			} else if (/! \[rejected\].*\(would clobber existing tag\)/m.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.TagConflict;
+			} else if (/Need to specify how to reconcile divergent branches/i.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.PullWithReconcileNotConfigured;
 			}
 
 			throw err;
