@@ -141,6 +141,10 @@ export function computeScrollDownState(isScrolledToBottom: boolean, scrollLock: 
 	};
 }
 
+export function isChatBackgroundContextMenuTarget(target: HTMLElement | undefined): boolean {
+	return !!target && !target.closest('.interactive-item-container, .scrollbar');
+}
+
 class UserToggleResizeTracker extends Disposable {
 
 	private readonly state = new UserToggleResizeState(2);
@@ -828,13 +832,14 @@ export class ChatListWidget extends Disposable {
 		const selected = e.element;
 
 		// Check if the context menu was opened on a KaTeX element
-		const target = e.browserEvent.target as HTMLElement;
-		const isKatexElement = target.closest(`.${katexContainerClassName}`) !== null;
+		const target = dom.isHTMLElement(e.browserEvent.target) ? e.browserEvent.target : undefined;
+		const isKatexElement = !!target?.closest(`.${katexContainerClassName}`);
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
-			[ChatContextKeys.isKatexMathElement.key, isKatexElement]
+			[ChatContextKeys.isKatexMathElement.key, isKatexElement],
+			[ChatContextKeys.contextMenuIsBackground.key, isChatBackgroundContextMenuTarget(target)]
 		]);
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,

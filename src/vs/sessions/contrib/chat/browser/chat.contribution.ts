@@ -42,6 +42,7 @@ import { SessionsCustomizationHarnessService } from './customizationHarnessServi
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { ChatViewFactory } from './chatView.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
@@ -238,6 +239,11 @@ class SetChatBackgroundAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: SessionsChatBackgroundAvailableContext,
+			}, {
+				id: MenuId.ChatContext,
+				group: 'zz_background',
+				order: 1,
+				when: ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, ChatContextKeys.contextMenuIsBackground),
 			}],
 		});
 	}
