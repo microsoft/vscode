@@ -15,7 +15,7 @@ import type { IColorCustomizations } from '../../../services/themes/common/workb
 import { getThemeStyleSheet } from './fixtureUtilsCss.js';
 
 interface ThemeVariant {
-	readonly selector: ThemeTypeSelector;
+	readonly id: string;
 	readonly colors: IColorCustomizations;
 	readonly expected: { readonly border: string; readonly background: string };
 }
@@ -24,22 +24,27 @@ suite('Component fixture theme CSS', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const variants: readonly ThemeVariant[] = [
 		{
-			selector: ThemeTypeSelector.VS_DARK,
+			id: ThemeTypeSelector.VS_DARK,
 			colors: { 'editor.lineHighlightBackground': '#242526' },
 			expected: { border: '0px none rgb(0, 0, 0)', background: 'rgb(36, 37, 38)' },
 		},
 		{
-			selector: ThemeTypeSelector.VS,
+			id: `${ThemeTypeSelector.VS} fixture-light-modern`,
 			colors: { 'editor.lineHighlightBackground': '#00000000', 'editor.lineHighlightBorder': '#eeeeee' },
 			expected: { border: '2px solid rgb(238, 238, 238)', background: 'rgba(0, 0, 0, 0)' },
 		},
 		{
-			selector: ThemeTypeSelector.HC_BLACK,
+			id: `${ThemeTypeSelector.VS} fixture-light-2026`,
+			colors: { 'editor.lineHighlightBackground': '#fafafa' },
+			expected: { border: '0px none rgb(0, 0, 0)', background: 'rgb(250, 250, 250)' },
+		},
+		{
+			id: ThemeTypeSelector.HC_BLACK,
 			colors: { 'editor.lineHighlightBackground': '#00000000', 'editor.lineHighlightBorder': '#ffffff' },
 			expected: { border: '1px solid rgb(255, 255, 255)', background: 'rgba(0, 0, 0, 0)' },
 		},
 		{
-			selector: ThemeTypeSelector.HC_LIGHT,
+			id: ThemeTypeSelector.HC_LIGHT,
 			colors: { 'editor.lineHighlightBackground': '#00000000', 'editor.lineHighlightBorder': '#0f4a85' },
 			expected: { border: '1px solid rgb(15, 74, 133)', background: 'rgba(0, 0, 0, 0)' },
 		},
@@ -56,12 +61,12 @@ suite('Component fixture theme CSS', () => {
 			const actual = [];
 			const orderedVariants = reverse ? [...variants].reverse() : variants;
 			const expectedStyles = orderedVariants.map(variant => ({
-				selector: variant.selector,
+				id: variant.id,
 				...resolveStyle(host, variant.expected),
 			}));
 
 			for (const variant of orderedVariants) {
-				const theme = ColorThemeData.createLoadedEmptyTheme(variant.selector, variant.selector);
+				const theme = ColorThemeData.createLoadedEmptyTheme(variant.id, variant.id);
 				theme.setCustomColors(variant.colors);
 				mainWindow.document.adoptedStyleSheets = [
 					...mainWindow.document.adoptedStyleSheets,
@@ -69,10 +74,10 @@ suite('Component fixture theme CSS', () => {
 				];
 				const root = host.appendChild($('.monaco-workbench'));
 				root.classList.add(...theme.classNames);
-				lines.set(variant.selector, createCurrentLine(root));
+				lines.set(variant.id, createCurrentLine(root));
 				actual.push({
 					outside: getCurrentLineStyle(outsideLine),
-					fixtures: [...lines].map(([selector, line]) => ({ selector, ...getCurrentLineStyle(line) })),
+					fixtures: [...lines].map(([id, line]) => ({ id, ...getCurrentLineStyle(line) })),
 				});
 			}
 
