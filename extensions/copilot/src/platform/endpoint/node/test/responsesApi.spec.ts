@@ -12,6 +12,7 @@ import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
 import { FinishedCallback, IResponseDelta, isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
+import { Response } from '../../../networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { ChatCompletion, FilterReason, FinishedCompletionReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
@@ -1231,6 +1232,67 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 
 		expect(body.prompt_cache_options).toBeUndefined();
 		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
+});
+
+describe('non-streaming Responses HTTP bodies', () => {
+	const base = { id: 'resp_json', model: 'test', created_at: 123, status: 'completed', output: [], usage: { input_tokens: 11, output_tokens: 7, total_tokens: 18 } };
+	const consume = async (body: object | string, contentType = 'application/json') => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const deltas: IResponseDelta[] = [];
+		const telemetry = new SpyingTelemetryService();
+		try {
+			const response = Response.fromText(200, 'OK', new Headers({ 'content-type': contentType }), typeof body === 'string' ? body : JSON.stringify(body), 'node-fetch');
+			const stream = await processResponseFromChatEndpoint(accessor.get(IInstantiationService), telemetry, accessor.get(ILogService), response, 1, async (_text, _index, delta) => { deltas.push(delta); }, TelemetryData.createAndMarkAsIssued({}, {}));
+			const completions: ChatCompletion[] = [];
+			for await (const completion of stream) {
+				completions.push(completion);
+			}
+			return { completions, deltas, events: telemetry.getEvents().telemetryServiceEvents };
+		} finally {
+			accessor.dispose();
+			services.dispose();
+		}
+	};
+
+	it('delivers ordered summary, text, tool and opaque state exactly once with usage and telemetry', async () => {
+		const { completions, deltas, events } = await consume({ ...base, output: [
+			{ type: 'reasoning', id: 'rs_json', summary: [{ type: 'summary_text', text: 'summary' }], encrypted_content: 'opaque' },
+			{ type: 'message', id: 'msg_json', role: 'assistant', status: 'completed', phase: 'commentary', content: [{ type: 'output_text', text: 'hello', annotations: [] }] },
+			{ type: 'function_call', id: 'fc_json', call_id: 'call_json', name: 'read_file', arguments: '{"path":"a.ts"}', status: 'completed' },
+		] }, 'Application/Vnd.OpenAI+Json; charset=utf-8');
+		expect(completions).toHaveLength(1);
+		expect(completions[0]).toMatchObject({ finishReason: FinishedCompletionReason.Stop, usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 }, requestId: { completionId: 'resp_json' } });
+		expect(deltas.filter(delta => delta.text).map(delta => delta.text)).toEqual(['hello']);
+		expect(deltas.flatMap(delta => delta.copilotToolCalls ?? [])).toEqual([{ id: 'call_json', name: 'read_file', arguments: '{"path":"a.ts"}' }]);
+		expect(deltas.filter(delta => delta.thinking?.text).map(delta => delta.thinking?.text)).toEqual(['summary']);
+		expect(deltas.some(delta => delta.thinking && 'encrypted' in delta.thinking && delta.thinking.encrypted === 'opaque')).toBe(true);
+		expect(deltas.findIndex(delta => delta.thinking?.text)).toBeLessThan(deltas.findIndex(delta => delta.text === 'hello'));
+		expect(deltas.some(delta => delta.phase === 'commentary')).toBe(true);
+		expect(deltas.some(delta => delta.statefulMarker === 'resp_json')).toBe(true);
+		expect(events.filter(event => event.eventName === 'engine.messages')).toHaveLength(1);
+	});
+
+	it('preserves truncation and real server failures rather than returning empty success', async () => {
+		const incomplete = await consume({ ...base, status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output: [{ type: 'message', id: 'msg_partial', content: [{ type: 'output_text', text: 'partial' }] }] });
+		expect(incomplete.completions[0].finishReason).toBe(FinishedCompletionReason.Length);
+		expect(incomplete.deltas.filter(delta => delta.text).map(delta => delta.text)).toEqual(['partial']);
+		const failed = await consume({ ...base, status: 'failed', error: { code: 'server_error', message: 'server failed' } });
+		expect(failed.completions[0].finishReason).toBe(FinishedCompletionReason.ServerError);
+		const error = await consume({ error: { code: 'invalid_api_key', message: 'denied' } });
+		expect(error.completions[0].finishReason).toBe(FinishedCompletionReason.ServerError);
+		expect(error.deltas.flatMap(delta => delta.copilotErrors ?? []).map(error => error.message)).toEqual(['denied']);
+	});
+
+	it.each(['queued', 'in_progress', 'cancelled'])('rejects nonterminal JSON state %s', async status => {
+		await expect(consume({ ...base, status })).rejects.toThrow('Invalid non-streaming Responses API response.');
+	});
+
+	it('rejects malformed JSON and output shapes without leaking their contents', async () => {
+		for (const body of ['{secret', 'null', JSON.stringify({ ...base, output: [{ type: 'function_call', arguments: {} }] })]) {
+			await expect(consume(body)).rejects.toThrow('Invalid non-streaming Responses API response.');
+		}
 	});
 });
 
