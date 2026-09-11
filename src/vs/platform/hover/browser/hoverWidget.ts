@@ -649,7 +649,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 				// Otherwise show the pointer at the center of hover
 				else {
-					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - Constants.PointerSize}px`;
+					// Not rounded: `_y` is itself fractional, so rounding here cannot align the
+					// caret to a device pixel, it only offsets it from the center by up to 0.5px.
+					this._hoverPointer.style.top = `${(hoverHeight / 2) - Constants.PointerSize}px`;
 				}
 
 				break;
@@ -660,7 +662,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				const hoverWidth = this._hover.containerDomNode.clientWidth;
 
 				// Position pointer at the center of the hover
-				let pointerLeftPosition = Math.round((hoverWidth / 2)) - Constants.PointerSize;
+				// Not rounded: `_x` is itself fractional, so rounding here cannot align the
+				// caret to a device pixel, it only offsets it from the center by up to 0.5px.
+				let pointerLeftPosition = (hoverWidth / 2) - Constants.PointerSize;
 
 				// If pointer goes beyond target then position it at the center of the target
 				const pointerX = this._x + pointerLeftPosition;

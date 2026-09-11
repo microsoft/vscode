@@ -4385,14 +4385,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.monaco-toolbar .actions-container > .action-item.chat-fork-action-item:not(:first-child) {
 			display: flex;
 			align-items: center;
-			gap: 4px;
+			position: relative;
+			/* Reserves the gutter the separator is drawn into, so the item's own box stays
+			exactly the button: the hover and its pointer, the focus ring and the click
+			listeners all derive from that box. */
+			margin-left: var(--vscode-spacing-size80);
 		}
 
 		.monaco-toolbar .actions-container > .action-item.chat-fork-action-item:not(:first-child)::before {
 			content: '\00B7';
+			position: absolute;
+			right: 100%;
+			top: 0;
+			bottom: 0;
+			display: flex;
+			align-items: center;
+			margin-right: var(--vscode-spacing-size40);
 			font-size: var(--vscode-fontSize-label1);
 			line-height: 18px;
 			color: var(--vscode-descriptionForeground);
+			pointer-events: none;
 		}
 
 		.monaco-toolbar .action-label:hover {

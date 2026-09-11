@@ -65,15 +65,18 @@
 .workbench-hover-pointer:after {
 	content: '';
 	position: absolute;
-	width: 5px;
-	height: 5px;
+	/* Sized as a border box so the caret stays exactly `PointerSize * 2` wide, and so its
+	centre stays `PointerSize` from its origin, which is what hoverWidget.ts assumes when it
+	centres the caret. Under zoom the browser rounds border widths to whole device pixels,
+	which would otherwise shrink a content-box caret off centre. */
+	box-sizing: border-box;
+	width: 6px;
+	height: 6px;
 	background-color: var(--vscode-editorHoverWidget-background);
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 }
 .workbench-hover-container:not(:focus-within).locked .workbench-hover-pointer:after {
-	width: 4px;
-	height: 4px;
 	border-right-width: 2px;
 	border-bottom-width: 2px;
 }

@@ -140,4 +140,59 @@ suite('ChatForkActionViewItem', () => {
 			labelClass: true,
 		});
 	});
+
+	test('keeps the hover, focus ring and click target on the fork button when a separator precedes it', () => {
+		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const action = instantiationService.createInstance(MenuItemAction, {
+			id: ForkConversationActionId,
+			title: 'Fork Conversation',
+			tooltip: 'Fork conversation from this point',
+			icon: Codicon.repoForked,
+		}, undefined, undefined, undefined, undefined);
+		const viewItem = store.add(instantiationService.createInstance(ChatForkActionViewItem, action, undefined));
+		const session = append(mainWindow.document.body, $('.interactive-session'));
+		store.add(toDisposable(() => session.remove()));
+		session.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		session.style.setProperty('--vscode-fontSize-label1', '12px');
+		session.style.setProperty('--vscode-spacing-size40', '4px');
+		session.style.setProperty('--vscode-spacing-size60', '6px');
+		session.style.setProperty('--vscode-spacing-size80', '8px');
+		session.style.setProperty('--vscode-strokeThickness', '1px');
+		const checkpoint = append(session, $('.checkpoint-container'));
+		const toolbar = append(checkpoint, $('.monaco-toolbar'));
+		const actionBar = append(toolbar, $('.monaco-action-bar'));
+		const actions = append(actionBar, $('ul.actions-container'));
+		append(actions, $('li.action-item.chat-restore-checkpoint-item', undefined, $('a.action-label', undefined, 'Restore Checkpoint')));
+		const container = append(actions, $('li.action-item'));
+		viewItem.render(container);
+
+		const label = container.querySelector<HTMLElement>('.action-label');
+		assert.ok(label);
+
+		const itemBounds = container.getBoundingClientRect();
+		const labelBounds = label.getBoundingClientRect();
+		const separator = getWindow(container).getComputedStyle(container, '::before');
+		const separatorRight = itemBounds.left - parseFloat(separator.marginRight);
+
+		assert.deepStrictEqual({
+			separatorContent: separator.content,
+			separatorPosition: separator.position,
+			separatorPointerEvents: separator.pointerEvents,
+			separatorRendered: parseFloat(separator.width) > 0,
+			separatorRightEdgeToButton: labelBounds.left - separatorRight,
+			// The managed hover and its pointer, the focus ring and the click listeners all
+			// derive from the action item's box, so it has to be exactly the button.
+			targetLeftOffset: itemBounds.left - labelBounds.left,
+			targetWidthOffset: itemBounds.width - labelBounds.width,
+		}, {
+			separatorContent: '"\u00B7"',
+			separatorPosition: 'absolute',
+			separatorPointerEvents: 'none',
+			separatorRendered: true,
+			separatorRightEdgeToButton: 4,
+			targetLeftOffset: 0,
+			targetWidthOffset: 0,
+		});
+	});
 });
