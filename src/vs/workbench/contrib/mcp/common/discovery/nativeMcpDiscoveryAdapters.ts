@@ -42,6 +42,7 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 		const launch: McpServerLaunch = server.url ? {
 			type: McpServerTransportType.HTTP,
 			uri: URI.parse(server.url),
+			url: server.url,
 			headers: Object.entries(server.headers ?? {}),
 		} : {
 			type: McpServerTransportType.Stdio,
