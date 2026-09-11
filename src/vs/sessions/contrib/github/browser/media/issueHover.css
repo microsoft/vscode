@@ -50,9 +50,6 @@
 }
 
 .sessions-issue-hover-title {
-	display: flex;
-	align-items: baseline;
-	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
@@ -60,18 +57,19 @@
 }
 
 .sessions-issue-hover-title-content {
+	display: block;
 	min-width: 0;
-	display: -webkit-box;
-	line-clamp: 2;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
-	overflow: hidden;
 	overflow-wrap: anywhere;
 }
 
+.sessions-issue-hover-title-tail {
+	white-space: nowrap;
+}
+
 .sessions-issue-hover .sessions-issue-hover-reference {
-	flex-shrink: 0;
 	font-weight: var(--vscode-fontWeight-regular);
+	overflow-wrap: normal;
+	white-space: nowrap;
 }
 
 .sessions-issue-hover-author {

@@ -30,7 +30,7 @@ import { ISessionChangesStatsCache } from '../../../../services/sessions/common/
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
-import { getGitHubHoverDate, getGitHubHoverDescription } from '../../../github/browser/githubHover.js';
+import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -296,7 +296,7 @@ suite('SessionChatInputToolbar', () => {
 				className: pullRequestHover?.className,
 				contentOrder: [...pullRequestHover?.children ?? []].map(element => element.className),
 				provenanceOrder: [...pullRequestHover?.querySelector('.sessions-pr-hover-header')?.children ?? []].map(element => element.className),
-				titleOrder: [...pullRequestHover?.querySelector('.sessions-pr-hover-title')?.children ?? []].map(element => element.className),
+				titleOrder: [...pullRequestHover?.querySelector('.sessions-pr-hover-title-content')?.childNodes ?? []].map(node => node.nodeType === 3 ? '#text' : (node as HTMLElement).className),
 				dropdownClassName: pullRequestDropdownHover?.className,
 				dropdownMatchesStandaloneContent: pullRequestDropdownHover?.textContent === pullRequestHover?.textContent,
 				dropdownExpandable: pullRequestEntry?.hover?.expandable,
@@ -310,7 +310,8 @@ suite('SessionChatInputToolbar', () => {
 				status: pullRequestHover?.querySelector<HTMLElement>('.sessions-pr-hover-status')?.textContent,
 				statusKind: pullRequestHover?.querySelector<HTMLElement>('.sessions-pr-hover-status')?.dataset.state,
 				date: pullRequestHover?.querySelector('.sessions-pr-hover-date')?.textContent,
-				title: pullRequestHover?.querySelector('.sessions-pr-hover-title-content')?.textContent,
+				title: pullRequestHover?.querySelector('.sessions-pr-hover-title-content')?.textContent?.replace('#332982', '').trim(),
+				titleTailOrder: [...pullRequestHover?.querySelector('.sessions-pr-hover-title-tail')?.childNodes ?? []].map(node => node.nodeType === 3 ? '#text' : (node as HTMLElement).className),
 				titleTooltip: pullRequestHover?.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
 				description: pullRequestHover?.querySelector('.sessions-pr-hover-description-content')?.textContent,
 				author: pullRequestHover?.querySelector('.sessions-pr-hover-author')?.textContent,
@@ -331,7 +332,7 @@ suite('SessionChatInputToolbar', () => {
 				className: issueHover?.className,
 				contentOrder: [...issueHover?.children ?? []].map(element => element.className),
 				provenanceOrder: [...issueHover?.querySelector('.sessions-issue-hover-header')?.children ?? []].map(element => element.className),
-				titleOrder: [...issueHover?.querySelector('.sessions-issue-hover-title')?.children ?? []].map(element => element.className),
+				titleOrder: [...issueHover?.querySelector('.sessions-issue-hover-title-content')?.childNodes ?? []].map(node => node.nodeType === 3 ? '#text' : (node as HTMLElement).className),
 				dropdownClassName: issueDropdownHover?.className,
 				dropdownMatchesStandaloneContent: issueDropdownHover?.textContent === issueHover?.textContent,
 				dropdownExpandable: issueEntry?.hover?.expandable,
@@ -345,7 +346,8 @@ suite('SessionChatInputToolbar', () => {
 				status: issueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.textContent,
 				statusKind: issueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
 				date: issueHover?.querySelector('.sessions-issue-hover-date')?.textContent,
-				title: issueHover?.querySelector('.sessions-issue-hover-title-content')?.textContent,
+				title: issueHover?.querySelector('.sessions-issue-hover-title-content')?.textContent?.replace('#42', '').trim(),
+				titleTailOrder: [...issueHover?.querySelector('.sessions-issue-hover-title-tail')?.childNodes ?? []].map(node => node.nodeType === 3 ? '#text' : (node as HTMLElement).className),
 				titleTooltip: issueHover?.querySelector('.sessions-issue-hover-title')?.getAttribute('title'),
 				description: issueHover?.querySelector('.sessions-issue-hover-description-content')?.textContent,
 				author: issueHover?.querySelector('.sessions-issue-hover-author')?.textContent,
@@ -373,7 +375,8 @@ suite('SessionChatInputToolbar', () => {
 					'sessions-pr-hover-author',
 				],
 				provenanceOrder: ['sessions-pr-hover-repository', 'sessions-pr-hover-date'],
-				titleOrder: ['sessions-pr-hover-title-content', 'sessions-pr-hover-reference'],
+				titleOrder: ['#text', 'sessions-pr-hover-title-tail'],
+				titleTailOrder: ['#text', 'sessions-pr-hover-reference'],
 				dropdownClassName: 'sessions-pr-hover compact',
 				dropdownMatchesStandaloneContent: true,
 				dropdownExpandable: true,
@@ -414,7 +417,8 @@ suite('SessionChatInputToolbar', () => {
 					'sessions-issue-hover-author',
 				],
 				provenanceOrder: ['sessions-issue-hover-repository', 'sessions-issue-hover-date'],
-				titleOrder: ['sessions-issue-hover-title-content', 'sessions-issue-hover-reference'],
+				titleOrder: ['#text', 'sessions-issue-hover-title-tail'],
+				titleTailOrder: ['#text', 'sessions-issue-hover-reference'],
 				dropdownClassName: 'sessions-issue-hover compact',
 				dropdownMatchesStandaloneContent: true,
 				dropdownExpandable: true,
@@ -457,6 +461,9 @@ suite('SessionChatInputToolbar', () => {
 	test('bounds and normalizes GitHub hover descriptions for assistive technology', () => {
 		const description = getGitHubHoverDescription(`<!-- template -->\n## Summary\n\n${'Useful context with [documentation](https://example.com). '.repeat(8)}`, 'No description provided.');
 		const unicodeDescription = getGitHubHoverDescription(`${'a'.repeat(198)}😀xy`, 'No description provided.');
+		const title = getGitHubHoverTitle(`${'a'.repeat(78)}😀xy`);
+		const titleParts = getGitHubHoverTitleParts('A title ending in context');
+		const singleTokenTitleParts = getGitHubHoverTitleParts('a'.repeat(100));
 
 		assert.deepStrictEqual({
 			startsWithReadableText: description.startsWith('Summary Useful context with documentation.'),
@@ -468,6 +475,12 @@ suite('SessionChatInputToolbar', () => {
 				endsAtCodePointBoundary: unicodeDescription.endsWith('😀…'),
 				containsReplacementCharacter: unicodeDescription.includes('�'),
 			},
+			title: {
+				codePoints: Array.from(title).length,
+				endsAtCodePointBoundary: title.endsWith('😀…'),
+			},
+			titleParts,
+			singleTokenTitleParts,
 		}, {
 			startsWithReadableText: true,
 			containsMarkdownSyntax: false,
@@ -478,6 +491,12 @@ suite('SessionChatInputToolbar', () => {
 				endsAtCodePointBoundary: true,
 				containsReplacementCharacter: false,
 			},
+			title: {
+				codePoints: 80,
+				endsAtCodePointBoundary: true,
+			},
+			titleParts: { leading: 'A title ending in ', trailing: 'context' },
+			singleTokenTitleParts: { leading: `${'a'.repeat(79)}…`, trailing: undefined },
 		});
 	});
 
