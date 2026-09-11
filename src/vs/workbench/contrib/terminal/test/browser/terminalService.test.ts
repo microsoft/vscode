@@ -11,11 +11,11 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalService } from '../../browser/terminalService.js';
 import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestTerminalGroupService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 
 suite('Workbench - TerminalService', () => {
@@ -79,6 +79,133 @@ suite('Workbench - TerminalService', () => {
 				strictEqual(backgroundedTerminalDisposables.size, 0);
 				strictEqual(disposalEmitters[i].hasListeners(), false);
 			}
+		});
+
+		test('should rejoin parent group when split terminal is restored from background', async () => {
+			const groupService = instantiationService.get(ITerminalGroupService) as TestTerminalGroupService;
+			const parentDisposalEmitter = store.add(new Emitter<ITerminalInstance>());
+			const splitDisposalEmitter = store.add(new Emitter<ITerminalInstance>());
+
+			const parentInstance = {
+				instanceId: 1,
+				target: TerminalLocation.Panel,
+				shellLaunchConfig: {},
+				onDisposed: parentDisposalEmitter.event,
+				detachFromElement: () => { }
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
+
+			const splitInstance = {
+				instanceId: 2,
+				target: TerminalLocation.Panel,
+				shellLaunchConfig: { parentTerminalId: 1 },
+				onDisposed: splitDisposalEmitter.event,
+				detachFromElement: () => { }
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
+
+			const addedToParentCalls: { inst: ITerminalInstance; parentId?: number }[] = [];
+			const createdGroups: ITerminalGroup[] = [];
+
+			const parentGroup = {
+				terminalInstances: [parentInstance, splitInstance],
+				removeInstance: (inst: ITerminalInstance) => {
+					const idx = parentGroup.terminalInstances.indexOf(inst);
+					if (idx !== -1) {
+						parentGroup.terminalInstances.splice(idx, 1);
+					}
+				},
+				addInstance: (inst: ITerminalInstance, parentId?: number) => {
+					addedToParentCalls.push({ inst, parentId });
+					parentGroup.terminalInstances.push(inst);
+				}
+			} satisfies Partial<ITerminalGroup> as unknown as ITerminalGroup;
+
+			const groups: ITerminalGroup[] = [parentGroup];
+			groupService.groups = groups;
+			Object.defineProperty(groupService, 'instances', {
+				get: () => groups.flatMap(g => g.terminalInstances),
+				configurable: true
+			});
+			groupService.getGroupForInstance = (inst: ITerminalInstance) => groups.find(g => g.terminalInstances.includes(inst));
+			groupService.createGroup = (inst?: unknown) => {
+				const group = {
+					terminalInstances: inst ? [inst as ITerminalInstance] : []
+				} satisfies Partial<ITerminalGroup> as unknown as ITerminalGroup;
+				createdGroups.push(group);
+				groups.push(group);
+				return group;
+			};
+			groupService.setActiveInstance = () => { };
+			groupService.setActiveInstanceByIndex = () => { };
+
+			// Move split terminal to background
+			terminalService.moveToBackground(splitInstance);
+			strictEqual(parentGroup.terminalInstances.length, 1);
+			strictEqual(parentGroup.terminalInstances[0], parentInstance);
+
+			// Restore split terminal using real showBackgroundTerminal
+			await terminalService.showBackgroundTerminal(splitInstance);
+
+			// Verify it rejoined parent group and did not create a new group
+			strictEqual(addedToParentCalls.length, 1);
+			strictEqual(addedToParentCalls[0].inst, splitInstance);
+			strictEqual(addedToParentCalls[0].parentId, 1);
+			strictEqual(createdGroups.length, 0);
+			strictEqual(parentGroup.terminalInstances.includes(splitInstance), true);
+		});
+
+		test('should create standalone group when split terminal parent no longer exists', async () => {
+			const groupService = instantiationService.get(ITerminalGroupService) as TestTerminalGroupService;
+			const splitDisposalEmitter = store.add(new Emitter<ITerminalInstance>());
+
+			const splitInstance = {
+				instanceId: 2,
+				target: TerminalLocation.Panel,
+				shellLaunchConfig: { parentTerminalId: 1 },
+				onDisposed: splitDisposalEmitter.event,
+				detachFromElement: () => { }
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
+
+			const createdGroups: ITerminalGroup[] = [];
+			const groups: ITerminalGroup[] = [];
+			groupService.groups = groups;
+			Object.defineProperty(groupService, 'instances', {
+				get: () => groups.flatMap(g => g.terminalInstances),
+				configurable: true
+			});
+			groupService.getGroupForInstance = (inst: ITerminalInstance) => groups.find(g => g.terminalInstances.includes(inst));
+			groupService.createGroup = (inst?: unknown) => {
+				const group = {
+					terminalInstances: inst ? [inst as ITerminalInstance] : []
+				} satisfies Partial<ITerminalGroup> as unknown as ITerminalGroup;
+				createdGroups.push(group);
+				groups.push(group);
+				return group;
+			};
+			groupService.setActiveInstance = () => { };
+			groupService.setActiveInstanceByIndex = () => { };
+
+			// Place in initial group and move to background
+			const initialGroup = {
+				terminalInstances: [splitInstance],
+				removeInstance: (inst: ITerminalInstance) => {
+					const idx = initialGroup.terminalInstances.indexOf(inst);
+					if (idx !== -1) {
+						initialGroup.terminalInstances.splice(idx, 1);
+					}
+				}
+			} satisfies Partial<ITerminalGroup> as unknown as ITerminalGroup;
+			groups.push(initialGroup);
+
+			terminalService.moveToBackground(splitInstance);
+			// Parent terminal 1 does not exist in any group
+			groups.splice(0, groups.length);
+
+			// Restore split terminal using real showBackgroundTerminal
+			await terminalService.showBackgroundTerminal(splitInstance);
+
+			// Verify it falls back to createGroup because parent terminal does not exist
+			strictEqual(createdGroups.length, 1);
+			strictEqual(createdGroups[0].terminalInstances[0], splitInstance);
 		});
 	});
 

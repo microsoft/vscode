@@ -216,9 +216,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (instance.shellLaunchConfig.hideFromUser) {
 				return;
 			}
-			if (this._activeSessionId && !instance.shellLaunchConfig.attachPersistentProcess) {
-				this._trackTerminalsForSession(this._activeSessionId, [instance]);
-			}
 			if (instance.shellLaunchConfig.attachPersistentProcess && this._activeKey) {
 				instance.getInitialCwd().then(cwd => {
 					if (cwd.toLowerCase() !== this._activeKey) {
