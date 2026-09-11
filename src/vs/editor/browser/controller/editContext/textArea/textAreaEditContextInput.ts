@@ -737,11 +737,11 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 	}
 
 	public getSelectionStart(): number {
-		return this._actual.selectionDirection === 'backward' ? this._actual.selectionEnd : this._actual.selectionStart;
+		return this._actual.selectionStart;
 	}
 
 	public getSelectionEnd(): number {
-		return this._actual.selectionDirection === 'backward' ? this._actual.selectionStart : this._actual.selectionEnd;
+		return this._actual.selectionEnd;
 	}
 
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
