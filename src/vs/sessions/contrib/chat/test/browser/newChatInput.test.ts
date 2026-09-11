@@ -8,19 +8,26 @@ import { IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { FileThemeIcon, FolderThemeIcon } from '../../../../../platform/theme/common/themeService.js';
 import { IFileLabelOptions } from '../../../../../workbench/browser/labels.js';
-import { hasSendableNewChatContent, NewChatInputWidget } from '../../browser/newChatInput.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { hasSendableNewChatContent, NewChatInputWidget, OPEN_NEW_CHAT_MODEL_PICKER_COMMAND_ID } from '../../browser/newChatInput.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
@@ -182,6 +189,29 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registers the model picker shortcut for a focused new-chat input', () => {
+		const keybinding = decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period, OS)?.getHashCode();
+		const rule = KeybindingsRegistry.getDefaultKeybindings()
+			.find(item => item.command === OPEN_NEW_CHAT_MODEL_PICKER_COMMAND_ID && item.keybinding?.getHashCode() === keybinding);
+		const evaluate = (values: Record<string, ContextKeyValue>) => rule?.when?.evaluate({
+			getValue: <T extends ContextKeyValue>(key: string) => values[key] as T,
+		}) ?? false;
+
+		assert.deepStrictEqual({
+			commandRegistered: !!CommandsRegistry.getCommand(OPEN_NEW_CHAT_MODEL_PICKER_COMMAND_ID),
+			weight: rule?.weight1,
+			focusedEnabled: evaluate({ sessionsNewChatInputHasFocus: true, [ChatContextKeys.enabled.key]: true }),
+			unfocused: evaluate({ sessionsNewChatInputHasFocus: false, [ChatContextKeys.enabled.key]: true }),
+			chatDisabled: evaluate({ sessionsNewChatInputHasFocus: true, [ChatContextKeys.enabled.key]: false }),
+		}, {
+			commandRegistered: true,
+			weight: KeybindingWeight.SessionsContrib,
+			focusedEnabled: true,
+			unfocused: false,
+			chatDisabled: false,
+		});
+	});
 
 	test('only keeps the input frame focused while editor text has focus', () => {
 		const stack = document.createElement('div');

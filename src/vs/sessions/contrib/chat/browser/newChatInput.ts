@@ -46,7 +46,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
@@ -179,23 +179,38 @@ function getLabeledPickerResponsiveItems(container: HTMLElement): IChatInputPick
 	}));
 }
 
-/** True while focus is in an Agents window composer that supports dictation. */
-const SessionsChatInputHasDictationFocus = new RawContextKey<boolean>('sessionsChatInputHasDictationFocus', false, localize('sessionsChatInputHasDictationFocus', "True when focus is in an Agents window chat composer that supports dictation."));
+/** True while focus is in an Agents window new-chat composer. */
+const SessionsNewChatInputHasFocus = new RawContextKey<boolean>('sessionsNewChatInputHasFocus', false, localize('sessionsNewChatInputHasFocus', "True when focus is in an Agents window new-chat composer."));
 
 const TOGGLE_DICTATION_COMMAND_ID = 'sessions.action.chat.toggleDictation';
+export const OPEN_NEW_CHAT_MODEL_PICKER_COMMAND_ID = 'sessions.action.chat.openModelPicker';
 
-/** Composer the dictation shortcut targets (the composer isn't an `IChatWidget`). */
-let activeDictationComposer: NewChatInputWidget | undefined;
+/** Composer-specific shortcuts cannot route through `IChatWidgetService`. */
+let activeNewChatInput: NewChatInputWidget | undefined;
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: TOGGLE_DICTATION_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: ContextKeyExpr.and(
-		SessionsChatInputHasDictationFocus,
+		SessionsNewChatInputHasFocus,
 		ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key),
 	),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyI,
-	handler: () => activeDictationComposer?.toggleDictation(),
+	handler: () => activeNewChatInput?.toggleDictation(),
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: OPEN_NEW_CHAT_MODEL_PICKER_COMMAND_ID,
+	metadata: {
+		description: localize2('sessions.action.chat.openModelPicker', "Open Model Picker in New Chat"),
+	},
+	weight: KeybindingWeight.SessionsContrib,
+	when: ContextKeyExpr.and(
+		SessionsNewChatInputHasFocus,
+		ChatContextKeys.enabled,
+	),
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period,
+	handler: () => activeNewChatInput?.openModelPicker(),
 });
 
 // Preserve the command id so push-to-talk hold mode can track this chord.
@@ -203,7 +218,7 @@ KeybindingsRegistry.registerKeybindingRule({
 	id: 'agentsVoice.startVoiceInChat',
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: ContextKeyExpr.and(
-		SessionsChatInputHasDictationFocus,
+		SessionsNewChatInputHasFocus,
 		AGENTS_VOICE_ENABLED,
 	),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
@@ -1018,7 +1033,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			}
 		}));
 
-		const dictationFocusKey = SessionsChatInputHasDictationFocus.bindTo(inputScopedContextKeyService);
+		const newChatInputFocusKey = SessionsNewChatInputHasFocus.bindTo(inputScopedContextKeyService);
 		// The composer is a chat input, so it carries the shared focus key that
 		// chat input keybindings such as paste as text are scoped to.
 		const inputHasFocusKey = ChatContextKeys.inputHasFocus.bindTo(inputScopedContextKeyService);
@@ -1029,22 +1044,22 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._setInputEditorFocused(container, false);
 		}));
 		this._register(this._editor.onDidFocusEditorWidget(() => {
-			dictationFocusKey.set(true);
+			newChatInputFocusKey.set(true);
 			inputHasFocusKey.set(true);
-			activeDictationComposer = this;
+			activeNewChatInput = this;
 			this._onDidFocus.fire();
 		}));
 		this._register(this._editor.onDidBlurEditorWidget(() => {
-			dictationFocusKey.set(false);
+			newChatInputFocusKey.set(false);
 			inputHasFocusKey.set(false);
-			if (activeDictationComposer === this) {
-				activeDictationComposer = undefined;
+			if (activeNewChatInput === this) {
+				activeNewChatInput = undefined;
 			}
 			this._onDidBlur.fire();
 		}));
 		this._register(toDisposable(() => {
-			if (activeDictationComposer === this) {
-				activeDictationComposer = undefined;
+			if (activeNewChatInput === this) {
+				activeNewChatInput = undefined;
 			}
 		}));
 
