@@ -1041,8 +1041,27 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
+		// Firefox 131+ changed `caretPositionFromPoint` so that, when the page uses
+		// shadow DOM, the third options argument must include `shadowRoots: [...]`
+		// for the call to return the actual hit position inside the shadow tree.
+		// Without it, Firefox returns the shadow host (or null), which crashes the
+		// caller's `hitResult.offsetNode` access on Monaco selections.
+		// See https://github.com/microsoft/monaco-editor/issues/4679 and
+		// https://drafts.csswg.org/cssom-view/#dom-document-caretpositionfrompoint
+		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-		const hitResult: { offsetNode: Node; offset: number } = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
+		const hitResult: { offsetNode: Node; offset: number } | null = shadowRoot
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+			? (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY, { shadowRoots: [shadowRoot] })
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+			: (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
+
+		// `caretPositionFromPoint` can return null when the point falls outside any
+		// addressable text node (e.g. the user drags a multi-line selection past
+		// the end of the editor). Bail out instead of dereferencing offsetNode.
+		if (!hitResult) {
+			return new UnknownHitTestResult();
+		}
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
 			// offsetNode is expected to be the token text
