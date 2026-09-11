@@ -295,7 +295,7 @@
 	margin-right: 3px;
 }
 
-.scm-view .monaco-list-row .resource > .name > .monaco-icon-label.monaco-decoration-badge::after {
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label.monaco-decoration-text-badge::after {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
