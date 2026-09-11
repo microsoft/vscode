@@ -15,7 +15,6 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { MultiDiffEditorVariant } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
@@ -280,7 +279,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		editorInstance,
 		instantiationService.createInstance(AgentsDiffUIElementFactory),
 		{
-			variant: MultiDiffEditorVariant.Compact,
+			variant: 'noCards',
 			diffEditorOptions: {
 				hideOriginalLineNumbers: true,
 				folding: false,
