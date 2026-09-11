@@ -24,7 +24,7 @@ suite('Component fixture theme CSS', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const variants: readonly ThemeVariant[] = [
 		{
-			id: ThemeTypeSelector.VS_DARK,
+			id: `${ThemeTypeSelector.VS_DARK} fixture-dark-modern`,
 			colors: { 'editor.lineHighlightBackground': '#242526' },
 			expected: { border: '0px none rgb(0, 0, 0)', background: 'rgb(36, 37, 38)' },
 		},
@@ -47,6 +47,16 @@ suite('Component fixture theme CSS', () => {
 			id: ThemeTypeSelector.HC_LIGHT,
 			colors: { 'editor.lineHighlightBackground': '#00000000', 'editor.lineHighlightBorder': '#0f4a85' },
 			expected: { border: '1px solid rgb(15, 74, 133)', background: 'rgba(0, 0, 0, 0)' },
+		},
+		{
+			id: `${ThemeTypeSelector.VS_DARK} fixture-solarized-dark`,
+			colors: { 'editor.lineHighlightBackground': '#002b36' },
+			expected: { border: '0px none rgb(0, 0, 0)', background: 'rgb(0, 43, 54)' },
+		},
+		{
+			id: `${ThemeTypeSelector.VS} fixture-solarized-light`,
+			colors: { 'editor.lineHighlightBackground': '#fdf6e3' },
+			expected: { border: '0px none rgb(0, 0, 0)', background: 'rgb(253, 246, 227)' },
 		},
 	];
 
@@ -85,6 +95,36 @@ suite('Component fixture theme CSS', () => {
 				outside: { border: '0px none rgb(0, 0, 0)', background: 'rgba(0, 0, 0, 0)' },
 				fixtures: expectedStyles.slice(0, index + 1),
 			})));
+		});
+
+		test(`isolates color variables on nested editor theme classes in ${reverse ? 'reverse' : 'forward'} theme installation order`, () => {
+			const originalStyleSheets = [...mainWindow.document.adoptedStyleSheets];
+			disposables.add(toDisposable(() => { mainWindow.document.adoptedStyleSheets = originalStyleSheets; }));
+			const host = mainWindow.document.body.appendChild($('div'));
+			disposables.add(toDisposable(() => host.remove()));
+			const orderedVariants = reverse ? [...variants].reverse() : variants;
+			const editors: HTMLElement[] = [];
+			const actual = [];
+
+			for (const variant of orderedVariants) {
+				const theme = ColorThemeData.createLoadedEmptyTheme(variant.id, variant.id);
+				theme.setCustomColors(variant.colors);
+				mainWindow.document.adoptedStyleSheets = [
+					...mainWindow.document.adoptedStyleSheets,
+					getThemeStyleSheet(theme),
+				];
+				const root = host.appendChild($('.monaco-workbench'));
+				root.classList.add(...theme.classNames);
+				const editor = root.appendChild($('.monaco-editor'));
+				editor.classList.add(theme.classNames[0]);
+				editor.style.backgroundColor = 'var(--vscode-editor-lineHighlightBackground)';
+				editors.push(editor);
+				actual.push(editors.map(element => mainWindow.getComputedStyle(element).backgroundColor));
+			}
+
+			assert.deepStrictEqual(actual, orderedVariants.map((_, index) =>
+				orderedVariants.slice(0, index + 1).map(variant => variant.expected.background)
+			));
 		});
 	}
 
