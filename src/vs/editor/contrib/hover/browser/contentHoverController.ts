@@ -54,6 +54,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 
 	private _hoverSettings!: IHoverSettings;
 	private _isMouseDown: boolean = false;
+	private _isMouseDownOnContentHoverWidget: boolean = false;
 
 	private _ignoreMouseEvents: boolean = false;
 
@@ -139,6 +140,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		this._isMouseDown = true;
+		this._isMouseDownOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 		const shouldKeepHoverWidgetVisible = this._shouldKeepHoverWidgetVisible(mouseEvent);
 		if (shouldKeepHoverWidgetVisible) {
 			return;
@@ -162,6 +164,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		this._isMouseDown = false;
+		this._isMouseDownOnContentHoverWidget = false;
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
@@ -227,6 +230,12 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		// When the user is dragging to select text (mouse down started outside the hover widget),
 		// hide the hover and suppress any new hover computation to avoid covering the selection.
 		if (this._isMouseDown && !this._shouldKeepHoverWidgetVisible(mouseEvent)) {
+			if (this._isMouseDownOnContentHoverWidget) {
+				// The selection started inside the hover widget itself, so keep it open
+				// while the user drags past its edge instead of hiding or recomputing it.
+				this._reactToEditorMouseMoveRunner.cancel();
+				return;
+			}
 			this._cancelSchedulerAndHide();
 			return;
 		}
