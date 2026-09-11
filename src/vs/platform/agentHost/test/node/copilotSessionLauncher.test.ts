@@ -1474,7 +1474,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean } }> {
+	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -1488,8 +1488,28 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean } }> })._buildSessionConfig(plan, runtime);
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean }> })._buildSessionConfig(plan, runtime, () => { });
 	}
+
+	test('enables experimental mode only with HydraFusion opt-in', async () => {
+		const store = new DisposableStore();
+		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
+		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
+		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+
+		assert.deepStrictEqual({
+			model: enabled.model,
+			enabledExperimentalMode: enabled.enableExperimentalMode,
+			disabledExperimentalMode: disabled.enableExperimentalMode,
+			defaultExperimentalMode: notOptedIn.enableExperimentalMode,
+		}, {
+			model: 'hydrafusion',
+			enabledExperimentalMode: true,
+			disabledExperimentalMode: undefined,
+			defaultExperimentalMode: undefined,
+		});
+		store.dispose();
+	});
 
 	test('exposes only the client semantic-search override', async () => {
 		const store = new DisposableStore();

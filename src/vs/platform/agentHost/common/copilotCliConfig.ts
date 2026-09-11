@@ -34,6 +34,8 @@ export const enum CopilotCliConfigKey {
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Enable concise reasoning summaries for supported models. Off by default. */
 	ReasoningSummary = 'reasoningSummary',
+	/** Enable the experimental HydraFusion synthetic model. Off by default. */
+	HydraFusion = 'hydraFusion',
 	/** Offer the Auto model's "Optimize for" picker. Shares the Copilot extension's setting and experiment. */
 	AutoModeTiers = 'autoModeTiers',
 	/** Override Auto's "Optimize for" preference, even when the picker is disabled. */
@@ -66,6 +68,8 @@ export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilo
 export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot.reasoningEffortOverride';
 
 export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
+
+export const AgentHostHydraFusionEnabledSettingId = 'chat.agentHost.copilot.hydraFusion.enabled';
 
 export const CopilotAutoModeTiersEnabledSettingId = 'github.copilot.chat.autoMode.tiers.enabled';
 
@@ -199,6 +203,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.reasoningSummary.title', "Reasoning Summary"),
 		description: localize('agentHost.config.reasoningSummary.description', "When enabled, requests concise reasoning summaries for supported Copilot SDK sessions."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.HydraFusion]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
+		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({

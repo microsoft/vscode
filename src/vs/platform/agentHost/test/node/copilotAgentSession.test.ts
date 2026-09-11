@@ -5523,6 +5523,28 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('HydraFusion keeps SDK experimental mode enabled when approval mode changes', async () => {
+			const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'assisted' };
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues,
+				rootValues: {
+					[CopilotCliConfigKey.HydraFusion]: true,
+				},
+			});
+
+			await session.syncPermissionMode('turn-start');
+			configValues[SessionConfigKey.AutoApprove] = 'default';
+			await session.syncPermissionMode('config-change');
+
+			assert.deepStrictEqual({
+				experimentalModeUpdates: mockSession.experimentalModeUpdates,
+				permissionModes: mockSession.permissionModeSetCalls,
+			}, {
+				experimentalModeUpdates: [true],
+				permissionModes: ['assisted', 'manual'],
+			});
+		});
+
 		test('Approve When Safe honors approve recommendations without prompting', async () => {
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
