@@ -18,7 +18,9 @@ export class NotebookSummaryTrackerImpl extends DisposableStore implements INote
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IVSCodeExtensionContext vsCodeExtensionContext: IVSCodeExtensionContext) {
 		super();
-		vsCodeExtensionContext.subscriptions.push(this);
+		if (vsCodeExtensionContext?.subscriptions) {
+			vsCodeExtensionContext.subscriptions.push(this);
+		}
 
 		this.add(this.workspaceService.onDidChangeNotebookDocument((e) => {
 			if (!this.trackedNotebooks.has(e.notebook)) {
