@@ -16,7 +16,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -104,6 +104,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ILogService private readonly _logService: ILogService,
 		@IPathService private readonly _pathService: IPathService,
@@ -214,6 +215,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
 			if (instance.shellLaunchConfig.hideFromUser) {
 				return;
+			}
+			if (this._activeSessionId && !instance.shellLaunchConfig.attachPersistentProcess) {
+				this._trackTerminalsForSession(this._activeSessionId, [instance]);
 			}
 			if (instance.shellLaunchConfig.attachPersistentProcess && this._activeKey) {
 				instance.getInitialCwd().then(cwd => {
@@ -652,6 +656,34 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				toHide.push(currentInstance);
 			}
 		}
+
+		for (const instance of toHide) {
+			const group = this._terminalGroupService.getGroupForInstance(instance);
+			const index = group ? group.terminalInstances.indexOf(instance) : -1;
+			instance.shellLaunchConfig.parentTerminalId = index > 0 ? group!.terminalInstances[index - 1].instanceId : undefined;
+		}
+
+		// Sort toShow so parent terminals are restored before child/split terminals
+		const idToInstance = new Map<number, ITerminalInstance>();
+		for (const instance of toShow) {
+			idToInstance.set(instance.instanceId, instance);
+		}
+		const getDepth = (instance: ITerminalInstance): number => {
+			let depth = 0;
+			let currentParentId = instance.shellLaunchConfig.parentTerminalId;
+			const visited = new Set<number>([instance.instanceId]);
+			while (currentParentId !== undefined) {
+				depth++;
+				const parent = idToInstance.get(currentParentId);
+				if (!parent || visited.has(currentParentId)) {
+					break;
+				}
+				visited.add(currentParentId);
+				currentParentId = parent.shellLaunchConfig.parentTerminalId;
+			}
+			return depth;
+		};
+		toShow.sort((a, b) => getDepth(a) - getDepth(b));
 
 		for (const instance of toShow) {
 			const availableInstance = this._getAvailableTerminal(instance, 'show background terminal');
