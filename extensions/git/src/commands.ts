@@ -5592,10 +5592,14 @@ export class CommandCenter {
 						break;
 					case GitErrorCodes.PushRejected:
 						message = l10n.t('Can\'t push refs to remote. Try running "Pull" first to integrate your changes.');
+						choices.set(l10n.t('Pull'), () => commands.executeCommand('git.pull'));
+						options.modal = false;
 						break;
 					case GitErrorCodes.ForcePushWithLeaseRejected:
 					case GitErrorCodes.ForcePushWithLeaseIfIncludesRejected:
 						message = l10n.t('Can\'t force push refs to remote. The tip of the remote-tracking branch has been updated since the last checkout. Try running "Pull" first to pull the latest changes from the remote branch first.');
+						choices.set(l10n.t('Pull'), () => commands.executeCommand('git.pull'));
+						options.modal = false;
 						break;
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Please resolve them before committing your changes.');
