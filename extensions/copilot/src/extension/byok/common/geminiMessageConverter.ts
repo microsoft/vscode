@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { Content, FunctionCall, FunctionResponse, Part } from '@google/genai';
+import type { Content, FunctionResponse, Part } from '@google/genai';
 import { Raw } from '@vscode/prompt-tsx';
 import type { LanguageModelChatMessage, LanguageModelChatMessage2 } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { LanguageModelChatMessageRole, LanguageModelDataPart, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolResultPart, LanguageModelToolResultPart2 } from '../../../vscodeTypes';
 
-function apiContentToGeminiContent(content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[]): Part[] {
+function apiContentToGeminiContent(content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[], toolCallNames: ReadonlyMap<string, string>): Part[] {
 	const convertedContent: Part[] = [];
 	let pendingSignature: string | undefined;
 
@@ -68,8 +68,11 @@ function apiContentToGeminiContent(content: (LanguageModelTextPart | LanguageMod
 				imageDescription = `\n[Contains ${imageParts.length} image(s) with types: ${imageParts.map(p => p.mimeType).join(', ')}]`;
 			}
 
-			// extraction: functionName_timestamp => split on first underscore
-			const functionName = part.callId?.split('_')[0] || 'unknown_function';
+			// Look up the function name from the matching tool call in this request
+			const functionName = part.callId !== undefined ? toolCallNames.get(part.callId) : undefined;
+			if (functionName === undefined) {
+				throw new Error('Missing Gemini function call for tool result.');
+			}
 
 			// Preserve structured JSON if possible
 			let responsePayload: any = {};
@@ -124,38 +127,48 @@ export function apiMessageToGeminiMessage(messages: Array<LanguageModelChatMessa
 	const contents: Content[] = [];
 	let systemInstruction: Content | undefined;
 
-	// Track tool calls to match with their responses
-	const pendingToolCalls = new Map<string, FunctionCall>();
+	// Map call IDs to function names from assistant tool calls within this request
+	const toolCallNames = new Map<string, string>();
+	for (const message of messages) {
+		if (message.role !== LanguageModelChatMessageRole.Assistant) {
+			continue;
+		}
+		for (const part of message.content) {
+			if (part instanceof LanguageModelToolCallPart) {
+				const existing = toolCallNames.get(part.callId);
+				if (existing !== undefined && existing !== part.name) {
+					throw new Error('Conflicting Gemini tool call names for the same call ID.');
+				}
+				toolCallNames.set(part.callId, part.name);
+			}
+		}
+	}
 
 	for (const message of messages) {
 		if (message.role === LanguageModelChatMessageRole.System) {
-			// Gemini uses system instruction separately
+			// Gemini uses system instruction separately; accumulate each system
+			// message as its own part to preserve ordering
 			const systemText = message.content
-				.map(part => part instanceof LanguageModelTextPart ? part.value : '')
+				.filter((part): part is LanguageModelTextPart => part instanceof LanguageModelTextPart)
+				.map(part => part.value)
 				.join('');
 
 			if (systemText.trim()) {
-				systemInstruction = {
-					role: 'user',
-					parts: [{ text: systemText }]
-				};
+				if (!systemInstruction) {
+					systemInstruction = { role: 'user', parts: [{ text: systemText }] };
+				} else {
+					systemInstruction.parts!.push({ text: systemText });
+				}
 			}
 		} else if (message.role === LanguageModelChatMessageRole.Assistant) {
-			const parts = apiContentToGeminiContent(message.content);
-
-			// Store function calls for later matching with responses
-			parts.forEach(part => {
-				if (part.functionCall && part.functionCall.name) {
-					pendingToolCalls.set(part.functionCall.name, part.functionCall);
-				}
-			});
+			const parts = apiContentToGeminiContent(message.content, toolCallNames);
 
 			contents.push({
 				role: 'model',
 				parts
 			});
 		} else if (message.role === LanguageModelChatMessageRole.User) {
-			const parts = apiContentToGeminiContent(message.content);
+			const parts = apiContentToGeminiContent(message.content, toolCallNames);
 
 			contents.push({
 				role: 'user',
