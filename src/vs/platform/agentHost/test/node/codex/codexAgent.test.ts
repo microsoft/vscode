@@ -185,7 +185,7 @@ suite('CodexAgent', () => {
 			};
 		}
 
-		function message(id: string, attachments?: readonly MessageAttachment[]): PendingMessage {
+		function message(id: string, attachments?: MessageAttachment[]): PendingMessage {
 			return { id, message: { text: 'Please check this', origin: { kind: MessageKind.User }, attachments } };
 		}
 
