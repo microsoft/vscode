@@ -4003,7 +4003,7 @@ export namespace DebugTreeItem {
 export namespace LanguageModelToolSource {
 	export function to(source: Dto<ToolDataSource>): vscode.LanguageModelToolInformation['source'] {
 		if (source.type === 'mcp') {
-			return new types.LanguageModelToolMCPSource(source.label, source.serverLabel || source.label, source.instructions);
+			return new types.LanguageModelToolMCPSource(source.label, source.serverLabel || source.label, source.instructions, source.collectionId, source.definitionId);
 		} else if (source.type === 'extension') {
 			return new types.LanguageModelToolExtensionSource(source.extensionId.value, source.label);
 		} else {
