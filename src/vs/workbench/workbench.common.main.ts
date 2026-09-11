@@ -221,6 +221,7 @@ import './contrib/preferences/browser/preferencesSearch.js';
 import './contrib/performance/browser/performance.contribution.js';
 
 // Notebook
+import './contrib/notebook/browser/notebookExtensionPoint.js';
 import './contrib/notebook/browser/notebook.contribution.js';
 
 // Speech
