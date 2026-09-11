@@ -188,4 +188,40 @@ suite('Default Document Colors Computer', () => {
 			assert.strictEqual(colors.length, 1, `Should detect rgb/rgba color with ${testCase.name}: ${testCase.content}`);
 		});
 	});
+
+	test('oklab / oklch (CSS Color Level 4) should be detected', () => {
+		// Issue #139840 — pick up the modern color functions the color picker should cycle through.
+		const testCases = [
+			{ content: 'oklab(59% 0.1 -0.05)', name: 'oklab percentage L' },
+			{ content: 'oklab(0.59 0.1 -0.05)', name: 'oklab unitless L' },
+			{ content: 'oklab(50% 0.1 -0.05 / 0.8)', name: 'oklab with alpha' },
+			{ content: 'oklch(70% 0.15 120)', name: 'oklch basic' },
+			{ content: 'oklch(70% 0.15 120deg)', name: 'oklch with deg' },
+			{ content: 'oklch(0.7 0.15 120 / 0.5)', name: 'oklch unitless L with alpha' },
+			{ content: 'OKLCH(50% 0.2 180)', name: 'case-insensitive function name' }
+		];
+
+		testCases.forEach(testCase => {
+			const model = new TestDocumentModel(`const color = ${testCase.content};`);
+			const colors = computeDefaultDocumentColors(model);
+			assert.strictEqual(colors.length, 1, `Should detect color with ${testCase.name}: ${testCase.content}`);
+		});
+	});
+
+	test('oklch color carries the expected sRGB mapping', () => {
+		// oklch(0% 0 0) is pure black in sRGB.
+		const model = new TestDocumentModel(`const color = oklch(0% 0 0);`);
+		const colors = computeDefaultDocumentColors(model);
+		assert.strictEqual(colors.length, 1, 'Should detect the oklch color');
+		assert.strictEqual(colors[0].color.red, 0, 'Red component should be 0');
+		assert.strictEqual(colors[0].color.green, 0, 'Green component should be 0');
+		assert.strictEqual(colors[0].color.blue, 0, 'Blue component should be 0');
+		assert.strictEqual(colors[0].color.alpha, 1, 'Alpha should be 1');
+	});
+
+	test('malformed oklch should not be detected', () => {
+		const model = new TestDocumentModel(`const color = oklch(foo bar baz);`);
+		const colors = computeDefaultDocumentColors(model);
+		assert.strictEqual(colors.length, 0, 'Should not detect malformed oklch');
+	});
 });
