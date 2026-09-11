@@ -1179,11 +1179,14 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	// The listing cache in `listSessions`/`_startSessionListComputation` never consults
-	// the catalog gate, so this covers both modes. It is only *reproducible* with the
-	// catalog disabled, where the provider round-trip gives a deterministic point to
-	// hold the listing open; with the catalog enabled the same sequence races against
-	// projection writes that bump the epoch again.
+	// The wedge is an epoch-timing bug, not a catalog-mode one: the trailing refresh
+	// only pins a settled entry when its success handler sees a matching epoch and so
+	// returns the settled result instead of starting a replacement computation. The
+	// listing cache never consults the catalog gate, so both modes are affected.
+	// It is only *reproducible* with the catalog disabled, where the provider
+	// round-trip gives a deterministic point at which to hold the listing open; with
+	// the catalog enabled, projection writes bump the epoch again and the handler
+	// takes the replacement path, which heals the map before it can be observed.
 	test('a trailing listing refresh does not pin a settled computation', async () => {
 		const computations: string[] = [];
 		class RecordingLogService extends NullLogService {

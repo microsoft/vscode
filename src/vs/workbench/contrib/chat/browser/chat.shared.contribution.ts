@@ -2620,6 +2620,10 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 	},
 	{
 		key: 'chat.agentSessions.sessionCatalog.enabled',
+		// The setting is application-scoped, so an existing value can live in the
+		// application settings file. Without this the migration only inspects the
+		// user target and silently drops such a value.
+		includeApplication: true,
 		migrateFn: (value, accessor) => {
 			const pairs: ConfigurationKeyValuePairs = [['chat.agentSessions.sessionCatalog.enabled', { value: undefined }]];
 			if (accessor(ChatConfiguration.SessionCatalogEnabled) === undefined) {
