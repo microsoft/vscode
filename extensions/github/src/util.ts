@@ -71,10 +71,31 @@ export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => numb
 	return result;
 }
 
-export function getRepositoryFromUrl(url: string): { owner: string; repo: string } | undefined {
-	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url)
-		|| /^git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
-	return match ? { owner: match[1], repo: match[2] } : undefined;
+export function getRepositoryFromUrl(url: string): { owner: string; repo: string; baseUrl: string } | undefined {
+	// GitHub.com (https and ssh)
+	let match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (match) {
+		return { owner: match[1], repo: match[2], baseUrl: 'https://github.com' };
+	}
+
+	match = /^git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (match) {
+		return { owner: match[1], repo: match[2], baseUrl: 'https://github.com' };
+	}
+
+	// Generic HTTPS URL: https://host/owner/repo[.git]
+	match = /^https:\/\/([^/]+)\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (match) {
+		return { owner: match[2], repo: match[3], baseUrl: `https://${match[1]}` };
+	}
+
+	// Generic SSH URL: git@host:owner/repo[.git]
+	match = /^git@([^:]+):([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (match) {
+		return { owner: match[2], repo: match[3], baseUrl: `https://${match[1]}` };
+	}
+
+	return undefined;
 }
 
 export function getRepositoryFromQuery(query: string): { owner: string; repo: string } | undefined {
