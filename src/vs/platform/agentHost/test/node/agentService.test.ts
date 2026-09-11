@@ -2917,6 +2917,43 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('createSession', () => {
 
+		test('Canvas routes only existing chat membership and never sends a model turn', async () => {
+			const prepared: string[] = [];
+			class CanvasAgent extends MockAgent {
+				async prepareCanvasChat(chat: URI): Promise<void> {
+					prepared.push(chat.toString());
+				}
+			}
+			const agent = new CanvasAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ provider: agent.id });
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await assert.rejects(service.listCanvases(session, URI.parse(buildDefaultChatUri('copilot:/other'))), /owning session/);
+			await assert.rejects(service.listCanvases(session, URI.parse(buildChatUri(session, 'unknown'))), /not part/);
+			// This provider deliberately registers no Canvas runtime. Reaching this
+			// error proves host restore/preparation ran without fabricating a turn.
+			await assert.rejects(service.listCanvases(session, chat), /owned live chat/);
+			await assert.rejects(service.openCanvas(session, chat, 'project:counter', 'main', { count: 2 }), /owned live chat/);
+			const dormant = buildChatUri(session, 'dormant');
+			let hydrated = 0;
+			getStateManager(service).registerRestoredChatSummary(session.toString(), dormant, {
+				resolver: async () => { hydrated++; return { turns: [] }; },
+			});
+			await assert.rejects(service.listCanvases(session, URI.parse(dormant)), /owned live chat/);
+			assert.deepStrictEqual({ prepared, sends: agent.sendMessageCalls }, {
+				prepared: [chat.toString(), chat.toString(), dormant], sends: [],
+			});
+			assert.strictEqual(hydrated, 1);
+		});
+
+		test('Canvas rejects providers without direct materialization support', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ provider: copilotAgent.id });
+			await assert.rejects(service.listCanvases(session, URI.parse(buildDefaultChatUri(session))), /does not support Canvas/);
+			assert.deepStrictEqual(copilotAgent.sendMessageCalls, []);
+		});
+
 		test('creates session via specified provider', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 

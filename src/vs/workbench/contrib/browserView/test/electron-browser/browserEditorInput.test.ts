@@ -157,6 +157,7 @@ suite('BrowserEditorInput', () => {
 			url: associatedResource.toString(),
 			associatedResource,
 		});
+
 		const untyped = input.toUntyped();
 		const serializer = new BrowserEditorSerializer();
 		const serialized = serializer.serialize(input);
@@ -182,6 +183,16 @@ suite('BrowserEditorInput', () => {
 				associatedResource: associatedResource.toString()
 			}
 		});
+	});
+
+	test('does not persist caller-restored browser editors or their transient URLs', () => {
+		const input = createInput({ id: 'runtime-canvas', transient: true, url: 'http://127.0.0.1:3000/?token=temporary' });
+		const serializer = new BrowserEditorSerializer();
+		assert.deepStrictEqual({
+			canSerialize: serializer.canSerialize(input),
+			serialized: serializer.serialize(input),
+			inMemoryTransient: input.serialize().transient,
+		}, { canSerialize: false, serialized: undefined, inMemoryTransient: true });
 	});
 
 	test('uses resource presentation for associated resources by default', () => {

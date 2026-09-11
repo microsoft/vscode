@@ -10,6 +10,7 @@ import { constObservable, IObservable, ISettableObservable, observableValue } fr
 import { mark } from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
+import { agentCloseCanvasCapabilityMetaKey, agentOpenCanvasCapabilityMetaKey, type AgentCanvasInput, type IAgentCanvas, type IAgentCanvasType } from '../common/meta/agentCanvasMeta.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, IChannelClient, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
@@ -151,6 +152,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	private _protocolClient: AgentHostProtocolClient | undefined;
+	private _initializeResult: IObservable<InitializeResult | undefined> = constObservable(undefined);
 	private _connectStarted = false;
 	private _didAcquireInitialMessagePort = false;
 	private _didConnectInitially = false;
@@ -219,6 +221,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				() => this._createTransport(),
 				{ clientId: this.clientId, clientInfo: this._clientInfo },
 			));
+			// The facade supports Canvas through management IPC even though the
+			// local protocol listener correctly declines extension RPC methods.
+			this._initializeResult = this._protocolClient.initializeResult.map(result => result ? {
+				...result,
+				_meta: { ...result._meta, [agentCloseCanvasCapabilityMetaKey]: true, [agentOpenCanvasCapabilityMetaKey]: 1 },
+			} : undefined);
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
 				if (!this._didConnectInitially) {
@@ -342,7 +350,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	get initializeResult(): IObservable<InitializeResult | undefined> {
-		return this._protocolClient?.initializeResult ?? constObservable(undefined);
+		return this._initializeResult;
 	}
 
 	get rootState(): IAgentSubscription<RootState> {
@@ -426,6 +434,18 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
+	closeCanvas(session: URI, chat: URI, instanceId: string): Promise<void> {
+		return this._getManagementService().closeCanvas(session, chat, instanceId);
+	}
+
+	listCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasType[]> {
+		return this._getManagementService().listCanvases(session, chat);
+	}
+
+	openCanvas(session: URI, chat: URI, extensionId: string, canvasTypeId: string, input?: AgentCanvasInput): Promise<IAgentCanvas> {
+		return this._getManagementService().openCanvas(session, chat, extensionId, canvasTypeId, input);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {

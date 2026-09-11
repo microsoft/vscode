@@ -86,6 +86,7 @@ import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelem
 import { CopilotGitHubCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { getCopilotExtensionLaunch } from './copilotExtensionLaunch.js';
 import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -926,6 +927,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _isShuttingDown = false;
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
+	private _extensionSdkPath: string | undefined;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
 	private readonly _secondaryAssignmentContext: CopilotSecondaryAssignmentContext;
 	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
@@ -968,7 +970,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._worktree = worktree;
 		this._lastStartupConfig = this._readClientStartupConfig();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
-		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher, () => this._extensionSdkPath);
 		this._configurationService.publishRootTransientValues?.({ [CopilotCliVSCodeAssignmentContextKey]: undefined });
 		this._gitHubTelemetryForwarder = this._instantiationService.createInstance(CopilotGitHubTelemetryForwarder, () => this._restrictedTelemetryEnabled);
 		this._secondaryAssignmentContext = this._instantiationService.createInstance(CopilotSecondaryAssignmentContext);
@@ -2364,7 +2366,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
 
+			const extensionLaunch = await getCopilotExtensionLaunch(cliPath);
+			this._extensionSdkPath = extensionLaunch?.extensionSdkPath;
 			const clientOptions: CopilotClientOptions = {
+				...(extensionLaunch ? { onExtensionLaunch: extensionLaunch.onExtensionLaunch } : {}),
 				useLoggedInUser: false,
 				connection: RuntimeConnection.forStdio({ path: cliPath }),
 				env,
@@ -4773,6 +4778,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 			await this._destroyLiveSession(target, true);
+		});
+	}
+
+	/** Uses the ordinary create/resume paths, without sending a model turn. */
+	async prepareCanvasChat(chat: URI, context: IAgentChatContext): Promise<void> {
+		await this._ensureClient();
+		if (!this._extensionSdkPath) {
+			throw new Error('The installed Copilot SDK does not support standalone Canvas extensions');
+		}
+		this._noteHostCustomizations(context);
+		const resolved = this._resolveChatContext(chat, context);
+		await this._queueChat(resolved.configurationId, resolved.sequencerKey, 'prepareCanvasChat', async () => {
+			const entry = await this._ensureResolvedChatSession(this._resolveChatContext(chat, context));
+			if (!entry) {
+				throw new Error(`Cannot materialize Canvas chat: ${chat.toString()}`);
+			}
 		});
 	}
 

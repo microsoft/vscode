@@ -1618,8 +1618,64 @@ suite('AgentHostProtocolClient', () => {
 			method: 'vscode/removeSessionArtifact',
 			params: { session: session.toString(), artifactId: 'artifact-1' },
 		});
+
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
 		await resultPromise;
+	});
+
+		test('closeCanvas sends owning session, chat and instance through the extension request', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
+			transport.sentMessages.length = 0;
+			const session = URI.parse('copilotcli:/session-1');
+			const chat = URI.parse(buildChatUri(session, 'peer-1'));
+			const resultPromise = client.closeCanvas(session, chat, 'canvas-1');
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0', id: 2, method: 'vscode/closeCanvas',
+				params: { session: session.toString(), chat: chat.toString(), instanceId: 'canvas-1' },
+			});
+			transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+			await resultPromise;
+		});
+
+		test('closeCanvas fails without sending to an older host', async () => {
+			const { client, transport } = createClient();
+			const session = URI.parse('copilotcli:/session-1');
+			await assert.rejects(client.closeCanvas(session, URI.parse(buildChatUri(session, 'peer-1')), 'canvas-1'), /does not support/);
+			assert.deepStrictEqual(transport.sentMessages, []);
+		});
+
+		test('closeCanvas propagates runtime errors', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
+			const session = URI.parse('copilotcli:/session-1');
+			const resultPromise = client.closeCanvas(session, URI.parse(buildChatUri(session, 'peer-1')), 'missing');
+			const error = { code: JsonRpcErrorCodes.InternalError, message: 'Unknown instance' };
+			transport.fireMessage({ jsonrpc: '2.0', id: 2, error });
+			await assertRemoteProtocolError(resultPromise, error);
+		});
+
+	test('direct Canvas operations are version gated and preserve JSON input', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const chat = URI.parse(buildChatUri(session, 'peer-1'));
+		await assert.rejects(client.listCanvases(session, chat), /does not support/);
+		await assert.rejects(client.openCanvas(session, chat, 'project:counter', 'main'), /does not support/);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true, true));
+		transport.sentMessages.length = 0;
+		const listing = client.listCanvases(session, chat);
+		const catalog = [{ canvasTypeId: 'main', extensionId: 'project:counter', displayName: 'Counter' }];
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: catalog });
+		const input = { count: 2, nested: [null, true, 'value'] };
+		const opening = client.openCanvas(session, chat, 'project:counter', 'main', input);
+		const canvas = { chat: chat.toString(), instanceId: 'counter', canvasTypeId: 'main' };
+		transport.fireMessage({ jsonrpc: '2.0', id: 3, result: canvas });
+		assert.deepStrictEqual({ catalog: await listing, canvas: await opening, sent: transport.sentMessages }, {
+			catalog, canvas, sent: [
+				{ jsonrpc: '2.0', id: 2, method: 'vscode/listCanvases', params: { session: session.toString(), chat: chat.toString() } },
+				{ jsonrpc: '2.0', id: 3, method: 'vscode/openCanvas', params: { session: session.toString(), chat: chat.toString(), extensionId: 'project:counter', canvasTypeId: 'main', input } },
+			],
+		});
 	});
 
 	test('removeSessionArtifact propagates unsupported host errors', async () => {

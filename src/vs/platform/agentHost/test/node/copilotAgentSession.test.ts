@@ -55,6 +55,7 @@ import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilo
 import { type IShellInitScript } from '../../common/shellInitScript.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostCanvasController, IAgentHostCanvasController } from '../../node/agentHostCanvasController.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
@@ -313,6 +314,10 @@ class MockCopilotSession {
 	}
 
 	readonly rpc = {
+		canvas: {
+			listOpen: async () => ({ openCanvases: [] }),
+			close: async () => { },
+		},
 		agent: {
 			select: async () => { await this.agentSelectGate; },
 			deselect: async () => { await this.agentDeselectGate; },
@@ -1059,6 +1064,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		...(options?.initialSessionMeta ? { _meta: options.initialSessionMeta } : {}),
 	}, { emitNotification: false });
 	services.set(IAgentHostStateManager, stateManager);
+	services.set(IAgentHostCanvasController, disposables.add(new AgentHostCanvasController(stateManager, new NullLogService())));
 	services.set(IAgentHostCustomizationEnablementService, {
 		_serviceBrand: undefined,
 		onDidChange: customizationEnablementEmitter.event,

@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { constObservable } from '../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IChannel, IChannelClient, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
@@ -27,6 +28,9 @@ import { AgentHostClientType, editorWindowAgentHostClientInfo } from '../../comm
 import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AgentHostIpcChannels } from '../../common/agentService.js';
+import type { InitializeResult } from '../../common/state/protocol/common/commands.js';
+import { supportsAgentHostCanvasClose, supportsAgentHostCanvasOpen } from '../../common/meta/agentCanvasMeta.js';
 import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
 
 class CapturingNotificationService extends TestNotificationService {
@@ -191,6 +195,57 @@ suite('registerAgentHostClientChannels', () => {
 				connectedBeforeAcquisition: false,
 				reconnectedClient: client,
 			});
+		});
+
+			test('Canvas list/open use local management rather than disabled protocol extensions', async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				const rootState = { value: undefined, verifiedValue: undefined, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+				const initializeResult = observableValue<InitializeResult | undefined>('initialize', undefined);
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IConfigurationService, new TestConfigurationService());
+				instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+				instantiationService.stub(INotificationService, new TestNotificationService());
+				instantiationService.stubInstance(AgentHostProtocolClient, {
+					clientId: 'test-client', connect: async () => { }, dispose: () => { }, rootState,
+					onDidChangeConnectionState: Event.None, onDidFatalClose: Event.None,
+					initializeResult,
+					listCanvases: async () => { throw new Error('Must not use local protocol extension RPC'); },
+					openCanvas: async () => { throw new Error('Must not use local protocol extension RPC'); },
+				});
+				instantiationService.stubInstance(AgentHostStartupTelemetry, { protocolConnected: () => { }, connectionFailed: () => { }, dispose: () => { } });
+				instantiationService.set(IInstantiationService, instantiationService);
+				const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));
+				service.startAgentHost();
+				assert.strictEqual(service.initializeResult.get(), undefined);
+				initializeResult.set(upcastPartial<InitializeResult>({ _meta: {} }), undefined);
+				assert.deepStrictEqual([
+					supportsAgentHostCanvasOpen(service.initializeResult.get()),
+					supportsAgentHostCanvasClose(service.initializeResult.get()),
+				], [true, true]);
+				const calls: { command: string; args: unknown }[] = [];
+				const session = URI.parse('copilotcli:/session');
+				const chat = URI.parse('ahp-chat:/chat');
+				const canvas = { chat: chat.toString(), instanceId: 'counter', canvasTypeId: 'main' };
+				const management = (service as unknown as { _managementConnection: LocalAgentHostManagementConnection })._managementConnection;
+				await management.acquire(Promise.resolve({
+					getChannel: <T extends IChannel>(name: string): T => {
+						assert.strictEqual(name, AgentHostIpcChannels.Management);
+						const channel: IChannel = {
+							listen: () => Event.None,
+							call: async <R>(command: string, args?: unknown): Promise<R> => {
+								calls.push({ command, args });
+								return (command === 'listCanvases' ? [] : canvas) as R;
+							},
+						};
+						return channel as T;
+					},
+				}));
+				management.connected();
+				await service.listCanvases(session, chat);
+				const result = await service.openCanvas(session, chat, 'project:counter', 'main', { count: 2 });
+				assert.deepStrictEqual({ result, commands: calls.map(call => call.command) }, {
+					result: canvas, commands: ['listCanvases', 'openCanvas'],
+				});
 		});
 	});
 

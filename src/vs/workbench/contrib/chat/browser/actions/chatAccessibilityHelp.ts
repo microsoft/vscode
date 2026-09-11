@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWeb } from '../../../../../base/common/platform.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/diffEditor/commands.js';
@@ -150,6 +151,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	if (type === 'editsView' || type === 'agentView') {
 		if (type === 'agentView') {
 			content.push(localize('chatAgent.overview', 'The chat agent view is used to apply edits across files in your workspace, enable running commands in the terminal, and more.'));
+			if (!isWeb) {
+				content.push(localize('chatAgent.canvases', "In existing local Copilot agent host chats, Canvas extensions open in Integrated Browser tabs with normal browser navigation controls. Use Chat: Open Canvas from the Command Palette to choose an available Canvas extension without sending another message. In the Agents Window, the editor's Add Tab menu also has a Canvas submenu. Use the arrow keys and Enter to select a canvas, or Escape to cancel. Refresh Canvases reloads the available extensions. Canvases that need input prompt for JSON. Use Chat: Reopen Canvas from the Command Palette to select an open canvas with the arrow keys and Enter. Closing a browser tab only hides the canvas; use Chat: Close Canvas to close its runtime instance."));
+			}
 		} else {
 			content.push(localize('chatEditing.overview', 'The chat editing view is used to apply edits across files.'));
 		}
