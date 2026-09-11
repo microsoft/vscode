@@ -136,8 +136,6 @@ export interface IWorktreeMetadata {
 	readonly repositoryRoot?: URI;
 }
 
-type IExistingWorktreeMetadata = IWorktreeMetadata & Required<Pick<IWorktreeMetadata, 'worktreePath' | 'repositoryRoot'>>;
-
 /**
  * The `<repo>.worktrees` sibling directory where per-session isolated
  * worktrees are created, e.g. `/src/vscode` → `/src/vscode.worktrees`.
@@ -1168,77 +1166,58 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * local work is synced to its upstream, so it can be recreated without loss.
 	 */
 	async cleanupWorktree(sessionUri: URI, sessionId: string): Promise<void> {
-		return this._sequencer.queue(sessionId, () => this._cleanupSyncedWorktree(sessionUri, sessionId));
+		return this._sequencer.queue(sessionId, () => this._cleanupWorktreeOnArchive(sessionUri, sessionId, false));
 	}
 
 	/** Commits uncommitted changes before removing a manually archived session's worktree. */
 	async cleanupWorktreeOnArchive(sessionUri: URI, sessionId: string): Promise<void> {
-		return this._sequencer.queue(sessionId, () => this._cleanupWorktreeOnManualArchive(sessionUri, sessionId));
+		return this._sequencer.queue(sessionId, () => this._cleanupWorktreeOnArchive(sessionUri, sessionId, true));
 	}
 
-	private async _cleanupSyncedWorktree(sessionUri: URI, sessionId: string): Promise<void> {
-		const meta = await this._getExistingWorktreeForCleanup(sessionUri, sessionId);
-		if (!meta) {
+	private async _cleanupWorktreeOnArchive(sessionUri: URI, sessionId: string, manualArchive: boolean): Promise<void> {
+		const meta = await this._readWorktreeMetadata(sessionUri).catch(() => undefined);
+		if (!meta?.worktreePath || !meta.repositoryRoot) {
 			return;
 		}
 		const { branchName, worktreePath, repositoryRoot } = meta;
 
-		if (!await this._isBranchUpToDateWithRemote(worktreePath, branchName, sessionId)) {
+		// Skip if the worktree directory is already gone — nothing to clean.
+		try {
+			await fs.access(worktreePath.fsPath);
+		} catch {
+			this._materializedWorktrees.delete(sessionId);
+			return;
+		}
+
+		// Skip if the branch is missing — without it we can't safely recreate
+		// the worktree on unarchive, so leave the working tree intact.
+		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
+		if (!branchPresent) {
+			this._logService.info(`[${this._logLabel}:${sessionId}] Skipping worktree cleanup: branch '${branchName}' is missing`);
+			return;
+		}
+
+		if (manualArchive) {
+			const hasUncommittedChanges = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
+			if (hasUncommittedChanges) {
+				try {
+					await this._gitService.commitAll(worktreePath, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"));
+				} catch (error) {
+					this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to commit uncommitted changes in '${worktreePath.fsPath}': ${errorMessage(error)}`);
+					return;
+				}
+			}
+		} else if (!await this._isBranchUpToDateWithRemote(worktreePath, branchName, sessionId)) {
 			return;
 		}
 
 		try {
-			await this._gitService.removeWorktree(repositoryRoot, worktreePath);
+			await this._gitService.removeWorktree(repositoryRoot, worktreePath, manualArchive ? { force: true } : undefined);
 			this._logService.info(`[${this._logLabel}:${sessionId}] Removed worktree '${worktreePath.fsPath}'`);
 			this._materializedWorktrees.delete(sessionId);
 		} catch (error) {
 			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktreePath.fsPath}' on archive: ${errorMessage(error)}`);
 		}
-	}
-
-	private async _cleanupWorktreeOnManualArchive(sessionUri: URI, sessionId: string): Promise<void> {
-		const meta = await this._getExistingWorktreeForCleanup(sessionUri, sessionId);
-		if (!meta) {
-			return;
-		}
-		const { worktreePath, repositoryRoot } = meta;
-
-		const hasUncommittedChanges = await this._gitService.hasUncommittedChanges(worktreePath).catch(() => true);
-		if (hasUncommittedChanges) {
-			try {
-				await this._gitService.commitAll(worktreePath, localize('worktreeIsolation.commitMessage', "Saving uncommitted changes before archiving session"));
-			} catch (error) {
-				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to commit uncommitted changes in '${worktreePath.fsPath}': ${errorMessage(error)}`);
-				return;
-			}
-		}
-
-		try {
-			await this._gitService.removeWorktree(repositoryRoot, worktreePath, { force: true });
-			this._logService.info(`[${this._logLabel}:${sessionId}] Removed worktree '${worktreePath.fsPath}' on archive`);
-			this._materializedWorktrees.delete(sessionId);
-		} catch (error) {
-			this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to remove worktree '${worktreePath.fsPath}' on archive: ${errorMessage(error)}`);
-		}
-	}
-
-	private async _getExistingWorktreeForCleanup(sessionUri: URI, sessionId: string): Promise<IExistingWorktreeMetadata | undefined> {
-		const meta = await this._readWorktreeMetadata(sessionUri).catch(() => undefined);
-		if (!meta?.worktreePath || !meta.repositoryRoot) {
-			return undefined;
-		}
-		try {
-			await fs.access(meta.worktreePath.fsPath);
-		} catch {
-			this._materializedWorktrees.delete(sessionId);
-			return undefined;
-		}
-		const branchPresent = await this._gitService.branchExists(meta.repositoryRoot, meta.branchName).catch(() => false);
-		if (!branchPresent) {
-			this._logService.info(`[${this._logLabel}:${sessionId}] Skipping worktree cleanup: branch '${meta.branchName}' is missing`);
-			return undefined;
-		}
-		return { ...meta, worktreePath: meta.worktreePath, repositoryRoot: meta.repositoryRoot };
 	}
 
 	private async _isBranchUpToDateWithRemote(worktreePath: URI, branchName: string, sessionId: string): Promise<boolean> {

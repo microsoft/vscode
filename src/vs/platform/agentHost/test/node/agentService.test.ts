@@ -3182,7 +3182,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 			});
 
-			svc.archiveSessionAutomatically(session);
+			svc.archiveSession(session);
 			await timeout(0);
 
 			assert.deepStrictEqual({
