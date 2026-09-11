@@ -150,8 +150,8 @@ function invalidationsAfterRender(text: string[], options: IEditorOptions): Reco
 		invalidations.onLinesInserted = overlay.onLinesInserted(new viewEvents.ViewLinesInsertedEvent(1, 1));
 		invalidations.onTokensChanged = overlay.onTokensChanged(new viewEvents.ViewTokensChangedEvent([{ fromLineNumber: 1, toLineNumber: 1 }]));
 		invalidations.onZonesChanged = overlay.onZonesChanged(new viewEvents.ViewZonesChangedEvent());
-		// Vertical scrolling changes the rendered lines, while horizontal scrolling changes the
-		// content-relative position needed to keep the glyph pinned to the viewport.
+		// Vertical scrolling changes the rendered lines. The glyph stays at the wrapping column
+		// during horizontal scrolling, so that does not require a rerender.
 		invalidations.onScrolledVertically = overlay.onScrollChanged(scrollEvent({ scrollTopChanged: true }));
 		invalidations.onScrolledHorizontally = overlay.onScrollChanged(scrollEvent({ scrollLeftChanged: true }));
 	});
