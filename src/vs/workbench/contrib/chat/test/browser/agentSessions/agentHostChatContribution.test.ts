@@ -8046,6 +8046,52 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(session.history.length, 0);
 		});
 
+		for (const [activeModel, hideAutoExplainability] of [['gpt-5', false], [undefined, false], ['gpt-5', true]] as const) {
+			test(`restored Auto requests preserve selected and actual models (active: ${activeModel}, hidden: ${hideAutoExplainability})`, async () => {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([
+					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
+					['agent-host-copilot:gpt-5', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5' })],
+				]);
+				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, hideAutoExplainability });
+				const sessionUri = AgentSession.uri('copilot', 'sess-auto-survey');
+				const usage = { model: 'gpt-5', inputTokens: 100, outputTokens: 20, _meta: { autoModeResolved: { chosenModel: 'gpt-5' } } };
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({
+						resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [{
+						id: 'completed-auto',
+						message: { text: 'Completed Auto request', origin: { kind: MessageKind.User }, model: { id: 'auto' } },
+						responseParts: [],
+						usage,
+						state: TurnState.Complete,
+					}],
+					activeTurn: {
+						id: 'active-auto',
+						startedAt: '2025-01-01T00:00:00.000Z',
+						message: { text: 'Active Auto request', origin: { kind: MessageKind.User }, model: { id: 'auto' } },
+						responseParts: [],
+						usage: activeModel ? usage : undefined,
+					},
+				});
+
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/sess-auto-survey' });
+				const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => session.dispose()));
+
+				assert.deepStrictEqual(session.history.map(item => item.type === 'request'
+					? { type: item.type, modelId: item.modelId }
+					: { type: item.type, details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }), [
+					{ type: 'request', modelId: 'agent-host-copilot:auto' },
+					{ type: 'response', details: hideAutoExplainability ? 'Auto' : 'GPT-5', actualModelId: 'agent-host-copilot:gpt-5' },
+					{ type: 'request', modelId: 'agent-host-copilot:auto' },
+					{ type: 'response', details: hideAutoExplainability || !activeModel ? 'Auto' : 'GPT-5', actualModelId: undefined },
+				]);
+			});
+		}
+
 		test('history requests get per-turn modelId from usage or message model', async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
