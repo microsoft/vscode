@@ -128,6 +128,15 @@ class CodeMain {
 				const fileService = accessor.get(IFileService);
 				const loggerService = accessor.get(ILoggerService);
 
+				// Check if Inno Setup is running. Briefly wait for the updating mutex
+				// to be released before refusing to launch.
+				const innoSetupActive = await this.checkInnoSetupMutex(productService, logService);
+				if (innoSetupActive) {
+					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
+					instantiationService.invokeFunction(this.quit, new Error(message));
+					return;
+				}
+
 				// Create the main IPC server by trying to be the server
 				// If this throws an error it means we are not the first
 				// instance of VS Code running and so we would quit.
@@ -148,14 +157,6 @@ class CodeMain {
 					configurationService.dispose();
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
-
-				// Check if Inno Setup is running. Briefly wait for the updating mutex to be released before refusing to launch.
-				const innoSetupActive = await this.checkInnoSetupMutex(productService, logService);
-				if (innoSetupActive) {
-					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
-					instantiationService.invokeFunction(this.quit, new Error(message));
-					return;
-				}
 
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
 			});
