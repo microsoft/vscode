@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, parseGitWorktreePath } from '../git';
 import * as assert from 'assert';
+import * as path from 'path';
 import { splitInChunks } from '../util';
 
 suite('git', () => {
@@ -265,6 +266,24 @@ suite('git', () => {
 `;
 
 			assert.deepStrictEqual(parseGitRemotes(sample), []);
+		});
+	});
+
+	suite('parseGitWorktreePath', () => {
+		test('resolves relative worktree gitdir paths', () => {
+			const gitdirPath = path.join(path.sep, 'repo', '.git', 'worktrees', 'relative', 'gitdir');
+			const gitdirContent = path.join('..', '..', '..', '..', 'worktree_relative', '.git');
+			const expectedWorktreePath = path.join(path.sep, 'repo', 'worktree_relative');
+
+			assert.strictEqual(parseGitWorktreePath(gitdirPath, gitdirContent), expectedWorktreePath);
+		});
+
+		test('parses absolute worktree gitdir paths', () => {
+			const gitdirPath = path.join(path.sep, 'repo', '.git', 'worktrees', 'absolute', 'gitdir');
+			const expectedWorktreePath = path.join(path.sep, 'repo', 'worktree_absolute');
+			const gitdirContent = path.join(expectedWorktreePath, '.git');
+
+			assert.strictEqual(parseGitWorktreePath(gitdirPath, gitdirContent), expectedWorktreePath);
 		});
 	});
 
