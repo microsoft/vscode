@@ -5,12 +5,31 @@
 
 import { deepStrictEqual } from 'assert';
 import { timeout } from '../../../../base/common/async.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { XtermSerializer } from '../../node/ptyService.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { ITerminalProcessOptions, ProcessPropertyType } from '../../common/terminal.js';
+import { PersistentTerminalProcess, XtermSerializer } from '../../node/ptyService.js';
+import { TerminalProcess } from '../../node/terminalProcess.js';
 
 suite('PtyService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const testContext = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const processOptions: ITerminalProcessOptions = {
+		shellIntegration: { enabled: false, suggestEnabled: false, nonce: 'test-nonce' },
+		windowsUseConptyDll: false,
+		environmentVariableCollections: undefined,
+		workspaceFolder: undefined,
+		isScreenReaderOptimized: false,
+	};
+
+	class TestTerminalProcess extends TerminalProcess {
+		override async start(): Promise<undefined> {
+			return undefined;
+		}
+	}
 
 	async function serializeCommands(allowUntrustedCwd: boolean, cwdNonce: string = ''): Promise<{ cwd: string | undefined; exitCode: number | undefined }[]> {
 		const nonce = 'test-nonce';
@@ -60,5 +79,85 @@ suite('PtyService', () => {
 			{ cwd: '/workspace/one', exitCode: 0 },
 			{ cwd: '/workspace/two', exitCode: undefined },
 		]);
+	});
+
+	test('should publish resolved shell launch config before replay', async () => {
+		const store = testContext.add(new DisposableStore());
+		const logService = new NullLogService();
+		const productService = { _serviceBrand: undefined, ...product } satisfies IProductService;
+		const shellLaunchConfig = {
+			executable: process.execPath,
+			isExtensionOwnedTerminal: true,
+		};
+		const environment = { ...process.env };
+
+		const createPersistentProcess = (id: number, isRevived: boolean): PersistentTerminalProcess => {
+			const terminalProcess = store.add(new TestTerminalProcess(
+				shellLaunchConfig,
+				process.cwd(),
+				80,
+				30,
+				environment,
+				environment,
+				processOptions,
+				logService,
+				productService
+			));
+			return store.add(new PersistentTerminalProcess(
+				id,
+				terminalProcess,
+				'workspace',
+				'workspace',
+				true,
+				80,
+				30,
+				{ env: environment, executableEnv: environment, options: processOptions },
+				'6',
+				{ graceTime: 60000, shortGraceTime: 60000, scrollback: 100 },
+				logService,
+				isRevived ? 'restored' : undefined,
+				undefined
+			));
+		};
+
+		const getReplayOrder = async (persistentProcess: PersistentTerminalProcess): Promise<string[]> => {
+			const listenerStore = new DisposableStore();
+			const order: string[] = [];
+			try {
+				const replay = new Promise<void>(resolve => {
+					listenerStore.add(persistentProcess.onDidChangeProperty(e => {
+						if (e.type === ProcessPropertyType.ResolvedShellLaunchConfig) {
+							order.push('resolvedShellLaunchConfig');
+						}
+					}));
+					listenerStore.add(persistentProcess.onProcessReplay(() => {
+						order.push('replay');
+						resolve();
+					}));
+				});
+				const result = await persistentProcess.start();
+				if (result) {
+					throw new Error(result.message);
+				}
+				await replay;
+				return order;
+			} finally {
+				listenerStore.dispose();
+			}
+		};
+
+		const reattachedProcess = createPersistentProcess(1, false);
+		const launchResult = await reattachedProcess.start();
+		if (launchResult) {
+			throw new Error(launchResult.message);
+		}
+
+		deepStrictEqual({
+			reattach: await getReplayOrder(reattachedProcess),
+			revive: await getReplayOrder(createPersistentProcess(2, true)),
+		}, {
+			reattach: ['resolvedShellLaunchConfig', 'replay'],
+			revive: ['resolvedShellLaunchConfig', 'replay'],
+		});
 	});
 });

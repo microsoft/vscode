@@ -685,7 +685,7 @@ const enum InteractionState {
 	Session = 'Session'
 }
 
-class PersistentTerminalProcess extends Disposable {
+export class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
 
@@ -782,7 +782,7 @@ class PersistentTerminalProcess extends Disposable {
 		super();
 		this._interactionState = new MutationLogger(`Persistent process "${this._persistentProcessId}" interaction state`, InteractionState.None, this._logService);
 		this._wasRevived = reviveBuffer !== undefined;
-		this._serializer = new XtermSerializer(
+		this._serializer = this._register(new XtermSerializer(
 			cols,
 			rows,
 			reconnectConstants.scrollback,
@@ -792,7 +792,7 @@ class PersistentTerminalProcess extends Disposable {
 			!!this.shellLaunchConfig.isExtensionOwnedTerminal,
 			shouldPersistTerminal ? rawReviveBuffer : undefined,
 			this._logService
-		);
+		));
 		if (name) {
 			this.setTitle(name, TitleEventSource.Api);
 		}
