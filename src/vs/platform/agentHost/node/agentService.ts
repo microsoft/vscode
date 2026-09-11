@@ -4230,14 +4230,14 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._worktree.canAutomaticallyDeleteArchivedSession(session);
 	}
 
-	archiveSession(session: URI): void {
+	archiveSessionAutomatically(session: URI): void {
 		const channel = session.toString();
 		const action = {
 			type: ActionType.SessionIsArchivedChanged,
 			isArchived: true,
 		} as const;
 		this._stateManager.dispatchServerAction(channel, action);
-		this._sideEffects.handleAction(channel, action);
+		this._sideEffects.handleAutomaticArchiveAction(channel, action);
 	}
 
 	cleanupWorktree(session: URI, sessionId: string): Promise<void> {

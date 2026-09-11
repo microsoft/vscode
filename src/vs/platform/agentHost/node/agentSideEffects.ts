@@ -31,7 +31,7 @@ import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js'
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatToolCallCompleteAction, type IIsArchivedChangedAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
 	createErrorResponsePart,
@@ -1369,6 +1369,14 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn): void {
+		this._handleAction(channel, action, clientId, clientContextOrType, resumedTurn, false);
+	}
+
+	handleAutomaticArchiveAction(channel: ProtocolURI, action: IIsArchivedChangedAction): void {
+		this._handleAction(channel, action, undefined, AgentHostClientType.Unknown, undefined, true);
+	}
+
+	private _handleAction(channel: ProtocolURI, action: StateAction, clientId: string | undefined, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType, resumedTurn: Turn | undefined, automaticArchive: boolean): void {
 		let clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -1611,7 +1619,9 @@ export class AgentSideEffects extends Disposable {
 				const sessionUri = URI.parse(channel);
 				const sessionId = AgentSession.id(channel);
 				const worktreeOp = action.isArchived
-					? this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
+					? automaticArchive
+						? this._worktree.cleanupWorktree(sessionUri, sessionId)
+						: this._worktree.cleanupWorktreeOnArchive(sessionUri, sessionId)
 					: this._worktree.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 				worktreeOp.catch(err => this._logService.warn(`[AgentSideEffects] worktree ${action.isArchived ? 'cleanup' : 'recreate'} failed for ${channel}`, err));
 				const agent = this._options.getAgent(channel);

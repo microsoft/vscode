@@ -3160,12 +3160,13 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('session lifecycle candidates', () => {
-		test('archiveSession runs archive side effects', async () => {
+		test('automatic archive uses strict worktree cleanup', async () => {
 			const perSession = createPerSessionDataService();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const cleaned: string[] = [];
 			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-				cleanupWorktreeOnArchive: async session => { cleaned.push(session.toString()); },
+				cleanupWorktree: async session => { cleaned.push(session.toString()); },
+				cleanupWorktreeOnArchive: async () => { assert.fail('Automatic archive must not use manual worktree cleanup'); },
 			}));
 			getConfigurationService(svc).updateRootConfig({
 				[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: 1,
@@ -3181,7 +3182,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 			});
 
-			svc.archiveSession(session);
+			svc.archiveSessionAutomatically(session);
 			await timeout(0);
 
 			assert.deepStrictEqual({

@@ -204,7 +204,7 @@ export function createAgentServiceComposition(
 				setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(sessionDataService, session.toString(), {
 					[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),
 				}),
-				archiveSession: session => agentService!.archiveSession(session),
+				archiveSession: session => agentService!.archiveSessionAutomatically(session),
 				canDeleteSession: session => agentService!.canAutomaticallyDeleteArchivedSession(session),
 				cleanupWorktree: (session, sessionId) => agentService!.cleanupWorktree(session, sessionId),
 				deleteSession: (session, validate) => agentService!.disposeSessionIf(session, validate),
