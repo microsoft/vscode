@@ -430,7 +430,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		this._anchorPosition = anchorPosition;
 		this._preferBelow = preferBelow;
 		widget.setPlaceholder(this._selectedPRCommentTarget
-			? localize('agentFeedback.addPRComment', "Add Pull Request Comment")
+			? localize('agentFeedback.addPRComment', "Add PR Comment")
 			: this._getPlaceholder());
 		widget.setActionLabels(
 			this._selectedPRCommentTarget ? localize('agentFeedback.addPRCommentAction', "Add PR Comment") : localize('agentFeedback.addAction', "Add"),
@@ -570,8 +570,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				...pullRequests.map(pullRequest => toAction({
 					id: `agentFeedback.commentTarget.pullRequest.${pullRequest.owner}.${pullRequest.repo}.${pullRequest.number}`,
 					label: pullRequests.length === 1
-						? localize('agentFeedback.prCommentTarget', "PR Comment")
-						: localize('agentFeedback.prCommentTargetWithPR', "PR Comment ({0}/{1}#{2})", pullRequest.owner, pullRequest.repo, pullRequest.number),
+						? localize('agentFeedback.prCommentTarget', "Pull Request Comment")
+						: localize('agentFeedback.prCommentTargetWithPR', "Pull Request ({0}/{1}#{2}) Comment", pullRequest.owner, pullRequest.repo, pullRequest.number),
 					run: () => { },
 				})),
 			];
