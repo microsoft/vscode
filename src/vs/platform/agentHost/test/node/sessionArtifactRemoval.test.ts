@@ -12,12 +12,14 @@ import { IProductService } from '../../../product/common/productService.js';
 import { META_GITHUB_STATE } from '../../common/agentHostGitStateService.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import type { ISessionDatabase } from '../../common/sessionDataService.js';
+import type { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
-import { persistSessionMetadataValues, SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
+import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
+import type { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { MockAgent } from './mockAgent.js';
@@ -45,13 +47,25 @@ suite('Session Artifact Removal', () => {
 		}, artifacts);
 		stateManager.setSessionMeta(session.toString(), meta);
 		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts(artifacts));
-		return { service, agent, session, stateManager, meta, sessionDataService };
+		await service.whenCatalogReconciliationIdle();
+		const internals = service as unknown as {
+			_createArtifactServerToolAccessor(): IArtifactServerToolAccessor;
+			_orchestratorDatabase: IAgentHostDatabase;
+		};
+		const readCentralArtifacts = async () => {
+			const row = await internals._orchestratorDatabase.getSessionV2(session.toString());
+			assert.ok(row);
+			const decoded = decodeAgentHostCatalogPayload(row.payload);
+			assert.ok(decoded.ok);
+			return readSessionArtifacts(decoded.value.data._meta);
+		};
+		return { service, agent, session, stateManager, meta, artifactAccessor: internals._createArtifactServerToolAccessor(), readCentralArtifacts };
 	}
 
-	function addConcurrentReference({ stateManager, session, sessionDataService }: Awaited<ReturnType<typeof createFixture>>): Promise<string> {
+	function addConcurrentReference({ stateManager, session, artifactAccessor }: Awaited<ReturnType<typeof createFixture>>): Promise<string> {
 		const group = createArtifactServerToolGroup({
 			isEnabled: () => true,
-			persist: (session, entries) => persistSessionMetadataValues(sessionDataService, session, { [SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(entries) }),
+			persist: artifactAccessor.persist,
 		});
 		return Promise.resolve(group.execute(stateManager, { sessionUri: session.toString(), chatUri: buildDefaultChatUri(session), turnId: 'turn' }, ArtifactServerToolName.AddArtifactOrReference, {
 			type: 'website', label: 'Concurrent', isArtifact: false, link: 'https://example.com/concurrent',
@@ -60,7 +74,7 @@ suite('Session Artifact Removal', () => {
 
 	test('persists removal and publishes metadata without removing independent associations or references', async () => {
 		const database = store.add(await SessionDatabase.open(':memory:'));
-		const { service, agent, session, stateManager, meta } = await createFixture(database);
+		const { service, agent, session, stateManager, meta, readCentralArtifacts } = await createFixture(database);
 		await database.setMetadata('unrelated', 'preserved');
 		const actions: ActionEnvelope[] = [];
 		store.add(service.onDidAction(envelope => {
@@ -77,11 +91,13 @@ suite('Session Artifact Removal', () => {
 			metadata: await database.getMetadataObject({ [SESSION_ARTIFACTS_KEY]: undefined, unrelated: undefined }),
 			actions: actions.map(envelope => ({ channel: envelope.channel, action: envelope.action })),
 			modelCalls: agent.sendMessageCalls,
+			centralArtifacts: await readCentralArtifacts(),
 		}, {
 			meta: expectedMeta,
 			metadata: { [SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts.slice(1)), unrelated: 'preserved' },
 			actions: [{ channel: session.toString(), action: { type: ActionType.SessionMetaChanged, _meta: expectedMeta } }],
 			modelCalls: [],
+			centralArtifacts: artifacts.slice(1),
 		});
 	});
 
@@ -89,18 +105,19 @@ suite('Session Artifact Removal', () => {
 		const writeStarted = new DeferredPromise<void>();
 		const finishWrite = new DeferredPromise<void>();
 		class DelayedDatabase extends TestSessionDatabase {
-			delayNextArtifactWrite = true;
-			override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-				await super.setMetadataValues(values);
+			delayNextArtifactWrite = false;
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
 				if (this.delayNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
 					this.delayNextArtifactWrite = false;
 					await writeStarted.complete();
 					await finishWrite.p;
 				}
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
 			}
 		}
 		const database = new DelayedDatabase();
 		const fixture = await createFixture(database);
+		database.delayNextArtifactWrite = true;
 		const { service, session, stateManager, meta } = fixture;
 		let completed = false;
 		const removal = service.removeSessionArtifact(session, 'pr').then(() => { completed = true; });
@@ -126,10 +143,12 @@ suite('Session Artifact Removal', () => {
 			labels: remaining.map(artifact => artifact.label),
 			meta: stateManager.getSessionState(session.toString())?._meta,
 			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			centralArtifacts: await fixture.readCentralArtifacts(),
 		}, {
 			labels: ['Report', 'Docs', 'Concurrent'],
 			meta: withSessionArtifacts(latestMeta, remaining),
 			persisted: stringifySessionArtifacts(remaining),
+			centralArtifacts: remaining,
 		});
 	});
 
@@ -137,19 +156,20 @@ suite('Session Artifact Removal', () => {
 		const writeStarted = new DeferredPromise<void>();
 		const finishWrite = new DeferredPromise<void>();
 		class FailingDelayedDatabase extends TestSessionDatabase {
-			failNextArtifactWrite = true;
-			override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+			failNextArtifactWrite = false;
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
 				if (this.failNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
 					this.failNextArtifactWrite = false;
 					await writeStarted.complete();
 					await finishWrite.p;
 					throw new Error('artifact write failed');
 				}
-				await super.setMetadataValues(values);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
 			}
 		}
 		const database = new FailingDelayedDatabase();
 		const fixture = await createFixture(database);
+		database.failNextArtifactWrite = true;
 		const { service, session, stateManager, meta } = fixture;
 		const publishedLabels: string[][] = [];
 		store.add(service.onDidAction(envelope => {
@@ -176,22 +196,24 @@ suite('Session Artifact Removal', () => {
 			meta: stateManager.getSessionState(session.toString())?._meta,
 			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
 			publishedLabels,
+			centralArtifacts: await fixture.readCentralArtifacts(),
 		}, {
 			labels: ['PR', 'Report', 'Docs', 'Concurrent'],
 			meta: withSessionArtifacts(latestMeta, remaining),
 			persisted: stringifySessionArtifacts(remaining),
 			publishedLabels: [['PR', 'Report', 'Docs'], ['PR', 'Report', 'Docs', 'Concurrent']],
+			centralArtifacts: remaining,
 		});
 	});
 
 	test('logs and propagates persistence failures without hiding the artifact and allows a durable retry', async () => {
 		class FailingDatabase extends TestSessionDatabase {
-			failArtifactWrites = true;
-			override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+			failArtifactWrites = false;
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
 				if (this.failArtifactWrites && values[SESSION_ARTIFACTS_KEY] !== undefined) {
 					throw new Error('artifact write failed');
 				}
-				await super.setMetadataValues(values);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
 			}
 		}
 		const errors: string[] = [];
@@ -200,6 +222,7 @@ suite('Session Artifact Removal', () => {
 		}
 		const database = new FailingDatabase();
 		const { service, session, stateManager, meta } = await createFixture(database, new TestLogService());
+		database.failArtifactWrites = true;
 
 		await assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
 		const afterFailure = {

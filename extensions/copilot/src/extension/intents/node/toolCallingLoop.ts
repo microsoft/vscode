@@ -2433,4 +2433,3 @@ export interface IToolCallLoopResult extends IToolCallSingleResult {
 	toolCallRounds: IToolCallRound[];
 	toolCallResults: Record<string, LanguageModelToolResult2>;
 }
-
