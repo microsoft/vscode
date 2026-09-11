@@ -107,6 +107,98 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	for (const beforeFirstMessage of [false, true]) {
+		test(`preserves restored subagent Auto routing across same-model configuration changes (beforeFirstMessage=${beforeFirstMessage})`, async () => {
+			const configurationChange: ISessionEvent = {
+				type: 'session.model_change', agentId: 'agent-1', data: { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' },
+			};
+			const autoModeResolved = { chosenModel: 'gpt-5.5' };
+			const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Delegate work' } },
+				{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'auto' } },
+				{ type: 'session.auto_mode_resolved', agentId: 'agent-1', data: autoModeResolved },
+				...(beforeFirstMessage ? [configurationChange] : []),
+				{ type: 'user.message', agentId: 'agent-1', data: { content: 'Explore' } },
+				{ type: 'assistant.message', agentId: 'agent-1', data: { content: 'Child response' } },
+				...(!beforeFirstMessage ? [configurationChange] : []),
+			]));
+
+			assert.deepStrictEqual(subagentTurnsByToolCallId.get('tc-task')?.[0].usage, {
+				model: 'gpt-5.5', _meta: { autoModeResolved },
+			});
+		});
+	}
+
+	test('restores a known subagent startup model without waiting for usage', async () => {
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'session.start', data: { selectedModel: 'gpt-5.5' } },
+			{ type: 'user.message', id: 'parent-turn', data: { content: 'Delegate work' } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'gpt-5.4-mini' } },
+			{ type: 'subagent.configured', agentId: 'agent-1', data: { model: 'claude-sonnet-4.6', multiTurn: true } },
+			{ type: 'user.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:20.000Z', data: { content: 'Explore' } },
+			{ type: 'assistant.turn_start', agentId: 'agent-1', data: { turnId: 'child-turn', model: 'claude-opus-4.8' } },
+			{ type: 'assistant.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:30.000Z', data: { content: 'Child response' } },
+			{ type: 'assistant.message', data: { content: 'Parent response' } },
+		]));
+
+		assert.deepStrictEqual({
+			parentModel: turns[0].message.model,
+			child: subagentTurnsByToolCallId.get('tc-task')?.map(turn => ({
+				model: turn.message.model, startedAt: turn.startedAt, usage: turn.usage,
+			})),
+		}, {
+			parentModel: { id: 'gpt-5.5' },
+			child: [{ model: { id: 'claude-opus-4.8' }, startedAt: '2025-01-01T00:00:20.000Z', usage: undefined }],
+		});
+	});
+
+	for (const source of ['subagent.started', 'subagent.configured', 'assistant.turn_start'] as const) {
+		test(`restores the subagent model first reported by ${source}`, async () => {
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', id: 'parent-turn', data: { content: 'Delegate work' } },
+				{
+					type: 'subagent.started', agentId: 'agent-1', data: {
+						toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+						...(source === 'subagent.started' ? { model: 'gpt-5.4-mini' } : {}),
+					}
+				},
+				...(source === 'subagent.started' ? [] : [{
+					type: source, agentId: 'agent-1', data: { model: 'gpt-5.4-mini', multiTurn: true, turnId: 'child-turn' },
+				}]),
+				{ type: 'user.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:20.000Z', data: { content: 'Explore' } },
+				{ type: 'assistant.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:30.000Z', data: { content: 'Child response' } },
+			];
+			const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+			assert.deepStrictEqual(subagentTurnsByToolCallId.get('tc-task')?.map(turn => ({
+				model: turn.message.model, startedAt: turn.startedAt,
+			})), [{ model: { id: 'gpt-5.4-mini' }, startedAt: '2025-01-01T00:00:20.000Z' }]);
+		});
+	}
+
+	test('restored child model changes do not change the next parent request model', async () => {
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'session.start', data: { selectedModel: 'gpt-5.5' } },
+			{ type: 'user.message', id: 'parent-turn', data: { content: 'Delegate work' } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests' } },
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', data: { chosenModel: 'claude-opus-4.8' } },
+			{ type: 'user.message', agentId: 'agent-1', data: { content: 'Explore' } },
+			{ type: 'session.model_change', agentId: 'agent-1', data: { newModel: 'gpt-5.4-mini' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { content: 'Child response' } },
+			{ type: 'user.message', id: 'next-parent-turn', data: { content: 'Continue' } },
+		]));
+
+		assert.deepStrictEqual({
+			parentModels: turns.map(turn => turn.message.model),
+			childModel: subagentTurnsByToolCallId.get('tc-task')?.[0].message.model,
+			childUsage: subagentTurnsByToolCallId.get('tc-task')?.[0].usage,
+		}, {
+			parentModels: [{ id: 'gpt-5.5' }, { id: 'gpt-5.5' }],
+			childModel: { id: 'gpt-5.4-mini' },
+			childUsage: { model: 'gpt-5.4-mini', _meta: {} },
+		});
+	});
+
 	test('task_complete without a summary renders nothing', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },

@@ -5437,9 +5437,11 @@ suite('AgentHostChatContribution', () => {
 			const subagentData = subagentInvocation!.toolSpecificData as IChatSubagentToolInvocationData;
 			assert.deepStrictEqual({
 				credits: subagentData.credits,
+				modelId: subagentData.modelId,
 				modelName: subagentData.modelName,
 			}, {
 				credits: 5.0,
+				modelId: 'agent-host-copilot:openrouter/amazon/nova-micro-v1',
 				modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
 			});
 		}));
@@ -5447,7 +5449,7 @@ suite('AgentHostChatContribution', () => {
 		test('subagent model reads Auto when explainability is hidden and the routed model when it is not', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// The subagent bills to the model Auto routed it to. Which of the two
 			// names the pill shows is the whole point of the treatment.
-			const runWithTreatment = async (hideAutoExplainability: boolean): Promise<string | undefined> => {
+			const runWithTreatment = async (hideAutoExplainability: boolean) => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
 					['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
@@ -5505,17 +5507,69 @@ suite('AgentHostChatContribution', () => {
 				const subagentInvocation = collected.flat()
 					.filter((p): p is IChatToolInvocation => p.kind === 'toolInvocation')
 					.find(p => p.toolSpecificData?.kind === 'subagent');
-				return (subagentInvocation?.toolSpecificData as IChatSubagentToolInvocationData | undefined)?.modelName;
+				const data = subagentInvocation?.toolSpecificData?.kind === 'subagent' ? subagentInvocation.toolSpecificData : undefined;
+				return { modelId: data?.modelId, modelName: data?.modelName };
 			};
 
 			assert.deepStrictEqual({
 				hidden: await runWithTreatment(true),
 				shown: await runWithTreatment(false),
 			}, {
-				hidden: 'Auto',
-				shown: 'GPT-5.4 mini',
+				hidden: { modelId: 'agent-host-copilot:auto', modelName: 'Auto' },
+				shown: { modelId: 'agent-host-copilot:gpt-5.4-mini', modelName: 'GPT-5.4 mini' },
 			});
 		}));
+
+		for (const [background, delayedMetadata] of [[false, false], [true, false], [true, true]]) {
+			test(`shows the subagent model from its starting message before usage (background=${background}, delayedMetadata=${delayedMetadata})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const modelId = 'agent-host-copilot:claude-sonnet-4.6';
+				const metadata = upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' });
+				const languageModels = new Map<string, ILanguageModelChatMetadata>(delayedMetadata ? [] : [[modelId, metadata]]);
+				const onDidChangeLanguageModels = disposables.add(new Emitter<string>());
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+					languageModels, languageModelsServiceOverride: { onDidChangeLanguageModels: onDidChangeLanguageModels.event },
+				});
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				const parentSession = parseDefaultChatUri(session);
+				assert.ok(parentSession);
+				const childChat = buildSubagentChatUri(parentSession, 'launch');
+				fire({
+					type: ActionType.ChatToolCallStart, turnId, toolCallId: 'launch', toolName: 'task', displayName: 'Task',
+				});
+				fire({
+					type: ActionType.ChatToolCallReady, turnId, toolCallId: 'launch', invocationMessage: 'Delegating work',
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				});
+				if (background) {
+					fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'launch', result: { success: true, pastTenseMessage: 'Delegated work' } });
+				}
+				await timeout(0);
+				agentHostService.fireAction({
+					channel: childChat,
+					action: {
+						type: ActionType.ChatTurnStarted, turnId: 'child-turn', startedAt: '2025-01-01T00:00:00.000Z',
+						message: { text: 'Explore', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-4.6' } },
+					},
+					serverSeq: 1000, origin: undefined,
+				});
+				await timeout(0);
+				const invocation = collected.flat().find(part => part.kind === 'toolInvocation' && part.toolCallId === 'launch');
+				const data = invocation?.kind === 'toolInvocation' && invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData : undefined;
+				const atStart = data?.modelName;
+				if (delayedMetadata) {
+					languageModels.set(modelId, metadata);
+					onDidChangeLanguageModels.fire(modelId);
+				}
+				const whileRunning = { modelId: data?.modelId, model: data?.modelName, active: data?.isActive, credits: data?.credits };
+				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+				await turnPromise;
+
+				assert.deepStrictEqual({ atStart, whileRunning }, {
+					atStart: delayedMetadata ? 'claude-sonnet-4.6' : 'Claude Sonnet 4.6',
+					whileRunning: { modelId, model: 'Claude Sonnet 4.6', active: true, credits: undefined },
+				});
+			}));
+		}
 
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -11847,6 +11901,9 @@ suite('AgentHostChatContribution', () => {
 			test(`restored background subagent pills observe their child chat completing (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
 				const { sessionHandler, agentHostService } = createContribution(disposables, {
+					languageModels: new Map([
+						['agent-host-copilot:claude-sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' })],
+					]),
 					languageModelToolsServiceOverride: {
 						getToolByName: () => toolData,
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
@@ -11878,7 +11935,7 @@ suite('AgentHostChatContribution', () => {
 						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
 					}),
 					lifecycle: SessionLifecycle.Ready,
-					activeTurn: createActiveTurn('child-turn', { text: 'Review', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
+					activeTurn: createActiveTurn('child-turn', { text: 'Review', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-4.6' } }, '2025-01-01T00:00:00.000Z'),
 				});
 				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-background-subagent' }), CancellationToken.None);
 				disposables.add(toDisposable(() => session.dispose()));
@@ -11888,7 +11945,7 @@ suite('AgentHostChatContribution', () => {
 				) ?? [];
 				const parent = parents[0];
 				assert.ok(parent?.toolSpecificData?.kind === 'subagent');
-				const beforeCompletion = { available: parent.toolSpecificData.isChatAvailable, active: parent.toolSpecificData.isActive };
+				const beforeCompletion = { available: parent.toolSpecificData.isChatAvailable, active: parent.toolSpecificData.isActive, modelId: parent.toolSpecificData.modelId, model: parent.toolSpecificData.modelName };
 				agentHostService.fireAction({
 					channel: childChatUri,
 					action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 1000 },
@@ -11905,7 +11962,7 @@ suite('AgentHostChatContribution', () => {
 				}, {
 					parentCount: 1,
 					kind: 'toolInvocation',
-					beforeCompletion: { available: true, active: true },
+					beforeCompletion: { available: true, active: true, modelId: 'agent-host-copilot:claude-sonnet-4.6', model: 'Claude Sonnet 4.6' },
 					afterCompletion: { available: true, active: false, duration: 1000 },
 				});
 			}));

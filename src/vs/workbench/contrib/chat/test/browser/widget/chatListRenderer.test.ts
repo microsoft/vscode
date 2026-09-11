@@ -30,7 +30,7 @@ import { ChatThinkingContentPart } from '../../../browser/widget/chatContentPart
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
@@ -38,6 +38,7 @@ import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, ICha
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
+import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -182,6 +183,54 @@ suite('ChatListRenderer', () => {
 					mcpAppFirst: 0,
 					multipleMcpApps: 1,
 				});
+			});
+
+			test('keeps active subagents outside completed response disclosure', async () => {
+				const invocation = new ChatToolInvocation(
+					{ toolSpecificData: { kind: 'subagent', hasStarted: true, isActive: true } },
+					{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+					'launch', undefined, { mode: 'background' },
+				);
+				await invocation.didExecuteTool(undefined);
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Task completed') } as const;
+				const active = [invocation, invocation.toJSON()].map(part => ({
+					collapses: shouldCollapseCompletedResponsePart(part),
+					collapseEnd: getCompletedResponseCollapseEndIndex([part, finalResponse], 1),
+				}));
+				invocation.toolSpecificData = { kind: 'subagent', hasStarted: true, isActive: false };
+				const completed = [invocation, invocation.toJSON()].map(part => ({
+					collapses: shouldCollapseCompletedResponsePart(part),
+					collapseEnd: getCompletedResponseCollapseEndIndex([part, finalResponse], 1),
+				}));
+
+				assert.deepStrictEqual({ active, completed }, {
+					active: [{ collapses: false, collapseEnd: 0 }, { collapses: false, collapseEnd: 0 }],
+					completed: [{ collapses: true, collapseEnd: 1 }, { collapses: true, collapseEnd: 1 }],
+				});
+			});
+
+			test('collapses only the prefix before active subagents and all steps after completion', async () => {
+				const data: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+				const invocation = createSubagentTool('launch', data);
+				await invocation.didExecuteTool(undefined);
+				const ordinary = new ChatToolInvocation(
+					{ invocationMessage: 'Ordinary work' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'ordinary', undefined, {},
+				);
+				await ordinary.didExecuteTool(undefined);
+				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+				const content = [ordinary, invocation, ordinary, finalResponse];
+				const active = getCompletedResponseCollapseEndIndex(content, 3);
+				data.isActive = false;
+				const completed = getCompletedResponseCollapseEndIndex(content, 3);
+				const nested = createSubagentTool('nested', { kind: 'subagent', hasStarted: true, isActive: true }, invocation.toolCallId);
+
+				assert.deepStrictEqual({
+					active,
+					completed,
+					lateNested: getCompletedResponseCollapseEndIndex([invocation.toJSON(), finalResponse, nested.toJSON()], 1),
+				}, { active: 1, completed: 3, lateNested: 0 });
 			});
 
 			test('moves durable tool outcomes after the final response and before trailing adjuncts', () => {
@@ -1902,6 +1951,414 @@ suite('ChatListRenderer', () => {
 			disclosureBeforeProviderOutput: true,
 		});
 
+		disposables.dispose();
+	});
+
+	function createBackgroundSubagentRenderer() {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+		configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const request = model.addRequest({
+			text: 'test',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')]
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		return { disposables, model, viewModel, request, response, container, renderer, template, render: () => renderer.renderElement(node, 0, template) };
+	}
+
+	function createSubagentTool(toolCallId: string, data: IChatSubagentToolInvocationData, parentToolCallId?: string): ChatToolInvocation {
+		return new ChatToolInvocation(
+			{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work', toolSpecificData: data },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			toolCallId, parentToolCallId, { mode: 'background' },
+		);
+	}
+
+	test('replaces a completed thinking group with a late background subagent', async () => {
+		const { disposables, model, viewModel, request, response, template, render } = createBackgroundSubagentRenderer();
+		const invocation = new ChatToolInvocation(
+			{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work' },
+			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+			'launch', undefined, { mode: 'background' },
+		);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting a background review.') });
+		model.acceptResponseProgress(request, invocation);
+		await invocation.didExecuteTool({ content: [{ kind: 'text', value: 'Agent started in background.' }] });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+		request.response?.complete();
+		render();
+		const initiallyThinking = template.renderedParts?.some(part => part instanceof ChatThinkingContentPart);
+		disposables.add(viewModel.onDidChange(render));
+
+		invocation.toolSpecificData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		invocation.notifyToolSpecificDataChanged();
+		const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		const activeAfterDiscovery = subagent?.getIsActive();
+		const hiddenAfterDiscovery = !!subagent?.domNode.closest('details:not([open])');
+
+		invocation.toolSpecificData.isActive = false;
+		invocation.notifyToolSpecificDataChanged();
+		const activeAfterCompletion = subagent?.getIsActive();
+		const hiddenAfterCompletion = !!subagent?.domNode.closest('details:not([open])');
+
+		invocation.toolSpecificData.isActive = true;
+		invocation.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			initiallyThinking,
+			responseComplete: response.isComplete,
+			subagentCount: template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).length,
+			thinkingCount: template.renderedParts?.filter(part => part instanceof ChatThinkingContentPart).length,
+			activeAfterDiscovery,
+			hiddenAfterDiscovery,
+			activeAfterCompletion,
+			hiddenAfterCompletion,
+			activeAfterFollowUp: subagent?.getIsActive(),
+			hiddenAfterFollowUp: !!subagent?.domNode.closest('details:not([open])'),
+			retainedPart: subagent !== undefined && template.renderedParts?.includes(subagent),
+		}, {
+			initiallyThinking: true,
+			responseComplete: true,
+			subagentCount: 1,
+			thinkingCount: 0,
+			activeAfterDiscovery: true,
+			hiddenAfterDiscovery: false,
+			activeAfterCompletion: false,
+			hiddenAfterCompletion: true,
+			activeAfterFollowUp: true,
+			hiddenAfterFollowUp: false,
+			retainedPart: true,
+		});
+
+		disposables.dispose();
+	});
+
+	for (const launchIndex of [0, 1]) {
+		for (const materialized of [false, true]) {
+			test(`preserves grouped tools when a background launch is promoted (index=${launchIndex}, materialized=${materialized})`, async () => {
+				const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+				const invocation = new ChatToolInvocation(
+					{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work' },
+					{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+					'launch', undefined, { mode: 'background' },
+				);
+				const ordinaryTools = ['First ordinary tool', 'Second ordinary tool'].map((label, index) => new ChatToolInvocation(
+					{ invocationMessage: label, pastTenseMessage: label },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					`ordinary-${index}`, undefined, {},
+				));
+				const tools = [...ordinaryTools];
+				tools.splice(launchIndex, 0, invocation);
+				for (const tool of tools) {
+					model.acceptResponseProgress(request, tool);
+					render();
+					await tool.didExecuteTool(undefined);
+					render();
+				}
+				model.acceptResponseProgress(request, {
+					kind: 'hook', hookType: HookType.PostToolUse, systemMessage: 'Sibling hook result',
+				});
+				render();
+				if (materialized) {
+					for (const part of new Set(template.renderedParts)) {
+						if (part instanceof ChatThinkingContentPart) {
+							part.domNode.querySelector<HTMLElement>('.chat-used-context-label > .monaco-button')?.click();
+						}
+					}
+				}
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+				request.response?.complete();
+				render();
+
+				invocation.toolSpecificData = {
+					kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+				};
+				invocation.notifyToolSpecificDataChanged();
+				render();
+				for (const part of new Set(template.renderedParts)) {
+					if (part instanceof ChatThinkingContentPart) {
+						part.domNode.querySelector<HTMLElement>('.chat-used-context-label > .monaco-button')?.click();
+					}
+				}
+				await timeout(0);
+				for (const button of template.value.querySelectorAll<HTMLElement>('.chat-hook-outcome-warning .chat-used-context-label > .monaco-button')) {
+					button.click();
+				}
+				const toolRows = [...template.value.querySelectorAll<HTMLElement>('.chat-tool-invocation-part')];
+				const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+				const finalResponse = template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
+				const precedes = (first: HTMLElement | undefined, second: HTMLElement | undefined) =>
+					!!first && !!second && !!(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+				assert.deepStrictEqual({
+					subagents: template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).length,
+					ordinaryTools: toolRows.map(row => row.textContent?.replace(/\s+/g, ' ').trim()),
+					launcherBeforeFirst: precedes(subagent?.domNode, toolRows[0]),
+					launcherBeforeSecond: precedes(subagent?.domNode, toolRows[1]),
+					toolsBeforeFinal: precedes(toolRows[1], finalResponse?.domNode),
+					hookMessages: [...template.value.querySelectorAll<HTMLElement>('.chat-hook-message')].map(message => message.textContent),
+				}, {
+					subagents: 1,
+					ordinaryTools: ['First ordinary tool', 'Second ordinary tool'],
+					launcherBeforeFirst: launchIndex === 0,
+					launcherBeforeSecond: true,
+					toolsBeforeFinal: true,
+					hookMessages: ['Sibling hook result'],
+				});
+				disposables.dispose();
+			});
+		}
+	}
+
+	for (const hasStarted of [false, true]) {
+		test(`keeps child startup visible after parent finalization and repeated renders (started=${hasStarted})`, async () => {
+			const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+			const data: IChatSubagentToolInvocationData = {
+				kind: 'subagent', description: 'Review changes', hasStarted, isActive: true, isChatAvailable: hasStarted,
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+			};
+			const invocation = new ChatToolInvocation({
+				invocationMessage: 'Delegating work', toolSpecificData: data,
+				confirmationMessages: { title: 'Approve agent', message: new MarkdownString('Allow the background agent?') },
+			}, {
+				id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal,
+			}, 'launch', undefined, { mode: 'background' });
+			model.acceptResponseProgress(request, invocation);
+			render();
+			const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+			assert.ok(subagent);
+			assert.strictEqual(IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction }), true);
+			await invocation.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+			const ordinary = new ChatToolInvocation(
+				{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
+				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+				'ordinary', undefined, {},
+			);
+			model.acceptResponseProgress(request, ordinary);
+			await ordinary.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+			request.response?.complete();
+			render();
+			render();
+			const afterParent = { active: subagent.getIsActive(), hidden: !!subagent.domNode.closest('details:not([open])') };
+
+			data.hasStarted = true;
+			data.isActive = true;
+			data.isChatAvailable = true;
+			invocation.notifyToolSpecificDataChanged();
+
+			assert.deepStrictEqual({
+				afterParent,
+				afterStartup: { active: subagent.getIsActive(), hidden: !!subagent.domNode.closest('details:not([open])') },
+			}, {
+				afterParent: { active: hasStarted, hidden: !hasStarted },
+				afterStartup: { active: true, hidden: false },
+			});
+			disposables.dispose();
+		});
+	}
+
+	test('preserves summary focus when a background child changes the disclosure boundary', async () => {
+		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+		const data: IChatSubagentToolInvocationData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		const invocation = createSubagentTool('launch', data);
+		const ordinary = new ChatToolInvocation(
+			{ invocationMessage: 'Checking work', pastTenseMessage: 'Checked work' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'ordinary', undefined, {},
+		);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Earlier work.') });
+		model.acceptResponseProgress(request, ordinary);
+		await ordinary.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, invocation);
+		await invocation.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+		request.response?.complete();
+		render();
+		const summary = template.completedResponseDisclosure?.querySelector('summary');
+		assert.ok(summary);
+		summary.focus();
+
+		data.isActive = false;
+		invocation.notifyToolSpecificDataChanged();
+		const afterCompletion = mainWindow.document.activeElement === template.completedResponseDisclosure?.querySelector('summary');
+		data.isActive = true;
+		invocation.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			afterCompletion,
+			afterFollowUp: mainWindow.document.activeElement === template.completedResponseDisclosure?.querySelector('summary'),
+		}, { afterCompletion: true, afterFollowUp: true });
+		disposables.dispose();
+	});
+
+	test('moves summary focus to the child when its startup removes the disclosure', async () => {
+		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+		const data: IChatSubagentToolInvocationData = {
+			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: false, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/launch',
+		};
+		const invocation = createSubagentTool('launch', data);
+		model.acceptResponseProgress(request, invocation);
+		await invocation.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+		const ordinary = new ChatToolInvocation(
+			{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'ordinary', undefined, {},
+		);
+		model.acceptResponseProgress(request, ordinary);
+		await ordinary.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+		request.response?.complete();
+		render();
+		const subagent = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		const summary = template.completedResponseDisclosure?.querySelector('summary');
+		assert.ok(subagent && summary);
+		summary.focus();
+
+		data.isActive = true;
+		invocation.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			disclosureRemoved: !template.completedResponseDisclosure,
+			childFocused: subagent.domNode.contains(mainWindow.document.activeElement),
+		}, { disclosureRemoved: true, childFocused: true });
+		disposables.dispose();
+	});
+
+	test('keeps a completed root group visible while a nested background child is active', async () => {
+		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+		const root = createSubagentTool('root', {
+			kind: 'subagent', description: 'Root reviewer', hasStarted: true, isActive: false, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/root',
+		});
+		const nestedData: IChatSubagentToolInvocationData = {
+			kind: 'subagent', description: 'Nested reviewer', hasStarted: false, isActive: true, isChatAvailable: false,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/nested',
+		};
+		const nested = createSubagentTool('nested', nestedData, root.toolCallId);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Earlier work.') });
+		model.acceptResponseProgress(request, root);
+		await root.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, nested);
+		await nested.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
+		request.response?.complete();
+		render();
+		const part = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		assert.ok(part);
+		const beforeNestedStart = !!part.domNode.closest('details:not([open])');
+		nestedData.hasStarted = true;
+		nestedData.isChatAvailable = true;
+		nested.notifyToolSpecificDataChanged();
+		const whileNestedActive = !!part.domNode.closest('details:not([open])');
+
+		nestedData.isActive = false;
+		nested.notifyToolSpecificDataChanged();
+		const afterNestedCompletion = !!part.domNode.closest('details:not([open])');
+		nestedData.isActive = true;
+		nested.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			beforeNestedStart,
+			whileNestedActive,
+			afterNestedCompletion,
+			afterNestedFollowUp: !!part.domNode.closest('details:not([open])'),
+		}, { beforeNestedStart: true, whileNestedActive: false, afterNestedCompletion: true, afterNestedFollowUp: false });
+		disposables.dispose();
+	});
+
+	test('releases child activity observers when a template is reused for another response', async () => {
+		const { disposables, model, viewModel, request, template, renderer, render } = createBackgroundSubagentRenderer();
+		const data: IChatSubagentToolInvocationData = {
+			kind: 'subagent', description: 'Original child', hasStarted: true, isActive: true, isChatAvailable: true,
+			chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/original',
+		};
+		const invocation = createSubagentTool('original', data);
+		model.acceptResponseProgress(request, invocation);
+		await invocation.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Original response.') });
+		request.response?.complete();
+		render();
+
+		const replacementRequest = model.addRequest({
+			text: 'next',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'next')],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(replacementRequest, { kind: 'markdownContent', content: new MarkdownString('Replacement work.') });
+		const ordinary = new ChatToolInvocation(
+			{ invocationMessage: 'Replacement check', pastTenseMessage: 'Checked replacement' },
+			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			'replacement-tool', undefined, {},
+		);
+		model.acceptResponseProgress(replacementRequest, ordinary);
+		await ordinary.didExecuteTool(undefined);
+		model.acceptResponseProgress(replacementRequest, { kind: 'markdownContent', content: new MarkdownString('Replacement response.') });
+		replacementRequest.response?.complete();
+		const replacement = viewModel.getItems().find(item => isResponseVM(item) && item.model === replacementRequest.response);
+		assert.ok(replacement && isResponseVM(replacement));
+		renderer.renderElement({
+			element: replacement, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0,
+			collapsible: false, collapsed: false, visible: true, filterData: undefined,
+		}, 0, template);
+		const disclosure = template.completedResponseDisclosure;
+		assert.ok(disclosure);
+		const renderedContent = template.renderedContent;
+
+		data.isActive = false;
+		invocation.notifyToolSpecificDataChanged();
+		data.isActive = true;
+		invocation.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			currentResponse: template.currentElement === replacement,
+			sameDisclosure: template.completedResponseDisclosure === disclosure && disclosure.isConnected,
+			sameContent: template.renderedContent === renderedContent,
+		}, { currentResponse: true, sameDisclosure: true, sameContent: true });
 		disposables.dispose();
 	});
 

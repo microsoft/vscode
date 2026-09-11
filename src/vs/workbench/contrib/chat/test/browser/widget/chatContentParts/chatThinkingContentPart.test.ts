@@ -23,6 +23,7 @@ import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMess
 import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
+import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
@@ -2092,24 +2093,47 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(result, true, 'Should accept tool invocations as same content');
 		});
 
-		test('should return false when a tool becomes a parent subagent', () => {
-			const content = createThinkingPart('**Working**', 'id-1');
-			const context = createMockRenderContext(false);
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
-			const toolInvocation = {
-				kind: 'toolInvocation' as const,
-				toolSpecificData: { kind: 'subagent' },
-				subAgentInvocationId: undefined,
-			} as unknown as IChatRendererContent;
+		for (const isComplete of [false, true]) {
+			for (const serialized of [false, true]) {
+				test(`should replace thinking when a tool becomes a parent subagent (complete=${isComplete}, serialized=${serialized})`, () => {
+					const content = createThinkingPart('**Working**', 'id-1');
+					const context = createMockRenderContext(isComplete);
+					const part = store.add(instantiationService.createInstance(
+						ChatThinkingContentPart,
+						content,
+						context,
+						mockMarkdownRenderer,
+						false
+					));
+					const invocation = new ChatToolInvocation(
+						{ toolSpecificData: { kind: 'subagent' } },
+						{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+						'launch', undefined, { mode: 'background' },
+					);
 
-			assert.strictEqual(part.hasSameContent(toolInvocation, [], context.element), false);
-		});
+					assert.strictEqual(part.hasSameContent(serialized ? invocation.toJSON() : invocation, [], context.element), false);
+				});
+			}
+
+			test(`should preserve thinking for ordinary and nested tools (complete=${isComplete})`, () => {
+				const context = createMockRenderContext(isComplete);
+				const part = store.add(instantiationService.createInstance(
+					ChatThinkingContentPart,
+					createThinkingPart('**Working**', 'id-1'),
+					context,
+					mockMarkdownRenderer,
+					false
+				));
+				const toolData = { id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal };
+				const ordinary = new ChatToolInvocation(undefined, toolData, 'ordinary', undefined, {});
+				const nested = new ChatToolInvocation({ toolSpecificData: { kind: 'subagent' } }, toolData, 'nested', 'parent', {});
+
+				assert.deepStrictEqual(
+					[ordinary, ordinary.toJSON(), nested, nested.toJSON()].map(invocation => part.hasSameContent(invocation, [], context.element)),
+					[true, true, true, true],
+				);
+			});
+		}
 
 		test('should return true for markdown content', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
