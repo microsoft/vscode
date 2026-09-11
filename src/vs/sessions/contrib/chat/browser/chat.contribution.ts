@@ -203,6 +203,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
 		if (isQuickChat
 			&& activeSession?.isCreated?.get() === false
+			&& !options?.toSide
 			&& !accessor.get(IConfigurationService).getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 			sessionsService.unsetNewSession();
 			return;

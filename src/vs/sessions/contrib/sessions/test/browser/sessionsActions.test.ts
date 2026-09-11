@@ -402,8 +402,8 @@ suite('Sessions - Actions', () => {
 		}
 	}
 
-	test('New Session replaces a quick-chat draft only when the unified workspace picker is disabled', async () => {
-		const run = async (unifiedWorkspacePicker: boolean) => {
+	test('New Session replaces a quick-chat draft only for a primary open when the unified workspace picker is disabled', async () => {
+		const run = async (unifiedWorkspacePicker: boolean, toSide?: boolean) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const composerService = disposables.add(new NewSessionComposerService());
 			instantiationService.stub(INewSessionComposerService, composerService);
@@ -417,14 +417,14 @@ suite('Sessions - Actions', () => {
 				isQuickChat: constObservable(true),
 			});
 			let unsetNewSessionCalls = 0;
-			let openNewSessionCalls = 0;
+			const requests: (IOpenNewSessionOptions | undefined)[] = [];
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(activeSession);
 				override unsetNewSession(): void {
 					unsetNewSessionCalls++;
 				}
-				override async openNewSession(): Promise<IOpenNewSessionResult> {
-					openNewSessionCalls++;
+				override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+					requests.push(options);
 					return { session: undefined, trustDeclined: false };
 				}
 			});
@@ -432,16 +432,28 @@ suite('Sessions - Actions', () => {
 
 			const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
 			assert.ok(command);
-			await command.handler(instantiationService);
-			return { navigationVersion: composerService.userNavigationVersion.get(), unsetNewSessionCalls, openNewSessionCalls };
+			await command.handler(instantiationService, toSide ? { toSide } : undefined);
+			return { navigationVersion: composerService.userNavigationVersion.get(), unsetNewSessionCalls, requests };
 		};
 
 		assert.deepStrictEqual({
-			disabled: await run(false),
-			enabled: await run(true),
+			disabled: {
+				primary: await run(false),
+				toSide: await run(false, true),
+			},
+			enabled: {
+				primary: await run(true),
+				toSide: await run(true, true),
+			},
 		}, {
-			disabled: { navigationVersion: 1, unsetNewSessionCalls: 1, openNewSessionCalls: 0 },
-			enabled: { navigationVersion: 1, unsetNewSessionCalls: 0, openNewSessionCalls: 1 },
+			disabled: {
+				primary: { navigationVersion: 1, unsetNewSessionCalls: 1, requests: [] },
+				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
+			},
+			enabled: {
+				primary: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: undefined }] },
+				toSide: { navigationVersion: 1, unsetNewSessionCalls: 0, requests: [{ folderUri: undefined, toSide: true }] },
+			},
 		});
 	});
 

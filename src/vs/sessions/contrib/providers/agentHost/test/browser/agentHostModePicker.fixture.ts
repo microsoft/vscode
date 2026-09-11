@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { getAgentHostCopilotSandboxSettingId, IAgentConnection, IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostOperatingSystem } from '../../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -25,6 +25,7 @@ import { IContextViewService } from '../../../../../../platform/contextview/brow
 import { ContextViewService } from '../../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { AgentHostChatInputPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { toAgentHostBackendSessionUri } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -158,6 +159,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 	if (editor) {
 		const state = new class extends mock<SessionState>() {
 			override readonly config = config;
+			override readonly provider = 'copilotcli';
 		}();
 		const changed = disposableStore.add(new Emitter<SessionState>());
 		const subscriptions: { [K in StateComponents]?: IAgentSubscription<ComponentToState[K]> } = {
@@ -165,6 +167,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		};
 		const hostService = new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = Event.None;
+			override readonly onDidNotification = Event.None;
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 				return connection.getNetworkDiagnosticsInfo();
 			}
@@ -183,6 +186,14 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 			}
 		}();
 		instantiationService.set(IAgentHostService, hostService);
+		instantiationService.stub(IAgentHostConnectionsService, {
+			ambientConnection: hostService,
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResource: sessionResource => {
+				const backendSession = toAgentHostBackendSessionUri(sessionResource);
+				return backendSession ? { connection: hostService, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
+			},
+		});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => config, refreshResolvedConfig: async () => { } });
