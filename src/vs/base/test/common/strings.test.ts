@@ -238,6 +238,15 @@ suite('Strings', () => {
 		assert.strictEqual(strings.escape('<foo>Hello</foo>'), '&lt;foo&gt;Hello&lt;/foo&gt;');
 	});
 
+	test('count', () => {
+		assert.strictEqual(strings.count('abcabc', 'bc'), 2);
+		assert.strictEqual(strings.count('abc', 'd'), 0);
+		assert.strictEqual(strings.count('', 'a'), 0);
+		assert.strictEqual(strings.count('aaa', 'aa'), 1);
+		assert.strictEqual(strings.count('abc', ''), 0);
+		assert.strictEqual(strings.count('', ''), 0);
+	});
+
 	test('ltrim', () => {
 		assert.strictEqual(strings.ltrim('foo', 'f'), 'oo');
 		assert.strictEqual(strings.ltrim('foo', 'o'), 'foo');

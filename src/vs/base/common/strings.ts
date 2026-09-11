@@ -94,6 +94,10 @@ export function escapeRegExpCharacters(value: string): string {
  * Counts how often `substr` occurs inside `value`.
  */
 export function count(value: string, substr: string): number {
+	if (!substr) {
+		return 0;
+	}
+
 	let result = 0;
 	let index = value.indexOf(substr);
 	while (index !== -1) {
