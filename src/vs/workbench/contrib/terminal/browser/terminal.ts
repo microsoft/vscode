@@ -727,6 +727,7 @@ interface ITerminalEditorInputObject {
 	readonly hasChildProcesses?: boolean;
 	readonly type?: TerminalType;
 	readonly isFeatureTerminal?: boolean;
+	readonly isExtensionOwnedTerminal?: boolean;
 	readonly hideFromUser?: boolean;
 	readonly reconnectionProperties?: IReconnectionProperties;
 	readonly shellIntegrationNonce: string;
