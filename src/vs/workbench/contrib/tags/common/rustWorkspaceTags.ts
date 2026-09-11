@@ -59,7 +59,6 @@ export const RustCratesToLookFor = [
 const dependencySectionPattern = /^(?:workspace\s*\.\s*)?(?:dependencies|dev-dependencies|build-dependencies)$/;
 const targetDependencySectionPattern = /^target\s*\.\s*.+\s*\.\s*(?:dependencies|dev-dependencies|build-dependencies)$/;
 const dependencyTablePattern = /^(?:(?:workspace\s*\.\s*)?(?:dependencies|dev-dependencies|build-dependencies)|target\s*\.\s*.+\s*\.\s*(?:dependencies|dev-dependencies|build-dependencies))\s*\.\s*(.+)$/;
-const dependencyPattern = /^("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[A-Za-z0-9_-]+)\s*(?:\.\s*([A-Za-z0-9_-]+))?\s*=\s*(.*)$/;
 const packagePattern = /(?:^|[,{]\s*)package\s*=\s*["']([^"']+)["']/;
 
 export function getCargoDependencyNames(contents: string): string[] {
@@ -125,14 +124,12 @@ export function getCargoDependencyNames(contents: string): string[] {
 			continue;
 		}
 
-		const dependencyMatch = dependencyPattern.exec(line);
-		if (!dependencyMatch) {
+		const dependency = parseDependencyAssignment(line);
+		if (!dependency) {
 			continue;
 		}
 
-		const alias = parseTomlKey(dependencyMatch[1]);
-		const property = dependencyMatch[2];
-		const value = dependencyMatch[3];
+		const { alias, property, value } = dependency;
 		if (property) {
 			const packageName = property === 'package' ? /^["']([^"']+)["']/.exec(value)?.[1] : undefined;
 			dependencies.set(alias, packageName ?? dependencies.get(alias) ?? alias);
@@ -150,6 +147,94 @@ export function getCargoDependencyNames(contents: string): string[] {
 	finishInlineDependency();
 	finishDependencyTable();
 	return [...dependencies.values()];
+}
+
+function parseDependencyAssignment(line: string): { alias: string; property?: string; value: string } | undefined {
+	const assignmentIndex = findUnquotedCharacter(line, '=');
+	if (assignmentIndex === -1) {
+		return undefined;
+	}
+
+	const keys = splitTomlDottedKey(line.slice(0, assignmentIndex));
+	if (!keys || keys.length > 2) {
+		return undefined;
+	}
+
+	return {
+		alias: keys[0],
+		property: keys[1],
+		value: line.slice(assignmentIndex + 1).trim()
+	};
+}
+
+function splitTomlDottedKey(value: string): string[] | undefined {
+	const keys: string[] = [];
+	let start = 0;
+	let quote: '"' | '\'' | undefined;
+	let escaped = false;
+
+	for (let i = 0; i < value.length; i++) {
+		const character = value[i];
+		if (quote) {
+			if (quote === '"' && character === '\\' && !escaped) {
+				escaped = true;
+				continue;
+			}
+			if (character === quote && !escaped) {
+				quote = undefined;
+			}
+			escaped = false;
+		} else if (character === '"' || character === '\'') {
+			quote = character;
+		} else if (character === '.') {
+			const key = parseTomlKey(value.slice(start, i));
+			if (!isTomlKey(key)) {
+				return undefined;
+			}
+			keys.push(key);
+			start = i + 1;
+		}
+	}
+
+	if (quote) {
+		return undefined;
+	}
+
+	const key = parseTomlKey(value.slice(start));
+	if (!isTomlKey(key)) {
+		return undefined;
+	}
+	keys.push(key);
+	return keys;
+}
+
+function findUnquotedCharacter(value: string, expectedCharacter: string): number {
+	let quote: '"' | '\'' | undefined;
+	let escaped = false;
+
+	for (let i = 0; i < value.length; i++) {
+		const character = value[i];
+		if (quote) {
+			if (quote === '"' && character === '\\' && !escaped) {
+				escaped = true;
+				continue;
+			}
+			if (character === quote && !escaped) {
+				quote = undefined;
+			}
+			escaped = false;
+		} else if (character === '"' || character === '\'') {
+			quote = character;
+		} else if (character === expectedCharacter) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+function isTomlKey(value: string): boolean {
+	return value.length > 0 && /^[A-Za-z0-9_.-]+$/.test(value);
 }
 
 function getPackageName(value: string): string | undefined {

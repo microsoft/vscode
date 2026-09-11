@@ -1554,8 +1554,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 						}
 
 						return textFileService.read(uri, { acceptTextOnly: true }).then(contentHandler);
-					}, err => {
-						// Ignore missing file
+					}).catch(() => {
+						// Ignore missing or inaccessible files
 					});
 				});
 			}

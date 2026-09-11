@@ -64,13 +64,13 @@ serde_json.workspace = true
 [dev-dependencies]
 pretty_assertions = "1"
 
-[build-dependencies.bindgen]
+[ build-dependencies . bindgen ]
 version = "0.72"
 
 [workspace.dependencies]
 azure_identity = "1"
-renamed-azure.package = "azure_storage_blob"
-renamed-azure.version = "1"
+renamed-azure . package = "azure_storage_blob"
+renamed-azure . version = "1"
 
 [target.'cfg(unix)'.dependencies]
 rustls = "0.23"
