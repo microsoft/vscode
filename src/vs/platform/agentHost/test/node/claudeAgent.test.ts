@@ -8239,6 +8239,149 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		await inFlight;
 		assert.strictEqual(inFlightResolved, true);
 	});
+
+	test('intermediate result during steering keeps tool-call attribution so a later tool_result still completes the tool', async () => {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6' } });
+		const sid = created.sdkSessionId;
+		const TOOL_USE_ID = 'toolu_steer_read';
+
+		// Park after the tool_use so steering lands while the tool is still in flight.
+		const advance = new DeferredPromise<void>();
+		ctx.sdk.queryAdvance = async (i) => { if (i === 5) { await advance.p; } };
+		ctx.sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid),
+			makeStreamEvent(sid, makeMessageStart()),
+			makeStreamEvent(sid, makeContentBlockStartToolUse(0, TOOL_USE_ID, 'Read')),
+			makeStreamEvent(sid, makeContentBlockStop(0)),
+			makeStreamEvent(sid, makeMessageStop()),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
+		const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'long task', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		await tick();
+		await tick();
+
+		ctx.agent.setPendingMessages!(defaultChatUri(created.session), { id: 'pending-steer', message: { text: 'moo', origin: { kind: MessageKind.User } } }, []);
+		await tick();
+		await tick();
+
+		// result#1 is the preempted turn's intermediate result; the tool_result lands after it.
+		ctx.sdk.nextQueryMessages.push(
+			makeResultSuccess(sid),
+			makeUserToolResultMessage(sid, TOOL_USE_ID, 'file contents'),
+			makeResultSuccess(sid),
+		);
+		advance.complete();
+		await inFlight;
+
+		assert.deepStrictEqual({
+			toolCallCompletes: signals.flatMap(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete ? [{ turnId: s.action.turnId, toolCallId: s.action.toolCallId }] : []),
+			turnCompleteCount: signals.filter(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete).length,
+		}, {
+			toolCallCompletes: [{ turnId: 'turn-1', toolCallId: TOOL_USE_ID }],
+			turnCompleteCount: 1,
+		});
+	});
+
+	test('intermediate result during steering keeps the foreground subagent spawn so inner content still announces subagent_started', async () => {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6' } });
+		const sid = created.sdkSessionId;
+		const PARENT = 'toolu_steer_task';
+
+		// Park after the spawning Task tool_use so steering lands while the subagent runs.
+		const advance = new DeferredPromise<void>();
+		ctx.sdk.queryAdvance = async (i) => { if (i === 5) { await advance.p; } };
+		ctx.sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid),
+			makeStreamEvent(sid, makeMessageStart()),
+			makeStreamEvent(sid, makeContentBlockStartToolUse(0, PARENT, 'Task')),
+			makeStreamEvent(sid, makeContentBlockStop(0)),
+			makeStreamEvent(sid, makeMessageStop()),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
+		const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'long task', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		await tick();
+		await tick();
+
+		ctx.agent.setPendingMessages!(defaultChatUri(created.session), { id: 'pending-steer', message: { text: 'moo', origin: { kind: MessageKind.User } } }, []);
+		await tick();
+		await tick();
+
+		const innerAssistant = makeAssistantMessage(sid, [{ type: 'text', text: 'searching the workspace', citations: null }]);
+		innerAssistant.parent_tool_use_id = PARENT;
+		ctx.sdk.nextQueryMessages.push(
+			makeResultSuccess(sid),
+			innerAssistant,
+			makeUserToolResultMessage(sid, PARENT, 'done'),
+			makeResultSuccess(sid),
+		);
+		advance.complete();
+		await inFlight;
+
+		assert.deepStrictEqual({
+			started: signals.flatMap(s => s.kind === 'subagent_started' ? [s.toolCallId] : []),
+			completed: signals.flatMap(s => s.kind === 'subagent_completed' ? [s.toolCallId] : []),
+		}, {
+			started: [PARENT],
+			completed: [PARENT],
+		});
+	});
+
+	test('final result drops pending tool-call attribution so a late tool_result is treated as unknown', async () => {
+		const log = new CapturingLogService();
+		const ctx = createTestContext(disposables, { logService: log });
+		await ctx.agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6' } });
+		const sid = created.sdkSessionId;
+		const TOOL_USE_ID = 'toolu_orphan_read';
+
+		// Park after turn one's final result; its tool_use never gets a tool_result.
+		const advance = new DeferredPromise<void>();
+		ctx.sdk.queryAdvance = async (i) => { if (i === 6) { await advance.p; } };
+		ctx.sdk.nextQueryMessages = [
+			makeSystemInitMessage(sid),
+			makeStreamEvent(sid, makeMessageStart()),
+			makeStreamEvent(sid, makeContentBlockStartToolUse(0, TOOL_USE_ID, 'Read')),
+			makeStreamEvent(sid, makeContentBlockStop(0)),
+			makeStreamEvent(sid, makeMessageStop()),
+			makeResultSuccess(sid),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
+		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		ctx.sdk.nextQueryMessages.push(
+			makeUserToolResultMessage(sid, TOOL_USE_ID, 'late content'),
+			makeResultSuccess(sid),
+		);
+		const second = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		await tick();
+		advance.complete();
+		await second;
+
+		assert.deepStrictEqual({
+			toolCallCompleteCount: signals.filter(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete).length,
+			turnCompleteCount: signals.filter(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete).length,
+			warnedOrphan: log.warns.some(w => w.includes(`ended with pending tool_use ${TOOL_USE_ID}`)),
+			warnedUnknown: log.warns.some(w => w.includes(`tool_result for unknown tool_use_id ${TOOL_USE_ID}`)),
+		}, {
+			toolCallCompleteCount: 0,
+			turnCompleteCount: 2,
+			warnedOrphan: true,
+			warnedUnknown: true,
+		});
+	});
 });
 
 // #endregion

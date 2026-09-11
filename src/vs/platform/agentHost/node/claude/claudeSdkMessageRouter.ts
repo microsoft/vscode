@@ -65,6 +65,14 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		this._clientToolOwner = clientToolOwner;
 	}
 
+	/** Drop pending tool-call attribution and foreground subagent spawns; the pipeline calls this on the final `result` of a protocol turn. */
+	clearPendingTurnState(): void {
+		this._mapperState.clearPendingToolCalls(this._logService);
+		for (const orphan of this._subagents.drainForegroundSpawns()) {
+			this._logService.warn(`[ClaudeSdkMessageRouter] turn ended with pending subagent-spawning tool_use ${orphan.toolUseId} (agentId=${orphan.agentId ?? '<unresolved>'}); dropping cross-message state`);
+		}
+	}
+
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
 		if (message.type === 'assistant') {
 			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);

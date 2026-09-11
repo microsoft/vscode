@@ -55,9 +55,9 @@ export interface IRematerializer {
  *     Re-applied to a fresh Query on rebind.
  *   • Drain the SDK message stream, dispatch each message to the
  *     {@link ClaudeSdkMessageRouter}, settle the matching entry's
- *     deferred on `result`, and emit `ChatTurnComplete` only when
- *     the queue fully drains (intermediate results during steering
- *     preemption do NOT fire turn-complete — CONTEXT.md M10).
+ *     deferred on `result`, and only when the queue fully drains drop
+ *     pending tool-call state and emit `ChatTurnComplete` (intermediate
+ *     results during steering preemption do neither; CONTEXT.md M10).
  *
  * Disposing the pipeline aborts the controller (terminating the SDK
  * subprocess per `sdk.d.ts:982`) and async-disposes the WarmQuery.
@@ -648,8 +648,8 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * Consumer loop. Drains the SDK iterator, dispatches each message
 	 * to the {@link ClaudeSdkMessageRouter} (awaited so async file-edit
 	 * observation completes before the next message), settles the head
-	 * entry's deferred on `result`, and fires `ChatTurnComplete` only
-	 * when the queue fully drains.
+	 * entry's deferred on `result`, and only when the queue fully drains
+	 * drops pending tool-call state and fires `ChatTurnComplete`.
 	 *
 	 * On any uncaught error (cancellation, transport failure, or the
 	 * post-loop "stream ended without result" guard) the catch block
@@ -694,8 +694,9 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
 					// Intermediate result (still pending entries from a
-					// steering preempt) does NOT fire ChatTurnComplete.
+					// steering preempt) keeps tool-call state and fires nothing.
 					if (completed && this._queue.isEmpty) {
+						this._router.clearPendingTurnState();
 						this._onDidProduceSignal.fire({
 							kind: 'action',
 							resource: this.chatChannelUri,
