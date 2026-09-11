@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeAction, CodeActionKind, CodeActionProvider, Diagnostic, DiagnosticCollection, DiagnosticSeverity, Disposable, Range, Selection, TextDocument, Uri, WorkspaceEdit, l10n, languages, workspace } from 'vscode';
+import { CodeAction, CodeActionKind, CodeActionProvider, Diagnostic, DiagnosticCollection, DiagnosticSeverity, Disposable, Range, Selection, TextDocument, Uri, WorkspaceEdit, l10n, languages, window, workspace } from 'vscode';
 import { mapEvent, filterEvent, dispose } from './util';
 import { Model } from './model';
+
+const GIT_COMMIT_COMMENT_CHAR = '#';
 
 export enum DiagnosticCodes {
 	empty_message = 'empty_message',
@@ -104,6 +106,89 @@ export class GitCommitInputBoxDiagnosticsManager {
 	}
 }
 
+export class GitCommitEditorDiagnosticsManager {
+
+	private readonly diagnostics: DiagnosticCollection;
+	private readonly severity = DiagnosticSeverity.Warning;
+	private readonly disposables: Disposable[] = [];
+
+	constructor() {
+		this.diagnostics = languages.createDiagnosticCollection('git-commit-editor');
+
+		// Process already open git-commit documents
+		for (const document of workspace.textDocuments) {
+			if (document.languageId === 'git-commit') {
+				this.onDidChangeTextDocument(document);
+			}
+		}
+
+		filterEvent(workspace.onDidOpenTextDocument, e => e.languageId === 'git-commit')(this.onDidChangeTextDocument, this, this.disposables);
+		mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.languageId === 'git-commit'), e => e.document)(this.onDidChangeTextDocument, this, this.disposables);
+		filterEvent(workspace.onDidCloseTextDocument, e => e.languageId === 'git-commit')(this.onDidCloseTextDocument, this, this.disposables);
+		filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.inputValidation') || e.affectsConfiguration('git.inputValidationLength') || e.affectsConfiguration('git.inputValidationSubjectLength'))(this.onDidChangeConfiguration, this, this.disposables);
+	}
+
+	public getDiagnostics(uri: Uri): ReadonlyArray<Diagnostic> {
+		return this.diagnostics.get(uri) ?? [];
+	}
+
+	private onDidChangeConfiguration(): void {
+		for (const editor of window.visibleTextEditors) {
+			if (editor.document.languageId === 'git-commit') {
+				this.onDidChangeTextDocument(editor.document);
+			}
+		}
+	}
+
+	private onDidCloseTextDocument(document: TextDocument): void {
+		this.diagnostics.delete(document.uri);
+	}
+
+	private onDidChangeTextDocument(document: TextDocument): void {
+		const config = workspace.getConfiguration('git');
+		const inputValidation = config.get<boolean>('inputValidation', false);
+		if (!inputValidation) {
+			this.diagnostics.set(document.uri, undefined);
+			return;
+		}
+
+		const diagnostics: Diagnostic[] = [];
+		const inputValidationLength = config.get<number>('inputValidationLength', 50);
+		const inputValidationSubjectLength = config.get<number | undefined>('inputValidationSubjectLength', undefined);
+
+		let isFirstNonCommentLine = true;
+		for (let index = 0; index < document.lineCount; index++) {
+			const line = document.lineAt(index);
+
+			// Skip comment lines
+			if (line.text.startsWith(GIT_COMMIT_COMMENT_CHAR)) {
+				continue;
+			}
+
+			const threshold = isFirstNonCommentLine ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
+			isFirstNonCommentLine = false;
+
+			if (line.text.length > threshold) {
+				const charactersOver = line.text.length - threshold;
+				const lineLengthMessage = charactersOver === 1
+					? l10n.t('{0} character over {1} in current line', charactersOver, threshold)
+					: l10n.t('{0} characters over {1} in current line', charactersOver, threshold);
+				const diagnostic = new Diagnostic(line.range, lineLengthMessage, this.severity);
+				diagnostic.code = DiagnosticCodes.line_length;
+
+				diagnostics.push(diagnostic);
+			}
+		}
+
+		this.diagnostics.set(document.uri, diagnostics);
+	}
+
+	dispose() {
+		dispose(this.disposables);
+		this.diagnostics.dispose();
+	}
+}
+
 export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider {
 
 	private readonly disposables: Disposable[] = [];
@@ -192,6 +277,123 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 		const inputValidationLength = config.get<number>('inputValidationLength', 50);
 		const inputValidationSubjectLength = config.get<number | undefined>('inputValidationSubjectLength', undefined);
 		const lineLengthThreshold = line === 0 ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
+
+		const lineSegments: string[] = [];
+		const lineText = document.lineAt(line).text.trim();
+
+		let position = 0;
+		while (lineText.length - position > lineLengthThreshold) {
+			const lastSpaceBeforeThreshold = lineText.lastIndexOf(' ', position + lineLengthThreshold);
+
+			if (lastSpaceBeforeThreshold !== -1 && lastSpaceBeforeThreshold > position) {
+				lineSegments.push(lineText.substring(position, lastSpaceBeforeThreshold));
+				position = lastSpaceBeforeThreshold + 1;
+			} else {
+				// Find first space after threshold
+				const firstSpaceAfterThreshold = lineText.indexOf(' ', position + lineLengthThreshold);
+				if (firstSpaceAfterThreshold !== -1) {
+					lineSegments.push(lineText.substring(position, firstSpaceAfterThreshold));
+					position = firstSpaceAfterThreshold + 1;
+				} else {
+					lineSegments.push(lineText.substring(position));
+					position = lineText.length;
+				}
+			}
+		}
+		if (position < lineText.length) {
+			lineSegments.push(lineText.substring(position));
+		}
+
+		return lineSegments;
+	}
+
+	dispose() {
+		dispose(this.disposables);
+	}
+}
+
+export class GitCommitEditorCodeActionsProvider implements CodeActionProvider {
+
+	private readonly disposables: Disposable[] = [];
+
+	constructor(private readonly diagnosticsManager: GitCommitEditorDiagnosticsManager) {
+		this.disposables.push(languages.registerCodeActionsProvider({ language: 'git-commit' }, this));
+	}
+
+	provideCodeActions(document: TextDocument, range: Range | Selection): CodeAction[] {
+		const codeActions: CodeAction[] = [];
+		const diagnostics = this.diagnosticsManager.getDiagnostics(document.uri);
+		const wrapAllLinesCodeAction = this.getWrapAllLinesCodeAction(document, diagnostics);
+
+		for (const diagnostic of diagnostics) {
+			if (!diagnostic.range.contains(range)) {
+				continue;
+			}
+
+			if (diagnostic.code === DiagnosticCodes.line_length) {
+				const workspaceEdit = this.getWrapLineWorkspaceEdit(document, diagnostic.range);
+
+				const codeAction = new CodeAction(l10n.t('Hard wrap line'), CodeActionKind.QuickFix);
+				codeAction.diagnostics = [diagnostic];
+				codeAction.edit = workspaceEdit;
+				codeActions.push(codeAction);
+
+				if (wrapAllLinesCodeAction) {
+					wrapAllLinesCodeAction.diagnostics = [diagnostic];
+					codeActions.push(wrapAllLinesCodeAction);
+				}
+			}
+		}
+
+		return codeActions;
+	}
+
+	private getWrapLineWorkspaceEdit(document: TextDocument, range: Range): WorkspaceEdit {
+		const lineSegments = this.wrapTextDocumentLine(document, range.start.line);
+
+		const workspaceEdit = new WorkspaceEdit();
+		workspaceEdit.replace(document.uri, range, lineSegments.join('\n'));
+
+		return workspaceEdit;
+	}
+
+	private getWrapAllLinesCodeAction(document: TextDocument, diagnostics: readonly Diagnostic[]): CodeAction | undefined {
+		const lineLengthDiagnostics = diagnostics.filter(d => d.code === DiagnosticCodes.line_length);
+		if (lineLengthDiagnostics.length < 2) {
+			return undefined;
+		}
+
+		const wrapAllLinesCodeAction = new CodeAction(l10n.t('Hard wrap all lines'), CodeActionKind.QuickFix);
+		wrapAllLinesCodeAction.edit = this.getWrapAllLinesWorkspaceEdit(document, lineLengthDiagnostics);
+
+		return wrapAllLinesCodeAction;
+	}
+
+	private getWrapAllLinesWorkspaceEdit(document: TextDocument, diagnostics: Diagnostic[]): WorkspaceEdit {
+		const workspaceEdit = new WorkspaceEdit();
+
+		for (const diagnostic of diagnostics) {
+			const lineSegments = this.wrapTextDocumentLine(document, diagnostic.range.start.line);
+			workspaceEdit.replace(document.uri, diagnostic.range, lineSegments.join('\n'));
+		}
+
+		return workspaceEdit;
+	}
+
+	private wrapTextDocumentLine(document: TextDocument, line: number): string[] {
+		const config = workspace.getConfiguration('git');
+		const inputValidationLength = config.get<number>('inputValidationLength', 50);
+		const inputValidationSubjectLength = config.get<number | undefined>('inputValidationSubjectLength', undefined);
+
+		// Determine if this is the first non-comment line (subject line)
+		let isFirstNonCommentLine = true;
+		for (let i = 0; i < line; i++) {
+			if (!document.lineAt(i).text.startsWith(GIT_COMMIT_COMMENT_CHAR)) {
+				isFirstNonCommentLine = false;
+				break;
+			}
+		}
+		const lineLengthThreshold = isFirstNonCommentLine ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
 
 		const lineSegments: string[] = [];
 		const lineText = document.lineAt(line).text.trim();
