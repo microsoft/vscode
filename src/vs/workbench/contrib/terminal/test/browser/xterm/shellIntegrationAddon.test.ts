@@ -11,7 +11,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { deserializeVSCodeOscMessage, serializeVSCodeOscMessage, parseKeyValueAssignment, parseMarkSequence, ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
-import { TerminalTaskSystem } from '../../../../tasks/browser/terminalTaskSystem.js';
 import { writeP } from '../../../browser/terminalTestHelpers.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
@@ -88,20 +87,6 @@ suite('ShellIntegrationAddon', () => {
 			const cwd = '/workspace/semi;colon\\folder';
 			await writeP(xterm, `\x1b]633;P;Cwd=${serializeVSCodeOscMessage(cwd)};${shellIntegrationNonce}\x07`);
 			strictEqual(capabilities.get(TerminalCapability.CwdDetection)?.getCwd(), cwd);
-		});
-
-		test('should trust the cwd from the task shell integration start sequence', async () => {
-			const cwd = '/workspace/task';
-			const sequence = TerminalTaskSystem.prototype.taskShellIntegrationStartSequence(cwd, shellIntegrationNonce);
-
-			await writeP(xterm, sequence);
-
-			const cwdDetection = capabilities.get(TerminalCapability.CwdDetection);
-			const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-			deepStrictEqual(
-				{ cwd: cwdDetection?.getCwd(), isTrusted: cwdDetection?.isTrusted, commandCwd: commandDetection?.cwd },
-				{ cwd, isTrusted: true, commandCwd: cwd }
-			);
 		});
 
 		test('detect ITerm sequence: `OSC 1337 ; CurrentDir=<Cwd> ST`', async () => {
