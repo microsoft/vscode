@@ -181,8 +181,7 @@ suite('ChatForkActionViewItem', () => {
 			separatorPointerEvents: separator.pointerEvents,
 			separatorRendered: parseFloat(separator.width) > 0,
 			separatorRightEdgeToButton: labelBounds.left - separatorRight,
-			// The managed hover and its pointer, the focus ring and the click listeners all
-			// derive from the action item's box, so it has to be exactly the button.
+			// The hover, focus ring and click listeners all derive from the item's box.
 			targetLeftOffset: itemBounds.left - labelBounds.left,
 			targetWidthOffset: itemBounds.width - labelBounds.width,
 		}, {

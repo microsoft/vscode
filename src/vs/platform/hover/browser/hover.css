@@ -65,10 +65,7 @@
 .workbench-hover-pointer:after {
 	content: '';
 	position: absolute;
-	/* Sized as a border box so the caret stays exactly `PointerSize * 2` wide, and so its
-	centre stays `PointerSize` from its origin, which is what hoverWidget.ts assumes when it
-	centres the caret. Under zoom the browser rounds border widths to whole device pixels,
-	which would otherwise shrink a content-box caret off centre. */
+	/* Border box keeps the caret 6px wide so its centre stays exactly PointerSize from its origin. */
 	box-sizing: border-box;
 	width: 6px;
 	height: 6px;
