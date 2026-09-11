@@ -245,7 +245,7 @@ suite('Sessions - Editor Contribution', () => {
 			resource: editor.resource?.toString(),
 			pinned: options?.pinned,
 			index: options?.index
-		})), [{ isEmptyFileEditor: true, resource: workspaceFolder.toString(), pinned: true, index: 7 }]);
+		})), [{ isEmptyFileEditor: true, resource: undefined, pinned: true, index: 7 }]);
 	});
 
 	test('new browser tab action opens a pinned browser editor', async () => {
@@ -375,10 +375,10 @@ suite('Sessions - Editor Contribution', () => {
 		input.setWorkspace(createWorkspace(URI.file('/repo/other')));
 
 		assert.deepStrictEqual({
-			resource: input.resource?.toString(),
+			workingDirectory: input.workspace?.folders[0]?.workingDirectory.toString(),
 			matchesAnotherEmptyInput: input.matches(other)
 		}, {
-			resource: URI.file('/repo/other').toString(),
+			workingDirectory: URI.file('/repo/other').toString(),
 			matchesAnotherEmptyInput: true
 		});
 	});
@@ -418,7 +418,7 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('empty file editor exposes its breadcrumb resource only while the editor area is visible', () => {
+	test('empty file editor never exposes a resource for breadcrumbs', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
@@ -437,12 +437,12 @@ suite('Sessions - Editor Contribution', () => {
 
 		assert.deepStrictEqual({
 			hiddenResource,
-			visibleResource: input.resource?.toString(),
+			visibleResource: input.resource,
 			labelChanges
 		}, {
 			hiddenResource: undefined,
-			visibleResource: URI.file('/repo/worktree').toString(),
-			labelChanges: 1
+			visibleResource: undefined,
+			labelChanges: 0
 		});
 	});
 

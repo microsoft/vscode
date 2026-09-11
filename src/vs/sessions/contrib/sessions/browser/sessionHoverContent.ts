@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IReader } from '../../../../base/common/observable.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
@@ -12,26 +13,12 @@ import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/con
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubPullRequestRef, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
-/**
- * Aggregated insertions/deletions across all of a session's changes,
- * or `undefined` when the session has no pending changes.
- */
-export function getSessionDiffStats(session: ISession): { files: number; insertions: number; deletions: number } | undefined {
-	const changes = session.changes.get();
-	if (changes.length === 0) {
-		return undefined;
-	}
-	let insertions = 0;
-	let deletions = 0;
-	for (const change of changes) {
-		insertions += change.insertions;
-		deletions += change.deletions;
-	}
-	if (insertions === 0 && deletions === 0) {
-		return undefined;
-	}
-	return { files: changes.length, insertions, deletions };
+/** Shared session diff counts, omitting entries without line changes. */
+export function getSessionDiffStats(session: ISession, reader?: IReader): { files: number; insertions: number; deletions: number } | undefined {
+	const stats = readSessionChangesStats(session, reader);
+	return stats && (stats.insertions > 0 || stats.deletions > 0) ? stats : undefined;
 }
 
 /**

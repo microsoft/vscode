@@ -6,6 +6,8 @@
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
+import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -24,11 +26,13 @@ import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextViewHandler } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -1242,6 +1246,213 @@ suite('Automation branch picker', () => {
 
 suite('Automation dialog keyboard navigation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const escapeScenarios = [
+		{ name: 'a normal Escape press', interveningEvents: [] },
+		{ name: 'repeated Escape keydowns', interveningEvents: [{ type: 'keydown', repeat: true }, { type: 'keydown', repeat: true }] },
+		{ name: 'another keydown before Escape is released', interveningEvents: [{ type: 'keydown', key: 'a', keyCode: 65 }] },
+		{ name: 'another keyup before Escape is released', interveningEvents: [{ type: 'keyup', key: 'a', keyCode: 65 }] },
+	];
+
+	for (const { name, interveningEvents } of escapeScenarios) {
+		test(`keeps the dialog open when the Schedule popup handles ${name}`, async () => {
+			const container = DOM.append(document.body, DOM.$('div'));
+			disposables.add({ dispose: () => container.remove() });
+			const contextView = disposables.add(new ContextViewHandler(upcastPartial<ILayoutService>({
+				mainContainer: container,
+				activeContainer: container,
+				onDidLayoutContainer: Event.None,
+			})));
+			let select!: HTMLSelectElement;
+			let promptCancellationAttempts = 0;
+			const dialog = disposables.add(new Dialog(container, 'New automation', ['Cancel'], {
+				cancelId: 0,
+				isExternalFocusAllowed: isAutomationDialogPopupTarget,
+				renderBody: body => {
+					const selectBox = disposables.add(new SelectBox(
+						[{ text: 'Manual' }, { text: 'Daily' }, { text: 'Weekly' }],
+						1,
+						contextView,
+						defaultSelectBoxStyles,
+						{ ariaLabel: 'Schedule', useCustomDrawn: true },
+					));
+					selectBox.render(body);
+					select = body.querySelector('select')!;
+					disposables.add(registerAutomationDialogKeyboardNavigation(
+						DOM.getWindow(body),
+						() => [select],
+						isAutomationDialogPopupTarget,
+						undefined,
+						() => {
+							promptCancellationAttempts++;
+							return false;
+						},
+					));
+				},
+				buttonStyles: defaultButtonStyles,
+				checkboxStyles: defaultCheckboxStyles,
+				inputBoxStyles: defaultInputBoxStyles,
+				dialogStyles: defaultDialogStyles,
+			}));
+			let closed = false;
+			const result = dialog.show().then(() => { closed = true; });
+			const dispatch = (type: string, options: KeyboardEventInit = {}) => {
+				document.activeElement!.dispatchEvent(new KeyboardEvent(type, {
+					key: 'Escape', keyCode: 27, bubbles: true, cancelable: true, ...options,
+				}));
+			};
+
+			select.click();
+			const popupTarget = document.activeElement;
+			assert.ok(DOM.isHTMLElement(popupTarget) && isAutomationDialogPopupTarget(popupTarget));
+			dispatch('keydown');
+			for (const { type, ...options } of interveningEvents) {
+				dispatch(type, options);
+			}
+			dispatch('keyup');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closed,
+				expanded: select.getAttribute('aria-expanded'),
+				focusRestored: document.activeElement === select,
+				value: select.value,
+				promptCancellationAttempts,
+			}, {
+				closed: false,
+				expanded: 'false',
+				focusRestored: true,
+				value: 'Daily',
+				promptCancellationAttempts: 0,
+			});
+
+			dispatch('keydown');
+			dispatch('keyup');
+			await timeout(0);
+			assert.strictEqual(closed, true, 'A separate Escape press still closes the dialog');
+			dialog.dispose();
+			await result;
+		});
+	}
+
+	function createPromptDialog(cancelPromptSuggestion: () => boolean) {
+		const container = DOM.append(document.body, DOM.$('div'));
+		disposables.add({ dispose: () => container.remove() });
+		const prompt = DOM.$<HTMLTextAreaElement>('textarea');
+		prompt.value = 'Unsaved automation prompt';
+		const dialog = disposables.add(new Dialog(container, 'New automation', ['Cancel'], {
+			cancelId: 0,
+			isExternalFocusAllowed: isAutomationDialogPopupTarget,
+			renderBody: body => {
+				body.appendChild(prompt);
+				disposables.add(registerAutomationDialogKeyboardNavigation(
+					DOM.getWindow(body),
+					() => [prompt],
+					isAutomationDialogPopupTarget,
+					undefined,
+					cancelPromptSuggestion,
+				));
+			},
+			buttonStyles: defaultButtonStyles,
+			checkboxStyles: defaultCheckboxStyles,
+			inputBoxStyles: defaultInputBoxStyles,
+			dialogStyles: defaultDialogStyles,
+		}));
+		let closed = false;
+		const result = dialog.show().then(() => { closed = true; });
+		prompt.focus();
+		return {
+			dialog,
+			prompt,
+			result,
+			isClosed: () => closed,
+			dispatch: (type: string, options: KeyboardEventInit = {}) => {
+				const event = new KeyboardEvent(type, {
+					key: 'Escape', keyCode: 27, bubbles: true, cancelable: true, ...options,
+				});
+				document.activeElement!.dispatchEvent(event);
+				return event;
+			},
+		};
+	}
+
+	for (const { name, interveningEvents, shiftKey } of [
+		...escapeScenarios.map(scenario => ({ ...scenario, shiftKey: false })),
+		{ name: 'Shift+Escape', interveningEvents: [], shiftKey: true },
+	]) {
+		test(`keeps the dialog open when prompt suggestions handle ${name}`, async () => {
+			let suggestionsActive = true;
+			let cancellationAttempts = 0;
+			const { dialog, prompt, result, isClosed, dispatch } = createPromptDialog(() => {
+				cancellationAttempts++;
+				const cancelled = suggestionsActive;
+				suggestionsActive = false;
+				return cancelled;
+			});
+			const keydown = dispatch('keydown', { shiftKey });
+			for (const { type, ...options } of interveningEvents) {
+				dispatch(type, options);
+			}
+			dispatch('keyup', { shiftKey });
+			await timeout(0);
+
+			const afterSuggestionEscape = {
+				closed: isClosed(),
+				suggestionsActive,
+				cancellationAttempts,
+				promptFocused: document.activeElement === prompt,
+				value: prompt.value,
+				keydownPrevented: keydown.defaultPrevented,
+			};
+			dispatch('keydown');
+			dispatch('keyup');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterSuggestionEscape,
+				closedAfterNextEscape: isClosed(),
+			}, {
+				afterSuggestionEscape: {
+					closed: false,
+					suggestionsActive: false,
+					cancellationAttempts: 1,
+					promptFocused: true,
+					value: 'Unsaved automation prompt',
+					keydownPrevented: true,
+				},
+				closedAfterNextEscape: true,
+			});
+			dialog.dispose();
+			await result;
+		});
+	}
+
+	for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
+		test(`does not cancel prompt suggestions for Escape with ${modifier}`, async () => {
+			let cancellationAttempts = 0;
+			const { dialog, prompt, result, isClosed, dispatch } = createPromptDialog(() => {
+				cancellationAttempts++;
+				return true;
+			});
+			const keydown = dispatch('keydown', { [modifier]: true });
+			dispatch('keyup', { [modifier]: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closed: isClosed(),
+				cancellationAttempts,
+				promptFocused: document.activeElement === prompt,
+				keydownPrevented: keydown.defaultPrevented,
+			}, {
+				closed: false,
+				cancellationAttempts: 0,
+				promptFocused: true,
+				keydownPrevented: false,
+			});
+			dialog.dispose();
+			await result;
+		});
+	}
 
 	test('passes editor commands through the dialog command filter', () => {
 		const prompt = document.createElement('textarea');

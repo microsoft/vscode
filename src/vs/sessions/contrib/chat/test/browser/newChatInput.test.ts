@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -46,6 +46,8 @@ const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_upda
 const syncInputGitHubContext = Reflect.get(NewChatInputWidget.prototype, '_syncInputGitHubContext') as (this: ISyncInputGitHubContextHarness) => void;
 const attachTextContext = Reflect.get(NewChatInputWidget.prototype, 'attachTextContext') as (this: IAttachTextContextHarness, name: string, content: string, icon: ThemeIcon, id: string) => void;
 const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
+const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototype, '_updateInitializationLoadingState') as (this: IInitializationLoadingHarness, loading: boolean) => void;
+const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
@@ -118,6 +120,21 @@ interface IUpdateSendButtonStateHarness {
 	readonly _canSendRequest: { get(): boolean };
 }
 
+interface ILoadingSpinnerHarness {
+	readonly _loadingSpinner: HTMLElement | undefined;
+	readonly _sendButtonContainer: HTMLElement | undefined;
+	readonly _sendButton?: { hasFocus(): boolean };
+	focus(): void;
+}
+
+interface IInitializationLoadingHarness {
+	readonly _initializationLoadingSpinner: HTMLElement | undefined;
+	readonly _initializationLoadingDelayDisposable: MutableDisposable<IDisposable>;
+	readonly options: {
+		readonly loading: { get(): boolean };
+	};
+}
+
 interface IAttachmentRenderingHarness {
 	readonly _container: HTMLElement;
 	readonly _attachedContext: readonly IChatRequestVariableEntry[];
@@ -188,6 +205,92 @@ suite('NewChatInputWidget', () => {
 		}, {
 			focused: { input: true, stack: true },
 			blurred: { input: false, stack: false },
+		});
+	});
+
+	test('shows loading in the send button slot', () => {
+		const sendButtonContainer = document.createElement('div');
+		const loadingSpinner = document.createElement('div');
+		const harness: ILoadingSpinnerHarness = {
+			_loadingSpinner: loadingSpinner,
+			_sendButtonContainer: sendButtonContainer,
+			focus: () => { },
+		};
+
+		setLoadingSpinnerVisible.call(harness, true);
+		const loadingClasses = {
+			spinner: [...loadingSpinner.classList],
+			sendButton: [...sendButtonContainer.classList],
+		};
+		setLoadingSpinnerVisible.call(harness, false);
+
+		assert.deepStrictEqual({
+			loadingClasses,
+			idleClasses: {
+				spinner: [...loadingSpinner.classList],
+				sendButton: [...sendButtonContainer.classList],
+			},
+		}, {
+			loadingClasses: {
+				spinner: ['visible'],
+				sendButton: ['loading'],
+			},
+			idleClasses: {
+				spinner: [],
+				sendButton: [],
+			},
+		});
+	});
+
+	test('moves focus to the composer before replacing a focused send button with progress', () => {
+		let composerFocused = false;
+		const harness: ILoadingSpinnerHarness = {
+			_loadingSpinner: undefined,
+			_sendButtonContainer: undefined,
+			_sendButton: { hasFocus: () => true },
+			focus: () => composerFocused = true,
+		};
+
+		setLoadingSpinnerVisible.call(harness, true);
+
+		assert.strictEqual(composerFocused, true);
+	});
+
+	test('delays initialization progress to avoid flicker for fast workspace changes', async () => {
+		const loadingSpinner = document.createElement('div');
+		const loading = { value: true };
+		const loadingDelayDisposable = disposables.add(new MutableDisposable<IDisposable>());
+		const harness: IInitializationLoadingHarness = {
+			_initializationLoadingSpinner: loadingSpinner,
+			_initializationLoadingDelayDisposable: loadingDelayDisposable,
+			options: { loading: { get: () => loading.value } },
+		};
+
+		updateInitializationLoadingState.call(harness, true);
+		const visibleImmediately = loadingSpinner.classList.contains('visible');
+		await timeout(100);
+		loading.value = false;
+		updateInitializationLoadingState.call(harness, false);
+		await timeout(450);
+		const visibleAfterFastLoading = loadingSpinner.classList.contains('visible');
+
+		loading.value = true;
+		updateInitializationLoadingState.call(harness, true);
+		await timeout(550);
+		const visibleAfterDelay = loadingSpinner.classList.contains('visible');
+		loading.value = false;
+		updateInitializationLoadingState.call(harness, false);
+
+		assert.deepStrictEqual({
+			visibleImmediately,
+			visibleAfterFastLoading,
+			visibleAfterDelay,
+			visibleAfterLoading: loadingSpinner.classList.contains('visible'),
+		}, {
+			visibleImmediately: false,
+			visibleAfterFastLoading: false,
+			visibleAfterDelay: true,
+			visibleAfterLoading: false,
 		});
 	});
 

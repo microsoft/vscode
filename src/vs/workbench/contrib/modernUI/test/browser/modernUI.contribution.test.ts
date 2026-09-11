@@ -39,6 +39,7 @@ import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
+import '../../../../browser/parts/statusbar/media/statusbarpart.css';
 import '../../../../browser/parts/titlebar/media/menubarControl.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
@@ -685,7 +686,7 @@ suite('ModernUIContribution', () => {
 				multiViewTitleTransform: 'capitalize',
 				multiViewExplorerPaneTitleTransform: 'none',
 				extensionsTitleTransform: 'capitalize',
-				panelTabTransform: 'capitalize',
+				panelTabTransform: 'none',
 				layoutCount: 0,
 			},
 			classApplied: true,
@@ -1079,6 +1080,56 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('centers status bar items within the floating bottom rail', () => {
+		const measure = (className: string, statusbarHeight: number, railGap: number) => {
+			const root = document.createElement('div');
+			root.className = className;
+			root.style.display = 'inline-flex';
+			root.style.flexDirection = 'column';
+			root.style.setProperty('--vscode-spacing-size20', '2px');
+			root.style.setProperty('--vscode-spacing-size40', '4px');
+			root.style.setProperty('--vscode-spacing-size60', '6px');
+			document.body.appendChild(root);
+			store.add(toDisposable(() => root.remove()));
+
+			const surface = appendElement(root, 'part editor');
+			surface.style.width = '240px';
+			surface.style.height = '20px';
+			surface.style.marginBottom = `${railGap}px`;
+
+			const statusbar = appendElement(root, 'part statusbar');
+			statusbar.style.width = '240px';
+			statusbar.style.height = `${statusbarHeight}px`;
+			const items = appendElement(statusbar, 'left-items items-container');
+			const item = appendElement(items, 'statusbar-item left');
+			const label = appendElement(item, 'statusbar-item-label');
+
+			const surfaceBounds = surface.getBoundingClientRect();
+			const statusbarBounds = statusbar.getBoundingClientRect();
+			const itemBounds = item.getBoundingClientRect();
+			const labelBounds = label.getBoundingClientRect();
+			const statusbarStyle = getWindow(statusbar).getComputedStyle(statusbar);
+
+			return {
+				paddingTop: statusbarStyle.paddingTop,
+				paddingBottom: statusbarStyle.paddingBottom,
+				itemHeight: itemBounds.height,
+				labelHeight: labelBounds.height,
+				centerOffset: itemBounds.top + itemBounds.height / 2 - (surfaceBounds.bottom + statusbarBounds.bottom) / 2,
+			};
+		};
+
+		assert.deepStrictEqual({
+			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28, 4),
+			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 4),
+			classic: measure('monaco-workbench', 22, 0),
+		}, {
+			defaultDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
+			compactDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
+		});
+	});
+
 	test('keeps floating rail overlays anchored to the viewport', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';
@@ -1131,11 +1182,11 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	for (const { name, classes, gap } of [
-		{ name: 'default density', classes: 'modern-ui floating-panels', gap: 8 },
-		{ name: 'compact density', classes: 'modern-ui floating-panels modern-ui-compact', gap: 4 },
-		{ name: 'compact activity bar', classes: 'modern-ui floating-panels activitybar-compact', gap: 0 },
-		{ name: 'classic layout', classes: '', gap: 0 },
+	for (const { name, classes, gap, applicationScrollbarZIndex } of [
+		{ name: 'default density', classes: 'modern-ui floating-panels', gap: 8, applicationScrollbarZIndex: '0' },
+		{ name: 'compact density', classes: 'modern-ui floating-panels modern-ui-compact', gap: 4, applicationScrollbarZIndex: '0' },
+		{ name: 'compact activity bar', classes: 'modern-ui floating-panels activitybar-compact', gap: 0, applicationScrollbarZIndex: '0' },
+		{ name: 'classic layout', classes: '', gap: 0, applicationScrollbarZIndex: '11' },
 	]) {
 		test(`keeps compact application menu spacing independent of the activity rail in ${name}`, async () => {
 			const root = document.createElement('div');
@@ -1188,6 +1239,18 @@ suite('ModernUIContribution', () => {
 			applicationMenu.querySelector<HTMLElement>('.action-menu-item')!.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
 			const submenu = applicationMenu.querySelector<HTMLElement>('.monaco-submenu .monaco-menu');
 			assert.ok(submenu);
+			const applicationScrollableElement = applicationMenu.parentElement;
+			assert.ok(applicationScrollableElement);
+			const applicationScrollbar = applicationScrollableElement.querySelector<HTMLElement>(':scope > .scrollbar.vertical');
+			assert.ok(applicationScrollbar);
+			applicationScrollbar.classList.add('visible');
+			const submenuContainer = submenu.closest<HTMLElement>('.monaco-submenu');
+			assert.ok(submenuContainer);
+			const submenuScrollableElement = submenu.parentElement;
+			assert.ok(submenuScrollableElement);
+			const submenuScrollbar = submenuScrollableElement.querySelector<HTMLElement>(':scope > .scrollbar.vertical');
+			assert.ok(submenuScrollbar);
+			submenuScrollbar.classList.add('visible');
 
 			const referenceHost = appendElement(root, 'reference-menu');
 			disposables.add(new Menu(referenceHost, actions, {}, unthemedMenuStyles));
@@ -1207,12 +1270,18 @@ suite('ModernUIContribution', () => {
 				railGap: getWindow(root).getComputedStyle(railItems[1]).marginTop,
 				applicationMargins: applicationRows.map(row => row.marginTop),
 				applicationRowStep: applicationRows[1].offset,
+				applicationScrollbarZIndex: getWindow(applicationScrollbar).getComputedStyle(applicationScrollbar).zIndex,
 				submenu: menuGeometry(submenu),
+				submenuContainerZIndex: getWindow(submenuContainer).getComputedStyle(submenuContainer).zIndex,
+				submenuScrollbarZIndex: getWindow(submenuScrollbar).getComputedStyle(submenuScrollbar).zIndex,
 			}, {
 				railGap: `${gap}px`,
 				applicationMargins: ['0px', '0px', '0px'],
 				applicationRowStep: 24,
+				applicationScrollbarZIndex,
 				submenu: menuGeometry(referenceMenu),
+				submenuContainerZIndex: '1',
+				submenuScrollbarZIndex: '11',
 			});
 		});
 	}

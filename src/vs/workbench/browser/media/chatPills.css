@@ -169,6 +169,14 @@
 	background-position: center center;
 }
 
+.action-widget.chat-pill-dropdown .monaco-list .monaco-list-row.has-toolbar:not(.has-standalone-toggle):not(.has-inline-toggle):not(.has-detail) {
+	padding-right: 0;
+}
+
+.action-widget.chat-pill-dropdown .monaco-list .monaco-list-row.has-toolbar:not(.has-standalone-toggle):not(.has-inline-toggle):not(.has-detail) .action-list-item-toolbar {
+	margin-right: 0;
+}
+
 /* Horizontally scrollable status pills above a chat input. */
 .chat-pills-row {
 	width: 100%;

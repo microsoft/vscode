@@ -10,7 +10,7 @@ import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type Chat
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
-import { SessionConfigKey } from './sessionConfigKeys.js';
+import { SessionConfigKey, type SessionSandboxEnabled } from './sessionConfigKeys.js';
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
@@ -344,6 +344,13 @@ const shellInitScriptsProperty = schemaProperty<readonly IShellInitScript[]>({
  * provider-specific properties.
  */
 export const platformSessionSchema = createSchema({
+	[SessionConfigKey.SandboxEnabled]: schemaProperty<SessionSandboxEnabled>({
+		type: 'string',
+		title: localize('agentHost.sessionConfig.sandboxEnabled', "Sandbox"),
+		description: localize('agentHost.sessionConfig.sandboxEnabledDescription', "Sandbox behavior for this session. Default follows the global setting."),
+		enum: ['default', 'on', 'off'],
+		sessionMutable: true,
+	}),
 	[SessionConfigKey.AutoApprove]: schemaProperty<AutoApproveLevel>({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.autoApprove', "Approvals"),
@@ -497,6 +504,13 @@ export const AgentHostAutoReplyEnabledConfigKey = 'autoReplyEnabled';
 
 export const AgentHostAutoReplyAnswer = 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.';
 
+export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
+
+interface IAgentHostWorkspaceTrust {
+	readonly enabled: boolean;
+	readonly trustedUris: readonly string[];
+}
+
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
@@ -554,6 +568,12 @@ export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCo
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
 export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
+
+/** Root config key controlling automatic archival of inactive sessions with merged pull requests. */
+export const AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey = 'autoArchiveMergedSessionsAfterDays';
+
+/** Root config key controlling permanent deletion of automatically archived sessions with merged pull requests. */
+export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'autoDeleteArchivedMergedSessionsAfterDays';
 
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
@@ -815,6 +835,20 @@ export const platformRootSchema = createSchema({
 		default: false,
 		readOnly: true,
 	}),
+	[AgentHostWorkspaceTrustConfigKey]: schemaProperty<IAgentHostWorkspaceTrust>({
+		type: 'object',
+		title: localize('agentHost.config.workspaceTrust', "Workspace Trust"),
+		properties: {
+			enabled: { type: 'boolean', title: localize('agentHost.config.workspaceTrust.enabled', "Enabled") },
+			trustedUris: {
+				type: 'array',
+				title: localize('agentHost.config.workspaceTrust.trustedUris', "Trusted Folders"),
+				items: { type: 'string', title: localize('agentHost.config.workspaceTrust.uri', "Folder URI") },
+			},
+		},
+		required: ['enabled', 'trustedUris'],
+		readOnly: true,
+	}),
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),
@@ -877,6 +911,18 @@ export const platformRootSchema = createSchema({
 		],
 		default: ChatExternalSessionsMode.None,
 	}),
+	[AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.title', "Auto-Archive Merged Sessions"),
+		description: localize('agentHost.config.autoArchiveMergedSessionsAfterDays.description', "Number of inactive days after which a session with a merged pull request is automatically archived. Zero disables automatic archival."),
+		default: 0,
+	}),
+	[AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.title', "Auto-Delete Archived Merged Sessions"),
+		description: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.description', "Number of days after automatic archival before a session with a merged pull request is permanently deleted. Zero disables permanent deletion."),
+		default: 0,
+	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.copilotMultiRootEnabled.title', "Copilot Multiple Working Directories"),
@@ -934,4 +980,5 @@ export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
 	AgentHostTerminalAutoApproveRulesConfigKey,
 	AgentHostEditAutoApprovePatternsConfigKey,
 	AgentHostAutoReplyEnabledConfigKey,
+	AgentHostWorkspaceTrustConfigKey,
 ]);

@@ -13,6 +13,7 @@ interface IGitHubCompareResponse {
 		readonly status: IGitHubChangedFile['status'];
 		readonly additions: number;
 		readonly deletions: number;
+		readonly patch?: string;
 	}[];
 }
 
@@ -38,6 +39,7 @@ export class GitHubChangesFetcher {
 			status: file.status,
 			additions: file.additions,
 			deletions: file.deletions,
+			patch: file.patch,
 		})) ?? [];
 	}
 }

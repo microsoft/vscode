@@ -55,7 +55,7 @@ import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginAutomation, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { PluginFormat } from '../../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -4856,6 +4856,7 @@ suite('PromptsService', () => {
 				agents: observableValue('testPluginAgents', []),
 				instructions: observableValue('testPluginInstructions', []),
 				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+				automations: observableValue('testPluginAutomations', []),
 			};
 
 			testPluginsObservable.set([plugin], undefined);
@@ -4902,6 +4903,7 @@ suite('PromptsService', () => {
 				agents: observableValue('testPluginAgents', []),
 				instructions: observableValue('testPluginInstructions', []),
 				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+				automations: observableValue('testPluginAutomations', []),
 			};
 
 			testPluginsObservable.set([plugin], undefined);
@@ -4955,6 +4957,7 @@ suite('PromptsService', () => {
 				agents: observableValue('testPluginAgents', []),
 				instructions: observableValue('testPluginInstructions', []),
 				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+				automations: observableValue('testPluginAutomations', []),
 			};
 
 			testPluginsObservable.set([plugin], undefined);
@@ -5035,6 +5038,7 @@ suite('PromptsService', () => {
 				agents: observableValue('lockdownPluginAgents', []),
 				instructions: observableValue('lockdownPluginInstructions', []),
 				mcpServerDefinitions: observableValue('lockdownPluginMcpServers', []),
+				automations: observableValue('lockdownPluginAutomations', []),
 			};
 			testPluginsObservable.set([plugin], undefined);
 
@@ -5070,6 +5074,7 @@ suite('PromptsService', () => {
 				agents: observableValue('lockdownInstructionPluginAgents', []),
 				instructions: observableValue<readonly IAgentPluginInstruction[]>('lockdownPluginInstructions', [{ uri: pluginInstructionUri, name: 'plugin' }]),
 				mcpServerDefinitions: observableValue('lockdownInstructionPluginMcpServers', []),
+				automations: observableValue('lockdownInstructionPluginAutomations', []),
 			};
 			testPluginsObservable.set([plugin], undefined);
 
@@ -5158,6 +5163,7 @@ suite('PromptsService', () => {
 				agents: observableValue<readonly IAgentPluginAgent[]>('managedPluginAgents', [{ uri: agentUri, name: 'reviewer' }]),
 				instructions: observableValue('managedPluginInstructions', []),
 				mcpServerDefinitions: observableValue('managedPluginMcpServers', []),
+				automations: observableValue('managedPluginAutomations', []),
 			};
 			testPluginsObservable.set([plugin], undefined);
 			fireConfigChange(testConfigService, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, ChatConfiguration.EnabledPlugins);
@@ -5177,6 +5183,7 @@ suite('PromptsService', () => {
 			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
 			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', []);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+			const automations = observableValue<readonly IAgentPluginAutomation[]>('testPluginAutomations', []);
 
 			return {
 				plugin: {
@@ -5191,6 +5198,7 @@ suite('PromptsService', () => {
 					agents,
 					instructions,
 					mcpServerDefinitions,
+					automations,
 				},
 				hooks,
 			};
@@ -5450,6 +5458,7 @@ suite('PromptsService', () => {
 			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
 			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', initialInstructions);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+			const automations = observableValue<readonly IAgentPluginAutomation[]>('testPluginAutomations', []);
 
 			return {
 				plugin: {
@@ -5464,6 +5473,7 @@ suite('PromptsService', () => {
 					agents,
 					instructions,
 					mcpServerDefinitions,
+					automations,
 				},
 				instructions,
 			};

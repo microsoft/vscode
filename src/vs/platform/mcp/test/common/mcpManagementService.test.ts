@@ -22,6 +22,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { McpResourceScannerService } from '../../common/mcpResourceScannerService.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { McpResourceFormat } from '../../common/mcpWorkspaceConfiguration.js';
 
 class TestLogService extends NullLogService {
 	readonly errors: string[] = [];
@@ -65,6 +66,7 @@ class TestMcpResourceManagementService extends AbstractMcpResourceManagementServ
 		super(
 			mcpResource,
 			ConfigurationTarget.USER,
+			McpResourceFormat.Vscode,
 			{} as IMcpGalleryService,
 			fileService,
 			uriIdentityService,
