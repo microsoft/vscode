@@ -345,6 +345,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 		this.updateEnablementAction?.();
 		this.updatePluginVersionFact(item);
+		this._onDidChangeContent.fire();
 	}
 
 	private renderTitleActions(item: IAgentPluginItem): void {
@@ -635,7 +636,13 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 		const markdown = new MarkdownString(readme.content, { supportHtml: false });
 		markdown.baseUri = readme.baseUri;
-		const rendered = this.renderDisposables.add(this.markdownRendererService.render(markdown));
+		const rendered = this.renderDisposables.add(this.markdownRendererService.render(markdown, {
+			asyncRenderCallback: () => {
+				if (!this._store.isDisposed && this.current === item && this.readmeRenderGuard.isCurrent(renderGeneration)) {
+					this._onDidChangeContent.fire();
+				}
+			},
+		}));
 		this.readmeContentEl.appendChild(rendered.element);
 		this._onDidChangeContent.fire();
 	}

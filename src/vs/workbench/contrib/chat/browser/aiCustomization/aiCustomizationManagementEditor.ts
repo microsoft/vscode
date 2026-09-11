@@ -4483,6 +4483,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const resizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
 			'AICustomizationManagementEditor.pluginDetailScrollable',
 			() => this.pluginDetailScrollable?.scanDomNode(),
+			DOM.getWindow(detailBody),
 		));
 		this.editorDisposables.add(resizeObserver.observe(detailBody));
 
