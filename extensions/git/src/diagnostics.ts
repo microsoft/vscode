@@ -23,7 +23,8 @@ export class GitCommitInputBoxDiagnosticsManager {
 
 		this.migrateInputValidationSettings()
 			.then(() => {
-				mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'vscode-scm'), e => e.document)(this.onDidChangeTextDocument, this, this.disposables);
+				mapEvent(filterEvent(workspace.onDidChangeTextDocument, e => e.document.uri.scheme === 'vscode-scm' || e.document.languageId === 'git-commit'), e => e.document)(this.onDidChangeTextDocument, this, this.disposables);
+				filterEvent(workspace.onDidCloseTextDocument, e => e.languageId === 'git-commit')(doc => this.diagnostics.delete(doc.uri), this, this.disposables);
 				filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.inputValidation') || e.affectsConfiguration('git.inputValidationLength') || e.affectsConfiguration('git.inputValidationSubjectLength'))(this.onDidChangeConfiguration, this, this.disposables);
 			});
 	}
@@ -57,6 +58,11 @@ export class GitCommitInputBoxDiagnosticsManager {
 		for (const repository of this.model.repositories) {
 			this.onDidChangeTextDocument(repository.inputBox.document);
 		}
+		for (const document of workspace.textDocuments) {
+			if (document.languageId === 'git-commit') {
+				this.onDidChangeTextDocument(document);
+			}
+		}
 	}
 
 	private onDidChangeTextDocument(document: TextDocument): void {
@@ -79,10 +85,19 @@ export class GitCommitInputBoxDiagnosticsManager {
 		const diagnostics: Diagnostic[] = [];
 		const inputValidationLength = config.get<number>('inputValidationLength', 50);
 		const inputValidationSubjectLength = config.get<number | undefined>('inputValidationSubjectLength', undefined);
+		const isCommitEditor = document.languageId === 'git-commit';
 
+		let isFirstMessageLine = true;
 		for (let index = 0; index < document.lineCount; index++) {
 			const line = document.lineAt(index);
-			const threshold = index === 0 ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
+
+			// Skip git comment/metadata lines in the commit editor
+			if (isCommitEditor && line.text.startsWith('#')) {
+				continue;
+			}
+
+			const threshold = isFirstMessageLine ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
+			isFirstMessageLine = false;
 
 			if (line.text.length > threshold) {
 				const charactersOver = line.text.length - threshold;
@@ -110,6 +125,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 
 	constructor(private readonly diagnosticsManager: GitCommitInputBoxDiagnosticsManager) {
 		this.disposables.push(languages.registerCodeActionsProvider({ scheme: 'vscode-scm' }, this));
+		this.disposables.push(languages.registerCodeActionsProvider({ language: 'git-commit' }, this));
 	}
 
 	provideCodeActions(document: TextDocument, range: Range | Selection): CodeAction[] {
