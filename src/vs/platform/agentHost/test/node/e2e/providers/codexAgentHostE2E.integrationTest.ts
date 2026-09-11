@@ -53,20 +53,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 			throw new Error('Agent Host E2E server lease was not initialized.');
 		}
 		const failed = this.currentTest?.state === 'failed';
-		const errors: Error[] = [];
-		try {
-			await lease.release(createdSessions, failed);
-		} catch (error) {
-			errors.push(error instanceof Error ? error : new Error(String(error)));
-		}
-		try {
-			await removeTempDirs(tempDirs);
-		} catch (error) {
-			errors.push(error instanceof Error ? error : new Error(String(error)));
-		}
-		if (errors.length > 0) {
-			throw new AggregateError(errors, `Failed to dispose Codex-specific E2E test resources: ${errors.map(error => error.message).join('; ')}`);
-		}
+		await lease.release(createdSessions, failed);
 	});
 
 	test('invalid workspace skills retain their paths and validation diagnostics', async function () {
@@ -230,6 +217,19 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 
 	suiteTeardown(async function () {
 		this.timeout(120_000);
-		await lease?.dispose();
+		const errors: Error[] = [];
+		try {
+			await lease?.dispose();
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		try {
+			await removeTempDirs(tempDirs);
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		if (errors.length > 0) {
+			throw new AggregateError(errors, `Failed to dispose Codex-specific E2E suite resources: ${errors.map(error => error.message).join('; ')}`);
+		}
 	});
 });
