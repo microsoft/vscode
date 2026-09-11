@@ -295,6 +295,19 @@
 	margin-right: 3px;
 }
 
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label.monaco-decoration-badge::after {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	flex-shrink: 0;
+	min-width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	margin-block: auto;
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
 .scm-view .monaco-list-row .resource > .decoration-icon {
 	width: 16px;
 	height: 100%;
