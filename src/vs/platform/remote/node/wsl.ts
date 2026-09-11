@@ -48,7 +48,7 @@ async function testWSLFeatureInstalled(): Promise<boolean> {
 }
 
 function getSystem32Path(subPath: string): string | undefined {
-	const systemRoot = process.env.SystemRoot;
+	const systemRoot = process.env['SystemRoot'];
 	if (systemRoot) {
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 		return join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', subPath);
