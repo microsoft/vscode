@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -19,7 +19,7 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { createSessionState, SessionState, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService, IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
@@ -1193,7 +1193,7 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
-	test('computes MCP migration candidates from provisional remote workspace roots', async () => {
+	test('keeps MCP migration candidates through remote workspace root hydration', async () => {
 		const remoteRoot = URI.parse('vscode-remote://dev-container+test/workspaces/project');
 		const sourceUri = URI.joinPath(remoteRoot, '.vscode', 'mcp.json');
 		const targetUri = URI.joinPath(remoteRoot, '.mcp.json');
@@ -1221,12 +1221,13 @@ suite('CustomizationMigrationService', () => {
 					return false;
 				}
 			}();
-			const subscription = {
-				value: undefined,
-				verifiedValue: undefined,
-				onDidChange: Event.None,
-				onDidError: Event.None,
-			} as unknown as IAgentSubscription<SessionState>;
+			const subscriptionChanged = store.add(new Emitter<SessionState>());
+			const subscription = new class extends mock<IAgentSubscription<SessionState>>() {
+				override value: SessionState | undefined;
+				override get verifiedValue() { return this.value; }
+				override readonly onDidChange = subscriptionChanged.event;
+				override readonly onDidError = Event.None;
+			}();
 			const connection = {
 				onDidAction: Event.None,
 				rootState: { value: undefined },
@@ -1263,30 +1264,48 @@ suite('CustomizationMigrationService', () => {
 				store.add(createMigrationConfiguration()),
 			));
 
-			const migration = await migrationService.computeMigration(session, CustomizationMigrationType.McpServers);
-			return {
-				roots: requestedRoots?.map(root => root.toString()),
-				candidates: migration.candidates.map(candidate => ({
-					sourceUri: candidate.sourceUri.toString(),
-					targetUri: candidate.targetUri.toString(),
-				})),
+			const readMigration = async () => {
+				const migration = await migrationService.computeMigration(session, CustomizationMigrationType.McpServers);
+				return {
+					roots: requestedRoots?.map(root => root.toString()),
+					candidates: migration.candidates.map(candidate => ({
+						sourceUri: candidate.sourceUri.toString(),
+						targetUri: candidate.targetUri.toString(),
+					})),
+				};
 			};
+			const provisional = await readMigration();
+			subscription.value = createSessionState({
+				resource: 'copilot:/provisional',
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+				workingDirectories: [remoteRoot.toString()],
+			});
+			subscriptionChanged.fire(subscription.value);
+			return { provisional, hydrated: await readMigration() };
 		};
 
 		const identityControl = await compute(identityAgentHostResourceUriMapper);
 		const remoteConnection = await compute(createAgentHostResourceUriMapper('remote-test'));
+		const expectedMigration = {
+			roots: [remoteRoot.toString()],
+			candidates: [{ sourceUri: sourceUri.toString(), targetUri: targetUri.toString() }],
+		};
 
 		assert.deepStrictEqual({
 			identityControl,
 			remoteConnection,
 		}, {
 			identityControl: {
-				roots: [remoteRoot.toString()],
-				candidates: [{ sourceUri: sourceUri.toString(), targetUri: targetUri.toString() }],
+				provisional: expectedMigration,
+				hydrated: expectedMigration,
 			},
 			remoteConnection: {
-				roots: [remoteRoot.toString()],
-				candidates: [{ sourceUri: sourceUri.toString(), targetUri: targetUri.toString() }],
+				provisional: expectedMigration,
+				hydrated: expectedMigration,
 			},
 		});
 	});

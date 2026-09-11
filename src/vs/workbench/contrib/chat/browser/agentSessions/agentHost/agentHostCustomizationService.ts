@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -59,10 +60,10 @@ export interface IAgentHostCustomizationService {
 	 */
 	getFolderPickerDecision(sessionResource: URI): ISessionFolderPickerDecision | undefined;
 
-	/** The primary working-directory URI string in the agent host's URI space. */
+	/** The primary session root as exposed by the owning connection, including editor remote transport mapping. */
 	getWorkingDirectory(sessionResource: URI): string | undefined;
 
-	/** The ordered roots in the Agent Host's URI space, for protocol values and host-side comparisons. */
+	/** Ordered session roots for protocol values and comparisons, including editor remote transport mapping. */
 	getWorkingDirectories(sessionResource: URI): readonly string[];
 
 	/** The ordered roots in the client's URI space for filesystem access. */
@@ -154,9 +155,9 @@ export interface IAgentHostCustomizationTarget {
 	readonly resourceUris: IAgentHostResourceUriMapper;
 	readonly folderPickerDecision?: ISessionFolderPickerDecision;
 	readonly workingDirectory?: string;
-	/** Host-side URI strings, also used in protocol enablement decisions. */
+	/** Session URI strings as exposed by the owning connection, also used in protocol enablement decisions. */
 	readonly workingDirectories?: readonly string[];
-	/** Client-space roots when they are known before authoritative session state arrives. */
+	/** Client-space roots, including provisional roots and transport-mapped session snapshots. */
 	readonly clientWorkingDirectories?: readonly URI[];
 	readonly rootConfig?: RootConfigState;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
@@ -546,6 +547,11 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const sessionState = subscriptionValue && !(subscriptionValue instanceof Error) ? subscriptionValue : subscription?.verifiedValue;
 		const provisionalWorkingDirectories = sessionState ? undefined : this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource);
 		const workingDirectories = sessionState?.workingDirectories ?? provisionalWorkingDirectories?.map(root => root.toString()) ?? [];
+		const clientWorkingDirectories = provisionalWorkingDirectories ?? workingDirectories.map(directory => {
+			const root = URI.parse(directory);
+			// Editor remote transports already map snapshot roots into the workspace's URI space.
+			return root.scheme === Schemas.vscodeRemote ? root : target.connection.resourceUris.fromAgentHost(root);
+		});
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
 		return {
@@ -554,7 +560,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			folderPickerDecision: readSessionFolderPickerDecision(sessionState?._meta),
 			workingDirectory: workingDirectories[0],
 			workingDirectories,
-			clientWorkingDirectories: provisionalWorkingDirectories,
+			clientWorkingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
