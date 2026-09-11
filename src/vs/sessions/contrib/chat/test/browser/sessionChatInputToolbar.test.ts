@@ -30,7 +30,7 @@ import { ISessionChangesStatsCache } from '../../../../services/sessions/common/
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
-import { getGitHubHoverDescription, getGitHubHoverRelativeTime } from '../../../github/browser/githubHover.js';
+import { getGitHubHoverDate, getGitHubHoverDescription } from '../../../github/browser/githubHover.js';
 import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -172,7 +172,6 @@ suite('SessionChatInputToolbar', () => {
 	test('adds rich GitHub hovers only when live details are available', async () => {
 		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];
 		const clipboardWrites: string[] = [];
-		const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 		const commandService = upcastPartial<ICommandService>({
 			executeCommand: async (id, ...args) => {
 				commands.push({ id, args });
@@ -201,7 +200,7 @@ suite('SessionChatInputToolbar', () => {
 			isDraft: false,
 			createdAt: '2026-09-03T09:00:00Z',
 			updatedAt: '2026-09-03T10:00:00Z',
-			mergedAt: twoHoursAgo,
+			mergedAt: '2026-09-04T10:00:00Z',
 			mergeable: true,
 			mergeableState: 'clean',
 		};
@@ -221,7 +220,7 @@ suite('SessionChatInputToolbar', () => {
 			author: { login: 'octocat', avatarUrl: '' },
 			createdAt: '2026-09-03T09:00:00Z',
 			updatedAt: '2026-09-03T10:00:00Z',
-			closedAt: twoHoursAgo,
+			closedAt: '2026-09-04T10:00:00Z',
 		};
 		const pullRequestEntry = buildSessionPullRequestSections(
 			[{ ref: pullRequestRef, pullRequest, icon: Codicon.gitPullRequest, status: {} }],
@@ -254,7 +253,7 @@ suite('SessionChatInputToolbar', () => {
 					...issue,
 					state: GitHubIssueState.Open,
 					stateReason: undefined,
-					updatedAt: twoHoursAgo,
+					updatedAt: '2026-09-05T10:00:00Z',
 					closedAt: undefined,
 				},
 			}],
@@ -295,6 +294,9 @@ suite('SessionChatInputToolbar', () => {
 				label: pullRequestEntry?.label,
 				pillHoverContentOwnsPadding: isManagedHoverTooltipHTMLElement(pullRequestEntry?.pillHover) ? pullRequestEntry.pillHover.contentOwnsPadding : undefined,
 				className: pullRequestHover?.className,
+				contentOrder: [...pullRequestHover?.children ?? []].map(element => element.className),
+				provenanceOrder: [...pullRequestHover?.querySelector('.sessions-pr-hover-header')?.children ?? []].map(element => element.className),
+				titleOrder: [...pullRequestHover?.querySelector('.sessions-pr-hover-title')?.children ?? []].map(element => element.className),
 				dropdownClassName: pullRequestDropdownHover?.className,
 				dropdownMatchesStandaloneContent: pullRequestDropdownHover?.textContent === pullRequestHover?.textContent,
 				dropdownExpandable: pullRequestEntry?.hover?.expandable,
@@ -307,11 +309,11 @@ suite('SessionChatInputToolbar', () => {
 				referenceAriaLabel: pullRequestHover?.querySelector('.sessions-pr-hover-reference')?.getAttribute('aria-label'),
 				status: pullRequestHover?.querySelector<HTMLElement>('.sessions-pr-hover-status')?.textContent,
 				statusKind: pullRequestHover?.querySelector<HTMLElement>('.sessions-pr-hover-status')?.dataset.state,
-				separatorCount: pullRequestHover?.querySelectorAll('.sessions-pr-hover-separator').length,
 				date: pullRequestHover?.querySelector('.sessions-pr-hover-date')?.textContent,
-				title: pullRequestHover?.querySelector('.sessions-pr-hover-title')?.textContent,
+				title: pullRequestHover?.querySelector('.sessions-pr-hover-title-content')?.textContent,
 				titleTooltip: pullRequestHover?.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
 				description: pullRequestHover?.querySelector('.sessions-pr-hover-description-content')?.textContent,
+				author: pullRequestHover?.querySelector('.sessions-pr-hover-author')?.textContent,
 				branches: [...pullRequestHover?.querySelectorAll('.sessions-pr-hover-branch') ?? []].map(element => element.textContent),
 				branchControls: [...pullRequestHover?.querySelectorAll('.sessions-pr-hover-branch') ?? []].map(element => ({
 					tagName: element.tagName,
@@ -327,6 +329,9 @@ suite('SessionChatInputToolbar', () => {
 				label: issueEntry?.label,
 				pillHoverContentOwnsPadding: isManagedHoverTooltipHTMLElement(issueEntry?.pillHover) ? issueEntry.pillHover.contentOwnsPadding : undefined,
 				className: issueHover?.className,
+				contentOrder: [...issueHover?.children ?? []].map(element => element.className),
+				provenanceOrder: [...issueHover?.querySelector('.sessions-issue-hover-header')?.children ?? []].map(element => element.className),
+				titleOrder: [...issueHover?.querySelector('.sessions-issue-hover-title')?.children ?? []].map(element => element.className),
 				dropdownClassName: issueDropdownHover?.className,
 				dropdownMatchesStandaloneContent: issueDropdownHover?.textContent === issueHover?.textContent,
 				dropdownExpandable: issueEntry?.hover?.expandable,
@@ -339,11 +344,11 @@ suite('SessionChatInputToolbar', () => {
 				referenceAriaLabel: issueHover?.querySelector('.sessions-issue-hover-reference')?.getAttribute('aria-label'),
 				status: issueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.textContent,
 				statusKind: issueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
-				separatorCount: issueHover?.querySelectorAll('.sessions-issue-hover-separator').length,
 				date: issueHover?.querySelector('.sessions-issue-hover-date')?.textContent,
-				title: issueHover?.querySelector('.sessions-issue-hover-title')?.textContent,
+				title: issueHover?.querySelector('.sessions-issue-hover-title-content')?.textContent,
 				titleTooltip: issueHover?.querySelector('.sessions-issue-hover-title')?.getAttribute('title'),
 				description: issueHover?.querySelector('.sessions-issue-hover-description-content')?.textContent,
+				author: issueHover?.querySelector('.sessions-issue-hover-author')?.textContent,
 				unresolvedLabel: unresolvedIssueEntry?.label,
 				unresolvedAriaLabel: unresolvedIssueEntry?.ariaLabel,
 				unresolvedTooltip: unresolvedIssueEntry?.tooltip,
@@ -352,7 +357,6 @@ suite('SessionChatInputToolbar', () => {
 			},
 			activeIssue: {
 				status: activeIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
-				separatorCount: activeIssueHover?.querySelectorAll('.sessions-issue-hover-separator').length,
 				date: activeIssueHover?.querySelector('.sessions-issue-hover-date')?.textContent,
 			},
 		}, {
@@ -360,6 +364,16 @@ suite('SessionChatInputToolbar', () => {
 				label: 'Pull Request #332982: Restore rich pill hovers',
 				pillHoverContentOwnsPadding: true,
 				className: 'sessions-pr-hover',
+				contentOrder: [
+					'sessions-pr-hover-header',
+					'sessions-pr-hover-title',
+					'sessions-pr-hover-status-row',
+					'sessions-pr-hover-description',
+					'sessions-pr-hover-branches',
+					'sessions-pr-hover-author',
+				],
+				provenanceOrder: ['sessions-pr-hover-repository', 'sessions-pr-hover-date'],
+				titleOrder: ['sessions-pr-hover-title-content', 'sessions-pr-hover-reference'],
 				dropdownClassName: 'sessions-pr-hover compact',
 				dropdownMatchesStandaloneContent: true,
 				dropdownExpandable: true,
@@ -372,11 +386,11 @@ suite('SessionChatInputToolbar', () => {
 				referenceAriaLabel: 'Pull Request #332982',
 				status: 'Merged',
 				statusKind: 'merged',
-				separatorCount: 2,
-				date: '2 hours ago',
+				date: 'on Sep 3',
 				title: 'Restore rich pill hovers',
 				titleTooltip: 'Restore rich pill hovers',
 				description: 'Provides detailed pull request context.',
+				author: '@octocat opened this pull request',
 				branches: ['main', 'feature/rich-hover'],
 				branchControls: [
 					{ tagName: 'BUTTON', ariaLabel: 'Copy base branch main' },
@@ -392,6 +406,15 @@ suite('SessionChatInputToolbar', () => {
 				label: 'Issue #42: Rich issue hover',
 				pillHoverContentOwnsPadding: true,
 				className: 'sessions-issue-hover',
+				contentOrder: [
+					'sessions-issue-hover-header',
+					'sessions-issue-hover-title',
+					'sessions-issue-hover-status-row',
+					'sessions-issue-hover-description',
+					'sessions-issue-hover-author',
+				],
+				provenanceOrder: ['sessions-issue-hover-repository', 'sessions-issue-hover-date'],
+				titleOrder: ['sessions-issue-hover-title-content', 'sessions-issue-hover-reference'],
 				dropdownClassName: 'sessions-issue-hover compact',
 				dropdownMatchesStandaloneContent: true,
 				dropdownExpandable: true,
@@ -404,11 +427,11 @@ suite('SessionChatInputToolbar', () => {
 				referenceAriaLabel: 'Issue #42',
 				status: 'Closed',
 				statusKind: 'closed',
-				separatorCount: 2,
-				date: '2 hours ago',
+				date: 'on Sep 3',
 				title: 'Rich issue hover',
 				titleTooltip: 'Rich issue hover',
 				description: 'Provides detailed issue context.',
+				author: '@octocat opened this issue',
 				unresolvedLabel: 'Issue #42: Recorded issue title',
 				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
 				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
@@ -426,8 +449,7 @@ suite('SessionChatInputToolbar', () => {
 			},
 			activeIssue: {
 				status: 'Open',
-				separatorCount: 3,
-				date: 'updated 2 hours ago',
+				date: 'on Sep 3',
 			},
 		});
 	});
@@ -459,15 +481,13 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('uses the shared relative-time pattern for valid GitHub timestamps', () => {
-		const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-
+	test('uses the shared GitHub date pattern for valid timestamps', () => {
 		assert.deepStrictEqual({
-			valid: getGitHubHoverRelativeTime(twoHoursAgo),
-			missing: getGitHubHoverRelativeTime(undefined),
-			invalid: getGitHubHoverRelativeTime('not-a-date'),
+			valid: getGitHubHoverDate('2026-09-03T10:00:00Z'),
+			missing: getGitHubHoverDate(undefined),
+			invalid: getGitHubHoverDate('not-a-date'),
 		}, {
-			valid: '2 hours ago',
+			valid: 'Sep 3',
 			missing: undefined,
 			invalid: undefined,
 		});
@@ -526,7 +546,6 @@ suite('SessionChatInputToolbar', () => {
 	});
 
 	test('exposes live and cached pull request states without treating a closed draft as open', () => {
-		const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 		const ref: IGitHubPullRequestRef = {
 			owner: 'microsoft',
 			repo: 'vscode',
@@ -539,12 +558,13 @@ suite('SessionChatInputToolbar', () => {
 				pullRequest: upcastPartial<IGitHubPullRequest>({
 					state: GitHubPullRequestState.Open,
 					isDraft: true,
+					author: { login: 'octocat', avatarUrl: '' },
 					title: 'Open draft',
 					body: '',
 					baseRef: 'main',
 					headRef: 'draft',
 					createdAt: '2026-09-01T10:00:00Z',
-					updatedAt: twoHoursAgo,
+					updatedAt: '2026-09-05T10:00:00Z',
 				}),
 				icon: Codicon.gitPullRequestDraft,
 				status: {},
@@ -554,13 +574,14 @@ suite('SessionChatInputToolbar', () => {
 				pullRequest: upcastPartial<IGitHubPullRequest>({
 					state: GitHubPullRequestState.Closed,
 					isDraft: true,
+					author: { login: 'octocat', avatarUrl: '' },
 					title: 'Closed draft',
 					body: '',
 					baseRef: 'main',
 					headRef: 'draft',
 					createdAt: '2026-09-01T10:00:00Z',
 					updatedAt: '2026-09-05T10:00:00Z',
-					closedAt: twoHoursAgo,
+					closedAt: '2026-09-04T10:00:00Z',
 				}),
 				icon: Codicon.gitPullRequestDraft,
 				status: {},
@@ -586,18 +607,16 @@ suite('SessionChatInputToolbar', () => {
 			states: entries.map(entry => entry.pullRequestState),
 			openDraftHover: {
 				status: openDraftHover?.querySelector('.sessions-pr-hover-status')?.textContent,
-				separatorCount: openDraftHover?.querySelectorAll('.sessions-pr-hover-separator').length,
 				date: openDraftHover?.querySelector('.sessions-pr-hover-date')?.textContent,
 			},
 			closedDraftHover: {
 				status: closedDraftHover?.querySelector('.sessions-pr-hover-status')?.textContent,
-				separatorCount: closedDraftHover?.querySelectorAll('.sessions-pr-hover-separator').length,
 				date: closedDraftHover?.querySelector('.sessions-pr-hover-date')?.textContent,
 			},
 		}, {
 			states: ['draft', 'closed', 'open', 'closed', 'merged', 'merged', 'open'],
-			openDraftHover: { status: 'Draft', separatorCount: 3, date: 'updated 2 hours ago' },
-			closedDraftHover: { status: 'Closed', separatorCount: 2, date: '2 hours ago' },
+			openDraftHover: { status: 'Draft', date: 'on Sep 1' },
+			closedDraftHover: { status: 'Closed', date: 'on Sep 1' },
 		});
 	});
 

@@ -8,7 +8,7 @@ import './media/issueHover.css';
 import { $, append } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { GitHubIssueState, GitHubIssueStateReason, IGitHubIssue } from '../common/types.js';
-import { getGitHubHoverDescription, getGitHubHoverRelativeTime } from './githubHover.js';
+import { getGitHubHoverDate, getGitHubHoverDescription } from './githubHover.js';
 
 export interface IIssueHoverData {
 	readonly owner: string;
@@ -33,29 +33,27 @@ export function createIssueHover(data: IIssueHoverData): IIssueHover {
 
 	const header = append(hoverElement, $('.sessions-issue-hover-header'));
 	const repositoryLink = appendHoverLink(header, 'sessions-issue-hover-repository', data.repositoryHref, `${data.owner}/${data.repo}`, data.onDidClickRepository);
-	append(header, $('span.sessions-issue-hover-separator', { 'aria-hidden': 'true' }, '\u00b7'));
-	const referenceLink = appendHoverLink(header, 'sessions-issue-hover-reference', data.referenceHref, `#${data.number}`, data.onDidClickReference, localize('agentSessions.issueHover.reference', "Issue #{0}", data.number));
-	append(header, $('span.sessions-issue-hover-separator', { 'aria-hidden': 'true' }, '\u00b7'));
-	const status = getIssueStatus(data.issue);
-	const statusElement = append(header, $('span.sessions-issue-hover-status', undefined, status.label));
-	statusElement.dataset.state = status.kind;
-
-	const date = getIssueDate(data.issue);
-	if (date) {
-		if (date.separate) {
-			append(header, $('span.sessions-issue-hover-separator', { 'aria-hidden': 'true' }, '\u00b7'));
-		}
-		append(header, $('span.sessions-issue-hover-date', undefined, date.label));
+	const createdAt = getGitHubHoverDate(data.issue.createdAt);
+	if (createdAt) {
+		append(header, $('span.sessions-issue-hover-date', undefined, localize('agentSessions.issueHover.createdDate', "on {0}", createdAt)));
 	}
 
 	const title = data.issue.title || localize('agentSessions.issueHover.titleFallback', "Issue #{0}", data.number);
 	const titleElement = append(hoverElement, $('.sessions-issue-hover-title'));
 	append(titleElement, $('.sessions-issue-hover-title-content', undefined, title));
+	const referenceLink = appendHoverLink(titleElement, 'sessions-issue-hover-reference', data.referenceHref, `#${data.number}`, data.onDidClickReference, localize('agentSessions.issueHover.reference', "Issue #{0}", data.number));
 	titleElement.title = title;
+
+	const statusRow = append(hoverElement, $('.sessions-issue-hover-status-row'));
+	const status = getIssueStatus(data.issue);
+	const statusElement = append(statusRow, $('span.sessions-issue-hover-status', undefined, status.label));
+	statusElement.dataset.state = status.kind;
 
 	const body = getGitHubHoverDescription(data.issue.body, localize('agentSessions.issueHover.bodyFallback', "No description provided."));
 	const description = append(hoverElement, $('.sessions-issue-hover-description'));
 	append(description, $('.sessions-issue-hover-description-content', undefined, body));
+
+	append(hoverElement, $('.sessions-issue-hover-author', undefined, localize('agentSessions.issueHover.author', "@{0} opened this issue", data.issue.author.login)));
 
 	return { element: hoverElement, tabbableElements: [repositoryLink, referenceLink] };
 }
@@ -92,19 +90,4 @@ function getIssueStatus(issue: IGitHubIssue): { readonly kind: 'open' | 'closed'
 		return { kind: 'notPlanned', label: localize('agentSessions.issueHover.notPlanned', "Not planned") };
 	}
 	return { kind: 'closed', label: localize('agentSessions.issueHover.closed', "Closed") };
-}
-
-function getIssueDate(issue: IGitHubIssue): { readonly label: string; readonly separate: boolean } | undefined {
-	if (issue.state === GitHubIssueState.Closed && issue.closedAt) {
-		const closed = getGitHubHoverRelativeTime(issue.closedAt);
-		if (closed) {
-			return { label: closed, separate: false };
-		}
-	}
-	const updated = getGitHubHoverRelativeTime(issue.updatedAt);
-	if (updated) {
-		return { label: localize('agentSessions.issueHover.updatedDate', "updated {0}", updated), separate: true };
-	}
-	const opened = getGitHubHoverRelativeTime(issue.createdAt);
-	return opened ? { label: localize('agentSessions.issueHover.openedDate', "opened {0}", opened), separate: true } : undefined;
 }

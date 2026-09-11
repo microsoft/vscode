@@ -50,18 +50,32 @@
 }
 
 .sessions-pr-hover-title {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	line-height: 1.4;
 }
 
 .sessions-pr-hover-title-content {
+	min-width: 0;
 	display: -webkit-box;
 	line-clamp: 2;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
 	overflow: hidden;
 	overflow-wrap: anywhere;
+}
+
+.sessions-pr-hover .sessions-pr-hover-reference {
+	flex-shrink: 0;
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.sessions-pr-hover-author {
+	color: var(--vscode-descriptionForeground);
 }
 
 .sessions-pr-hover-description {

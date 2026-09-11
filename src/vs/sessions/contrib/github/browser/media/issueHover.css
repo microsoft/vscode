@@ -50,18 +50,32 @@
 }
 
 .sessions-issue-hover-title {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	line-height: 1.4;
 }
 
 .sessions-issue-hover-title-content {
+	min-width: 0;
 	display: -webkit-box;
 	line-clamp: 2;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
 	overflow: hidden;
 	overflow-wrap: anywhere;
+}
+
+.sessions-issue-hover .sessions-issue-hover-reference {
+	flex-shrink: 0;
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.sessions-issue-hover-author {
+	color: var(--vscode-descriptionForeground);
 }
 
 .sessions-issue-hover-description {
