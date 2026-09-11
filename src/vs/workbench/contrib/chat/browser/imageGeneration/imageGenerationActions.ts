@@ -90,7 +90,6 @@ export class RemoveImageGenerationCredentialsAction extends Action2 {
 			title: localize2('imageGeneration.remove', "Remove Image Generation Credentials"),
 			category: localize2('chat.category', "Chat"),
 			f1: true,
-			precondition: ChatContextKeys.enabled,
 		});
 	}
 

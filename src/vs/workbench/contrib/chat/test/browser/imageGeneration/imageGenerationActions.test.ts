@@ -10,6 +10,7 @@ import { INotificationService, NotificationMessage } from '../../../../../../pla
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { RemoveImageGenerationCredentialsAction, SetUpImageGenerationAction } from '../../../browser/imageGeneration/imageGenerationActions.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IImageGenerationConfiguration, IImageGenerationCredentialsService } from '../../../common/imageGeneration.js';
 
 suite('ImageGenerationActions', () => {
@@ -83,9 +84,16 @@ suite('ImageGenerationActions', () => {
 		assert.deepStrictEqual({ error: typeof error, revealsInput: typeof error === 'string' && error.includes('do-not-repeat') }, { error: 'string', revealsInput: false });
 	});
 
-	test('removes the credentials through the owning service', async () => {
-		await instantiationService.invokeFunction(accessor => new RemoveImageGenerationCredentialsAction().run(accessor));
-		assert.deepStrictEqual({ cleared, inputCount: inputs.length }, { cleared: 1, inputCount: 0 });
+	test('keeps credential removal available when chat is disabled', async () => {
+		hidden = true;
+		const action = new RemoveImageGenerationCredentialsAction();
+		await instantiationService.invokeFunction(accessor => action.run(accessor));
+		assert.deepStrictEqual({
+			cleared,
+			inputCount: inputs.length,
+			cleanupPrecondition: action.desc.precondition,
+			setupRequiresChat: new SetUpImageGenerationAction().desc.precondition === ChatContextKeys.enabled,
+		}, { cleared: 1, inputCount: 0, cleanupPrecondition: undefined, setupRequiresChat: true });
 	});
 
 	test('does not show setup when AI is hidden', async () => {
