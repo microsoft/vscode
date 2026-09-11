@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -46,6 +46,7 @@ const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_upda
 const syncInputGitHubContext = Reflect.get(NewChatInputWidget.prototype, '_syncInputGitHubContext') as (this: ISyncInputGitHubContextHarness) => void;
 const attachTextContext = Reflect.get(NewChatInputWidget.prototype, 'attachTextContext') as (this: IAttachTextContextHarness, name: string, content: string, icon: ThemeIcon, id: string) => void;
 const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
+const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototype, '_updateInitializationLoadingState') as (this: IInitializationLoadingHarness, loading: boolean) => void;
 const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
@@ -124,6 +125,14 @@ interface ILoadingSpinnerHarness {
 	readonly _sendButtonContainer: HTMLElement | undefined;
 	readonly _sendButton?: { hasFocus(): boolean };
 	focus(): void;
+}
+
+interface IInitializationLoadingHarness {
+	readonly _initializationLoadingSpinner: HTMLElement | undefined;
+	readonly _initializationLoadingDelayDisposable: MutableDisposable<IDisposable>;
+	readonly options: {
+		readonly loading: { get(): boolean };
+	};
 }
 
 interface IAttachmentRenderingHarness {
@@ -245,6 +254,44 @@ suite('NewChatInputWidget', () => {
 		setLoadingSpinnerVisible.call(harness, true);
 
 		assert.strictEqual(composerFocused, true);
+	});
+
+	test('delays initialization progress to avoid flicker for fast workspace changes', async () => {
+		const loadingSpinner = document.createElement('div');
+		const loading = { value: true };
+		const loadingDelayDisposable = disposables.add(new MutableDisposable<IDisposable>());
+		const harness: IInitializationLoadingHarness = {
+			_initializationLoadingSpinner: loadingSpinner,
+			_initializationLoadingDelayDisposable: loadingDelayDisposable,
+			options: { loading: { get: () => loading.value } },
+		};
+
+		updateInitializationLoadingState.call(harness, true);
+		const visibleImmediately = loadingSpinner.classList.contains('visible');
+		await timeout(100);
+		loading.value = false;
+		updateInitializationLoadingState.call(harness, false);
+		await timeout(450);
+		const visibleAfterFastLoading = loadingSpinner.classList.contains('visible');
+
+		loading.value = true;
+		updateInitializationLoadingState.call(harness, true);
+		await timeout(550);
+		const visibleAfterDelay = loadingSpinner.classList.contains('visible');
+		loading.value = false;
+		updateInitializationLoadingState.call(harness, false);
+
+		assert.deepStrictEqual({
+			visibleImmediately,
+			visibleAfterFastLoading,
+			visibleAfterDelay,
+			visibleAfterLoading: loadingSpinner.classList.contains('visible'),
+		}, {
+			visibleImmediately: false,
+			visibleAfterFastLoading: false,
+			visibleAfterDelay: true,
+			visibleAfterLoading: false,
+		});
 	});
 
 	test('keeps the input model alive until reference acquisition settles during disposal', async () => {

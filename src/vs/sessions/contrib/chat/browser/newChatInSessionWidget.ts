@@ -67,6 +67,7 @@ export class NewChatInSessionWidget extends Disposable {
 			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
+			loading: constObservable(false),
 			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),

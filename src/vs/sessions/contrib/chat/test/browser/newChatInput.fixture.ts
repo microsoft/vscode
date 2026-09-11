@@ -180,6 +180,7 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 		getContextFolderUri: () => undefined,
 		sendRequest: async () => true,
 		canSendRequest: observableValue('canSendRequest', true),
+		loading: observableValue('loading', false),
 	}));
 
 	widget.render(content, container);

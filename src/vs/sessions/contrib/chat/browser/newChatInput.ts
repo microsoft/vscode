@@ -214,6 +214,8 @@ interface IDraftState {
 	attachments: readonly IChatRequestVariableEntry[];
 }
 
+const INITIALIZATION_LOADING_DELAY_MS = 500;
+
 export function hasSendableNewChatContent(query: string, attachments: readonly IChatRequestVariableEntry[], hasAdditionalSendContent = false): boolean {
 	return !!query.trim() || attachments.some(isExplicitFileOrImageVariableEntry) || hasAdditionalSendContent;
 }
@@ -481,6 +483,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _sending = false;
 
 	// Loading state
+	private _initializationLoadingSpinner: HTMLElement | undefined;
+	private readonly _initializationLoadingDelayDisposable = this._register(new MutableDisposable());
 	private _loadingSpinner: HTMLElement | undefined;
 	private readonly _loadingDelayDisposable = this._register(new MutableDisposable());
 	private readonly _promptTypingAnimation = this._register(new MutableDisposable<IPromptTypingAnimation>());
@@ -523,6 +527,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			canSendRequest: IObservable<boolean>;
 			canSubmitWithoutSession?: IObservable<boolean>;
 			hasAdditionalSendContent?: IObservable<boolean>;
+			loading: IObservable<boolean>;
 			historyKey?: IObservable<string | undefined>;
 			minEditorHeight?: number;
 			placeholder?: string;
@@ -864,6 +869,24 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
+	private _updateInitializationLoadingState(loading: boolean): void {
+		if (!loading) {
+			this._initializationLoadingDelayDisposable.clear();
+			this._initializationLoadingSpinner?.classList.remove('visible');
+			return;
+		}
+		if (this._initializationLoadingSpinner?.classList.contains('visible') || this._initializationLoadingDelayDisposable.value) {
+			return;
+		}
+		const timer = setTimeout(() => {
+			this._initializationLoadingDelayDisposable.clear();
+			if (this.options.loading.get()) {
+				this._initializationLoadingSpinner?.classList.add('visible');
+			}
+		}, INITIALIZATION_LOADING_DELAY_MS);
+		this._initializationLoadingDelayDisposable.value = toDisposable(() => clearTimeout(timer));
+	}
+
 	private _setLoadingSpinnerVisible(visible: boolean): void {
 		if (visible && this._sendButton?.hasFocus()) {
 			this.focus();
@@ -1185,6 +1208,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
 		const configToolbar = this._register(createNewSessionConfigToolbar(configContainer, this._scopedInstantiationService, this._compactModelPicker));
+
+		this._initializationLoadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
+		const initializationLoadingIcon = dom.append(this._initializationLoadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
+		initializationLoadingIcon.setAttribute('aria-hidden', 'true');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._initializationLoadingSpinner, localize('initializing', "Initializing...")));
+		this._register(autorun(reader => this._updateInitializationLoadingState(this.options.loading.read(reader))));
 
 		// Dictation mic button. Shares the STT service, mic
 		// device, and gating (backend support + `dictation.enabled`)

@@ -224,6 +224,10 @@ export class NewChatWidget extends Disposable {
 			return true;
 		});
 
+		const loading = derived(reader => {
+			const session = this._session.read(reader);
+			return session?.loading.read(reader) ?? false;
+		});
 		const hasFeedback = derived(this, reader => this._feedbackItems.read(reader).length > 0);
 		const canSubmitWithoutSession = derived(this, reader => !this._session.read(reader));
 		const deferredNotificationsEnabled = observableFromEvent(
@@ -248,6 +252,7 @@ export class NewChatWidget extends Disposable {
 			canSendRequest,
 			canSubmitWithoutSession,
 			hasAdditionalSendContent: hasFeedback,
+			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: localize('newSessionPromptPlaceholder', "Pitch your idea"),
 			supportsBackground: true,
