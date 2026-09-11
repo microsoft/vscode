@@ -335,7 +335,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 				return [rangeToReplace, abbr, ''];
 			}
 		}
-		const extractedResults = helper.extractAbbreviation(toLSTextDocument(editor.document), position, { lookAhead: false });
+		const extractedResults = helper.extractAbbreviation(toLSTextDocument(editor.document), position, { lookAhead: false, syntax: isStyleSheet(syntax) ? 'stylesheet' : 'markup' });
 		if (!extractedResults) {
 			return [null, '', ''];
 		}
