@@ -6,8 +6,10 @@
 import './media/pullRequestHover.css';
 
 import { $, append } from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
-import { GitHubPullRequestState, IGitHubPullRequest } from '../common/types.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } from '../common/types.js';
 import { appendGitHubHoverTitle, getGitHubHoverDate, getGitHubHoverDescription } from './githubHover.js';
 
 export interface IPullRequestHoverData {
@@ -51,8 +53,15 @@ export function createPullRequestHover(data: IPullRequestHoverData): IPullReques
 
 	const statusRow = append(hoverElement, $('.sessions-pr-hover-status-row'));
 	const status = getPullRequestStatus(data.pullRequest);
-	const statusElement = append(statusRow, $('span.sessions-pr-hover-status', undefined, status.label));
+	const statusElement = append(statusRow, $('span.sessions-pr-hover-status'));
 	statusElement.dataset.state = status.kind;
+	const statusIcon = computePullRequestIcon(status.kind);
+	const statusIconElement = append(statusElement, renderIcon(statusIcon));
+	statusIconElement.setAttribute('aria-hidden', 'true');
+	if (statusIcon.color) {
+		statusIconElement.style.color = asCssVariable(statusIcon.color.id);
+	}
+	append(statusElement, $('span.sessions-pr-hover-status-label', undefined, status.label));
 
 	const body = getGitHubHoverDescription(data.pullRequest.body, localize('agentSessions.pullRequestHover.bodyFallback', "No description provided."));
 	const description = append(hoverElement, $('.sessions-pr-hover-description'));

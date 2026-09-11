@@ -6,8 +6,10 @@
 import './media/issueHover.css';
 
 import { $, append } from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
-import { GitHubIssueState, GitHubIssueStateReason, IGitHubIssue } from '../common/types.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { computeIssueIcon, GitHubIssueState, GitHubIssueStateReason, IGitHubIssue } from '../common/types.js';
 import { appendGitHubHoverTitle, getGitHubHoverDate, getGitHubHoverDescription } from './githubHover.js';
 
 export interface IIssueHoverData {
@@ -49,8 +51,15 @@ export function createIssueHover(data: IIssueHoverData): IIssueHover {
 
 	const statusRow = append(hoverElement, $('.sessions-issue-hover-status-row'));
 	const status = getIssueStatus(data.issue);
-	const statusElement = append(statusRow, $('span.sessions-issue-hover-status', undefined, status.label));
+	const statusElement = append(statusRow, $('span.sessions-issue-hover-status'));
 	statusElement.dataset.state = status.kind;
+	const statusIcon = computeIssueIcon(data.issue.state, data.issue.stateReason);
+	const statusIconElement = append(statusElement, renderIcon(statusIcon));
+	statusIconElement.setAttribute('aria-hidden', 'true');
+	if (statusIcon.color) {
+		statusIconElement.style.color = asCssVariable(statusIcon.color.id);
+	}
+	append(statusElement, $('span.sessions-issue-hover-status-label', undefined, status.label));
 
 	const body = getGitHubHoverDescription(data.issue.body, localize('agentSessions.issueHover.bodyFallback', "No description provided."));
 	const description = append(hoverElement, $('.sessions-issue-hover-description'));

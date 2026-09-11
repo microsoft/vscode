@@ -103,9 +103,10 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			hoverTabbableElements = hover.tabbableElements;
 			return hover.element;
 		} : undefined;
-		const label = title
+		const resourceLabel = title
 			? localize('sessionChatPills.pullRequestWithTitle', "Pull Request #{0}: {1}", ref.number, title)
 			: localize('sessionChatPills.pullRequest', "Pull Request #{0}", ref.number);
+		const label = title ?? resourceLabel;
 		const resolvedIcon = icon ?? computePullRequestIcon('open');
 		const attention = getPullRequestAttention(resolvedIcon, status);
 		const pullRequestState = pullRequest?.state ?? ref.liveState ?? ref.state ?? getPullRequestStatusFromIcon(resolvedIcon) ?? 'open';
@@ -124,6 +125,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 		return {
 			id: ref.uri.toString(),
 			label,
+			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: resolvedIcon,
 			pullRequestState: state,
@@ -139,9 +141,9 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			})],
-			...getChatPillResourceLocation(ref.uri, label),
+			...getChatPillResourceLocation(ref.uri, resourceLabel),
 			ariaDescription: localize('sessionChatPills.pullRequestDescription', "{0}. {1}", stateDescription, ref.uri.toString(true)),
-			...(!pullRequest && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
+			...(!pullRequest && ref.title ? { tooltip: `${resourceLabel}\n${ref.uri.toString(true)}` } : {}),
 			...(createDropdownHover && createHover ? {
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
 				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
@@ -180,12 +182,14 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			hoverTabbableElements = hover.tabbableElements;
 			return hover.element;
 		} : undefined;
-		const label = title
+		const resourceLabel = title
 			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, title)
 			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
+		const label = title ?? resourceLabel;
 		return {
 			id: ref.uri.toString(),
 			label,
+			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
 			toolbarActions: [toAction({
@@ -194,8 +198,8 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				class: ThemeIcon.asClassName(Codicon.copy),
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			})],
-			...getChatPillResourceLocation(ref.uri, label),
-			...(!issue && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
+			...getChatPillResourceLocation(ref.uri, resourceLabel),
+			...(!issue && ref.title ? { tooltip: `${resourceLabel}\n${ref.uri.toString(true)}` } : {}),
 			...(createDropdownHover && createHover ? {
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
 				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },

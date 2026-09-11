@@ -44,9 +44,25 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.sessions-pr-hover-status-row {
+	display: flex;
+}
+
 .sessions-pr-hover-status {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
 	flex-shrink: 0;
+	width: max-content;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-textCodeBlock-background);
 	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-pr-hover-status .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .sessions-pr-hover-title {
