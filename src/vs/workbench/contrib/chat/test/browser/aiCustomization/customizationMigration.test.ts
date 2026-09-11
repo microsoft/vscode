@@ -135,6 +135,7 @@ suite('customizationMigration', () => {
 		assert.deepStrictEqual({
 			presentation: category.getCandidatePresentation(candidate, uri => uri.path),
 			description: category.getPageDescription([candidate], 'Copilot'),
+			banner: category.getBanner?.([candidate], 'Copilot', undefined, []),
 			confirmation: category.getConfirmation([candidate], 'Copilot'),
 			failure: category.getMcpServerFailureMessage?.([{
 				id: candidate.id,
@@ -150,6 +151,9 @@ suite('customizationMigration', () => {
 				pathLabel: '/workspace/.vscode/mcp.json to /workspace/.mcp.json',
 			},
 			description: 'Select the supported MCP server to move so Copilot can discover it directly. Unsupported and unselected servers stay in .vscode/mcp.json.',
+			banner: {
+				message: 'Eligible servers move from .vscode/mcp.json to .mcp.json at each workspace root so Copilot can discover them directly. Unsupported and unselected servers stay in their current files.',
+			},
 			confirmation: {
 				message: 'Migrate 1 MCP server to .mcp.json?',
 				detail: 'Selected entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Unsupported and unselected entries stay in place.',
