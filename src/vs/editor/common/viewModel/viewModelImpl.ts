@@ -926,6 +926,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getViewLineData(lineNumber);
 	}
 
+	public getViewLineContinuesWithWrappedLine(lineNumber: number): boolean {
+		return this._lines.getViewLineContinuesWithWrappedLine(lineNumber);
+	}
+
 	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
 		const result = this._lines.getViewLinesData(startLineNumber, endLineNumber, needed);
 		return new MinimapLinesRenderingData(

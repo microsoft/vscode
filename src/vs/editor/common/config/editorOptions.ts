@@ -342,6 +342,11 @@ export interface IEditorOptions {
 	 */
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
+	 * Control whether an indicator is rendered at the wrapping column of soft wrapped lines.
+	 * Defaults to false.
+	 */
+	wordWrapIndicator?: boolean;
+	/**
 	 * Override the `wordWrap` setting.
 	 */
 	wordWrapOverride1?: 'off' | 'on' | 'inherit';
@@ -2919,6 +2924,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
 
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
+		const wordWrapIndicator = options.get(EditorOption.wordWrapIndicator);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
@@ -3006,7 +3012,9 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		if (isViewportWrapping) {
 			// compute the actual wrappingColumn
-			wrappingColumn = Math.max(1, viewportColumn);
+			// (leaving the rightmost column for the word wrap indicator so that it does not overlap
+			// the wrapped text or end up underneath the vertical scrollbar)
+			wrappingColumn = Math.max(1, viewportColumn - (wordWrapIndicator ? 1 : 0));
 			if (wordWrap === 'bounded') {
 				wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
 			}
@@ -5987,6 +5995,7 @@ export const enum EditorOption {
 	inertialScroll,
 	inlayHints,
 	wrapOnEscapedLineFeeds,
+	wordWrapIndicator,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -6863,6 +6872,15 @@ export const EditorOptions = {
 					'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
 				]
 			}, "Controls how lines should wrap.")
+		}
+	)),
+	wordWrapIndicator: register(new EditorBooleanOption(
+		EditorOption.wordWrapIndicator, 'wordWrapIndicator', false,
+		{
+			markdownDescription: nls.localize({
+				key: 'wordWrapIndicator',
+				comment: []
+			}, "Controls whether an indicator is rendered at the wrapping column of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
 		}
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(

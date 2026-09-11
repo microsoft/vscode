@@ -385,6 +385,7 @@
 		"--vscode-editorWidget-border",
 		"--vscode-editorWidget-foreground",
 		"--vscode-editorWidget-resizeBorder",
+		"--vscode-editorWordWrapIndicator-foreground",
 		"--vscode-errorForeground",
 		"--vscode-extensionBadge-remoteBackground",
 		"--vscode-extensionBadge-remoteForeground",
