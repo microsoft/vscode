@@ -8,8 +8,9 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import * as errors from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { OS } from '../../../../base/common/platform.js';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from '../../../../platform/files/common/files.js';
-import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from '../../../../platform/configuration/common/configurationModels.js';
+import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, getPlatformOverrideIdentifier, UserSettings } from '../../../../platform/configuration/common/configurationModels.js';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from '../common/configurationModels.js';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from '../common/configuration.js';
 import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
@@ -149,12 +150,16 @@ export class ApplicationConfiguration extends UserSettings {
 	}
 
 	override async loadConfiguration(): Promise<ConfigurationModel> {
-		const model = await super.loadConfiguration();
+		const model = (await super.loadConfiguration()).resolvePlatform(getPlatformOverrideIdentifier(OS));
 		const value = model.getValue<string[]>(APPLY_ALL_PROFILES_SETTING);
 		const allProfilesSettings = Array.isArray(value) ? value : [];
 		return this.parseOptions.include || allProfilesSettings.length
 			? this.reparse({ ...this.parseOptions, include: allProfilesSettings })
 			: model;
+	}
+
+	override reparse(parseOptions?: ConfigurationParseOptions): ConfigurationModel {
+		return super.reparse(parseOptions).resolvePlatform(getPlatformOverrideIdentifier(OS));
 	}
 }
 
