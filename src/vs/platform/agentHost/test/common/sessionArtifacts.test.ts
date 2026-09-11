@@ -74,6 +74,31 @@ suite('Session Artifacts', () => {
 		});
 	});
 
+	test('promotes a duplicate reference to an artifact while preserving its id', () => {
+		const reference = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'pullRequest', label: 'Referenced PR', link: 'https://github.com/microsoft/vscode/pull/1', isArtifact: false }, TOOL), createId);
+		const promoted = new SessionArtifactCollection(reference.artifacts).addOrPromoteArtifact(parseSessionArtifactInput({ type: 'pullRequest', label: 'Pull Request #1', link: 'https://github.com/microsoft/vscode/pull/1', isArtifact: true }, TOOL), createId);
+
+		assert.deepStrictEqual(promoted, {
+			artifacts: [{
+				id: 'id-1',
+				type: SessionArtifactType.PullRequest,
+				label: 'Pull Request #1',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/1',
+				isGitHub: true,
+			}],
+			artifact: {
+				id: 'id-1',
+				type: SessionArtifactType.PullRequest,
+				label: 'Pull Request #1',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/1',
+				isGitHub: true,
+			},
+			added: false,
+		});
+	});
+
 	test('removes by id and reports unknown ids', () => {
 		const added = new SessionArtifactCollection().add(parseSessionArtifactInput({ type: 'website', label: 'Docs', link: 'https://example.com', isArtifact: false }, TOOL), createId);
 		const collection = new SessionArtifactCollection(added.artifacts);

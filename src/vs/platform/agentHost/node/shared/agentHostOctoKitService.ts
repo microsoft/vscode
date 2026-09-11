@@ -21,6 +21,7 @@ export type FetchFunction = typeof globalThis.fetch;
 export interface CreatedPullRequest {
 	readonly url: string;
 	readonly number: number;
+	readonly title?: string;
 	readonly nodeId?: string;
 	readonly createdAt?: number;
 	readonly state?: 'open' | 'closed';
@@ -47,6 +48,7 @@ interface GitHubRepositoryMergeResponse {
 interface GitHubPullRequestResponseItem {
 	readonly number?: unknown;
 	readonly html_url?: unknown;
+	readonly title?: unknown;
 	readonly node_id?: unknown;
 	readonly created_at?: unknown;
 	readonly state?: unknown;
@@ -56,6 +58,7 @@ interface GitHubPullRequestResponseItem {
 function toCreatedPullRequest(item: GitHubPullRequestResponseItem | undefined): CreatedPullRequest | undefined {
 	const html_url = item?.html_url;
 	const number = item?.number;
+	const title = item?.title;
 	const node_id = item?.node_id;
 	const created_at = item?.created_at;
 	const state = item?.state;
@@ -64,6 +67,7 @@ function toCreatedPullRequest(item: GitHubPullRequestResponseItem | undefined): 
 		? {
 			number,
 			url: html_url,
+			...(typeof title === 'string' ? { title } : {}),
 			nodeId: typeof node_id === 'string' ? node_id : undefined,
 			...(createdAt !== undefined && Number.isFinite(createdAt) ? { createdAt } : {}),
 			...(state === 'open' || state === 'closed' ? { state } : {}),
@@ -251,7 +255,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		}
 
 		const node_id = response.data?.node_id;
-		return { url: html_url, number, nodeId: typeof node_id === 'string' ? node_id : undefined };
+		return { url: html_url, number, title, nodeId: typeof node_id === 'string' ? node_id : undefined };
 	}
 
 	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal, headOwner = owner, allowedPullRequestUrls?: readonly string[]): Promise<CreatedPullRequest | undefined> {
