@@ -235,6 +235,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 		this.narrowLayout = narrow;
 		this.root.classList.toggle('narrow-layout', narrow);
+		this._onDidChangeContent.fire();
 	}
 
 	get element(): HTMLElement {
