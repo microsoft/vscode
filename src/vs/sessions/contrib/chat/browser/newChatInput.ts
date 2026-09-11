@@ -865,6 +865,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _setLoadingSpinnerVisible(visible: boolean): void {
+		if (visible && this._sendButton?.hasFocus()) {
+			this.focus();
+		}
 		this._loadingSpinner?.classList.toggle('visible', visible);
 		this._sendButtonContainer?.classList.toggle('loading', visible);
 	}

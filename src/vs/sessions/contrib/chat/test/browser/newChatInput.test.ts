@@ -122,6 +122,8 @@ interface IUpdateSendButtonStateHarness {
 interface ILoadingSpinnerHarness {
 	readonly _loadingSpinner: HTMLElement | undefined;
 	readonly _sendButtonContainer: HTMLElement | undefined;
+	readonly _sendButton?: { hasFocus(): boolean };
+	focus(): void;
 }
 
 interface IAttachmentRenderingHarness {
@@ -203,6 +205,7 @@ suite('NewChatInputWidget', () => {
 		const harness: ILoadingSpinnerHarness = {
 			_loadingSpinner: loadingSpinner,
 			_sendButtonContainer: sendButtonContainer,
+			focus: () => { },
 		};
 
 		setLoadingSpinnerVisible.call(harness, true);
@@ -228,6 +231,20 @@ suite('NewChatInputWidget', () => {
 				sendButton: [],
 			},
 		});
+	});
+
+	test('moves focus to the composer before replacing a focused send button with progress', () => {
+		let composerFocused = false;
+		const harness: ILoadingSpinnerHarness = {
+			_loadingSpinner: undefined,
+			_sendButtonContainer: undefined,
+			_sendButton: { hasFocus: () => true },
+			focus: () => composerFocused = true,
+		};
+
+		setLoadingSpinnerVisible.call(harness, true);
+
+		assert.strictEqual(composerFocused, true);
 	});
 
 	test('keeps the input model alive until reference acquisition settles during disposal', async () => {
