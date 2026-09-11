@@ -40,7 +40,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.tool.displayName', "Complete Attempt Comparison"),
 			userDescription: localize('sessionComparison.tool.userDescription', "Submit the judge's structured attempt comparison"),
-			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this exactly once after inspecting every referenced attempt, its code changes, and its validation evidence. The recommended participant must be one of the comparison attempts. This persists the verdict and may start synthesis when automatic synthesis is enabled.',
+			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this exactly once after inspecting every referenced attempt, its code changes, and its validation evidence. The recommended participant must be one of the comparison attempts. This persists an advisory verdict; synthesis only starts through an explicit user action.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,

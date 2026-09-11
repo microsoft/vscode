@@ -66,6 +66,7 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 					return localize('sessionComparisonAccessibleView.missing', "This comparison is no longer available.");
 				}
 				const lines = [comparison.title, comparison.prompt];
+				const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
 				for (const participant of comparison.participants) {
 					const role = participant.role === SessionComparisonParticipantRole.Attempt
 						? localize('sessionComparisonAccessibleView.attempt', "Attempt")
@@ -82,7 +83,16 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 								? localize('sessionComparisonAccessibleView.failed', "Failed")
 								: localize('sessionComparisonAccessibleView.inProgress', "In progress")
 						: localize('sessionComparisonAccessibleView.unknown', "Unknown"));
-					lines.push('', localize('sessionComparisonAccessibleView.participant', "{0}: {1}", role, participant.harness.label), localize('sessionComparisonAccessibleView.status', "Status: {0}", status));
+					const attemptIndex = participant.role === SessionComparisonParticipantRole.Attempt
+						? attempts.findIndex(attempt => attempt.id === participant.id)
+						: -1;
+					const participantLabel = participant.harness.modelLabel
+						? localize('sessionComparisonAccessibleView.harnessAndModel', "{0} · {1}", participant.harness.label, participant.harness.modelLabel)
+						: participant.harness.label;
+					const label = attemptIndex >= 0
+						? localize('sessionComparisonAccessibleView.numberedAttempt', "Attempt {0}: {1}", attemptIndex + 1, participantLabel)
+						: localize('sessionComparisonAccessibleView.participant', "{0}: {1}", role, participantLabel);
+					lines.push('', label, localize('sessionComparisonAccessibleView.status', "Status: {0}", status));
 					const summary = session?.changesSummary?.get();
 					if (summary) {
 						lines.push(localize('sessionComparisonAccessibleView.changes', "Changed files: {0}, additions: {1}, deletions: {2}", summary.files, summary.additions, summary.deletions));
@@ -124,7 +134,11 @@ export class SessionComparisonAccessibleView implements IAccessibleViewImplement
 				}
 				if (comparison.verdict) {
 					const recommended = comparison.participants.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
-					lines.push('', localize('sessionComparisonAccessibleView.recommendation', "Recommended attempt: {0}", recommended?.harness.label ?? localize('sessionComparisonAccessibleView.unknown', "Unknown")), comparison.verdict.explanation);
+					const recommendedIndex = recommended ? attempts.findIndex(participant => participant.id === recommended.id) : -1;
+					const recommendedLabel = recommended
+						? localize('sessionComparisonAccessibleView.numberedAttempt', "Attempt {0}: {1}", recommendedIndex + 1, recommended.harness.label)
+						: localize('sessionComparisonAccessibleView.unknown', "Unknown");
+					lines.push('', localize('sessionComparisonAccessibleView.recommendation', "Recommended attempt: {0}", recommendedLabel), comparison.verdict.explanation);
 					for (const conflict of comparison.verdict.conflicts) {
 						lines.push(localize('sessionComparisonAccessibleView.conflict', "Conflict: {0}", conflict));
 					}

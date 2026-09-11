@@ -1,0 +1,120 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-comparison-setup-dialog {
+	width: min(640px, calc(100% - var(--vscode-spacing-size320)));
+}
+
+.session-comparison-setup-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.session-comparison-setup-description,
+.session-comparison-setup-validation,
+.session-comparison-setup-usage {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-setup-section-title {
+	margin: 0 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-setup-context-list {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	margin: 0;
+}
+
+.session-comparison-setup-context-list dt {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-setup-context-note {
+	margin: var(--vscode-spacing-size80) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-comparison-setup-context-list dd {
+	min-width: 0;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.session-comparison-setup-rows {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	max-height: 280px;
+	overflow-y: auto;
+}
+
+.session-comparison-setup-row {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.session-comparison-setup-row-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-comparison-setup-row-header .monaco-button,
+.session-comparison-setup-add.monaco-button {
+	width: auto;
+}
+
+.session-comparison-setup-row-controls {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size120);
+}
+
+.session-comparison-setup-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.session-comparison-setup-field-label,
+.session-comparison-setup-provider {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.session-comparison-setup-label {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-comparison-setup-field .monaco-select-box {
+	width: 100%;
+}
+
+.session-comparison-setup-add {
+	align-self: flex-start;
+}
+
+.session-comparison-setup-validation,
+.session-comparison-setup-usage {
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.monaco-workbench.hc-black .session-comparison-setup-row,
+.monaco-workbench.hc-light .session-comparison-setup-row {
+	border-color: var(--vscode-contrastBorder);
+}

@@ -30,6 +30,12 @@ export interface ISessionComparisonHarness {
 	readonly sessionTypeId: string;
 	readonly label: string;
 	readonly modelId?: string;
+	readonly modelLabel?: string;
+}
+
+export interface ISessionComparisonAttemptConfiguration {
+	readonly id: string;
+	readonly harness: ISessionComparisonHarness;
 }
 
 export interface ISessionComparisonParticipant {
@@ -77,7 +83,7 @@ export interface IStartSessionComparisonOptions {
 	readonly workspace: URI;
 	readonly prompt: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
-	readonly harnesses: readonly ISessionComparisonHarness[];
+	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
 	readonly permissionLevel?: string;
 	readonly branch?: string;
 }
