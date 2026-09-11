@@ -15,6 +15,7 @@
 		"list.hoverBackground": "#E8E8E8",
 		"menu.border": "#D4D4D4",
 		"input.placeholderForeground": "#767676",
+		"input.border": "#CECECE",
 		"searchEditor.textInputBorder": "#CECECE",
 		"settings.textInputBorder": "#CECECE",
 		"settings.numberInputBorder": "#CECECE",
