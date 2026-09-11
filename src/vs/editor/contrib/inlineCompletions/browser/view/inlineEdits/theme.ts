@@ -5,7 +5,6 @@
 
 import { assertNever } from '../../../../../../base/common/assert.js';
 import { Color } from '../../../../../../base/common/color.js';
-import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { IObservable, observableFromEventOpts } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { buttonBackground, buttonForeground, diffInserted, diffInsertedLine, diffRemoved, editorBackground, editorHoverBackground, editorHoverBorder, editorHoverForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
@@ -219,10 +218,7 @@ export function observeColor(colorIdentifier: ColorIdentifier, themeService: ITh
 		themeService.onDidColorThemeChange,
 		() => {
 			const color = themeService.getColorTheme().getColor(colorIdentifier);
-			if (!color) {
-				throw new BugIndicatingError(`Missing color: ${colorIdentifier}`);
-			}
-			return color;
+			return color ?? Color.transparent;
 		}
 	);
 }
