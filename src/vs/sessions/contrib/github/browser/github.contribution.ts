@@ -15,6 +15,7 @@ import { getGitHubPullRequestRefs, ISession } from '../../../services/sessions/c
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
+import { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
 
@@ -23,6 +24,8 @@ import './createSessionFromPullRequestAction.js';
 import './issueActions.js';
 
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
+
+export { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING };
 
 /**
  * Resolved PR identity for a session's poller, or the specific stage at which
@@ -290,6 +293,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			reviewThreadsModelRef.object.refresh();
 			statusReader.store.add(reviewThreadsModelRef.object.startPolling());
 		}));
+
 	}
 
 	private _isActiveSession(session: ISession, reader: IReader): boolean {

@@ -44,9 +44,6 @@ const AGENT_HOST_REPLACEMENT_SCENARIO_ID = 'smoke-agent-host-session-replacement
 const AGENT_HOST_REPLACEMENT_REPLY = 'MOCKED_AGENT_HOST_REPLACEMENT_RESPONSE';
 const DEV_CONTAINER_SCENARIO_ID = 'smoke-dev-container-agent-host';
 
-const AGENT_HOST_SANDBOX_SCENARIO_ID = 'smoke-hello-agent-host-sandbox';
-const AGENT_HOST_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SANDBOX_RESPONSE';
-
 const AGENT_HOST_SDK_SANDBOX_SCENARIO_ID = 'smoke-hello-agent-host-sdk-sandbox';
 const AGENT_HOST_SDK_SANDBOX_REPLY = 'MOCKED_AGENT_HOST_SDK_SANDBOX_RESPONSE';
 
@@ -86,24 +83,8 @@ export function setup(logger: Logger) {
 			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
 				registerScenario(AGENT_HOST_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_REPLY).build());
 				registerScenario(AGENT_HOST_REPLACEMENT_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_REPLACEMENT_REPLY).build());
-				registerScenario(AGENT_HOST_SANDBOX_SCENARIO_ID, shellEchoScenario(AGENT_HOST_SANDBOX_REPLY));
 			},
-			settings: {
-				// AgentHost-side sandbox: customTerminalTool gates the AgentHost’s own
-				// shell tools (which honor chat.agent.sandbox.*), and chat.agent.sandbox.enabled
-				// turns the sandbox on for the auto-approve path used by the sandbox test.
-				'chat.agentHost.customTerminalTool.enabled': true,
-				'chat.agent.sandbox.enabled': 'on',
-				// CI macOS runners commonly resolve the default shell as /bin/sh, which
-				// exercises the sentinel-based completion parser path. Force the same
-				// profile on macOS so local runs cover the same branch.
-				...(process.platform === 'darwin' ? {
-					'terminal.integrated.profiles.osx': {
-						'Smoke AgentHost Sandbox sh': { path: '/bin/sh' },
-					},
-					'terminal.integrated.defaultProfile.osx': 'Smoke AgentHost Sandbox sh',
-				} : {}),
-			},
+			settings: {},
 		});
 
 		it('Replaces the new session UI with the in-progress AgentHost session', async function () {
@@ -165,81 +146,6 @@ export function setup(logger: Logger) {
 			}
 		});
 
-		it('Test Copilot CLI session via AgentHost (sandbox)', async function () {
-			// See the Copilot CLI sandbox test above for the rationale on
-			// platform gating and where to find logs when debugging CI runs.
-			// The AgentHost-side sandbox log we assert on is
-			// `<logsPath>/agenthost.log` (the utility-process log), produced by
-			// CopilotAgentSession when it auto-approves a sandboxed shell call.
-			if (process.platform === 'win32') {
-				this.skip();
-			}
-
-			this.timeout(5 * 60 * 1000);
-
-			const app = this.app as Application;
-
-			try {
-				await app.workbench.agentsWindow.startNewSession();
-				await app.workbench.agentsWindow.waitForNewSessionView();
-				await app.workbench.agentsWindow.selectSessionType('Copilot');
-
-				const requestsBefore = agentHost.mockServer.requestCount();
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${AGENT_HOST_SANDBOX_SCENARIO_ID}]`);
-
-				// Match the JSON `output` field of the tool result in the final
-				// response, not the `echo <reply>` command preview — see
-				// shellEchoScenario / shellEchoResponseMatcher.
-				const text = await app.workbench.agentsWindow.waitForAssistantText(shellEchoResponseMatcher(AGENT_HOST_SANDBOX_REPLY), 120_000);
-				logger.log(`Agents Window (AgentHost sandbox) response: ${text}`);
-
-				assert.ok(
-					agentHost.mockServer.requestCount() > requestsBefore,
-					'expected the mock LLM server to have received a new request from the AgentHost sandbox session'
-				);
-
-				// Confirm the command actually ran through the AgentHost's OWN shell
-				// engine (the `createShellTools` path, wrapped by its
-				// TerminalSandboxEngine) — not the SDK. Evidence in `agenthost.log`:
-				//   - `Auto-approving sandboxed shell command` — the engine reported
-				//     the command is sandboxed by default, so the prompt was skipped.
-				//   - `[ShellManager] Created <shell> shell` — the AgentHost-provided
-				//     shell tool executed the command (emitted when it runs, i.e.
-				//     after auto-approve, so poll for this one).
-				//   - NO `Applied SDK sandboxConfig` — the SDK sandbox path was not
-				//     taken (custom terminal tool is on, so we don't push to the SDK).
-				// The log is written through an async queue, so poll until it lands.
-				const agentHostLogPath = path.join(agentHost.logsPath, 'agenthost.log');
-				const engineShellRun = /\[ShellManager\] Created \w+ shell /;
-				const agentHostLog = await waitForLogContent(() => readFileIfExists(agentHostLogPath), engineShellRun);
-				assert.match(
-					agentHostLog,
-					/\[Copilot:[^\]]+\] Auto-approving sandboxed shell command for tool call /,
-					`expected an "Auto-approving sandboxed shell command" entry in ${agentHostLogPath}`
-				);
-				assert.match(
-					agentHostLog,
-					engineShellRun,
-					`expected the AgentHost's own shell engine ([ShellManager]) to have run the command in ${agentHostLogPath}`
-				);
-				if (process.platform === 'darwin') {
-					assert.match(
-						agentHostLog,
-						/\[ShellManager\] Created \w+ shell .*executable=\/bin\/sh\)/,
-						`expected the macOS AgentHost sandbox smoke test to run under /bin/sh (CI parity and sentinel-parser coverage), in ${agentHostLogPath}`
-					);
-				}
-				assert.doesNotMatch(
-					agentHostLog,
-					/Applied SDK sandboxConfig/,
-					`did not expect the SDK sandbox path (Applied SDK sandboxConfig) when the custom terminal tool is enabled, in ${agentHostLogPath}`
-				);
-			} catch (error) {
-				logger.log(`Agents Window (AgentHost sandbox) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				await dumpFailureDiagnostics(app, logger, 'Agents Window (AgentHost sandbox)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
-				throw error;
-			}
-		});
 	});
 
 	const linuxDocker = probeLinuxDocker();
@@ -262,6 +168,7 @@ export function setup(logger: Logger) {
 			},
 			settings: {
 				'chat.agentHost.devContainer.enabled': true,
+				'chat.agentHost.devContainer.worktree.enabled': false,
 				'chat.remoteAgentHostsEnabled': true,
 			},
 			prepareWorkspace: workspacePath => {

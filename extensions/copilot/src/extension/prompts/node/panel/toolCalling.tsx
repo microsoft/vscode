@@ -311,6 +311,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 						toolInvocationToken: props.toolInvocationToken,
 						tokenizationOptions,
 						chatRequestId: props.requestId,
+						chatSessionResource: promptContext.request?.sessionResource,
 						subAgentInvocationId,
 						// Split on `__vscode` so it's the chat stream id
 						// TODO @lramos15 - This is a gross hack

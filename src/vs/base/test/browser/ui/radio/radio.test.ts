@@ -30,7 +30,10 @@ suite('Radio', () => {
 			--vscode-spacing-size60: 6px;
 			--vscode-spacing-size240: 24px;
 			--vscode-strokeThickness: 1px;
+			--vscode-cornerRadius-small: 4px;
+			--vscode-cornerRadius-medium: 6px;
 			--vscode-fontSize-label2: 11px;
+			--vscode-fontWeight-regular: 400;
 			--vscode-fontWeight-semiBold: 600;
 		`;
 		return radio;
@@ -39,6 +42,62 @@ suite('Radio', () => {
 	async function nextFrame(radio: Radio): Promise<void> {
 		const targetWindow = getWindow(radio.domNode);
 		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+	}
+
+	for (const highContrast of [false, true]) {
+		test(`segmented controls share rounded rectangles and a neutral selected fill${highContrast ? ' in high contrast' : ''}`, async () => {
+			const radio = createRadio({ className: 'segmented', items: [{ text: 'Low' }, { text: 'Medium', isActive: true }, { text: 'High' }] });
+			radio.domNode.style.width = '240px';
+			radio.domNode.style.setProperty('--vscode-foreground', '#333333');
+			radio.domNode.style.setProperty('--vscode-radio-inactiveBorder', '#dddddd');
+			radio.domNode.style.setProperty('--vscode-radio-activeBorder', '#0000ff');
+			radio.domNode.style.setProperty('--vscode-radio-activeBackground', '#0000ff');
+			if (highContrast) {
+				radio.domNode.parentElement!.classList.add('hc-light');
+				radio.domNode.style.setProperty('--vscode-contrastBorder', '#444444');
+				radio.domNode.style.setProperty('--vscode-contrastActiveBorder', '#006bbd');
+			}
+			await nextFrame(radio);
+			const indicator = radio.domNode.querySelector<HTMLElement>('.monaco-radio-selection')!;
+			const targetWindow = getWindow(radio.domNode);
+			const groupStyle = targetWindow.getComputedStyle(radio.domNode);
+			const indicatorStyle = targetWindow.getComputedStyle(indicator);
+			const canvas = mainWindow.document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const context = canvas.getContext('2d');
+			assert.ok(context);
+			context.fillStyle = '#ffffff';
+			context.fillRect(0, 0, 1, 1);
+			context.fillStyle = indicatorStyle.backgroundColor;
+			context.fillRect(0, 0, 1, 1);
+			const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+			const selectedBounds = radio.optionElements[1].getBoundingClientRect();
+			const indicatorBounds = indicator.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				outline: { width: groupStyle.borderTopWidth, color: groupStyle.borderTopColor },
+				groupRadius: groupStyle.borderRadius,
+				segmentRadii: radio.optionElements.map(element => targetWindow.getComputedStyle(element).borderRadius),
+				indicatorRadius: indicatorStyle.borderRadius,
+				selectionBorder: indicatorStyle.borderTopColor,
+				selectionShadow: indicatorStyle.boxShadow,
+				neutralFill: red === green && green === blue && red > 51 && red < 255 && alpha === 255,
+				labelColors: radio.optionElements.map(element => targetWindow.getComputedStyle(element).color),
+				labelWeights: radio.optionElements.map(element => targetWindow.getComputedStyle(element).fontWeight),
+				aligned: Math.abs(selectedBounds.x - indicatorBounds.x) < 1 && Math.abs(selectedBounds.y - indicatorBounds.y) < 1,
+			}, {
+				outline: { width: '1px', color: highContrast ? 'rgb(68, 68, 68)' : 'rgb(221, 221, 221)' },
+				groupRadius: '6px',
+				segmentRadii: ['4px', '4px', '4px'],
+				indicatorRadius: '4px',
+				selectionBorder: highContrast ? 'rgb(0, 107, 189)' : 'rgba(0, 0, 0, 0)',
+				selectionShadow: 'none',
+				neutralFill: true,
+				labelColors: ['rgb(51, 51, 51)', 'rgb(51, 51, 51)', 'rgb(51, 51, 51)'],
+				labelWeights: ['400', '600', '400'],
+				aligned: true,
+			});
+		});
 	}
 
 	test('the decorative selection indicator follows unequal options and resizes without moving buttons', async () => {

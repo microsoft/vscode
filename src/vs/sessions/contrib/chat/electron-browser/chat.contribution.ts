@@ -5,7 +5,9 @@
 
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { raceCancellation } from '../../../../base/common/async.js';
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
@@ -17,37 +19,39 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
 import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
-import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
+import { ISessionsWindowOpenContext, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
-import { resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
+import { getAgentsWindowWorkspaceArgumentKind, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
+import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
 
-class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
+export class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.selectAgentsFolder';
 	private readonly _windowOpenTelemetry = this._register(new MutableDisposable<SessionsWindowOpenTelemetry>());
+	private readonly _workspaceSelectionTelemetry = this._register(new MutableDisposable<SessionsWorkspaceSelectionTelemetry>());
+	private readonly _openIntent = this._register(new MutableDisposable());
+	private readonly _workspaceHandoff: AgentsWindowWorkspaceHandoff;
 	private _didHandleInitialWindowOpen = false;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
 		@ILogService private readonly logService: ILogService,
@@ -59,24 +63,34 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
+			this._workspaceHandoff.cancel();
+			const cancellation = new CancellationTokenSource();
+			this._openIntent.value = toDisposable(() => cancellation.dispose(true));
 			const workspaceUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
 			const { folderUri, preferDevContainer } = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
 			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
 			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
+			const workspaceArgumentIsDefault = args[3] === true;
 			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
-			this._startWindowOpenTelemetry(source);
+			const telemetry = this._startWindowOpenTelemetry(source, {
+				workspaceArgumentKind: getAgentsWindowWorkspaceArgumentKind(workspaceUri),
+				hasSessionArgument: sessionResource !== undefined,
+				workspaceArgumentIsDefault,
+			});
 
-			this._handleOpenIntentAndCaptureInitialState(folderUri, sessionResource, preferDevContainer)
+			this._handleOpenIntentAndCaptureInitialState(folderUri, sessionResource, preferDevContainer, workspaceArgumentIsDefault, cancellation.token, telemetry)
 				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 		};
 		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
 		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
 	}
 
-	private _startWindowOpenTelemetry(source: AgentsWindowOpenSource): void {
+	private _startWindowOpenTelemetry(source: AgentsWindowOpenSource, context: ISessionsWindowOpenContext): SessionsWindowOpenTelemetry | undefined {
 		if (this._didHandleInitialWindowOpen) {
 			return;
 		}
@@ -89,23 +103,31 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 		this._windowOpenTelemetry.value = new SessionsWindowOpenTelemetry(
 			source,
+			context,
 			() => this.sessionsSetUpService.initialSignInDialogShown,
 			() => this._getWindowOpenViewState(),
 			this.telemetryService,
 			this.lifecycleService,
 		);
+		if (!context.hasSessionArgument) {
+			this._workspaceSelectionTelemetry.value = this.instantiationService.createInstance(SessionsWorkspaceSelectionTelemetry, source, context);
+		}
+		return this._windowOpenTelemetry.value;
 	}
 
-	private async _captureInitialWindowViewState(): Promise<void> {
+	private async _captureInitialWindowViewState(telemetry: SessionsWindowOpenTelemetry | undefined): Promise<void> {
 		await this.lifecycleService.when(LifecyclePhase.Eventually);
-		this._windowOpenTelemetry.value?.captureInitialViewState();
+		telemetry?.captureInitialViewState();
 	}
 
-	private async _handleOpenIntentAndCaptureInitialState(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean): Promise<void> {
+	private async _handleOpenIntentAndCaptureInitialState(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined): Promise<void> {
 		try {
-			await this.handleOpenIntent(folderUri, sessionResource, preferDevContainer);
+			await this.handleOpenIntent(folderUri, sessionResource, preferDevContainer, isDefault, token, telemetry);
+		} catch (error) {
+			telemetry?.recordWorkspaceHandoffState('error');
+			throw error;
 		} finally {
-			await this._captureInitialWindowViewState();
+			await this._captureInitialWindowViewState(telemetry);
 		}
 	}
 
@@ -116,42 +138,49 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 			return {
 				workspacePreselected: undefined,
 				workspacePreselectionSource: undefined,
+				viewKind: 'createdSession',
 			};
 		}
-		const composerSource = this.newSessionComposerService.activeComposer.get()?.workspacePreselectionSource;
+		const composer = this.newSessionComposerService.activeComposer.get();
+		const composerSource = composer?.workspacePreselectionSource;
 		const workspacePreselected = activeSession?.workspace.get() !== undefined
 			|| (composerSource !== undefined && composerSource !== NewSessionWorkspacePreselectionSource.None);
 		return {
 			workspacePreselected,
 			workspacePreselectionSource: composerSource
 				?? (workspacePreselected ? NewSessionWorkspacePreselectionSource.Unknown : NewSessionWorkspacePreselectionSource.None),
+			viewKind: composer ? 'newSession' : 'noComposer',
+			workspaceSelection: composer?.workspaceSelection,
 		};
 	}
 
-	private async handleOpenIntent(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean): Promise<void> {
+	private async handleOpenIntent(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean, isDefault: boolean, token: CancellationToken, telemetry: SessionsWindowOpenTelemetry | undefined): Promise<void> {
 		// Opening an existing session establishes its own workspace context, so
 		// the folder selection is only needed for the folder-only handoff (no
 		// session to restore).
 		if (sessionResource) {
-			await this.openExistingSession(sessionResource);
+			await this.openExistingSession(sessionResource, token);
 			return;
 		}
 		if (folderUri) {
-			await this.selectFolder(folderUri, preferDevContainer);
+			await this._workspaceHandoff.selectWorkspace({ folderUri, preferDevContainer, isDefault }, state => telemetry?.recordWorkspaceHandoffState(state));
 		}
 	}
 
-	private async openExistingSession(sessionResource: URI): Promise<void> {
+	private async openExistingSession(sessionResource: URI, token: CancellationToken): Promise<void> {
 		this.logService.info(`[AgentsHandoff] openExistingSession: target=${sessionResource.toString()}`);
 
 		// Wait until initial restore has started so opening the target can cancel it,
 		// without delaying the handoff until the intentionally deferred Eventually phase.
-		await this.lifecycleService.when(LifecyclePhase.Restored);
+		await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Restored');
 
 		const backendSession = parseOpenSessionLinkUri(sessionResource);
 		if (backendSession) {
-			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession));
+			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession, token));
 			return;
 		}
 
@@ -165,11 +194,14 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		// Show the sessions part's progress bar while we wait for the session to
 		// appear in the providers and open it, so the window doesn't just sit on
 		// its restored state until the target session pops in.
-		await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSession(sessionResource));
+		await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSession(sessionResource, token));
 	}
 
-	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI): Promise<void> {
-		const session = await this.waitForSessionLinkAvailable(backendSession);
+	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken): Promise<void> {
+		const session = await this.waitForSessionLinkAvailable(backendSession, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		if (!session) {
 			this.logService.warn('[AgentsHandoff] linked session never appeared in providers; aborting');
 			const externalLink = buildExternalOpenSessionLinkUri(
@@ -194,11 +226,17 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 		const chatId = parseOpenSessionLinkChatId(sessionLink);
 		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		if (token.isCancellationRequested) {
+			return;
+		}
 		this.logService.info(`[AgentsHandoff] linked session available; opening ${chatResource.toString()}`);
 		await this.sessionsService.openChat(session, chatResource, { source: 'link' });
 	}
 
-	private waitForSessionLinkAvailable(backendSession: URI, timeoutMs = 15_000): Promise<ReturnType<typeof findSessionForOpenSessionLink>> {
+	private waitForSessionLinkAvailable(backendSession: URI, token: CancellationToken, timeoutMs = 15_000): Promise<ReturnType<typeof findSessionForOpenSessionLink>> {
+		if (token.isCancellationRequested) {
+			return Promise.resolve(undefined);
+		}
 		const findSession = () => findSessionForOpenSessionLink(backendSession, this.sessionsManagementService, this.agentHostConnectionsService);
 		const existing = findSession();
 		if (existing) {
@@ -221,15 +259,19 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 			store.add({ dispose: () => clearTimeout(timer) });
 			store.add(this.sessionsManagementService.onDidChangeSessions(tryFind));
 			store.add(this.agentHostConnectionsService.onDidChangeSessionResolution(tryFind));
+			store.add(token.onCancellationRequested(() => done(undefined)));
 			tryFind();
 		});
 	}
 
-	private async resolveAndOpenSession(sessionResource: URI): Promise<void> {
+	private async resolveAndOpenSession(sessionResource: URI, token: CancellationToken): Promise<void> {
 		// The Copilot Chat Sessions Provider lists sessions asynchronously
 		// via an RPC; the target session may not yet be in the providers'
 		// `getSessions()` map. Poll until it shows up.
-		const found = await this.waitForSessionAvailable(sessionResource);
+		const found = await this.waitForSessionAvailable(sessionResource, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		if (!found) {
 			this.logService.warn(`[AgentsHandoff] target session never appeared in providers; aborting`);
 			return;
@@ -241,7 +283,10 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		await this.sessionsService.openSession(sessionResource, { source: 'chat' });
 	}
 
-	private async waitForSessionAvailable(sessionResource: URI, timeoutMs = 15_000): Promise<boolean> {
+	private async waitForSessionAvailable(sessionResource: URI, token: CancellationToken, timeoutMs = 15_000): Promise<boolean> {
+		if (token.isCancellationRequested) {
+			return false;
+		}
 		if (this.sessionsManagementService.getSession(sessionResource)) {
 			return true;
 		}
@@ -260,48 +305,10 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 					done(true);
 				}
 			}));
+			store.add(token.onCancellationRequested(() => done(false)));
 		});
 	}
 
-	private async selectFolder(folderUri: URI, preferDevContainer: boolean): Promise<void> {
-		// Wait for the welcome/setup flow to complete before selecting the folder
-		await this.sessionsSetUpService.whenWelcomeDone();
-
-		await this.sessionsService.openNewSession({ cancelRestore: true });
-
-		// Tell the sessions list this folder is the open-window source folder
-		// so it ranks the matching folder section first. Get the view if it
-		// already exists — do not open it just for this side-effect.
-		const sessionsView = this.viewsService.getViewWithId<SessionsView>(SessionsListViewId);
-		sessionsView?.sessionsControl?.setOpenWindowSourceFolder(folderUri);
-
-		if (this.tryResolveAndSelect(folderUri, preferDevContainer)) {
-			return;
-		}
-
-		// Provider not registered yet — wait for it, but give up at Eventually phase
-		const disposable = this.sessionsProvidersService.onDidChangeProviders(() => {
-			if (this.tryResolveAndSelect(folderUri, preferDevContainer)) {
-				disposable.dispose();
-			}
-		});
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => disposable.dispose());
-	}
-
-	private tryResolveAndSelect(folderUri: URI, preferDevContainer: boolean): boolean {
-		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
-		if (!resolved) {
-			return false;
-		}
-		const activeSession = this.sessionsService.activeSession.get();
-		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
-			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, {
-				providerId: resolved.providerId,
-				preferDevContainer,
-			});
-		}
-		return true;
-	}
 }
 
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);

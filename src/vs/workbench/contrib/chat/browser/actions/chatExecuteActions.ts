@@ -23,6 +23,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
@@ -585,11 +586,15 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						ChatContextKeys.chatSessionIsEmpty.negate(),
+						IsSessionsWindowContext.negate(),
 						ContextKeyExpr.or(
-							ChatContextKeyExprs.isAgentHostSessionItem,
+							ContextKeyExpr.and(
+								ChatContextKeyExprs.isAgentHostSessionItem,
+								AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY,
+							),
 							ContextKeyExpr.and(
 								ChatContextKeys.chatSessionSupportsDelegation,
-								IsSessionsWindowContext.negate(),
+								ChatContextKeyExprs.isAgentHostSessionItem?.negate(),
 							),
 						),
 					),
