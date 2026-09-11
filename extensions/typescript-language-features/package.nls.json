@@ -323,6 +323,7 @@
 	"configuration.updateImportsOnPaste": "Automatically update imports when pasting code. Requires TypeScript 5.6+.",
 	"configuration.updateImportsOnPaste.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.updateImportsOnPaste.enabled#` instead.",
 	"configuration.hover.maximumLength": "The maximum number of characters in a hover. If the hover is longer than this, it will be truncated. Requires TypeScript 5.9+.",
+	"configuration.folding.includeClosingBraces": "Controls whether the closing braces are included in the folding range.",
 	"walkthroughs.nodejsWelcome.title": "Get started with JavaScript and Node.js",
 	"walkthroughs.nodejsWelcome.description": "Make the most of Visual Studio Code's first-class JavaScript experience.",
 	"walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.title": "Install Node.js",
