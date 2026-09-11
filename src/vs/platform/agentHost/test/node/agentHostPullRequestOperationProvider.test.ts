@@ -26,6 +26,9 @@ import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRe
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import type { IChangesetOperationHandler } from '../../common/agentHostChangesetOperationService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
+import { createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
@@ -122,9 +125,98 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			nullGitStateService,
 			createStatusService(status, onDidChangePullRequestStatus),
 			configurationService,
+			createNullSessionDataService(),
 			new NullLogService(),
 		));
 	}
+
+	test('records a pull request created through the session action as an artifact', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: 'agent:/session',
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
+			workingDirectories: ['file:///repo'],
+		});
+		const database = new TestSessionDatabase();
+		const reference: ISessionArtifact = {
+			id: 'existing-reference',
+			type: SessionArtifactType.PullRequest,
+			label: 'Referenced PR',
+			isArtifact: false,
+			link: 'https://github.com/microsoft/vscode/pull/123',
+			isGitHub: true,
+		};
+		stateManager.setSessionMeta('agent:/session', withSessionArtifacts(undefined, [reference]));
+		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts([reference]));
+		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
+			stateManager,
+			disposables.add(new InstantiationService()),
+			nullGitStateService,
+			createStatusService(),
+			new class extends mock<IAgentConfigurationService>() { }(),
+			createSessionDataService(database),
+			new NullLogService(),
+		));
+
+		await contribution.recordCreatedPullRequest({
+			sessionKey: 'agent:/session',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/123',
+			pullRequestNumber: 123,
+			pullRequestTitle: 'Improve archive nudges',
+			branchName: 'feature/test',
+		});
+		await contribution.recordCreatedPullRequest({
+			sessionKey: 'agent:/session',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/124',
+			pullRequestNumber: 124,
+			branchName: 'feature/test',
+		});
+		await contribution.recordCreatedPullRequest({
+			sessionKey: 'agent:/session',
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/123',
+			pullRequestNumber: 123,
+			pullRequestTitle: 'Improve archive nudges',
+			branchName: 'feature/test',
+		});
+
+		const liveArtifacts = readSessionArtifacts(stateManager.getSessionState('agent:/session')?._meta);
+		const persistedArtifacts = parseSessionArtifacts(await database.getMetadata(SESSION_ARTIFACTS_KEY)).artifacts;
+		assert.deepStrictEqual({
+			live: liveArtifacts.map(({ id: _id, ...artifact }) => artifact),
+			persisted: persistedArtifacts.map(({ id: _id, ...artifact }) => artifact),
+		}, {
+			live: [{
+				type: SessionArtifactType.PullRequest,
+				label: '#123: Improve archive nudges',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/123',
+				isGitHub: true,
+			}, {
+				type: SessionArtifactType.PullRequest,
+				label: 'Pull Request #124',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/124',
+				isGitHub: true,
+			}],
+			persisted: [{
+				type: SessionArtifactType.PullRequest,
+				label: '#123: Improve archive nudges',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/123',
+				isGitHub: true,
+			}, {
+				type: SessionArtifactType.PullRequest,
+				label: 'Pull Request #124',
+				isArtifact: true,
+				link: 'https://github.com/microsoft/vscode/pull/124',
+				isGitHub: true,
+			}],
+		});
+	});
 
 	test('advertises PR operations for GitHub branches with uncommitted changes', () => {
 		const provider = createContribution();
