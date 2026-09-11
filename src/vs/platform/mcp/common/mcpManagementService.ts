@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput, McpServerConfigurationParseResult } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput, McpServerConfigurationParseResult, replaceMcpServerVariableReferences } from './mcpManagement.js';
 import { IMcpSandboxConfiguration, IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
@@ -73,19 +73,23 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 
 		// remote
 		if (packageType === RegistryType.REMOTE && manifest.remotes?.length) {
-			const url = manifest.remotes[0].url;
-			const headers = manifest.remotes[0].headers ?? [];
-			const { inputs, variables } = this.processKeyValueInputs(url.startsWith('https://api.githubcopilot.com/mcp') ? headers.filter(h => h.name.toLowerCase() !== 'authorization') : headers);
+			const remote = manifest.remotes[0];
+			const urlVariables = remote.variables ? this.getVariables(remote.variables) : [];
+			const url = replaceMcpServerVariableReferences(remote.url, remote.variables);
+			const headers = remote.headers ?? [];
+			const processedHeaders = this.processKeyValueInputs(url.startsWith('https://api.githubcopilot.com/mcp') ? headers.filter(h => h.name.toLowerCase() !== 'authorization') : headers);
+			const variables = [...urlVariables];
+			this.appendVariables(variables, processedHeaders.variables);
 			return {
 				mcpServerConfiguration: {
 					config: {
 						type: McpServerType.REMOTE,
-						url: manifest.remotes[0].url,
-						headers: Object.keys(inputs).length ? inputs : undefined,
+						url,
+						headers: Object.keys(processedHeaders.inputs).length ? processedHeaders.inputs : undefined,
 					},
 					inputs: variables.length ? variables : undefined,
 				},
-				notices: [],
+				notices: processedHeaders.notices,
 			};
 		}
 
@@ -193,6 +197,9 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 	protected getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
 		const variables: IMcpServerVariable[] = [];
 		for (const [key, value] of Object.entries(variableInputs)) {
+			if (value.value !== undefined) {
+				continue;
+			}
 			variables.push({
 				id: key,
 				type: value.choices ? McpServerVariableType.PICK : McpServerVariableType.PROMPT,
@@ -205,21 +212,29 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 		return variables;
 	}
 
+	private appendVariables(variables: IMcpServerVariable[], candidates: readonly IMcpServerVariable[]): void {
+		for (const candidate of candidates) {
+			const existing = variables.find(variable => variable.id === candidate.id);
+			if (!existing) {
+				variables.push(candidate);
+			} else if (!equals(existing, candidate)) {
+				throw new Error(localize('mcpVariableConflict', "Variable '{0}' has conflicting definitions.", candidate.id));
+			}
+		}
+	}
+
 	private processKeyValueInputs(keyValueInputs: ReadonlyArray<IMcpServerKeyValueInput>): { inputs: Record<string, string>; variables: IMcpServerVariable[]; notices: string[] } {
 		const notices: string[] = [];
 		const inputs: Record<string, string> = {};
 		const variables: IMcpServerVariable[] = [];
 
 		for (const input of keyValueInputs) {
-			const inputVariables = input.variables ? this.getVariables(input.variables) : [];
 			let value = input.value || '';
 
 			// If explicit variables exist, use them regardless of value
-			if (inputVariables.length) {
-				for (const variable of inputVariables) {
-					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-				}
-				variables.push(...inputVariables);
+			if (input.variables && Object.keys(input.variables).length) {
+				value = replaceMcpServerVariableReferences(value, input.variables);
+				variables.push(...this.getVariables(input.variables));
 			} else if (!value && (input.description || input.choices || input.default !== undefined)) {
 				// Only create auto-generated input variable if no explicit variables and no value
 				variables.push({
@@ -249,9 +264,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 			if (arg.type === 'positional') {
 				let value = arg.value;
 				if (value) {
-					for (const variable of argVariables) {
-						value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-					}
+					value = replaceMcpServerVariableReferences(value, arg.variables);
 					args.push(value);
 					if (argVariables.length) {
 						variables.push(...argVariables);
@@ -277,10 +290,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				}
 				args.push(arg.name);
 				if (arg.value) {
-					let value = arg.value;
-					for (const variable of argVariables) {
-						value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-					}
+					const value = replaceMcpServerVariableReferences(arg.value, arg.variables);
 					args.push(value);
 					if (argVariables.length) {
 						variables.push(...argVariables);
