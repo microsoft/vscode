@@ -84,6 +84,7 @@ export function setup(logger: Logger) {
 				registerScenario(AGENT_HOST_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_REPLY).build());
 				registerScenario(AGENT_HOST_REPLACEMENT_SCENARIO_ID, new ScenarioBuilder().emit(AGENT_HOST_REPLACEMENT_REPLY).build());
 			},
+			settings: {},
 		});
 
 		it('Replaces the new session UI with the in-progress AgentHost session', async function () {
