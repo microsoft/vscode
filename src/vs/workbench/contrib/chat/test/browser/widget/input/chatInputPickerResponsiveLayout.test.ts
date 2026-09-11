@@ -140,11 +140,22 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		await new Promise(resolve => setTimeout(resolve, 0));
 		const afterUnrelatedMutation = layoutCalls;
 
+		picker.setAttribute('data-picker-open', 'true');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const afterVisualStateMutation = layoutCalls;
+
 		picker.textContent = 'picker changed';
 		await new Promise(resolve => setTimeout(resolve, 0));
 
-		assert.strictEqual(afterUnrelatedMutation, 0);
-		assert.ok(layoutCalls > 0);
+		assert.deepStrictEqual({
+			afterUnrelatedMutation,
+			afterVisualStateMutation,
+			afterContentMutation: layoutCalls > 0,
+		}, {
+			afterUnrelatedMutation: 0,
+			afterVisualStateMutation: 0,
+			afterContentMutation: true,
+		});
 	});
 
 	test('restores overflowed actions in compact form before considering expanded labels', () => {

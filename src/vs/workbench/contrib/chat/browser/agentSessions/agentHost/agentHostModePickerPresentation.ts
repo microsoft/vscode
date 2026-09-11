@@ -50,25 +50,46 @@ export interface IModePickerTrigger extends IDisposable {
 	readonly permissionsButton: HTMLElement;
 }
 
+const MODE_SECTION_ID = 'agentHostModePicker.mode';
 const PERMISSIONS_SECTION_ID = 'agentHostModePicker.permissions';
+export const MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE = 'data-mode-permissions-picker-open';
 
-export function getModePermissionsPickerOptions(openPermissions = false): IActionListOptions {
+export function getModePermissionsPickerOptions(openPermissions = false, initialFocusItemId?: string): IActionListOptions {
 	return {
 		minWidth: 260,
 		anchorPosition: AnchorPosition.ABOVE,
 		useFullHeight: true,
 		widgetClassName: 'agent-host-mode-permissions-popup',
-		collapsedByDefault: openPermissions ? undefined : new Set([PERMISSIONS_SECTION_ID]),
-		initialFocusGroup: openPermissions ? PERMISSIONS_SECTION_ID : undefined,
+		collapsedByDefault: new Set([openPermissions ? MODE_SECTION_ID : PERMISSIONS_SECTION_ID]),
+		initialFocusItemId,
 		reserveSubmenuSpace: false,
 	};
 }
 
-export function createModePickerModeItems<T>(items: readonly IActionListItem<T>[], combined: boolean): IActionListItem<T>[] {
-	return combined ? [{
-		kind: ActionListItemKind.Header,
-		label: localize('agentHostModePicker.agentMode', "Agent mode"),
-	}, ...items.map(item => ({ ...item, focusGroup: 'agentHostModePicker.mode' }))] : [...items];
+export function createModePickerModeItems<T extends { readonly checked?: boolean }>(items: readonly IActionListItem<T>[], combined: boolean): IActionListItem<T | IAction>[] {
+	if (!combined) {
+		return [...items];
+	}
+	const label = localize('agentHostModePicker.agentMode', "Agent mode");
+	const currentMode = items.find(item => item.item?.checked)?.label;
+	return [{
+		kind: ActionListItemKind.Action,
+		label,
+		item: toAction({ id: MODE_SECTION_ID, label, run: () => { } }),
+		section: MODE_SECTION_ID,
+		isSectionToggle: true,
+		description: currentMode,
+		ariaDescription: currentMode
+			? localize('agentHostModePicker.currentMode', "Current mode: {0}", currentMode)
+			: undefined,
+		className: 'agent-host-mode-section',
+	}, ...items.map(item => ({
+		...item,
+		section: MODE_SECTION_ID,
+	})), {
+		kind: ActionListItemKind.Separator,
+		section: MODE_SECTION_ID,
+	}];
 }
 
 export function getModePermissionsPickerAccessibilityProvider<T extends { readonly checked?: boolean }>(combined: boolean): Partial<IListAccessibilityProvider<IActionListItem<T>>> {
@@ -182,7 +203,7 @@ export function getModePickerAriaLabel(mode: string, permissions: IModePickerPer
 }
 
 export function getModePickerAccessibilityHelp(): string {
-	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the mode menu, or on Permissions to expand its choices and focus the current permission option. Each section initially highlights its current selection. Hover or keyboard navigation moves that section's highlight without changing the selection until you activate a choice. The Permissions row expands its choices within the same menu. Press Enter or Space on the row to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Focus that row and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a permission level or toggle terminal sandboxing. Escape closes the picker and returns focus to the button that opened it.");
+	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the picker with Agent Mode expanded, or on Permissions to open it with Permissions expanded. Each section header shows its current selection, and the opened section initially focuses that selection. Press Enter or Space on a section header to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Hover or keyboard navigation moves the single row highlight without changing the selection until you activate a choice. Focus the Permissions header and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a mode, permission level, or terminal sandboxing. Escape closes the picker and returns focus to the button that opened it.");
 }
 
 function getPermissionLevelStyle(level: ChatPermissionLevel): string | undefined {
@@ -224,6 +245,5 @@ export function createModePickerPermissionsItems<T>(permissions: IModePickerPerm
 	}, ...items.map(item => ({
 		...item,
 		section: PERMISSIONS_SECTION_ID,
-		focusGroup: PERMISSIONS_SECTION_ID,
 	}))];
 }
