@@ -201,12 +201,12 @@ suite('WordWrapIndicatorOverlay', () => {
 	//   4: 'short'
 	//   5: 'ddddd ' (wrapped)  6: 'eeeee'
 	const WRAPPING_OPTIONS: IEditorOptions = { ...VIEWPORT_OPTIONS, wordWrap: 'wordWrapColumn', wordWrapColumn: 6 };
-	const INDICATOR_VIEWPORT_LEFT = 80;
+	const INDICATOR_LEFT = 60;
 
 	test('renders an indicator for every soft wrapped view line', () => {
 		assert.deepStrictEqual(
 			renderIndicators(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }),
-			[indicator(INDICATOR_VIEWPORT_LEFT), indicator(INDICATOR_VIEWPORT_LEFT), '', '', indicator(INDICATOR_VIEWPORT_LEFT), '']
+			[indicator(INDICATOR_LEFT), indicator(INDICATOR_LEFT), '', '', indicator(INDICATOR_LEFT), '']
 		);
 	});
 
@@ -250,29 +250,27 @@ suite('WordWrapIndicatorOverlay', () => {
 		);
 	});
 
-	test('positions the indicator at the right edge of the viewport', () => {
-		// 'aaa bb cccc' wraps into view lines of different lengths, but both indicators
-		// occupy the final character cell before the 10px vertical scrollbar.
+	test('positions the indicator at the wrapping column', () => {
 		assert.deepStrictEqual(
 			renderIndicators(['aaa bb cccc'], { ...VIEWPORT_OPTIONS, wordWrap: 'wordWrapColumn', wordWrapColumn: 5, wordWrapIndicator: true }),
-			[indicator(INDICATOR_VIEWPORT_LEFT), indicator(INDICATOR_VIEWPORT_LEFT), '']
+			[indicator(50), indicator(50), '']
 		);
 	});
 
 	test('renders an indicator when a word is broken mid token', () => {
 		assert.deepStrictEqual(
 			renderIndicators(['aaaaaaaaaa'], { ...VIEWPORT_OPTIONS, wordWrap: 'wordWrapColumn', wordWrapColumn: 5, wordWrapIndicator: true }),
-			[indicator(INDICATOR_VIEWPORT_LEFT), '']
+			[indicator(50), '']
 		);
 	});
 
-	test('keeps the indicator at the right edge while horizontally scrolled', () => {
+	test('keeps the indicator at the wrapping column while horizontally scrolled', () => {
 		withOverlay(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, ({ viewModel, render }) => {
 			viewModel.viewLayout.setMaxLineWidth(200);
 			viewModel.viewLayout.setScrollPosition({ scrollLeft: 20 }, ScrollType.Immediate);
 			assert.deepStrictEqual(
 				render(),
-				[indicator(INDICATOR_VIEWPORT_LEFT + 20), indicator(INDICATOR_VIEWPORT_LEFT + 20), '', '', indicator(INDICATOR_VIEWPORT_LEFT + 20), '']
+				[indicator(INDICATOR_LEFT), indicator(INDICATOR_LEFT), '', '', indicator(INDICATOR_LEFT), '']
 			);
 		});
 	});
@@ -289,7 +287,7 @@ suite('WordWrapIndicatorOverlay', () => {
 
 			viewModel.viewLayout.setMaxLineWidth(200);
 			viewModel.viewLayout.setScrollPosition({ scrollLeft: 50 }, ScrollType.Immediate);
-			assert.deepStrictEqual(render(), [indicator(INDICATOR_VIEWPORT_LEFT + 50), '']);
+			assert.deepStrictEqual(render(), [indicator(120), '']);
 		});
 	});
 
@@ -300,7 +298,7 @@ suite('WordWrapIndicatorOverlay', () => {
 			renderIndicators(WRAPPED_TEXT, { ...WRAPPING_OPTIONS, wordWrapIndicator: true }, {
 				viewport: { startLineNumber: 2, endLineNumber: 4 }
 			}),
-			['', indicator(INDICATOR_VIEWPORT_LEFT), '', '', '', '']
+			['', indicator(INDICATOR_LEFT), '', '', '', '']
 		);
 	});
 
@@ -323,7 +321,7 @@ suite('WordWrapIndicatorOverlay', () => {
 					}]);
 				}
 			}),
-			[indicator(INDICATOR_VIEWPORT_LEFT, 2 * LINE_HEIGHT), indicator(INDICATOR_VIEWPORT_LEFT, 2 * LINE_HEIGHT), '', '', indicator(INDICATOR_VIEWPORT_LEFT), '']
+			[indicator(INDICATOR_LEFT, 2 * LINE_HEIGHT), indicator(INDICATOR_LEFT, 2 * LINE_HEIGHT), '', '', indicator(INDICATOR_LEFT), '']
 		);
 	});
 
@@ -340,7 +338,7 @@ suite('WordWrapIndicatorOverlay', () => {
 				onTokensChanged: false,
 				onZonesChanged: true,
 				onScrolledVertically: true,
-				onScrolledHorizontally: true
+				onScrolledHorizontally: false
 			}
 		);
 	});
@@ -399,7 +397,7 @@ suite('WordWrapIndicatorOverlay', () => {
 					initiallyDisabled: ['', '', '', '', '', ''],
 					enabled: {
 						invalidated: true,
-						output: [indicator(INDICATOR_VIEWPORT_LEFT), indicator(INDICATOR_VIEWPORT_LEFT), '', '', indicator(INDICATOR_VIEWPORT_LEFT), '']
+						output: [indicator(INDICATOR_LEFT), indicator(INDICATOR_LEFT), '', '', indicator(INDICATOR_LEFT), '']
 					},
 					disabled: {
 						invalidated: true,
@@ -407,7 +405,7 @@ suite('WordWrapIndicatorOverlay', () => {
 					},
 					reEnabled: {
 						invalidated: true,
-						output: [indicator(INDICATOR_VIEWPORT_LEFT), indicator(INDICATOR_VIEWPORT_LEFT), '', '', indicator(INDICATOR_VIEWPORT_LEFT), '']
+						output: [indicator(INDICATOR_LEFT), indicator(INDICATOR_LEFT), '', '', indicator(INDICATOR_LEFT), '']
 					}
 				}
 			);
@@ -425,7 +423,6 @@ suite('WordWrapIndicatorOverlay', () => {
 				indicatorTurnedOffAndOn: configurationChangesInvalidate(options, [{ wordWrapIndicator: false }, { wordWrapIndicator: true }]),
 				wrappingTurnedOffAndOn: configurationChangesInvalidate(options, [{ wordWrap: 'off' }, WRAPPING_OPTIONS]),
 				wrappingColumnChanged: configurationChangeInvalidates(options, { wordWrapColumn: 7 }),
-				// A layout change can move the right edge of the viewport.
 				layoutChanged: configurationChangeInvalidates(options, { lineNumbers: 'off' }),
 				unrelatedChange: configurationChangeInvalidates(options, { cursorBlinking: 'solid' })
 			},
@@ -437,7 +434,7 @@ suite('WordWrapIndicatorOverlay', () => {
 				indicatorTurnedOffAndOn: [true, true],
 				wrappingTurnedOffAndOn: [true, true],
 				wrappingColumnChanged: true,
-				layoutChanged: true,
+				layoutChanged: false,
 				unrelatedChange: false
 			}
 		);

@@ -342,7 +342,7 @@ export interface IEditorOptions {
 	 */
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
-	 * Control whether an indicator is rendered at the right edge of soft wrapped lines.
+	 * Control whether an indicator is rendered at the wrapping column of soft wrapped lines.
 	 * Defaults to false.
 	 */
 	wordWrapIndicator?: boolean;
@@ -6880,7 +6880,7 @@ export const EditorOptions = {
 			markdownDescription: nls.localize({
 				key: 'wordWrapIndicator',
 				comment: []
-			}, "Controls whether an indicator is rendered at the right edge of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
+			}, "Controls whether an indicator is rendered at the wrapping column of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
 		}
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(

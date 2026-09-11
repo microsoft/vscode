@@ -3497,7 +3497,7 @@ declare namespace monaco.editor {
 		 */
 		wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 		/**
-		 * Control whether an indicator is rendered at the right edge of soft wrapped lines.
+		 * Control whether an indicator is rendered at the wrapping column of soft wrapped lines.
 		 * Defaults to false.
 		 */
 		wordWrapIndicator?: boolean;

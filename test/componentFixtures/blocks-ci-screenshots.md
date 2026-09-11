@@ -265,13 +265,13 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a29cfc0bf4510b57c82d9eae0d974babe7035042456326be861308cae609a1b5)
 
 #### editor/wordWrapIndicator/WordWrapIndicator/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/471a5f842a698ec04322549274596e648fa5536992f5a7ec77ebb159400b1db0)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e28f33128eefd85e150423a83373343f4474b8ea21fa23d00a8b020bfb16ccc6)
 
 #### editor/wordWrapIndicator/WordWrapIndicator/DarkHighContrast
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/799849a20645cac509474cf898ae5cf5350ea6d084c0d70e73d0d7beb8f9dfa3)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/061be8eff7e5b4cf103417025371af0357020cc92e6fc4c392604d45323bccb5)
 
 #### editor/wordWrapIndicator/WordWrapIndicator/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/4eb16a782eccaca8da66f155c4098f548b8b4dd78b71625f41a12a252feef94b)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3579949877d0fa64f6edd34fb8a04de1c3d6dac19366d7649711f450b1318150)
 
 #### editor/wordWrapIndicator/WordWrapIndicatorDisabled/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/365c5179dca2fdc1a9e6e4d54b4182d9a1139043a4263da689221dc21bf6e777)
@@ -286,10 +286,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/44a44a161770ed83c0d9e6214175f1153fe44938942ed85c722fc2d1858cac07)
 
 #### editor/wordWrapIndicator/WordWrapIndicatorVariableLineHeight/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/4bea888e8ddca897be942c3e6b1ad1c1133d1c69b767653315a15616a949d5e1)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/501281f27e13f23587a77ae9874fc04dce8258d6b95cc65cdc916f050a7d2be8)
 
 #### editor/wordWrapIndicator/WordWrapIndicatorVariableLineHeight/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/c69d1c163cfe0a8ea5aa87f0e2c7a62a9b5f539e709dd7f019710e605c2adfe9)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/87a7f03a5687c1921fdac3647c6a1c8f2597a58e67706fbb33fccddc7a2c6a29)
 
 #### editor/wordWrapIndicator/WordWrapIndicatorViewportWrapping/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/0a3931c75b30eb758e716cf56b1788fe1c9c91d4f2327876bc403c1ca6072c73)

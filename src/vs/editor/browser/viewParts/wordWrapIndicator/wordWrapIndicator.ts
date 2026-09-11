@@ -17,8 +17,8 @@ import { IEditorConfiguration } from '../../../common/config/editorConfiguration
 const WORD_WRAP_INDICATOR_CHAR_CODE = 0x21A9;
 
 /**
- * The word wrap indicator overlay renders a small glyph at the right edge of every view line
- * which is soft wrapped, so that a wrapped line can be told apart from a real line break.
+ * The word wrap indicator overlay renders a small glyph at the wrapping column of every view
+ * line which is soft wrapped, so that a wrapped line can be told apart from a real line break.
  */
 export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 
@@ -77,7 +77,7 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 		return this._isEnabled;
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return this._isEnabled && (e.scrollTopChanged || e.scrollLeftChanged);
+		return this._isEnabled && e.scrollTopChanged;
 	}
 	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
@@ -99,21 +99,13 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 		}
 	}
 
-	/**
-	 * Renders the glyph for `lineNumber`, anchored at the right edge of the viewport once that
-	 * position is past the wrapping column.
-	 */
 	private _renderLine(ctx: RenderingContext, lineNumber: number): string {
 		if (!ctx.viewportData.getViewLineContinuesWithWrappedLine(lineNumber)) {
 			// The line ends with a real line break, or is the last line of the model.
 			return '';
 		}
-		const left = Math.max(
-			ctx.scrollLeft + this._options.indicatorViewportLeft,
-			this._options.indicatorWrappingColumnLeft
-		);
 		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
-		return `<div class="wwi" style="left:${left}px;height:${lineHeight}px;">${String.fromCharCode(WORD_WRAP_INDICATOR_CHAR_CODE)}</div>`;
+		return `<div class="wwi" style="left:${this._options.indicatorLeft}px;height:${lineHeight}px;">${String.fromCharCode(WORD_WRAP_INDICATOR_CHAR_CODE)}</div>`;
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {
@@ -135,26 +127,22 @@ export class WordWrapIndicatorOverlay extends DynamicViewOverlay {
 class WordWrapIndicatorOptions {
 	public readonly wordWrapIndicator: boolean;
 	public readonly isWrapping: boolean;
-	public readonly indicatorViewportLeft: number;
-	public readonly indicatorWrappingColumnLeft: number;
+	public readonly indicatorLeft: number;
 
 	constructor(config: IEditorConfiguration) {
 		const options = config.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const wrappingColumn = options.get(EditorOption.wrappingInfo).wrappingColumn;
 		this.wordWrapIndicator = options.get(EditorOption.wordWrapIndicator);
 		this.isWrapping = wrappingColumn !== -1;
-		this.indicatorViewportLeft = Math.max(0, layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth - fontInfo.typicalHalfwidthCharacterWidth);
-		this.indicatorWrappingColumnLeft = wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth;
+		this.indicatorLeft = wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth;
 	}
 
 	public equals(other: WordWrapIndicatorOptions): boolean {
 		return (
 			this.wordWrapIndicator === other.wordWrapIndicator
 			&& this.isWrapping === other.isWrapping
-			&& this.indicatorViewportLeft === other.indicatorViewportLeft
-			&& this.indicatorWrappingColumnLeft === other.indicatorWrappingColumnLeft
+			&& this.indicatorLeft === other.indicatorLeft
 		);
 	}
 }
