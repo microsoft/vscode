@@ -389,19 +389,157 @@ suite('GitHubPRFetcher', () => {
 		assert.deepStrictEqual(mockApi.graphqlCalls[0].variables, { threadId: 'thread-a' });
 	});
 
+	test('postPullRequestReviewComment sends a line comment against the head commit', async () => {
+		mockApi.setNextResponse({
+			id: 1,
+			node_id: 'PRR_review',
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'COMMENTED',
+			submitted_at: '2024-01-01T00:00:00Z',
+		});
+
+		await fetcher.postPullRequestReviewComment('owner', 'repo', 1, 'Please update this.', 'abc123', 'src/a.ts', 12);
+
+		assert.deepStrictEqual(mockApi.requestCalls, [{
+			method: 'POST',
+			path: '/repos/owner/repo/pulls/1/reviews',
+			body: {
+				commit_id: 'abc123',
+				comments: [{
+					body: 'Please update this.',
+					path: 'src/a.ts',
+					line: 12,
+					side: 'RIGHT',
+				}],
+			},
+		}]);
+	});
+
+	test('postPullRequestReviewComment adds to an existing pending review without submitting it', async () => {
+		mockApi.setNextResponse({
+			addPullRequestReviewThread: { thread: { id: 'thread-a' } },
+			id: 1,
+			node_id: 'PRR_review',
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'COMMENTED',
+			submitted_at: '2024-01-01T00:00:00Z',
+		});
+
+		await fetcher.postPullRequestReviewComment(
+			'owner',
+			'repo',
+			1,
+			'Please update this.',
+			'abc123',
+			'src/a.ts',
+			12,
+			{ id: 42, nodeId: 'PRR_pending' },
+		);
+
+		assert.deepStrictEqual({
+			graphql: mockApi.graphqlCalls.map(call => call.variables),
+			requests: mockApi.requestCalls,
+		}, {
+			graphql: [{
+				reviewId: 'PRR_pending',
+				body: 'Please update this.',
+				path: 'src/a.ts',
+				line: 12,
+			}],
+			requests: [],
+		});
+	});
+
 	test('getReviews maps API response', async () => {
 		mockApi.setNextResponse([
-			{ id: 1, user: { login: 'reviewer', avatar_url: '' }, state: 'APPROVED', submitted_at: '2024-01-01T00:00:00Z' },
-			{ id: 2, user: { login: 'other', avatar_url: '' }, state: 'CHANGES_REQUESTED', submitted_at: '2024-01-02T00:00:00Z' },
+			{ id: 1, node_id: 'PRR_1', user: { login: 'reviewer', avatar_url: '' }, state: 'APPROVED', submitted_at: '2024-01-01T00:00:00Z' },
+			{ id: 2, node_id: 'PRR_2', user: { login: 'other', avatar_url: '' }, state: 'CHANGES_REQUESTED', submitted_at: '2024-01-02T00:00:00Z' },
 		]);
 
 		const reviews = await fetcher.getReviews('owner', 'repo', 1);
 		assert.deepStrictEqual(reviews.data, [
-			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
-			{ id: 2, author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
+			{ id: 1, nodeId: 'PRR_1', author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
+			{ id: 2, nodeId: 'PRR_2', author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
 		]);
 		assert.strictEqual(mockApi.requestCalls.length, 1);
-		assert.strictEqual(mockApi.requestCalls[0].path, '/repos/owner/repo/pulls/1/reviews');
+		assert.strictEqual(mockApi.requestCalls[0].path, '/repos/owner/repo/pulls/1/reviews?per_page=100&page=1');
+	});
+
+	test('getReviews loads pending reviews after the first page', async () => {
+		const firstPage = Array.from({ length: 100 }, (_, index) => ({
+			id: index + 1,
+			node_id: `PRR_${index + 1}`,
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'COMMENTED',
+			submitted_at: '2024-01-01T00:00:00Z',
+		}));
+		mockApi.setResponses(firstPage, [{
+			id: 101,
+			node_id: 'PRR_pending',
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'PENDING',
+			submitted_at: null,
+		}]);
+
+		const reviews = await fetcher.getReviews('owner', 'repo', 1);
+
+		assert.deepStrictEqual({
+			count: reviews.data?.length,
+			pending: reviews.data?.find(review => review.state === 'PENDING'),
+			paths: mockApi.requestCalls.map(call => call.path),
+		}, {
+			count: 101,
+			pending: {
+				id: 101,
+				nodeId: 'PRR_pending',
+				author: { login: 'reviewer', avatarUrl: '' },
+				state: 'PENDING',
+				submittedAt: undefined,
+			},
+			paths: [
+				'/repos/owner/repo/pulls/1/reviews?per_page=100&page=1',
+				'/repos/owner/repo/pulls/1/reviews?per_page=100&page=2',
+			],
+		});
+	});
+
+	test('getChangedFiles loads files after the first page', async () => {
+		const firstPage = Array.from({ length: 100 }, (_, index) => ({
+			filename: `src/file-${index}.ts`,
+			status: 'modified',
+			additions: 1,
+			deletions: 1,
+		}));
+		mockApi.setResponses(firstPage, [{
+			filename: 'src/target.ts',
+			previous_filename: 'src/old-target.ts',
+			status: 'renamed',
+			additions: 2,
+			deletions: 1,
+			patch: '@@ -1 +1 @@\n-old\n+new',
+		}]);
+
+		const files = await fetcher.getChangedFiles('owner', 'repo', 1);
+
+		assert.deepStrictEqual({
+			count: files.length,
+			target: files.at(-1),
+			paths: mockApi.requestCalls.map(call => call.path),
+		}, {
+			count: 101,
+			target: {
+				filename: 'src/target.ts',
+				previous_filename: 'src/old-target.ts',
+				status: 'renamed',
+				additions: 2,
+				deletions: 1,
+				patch: '@@ -1 +1 @@\n-old\n+new',
+			},
+			paths: [
+				'/repos/owner/repo/pulls/1/files?per_page=100&page=1',
+				'/repos/owner/repo/pulls/1/files?per_page=100&page=2',
+			],
+		});
 	});
 
 	test('computeMergeability detects draft blocker', () => {
@@ -421,7 +559,7 @@ suite('GitHubPRFetcher', () => {
 	test('computeMergeability detects changes requested blocker', () => {
 		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: false, mergeable: true, mergeableState: 'clean' });
 		const reviews: IGitHubPullRequestReview[] = [
-			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z' },
+			{ id: 1, nodeId: 'PRR_1', author: { login: 'reviewer', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z' },
 		];
 		const result = computeMergeability(pr, reviews);
 		assert.strictEqual(result.canMerge, false);

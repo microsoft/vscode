@@ -117,6 +117,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
 import { applyFixtureFocus, createFixtureUserInteractionService } from './fixtureFocus.js';
+import { registerFixtureLanguages, registerFixtureSyntaxHighlighting } from './fixtureSyntaxHighlighting.js';
 
 export { applyFixtureFocus, createFixtureUserInteractionService };
 
@@ -645,7 +646,9 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	define(INotificationService, TestNotificationService);
 	define(IDialogService, TestDialogService);
 	define(IUndoRedoService, UndoRedoService);
-	define(ILanguageService, LanguageService);
+	const languageService = disposables.add(new LanguageService());
+	registerFixtureLanguages(disposables, languageService);
+	defineInstance(ILanguageService, languageService);
 	define(ILanguageConfigurationService, TestLanguageConfigurationService);
 	define(IConfigurationService, TestConfigurationService);
 	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
@@ -753,6 +756,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		isAgentHostSession: () => false,
 		showFeedbackInEditor: () => { },
 		hideFeedbackInEditor: () => { },
 		getVisibleResolvedFeedbackIds: () => new Set(),
@@ -935,7 +939,9 @@ export function createTextModel(
 	const modelService = instantiationService.get(IModelService);
 	const languageService = instantiationService.get(ILanguageService);
 	const languageSelection = languageId ? languageService.createById(languageId) : null;
-	return modelService.createModel(text, languageSelection, uri);
+	const model = modelService.createModel(text, languageSelection, uri);
+	model.tokenization.forceTokenization(model.getLineCount());
+	return model;
 }
 
 
@@ -1133,7 +1139,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 							await p.run({
 								until: untilTime(clock.now + teardownDrainMs),
 								maxEvents: 1000,
-								maxTraceDepth: 5,
 							});
 						} catch (e) {
 							console.error(`[ComponentFixture] error draining virtual time during teardown: ${e instanceof Error ? e.stack : e}`);
@@ -1154,7 +1159,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			});
 
 			async function actualRender() {
-				const fileIconTheme = await setupTheme(container, theme, options.fileIconTheme, fixtureHost);
+				const [fileIconTheme] = await Promise.all([
+					setupTheme(container, theme, options.fileIconTheme, fixtureHost),
+					ensureThemeLoaded(darkTheme),
+				]);
+				await registerFixtureSyntaxHighlighting(disposableStore, fixtureHost, darkTheme, theme);
 
 				const stylesheetOrderOverride = disposableStore.add(new MutableDisposable<IDisposable>());
 				const updateStylesheetOrder = (input: unknown) => {
@@ -1212,7 +1221,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						? p.run({
 							until: untilTime(clock.now + (options.virtualTime?.durationMs ?? 1000)),
 							maxEvents: 200,
-							maxTraceDepth: 5,
 						})
 						: Promise.resolve();
 
