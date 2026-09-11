@@ -884,7 +884,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 								}
 							}));
 						}
-					}, action, getSessionArchiveActionViewItemOptions(options, this.configurationService) ?? options);
+					}, action, getSessionArchiveActionViewItemOptions(options, this.configurationService));
 				},
 			}));
 		}
