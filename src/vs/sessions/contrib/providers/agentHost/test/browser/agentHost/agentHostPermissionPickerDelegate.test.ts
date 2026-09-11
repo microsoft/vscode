@@ -125,6 +125,7 @@ interface ITestRig {
 	readonly setCustomTerminalToolEnabled: (enabled: boolean) => void;
 	readonly setManagedSandboxEnforced: (enforced: boolean) => void;
 	readonly setConnection: (connection: IAgentConnection | undefined) => void;
+	readonly fireConnectionChange: () => void;
 	readonly diagnosticsRequests: () => number;
 	readonly logErrors: readonly (string | Error)[];
 }
@@ -204,6 +205,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 			connection = value;
 			connectionsChanged.fire();
 		},
+		fireConnectionChange: () => connectionsChanged.fire(),
 		diagnosticsRequests: () => diagnosticsRequests,
 		logErrors,
 	};
@@ -269,7 +271,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		assert.deepStrictEqual(settings, [getAgentHostCopilotSandboxSettingId(true), getAgentHostCopilotSandboxSettingId(true), undefined]);
 	});
 
-	test('logs a failed host OS lookup without retrying on session changes', async () => {
+	test('logs a failed host OS lookup and retries when returning to the session', async () => {
 		const { delegate, activeSessionObs, diagnosticsRequests, logErrors } = setup(store, makeActiveSession(), 'default', async () => {
 			throw new Error('Host diagnostics unavailable');
 		});
@@ -282,7 +284,57 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			resolving: delegate.isResolving.get(),
 			requests: diagnosticsRequests(),
 			errors: logErrors.length,
-		}, { setting: undefined, resolving: false, requests: 1, errors: 2 });
+		}, { setting: undefined, resolving: false, requests: 2, errors: 2 });
+	});
+
+	test('retries a failed host OS lookup when the same connection recovers', async () => {
+		let available = false;
+		const { delegate, fireConnectionChange, diagnosticsRequests, logErrors } = setup(store, makeActiveSession(), 'default', async () => {
+			if (!available) {
+				throw new Error('Host diagnostics unavailable');
+			}
+			return { version: '1', os: 'win32', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+		});
+		await timeout(0);
+		const before = delegate.getSandboxToggleSettingId();
+		available = true;
+		fireConnectionChange();
+		await timeout(0);
+		fireConnectionChange();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			before,
+			setting: delegate.getSandboxToggleSettingId(),
+			requests: diagnosticsRequests(),
+			errors: logErrors.length,
+		}, { before: undefined, setting: getAgentHostCopilotSandboxSettingId(true), requests: 2, errors: 1 });
+	});
+
+	test('shares recovery lookups when connection recovery precedes an in-flight rejection', async () => {
+		const interrupted = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+		const recovered = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+		let available = false;
+		const { delegate, instantiationService, activeSessionObs, fireConnectionChange, diagnosticsRequests, logErrors } = setup(store, makeActiveSession(), 'default', () => available ? recovered.p : interrupted.p);
+		const secondDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
+		available = true;
+		fireConnectionChange();
+		fireConnectionChange();
+		await interrupted.error(new Error('Host reconnecting'));
+		await timeout(0);
+		fireConnectionChange();
+		await recovered.complete({ version: '1', os: 'win32', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			settings: [delegate.getSandboxToggleSettingId(), secondDelegate.getSandboxToggleSettingId()],
+			requests: diagnosticsRequests(),
+			errors: logErrors.length,
+		}, {
+			settings: [getAgentHostCopilotSandboxSettingId(true), getAgentHostCopilotSandboxSettingId(true)],
+			requests: 2,
+			errors: 2,
+		});
 	});
 
 	test('ignores host OS results after disposal', async () => {
@@ -293,6 +345,28 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		await timeout(0);
 		assert.strictEqual(delegate.getSandboxToggleSettingId(), undefined);
 	});
+
+	for (const dispose of [false, true]) {
+		test(`does not retry an interrupted lookup after ${dispose ? 'disposal' : 'disconnection'}`, async () => {
+			const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+			const { delegate, fireConnectionChange, setConnection, diagnosticsRequests } = setup(store, makeActiveSession(), 'default', () => pending.p);
+			fireConnectionChange();
+			if (dispose) {
+				delegate.dispose();
+			} else {
+				setConnection(undefined);
+			}
+			await pending.error(new Error('Host reconnecting'));
+			await timeout(0);
+			fireConnectionChange();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				setting: delegate.getSandboxToggleSettingId(),
+				requests: diagnosticsRequests(),
+			}, { setting: undefined, requests: 1 });
+		});
+	}
 
 	test('does not request the host OS until a Copilot sandbox configuration is available', async () => {
 		const { delegate, provider, activeSessionObs, diagnosticsRequests } = setup(store, makeActiveSession('claude'), 'default');

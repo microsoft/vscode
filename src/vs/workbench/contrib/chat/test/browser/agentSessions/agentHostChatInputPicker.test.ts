@@ -147,10 +147,12 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const settingsRequests: IOpenSettingsOptions[] = [];
 		const hoverTargets: HTMLElement[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
+		const onAgentHostStart = store.add(new Emitter<void>());
 		let diagnosticsRequests = 0;
 		const logErrors: (string | Error)[] = [];
 		instantiationService.stub(ILogService, { error: message => logErrors.push(message) });
 		instantiationService.stub(IAgentHostService, {
+			onAgentHostStart: onAgentHostStart.event,
 			getNetworkDiagnosticsInfo: () => {
 				diagnosticsRequests++;
 				return getHostInfo();
@@ -197,7 +199,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		modePicker.render(modeContainer);
 		permissionPicker.render(permissionContainer);
 		const sandboxReady = () => Promise.all([modePicker['_hostOperatingSystemRequest'], permissionPicker['_hostOperatingSystemRequest']]);
-		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, dispatches, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, logErrors, diagnosticsRequests: () => diagnosticsRequests };
+		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, dispatches, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
 
 	test('uses one shared tooltip for the combined label', () => {
@@ -241,15 +243,15 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	}
 
-	test('uses the non-Windows setting after a failed host OS lookup without retrying', async () => {
+	test('does not retry a failed host OS lookup just by rendering or opening the picker', async () => {
 		const { modePicker, permissionPicker, configuration, actionWidget, sandboxReady, diagnosticsRequests, logErrors } = setup(true, async () => {
 			throw new Error('Host diagnostics unavailable');
 		});
+		permissionPicker['_getSandboxSettingId']();
+		await sandboxReady();
 		const fallbackSettingId = getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false)!;
 		await configuration.setUserConfiguration(fallbackSettingId, 'on');
 		await configuration.setUserConfiguration(getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true)!, 'off');
-		permissionPicker['_getSandboxSettingId']();
-		await sandboxReady();
 		await modePicker['_showPicker'](document.createElement('div'));
 		assert.deepStrictEqual({
 			settings: [modePicker['_getSandboxSettingId'](), permissionPicker['_getSandboxSettingId']()],
@@ -258,6 +260,60 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			requests: diagnosticsRequests(),
 			errors: logErrors.length,
 		}, { settings: [fallbackSettingId, fallbackSettingId], checked: true, menuOpen: true, requests: 1, errors: 2 });
+	});
+
+	test('retries a failed host OS lookup when the ambient host recovers', async () => {
+		let available = false;
+		const { modePicker, permissionPicker, modeContainer, configuration, actionWidget, sandboxReady, fireHostStart, diagnosticsRequests, logErrors } = setup(true, async () => {
+			if (!available) {
+				throw new Error('Host diagnostics unavailable');
+			}
+			return { version: '1', os: 'win32', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+		});
+		permissionPicker['_getSandboxSettingId']();
+		await sandboxReady();
+		await configuration.setUserConfiguration(getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, false)!, 'off');
+		await configuration.setUserConfiguration(getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true)!, 'on');
+		await modePicker['_showPicker'](document.createElement('div'));
+		available = true;
+		fireHostStart();
+		await timeout(0);
+		await sandboxReady();
+		fireHostStart();
+		await timeout(0);
+		const setting = getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true);
+
+		assert.deepStrictEqual({
+			settings: [modePicker['_getSandboxSettingId'](), permissionPicker['_getSandboxSettingId']()],
+			shield: !!modeContainer.querySelector('.agent-host-mode-sandbox-icon'),
+			menuOpen: actionWidget.isVisible,
+			requests: diagnosticsRequests(),
+			errors: logErrors.length,
+		}, { settings: [setting, setting], shield: true, menuOpen: false, requests: 2, errors: 2 });
+	});
+
+	test('shares recovery lookups when host start precedes an in-flight rejection', async () => {
+		const interrupted = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+		const recovered = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+		let available = false;
+		const { modePicker, permissionPicker, sandboxReady, fireHostStart, diagnosticsRequests, logErrors } = setup(true, () => available ? recovered.p : interrupted.p);
+		permissionPicker['_getSandboxSettingId']();
+		available = true;
+		fireHostStart();
+		fireHostStart();
+		await interrupted.error(new Error('Host reconnecting'));
+		await timeout(0);
+		fireHostStart();
+		await recovered.complete({ version: '1', os: 'win32', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] });
+		await timeout(0);
+		await sandboxReady();
+		const setting = getAgentHostSandboxSettingId(SessionType.AgentHostCopilot, true);
+
+		assert.deepStrictEqual({
+			settings: [modePicker['_getSandboxSettingId'](), permissionPicker['_getSandboxSettingId']()],
+			requests: diagnosticsRequests(),
+			errors: logErrors.length,
+		}, { settings: [setting, setting], requests: 2, errors: 2 });
 	});
 
 	test('ignores host OS results after the pickers are disposed', async () => {
@@ -269,6 +325,24 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		await pending.complete({ version: '1', os: 'win32', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] });
 		await sandboxReady();
 		assert.deepStrictEqual([modePicker['_hostOperatingSystem'], permissionPicker['_hostOperatingSystem']], [undefined, undefined]);
+	});
+
+	test('does not retry an interrupted lookup after the pickers are disposed', async () => {
+		const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+		const { modePicker, permissionPicker, sandboxReady, fireHostStart, diagnosticsRequests } = setup(true, () => pending.p);
+		permissionPicker['_getSandboxSettingId']();
+		fireHostStart();
+		modePicker.dispose();
+		permissionPicker.dispose();
+		await pending.error(new Error('Host reconnecting'));
+		await sandboxReady();
+		fireHostStart();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			systems: [modePicker['_hostOperatingSystem'], permissionPicker['_hostOperatingSystem']],
+			requests: diagnosticsRequests(),
+		}, { systems: [undefined, undefined], requests: 1 });
 	});
 
 	test('caches the host OS without disturbing a different harness after a session switch', async () => {
@@ -832,6 +906,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			widget,
 			SessionConfigKey.AutoApprove,
 			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
 				override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 					return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
 				}

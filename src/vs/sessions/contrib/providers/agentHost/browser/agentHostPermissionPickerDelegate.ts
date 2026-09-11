@@ -60,6 +60,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	private readonly _providerSubscriptions = this._register(new DisposableMap<string>());
 	private _sandboxConnection: IAgentConnection | undefined;
 	private readonly _hostOperatingSystem = observableValue<OperatingSystem | undefined>(this, undefined);
+	private _hostOperatingSystemRequest: Promise<void> | undefined;
 
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
@@ -185,6 +186,15 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const provider = this._getProvider(session.providerId);
 			return provider?.isSessionConfigResolving(session.sessionId).read(reader) ?? false;
 		});
+		this._register(this._connectionsService.onDidChangeSessionResolution(async () => {
+			const connection = this._sandboxConnection;
+			const request = this._hostOperatingSystemRequest;
+			// Recovery can be reported before an interrupted diagnostics request settles.
+			await request;
+			if (!this._store.isDisposed && connection && request && this._sandboxConnection === connection && this._hostOperatingSystemRequest === request && this._hostOperatingSystem.get() === undefined) {
+				this._hostOperatingSystemRequest = this._resolveHostOperatingSystem(connection);
+			}
+		}));
 		const connectionsChanged = observableSignalFromEvent(this, this._connectionsService.onDidChangeSessionResolution);
 		this._register(autorun(reader => {
 			connectionsChanged.read(reader);
@@ -196,9 +206,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			}
 			this._sandboxConnection = connection;
 			this._hostOperatingSystem.set(undefined, undefined);
-			if (connection) {
-				void this._resolveHostOperatingSystem(connection);
-			}
+			this._hostOperatingSystemRequest = connection ? this._resolveHostOperatingSystem(connection) : undefined;
 		}));
 	}
 

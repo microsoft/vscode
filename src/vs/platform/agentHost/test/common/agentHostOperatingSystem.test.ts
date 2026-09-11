@@ -85,17 +85,35 @@ suite('AgentHostOperatingSystem', () => {
 		});
 	});
 
-	test('propagates and caches request failures without retrying', async () => {
+	test('shares request failures but retries and caches a successful lookup afterwards', async () => {
 		const error = new Error('Agent host disconnected');
-		const connection = createConnection(async () => { throw error; });
+		const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+		let available = false;
+		const connection = createConnection(() => available ? Promise.resolve(diagnostics('win32')) : pending.p);
 		const first = getAgentHostOperatingSystem(connection);
 		const second = getAgentHostOperatingSystem(connection);
-		await Promise.all([assert.rejects(first, error), assert.rejects(second, error)]);
-		await assert.rejects(getAgentHostOperatingSystem(connection), error);
+		const rejected = Promise.all([assert.rejects(first, error), assert.rejects(second, error)]);
+		await pending.error(error);
+		await rejected;
+		available = true;
+		const retry = getAgentHostOperatingSystem(connection);
+		const concurrentRetry = getAgentHostOperatingSystem(connection);
+		const os = await retry;
 
-		assert.deepStrictEqual({ sameRequest: first === second, requestCount: connection.requestCount }, {
+		assert.deepStrictEqual({
+			sameRequest: first === second,
+			newRequest: retry !== first,
+			sameRetry: retry === concurrentRetry,
+			cachedSuccess: retry === getAgentHostOperatingSystem(connection),
+			os,
+			requestCount: connection.requestCount,
+		}, {
 			sameRequest: true,
-			requestCount: 1,
+			newRequest: true,
+			sameRetry: true,
+			cachedSuccess: true,
+			os: OperatingSystem.Windows,
+			requestCount: 2,
 		});
 	});
 
@@ -113,11 +131,11 @@ suite('AgentHostOperatingSystem', () => {
 		});
 	});
 
-	test('rejects an unsupported OS without falling back or retrying', async () => {
+	test('rejects an unsupported OS without falling back or caching the failure', async () => {
 		const connection = createConnection(async () => diagnostics('unsupported'));
 		await assert.rejects(getAgentHostOperatingSystem(connection), /Unsupported agent host operating system: unsupported/);
 		await assert.rejects(getAgentHostOperatingSystem(connection), /Unsupported agent host operating system: unsupported/);
 
-		assert.strictEqual(connection.requestCount, 1);
+		assert.strictEqual(connection.requestCount, 2);
 	});
 });

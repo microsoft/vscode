@@ -399,6 +399,15 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._reattach();
 			}
 		}));
+		this._register(this._agentHostService.onAgentHostStart(async () => {
+			const request = this._hostOperatingSystemRequest;
+			// Recovery can be reported before an interrupted diagnostics request settles.
+			await request;
+			if (!this._store.isDisposed && request && this._hostOperatingSystemRequest === request && this._hostOperatingSystem === undefined) {
+				this._hostOperatingSystemRequest = undefined;
+				this._getSandboxSettingId();
+			}
+		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker)) {
 				this._hidePicker();

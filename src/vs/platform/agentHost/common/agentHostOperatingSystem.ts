@@ -9,13 +9,15 @@ import type { IAgentConnection } from './agentService.js';
 const operatingSystems = new WeakMap<IAgentConnection, Promise<OperatingSystem>>();
 
 /**
- * Lazily resolves the host OS once per connection object, sharing the request across sessions.
- * Both successful and failed requests stay cached for that connection's lifetime; failures propagate without retries.
+ * Shares pending and successful host OS lookups per connection; failures propagate and allow later retries.
  */
 export function getAgentHostOperatingSystem(connection: IAgentConnection): Promise<OperatingSystem> {
 	let operatingSystem = operatingSystems.get(connection);
 	if (!operatingSystem) {
-		operatingSystem = resolveOperatingSystem(connection);
+		operatingSystem = resolveOperatingSystem(connection).catch(error => {
+			operatingSystems.delete(connection);
+			throw error;
+		});
 		operatingSystems.set(connection, operatingSystem);
 	}
 	return operatingSystem;
