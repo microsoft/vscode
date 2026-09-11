@@ -2415,12 +2415,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Reveal the active one
 		const tabsContainerScrollPosX = tabsScrollbar.getScrollPosition().scrollLeft;
 		const activeTabShoulderWidth = this.connectedTabBounds?.shoulderExtent ?? 0;
-		const activeTabFits = activeTabWidth + activeTabShoulderWidth <= availableTabsContainerWidth;
-		const adjustedActiveTabPosX = activeTabPosX - stickyTabsWidth;
-		// Integer offset widths can leave a fractional shoulder clipped after revealing a tab.
+		const previousTab = this.connectedTabBounds?.tab.previousElementSibling;
+		const activeTabLeftShoulderWidth = previousTab && !previousTab.classList.contains('last-in-row') ? activeTabShoulderWidth : 0;
+		// Round outwards so fractional bounds cannot leave either shoulder clipped.
+		const adjustedActiveTabPosX = (this.connectedTabBounds
+			? Math.floor(this.connectedTabBounds.fillLeft - activeTabLeftShoulderWidth)
+			: activeTabPosX) - stickyTabsWidth;
 		const activeTabRight = this.connectedTabBounds
 			? Math.ceil(this.connectedTabBounds.fillRight + activeTabShoulderWidth) - stickyTabsWidth
 			: adjustedActiveTabPosX + activeTabWidth;
+		const activeTabFits = activeTabRight - adjustedActiveTabPosX <= availableTabsContainerWidth;
 
 		//
 		// Synopsis

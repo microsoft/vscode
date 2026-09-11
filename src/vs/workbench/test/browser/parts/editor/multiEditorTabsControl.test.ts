@@ -295,6 +295,54 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('reveals the left shoulder of non-first tabs and keeps the first tab flush', async () => {
+		const group = connectedGroup();
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 160.25, tabSizingFixedMaxWidth: 160.25, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		for (let i = 2; i < 4; i++) {
+			const editor = disposables.add(new TestFileEditorInput(URI.file(`/path/file${i}.txt`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true, active: false });
+		}
+		const reveal = async (index: number, width: number) => {
+			model.openEditor(model.getEditorByIndex(index)!, { active: true });
+			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+			group.style.width = `${width}px`;
+			control.layout({ container: new Dimension(width, 33), available: new Dimension(width, 300) }, { forceRevealActiveTab: true });
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		};
+		const results = [];
+		for (const { width, from } of [{ width: 240, from: 3 }, { width: 167, from: 0 }, { width: 120, from: 0 }]) {
+			await reveal(from, width);
+			await reveal(1, width);
+			const tab = container.querySelector<HTMLElement>('.tab.active')!;
+			const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
+			const viewport = container.querySelector<HTMLElement>('.monaco-scrollable-element')!.getBoundingClientRect();
+			const shoulder = mainWindow.getComputedStyle(fill, '::before');
+			const shoulderWidth = Number.parseFloat(shoulder.width);
+			results.push({
+				width,
+				leftShoulderVisible: shoulder.content !== 'none' && fill.getBoundingClientRect().left - shoulderWidth >= viewport.left,
+				rightShoulderVisible: fill.getBoundingClientRect().right + shoulderWidth <= viewport.right,
+			});
+		}
+		await reveal(0, 240);
+		const firstFill = container.querySelector<HTMLElement>('.tab.active > .tab-fill')!;
+		assert.deepStrictEqual({
+			results,
+			firstTabFlush: firstFill.getBoundingClientRect().left === container.querySelector<HTMLElement>('.monaco-scrollable-element')!.getBoundingClientRect().left,
+			firstShoulder: mainWindow.getComputedStyle(firstFill, '::before').content,
+		}, {
+			results: [
+				{ width: 240, leftShoulderVisible: true, rightShoulderVisible: true },
+				{ width: 167, leftShoulderVisible: true, rightShoulderVisible: true },
+				{ width: 120, leftShoulderVisible: true, rightShoulderVisible: false },
+			],
+			firstTabFlush: true,
+			firstShoulder: 'none',
+		});
+	});
+
 	test('keeps replacement connected tabs visible after closing rightmost scrolled tabs', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
