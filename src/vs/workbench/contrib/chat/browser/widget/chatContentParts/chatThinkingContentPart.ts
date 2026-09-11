@@ -39,6 +39,7 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -54,12 +55,10 @@ import { IEditSessionDiffStats } from '../../../common/editing/chatEditingServic
 const SESSIONS_IS_PHONE_LAYOUT_KEY = 'sessionsIsPhoneLayout';
 
 /**
- * Resolves the effective thinking display mode. On phone layout we always force
- * {@link ThinkingDisplayMode.CollapsedPreview} so streaming reasoning takes less
- * room and auto-collapses on completion regardless of the user's setting.
+ * Read-only chats and phone layouts use collapsed preview regardless of the configured thinking style.
  */
-export function getEffectiveThinkingDisplayMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService): ThinkingDisplayMode {
-	if (contextKeyService.getContextKeyValue<boolean>(SESSIONS_IS_PHONE_LAYOUT_KEY) === true) {
+export function getEffectiveThinkingDisplayMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService, readOnly = false): ThinkingDisplayMode {
+	if (readOnly || contextKeyService.getContextKeyValue<boolean>(SESSIONS_IS_PHONE_LAYOUT_KEY) === true) {
 		return ThinkingDisplayMode.CollapsedPreview;
 	}
 	return configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
@@ -473,6 +472,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IHoverService hoverService: IHoverService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -482,14 +482,14 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
 			?? localize('chat.thinking.header.initial', 'Thinking');
 
-		super(extractedTitle, context, undefined, hoverService, configurationService);
+		super(extractedTitle, context, undefined, hoverService, configurationService, telemetryService);
 
 		this.containsReasoning = containsReasoning;
 		this.reasoningDurationMs = content.reasoningDurationMs;
 		this.id = content.id;
 		this.content = content;
 		this.allThinkingParts.push(content);
-		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService);
+		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService, context.readOnly);
 		this.thinkingDisplayMode = configuredMode;
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
@@ -648,6 +648,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			scrollableDomNode.style.maxHeight = '0px';
 			scrollableDomNode.getBoundingClientRect();
 		}
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'thinking';
 	}
 
 	protected override expansionDidChange(expanded: boolean): void {

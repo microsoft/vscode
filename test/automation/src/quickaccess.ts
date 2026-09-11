@@ -197,21 +197,26 @@ export class QuickAccess {
 			// open commands picker
 			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
 
-			const element = await this.quickInput.waitForQuickInputElement();
+			try {
+				const element = await this.quickInput.waitForQuickInputElement();
 
-			if (element.label === 'No matching commands') {
+				if (element.label === 'No matching commands') {
+					return false;
+				}
+
+				if (match === 'fuzzy') {
+					return true;
+				}
+
+				if (match === 'exactLabel') {
+					return element.label === commandId;
+				}
+
+				return element.id === commandId;
+			} catch (error) {
+				this.code.logger.log(`QuickAccess.runCommand(commandId: ${commandId}, match: ${match}): waiting for a focused command failed (${error}), will retry...`);
 				return false;
 			}
-
-			if (match === 'fuzzy') {
-				return true;
-			}
-
-			if (match === 'exactLabel') {
-				return element.label === commandId;
-			}
-
-			return element.id === commandId;
 		};
 
 		let hasCommandFound = await openCommandPalletteAndTypeCommand();

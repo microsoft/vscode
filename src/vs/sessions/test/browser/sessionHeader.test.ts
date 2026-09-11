@@ -122,6 +122,117 @@ suite('Sessions - SessionHeader', () => {
 		});
 	});
 
+	test('uses a full-width backing surface with centered content and no separator', () => {
+		const { header } = createHarness(disposables);
+		const container = header.element.parentElement!;
+		container.classList.add('agent-sessions-workbench', 'session-view');
+		container.style.setProperty('--vscode-spacing-size280', '28px');
+		container.style.setProperty('--vscode-spacing-size320', '32px');
+		container.style.setProperty('--session-view-centered-content-max-width', '950px');
+		container.style.setProperty('--session-view-content-horizontal-padding', '32px');
+		container.style.width = '1200px';
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const headerRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-header')!;
+			const getGeometry = () => {
+				const barBounds = header.element.getBoundingClientRect();
+				const headerBounds = headerRow.getBoundingClientRect();
+				return {
+					barWidth: barBounds.width,
+					headerWidth: headerBounds.width,
+					barHeight: mainWindow.getComputedStyle(header.element).height,
+					headerHeight: mainWindow.getComputedStyle(headerRow).height,
+					headerInset: headerBounds.left - barBounds.left,
+					barPaddingInline: mainWindow.getComputedStyle(header.element).paddingInline,
+					headerPaddingInline: mainWindow.getComputedStyle(headerRow).paddingInline,
+					hasCompactClass: container.classList.contains('editor-tabs-compact-height'),
+				};
+			};
+
+			const defaultGeometry = getGeometry();
+			container.classList.add('editor-tabs-compact-height');
+			const compactGeometry = getGeometry();
+			container.classList.remove('editor-tabs-compact-height');
+			const restoredGeometry = getGeometry();
+			container.classList.add('hc-black');
+			const highContrastSeparatorStyle = mainWindow.getComputedStyle(headerRow).borderBottomStyle;
+
+			assert.deepStrictEqual({ defaultGeometry, compactGeometry, restoredGeometry, highContrastSeparatorStyle }, {
+				defaultGeometry: {
+					barWidth: 1200,
+					headerWidth: 950,
+					barHeight: '32px',
+					headerHeight: '32px',
+					headerInset: 125,
+					barPaddingInline: '0px',
+					headerPaddingInline: '32px',
+					hasCompactClass: false,
+				},
+				compactGeometry: {
+					barWidth: 1200,
+					headerWidth: 950,
+					barHeight: '28px',
+					headerHeight: '28px',
+					headerInset: 125,
+					barPaddingInline: '0px',
+					headerPaddingInline: '32px',
+					hasCompactClass: true,
+				},
+				restoredGeometry: {
+					barWidth: 1200,
+					headerWidth: 950,
+					barHeight: '32px',
+					headerHeight: '32px',
+					headerInset: 125,
+					barPaddingInline: '0px',
+					headerPaddingInline: '32px',
+					hasCompactClass: false,
+				},
+				highContrastSeparatorStyle: 'none',
+			});
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('lets configured chat backgrounds show through without fading the header content', () => {
+		const { header } = createHarness(disposables);
+		const workbench = mainWindow.document.createElement('div');
+		workbench.classList.add('monaco-workbench', 'agent-sessions-workbench');
+		workbench.style.setProperty('--session-view-background', '#202020');
+		const part = mainWindow.document.createElement('div');
+		part.classList.add('part', 'sessionspart', 'has-chat-background');
+		part.appendChild(header.element.parentElement!);
+		workbench.appendChild(part);
+		mainWindow.document.body.appendChild(workbench);
+
+		try {
+			const backgroundStyle = mainWindow.getComputedStyle(header.element);
+			const backgroundColor = backgroundStyle.backgroundColor;
+			const opacity = backgroundStyle.opacity;
+			part.classList.remove('has-chat-background');
+			const plainBackgroundColor = mainWindow.getComputedStyle(header.element).backgroundColor;
+			part.classList.add('has-chat-background');
+			workbench.classList.add('hc-black');
+			const highContrastBackgroundColor = mainWindow.getComputedStyle(header.element).backgroundColor;
+
+			assert.deepStrictEqual({
+				backgroundColor,
+				opacity,
+				plainBackgroundColor,
+				highContrastBackgroundColor,
+			}, {
+				backgroundColor: 'color(srgb 0.12549 0.12549 0.12549 / 0.85)',
+				opacity: '1',
+				plainBackgroundColor: 'rgb(32, 32, 32)',
+				highContrastBackgroundColor: 'rgb(32, 32, 32)',
+			});
+		} finally {
+			workbench.remove();
+		}
+	});
+
 	test('reports whether the inline rename could be started', () => {
 		const renameable = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
 		const notRenameable = createHarness(disposables);

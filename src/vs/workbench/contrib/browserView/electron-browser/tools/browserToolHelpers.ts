@@ -10,6 +10,7 @@ import { isBrowserViewAssociatedResourceNavigation } from '../../../../../platfo
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { isLocalhostAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IToolInvocation, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -176,11 +177,8 @@ export async function playwrightInvoke<TArgs extends unknown[], TReturn>(
 /**
  * Past-tense label for a browser tool call that failed.
  *
- * These tools declare only an `invocationMessage`, so on completion the
- * present-tense label is reused verbatim and a failed call reads as a
- * successful one ("Capturing browser screenshot"). Naming the failure keeps
- * the completed state honest, as the agent host already does for client tool
- * calls and the codex mapper does for its own results.
+ * Without one, a completed call keeps whatever label the tool prepared, so a
+ * failure reads as a success.
  */
 const failedMessage = localize('browser.actionFailed', "Browser action failed");
 
@@ -217,11 +215,30 @@ export function invokeFunctionResultToToolResult(result: IInvokeFunctionResult, 
 }
 
 export function errorResult(message: string): IToolResult {
+	const error = message || failedMessage;
 	return {
-		content: [{ kind: 'text', value: message }],
-		toolResultError: message,
+		content: [{ kind: 'text', value: error }],
+		toolResultError: error,
 		toolResultMessage: failedMessage,
 	};
+}
+
+export function getBrowserNetworkPolicyError(url: string, agentNetworkFilterService: IAgentNetworkFilterService): string | undefined {
+	const uri = URI.parse(url);
+	return agentNetworkFilterService.isUriAllowed(uri) ? undefined : agentNetworkFilterService.formatError(uri);
+}
+
+export function getExternalTunnelNetworkPolicyError(
+	rewrite: { url: string; rewritten: boolean },
+	agentNetworkFilterService: IAgentNetworkFilterService,
+): string | undefined {
+	if (!rewrite.rewritten) {
+		return undefined;
+	}
+	const uri = URI.parse(rewrite.url);
+	return isLocalhostAuthority(uri.authority)
+		? undefined
+		: getBrowserNetworkPolicyError(rewrite.url, agentNetworkFilterService);
 }
 
 /**

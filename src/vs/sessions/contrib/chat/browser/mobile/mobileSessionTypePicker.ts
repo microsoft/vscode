@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -118,19 +119,28 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			return;
 		}
 		trigger.setAttribute('aria-expanded', 'true');
-		showMobilePickerSheet(
-			this.layoutService.mainContainer,
-			localize('mobileSessionTypePicker.title', "Session Type"),
-			sheetItems,
-		).then(id => {
+		void this._showMobilePicker(trigger, sheetItems);
+	}
+
+	private async _showMobilePicker(trigger: HTMLElement, sheetItems: readonly IMobilePickerSheetItem[]): Promise<void> {
+		try {
+			const id = await showMobilePickerSheet(
+				this.layoutService.mainContainer,
+				localize('mobileSessionTypePicker.title', "Session Type"),
+				sheetItems,
+			);
 			trigger.setAttribute('aria-expanded', 'false');
 			trigger.focus();
 			if (id !== undefined) {
 				const [providerId, sessionTypeId] = id.split('\u0000');
 				if (providerId && sessionTypeId) {
-					this._handleSelectedSessionType({ providerId, sessionTypeId });
+					await this._selectSessionType({ providerId, sessionTypeId });
 				}
 			}
-		});
+		} catch (error) {
+			trigger.setAttribute('aria-expanded', 'false');
+			trigger.focus();
+			onUnexpectedError(error);
+		}
 	}
 }

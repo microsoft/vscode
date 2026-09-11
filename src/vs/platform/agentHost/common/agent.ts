@@ -27,6 +27,16 @@ export class AgentHostStartError extends Error {
 	}
 }
 
+/** Reports a provider CWD error after the new directory became irreversible and authoritative. */
+export class AgentWorkingDirectoryChangedError extends Error {
+	constructor(
+		readonly workingDirectory: URI,
+		message: string,
+	) {
+		super(message);
+	}
+}
+
 export function isInvalidUtilityProcessConfigurationMessage(message: string): boolean {
 	return /^Invalid value for (?:args|env|execArgv)$/.test(message);
 }
@@ -85,13 +95,15 @@ export interface IAgentHostNetworkEndpoint {
 
 export interface IAgentHostManagedSettingsSnapshot {
 	readonly account?: string;
-	readonly source: 'server' | 'device' | 'client' | 'mixed' | 'none';
+	readonly source: 'server' | 'device' | 'client' | 'policyHelper' | 'mixed' | 'none';
 	readonly serverManaged: boolean;
 	readonly deviceManaged: boolean;
 	readonly clientManaged?: boolean;
+	readonly policyHelperManaged?: boolean;
 	readonly failClosed: boolean;
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
+	readonly sandboxEnabledByUndeterminedPolicy?: boolean;
 	readonly managedKeys: readonly string[];
 	readonly settings?: unknown;
 }
@@ -221,6 +233,26 @@ export type AgentProvider = string;
 export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
 export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
 
+/** Provider-observed records, not an assertion that every network call reported usage. */
+export interface IAgentTokenUsageSummary {
+	readonly model?: string;
+	readonly reasoningEffort?: string;
+	readonly usageScope: 'direct-model' | 'compaction';
+	readonly usageStatus: 'known' | 'partial' | 'notReported';
+	readonly usageRecordCount: number;
+	readonly inputKnownRecordCount: number;
+	readonly outputKnownRecordCount: number;
+	readonly cacheKnownRecordCount: number;
+	readonly knownInputTokens?: number;
+	readonly knownOutputTokens?: number;
+	readonly knownCacheReadTokens?: number;
+}
+
+/** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */
+export interface IAgentTurnTokenUsage {
+	readonly summaries: readonly IAgentTokenUsageSummary[];
+}
+
 export type IAgentTurnDiagnosticSnapshot = {
 	readonly state: 'available';
 	readonly providerCallState: AgentTurnProviderCallState;
@@ -248,6 +280,11 @@ export const CODEX_AGENT_PROVIDER_ID = 'codex' as const;
  * so a new flag added in one place is automatically reflected in the other.
  */
 export type IAgentCapabilities = AgentCapabilities;
+
+/** Agent Host-only capabilities that are not serialized to protocol clients. */
+export interface IAgentHostCapabilities {
+	readonly workspaceConversion: boolean;
+}
 
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
@@ -278,6 +315,8 @@ export interface AuthenticateParams {
 
 	/** The bearer token value (RFC 6750). */
 	readonly token: string;
+	/** The access token's remaining lifetime in seconds, when known. */
+	readonly expiresIn?: number;
 }
 
 /** Request for a previously accepted bearer token. */
@@ -821,6 +860,7 @@ export interface IAgentModelInfo {
 export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentModelCallCompletedSignal
+	| IAgentModelCallFinishedSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
 	| IAgentSubagentResumedSignal
@@ -854,6 +894,27 @@ export interface IAgentModelCallCompletedSignal {
 	readonly turnId: string;
 	/** Stable provider message or response identifier used to suppress duplicate notifications. */
 	readonly modelCallId: string;
+	/** If set, route the model call to the subagent session belonging to this tool call. */
+	readonly parentToolCallId?: string;
+}
+
+export type AgentModelCallFinishedOutcome = 'success' | 'error' | 'cancelled' | 'rejected';
+
+/** Reports the final lifecycle outcome of one dispatched model-call attempt. */
+export interface IAgentModelCallFinishedSignal {
+	readonly kind: 'model_call_finished';
+	/** Target chat channel URI. For inner subagent calls this is the parent chat channel. */
+	readonly resource: URI;
+	/** Host turn identifier owning this model-call attempt. */
+	readonly turnId: string;
+	/** Stable SDK event identifier used to suppress duplicate notifications. */
+	readonly modelCallId: string;
+	/** Monotonic provider-dispatch duration in milliseconds. */
+	readonly dispatchDurationMs: number;
+	readonly outcome: AgentModelCallFinishedOutcome;
+	/** Present only for accepted successful responses. */
+	readonly containsBuiltInFileEditRequest?: boolean;
+	readonly editClassifierVersion: number;
 	/** If set, route the model call to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
 }
@@ -909,6 +970,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly parentToolCallId?: string;
 }
 
+export type AgentSubagentTaskModelSource = 'task_argument' | 'subagent_configuration' | 'custom_agent_definition' | 'unset';
+
 /**
  * A subagent was spawned by a tool call. The host creates a child session
  * silently and routes subsequent inner-tool events to it.
@@ -923,6 +986,7 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+	readonly taskModelSource?: AgentSubagentTaskModelSource;
 	/**
 	 * The spawning Task tool's short (typically 3-5 word) `description`
 	 * input, e.g. "Review package.json structure". Distinct from
@@ -1108,6 +1172,9 @@ export interface IAgent {
 	/** Unique provider identifier. */
 	readonly id: AgentProvider;
 
+	/** Capabilities consumed only inside the Agent Host process. */
+	readonly agentHostCapabilities: IAgentHostCapabilities;
+
 	/** Provider descriptor and capabilities. */
 	getDescriptor(): IAgentDescriptor;
 
@@ -1143,8 +1210,19 @@ export interface IAgent {
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
 
+	/**
+	 * Changes the working directory of an exact chat's existing provider-native
+	 * backing. Callers MUST gate this operation on
+	 * {@link IAgentHostCapabilities.workspaceConversion}; implementations that do
+	 * not advertise the capability MUST reject the call.
+	 */
+	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
+
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
+
+	/** Read observed usage at terminal dispatch for this exact owning turn, excluding descendants and later delivery. */
+	getTurnTokenUsage?(chat: URI, turnId: string, parentToolCallId?: string): IAgentTurnTokenUsage | undefined;
 
 	/** Record the host-remapped turn for a completed provider model call. */
 	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;
@@ -1248,7 +1326,7 @@ export interface IAgent {
 	getProtectedResources(): ProtectedResourceMetadata[];
 
 	/** An empty token revokes the credential previously forwarded for this resource. */
-	authenticate(resource: string, token: string): Promise<boolean>;
+	authenticate(resource: string, token: string, expiresIn?: number): Promise<boolean>;
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;

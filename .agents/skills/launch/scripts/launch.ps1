@@ -328,6 +328,8 @@ function Start-Code([string]$codeBat, [string[]]$arguments, [string]$logFile) {
 	# Core only, and `powershell.exe` is still the built-in Windows shell.
 	[void]($processInfo.EnvironmentVariables['VSCODE_SKIP_PRELAUNCH'] = '1')
 	[void]$processInfo.EnvironmentVariables.Remove('ELECTRON_RUN_AS_NODE')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_COUNT')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_PARAMETERS')
 
 	$process = [Diagnostics.Process]::new()
 	$process.StartInfo = $processInfo
@@ -398,10 +400,6 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 			Exit-Usage "Unknown arg: $argument"
 		}
 	}
-}
-
-if ($agents -and -not [string]::IsNullOrWhiteSpace($sessionTitle)) {
-	Exit-Usage '--session-title is only supported for regular editor windows; window.title is read-only in the Agents window.'
 }
 
 try {
@@ -491,19 +489,28 @@ try {
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
 	$sourceSettingsFile = Join-Path $sourceUserDataDir 'User\settings.json'
 	$settingsScript = Join-Path $PSScriptRoot 'updateSettings.ts'
-	& $node $settingsScript $settingsFile $sessionTitle $sourceSettingsFile
+	$settingsSessionTitle = if ($agents) { '' } else { $sessionTitle }
+	& $node $settingsScript $settingsFile $settingsSessionTitle $sourceSettingsFile
 	if ($LASTEXITCODE -ne 0) {
 		throw "Failed to update launch settings in $settingsFile"
 	}
 	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
 	if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
-		Write-LaunchError "[launch.ps1] set window.title for session: $sessionTitle"
+		if ($agents) {
+			Write-LaunchError "[launch.ps1] set Agents command center title for session: $sessionTitle"
+		} else {
+			Write-LaunchError "[launch.ps1] set window.title for session: $sessionTitle"
+		}
 	}
 	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
 	if ($agents) {
 		$launchArgs.Add('--agents')
+		if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
+			$sessionTitleBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sessionTitle)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+			$launchArgs.Add("--session-title-base64=$sessionTitleBase64")
+		}
 	}
 	$launchArgs.Add("--user-data-dir=$destinationUdd")
 	$launchArgs.Add("--extensions-dir=$extensionsDir")

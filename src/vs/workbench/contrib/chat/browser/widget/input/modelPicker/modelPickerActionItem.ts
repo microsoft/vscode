@@ -9,8 +9,6 @@ import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
-import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { Event } from '../../../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
@@ -20,25 +18,8 @@ import { IKeybindingService } from '../../../../../../../platform/keybinding/com
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
+import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { ModelPickerWidget } from './modelPickerWidget.js';
-
-/**
- * Read/write access to a model's configuration (e.g. context size, thinking
- * effort). Implemented either by the global {@link ILanguageModelsService} or by
- * a per-editor override layer so that one editor's changes do not sync to other
- * already-open editors. Structurally satisfied by `ILanguageModelsService`.
- */
-export interface IModelConfigurationAccess {
-	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
-	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
-	getModelConfigurationActions(modelId: string): IAction[];
-	/**
-	 * Fires when this access layer's configuration changes (e.g. user picks a
-	 * new context size). Implementations that always read the global value can
-	 * omit this and rely on `ILanguageModelsService.onDidChangeLanguageModels`.
-	 */
-	readonly onDidChange?: Event<string /* modelId */>;
-}
 
 export interface IModelPickerPresentationOptions {
 	readonly useGroupedModelPicker: boolean;

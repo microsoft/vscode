@@ -67,11 +67,6 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-if [[ "$AGENTS" == "1" && -n "$SESSION_TITLE" ]]; then
-	echo "--session-title is only supported for regular editor windows; window.title is read-only in the Agents window." >&2
-	exit 2
-fi
-
 monotonic_ms() {
 	node -e 'process.stdout.write(String(process.hrtime.bigint() / 1_000_000n))'
 }
@@ -183,19 +178,27 @@ SETTINGS_FILE="$DEST_UDD/User/settings.json"
 SOURCE_SETTINGS_FILE="$SOURCE_UDD/User/settings.json"
 mkdir -p "$(dirname "$SETTINGS_FILE")"
 SETTINGS_SCRIPT="$(cd "$(dirname "$0")" && pwd)/updateSettings.ts"
-if ! node "$SETTINGS_SCRIPT" "$SETTINGS_FILE" "$SESSION_TITLE" "$SOURCE_SETTINGS_FILE"; then
+SETTINGS_SESSION_TITLE="$SESSION_TITLE"
+if [[ "$AGENTS" == "1" ]]; then
+	SETTINGS_SESSION_TITLE=""
+fi
+if ! node "$SETTINGS_SCRIPT" "$SETTINGS_FILE" "$SETTINGS_SESSION_TITLE" "$SOURCE_SETTINGS_FILE"; then
 	echo "[launch.sh] failed to update launch settings in $SETTINGS_FILE" >&2
 	exit 1
 fi
 echo "[launch.sh] ensured files.simpleDialog.enable=true in $SETTINGS_FILE" >&2
 if [[ -n "$SESSION_TITLE" ]]; then
-	echo "[launch.sh] set window.title for session: $SESSION_TITLE" >&2
+	if [[ "$AGENTS" == "1" ]]; then
+		echo "[launch.sh] set Agents command center title for session: $SESSION_TITLE" >&2
+	else
+		echo "[launch.sh] set window.title for session: $SESSION_TITLE" >&2
+	fi
 fi
 PROFILE_READY_MS=$(monotonic_ms)
 
-# Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
-# terminal / agent runtimes; it breaks ./scripts/code.sh.
-unset ELECTRON_RUN_AS_NODE
+# Strip host-only process configuration commonly inherited from VS Code's
+# integrated terminal and agent runtimes.
+unset ELECTRON_RUN_AS_NODE GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
 
 CODE_SH="$REPO/scripts/code.sh"
 if [[ ! -x "$CODE_SH" ]]; then
@@ -217,6 +220,10 @@ if [[ "$DISABLE_WORKSPACE_TRUST" == "1" ]]; then
 fi
 if [[ "$AGENTS" == "1" ]]; then
 	ARGS=("--agents" "${ARGS[@]}")
+	if [[ -n "$SESSION_TITLE" ]]; then
+		SESSION_TITLE_BASE64=$(node -e 'process.stdout.write(Buffer.from(process.argv[1], "utf8").toString("base64url"))' -- "$SESSION_TITLE")
+		ARGS+=("--session-title-base64=$SESSION_TITLE_BASE64")
+	fi
 fi
 if (( ${#EXTRA_ARGS[@]} )); then
 	ARGS+=("${EXTRA_ARGS[@]}")

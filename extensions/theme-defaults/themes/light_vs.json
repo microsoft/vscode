@@ -11,6 +11,7 @@
 		"editor.selectionHighlightBackground": "#ADD6FF80",
 		"editorSuggestWidget.background": "#F3F3F3",
 		"activityBarBadge.background": "#007ACC",
+		"browser.border": "#00000000",
 		"sideBarTitle.foreground": "#6F6F6F",
 		"list.hoverBackground": "#E8E8E8",
 		"menu.border": "#D4D4D4",
@@ -20,6 +21,7 @@
 		"settings.numberInputBorder": "#CECECE",
 		"statusBarItem.remoteForeground": "#FFF",
 		"statusBarItem.remoteBackground": "#16825D",
+		"statusBar.inactiveBackground": "#1476B8",
 		"ports.iconRunningProcessForeground": "#369432",
 		"sideBarSectionHeader.background": "#0000",
 		"sideBarSectionHeader.border": "#61616130",
@@ -44,7 +46,8 @@
 		"modernActivityBarItem.hoverBackground": "#E8E8E822",
 		"modernActivityBarItem.activeForeground": "#FFF",
 		"modernActivityBarItem.hoverForeground": "#FFF",
-		"modernActivityBar.border": "#2C2C2C"
+		"modernActivityBar.border": "#2C2C2C",
+		"titleBar.inactiveBackground": "#E5E5E5"
 	},
 	"tokenColors": [
 		{

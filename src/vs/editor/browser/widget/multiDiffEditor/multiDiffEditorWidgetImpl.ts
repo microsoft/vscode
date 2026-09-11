@@ -13,6 +13,7 @@ import { ContextKeyValue, IContextKeyService } from '../../../../platform/contex
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
@@ -26,6 +27,7 @@ import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrol
 import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem } from './model.js';
 import { formatDiffItemKey, formatUri, ILoggedDiffItem, MultiDiffEditorLogger } from './multiDiffEditorLogging.js';
+import { IMultiDiffEditorVariantConfiguration } from './multiDiffEditorOptions.js';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
 import { RevealOptions } from './multiDiffEditorWidget.js';
 import './style.css';
@@ -69,6 +71,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _dimension: IObservable<Dimension | undefined>,
 		private readonly _viewModel: IObservable<MultiDiffEditorViewModel | undefined>,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
+		private readonly _variantConfiguration: IMultiDiffEditorVariantConfiguration,
 		private readonly _diffLayoutOptions: IObservable<IDiffEditorOptions | undefined>,
 		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
 		private readonly _paddingBottomPx: IObservable<number>,
@@ -101,13 +104,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					getId: item => item,
 					getTemplateId: () => 'diffEditor',
 					getUnboundSize: item => derived(item, reader => {
-						const headerHeight = this._workbenchUIElementFactory.diffEditorItemHeaderHeight ?? 40;
+						const headerHeight = this._variantConfiguration.headerHeight;
 						if (item.collapsed.read(reader)) {
 							return headerHeight;
 						}
 						if (item.isBinary) {
 							return headerHeight
-								+ (this._workbenchUIElementFactory.diffEditorItemContentBottomPadding ?? 0)
+								+ this._variantConfiguration.contentBottomPadding
 								+ binaryFilePlaceholderContentHeight;
 						}
 						return item.lastTemplateData.read(reader).expandedContentHeight;
@@ -117,6 +120,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						context.contentDomNode,
 						context.overflowWidgetsDomNode,
 						this._workbenchUIElementFactory,
+						this._variantConfiguration,
 						this._optionsOverride,
 					),
 					onDidBind: binding => {
@@ -197,7 +201,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				items: items.map((item, index) => item.getLayoutDebugState(reader, layout.items[index])),
 			};
 		});
-		this._elements = h('div.monaco-component.multiDiffEditor', {}, [
+		this._elements = h(`div.monaco-component.multiDiffEditor.${this._variantConfiguration.className}`, {}, [
 			this._scrollView.domNode,
 			h('div.placeholder@placeholder', {}, [h('div')]),
 		]);
@@ -213,6 +217,10 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		));
 
 		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
+		this._register(bindContextKey(EditorContextKeys.diffEditorAutomaticRenderSideBySide, this._contextKeyService, reader =>
+			this.activeControl.read(reader)?.renderSideBySideInAutomaticMode.read(reader) ?? true));
+		this._register(bindContextKey(EditorContextKeys.diffEditorTemporaryInlineMode, this._contextKeyService, reader =>
+			this.activeControl.read(reader)?.temporaryInlineMode.read(reader) ?? false));
 
 		this._lastDocStates = {};
 
@@ -390,6 +398,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	public getScopedInstantiationService(): IInstantiationService {
 		return this._instantiationService;
 	}
+
+	public resetWidthBasedLayout(): void {
+		for (const item of this._viewItemsInfo.get().items) {
+			item.template.get()?.editor.resetWidthBasedLayout();
+		}
+	}
+
 	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {
 		const viewItems = this._viewItems.get();
 		const index = viewItems.findIndex(

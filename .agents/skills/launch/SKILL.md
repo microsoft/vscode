@@ -37,7 +37,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 
 > The launcher always sets `files.simpleDialog.enable: true` in the launched profile's `User/settings.json`. This is required for automation: VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are completely unreachable over SSH on headless macOS. The simple (quick-input) dialog can be navigated with `press` and clipboard paste. The override is per-launch and only affects throwaway profiles.
 
-> When launching a regular editor window from an agent session, first call `get_current_session` and pass its `title` as `--session-title`. The launcher writes that title into the throwaway profile's `window.title` setting so each editor window can be mapped back to its originating session. This never modifies the source profile. Do not combine `--session-title` with `--agents`: `window.title` is read-only in the Agents window.
+> Before launching from an agent session, call `get_current_session` and pass its `title` as `--session-title`. For a regular editor window, the launcher writes that title into the throwaway profile's `window.title` setting. For an Agents window, it passes the title to the Command Center. This never modifies the source profile.
 
 > For unattended automation, pass `--disable-workspace-trust` so a trust dialog cannot block the flow or extension-host startup. The override is process-scoped and does not modify the source profile. Only use it with content you trust.
 
@@ -49,7 +49,7 @@ The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Li
 # LAUNCH=<dir-of-this-SKILL.md>/scripts/launch.sh
 SESSION_TITLE=<title-from-get_current_session>
 "$LAUNCH" --session-title "$SESSION_TITLE"   # default: workbench
-"$LAUNCH" --agents                           # Agents window (no custom title)
+"$LAUNCH" --agents --session-title "$SESSION_TITLE"
 "$LAUNCH" -- <workspace-path>                # forward extra args to code.sh
 "$LAUNCH" --source-user-data-dir <path>      # pick a specific authed profile
 "$LAUNCH" --repo <vscode-repo-root>          # if not run from the repo
@@ -66,7 +66,7 @@ $skillDir = '<dir-of-this-SKILL.md>'
 $launch = Join-Path $skillDir 'scripts\launch.ps1'
 $sessionTitle = '<title-from-get_current_session>'
 & $launch --session-title $sessionTitle         # default: workbench
-& $launch --agents                              # Agents window (no custom title)
+& $launch --agents --session-title $sessionTitle
 & $launch -- --use-mock-keychain               # forward extra args to code.bat
 & $launch --source-user-data-dir C:\path\to\profile
 & $launch --repo C:\path\to\vscode
@@ -193,19 +193,13 @@ If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSI
 
 ### Focusing the chat input
 
-Use the `playwrightScripts/focus-chat-input.ts` script in both the regular
-workbench and the Agents window. It performs the complete focus flow in one
-Playwright call:
+Use the `playwrightScripts/focus-chat-input.ts` script in both the regular workbench and the Agents window. It performs the complete focus flow in one Playwright call:
 
 1. If a visible chat input is already focused, it does nothing.
 2. If a visible chat input exists but is not focused, it focuses that input.
-3. Otherwise, it invokes the platform chat-focus chord, waits for the input,
-   and focuses it only if the chord did not already do so.
+3. Otherwise, it invokes the platform chat-focus chord, waits for the input, and focuses it only if the chord did not already do so.
 
-The script detects the platform from the browser page, prefers the active
-Agents session, and excludes inline chat inputs. If the cloned profile has
-customized the default chord, it falls back to the surface-specific command
-through the Command Palette.
+The script detects the platform from the browser page, prefers the active Agents session, and excludes inline chat inputs. If the cloned profile has customized the default chord, it falls back to the surface-specific command through the Command Palette.
 
 ```bash
 LAUNCH_DIR=<dir-of-this-SKILL.md>
@@ -219,13 +213,7 @@ $focusChat = Join-Path $skillDir 'playwrightScripts\focus-chat-input.ts'
 npx @playwright/cli "-s=$pwSession" run-code "--filename=$focusChat"
 ```
 
-The script returns
-`{ focused, focusChanged, focusInvoked, shortcutInvoked, commandPaletteFallbackInvoked, selector }`.
-`focusChanged` reports whether this script invocation moved focus into Chat,
-while `focusInvoked` reports whether the script had to call `focus()` directly.
-Both are `false` when the chat input was already focused. If the script fails,
-take a fresh snapshot and resolve any blocking dialog or unavailable chat state
-before retrying.
+The script returns `{ focused, focusChanged, focusInvoked, shortcutInvoked, commandPaletteFallbackInvoked, selector }`. `focusChanged` reports whether this script invocation moved focus into Chat, while `focusInvoked` reports whether the script had to call `focus()` directly. Both are `false` when the chat input was already focused. If the script fails, take a fresh snapshot and resolve any blocking dialog or unavailable chat state before retrying.
 
 ### Typing into Monaco (chat input, editors)
 
@@ -326,8 +314,7 @@ document.querySelectorAll('.view-line')
 document.activeElement?.matches('.native-edit-context, textarea.inputarea')
 ```
 
-The focus script accounts for these DOM differences and prioritizes the active
-Agents session.
+The focus script accounts for these DOM differences and prioritizes the active Agents session.
 
 ### Verifying and clearing chat text
 
@@ -354,9 +341,7 @@ npx @playwright/cli -s=$PW_SESSION press Control+a
 npx @playwright/cli -s=$PW_SESSION press Backspace
 ```
 
-If the focus script cannot reach Chat because the surface is not available yet,
-take a snapshot and navigate the UI into a state where chat exists before
-retrying. Avoid treating completed CLI commands as proof that text was entered.
+If the focus script cannot reach Chat because the surface is not available yet, take a snapshot and navigate the UI into a state where chat exists before retrying. Avoid treating completed CLI commands as proof that text was entered.
 
 ### Screenshots (paper trail)
 
@@ -439,6 +424,7 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 - **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(jq -r .userDataDir <<<"$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
+- **`missing config value GIT_CONFIG_VALUE_*` from Git** - indexed Git configuration inherited from an agent runtime lost an empty value while the app processes were launched. The launcher unsets `GIT_CONFIG_COUNT` and `GIT_CONFIG_PARAMETERS` so host-only Git overrides do not affect Code OSS; do the same when invoking `code.sh` directly from such a runtime.
 - **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.

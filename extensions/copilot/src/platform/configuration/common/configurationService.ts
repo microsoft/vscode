@@ -14,7 +14,6 @@ import * as types from '../../../util/vs/base/common/types';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import type { IModelCapabilityOverride } from '../../endpoint/common/chatModelCapabilities';
 import { packageJson } from '../../env/common/packagejson';
-import { JointCompletionsProviderStrategy, JointCompletionsProviderTriggerChangeStrategy } from '../../inlineEdits/common/dataTypes/jointCompletionsProviderOptions';
 import * as triggerOptions from '../../inlineEdits/common/dataTypes/triggerOptions';
 import * as xtabHistoryOptions from '../../inlineEdits/common/dataTypes/xtabHistoryOptions';
 import * as xtabPromptOptions from '../../inlineEdits/common/dataTypes/xtabPromptOptions';
@@ -698,11 +697,7 @@ export const XTabProviderId = 'XtabProvider';
 
 export namespace ConfigKey {
 
-	/**
-	 * These settings are defined in the completions extensions and shared.
-	 *
-	 * We should not change the names of these settings without coordinating with Completions extension.
-	*/
+	/** Settings owned by VS Code or the completions extension; coordinate identifier changes with their owner. */
 	export namespace Shared {
 		/** Allows for overriding the base domain we use for making requests to the CAPI. This helps CAPI devs develop against a local instance. */
 		export const DebugOverrideProxyUrl = defineSetting<string | undefined>('advanced.debug.overrideProxyUrl', ConfigType.Simple, undefined, undefined, { userScopeOnly: true });
@@ -715,6 +710,10 @@ export namespace ConfigKey {
 		export const DebugNodeFetchCache = defineSetting<'off' | 'memory' | 'persistent'>('advanced.debug.nodeFetchCache', ConfigType.Simple, 'memory');
 		export const AuthProvider = defineSetting<AuthProviderId>('advanced.authProvider', ConfigType.Simple, AuthProviderId.GitHub);
 		export const AuthPermissions = defineSetting<AuthPermissionMode>('advanced.authPermissions', ConfigType.Simple, AuthPermissionMode.Default);
+		/** The workbench owns the experiment default so all Auto pickers read the same effective setting. */
+		export const AutoModeTiersEnabled = defineSetting<boolean>('chat.autoMode.tiers.enabled', ConfigType.Simple, false);
+		/** Override Auto's "Optimize for" preference in both harnesses; the extension additionally accepts `fast`. */
+		export const AutoModeTierOverride = defineSetting<string | null>('chat.autoModeTierOverride', ConfigType.Simple, null);
 	}
 
 	/**
@@ -727,7 +726,6 @@ export namespace ConfigKey {
 		*/
 		export const DebugPromptOverrideString = defineSetting<string | null>('chat.debug.promptOverrideString', ConfigType.Simple, null);
 		export const DebugPromptOverrideFile = defineSetting<string | null>('chat.debug.promptOverrideFile', ConfigType.Simple, null);
-		export const WorkspacePrototypeAdoCodeSearchEndpointOverride = defineAndMigrateSetting<string>('chat.advanced.workspace.prototypeAdoCodeSearchEndpointOverride', 'chat.workspace.prototypeAdoCodeSearchEndpointOverride', '');
 		export const FeedbackOnChange = defineAndMigrateSetting('chat.advanced.feedback.onChange', 'chat.feedback.onChange', false);
 		export const ReviewIntent = defineAndMigrateSetting('chat.advanced.review.intent', 'chat.review.intent', false);
 		/** Enable the new notebook priorities experiment */
@@ -746,11 +744,6 @@ export namespace ConfigKey {
 		export const OmitBaseAgentInstructions = defineAndMigrateSetting<boolean>('chat.advanced.omitBaseAgentInstructions', 'chat.omitBaseAgentInstructions', false);
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
 		export const CLIAutoModelEnabled = defineSetting<boolean>('chat.cli.autoModel.enabled', ConfigType.Simple, true);
-		/**
-		 * Offer routing tiers on the Auto model. Off by default: while disabled
-		 * no tier is sent and the server picks its own routing profile.
-		 */
-		export const AutoModeTiersEnabled = defineSetting<boolean>('chat.autoMode.tiers.enabled', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.autoModeTiersEnabled' });
 		export const CLIModelDetailsEnabled = defineSetting<boolean>('chat.agent.modelDetails.enabled', ConfigType.Simple, true);
 		export const CLIPlanCommandEnabled = defineSetting<boolean>('chat.cli.planCommand.enabled', ConfigType.Simple, true);
 		export const CLIChatLazyLoadSessionItem = defineSetting<boolean>('chat.cli.lazyLoadSessionItem.enabled', ConfigType.Simple, true);
@@ -870,13 +863,6 @@ export namespace ConfigKey {
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
 		export const ChatCompletionsTokenParameter = defineSetting('chat.chatCompletionsTokenParameter', ConfigType.ExperimentBased, 'max_tokens', vEnum('max_completion_tokens', 'max_tokens'));
-
-		/**
-		 * Internal: override the routing tier sent to `POST /auto`, ignoring both the
-		 * model picker and the tier inline chat defaults to. Unlike the picker this
-		 * accepts `fast`, so evals can exercise every profile.
-		 */
-		export const AutoModeTierOverride = defineSetting<string | null>('chat.autoModeTierOverride', ConfigType.Simple, null);
 
 		/**
 		 * When enabled, periodic keep-alive probes are sent during long-running tool calls
@@ -1046,9 +1032,6 @@ export namespace ConfigKey {
 		export const InlineEditsUndoInsertionFiltering = defineTeamInternalSetting<'v1' | 'v2' | undefined>('chat.advanced.inlineEdits.undoInsertionFiltering', ConfigType.ExperimentBased, 'v1');
 		export const InlineEditsFilterOutEditsWithSubstrings = defineTeamInternalSetting<string>('chat.advanced.inlineEdits.filterOutEditsWithSubstrings', ConfigType.ExperimentBased, '<|current_file_content|>,<|/current_file_content|>,<|diff_marker|>');
 		export const InlineEditsIgnoreWhenSuggestVisible = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.ignoreWhenSuggestVisible', ConfigType.ExperimentBased, true);
-		export const InlineEditsJointCompletionsProviderEnabled = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.jointCompletionsProvider.enabled', ConfigType.ExperimentBased, false);
-		export const InlineEditsJointCompletionsProviderStrategy = defineTeamInternalSetting<JointCompletionsProviderStrategy>('chat.advanced.inlineEdits.jointCompletionsProvider.strategy', ConfigType.ExperimentBased, JointCompletionsProviderStrategy.Regular);
-		export const InlineEditsJointCompletionsProviderTriggerChangeStrategy = defineTeamInternalSetting<JointCompletionsProviderTriggerChangeStrategy>('chat.advanced.inlineEdits.jointCompletionsProvider.triggerChangeStrategy', ConfigType.ExperimentBased, JointCompletionsProviderTriggerChangeStrategy.NoTriggerOnCompletionsRequestInFlight);
 		export const InstantApplyModelName = defineTeamInternalSetting<string>('chat.advanced.instantApply.modelName', ConfigType.ExperimentBased, CHAT_MODEL.GPT4OPROXY);
 		export const VerifyTextDocumentChanges = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.verifyTextDocumentChanges', ConfigType.ExperimentBased, false);
 
@@ -1123,6 +1106,8 @@ export namespace ConfigKey {
 	export const EnableGemini3GetChangedFilesTool = defineSetting<boolean>('chat.gemini3GetChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
 	/** When enabled, sends `reasoning_effort: 'low'` to Gemini 3 models. */
 	export const EnableGemini3LowReasoningEffort = defineSetting<boolean>('chat.gemini3LowReasoningEffort.enabled', ConfigType.ExperimentBased, false);
+	/** Default thinking effort for Claude Opus models in the model picker. Empty keeps the built-in default ('high'). */
+	export const ClaudeOpusDefaultReasoningEffort = defineSetting<string>('chat.claudeOpusDefaultReasoningEffort', ConfigType.ExperimentBased, '');
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);

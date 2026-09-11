@@ -7,8 +7,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -17,8 +19,12 @@ import { IActionViewItemFactory, IActionViewItemService } from '../../../../../p
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -36,23 +42,31 @@ import { ISessionsListModelService } from '../../../../../sessions/services/sess
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { ISessionsWindowUsageService } from '../../../../../sessions/services/sessions/browser/sessionsWindowUsageService.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ICustomViewService } from '../../../../../sessions/services/customView/browser/customViewService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { Menus } from '../../../../../sessions/browser/menus.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IChat, ISession, ISessionChangesSummary, ISessionFolder, ISessionWorkspace, SessionStatus, ChatInteractivity } from '../../../../../sessions/services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace, SessionStatus, ChatInteractivity } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { SessionItemToolbarMenuId, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ARCHIVE_SESSION_COMMAND_ID } from '../../../../../sessions/common/sessionCommands.js';
+// eslint-disable-next-line local/code-import-patterns
+import { createSessionArchiveTour } from '../../../../../sessions/contrib/onboardingTours/browser/tours/sessionArchiveTour.js';
+import { SpotlightOverlay } from '../../../../contrib/onboarding/browser/spotlight/spotlightOverlay.js';
+import { ONBOARDING_TARGET_ATTR } from '../../../../contrib/onboarding/browser/spotlight/onboardingTarget.js';
 // eslint-disable-next-line local/code-import-patterns
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../../../../sessions/contrib/sessions/browser/automationsNewBadge.js';
 // eslint-disable-next-line local/code-import-patterns
 import { renderSessionsHeader } from '../../../../../sessions/contrib/sessions/browser/views/sessionsView.js';
 // eslint-disable-next-line local/code-import-patterns
-import { NewSessionActionViewItemContribution } from '../../../../../sessions/contrib/sessions/browser/sessionsActions.js';
+import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../../../../sessions/contrib/sessions/browser/sessionsActions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { NEW_SESSION_ACTION_ID } from '../../../../../sessions/contrib/chat/common/constants.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -67,6 +81,7 @@ import { IChatService } from '../../../../contrib/chat/common/chatService/chatSe
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestProductService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -193,6 +208,7 @@ function createSession(spec: ISessionSpec, approvals: Map<string, IAgentSessionA
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly changes: IObservable<readonly never[]> = constObservable([]);
+		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 		override readonly changesSummary: IObservable<ISessionChangesSummary | undefined> = constObservable(spec.changesSummary);
 		override readonly description: IObservable<IMarkdownString | undefined> = constObservable(description);
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
@@ -219,17 +235,29 @@ interface IRenderOptions {
 	readonly showAutomations?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
 	readonly automationBadgeStyle?: AutomationsNewBadgeStyle;
+	readonly newSessionButtonStyle?: NewSessionButtonStyle;
+	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly showFocusedToolbar?: boolean;
+	readonly focusSelectedSession?: boolean;
+	readonly archiveOnboarding?: ChatSessionArchiveActionWording;
 }
 
 async function renderSessionsList(ctx: ComponentFixtureContext, options: IRenderOptions): Promise<void> {
 	const { container, disposableStore } = ctx;
+	const expectedNewSessionButtonStyle = options.newSessionButtonStyle ?? options.newSessionButtonTreatment;
+	const showHeader = options.showAutomations || expectedNewSessionButtonStyle !== undefined;
 	const approvals = new Map<string, IAgentSessionApprovalInfo>();
 	const sessions = options.sessions.map(spec => createSession(spec, approvals));
 	const approvalModel = createApprovalModel(approvals);
 	const groups = options.groups ?? [];
 	const automationRuns = observableValue<readonly IAutomationRun[]>(disposableStore, []);
 	const actionViewItemService = disposableStore.add(new FixtureActionViewItemService());
+	const newSessionKeybinding = expectedNewSessionButtonStyle
+		? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS)
+		: undefined;
+	if (expectedNewSessionButtonStyle && !newSessionKeybinding) {
+		throw new Error('Expected the New Session keybinding to resolve.');
+	}
 	const membership = new Map<string, string>();
 	for (const spec of options.sessions) {
 		if (spec.group) {
@@ -242,7 +270,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IProductService, TestProductService);
-			if (options.showFocusedToolbar) {
+			if (options.showFocusedToolbar || options.focusSelectedSession) {
 				const archiveAction = new class extends mock<MenuItemAction>() {
 					override readonly id = 'sessions.fixture.archive';
 					override readonly label = 'Archive';
@@ -262,6 +290,17 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				}());
 			}
 			reg.define(IListService, ListService);
+			if (newSessionKeybinding) {
+				reg.defineInstance(IKeybindingService, new class extends MockKeybindingService {
+					override lookupKeybinding(commandId: string) {
+						return commandId === NEW_SESSION_ACTION_ID ? newSessionKeybinding : undefined;
+					}
+
+					override lookupKeybindings(commandId: string) {
+						return commandId === NEW_SESSION_ACTION_ID ? [newSessionKeybinding] : [];
+					}
+				}());
+			}
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
@@ -288,13 +327,16 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override isSessionPinned(): boolean { return false; }
 				override migrateLegacyReadState(): void { }
 				override getSortKey(session: ISession): number { return session.createdAt.getTime(); }
-				override getStatusIcon(status: SessionStatus): ThemeIcon {
+				override getStatusIcon(status: SessionStatus, isRead: boolean): ThemeIcon {
 					switch (status) {
 						case SessionStatus.InProgress:
 							return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 						case SessionStatus.NeedsInput:
 							return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
 						default:
+							if (!isRead) {
+								return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
+							}
 							return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 					}
 				}
@@ -324,6 +366,14 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 				override getProviders() { return []; }
 				override getProvider() { return undefined; }
 			}());
+			reg.defineInstance(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
+				override readonly hadPriorWindowOpen = true;
+				override readonly windowOpenCount = 2;
+			}());
+			reg.defineInstance(ILifecycleService, new class extends mock<ILifecycleService>() {
+				override phase = LifecyclePhase.Eventually;
+				override when(): Promise<void> { return Promise.resolve(); }
+			}());
 			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 				override readonly pendingResponseVersion: IObservable<number> = constObservable(0);
 				override hasPendingResponse() { return false; }
@@ -331,20 +381,39 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = constObservable([]);
 				override readonly runs = automationRuns;
+				override readonly catalogueState = constObservable('ready' as const);
 			}());
 			reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
 				override readonly onDidRefetchAssignments = Event.None;
-				override async getTreatment<T extends string | number | boolean>(): Promise<T | undefined> { return undefined; }
+				override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+					return name === NEW_SESSION_BUTTON_STYLE_TREATMENT ? options.newSessionButtonTreatment as T | undefined : undefined;
+				}
 			}());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
 			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);
+				override hideCustomView(): void { }
 			}());
 		},
 	});
-	if (options.showAutomations) {
+	if (options.archiveOnboarding) {
+		const presentation = getChatSessionArchiveActionPresentation(options.archiveOnboarding).archive;
+		const archiveAction = instantiationService.createInstance(MenuItemAction, {
+			id: ARCHIVE_SESSION_COMMAND_ID, title: presentation.title, icon: presentation.icon,
+		}, undefined, undefined, undefined, undefined);
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(id: MenuId): IMenu {
+				return {
+					onDidChange: Event.None,
+					getActions: () => id === SessionItemToolbarMenuId ? [['navigation', [archiveAction]]] : [],
+					dispose: () => { },
+				};
+			}
+		}());
+	}
+	if (showHeader) {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const newSessionAction = new MenuItemAction(
 			{ id: NEW_SESSION_ACTION_ID, title: 'New Session' },
@@ -386,30 +455,65 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 	}
 
 	const width = options.width ?? 340;
-	container.style.width = `${width}px`;
-	container.style.height = options.phone ? '260px' : '220px';
+	container.style.width = `${options.archiveOnboarding ? width + 420 : width}px`;
+	container.style.height = options.archiveOnboarding ? '420px' : options.phone ? '260px' : '220px';
+	if (options.archiveOnboarding) {
+		container.style.position = 'relative';
+	}
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	if (options.phone) {
 		container.classList.add('agent-sessions-workbench', 'phone-layout');
 	}
 
 	let listParent = container;
-	if (options.showAutomations) {
+	if (showHeader) {
 		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 		renderSessionsHeader(content, false, instantiationService, instantiationService.get(IContextKeyService), disposableStore).toolbar?.refresh();
 		listParent = content;
 	}
-	const listHost = DOM.append(listParent, DOM.$(options.showAutomations ? '.agent-sessions-control-container' : 'div'));
+	const listHost = DOM.append(listParent, DOM.$(showHeader ? '.agent-sessions-control-container' : 'div'));
 	const list = disposableStore.add(instantiationService.createInstance(SessionsList, listHost, {
 		grouping: () => options.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => SessionsSorting.Created,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
-	list.layout(options.phone ? 260 : options.showAutomations ? 180 : 220, width);
+	list.layout(options.phone ? 260 : showHeader ? 180 : 220, width);
+	if (options.archiveOnboarding) {
+		listHost.style.width = `${width}px`;
+		const reveal = disposableStore.add(list.revealArchiveAction(sessions[0]));
+		const target = container.querySelector<HTMLElement>(`[${ONBOARDING_TARGET_ATTR}="${CSS.escape(reveal.targetId)}"]`);
+		if (!target) {
+			throw new Error('Expected the production session archive action.');
+		}
+		const step = createSessionArchiveTour(reveal.targetId, options.archiveOnboarding, async () => { }).presentation.payload.steps[0];
+		const overlay = disposableStore.add(new SpotlightOverlay(container));
+		const finish = () => {
+			overlay.hide();
+			reveal.dispose();
+		};
+		disposableStore.add(overlay.onDidClickNext(finish));
+		disposableStore.add(overlay.onDidSkip(finish));
+		overlay.show(target, {
+			title: step.title,
+			description: step.description,
+			stepIndex: 0,
+			stepCount: 1,
+			canGoBack: false,
+			isLastStep: true,
+			nextButtonLabel: step.nextButtonLabel,
+		}, {
+			placement: step.placement,
+			advanceOnTargetClick: step.advanceOnTargetClick,
+			hideNext: step.hideNext,
+		});
+	}
 
+	if (options.showAutomations) {
+		await list.resetAutomationsNewBadge();
+	}
 	if (options.automationRunStatus) {
 		automationRuns.set([{
 			id: 'fixture-run',
@@ -421,12 +525,35 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		}], undefined);
 	}
 	await Promise.resolve();
-	if (options.showAutomations && !container.querySelector('.agent-sessions-compact-new-button')) {
+	if (options.newSessionButtonStyle) {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(NEW_SESSION_BUTTON_STYLE_SETTING, options.newSessionButtonStyle);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([NEW_SESSION_BUTTON_STYLE_SETTING]),
+			change: { keys: [NEW_SESSION_BUTTON_STYLE_SETTING], overrides: [] },
+			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
+		});
+	}
+	if (showHeader && !container.querySelector('.agent-sessions-compact-new-button')) {
 		const menu = instantiationService.get(IMenuService).createMenu(Menus.SidebarSessionsHeader, instantiationService.get(IContextKeyService));
 		const actionCount = menu.getActions().flatMap(([, actions]) => actions).length;
 		menu.dispose();
 		const hasProvider = !!instantiationService.get(IActionViewItemService).lookUp(Menus.SidebarSessionsHeader, NEW_SESSION_ACTION_ID);
 		throw new Error(`Expected the production New Session action; found ${actionCount} menu action(s), provider=${hasProvider}.`);
+	}
+	if (expectedNewSessionButtonStyle === 'lightweight' && !container.querySelector('.agent-sessions-compact-new-button.lightweight:not(.lightweight-keybinding-background)')) {
+		throw new Error('Expected the rendered New Session action to react to the lightweight style setting.');
+	}
+	if (expectedNewSessionButtonStyle === 'lightweightWithKeybindingBackground' && !container.querySelector('.agent-sessions-compact-new-button.lightweight.lightweight-keybinding-background')) {
+		throw new Error('Expected the rendered New Session action to react to the lightweight keybinding-background style setting.');
+	}
+
+	if (options.focusSelectedSession) {
+		if (!sessions[0] || !list.reveal(sessions[0].resource)) {
+			throw new Error('Expected a session to select for keyboard navigation.');
+		}
+		ctx.focus(list);
 	}
 
 	if (options.showFocusedToolbar) {
@@ -459,6 +586,15 @@ const GROUPED_SESSIONS: readonly ISessionSpec[] = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
+	SessionsList_ArchiveOnboarding: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, archiveOnboarding: ChatSessionArchiveActionWording.Archive }),
+	}),
+	SessionsList_MarkAsDoneOnboarding: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, archiveOnboarding: ChatSessionArchiveActionWording.MarkAsDone }),
+	}),
 	SessionsList_CustomGroup: defineComponentFixture({
 		render: ctx => renderSessionsList(ctx, { sessions: GROUPED_SESSIONS, groups: [GROUP] }),
 	}),
@@ -481,6 +617,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			],
 			groups: [GROUP],
 			showFocusedToolbar: true,
+			width: 260,
+		}),
+	}),
+	SessionsList_SelectedKeyboardFocus: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The selected session row has keyboard focus and a visible Archive action without hover; its long title truncates before the action.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [{ id: 'a', title: 'Fix keyboard navigation in the selected session', workspace: 'vscode', minutesAgo: 12 }],
+			focusSelectedSession: true,
 			width: 260,
 		}),
 	}),
@@ -529,6 +675,24 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			showAutomations: true,
 		}),
 	}),
+	SessionsList_LightweightNewButton: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Sessions header has an outlined New button whose keyboard shortcut is plain inline text without a nested keycap or chip background. The shortcut uses a quieter type role than New and compact platform-native chord notation.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			newSessionButtonStyle: 'lightweight',
+		}),
+	}),
+	SessionsList_LightweightNewButtonWithKeybindingBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Sessions header has an outlined New button whose keyboard shortcut uses a quieter type role than New and sits on a subtle grouped keybinding background.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			newSessionButtonTreatment: 'lightweightWithKeybindingBackground',
+		}),
+	}),
 	SessionsList_AutomationsNewBadge_Accent: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast'],
@@ -547,6 +711,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			sessions: [],
 			showAutomations: true,
 			automationBadgeStyle: 'soft',
+		}),
+	}),
+	SessionsList_AutomationsNewBadge_Unread: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Automations row uses the standard filled blue unread indicator in its leading icon slot to signal the new feature and does not show a trailing NEW capsule, while the Sessions header retains its outlined New button.'],
+		render: ctx => renderSessionsList(ctx, {
+			sessions: [],
+			showAutomations: true,
+			automationBadgeStyle: 'unread',
 		}),
 	}),
 	SessionsList_AutomationsNewBadge_Narrow: defineComponentFixture({
