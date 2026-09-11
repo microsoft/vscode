@@ -252,8 +252,11 @@ suite('McpServerCustomizationMigration', () => {
 		await fileService.writeFile(sourceUri, VSBuffer.fromString(`{
 			// preserved
 			"servers": {
+				// selected server
 				"selected": { "type": "stdio", "command": "node" },
-				"unselected": { "type": "stdio", "command": "other" }
+
+				// unselected server
+				"unselected": { "type": "stdio", "command": "other" },
 			}
 		}`));
 		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"existing":{"type":"stdio","command":"existing"}}}'));
@@ -266,11 +269,15 @@ suite('McpServerCustomizationMigration', () => {
 			source: parse(source),
 			target: parse((await fileService.readFile(targetUri)).value.toString()),
 			commentPreserved: source.includes('// preserved'),
+			unselectedCommentPreserved: source.includes('// unselected server'),
+			selectedCommentRemoved: !source.includes('// selected server'),
 		}, {
 			result: { migratedCount: 1, failures: [] },
 			source: { servers: { unselected: { type: 'stdio', command: 'other' } } },
 			target: { mcpServers: { existing: { type: 'stdio', command: 'existing' }, selected: { type: 'stdio', command: 'node' } } },
 			commentPreserved: true,
+			unselectedCommentPreserved: true,
+			selectedCommentRemoved: true,
 		});
 	});
 
