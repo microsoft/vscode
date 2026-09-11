@@ -148,6 +148,25 @@ suite('Replace Pattern test', () => {
 		assert.strictEqual(actual, 'aLlGoODMen');
 	});
 
+	for (const [name, text, expected] of [
+		['capture reference', 'foo$1', 'FOO$1'],
+		['whole match reference', 'foo$&', 'FOO$&'],
+		['prefix reference', 'foo$`', 'FOO$`'],
+		['suffix reference', 'foo$\'', 'FOO$\''],
+		['escaped dollar', 'foo$$', 'FOO$$'],
+		['named capture reference', 'foo$<value>', 'FOO$<VALUE>'],
+	]) {
+		test(`case operations preserve literal dollars - ${name}`, () => {
+			const testObject = new ReplacePattern('\\U$1', { pattern: 'x(?<VALUE>.*)y', isRegExp: true });
+			assert.strictEqual(testObject.getReplaceString(`before x${text}y after`), expected);
+		});
+	}
+
+	test('case operations preserve literal dollars alongside other substitutions', () => {
+		const testObject = new ReplacePattern('\\u$1-\\L$2-$3', { pattern: '(a\\$1)(B\\$2)(c)', isRegExp: true });
+		assert.strictEqual(testObject.getReplaceString('a$1B$2c'), 'A$1-b$2-c');
+	});
+
 	test('case operations - no false positive', () => {
 		let testObject = new ReplacePattern('\\left $1', { pattern: '(pattern)', isRegExp: true });
 		let actual = testObject.getReplaceString('pattern');
