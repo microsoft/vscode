@@ -11,6 +11,8 @@ import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { LRUCache } from '../../../util/vs/base/common/map';
 
+export const MAX_GREP_RESULT_SESSIONS = 16;
+
 export const IGrepResultService = createServiceIdentifier<IGrepResultService>('IGrepResultService');
 
 interface FileMatch {
@@ -54,11 +56,19 @@ interface GrepResult {
 }
 
 class SessionMatches {
+
+	// Keep maximum of `maxMatches` grep results per session.
+	// The results are used to adjust read line calls. If no
+	// match is found the original values are used so the line
+	//  bounds remain accurate. Capping the value helps to
+	// limit memory usage.
 	private static readonly maxMatches = 16;
 
+	public readonly sessionUri: vscode.Uri;
 	private readonly matches: GrepResult[];
 
-	constructor() {
+	constructor(sessionUri: vscode.Uri) {
+		this.sessionUri = sessionUri;
 		this.matches = [];
 	}
 
@@ -68,6 +78,10 @@ class SessionMatches {
 			return this.matches.shift()?.requestId;
 		}
 		return undefined;
+	}
+
+	getRequestIds(): string[] {
+		return this.matches.map(match => match.requestId);
 	}
 
 	get(uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] {
@@ -111,15 +125,21 @@ export class GrepResultService extends Disposable implements IGrepResultService 
 
 	constructor() {
 		super();
-		this.cache = new LRUCache<string, SessionMatches>(10);
+		this.cache = new LRUCache<string, SessionMatches>(MAX_GREP_RESULT_SESSIONS);
 	}
 
 	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void {
 		const key = sessionUri.toString();
 		let sessionMatches = this.cache.get(key);
 		if (sessionMatches === undefined) {
-			sessionMatches = new SessionMatches();
+			const evictedSessionMatches = this.cache.size >= this.cache.limit ? this.cache.first : undefined;
+			sessionMatches = new SessionMatches(sessionUri);
 			this.cache.set(key, sessionMatches);
+			if (evictedSessionMatches !== undefined) {
+				for (const evictedRequestId of evictedSessionMatches.getRequestIds()) {
+					this._onDidRemoveGrepResult.fire({ sessionUri: evictedSessionMatches.sessionUri, requestId: evictedRequestId });
+				}
+			}
 		}
 
 		const matches = new Map<string, FileMatches>();
