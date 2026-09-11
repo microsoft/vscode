@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import '../../../../editor/browser/viewParts/currentLineHighlight/currentLineHighlight.js';
+import '../../../../editor/browser/widget/codeEditor/editor.css';
 import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
@@ -65,7 +66,7 @@ suite('Component fixture theme CSS', () => {
 		const originalStyleSheets = [...mainWindow.document.adoptedStyleSheets];
 		disposables.add(toDisposable(() => { mainWindow.document.adoptedStyleSheets = originalStyleSheets; }));
 		disposables.add(registerThemingParticipant((_theme, collector) => {
-			collector.addRule('.monaco-workbench { background-color: var(--vscode-editor-background); }');
+			collector.addRule('.monaco-workbench { background-color: #654321; }');
 		}));
 		const host = mainWindow.document.body.appendChild($('div'));
 		disposables.add(toDisposable(() => host.remove()));
@@ -89,8 +90,8 @@ suite('Component fixture theme CSS', () => {
 		});
 
 		assert.deepStrictEqual(actual, variants.map(() => [
+			'rgb(101, 67, 33)',
 			'rgb(18, 52, 86)',
-			'rgba(0, 0, 0, 0)',
 			'rgba(0, 0, 0, 0)',
 		]));
 	});
