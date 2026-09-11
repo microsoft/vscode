@@ -1495,7 +1495,8 @@ export class CopilotAgentSession extends Disposable {
 		return e.agentId ? this._parentToolCallIdsByAgentId.get(e.agentId) : undefined;
 	}
 
-	private _resumeSubagentForEvent(e: { readonly agentId?: string }, message?: Message): void {
+	/** Only turn boundaries resume a child; late output or usage may arrive after task completion. */
+	private _resumeSubagentForTurnStart(e: { readonly agentId?: string }, message?: Message): void {
 		if (this._dropLateRootTurnEvents) {
 			return;
 		}
@@ -4990,7 +4991,7 @@ export class CopilotAgentSession extends Disposable {
 		//    pin the wrong event to the turn.
 		this._register(wrapper.onUserMessage(e => {
 			if (e.agentId) {
-				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
+				this._resumeSubagentForTurnStart(e, { text: e.data.content, origin: { kind: MessageKind.User } });
 				return;
 			}
 			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
@@ -5017,7 +5018,6 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessageDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] delta: ${e.data.deltaContent}`);
-			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message_delta')) {
 				return;
 			}
@@ -5026,7 +5026,6 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
-			this._resumeSubagentForEvent(e);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.message')) {
 				return;
 			}
@@ -5152,7 +5151,6 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onToolCallDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool call delta: ${e.data.toolName ?? '<pending>'} (${e.data.toolCallId})`);
-			this._resumeSubagentForEvent(e);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.tool_call_delta')) {
 				return;
 			}
@@ -5236,7 +5234,6 @@ export class CopilotAgentSession extends Disposable {
 			if (streamed?.toolName && streamed.toolName !== e.data.toolName) {
 				this._logService.warn(`[Copilot:${sessionId}] Tool call ${e.data.toolCallId} started as ${e.data.toolName} after streaming as ${streamed.toolName}`);
 			}
-			this._resumeSubagentForEvent(e);
 			if (!streamed?.started && this._shouldDropUnmappedSubagentEvent(e, 'tool.execution_start')) {
 				this._unroutableSubagentToolCallIds.add(e.data.toolCallId);
 				return;
@@ -5592,7 +5589,6 @@ export class CopilotAgentSession extends Disposable {
 		// clickable file link, matching the `view`-tool display style.
 		this._register(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
-			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'skill.invoked')) {
 				return;
 			}
@@ -5770,7 +5766,6 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onUsage(e => {
-			this._resumeSubagentForEvent(e);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.usage')) {
 				return;
 			}
@@ -6006,7 +6001,6 @@ export class CopilotAgentSession extends Disposable {
 				observeUsage();
 				return;
 			}
-			this._resumeSubagentForEvent(e);
 			observeUsage();
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (e.agentId && !parentToolCallId) {
@@ -6107,7 +6101,6 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onReasoningDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
-			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning_delta')) {
 				return;
 			}
@@ -6701,7 +6694,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
-			this._resumeSubagentForEvent(e);
+			this._resumeSubagentForTurnStart(e);
 			if (!e.agentId) {
 				this._activeRootSdkTurnId = e.data.turnId;
 				if (this._currentTurn.value) {

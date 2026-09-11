@@ -4282,6 +4282,7 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.background_tasks_changed', {});
 		await timeout(0);
 
+		mockSession.fire('user.message', { content: 'Follow-up request' }, { agentId: 'agent-1' });
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 6,
@@ -4319,6 +4320,7 @@ suite('CopilotAgentSession', () => {
 		} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>];
 		mockSession.fire('session.background_tasks_changed', {});
 		await timeout(0);
+		mockSession.fire('user.message', { content: 'Follow-up request' }, { agentId: 'child' });
 		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
 		mockSession.fire('assistant.usage', { ...data, inputTokens: 7 }, { agentId: 'child', id: 'child-usage-2' });
 		const resumed = session.getTurnTokenUsage('child-turn-2', 'child-tool');
@@ -10263,6 +10265,51 @@ Use the attached image as context.
 			});
 		});
 
+		test('late subagent output and usage do not create another turn after task completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.message_delta', {
+				messageId: 'child-message',
+				deltaContent: 'CUSTOM_AGENT_CHILD_OK',
+			}, { agentId: 'agent-1' });
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-1',
+				toolCallId: 'tc-subagent',
+				description: 'Explore tests',
+				status: 'idle',
+				agentType: 'explore',
+				prompt: 'Initial request',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			mockSession.fire('assistant.message', {
+				messageId: 'child-message',
+				content: 'CUSTOM_AGENT_CHILD_OK',
+			}, { agentId: 'agent-1' });
+			mockSession.fire('assistant.usage', {
+				model: 'gpt-5.5',
+				inputTokens: 5,
+				outputTokens: 7,
+			}, { agentId: 'agent-1' });
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			assert.deepStrictEqual(
+				signals.filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed').map(signal => signal.kind),
+				['subagent_completed'],
+			);
+		});
+
 		test('retries subagent task status reconciliation after a transient failure', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
@@ -11610,6 +11657,7 @@ Use the attached image as context.
 			mockSession.fire('session.background_tasks_changed', {});
 			await timeout(0);
 
+			mockSession.fire('user.message', { content: 'Use the client tool again' }, { agentId: 'agent-client-tool' });
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-sub-client',
 				toolName: 'my_tool',
