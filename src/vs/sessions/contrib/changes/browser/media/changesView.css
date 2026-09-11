@@ -140,6 +140,10 @@
 	white-space: nowrap;
 }
 
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button.monaco-text-button > .codicon:not(.monaco-button-leading-icon) {
+	margin-inline: var(--vscode-spacing-size20);
+}
+
 /* ButtonWithDropdown container grows to fill available space */
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown {
 	flex: 1;

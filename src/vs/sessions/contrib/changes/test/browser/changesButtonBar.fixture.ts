@@ -19,9 +19,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 		expectedVisualDescriptions: ['A production-style Changes view outside-card action row shows one full-width primary "Commit" button with a leading commit icon, 26px tall.'],
 		render: renderChangesButtonBar,
 	}),
+	ButtonBarInlineIconLabel: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A production-style Changes outside-card button shows a 6px leading-icon relationship and a multi-part "Commit", check icon, and "Ready" label whose inline icon keeps a tighter 2px relationship to the surrounding text.'],
+		render: context => renderChangesButtonBar(context, 'Commit $(check) Ready'),
+	}),
 });
 
-function renderChangesButtonBar({ container, disposableStore, theme }: ComponentFixtureContext): void {
+function renderChangesButtonBar({ container, disposableStore, theme }: ComponentFixtureContext, label = 'Commit'): void {
 	container.style.width = '560px';
 	container.style.padding = '16px';
 	container.style.backgroundColor = 'var(--vscode-editor-background)';
@@ -35,7 +40,7 @@ function renderChangesButtonBar({ container, disposableStore, theme }: Component
 
 	const changesView = dom.append(container, dom.$('.changes-view-body'));
 	const actions = dom.append(changesView, dom.$(`.chat-editing-session-actions.${CHANGES_OUTSIDE_CARD_CLASS}`));
-	const commit = action('fixture.commit', 'Commit', Codicon.gitCommit);
+	const commit = action('fixture.commit', label, Codicon.gitCommit);
 
 	// Matches production: both changesView.ts call sites cap this bar at one button.
 	const bar = disposableStore.add(instantiationService.createInstance(
