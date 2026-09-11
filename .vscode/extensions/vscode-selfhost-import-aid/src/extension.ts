@@ -18,7 +18,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		private readonly _index = new Map<string, vscode.Uri>();
 
 		constructor() {
-			const watcher = vscode.workspace.createFileSystemWatcher('**/*.ts', false, true, false);
+			const watcher = vscode.workspace.createFileSystemWatcher('src/vs/**/*.ts', false, true, false);
 			this._disposables.push(watcher.onDidChange(e => { this._index.set(e.toString(), e); }));
 			this._disposables.push(watcher.onDidDelete(e => { this._index.delete(e.toString()); }));
 			this._disposables.push(watcher);
