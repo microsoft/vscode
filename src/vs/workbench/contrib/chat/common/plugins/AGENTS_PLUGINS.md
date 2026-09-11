@@ -85,7 +85,7 @@ Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs
 
 **MarketplaceAgentPluginDiscovery** — discovers plugins from `IPluginMarketplaceService.installedPlugins` and delegates to the install/repository services for on-disk availability.
 
-**CopilotCliAgentPluginDiscovery** — discovers plugins installed by the Copilot CLI under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` (two levels deep; `_direct` is the marketplace segment for non-marketplace installs). Watches the deepest existing ancestor (down to the install root) and each marketplace bucket non-recursively so the first-ever install is detected without a reload.
+**CopilotCliAgentPluginDiscovery** — discovers plugins installed by the Copilot CLI under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` (two levels deep; `_direct` is the marketplace segment for non-marketplace installs). Watches the deepest existing ancestor (down to the install root) and each marketplace bucket non-recursively so the first-ever install is detected without a reload. CLI-owned plugin roots and their contents are not watched, allowing the CLI to replace them atomically on Windows.
 
 ### Plugin Formats
 
