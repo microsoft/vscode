@@ -792,7 +792,7 @@ function createThemeColorFixtures() {
 	};
 }
 
-function renderConnectedSurface(activeTabIndex = 1, forcedHoverTab?: number, focusedTabAction?: number): (ctx: ComponentFixtureContext) => void {
+function renderConnectedSurface(activeTabIndex = 1, forcedHoverTab?: number, focusedTabAction?: number, options: Omit<IEditorTabBarFixtureOptions, 'modernUI'> = {}): (ctx: ComponentFixtureContext) => void {
 	return render(true, {
 		editors: [
 			{ resource: file('/project/README.md'), pinned: true, active: activeTabIndex >= 0 },
@@ -812,8 +812,19 @@ function renderConnectedSurface(activeTabIndex = 1, forcedHoverTab?: number, foc
 		].join('\n'),
 		forcedHoverTab,
 		focusedTabAction,
+		...options,
 	});
 }
+
+function renderWrappedConnectedSurface(activeTabIndex: number, forcedHoverTab?: number, tabHeight: IEditorPartOptions['tabHeight'] = 'default'): (ctx: ComponentFixtureContext) => void {
+	return renderConnectedSurface(activeTabIndex, forcedHoverTab, undefined, {
+		width: 820,
+		editors: manyEditorSpecs().slice(0, 10).map((spec, index) => ({ ...spec, active: index <= activeTabIndex })),
+		partOptions: { wrapTabs: true, tabHeight, editorActionsLocation: 'hidden' },
+	});
+}
+
+const connectedSurfaceThemes: readonly ComponentFixtureAdditionalTheme[] = ['dark2026', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast', 'abyss', 'monokai', 'quietLight', 'solarizedDark', 'solarizedLight'];
 
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 	FileIconThemes: defineThemedFixtureGroup({
@@ -834,15 +845,89 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		ThemeColors: defineThemedFixtureGroup(createThemeColorFixtures()),
 	}),
 	ConnectedSurface: defineThemedFixtureGroup({
+		MinimumIdentity: defineComponentFixture({
+			render: renderConnectedSurface(3, undefined, undefined, {
+				width: 380,
+				partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 30, tabSizingFixedMaxWidth: 30, editorActionsLocation: 'hidden' },
+			}),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['Narrow tabs drop their file icon slot before truncating the basename with a real ellipsis. Each extension stays readable; package.json retains its M badge and dirty action. Clean inactive actions stay hidden, while the active close or dirty action remains visible.'],
+		}),
+		MinimumIdentityHovered: defineComponentFixture({
+			additionalThemes: connectedSurfaceThemes,
+			render: renderConnectedSurface(3, 0, undefined, {
+				width: 380,
+				partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 30, tabSizingFixedMaxWidth: 30, editorActionsLocation: 'hidden' },
+			}),
+			expectedVisualDescriptions: ['Hover reveals the inactive close without covering its ellipsized basename or extension.'],
+		}),
+		NarrowWindow: defineComponentFixture({
+			render: renderConnectedSurface(0, undefined, undefined, {
+				width: 420,
+				editors: manyEditorSpecs().slice(0, 10),
+				partOptions: { tabSizing: 'shrink', editorActionsLocation: 'hidden' },
+			}),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['A narrow editor with ten open tabs collapses file icon slots to give filenames more room. Basenames ellipsize while extensions and active close or dirty indicators remain visible. Tabs scroll rather than shrink below their readable minimum. This is a deliberate width-pressure scenario, not the default sizing.'],
+		}),
+		UpperWrappedPills: defineComponentFixture({
+			render: renderWrappedConnectedSurface(0),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The active tab in the upper wrapped row is a rounded pill with no shoulders, using the same background as the document well, including behind its close action. Only tabs in the bottom row can connect to the document.'],
+		}),
+		BottomWrappedConnected: defineComponentFixture({
+			render: renderWrappedConnectedSurface(9),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The selected tab in the bottom wrapped row connects directly to the document well with curved shoulders and no bottom gap, just like a single row. The adjacent inactive tab also reaches the well boundary. Upper-row tabs retain separate rounded pills.'],
+		}),
+		UpperWrappedHover: defineComponentFixture({
+			render: renderWrappedConnectedSurface(9, 1),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The hovered inactive tab in the upper wrapped row stays a control-tier pill within its row, without extending into or behind the selected tab below. Its close button is visible. The bottom selected tab remains connected to the document well without a gap.'],
+		}),
+		UpperWrappedHoverCompact: defineComponentFixture({
+			render: renderWrappedConnectedSurface(9, 1, 'compact'),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['At compact tab height, the hovered inactive upper-row pill and its close button stay clear of the selected tab below. The bottom selected tab still joins the document well without a gap.'],
+		}),
+		UpperPinnedPills: defineComponentFixture({
+			render: renderConnectedSurface(0, undefined, undefined, {
+				partOptions: { pinnedTabsOnSeparateRow: true },
+				editors: [
+					{ resource: file('/project/README.md'), sticky: true, pinned: true, active: true },
+					{ resource: file('/project/src/main.ts'), pinned: true },
+					{ resource: file('/project/package.json'), pinned: true, dirty: true },
+				],
+			}),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The active pinned tab in the separate upper strip remains a rounded pill with the document well background, not a disconnected tab-shaped well.'],
+		}),
+		InactiveGroup: defineComponentFixture({
+			render: renderConnectedSurface(1, undefined, undefined, { active: false }),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The selected tab and document well share a neutral contrast border in an inactive HC editor group, distinct from the focus-colored border of the active group. Standard themes have no prominent well border.'],
+		}),
+		Breadcrumbs: defineComponentFixture({
+			render: renderConnectedSurface(1, undefined, undefined, { breadcrumbs: {} }),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The connected outline continues down both sides of the breadcrumbs and around the document body, without a line beneath the selected tab.'],
+		}),
+		MultiSelect: defineComponentFixture({
+			render: renderConnectedSurface(1, undefined, undefined, { editors: multiSelectEditorSpecs() }),
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The active tab remains connected to its document well during multi-selection. Other selected tabs retain their explicit HC selection outlines.'],
+		}),
 		WrappedRowStart: defineComponentFixture({
 			render: render(true, {
 				partOptions: { wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' },
 				editors: wrappedRowStartEditorSpecs(),
 				width: 260,
 			}),
-			expectedVisualDescriptions: ['The active tab at the start of a wrapped row uses a straight left edge while its right shoulder flows into the row separator. The preceding row ends with an uninterrupted straight boundary.'],
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['The active tab at the start of an upper wrapped row is a rounded pill. Upper rows stay separate from the document well; the strip separator sits beneath the final row only.'],
 		}),
 		StickyViewport: defineComponentFixture({
+			additionalThemes: connectedSurfaceThemes,
 			render: render(true, {
 				partOptions: { pinnedTabSizing: 'compact', editorActionsLocation: 'hidden' },
 				editors: stickyEditorSpecs(),
@@ -853,60 +938,71 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		}),
 		ClippedLeft: defineComponentFixture({
 			render: render(true, { editors: manyEditorSpecs(), width: 360, activeTabClipping: 'left' }),
+			additionalThemes: connectedSurfaceThemes,
 			expectedVisualDescriptions: ['The partially scrolled active tab closes its stationary outside stroke with a straight left edge. Its top stroke, left edge and strip separator remain continuous without exposing clipped tab content.'],
 		}),
 		ClippedRight: defineComponentFixture({
 			render: render(true, { editors: manyEditorSpecs(5), width: 248, activeTabClipping: 'right' }),
-			expectedVisualDescriptions: ['The partially scrolled active tab closes its stationary outside stroke with a straight right edge before the editor actions. Its top stroke, right edge and strip separator remain continuous without exposing clipped tab content.'],
+			additionalThemes: connectedSurfaceThemes,
+			expectedVisualDescriptions: ['This deliberate manual-scroll stress case cuts through the selected tab, leaving its action offscreen. The stationary cap and bottom-right shoulder form one continuous outline into the document boundary without a stepped stroke or leaking clipped content.'],
 		}),
 		RightViewportEdge: defineComponentFixture({
+			additionalThemes: connectedSurfaceThemes,
+			render: render(true, { editors: manyEditorSpecs(5), width: 248 }),
+			expectedVisualDescriptions: ['The fully visible active tab preserves its filename and dirty/close action before the editor toolbar. Its inset cap joins a complete curved bottom-right shoulder on the document boundary, including in both high-contrast themes.'],
+		}),
+		RightShoulderAtViewport: defineComponentFixture({
+			additionalThemes: connectedSurfaceThemes,
 			render: render(true, { editors: manyEditorSpecs(5), width: 248, activeTabClipping: 'right-shoulder' }),
-			expectedVisualDescriptions: ['The rightmost visible active tab uses a continuous straight edge when there is no room for its full shoulder. No part of the shoulder is clipped beneath the editor actions.'],
+			expectedVisualDescriptions: ['A manual scroll ending at the selected tab edge leaves no room for the outside shoulder. The stationary cap and shoulder turn inward with one continuous outline.'],
 		}),
 		LeftViewportEdge: defineComponentFixture({
+			additionalThemes: connectedSurfaceThemes,
 			render: render(true, { editors: manyEditorSpecs(5), width: 248, activeTabClipping: 'left-shoulder' }),
 			expectedVisualDescriptions: ['The leftmost visible active tab uses a continuous straight edge when there is no room for its full shoulder. No part of the shoulder is clipped at the viewport boundary.'],
 		}),
 		Stroke: defineComponentFixture({
 			render: renderConnectedSurface(),
-			additionalThemes: ['darkHighContrast'],
+			additionalThemes: connectedSurfaceThemes,
 			expectedVisualDescriptions: [
-				'The active main.ts tab uses the editor background for its fill, outside stroke, curved shoulders and strip separator so the tab and editor body read as one continuous document well. Inactive tabs sit on the editor-group header strip. High contrast retains explicit focus and selection borders.',
+				'The active main.ts tab and editor body read as one continuous document well. In high contrast a single focus-colored outline follows the selected tab, its shoulders, and the entire document body; standard themes retain the subtle editor-colored boundary.',
 				'The editor surface color remains uniform through the cap, shoulders and separator. There are no gaps, vertical protrusions, darker seams or brighter overlaps at the tangent joins.',
-				'In standard themes, the concave shoulder radii are reduced by the outward stroke offset while the convex cap radii grow. The lower gutter reserves an extra pixel for the separator so the visible gap matches the upper gutter.',
+				'The same stroke geometry is reserved in every theme. Tabs span the strip height with no upper or lower gutters.',
 			],
 		}),
 		HoveredTab: defineComponentFixture({
+			additionalThemes: connectedSurfaceThemes,
 			render: renderConnectedSurface(1, 0),
 			expectedVisualDescriptions: [
-				'The hovered README.md pill sits one stroke closer to the strip separator than an ordinary pill, balancing its top and bottom whitespace.',
+				'The hovered README.md tab spans the strip height and meets the connected shoulder without an upper or lower gutter.',
 			],
 		}),
 		FocusedCloseAction: defineComponentFixture({
 			render: renderConnectedSurface(1, undefined, 1),
-			additionalThemes: ['darkHighContrast'],
+			additionalThemes: connectedSurfaceThemes,
 			expectedVisualDescriptions: [
-				'The focused close action keeps its full interaction target while sitting close to the active tab edge. In high contrast, the action follows the complete pill corner instead of squaring its lower outside corner.',
+				'The focused close action keeps its full interaction target and visible keyboard focus indicator inside the connected outline in every theme.',
 			],
 		}),
 		FirstTabActive: defineComponentFixture({
 			render: renderConnectedSurface(0),
-			additionalThemes: ['darkHighContrast'],
+			additionalThemes: connectedSurfaceThemes,
 			expectedVisualDescriptions: [
-				'The first active tab has a straight left edge meeting the strip separator, with no clipped outer shoulder. The right shoulder still curves into the separator. High contrast retains explicit selection borders.',
+				'The first active tab left edge continues directly down the document well, without an outer shoulder. The right shoulder joins the well top border. In HC the entire boundary uses the active group accent.',
 			],
 		}),
 		FirstTabActiveAdjacentHover: defineComponentFixture({
 			render: renderConnectedSurface(0, 1),
+			additionalThemes: connectedSurfaceThemes,
 			expectedVisualDescriptions: [
 				'The first active tab is flush with the editor body left edge and the tab strip top edge, and overlaps the body by one stroke so no seam appears below the cap or shoulder. The adjacent hovered tab begins immediately at the active tab boundary and spans the full strip height without an inter-tab, upper, or lower gutter, while the active tab shoulder remains visible over the shared boundary.',
 			],
 		}),
 		LastTabActive: defineComponentFixture({
 			render: renderConnectedSurface(3),
-			additionalThemes: ['darkHighContrast'],
+			additionalThemes: connectedSurfaceThemes,
 			expectedVisualDescriptions: [
-				'The last active tab has a straight right edge meeting the strip separator, with no outer shoulder. The left shoulder still curves into the separator. High contrast retains explicit selection borders.',
+				'The last active tab keeps a curved right shoulder meeting the strip separator. Both shoulders use the same stroke-adjusted radius as the top cap. In HC the accent continues around the document well.',
 			],
 		}),
 	}),
