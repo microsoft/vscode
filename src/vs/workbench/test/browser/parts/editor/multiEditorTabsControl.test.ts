@@ -154,7 +154,7 @@ suite('MultiEditorTabsControl', () => {
 	test('connected minimum width preserves basename ellipsis extension badge and action', async () => {
 		const group = connectedGroup();
 		const badgeStyle = document.createElement('style');
-		badgeStyle.textContent = '.connected-tabs-labels .monaco-decoration-badge::after { content: "M"; width: 10px; margin: 0 5px; }';
+		badgeStyle.textContent = '.connected-tabs-labels .monaco-decoration-badge::after { content: "WM"; margin: 0 5px; }';
 		group.appendChild(badgeStyle);
 		const oldOptions = partOptions;
 		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 20, tabSizingFixedMaxWidth: 20, editorActionsLocation: 'hidden', hasIcons: true, showTabIndex: true };
@@ -171,9 +171,13 @@ suite('MultiEditorTabsControl', () => {
 		const suffix = tab.querySelector<HTMLElement>('.label-suffix')!;
 		const action = tab.querySelector<HTMLElement>('.tab-actions')!;
 		const context = document.createElement('canvas').getContext('2d')!;
+		const badge = mainWindow.getComputedStyle(label, '::after');
+		context.font = badge.font;
+		const badgeTextWidth = context.measureText('WM').width;
 		context.font = mainWindow.getComputedStyle(name).font;
 		assert.deepStrictEqual({
-			minimum: tab.offsetWidth >= Math.ceil(context.measureText('1: f….txt').width) + 20 + 34,
+			minimum: tab.offsetWidth >= Math.ceil(context.measureText('1: f….txt').width + badgeTextWidth) + 10 + 34,
+			intrinsicBadgeWidth: Math.abs(parseFloat(badge.width) - badgeTextWidth) < 1,
 			narrow: tab.classList.contains('connected-tab-narrow'),
 			iconHidden: mainWindow.getComputedStyle(label, '::before').display,
 			basename: name.textContent,
@@ -183,7 +187,7 @@ suite('MultiEditorTabsControl', () => {
 			extensionBeforeAction: suffix.getBoundingClientRect().right <= action.getBoundingClientRect().left,
 			fullAriaLabel: tab.getAttribute('aria-label')?.includes('file0.txt'),
 		}, {
-			minimum: true, narrow: true, iconHidden: 'none', basename: '1: file0', extension: '.txt',
+			minimum: true, intrinsicBadgeWidth: true, narrow: true, iconHidden: 'none', basename: '1: file0', extension: '.txt',
 			ellipsis: 'ellipsis', basenameVisible: true, extensionBeforeAction: true, fullAriaLabel: true,
 		});
 		name.style.fontSize = '13px';

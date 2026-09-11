@@ -779,6 +779,7 @@ function renderThemeColors(options: Omit<IEditorTabBarFixtureOptions, 'modernUI'
 		renderEditorTabBarFixture(ctx, {
 			...options,
 			modernUI: true,
+			editorTabStyle: ModernUIEditorTabStyle.Pill,
 			colorCustomizations: getModernEditorTabColorCustomizations(ctx.theme),
 		});
 	};
@@ -916,7 +917,7 @@ export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 		MultiSelect: defineComponentFixture({
 			render: renderConnectedSurface(1, undefined, undefined, { editors: multiSelectEditorSpecs() }),
 			additionalThemes: connectedSurfaceThemes,
-			expectedVisualDescriptions: ['The active tab remains connected to its document well during multi-selection. Other selected tabs retain their explicit HC selection outlines.'],
+			expectedVisualDescriptions: ['The active tab retains its connected document well during multi-selection. All selected tabs, including the active tab, have an explicit HC selection stroke; keyboard focus remains distinct.'],
 		}),
 		WrappedRowStart: defineComponentFixture({
 			render: render(true, {

@@ -2108,6 +2108,44 @@ suite('ModernUIContribution', () => {
 		}
 	});
 
+	test('distinguishes active multi-selected connected tabs in high contrast without moving the well', () => {
+		const root = document.createElement('div');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-contrastActiveBorder', '#ff0000');
+		root.style.setProperty('--vscode-focusBorder', '#00ff00');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(row, 'tabs-container');
+		const tab = appendElement(tabs, 'tab active');
+		tab.style.width = '120px';
+		tab.style.height = '32px';
+		const fill = appendElement(tab, 'tab-fill');
+		const targetWindow = getWindow(root);
+
+		for (const theme of ['hc-black', 'hc-light']) {
+			root.className = `monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs ${theme}`;
+			tab.className = 'tab active';
+			const bounds = fill.getBoundingClientRect().toJSON();
+			const ordinaryOutline = targetWindow.getComputedStyle(fill).outlineStyle;
+			tab.classList.add('selected', 'multi-selected');
+			const selectedStyle = targetWindow.getComputedStyle(fill);
+			assert.deepStrictEqual({
+				ordinaryOutline,
+				outline: selectedStyle.outlineStyle,
+				color: selectedStyle.outlineColor,
+				width: selectedStyle.outlineWidth,
+				offset: selectedStyle.outlineOffset,
+				bounds: fill.getBoundingClientRect().toJSON(),
+			}, { ordinaryOutline: 'none', outline: 'solid', color: 'rgb(255, 0, 0)', width: '1px', offset: '-3px', bounds }, theme);
+		}
+	});
+
 	test('matches connected cap and shoulder radii for the outside stroke and omits the first outer shoulder', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';

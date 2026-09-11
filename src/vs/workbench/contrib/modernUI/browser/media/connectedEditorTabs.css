@@ -46,6 +46,11 @@
 	border-bottom: 0;
 }
 
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.multi-selected:not(:focus) > .tab-fill {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * (var(--vscode-spacing-size20) + var(--vscode-strokeThickness)));
+}
+
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:focus-visible > .tab-fill {
 	outline: var(--vscode-strokeThickness) dashed var(--vscode-focusBorder);
 	outline-offset: calc(-1 * (var(--vscode-spacing-size20) + var(--vscode-strokeThickness)));
