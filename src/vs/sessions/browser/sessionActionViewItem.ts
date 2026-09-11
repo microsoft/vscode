@@ -12,10 +12,10 @@ import { IConfigurationService } from '../../platform/configuration/common/confi
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../common/sessionCommands.js';
 
-export const SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING = 'sessions.archiveSessionConfetti';
+export const SESSIONS_MARK_AS_DONE_CONFETTI_SETTING = 'sessions.markAsDoneConfetti';
 
 export function getSessionArchiveActionViewItemOptions(options: IActionViewItemOptions, configurationService: IConfigurationService): IMenuEntryActionViewItemOptions | undefined {
-	return configurationService.getValue<boolean>(SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING)
+	return configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
 		? { ...options, onClickAnimation: ClickAnimation.Confetti }
 		: undefined;
 }

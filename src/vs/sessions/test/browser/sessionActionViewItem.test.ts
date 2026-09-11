@@ -14,7 +14,7 @@ import { TestInstantiationService } from '../../../platform/instantiation/test/c
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../browser/sessionActionViewItem.js';
+import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../browser/sessionActionViewItem.js';
 
 suite('SessionActionViewItem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,7 +38,7 @@ suite('SessionActionViewItem', () => {
 	test('uses confetti for archive actions when enabled', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration(SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING, true);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 		const expected = Object.create(MenuEntryActionViewItem.prototype) as MenuEntryActionViewItem;
 		instantiationService.stubInstance<MenuEntryActionViewItem>(MenuEntryActionViewItem, expected);
 		const provider = createSessionActionViewItemProvider(instantiationService, configurationService);
@@ -61,8 +61,8 @@ suite('SessionActionViewItem', () => {
 
 	test('shares configured archive animation options with specialized view items', () => {
 		assert.deepStrictEqual({
-			enabled: getSessionArchiveActionViewItemOptions({ icon: true }, new TestConfigurationService({ [SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING]: true })),
-			disabled: getSessionArchiveActionViewItemOptions({ icon: true }, new TestConfigurationService({ [SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING]: false })),
+			enabled: getSessionArchiveActionViewItemOptions({ icon: true }, new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: true })),
+			disabled: getSessionArchiveActionViewItemOptions({ icon: true }, new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: false })),
 		}, {
 			enabled: { icon: true, onClickAnimation: ClickAnimation.Confetti },
 			disabled: undefined,
