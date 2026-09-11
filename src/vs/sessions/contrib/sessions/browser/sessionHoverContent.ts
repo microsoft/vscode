@@ -41,7 +41,7 @@ export function getSessionSummaryHoverData(
 ): ISessionSummaryHoverData {
 	return {
 		title: session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false),
-		updatedAt: includeUpdatedAt ? session.updatedAt.get() : undefined,
+		...(includeUpdatedAt ? { updatedAt: session.updatedAt.get() } : {}),
 		location: getLocation(session, labelService),
 		pullRequests: getPullRequests(session, openerService),
 		createdBy,
