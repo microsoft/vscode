@@ -37,10 +37,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/c3f873e4a76c4751636a7580d94dc581c5842482f790e0821588d77ae46d76dd)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/ConfiguredLocationsMigration/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/1298da62dfef2cbcda60eb286d5b482ad814cf4ac1c5dd6d262a26a7e197c601)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e9bd2242d69dfb8116124f63f20c8bad385e5058eb849caf4ba4652f845132af)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/ConfiguredLocationsMigration/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0ce6b4015a6ca4bc6ad2d85012b13e830e7271c027abcbc483bf3bfc8ca03751)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/050aa9a819e521d3212cdeb2d223e89f171b86268ae7d504a967e7b0738ea988)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/EmbeddedMcpDetailUninstalled/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/321a3208ebec884d431aeb2eb12bf1d08e5cdda40331872da0d099c77301dbfd)
@@ -115,10 +115,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/9018471027ef940386ffb5524dc1126fb6d4b2b1a8f329775021b80fb9d0c6f5)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PromptMigration/Dark
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/61bb3a156d6c8c7b766a8c261eb9fc2d55cac7990eb9d9d4b1fbefde4caf1ea2)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2849d1938c34c77a2a7fb76735c083386777dd64cae9afbdd97bfb207bf448c2)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/PromptMigration/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/b89939f490eddf6ad1e33c4d2b1504b9f683255bffa8a9b635d6a322e736215e)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1ac40e843c7d2b55d1199058ee40852f7fdbcc34f0173c2cc8343c8f561e4e9a)
 
 #### chat/aiCustomizations/aiCustomizationManagementEditor/SessionsCodexSkillMissingDescriptionHover/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a84bdc6d681b5c2cd8790055c7603555ffadc7372e3412f8882ac63478ef4ad7)
