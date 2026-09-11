@@ -4,16 +4,78 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorOptions } from '../../../browser/widget/diffEditor/diffEditorOptions.js';
+import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
+import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
+import { instantiateTextModel } from '../../common/testTextModel.js';
+import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
+import { createCodeEditorServices } from '../testCodeEditor.js';
 
 suite('DiffEditorWidget2', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const renderSideBySide of [true, false]) {
+		test(`compact disclosures expand and collapse with a persistent keyboard target (side by side: ${renderSideBySide})`, async () => {
+			const services = new ServiceCollection();
+			services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+			services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+				override show() { return emptyProgressRunner; }
+			}());
+			services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const lines = Array.from({ length: 40 }, (_, i) => `const value${i} = ${i};`);
+			const original = disposables.add(instantiateTextModel(instantiationService, lines.join('\n')));
+			lines[20] = 'const value20 = 100;';
+			const modified = disposables.add(instantiateTextModel(instantiationService, lines.join('\n')));
+			const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
+				renderSideBySide,
+				useInlineViewWhenSpaceIsLimited: false,
+				hideUnchangedRegions: { enabled: true, contextLineCount: 2, minimumLineCount: 4 },
+			}, { variant: 'compact' }));
+			const model = disposables.add(RefCounted.create(widget.createViewModel({ original, modified })));
+			widget.layout(new Dimension(800, 500));
+			widget.setDiffModel(model);
+			disposables.add(toDisposable(() => widget.setDiffModel(null)));
+			await widget.waitForDiff();
+			const region = model.object.unchangedRegions.get()[0];
+			const toggle = container.querySelector<HTMLElement>('.editor.modified .disclosure-toggle')!;
+			const initiallyHidden = region.getHiddenModifiedRange().length;
+			toggle.focus();
+			toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			const expanded = {
+				hiddenLines: region.getHiddenModifiedRange().length,
+				ariaExpanded: toggle.getAttribute('aria-expanded'),
+				retainsFocus: document.activeElement === toggle,
+				retainsControl: toggle.isConnected,
+			};
+			toggle.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+			assert.deepStrictEqual({
+				expanded,
+				collapsedHiddenLines: region.getHiddenModifiedRange().length,
+				collapsedAriaExpanded: toggle.getAttribute('aria-expanded'),
+			}, {
+				expanded: { hiddenLines: 0, ariaExpanded: 'true', retainsFocus: true, retainsControl: true },
+				collapsedHiddenLines: initiallyHidden,
+				collapsedAriaExpanded: 'false',
+			});
+		});
+	}
 
 	suite('width based layout', () => {
 		test('commits temporary inline when smoothly enlarging from automatic inline', () => {

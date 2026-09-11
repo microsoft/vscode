@@ -5,6 +5,7 @@
 
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import type { MultiDiffEditorVariant } from '../../../common/multiDiffEditor.js';
+import type { DiffEditorVariant } from '../diffEditor/diffEditorOptions.js';
 
 export type { MultiDiffEditorVariant } from '../../../common/multiDiffEditor.js';
 export { multiDiffEditorVariants } from '../../../common/multiDiffEditor.js';
@@ -16,6 +17,7 @@ export interface IMultiDiffEditorWidgetOptions {
 }
 
 export interface IMultiDiffEditorVariantConfiguration {
+	readonly diffEditorVariant?: DiffEditorVariant;
 	readonly classNames: readonly string[];
 	readonly horizontalInsets: Readonly<{ left: number; right: number }>;
 	readonly headerHeight: number;
@@ -45,6 +47,7 @@ export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorV
 			};
 		case 'cards':
 			return {
+				diffEditorVariant: 'compact',
 				classNames: ['multiDiffEditor-compact', 'multiDiffEditor-card'],
 				horizontalInsets: { left: 9, right: 9 },
 				headerHeight: 40,
