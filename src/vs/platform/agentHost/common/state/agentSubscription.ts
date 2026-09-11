@@ -509,17 +509,13 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 		// apply branches also prevents a broadcast rejection from leaking the
 		// rejected action into a non-origin client's state.
 		if (isOwnAction && envelope.origin) {
-			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
-			if (idx !== -1) {
-				if (!envelope.rejectionReason) {
-					this._confirmedApply(envelope.action);
-				}
-				this._pendingActions.splice(idx, 1);
-			} else if (!envelope.rejectionReason) {
-				this._confirmedApply(envelope.action);
+			this.dropPendingByClientSeq(envelope.origin.clientSeq);
+		}
+		if (!envelope.rejectionReason) {
+			if (!isOwnAction) {
+				this._promotePendingTurnStartIfTerminal(envelope.action);
 			}
-		} else if (!envelope.rejectionReason) {
-			this._promotePendingTurnStartIfTerminal(envelope.action);
+			this._promotePendingTruncationIfApplied(envelope, isOwnAction);
 			this._confirmedApply(envelope.action);
 		}
 		this._recomputeOptimistic();
@@ -535,13 +531,32 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 		if (action.type !== ActionType.ChatTurnComplete && action.type !== ActionType.ChatTurnCancelled && action.type !== ActionType.ChatError) {
 			return;
 		}
-		const index = this._pendingActions.findIndex(p => p.action.type === ActionType.ChatTurnStarted && p.action.turnId === action.turnId);
+		const alreadyStarted = this._confirmedState?.activeTurn?.id === action.turnId;
+		this._retireEarliestPending(p => p.action.type === ActionType.ChatTurnStarted && p.action.turnId === action.turnId, !alreadyStarted);
+	}
+
+	private _promotePendingTruncationIfApplied(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		// A host may apply a truncation without echoing its clientSeq, leaving it to replay over every later turn.
+		const { action, origin } = envelope;
+		if (!isChatAction(action)) {
+			return;
+		}
+		if (action.type === ActionType.ChatTruncated && !origin) {
+			this._retireEarliestPending(p => p.action.type === ActionType.ChatTruncated && p.action.turnId === action.turnId);
+		} else if (action.type === ActionType.ChatTurnStarted && isOwnAction && origin) {
+			this._retireEarliestPending(p => p.action.type === ActionType.ChatTruncated && p.clientSeq < origin.clientSeq);
+		}
+	}
+
+	/** Drops the earliest pending action the host has evidently processed, folding it into confirmed state first when `promote` is set. */
+	private _retireEarliestPending(isProcessed: (pending: IPendingChatAction) => boolean, promote = true): void {
+		const index = this._pendingActions.findIndex(isProcessed);
 		if (index === -1) {
 			return;
 		}
-		const [{ action: pendingAction }] = this._pendingActions.splice(index, 1);
-		if (this._confirmedState && (!this._confirmedState.activeTurn || this._confirmedState.activeTurn.id !== action.turnId)) {
-			this._confirmedState = this._applyReducer(this._confirmedState, pendingAction);
+		const [pending] = this._pendingActions.splice(index, 1);
+		if (promote) {
+			this._confirmedApply(pending.action);
 		}
 	}
 
