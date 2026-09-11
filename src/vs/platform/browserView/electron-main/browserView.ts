@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { screen, WebContentsView, webContents } from 'electron';
+import { screen, shell, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
+import type { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
@@ -23,12 +24,11 @@ import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.j
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { URI } from '../../../base/common/uri.js';
-
-enum NewPageLocation {
-	Foreground = 'foreground',
-	Background = 'background',
-	NewWindow = 'newWindow'
-}
+import { registerBrowserViewWindowLifecycle } from './browserViewWindowLifecycle.js';
+import { BrowserViewAppPolicyDecision, BrowserViewAppPolicyRequestContext, decideBrowserViewAppPolicyNavigation, IBrowserViewAppPolicy } from '../common/browserAppPolicy.js';
+import { IBrowserViewSemanticTheme, serializeBrowserViewSemanticThemeCss } from '../common/browserViewSemanticTheme.js';
+import { createBrowserViewWindowOpenHandler, NewPageLocation } from './browserViewWindowOpen.js';
+import { localize } from '../../../nls.js';
 
 /**
  * Represents a single browser view instance with its WebContentsView and all associated logic.
@@ -41,6 +41,7 @@ export class BrowserView extends Disposable {
 	private _lastScreenshot: VSBuffer | undefined = undefined;
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
+	private _appPolicyViolation = false;
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
@@ -64,6 +65,23 @@ export class BrowserView extends Disposable {
 
 	private _wantsVisibility = false;
 	private _hasBeenLaidOut = false;
+
+	/** Key returned by `webContents.insertCSS()` for the currently applied semantic theme, if any. Used to remove the previous rule before inserting a new one. */
+	private _semanticThemeCssKey: string | undefined;
+	private _lastSemanticTheme: IBrowserViewSemanticTheme | undefined;
+	/**
+	 * Incremented on every call to {@link _applySemanticThemeCss}. `insertCSS`/
+	 * `removeInsertedCSS` are asynchronous, so rapid theme changes (or a
+	 * navigation immediately followed by disposal) can otherwise resolve out
+	 * of order: a stale `insertCSS` from an earlier call could commit its key
+	 * (or a stale `removeInsertedCSS` could race with a newer insert) after a
+	 * newer call has already run. Each call captures the generation at call
+	 * time and only commits its result, or writes to `_semanticThemeCssKey`
+	 * at all, if the generation and disposed state are still current when its
+	 * promise settles; otherwise it cleans up its own now-superseded CSS
+	 * instead of silently leaking it.
+	 */
+	private _semanticThemeGeneration = 0;
 
 	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
 	private readonly _consoleLogs: string[] = [];
@@ -126,6 +144,7 @@ export class BrowserView extends Disposable {
 		public readonly host: IBrowserViewHost,
 		owner: IBrowserViewOwner,
 		public readonly associatedResource: URI | undefined,
+		public readonly source: URI | undefined,
 		public readonly session: BrowserSession,
 		private readonly _createChildView: (owner: IBrowserViewOwner, url: string, electronOptions: Electron.WebContentsViewConstructorOptions | undefined, editorOptions: IBrowserViewEditorOpenOptions) => BrowserView,
 		openContextMenu: (view: BrowserView, params: Electron.ContextMenuParams) => void,
@@ -171,61 +190,37 @@ export class BrowserView extends Disposable {
 		if (!this._ownerWindow) {
 			throw new Error(`Window with ID ${host.windowId} not found`);
 		}
-		this._register(this._ownerWindow.onDidClose(() => this.dispose()));
-		this._register(this._ownerWindow.onWillLoad((e) => {
-			if (e.reason === LoadReason.LOAD) {
-				this.dispose(); // Dispose when switching workspaces.
-			} else if (e.reason === LoadReason.RELOAD) {
-				this.setVisible(false); // Hide when reloading.
-			}
-		}));
+		this._register(registerBrowserViewWindowLifecycle(this._ownerWindow, this));
 
 		this._view.setVisible(false);
 		this._ownerWindow.win?.contentView.addChildView(this._view);
 
-		this._view.webContents.setWindowOpenHandler((details) => {
-			const location = (() => {
-				switch (details.disposition) {
-					case 'background-tab': return NewPageLocation.Background;
-					case 'foreground-tab': return NewPageLocation.Foreground;
-					case 'new-window': return NewPageLocation.NewWindow;
-					default: return undefined;
-				}
-			})();
+		this._view.webContents.setWindowOpenHandler(createBrowserViewWindowOpenHandler(
+			() => this.appPolicy,
+			location => this.consumePopupPermission(location),
+			url => { void shell.openExternal(url); },
+			(location, url, options) => {
+				logBrowserOpen(this.telemetryService, (() => {
+					switch (location) {
+						case NewPageLocation.NewWindow: return 'browserLinkNewWindow';
+						case NewPageLocation.Background: return 'browserLinkBackground';
+						case NewPageLocation.Foreground: return 'browserLinkForeground';
+					}
+				})());
 
-			if (!location || !this.consumePopupPermission(location)) {
-				// Eventually we may want to surface this. For now, just silently block it.
-				return { action: 'deny' };
-			}
+				const childView = this._createChildView(this.owner, url, options, {
+					pinned: true,
+					background: location === NewPageLocation.Background,
+					parentViewId: id,
+					auxiliaryWindow: location === NewPageLocation.NewWindow
+						? { x: options.x, y: options.y, width: options.width, height: options.height }
+						: undefined,
+				});
 
-			return {
-				action: 'allow',
-				createWindow: (options) => {
-					logBrowserOpen(this.telemetryService, (() => {
-						switch (location) {
-							case NewPageLocation.NewWindow: return 'browserLinkNewWindow';
-							case NewPageLocation.Background: return 'browserLinkBackground';
-							case NewPageLocation.Foreground: return 'browserLinkForeground';
-						}
-					})());
-
-					const childView = this._createChildView(this.owner, details.url, options, {
-						pinned: true,
-						background: location === NewPageLocation.Background,
-						parentViewId: id,
-						auxiliaryWindow: location === NewPageLocation.NewWindow
-							? { x: options.x, y: options.y, width: options.width, height: options.height }
-							: undefined,
-					});
-
-					// Return the webContents so Electron can complete the window.open() call
-					return childView.webContents;
-				},
-
-				// We want the standard browser behavior as opposed to Electron's default of closing the new window when the parent is closed
-				outlivesOpener: true
-			};
-		});
+				// Return the webContents so Electron can complete the window.open() call
+				return childView.webContents;
+			},
+		));
 
 		this._view.webContents.on('context-menu', (_event, params) => {
 			openContextMenu(this, params);
@@ -244,13 +239,16 @@ export class BrowserView extends Disposable {
 		this._register(this.session.remote.onDidStop(fireRemoteStatus));
 
 		this._register(this.session.permissions.onDidRequestPermission(e => {
-			if (e.webContents === this.webContents && !this._isDisposed) {
+			// Under an app policy, permission prompts are not surfaced to any host UI:
+			// leaving the request unclaimed makes it an effective deny (see
+			// browserSessionPermissions.ts), rather than a silent success-shaped grant.
+			if (e.webContents === this.webContents && !this._isDisposed && !this.appPolicy) {
 				e.claim();
 				this._onDidRequestPermission.fire(e.request);
 			}
 		}));
 		this._register(this.session.permissions.onDidRequestDevice(e => {
-			if (e.webContents === this.webContents && !this._isDisposed) {
+			if (e.webContents === this.webContents && !this._isDisposed && !this.appPolicy) {
 				e.claim();
 				this._onDidRequestPermission.fire({
 					origin: e.origin,
@@ -325,7 +323,21 @@ export class BrowserView extends Disposable {
 				this._currentHistoryHandle?.update({ favicon: null });
 			}
 		});
+		webContents.on('will-frame-navigate', event => {
+			this._enforceAppPolicyNavigation(event.url, event, event.isMainFrame
+				? BrowserViewAppPolicyRequestContext.TopLevel
+				: BrowserViewAppPolicyRequestContext.Frame);
+		});
+		webContents.on('did-start-navigation', event => {
+			// Opaque navigations skip cancellable events; stopping synchronously crashes Electron.
+			if (event.isMainFrame && !/^https?:/i.test(event.url) && this.appPolicy && decideBrowserViewAppPolicyNavigation(this.appPolicy, event.url, BrowserViewAppPolicyRequestContext.TopLevel) !== BrowserViewAppPolicyDecision.Allow) {
+				this._retireAppPolicyViolation(event.url);
+			}
+		});
 		webContents.on('will-navigate', (event) => {
+			if (this._enforceAppPolicyNavigation(event.url, event)) {
+				return;
+			}
 			if (this._redirectPinnedNavigation(event.url)) {
 				event.preventDefault();
 				return;
@@ -338,6 +350,9 @@ export class BrowserView extends Disposable {
 			}
 		});
 		webContents.on('will-redirect', event => {
+			if (this._enforceAppPolicyNavigation(event.url, event)) {
+				return;
+			}
 			if (this._redirectPinnedNavigation(event.url)) {
 				event.preventDefault();
 			}
@@ -350,6 +365,9 @@ export class BrowserView extends Disposable {
 		});
 
 		const fireNavigationEvent = (url: string) => {
+			if (this._appPolicyViolation) {
+				return;
+			}
 			this._onDidNavigate.fire({
 				url,
 				title: webContents.getTitle(),
@@ -366,6 +384,9 @@ export class BrowserView extends Disposable {
 
 		// Loading state events
 		webContents.on('did-start-loading', () => {
+			if (this._appPolicyViolation) {
+				return;
+			}
 			this._lastError = undefined;
 
 			// Don't fire loading events for e.g. same-document navigations
@@ -375,6 +396,9 @@ export class BrowserView extends Disposable {
 		});
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
+			if (this._appPolicyViolation) {
+				return;
+			}
 			if (isMainFrame) {
 				// Ignore ERR_ABORTED (-3) which is the expected error when user stops a page load.
 				if (errorCode === -3) {
@@ -401,6 +425,12 @@ export class BrowserView extends Disposable {
 			}
 		});
 		webContents.on('did-finish-load', () => fireLoadingEvent(false));
+
+		// `insertCSS` does not survive navigations, so re-apply the confined
+		// custom-app page's semantic theme (if any) after every load.
+		webContents.on('dom-ready', () => {
+			this._applySemanticThemeCss(this._lastSemanticTheme);
+		});
 
 		this.session.trust.installCertErrorHandler(webContents);
 
@@ -600,6 +630,74 @@ export class BrowserView extends Disposable {
 		return this._owner;
 	}
 
+	/**
+	 * The app policy confining this view, if any. Backed by the session (not a
+	 * per-view field) so that child/popup views, which always share their
+	 * parent's {@link BrowserSession}, automatically enforce the same policy.
+	 */
+	get appPolicy(): IBrowserViewAppPolicy | undefined {
+		return this.session.appPolicy;
+	}
+
+	/**
+	 * Applies (or clears) the fixed GH-compatible semantic theme tokens on
+	 * the guest page's own document via `webContents.insertCSS()`. This is
+	 * strictly opt-in: a no-op unless {@link appPolicy} is set, i.e. this
+	 * view is confined to a native custom-app page's exact allowed origin.
+	 * Generic browser pages never observe these custom properties.
+	 *
+	 * Re-applied automatically after every navigation (see the `dom-ready`
+	 * listener registered in the constructor) since inserted CSS does not
+	 * survive a full page load.
+	 */
+	applySemanticTheme(theme: IBrowserViewSemanticTheme | undefined): void {
+		this._lastSemanticTheme = theme;
+		if (!this._isDisposed) {
+			this._applySemanticThemeCss(theme);
+		}
+	}
+
+	private _applySemanticThemeCss(theme: IBrowserViewSemanticTheme | undefined): void {
+		if (!this.appPolicy) {
+			return;
+		}
+		const webContents = this._view.webContents;
+		if (webContents.isDestroyed()) {
+			return;
+		}
+
+		// Claim a fresh generation for this call so that out-of-order settlement of
+		// the async operations below (relative to a subsequent call, or to
+		// disposal) can be detected and does not silently corrupt
+		// `_semanticThemeCssKey` or leak inserted CSS. See the field's doc comment.
+		const generation = ++this._semanticThemeGeneration;
+		const isStale = () => this._isDisposed || webContents.isDestroyed() || this._semanticThemeGeneration !== generation;
+
+		const previousKey = this._semanticThemeCssKey;
+		this._semanticThemeCssKey = undefined;
+		if (previousKey) {
+			webContents.removeInsertedCSS(previousKey).catch(() => { /* ignore: view may have already navigated away */ });
+		}
+
+		const css = serializeBrowserViewSemanticThemeCss(theme);
+		if (!css) {
+			return;
+		}
+		webContents.insertCSS(css).then(key => {
+			if (isStale()) {
+				// A newer call (or disposal) has already run since this one started;
+				// that call is authoritative for `_semanticThemeCssKey`, so remove this
+				// now-superseded rule instead of leaving it applied or overwriting a
+				// newer key with a stale one.
+				if (!webContents.isDestroyed()) {
+					webContents.removeInsertedCSS(key).catch(() => { /* ignore: view may have already navigated away */ });
+				}
+				return;
+			}
+			this._semanticThemeCssKey = key;
+		}, () => { /* ignore: view may have already navigated away */ });
+	}
+
 	setOwner(owner: IBrowserViewOwner): void {
 		this._owner = owner;
 		this._onDidChangeOwner.fire(owner);
@@ -703,7 +801,7 @@ export class BrowserView extends Disposable {
 		});
 
 		this._hasBeenLaidOut = true;
-		if (this._wantsVisibility && !this._view.getVisible()) {
+		if (this._wantsVisibility && !this._appPolicyViolation && !this._view.getVisible()) {
 			this._view.setVisible(true);
 		}
 	}
@@ -718,6 +816,9 @@ export class BrowserView extends Disposable {
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
+		if (visible && this._appPolicyViolation) {
+			return;
+		}
 		if (this._wantsVisibility === visible) {
 			return;
 		}
@@ -746,6 +847,23 @@ export class BrowserView extends Disposable {
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
+		if (this.appPolicy) {
+			// `loadURL` is only ever invoked by host-trusted code (initial-URL
+			// loading, reload, explicit navigation commands) -- never directly by
+			// guest page script -- so this is the one context in which `OpenExternal`
+			// may legitimately be produced and acted on.
+			const decision = decideBrowserViewAppPolicyNavigation(this.appPolicy, url, BrowserViewAppPolicyRequestContext.HostInitiated);
+			if (decision === BrowserViewAppPolicyDecision.OpenExternal) {
+				void shell.openExternal(url);
+				return;
+			}
+			if (decision === BrowserViewAppPolicyDecision.Block) {
+				// Fail clearly instead of silently no-op'ing or falling back to some
+				// other page: callers (e.g. initial-URL loading) already handle a
+				// rejected `loadURL` by logging the error.
+				throw new Error(`Navigation to '${url}' is blocked by this view's app policy (allowed origin: ${this.appPolicy.allowedOrigin}).`);
+			}
+		}
 		if (this._redirectPinnedNavigation(url)) {
 			return;
 		}
@@ -754,6 +872,47 @@ export class BrowserView extends Disposable {
 		// and the requests it triggers flow through the proxy.
 		await this.session.remote.whenReady;
 		await this._view.webContents.loadURL(url);
+	}
+
+	/**
+	 * Applies {@link appPolicy} to a top-level, event-driven navigation
+	 * (`will-navigate` / `will-redirect`). Returns `true` if the navigation was
+	 * blocked and the caller should stop.
+	 *
+	 * Unlike {@link loadURL}, these events are driven by the guest page itself
+	 * (a link click, a script-initiated `location.assign`, a server redirect),
+	 * so there is no host-trusted "open externally" escape hatch here: any
+	 * navigation that isn't in-policy is simply cancelled. A deliberate,
+	 * user-mediated external-link route (when the app policy allows it) is
+	 * handled separately at the popup boundary (`setWindowOpenHandler`), which
+	 * has access to genuine, non-spoofable user-gesture evidence that a
+	 * `will-navigate`/`will-redirect` event does not.
+	 */
+	private _enforceAppPolicyNavigation(url: string, event: Electron.Event, context = BrowserViewAppPolicyRequestContext.TopLevel): boolean {
+		if (!this.appPolicy) {
+			return false;
+		}
+		const decision = decideBrowserViewAppPolicyNavigation(this.appPolicy, url, context);
+		if (decision === BrowserViewAppPolicyDecision.Allow) {
+			return false;
+		}
+		event.preventDefault();
+		return true;
+	}
+
+	private _retireAppPolicyViolation(url: string): void {
+		if (this._appPolicyViolation) {
+			return;
+		}
+		this._appPolicyViolation = true;
+		this._view.setVisible(false);
+		this._lastScreenshot = undefined;
+		this._lastError = {
+			url, errorCode: -20, appPolicyViolation: true,
+			errorDescription: localize('browser.appPolicyRetired', "The page attempted to replace this canvas with a blocked document. Reload the canvas to try again."),
+		};
+		this._onDidChangeLoadingState.fire({ loading: false, error: this._lastError });
+		this._register(disposableTimeout(() => this.dispose(), 0));
 	}
 
 	private _redirectPinnedNavigation(url: string): boolean {

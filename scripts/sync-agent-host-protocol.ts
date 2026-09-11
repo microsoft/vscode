@@ -238,7 +238,7 @@ function processFile(src: string, dest: string): void {
 
 	const destPath = path.join(DEST_DIR, dest);
 	fs.mkdirSync(path.dirname(destPath), { recursive: true });
-	content = formatTypeScript(content, dest);
+	content = formatTypeScript(content, dest).trimEnd() + '\n';
 	fs.writeFileSync(destPath, content, 'utf-8');
 	console.log(`  ${dest}`);
 }

@@ -5,16 +5,34 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { DeferredPromise, RunOnceScheduler } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { createTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import type { IFileService } from '../../../../../platform/files/common/files.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import type { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatAttachmentModel } from '../../../../../workbench/contrib/chat/browser/attachments/chatAttachmentModel.js';
+import type { IChatAttachmentResolveService } from '../../../../../workbench/contrib/chat/browser/attachments/chatAttachmentResolveService.js';
+import { IChatRequestTranscriptContextVariableEntry, type IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
-import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import type { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { ResponseModelState, type IChatModelReference, type IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import type { ChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
+import { ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatInteractivity, ISession, SessionStatus, type IChat } from '../../../../services/sessions/common/session.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
@@ -790,6 +808,225 @@ suite('Sessions - Chat View', () => {
 		}, {
 			first: { scrollTop: 120, isAtBottom: false },
 			second: { scrollTop: 700, isAtBottom: true },
+		});
+	});
+
+	test('transfers an unsent new-session draft once to its exact retained chat', () => {
+		const service = new SessionsChatViewStateService();
+		const resource = URI.parse('test:/retained-canvas-chat');
+		const state = { inputText: 'Unsent draft', attachments: [], selections: [] };
+		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), {
+			viewStateService: service,
+			_widget: Object.assign(Object.create(NewChatWidget.prototype), { takeInputState: () => state }),
+		});
+		view.preserveInputForChat(resource);
+		assert.deepStrictEqual({
+			other: service.takePendingInput(URI.parse('test:/other')),
+			transferred: service.takePendingInput(resource),
+			again: service.takePendingInput(resource),
+		}, { other: undefined, transferred: state, again: undefined });
+	});
+
+	suite('canvas-first model binding', () => {
+		const originalAttachment: IChatRequestVariableEntry = { kind: 'generic', id: 'original', name: 'Original', value: 'original context' };
+		const newerAttachment: IChatRequestVariableEntry = { kind: 'generic', id: 'newer', name: 'Newer', value: 'newer context' };
+
+		function loadingView(viewStateService: SessionsChatViewStateService) {
+			const lifetime = disposables.add(new DisposableStore());
+			const loadCts = lifetime.add(new MutableDisposable<CancellationTokenSource>());
+			const pendingInputTransfer = lifetime.add(new MutableDisposable());
+			const modelRef = lifetime.add(new MutableDisposable<IChatModelReference>());
+			const editor = lifetime.add(createTestCodeEditor(lifetime.add(createTextModel(''))));
+			const attachments = lifetime.add(new ChatAttachmentModel(
+				upcastPartial<IFileService>({}), upcastPartial<ISharedWebContentExtractorService>({}), upcastPartial<IChatAttachmentResolveService>({}),
+			));
+			const emptyState: IChatModelInputState = {
+				inputText: '', attachments: [], selections: [], mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, contrib: {},
+			};
+			const currentInput = (): IChatModelInputState => ({
+				...emptyState, inputText: editor.getValue(), attachments: attachments.attachments, selections: editor.getSelections() ?? [],
+			});
+			const inputPart: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				getCurrentInputState: currentInput, setHistoryKey: () => { },
+				_syncTextDebounced: lifetime.add(new RunOnceScheduler(() => { }, 0)),
+				_modelSyncDisposables: lifetime.add(new DisposableStore()),
+				logService: new NullLogService(),
+			});
+			let applyingState = false;
+			lifetime.add(editor.onDidChangeModelContent(() => {
+				if (!applyingState) {
+					inputPart.flushInputStateToModel();
+				}
+			}));
+			lifetime.add(attachments.onDidChange(() => {
+				if (!applyingState) {
+					inputPart.flushInputStateToModel();
+				}
+			}));
+			let viewModel: ChatViewModel | undefined;
+			const bindings: URI[] = [];
+			const progress: Promise<void>[] = [];
+			const requests = new ResourceMap<DeferredPromise<IChatModelReference | undefined>>();
+			const widget = upcastPartial<ChatWidget>({
+				get viewModel() { return viewModel; },
+				inputEditor: editor,
+				attachmentModel: attachments,
+				inputPart,
+				getInput: () => editor.getValue(),
+				setInput: value => editor.setValue(value ?? ''),
+				setLoading: () => { },
+				setReadOnly: () => { },
+				unlockFromCodingAgent: () => { },
+				clear: async () => { },
+				getViewState: () => ({ scrollTop: 0 }),
+				restoreViewState: () => { },
+				setModel: model => {
+					inputPart.flushInputStateToModel();
+					viewModel = model ? upcastPartial<ChatViewModel>({ sessionResource: model.sessionResource, model }) : undefined;
+					if (model) {
+						Object.assign(inputPart, { _inputModel: model.inputModel, _inputModelSessionResource: model.sessionResource });
+						bindings.push(model.sessionResource);
+						const state = model.inputModel.state.get() ?? emptyState;
+						applyingState = true;
+						try {
+							editor.setValue(state.inputText);
+							attachments.clearAndSetContext(...state.attachments);
+							if (state.selections.length) {
+								editor.setSelections(state.selections);
+							}
+						} finally {
+							applyingState = false;
+						}
+					}
+				},
+			});
+			const view: ChatView = Object.assign(Object.create(ChatView.prototype), {
+				_store: lifetime, element: dom.$('.chat-view'), _widget: widget,
+				_loadCts: loadCts, _pendingInputTransfer: pendingInputTransfer, _modelRef: modelRef,
+				_interactiveDisposable: lifetime.add(new MutableDisposable()),
+				_currentChatResourceObs: observableValue<URI | undefined>(lifetime, undefined),
+				_currentSessionObs: observableValue<ISession | undefined>(lifetime, undefined),
+				hasVisibleTranscriptContent: observableValue(lifetime, false),
+				isLoadingTranscript: observableValue(lifetime, false),
+				_externalSessionBanner: { setSession: () => { } },
+				_chatPills: { setChat: () => { } },
+				_selectionSideChatController: { setChat: () => { } },
+				_banners: { setDebugData: () => { } },
+				chatPillsDebugService: { clear: () => { } },
+				configurationService: new TestConfigurationService(),
+				logService: new NullLogService(),
+				chatSessionsService: { getChatSessionContribution: () => undefined },
+				chatService: upcastPartial<IChatService>({
+					acquireOrLoadSession: resource => {
+						const request = requests.get(resource);
+						assert.ok(request);
+						return request.p;
+					},
+				}),
+				viewStateService,
+				showProgressWhile: (promise: Promise<void>) => { progress.push(promise); },
+			});
+			return {
+				view, editor, attachments, bindings, currentInput,
+				load: (resource: URI, inputText = '') => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.set(resource, request);
+					const state = observableValue(lifetime, { ...emptyState, inputText });
+					const inputModel = upcastPartial<IInputModel>({
+						state, setState: next => state.set({ ...state.get(), ...next }, undefined),
+					});
+					const model = upcastPartial<IChatModel>({ sessionResource: resource, inputModel });
+					let disposed = false;
+					const ref: IChatModelReference = { object: model, dispose: () => { disposed = true; } };
+					const chat = upcastPartial<IChat>({ resource, interactivity: constObservable(ChatInteractivity.Full) });
+					view.setChat(chat);
+					const loading = progress[progress.length - 1];
+					return {
+						state, get disposed() { return disposed; },
+						resolve: async () => { await request.complete(ref); await loading; },
+						reject: async () => { await request.error(new Error('Model load failed')); await loading; },
+					};
+				},
+			};
+		}
+
+		test('seeds the editable composer before a delayed bind and preserves newer text, attachments and selections', async () => {
+			const service = new SessionsChatViewStateService();
+			const resource = URI.parse('test:/canvas-first');
+			const selections = [new Selection(1, 2, 1, 5)];
+			service.setPendingInput(resource, { inputText: 'Draft', attachments: [originalAttachment], selections });
+			const f = loadingView(service);
+			const load = f.load(resource, 'obsolete transferred draft');
+			const seeded = f.currentInput();
+			f.editor.executeEdits('typing', [{ range: new Selection(1, 6, 1, 6), text: ' and newer typing' }]);
+			f.attachments.clearAndSetContext(newerAttachment);
+			f.editor.setSelections([new Selection(1, 7, 1, 12)]);
+			const edited = f.currentInput();
+			await load.resolve();
+			assert.deepStrictEqual({
+				seeded: { text: seeded.inputText, attachments: seeded.attachments, selections: seeded.selections },
+				visible: f.currentInput(),
+				bound: load.state.get(),
+				pending: service.takePendingInput(resource),
+				bindings: f.bindings,
+			}, {
+				seeded: { text: 'Draft', attachments: [originalAttachment], selections },
+				visible: edited, bound: edited, pending: undefined, bindings: [resource],
+			});
+		});
+
+		test('preserves intentional draft deletion rather than restoring the transferred nonempty draft', async () => {
+			const service = new SessionsChatViewStateService();
+			const resource = URI.parse('test:/canvas-first');
+			service.setPendingInput(resource, { inputText: 'Draft', attachments: [originalAttachment], selections: [] });
+			const f = loadingView(service);
+			const load = f.load(resource);
+			f.editor.setValue('');
+			f.attachments.clearAndSetContext();
+			await load.resolve();
+			assert.deepStrictEqual({
+				text: f.editor.getValue(), attachments: f.attachments.attachments, boundText: load.state.get().inputText, boundAttachments: load.state.get().attachments,
+			}, { text: '', attachments: [], boundText: '', boundAttachments: [] });
+		});
+
+		test('keeps a cancelled transfer with its own chat without overwriting a newer bound chat', async () => {
+			const service = new SessionsChatViewStateService();
+			const first = URI.parse('test:/canvas-first');
+			const second = URI.parse('test:/other-chat');
+			service.setPendingInput(first, { inputText: 'Draft', attachments: [originalAttachment], selections: [] });
+			const f = loadingView(service);
+			const firstLoad = f.load(first);
+			f.editor.setValue('Draft edited while loading');
+			f.attachments.addContext(newerAttachment);
+			const expected = f.currentInput();
+			const secondLoad = f.load(second, 'Other chat draft');
+			await secondLoad.resolve();
+			await firstLoad.resolve();
+			const other = { text: f.editor.getValue(), attachments: f.attachments.attachments, modelText: secondLoad.state.get().inputText };
+			const retry = f.load(first);
+			await retry.resolve();
+			assert.deepStrictEqual({
+				other, otherModelAfterRetry: secondLoad.state.get().inputText, cancelledRefDisposed: firstLoad.disposed, bindings: f.bindings, resumed: f.currentInput(),
+			}, {
+				other: { text: 'Other chat draft', attachments: [], modelText: 'Other chat draft' },
+				otherModelAfterRetry: 'Other chat draft',
+				cancelledRefDisposed: true, bindings: [second, first], resumed: expected,
+			});
+		});
+
+		test('retains newer draft edits after failed model acquisition for a retry', async () => {
+			const service = new SessionsChatViewStateService();
+			const resource = URI.parse('test:/canvas-first');
+			service.setPendingInput(resource, { inputText: 'Draft', attachments: [originalAttachment], selections: [] });
+			const f = loadingView(service);
+			const load = f.load(resource);
+			f.editor.setValue('Draft edited before failure');
+			f.attachments.addContext(newerAttachment);
+			const expected = f.currentInput();
+			await load.reject();
+			const retry = f.load(resource);
+			await retry.resolve();
+			assert.deepStrictEqual({ visible: f.currentInput(), bound: retry.state.get(), bindings: f.bindings }, { visible: expected, bound: expected, bindings: [resource] });
 		});
 	});
 

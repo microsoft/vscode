@@ -7,8 +7,10 @@ import assert from 'assert';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { observableValue } from '../../../base/common/observable.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { constObservable, observableValue } from '../../../base/common/observable.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
+import { URI } from '../../../base/common/uri.js';
+import type { IChat } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { AbstractChatView } from '../../browser/parts/chatView.js';
 
@@ -18,10 +20,12 @@ suite('Sessions - Session View', () => {
 	class TestNewSessionView extends AbstractChatView {
 		readonly kind = 'newSession';
 		disposed = false;
+		readonly transferredDrafts: string[] = [];
 
 		protected override doLayout(): void { }
 		override toJSON(): object { return {}; }
 		override focus(): void { }
+		override preserveInputForChat(resource: URI): void { this.transferredDrafts.push(resource.toString()); }
 		override dispose(): void {
 			this.disposed = true;
 			super.dispose();
@@ -83,6 +87,8 @@ suite('Sessions - Session View', () => {
 		const isCreated = observableValue<boolean>('isCreated', false);
 		const session = new class extends mock<IActiveSession>() {
 			override readonly isCreated = isCreated;
+			override readonly resource = URI.parse('test:/canvas-first');
+			override readonly activeChat = constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/canvas-first') }));
 		}();
 		const standaloneView = disposables.add(new MutableDisposable<AbstractChatView>());
 		const openSessionDisposables = disposables.add(new DisposableStore());
@@ -123,12 +129,14 @@ suite('Sessions - Session View', () => {
 			createdViewCount: createdViews.length,
 			preservedForDraft: draftElement === initialElement,
 			disposedAfterCreation: createdViews[0].disposed,
+			transferredDrafts: createdViews[0].transferredDrafts,
 			finalElement: contentContainer.firstElementChild,
 			shownSessions,
 		}, {
 			createdViewCount: 1,
 			preservedForDraft: true,
 			disposedAfterCreation: true,
+			transferredDrafts: ['test:/canvas-first'],
 			finalElement: groupsElement,
 			shownSessions: [undefined, undefined, session],
 		});

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient } from '@github/copilot-sdk';
+import type { ICopilotClient } from './copilotSdkTypes.js';
 import { appendFile, mkdir } from 'fs/promises';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -22,8 +22,8 @@ import { ChildCustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 
-type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
-type InstructionSource = Awaited<ReturnType<CopilotClient['rpc']['instructions']['discover']>>['sources'][number];
+type AgentsDiscoverRequest = Parameters<ICopilotClient['rpc']['agents']['discover']>[0];
+type InstructionSource = Awaited<ReturnType<ICopilotClient['rpc']['instructions']['discover']>>['sources'][number];
 
 /**
  * The kinds of customizations the agent host discovers from disk.
@@ -342,7 +342,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async getDiscoveredDirectories(client: CopilotClient, token: CancellationToken): Promise<readonly IDiscoveredDirectory[]> {
+	private async getDiscoveredDirectories(client: ICopilotClient, token: CancellationToken): Promise<readonly IDiscoveredDirectory[]> {
 		throwIfCancelled(token);
 
 		const p: AgentsDiscoverRequest = { projectPaths: this._workingDirectories.map(uri => uri.fsPath) };
@@ -568,7 +568,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 
-	public async discover(client: CopilotClient, token: CancellationToken): Promise<readonly DirectoryCustomization[]> {
+	public async discover(client: ICopilotClient, token: CancellationToken): Promise<readonly DirectoryCustomization[]> {
 		await this.writeCustomizationDiscoveryDebugLog({
 			method: 'discover',
 			workingDirectories: this._workingDirectories.map(d => d.toString()),
@@ -612,7 +612,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async discoverAgents(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<AgentCustomization[]> {
+	private async discoverAgents(discoveryRequest: AgentsDiscoverRequest, client: ICopilotClient, token: CancellationToken): Promise<AgentCustomization[]> {
 		const agents: AgentCustomization[] = [];
 
 		const agentDiscovery = await raceCancellationError(client.rpc.agents.discover(discoveryRequest), token);
@@ -625,7 +625,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return agents;
 	}
 
-	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<RuleCustomization[]> {
+	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: ICopilotClient, token: CancellationToken): Promise<RuleCustomization[]> {
 		const rules: RuleCustomization[] = [];
 		const seenRuleUris = new Set<string>();
 
@@ -699,7 +699,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return AGENT_INSTRUCTION_FILENAMES.has(filename);
 	}
 
-	private async discoverSkills(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<SkillCustomization[]> {
+	private async discoverSkills(discoveryRequest: AgentsDiscoverRequest, client: ICopilotClient, token: CancellationToken): Promise<SkillCustomization[]> {
 		const skillDiscovery = await raceCancellationError(client.rpc.skills.discover(discoveryRequest), token);
 		const skills = await Promise.all(skillDiscovery.skills.map(async skill => {
 			if (!skill.path) {

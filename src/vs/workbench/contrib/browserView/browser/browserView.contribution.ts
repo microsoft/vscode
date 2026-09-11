@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserViewContextualFilter, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
+import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserViewContextualFilter, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewPageSourceResolver, IBrowserViewResolvedPageSource } from '../common/browserView.js';
 import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -12,6 +12,8 @@ import { IBrowserViewEditorOpenOptions } from '../../../../platform/browserView/
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
+import type { URI } from '../../../../base/common/uri.js';
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
 
 class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
@@ -24,6 +26,7 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 
 	readonly onDidChangeBrowserViews = Event.None;
 	readonly onDidChangeSharingAvailable = Event.None;
+	readonly onDidUnregisterPageSourceResolver = Event.None;
 	readonly isSharingAvailable = false;
 
 	private readonly _known = new Map<string, BrowserEditorInput>();
@@ -53,6 +56,14 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	}
 
 	getOrCreateLazy(_data: IBrowserEditorInputData): BrowserEditorInput {
+		throw new Error('Integrated Browser is not available in web.');
+	}
+
+	registerPageSourceResolver(_scheme: string, _resolver: IBrowserViewPageSourceResolver): IDisposable {
+		throw new Error('Integrated Browser is not available in web.');
+	}
+
+	async resolvePageSource(_source: URI, _token: CancellationToken): Promise<IBrowserViewResolvedPageSource> {
 		throw new Error('Integrated Browser is not available in web.');
 	}
 

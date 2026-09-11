@@ -11,13 +11,18 @@ import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasPreviewEnabledMetaKey, readAgentHostLocalCanvasWorkspace, supportsAgentHostCanvasPackages, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import type { IAgentHostCanvasActionParams, IAgentHostCanvasOpenParams, IAgentHostCanvasState } from '../../common/agentHostCanvases.js';
+import type { IAgentHostCanvasPackagesService } from '../../common/agentHostCanvasPackages.js';
+import type { IAgentHostCanvasProtocol } from '../../common/agentHostCanvasProtocol.js';
+import { CanvasAvailabilityStatus, CanvasTrustStatus } from '../../common/state/protocol/channels-canvas/state.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -1128,6 +1133,385 @@ suite('ProtocolServerHandler', () => {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
 			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		});
+	});
+
+	test('canonical canvas capability requires runtime, renderer, preview, and desktop transport independently', async () => {
+		const outcomes: { advertised: boolean; code: number | undefined }[] = [];
+		const calls: number[] = [];
+		for (const [index, options] of [
+			{ runtime: true, renderer: true, enabled: true, transport: AgentHostTransportKind.MessagePort },
+			{ runtime: false, renderer: true, enabled: true, transport: AgentHostTransportKind.MessagePort },
+			{ runtime: true, renderer: false, enabled: true, transport: AgentHostTransportKind.MessagePort },
+			{ runtime: true, renderer: true, enabled: false, transport: AgentHostTransportKind.MessagePort },
+			{ runtime: true, renderer: true, enabled: true, transport: AgentHostTransportKind.WebSocket },
+		].entries()) {
+			class CanvasService extends MockAgentService {
+				readonly canvasPackagesEnabled = options.enabled;
+				readonly canvasProtocol = upcastPartial<IAgentHostCanvasProtocol>({
+					supported: options.runtime,
+					listTypes: async () => { calls.push(index); return { types: [] }; },
+				});
+			}
+			const localServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(disposables.add(new CanvasService()), stateManager, localServer, {
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			}, disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService, managedSettingsService, clientConnections));
+			const transport = new MockProtocolTransport(options.transport);
+			localServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION], clientId: `canonical-${index}`, capabilities: options.renderer ? { canvases: {} } : {},
+				_meta: { 'vscode.localCanvases': true },
+			}));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }) && typeof initialized.result === 'object' && initialized.result !== null);
+			const pending = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listCanvasTypes', { channel: defaultChatUri }));
+			const response = await pending;
+			assert.ok(isJsonRpcResponse(response));
+			outcomes.push({ advertised: Object.hasOwn(initialized.result, 'canvases'), code: hasKey(response, { error: true }) ? response.error.code : undefined });
+		}
+		assert.deepStrictEqual({ calls, outcomes }, {
+			calls: [0],
+			outcomes: [
+				{ advertised: true, code: undefined },
+				{ advertised: false, code: AhpErrorCodes.PermissionDenied },
+				{ advertised: false, code: AhpErrorCodes.PermissionDenied },
+				{ advertised: false, code: AhpErrorCodes.PermissionDenied },
+				{ advertised: false, code: AhpErrorCodes.PermissionDenied },
+			],
+		});
+	});
+
+	test('canvas negotiation completes before advertising support and never enables a failed runtime', async () => {
+		for (const supported of [true, false]) {
+			const negotiation = new DeferredPromise<void>();
+			let live = false;
+			class CanvasService extends MockAgentService {
+				readonly canvasPackagesEnabled = true;
+				readonly canvasProtocol = upcastPartial<IAgentHostCanvasProtocol>({
+					get supported() { return live; },
+					initialize: async () => {
+						await negotiation.p;
+						if (!supported) {
+							throw new Error('Unsupported runtime acknowledgement');
+						}
+						live = true;
+					},
+				});
+			}
+			const localServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(disposables.add(new CanvasService()), stateManager, localServer, {
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			}, disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService, managedSettingsService, clientConnections));
+			const transport = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+			localServer.simulateConnection(transport);
+			const response = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION], clientId: `canvas-negotiation-${supported}`, capabilities: { canvases: {} },
+			}));
+			assert.strictEqual(findResponse(transport.sent, 1), undefined);
+			await negotiation.complete();
+			const initialized = await response;
+			assert.ok(hasKey(initialized, { result: true }) && typeof initialized.result === 'object' && initialized.result !== null);
+			assert.strictEqual(Object.hasOwn(initialized.result, 'canvases'), supported);
+		}
+	});
+
+	test('first-connection preview selection precedes runtime negotiation and cannot be forwarded by remote clients', async () => {
+		const outcomes: { initialized: (boolean | undefined)[]; enabled: boolean; advertised: boolean }[] = [];
+		for (const options of [
+			{ transport: AgentHostTransportKind.MessagePort, enabled: true, previous: false },
+			{ transport: AgentHostTransportKind.MessagePort, enabled: false, previous: true },
+			{ transport: AgentHostTransportKind.WebSocket, enabled: true, previous: false },
+			{ transport: AgentHostTransportKind.MessagePort, enabled: 'true', previous: false },
+		]) {
+			let enabled = options.previous;
+			const initialized: (boolean | undefined)[] = [];
+			class CanvasService extends MockAgentService {
+				get canvasPackagesEnabled() { return enabled; }
+				readonly canvasProtocol = upcastPartial<IAgentHostCanvasProtocol>({
+					get supported() { return enabled; },
+					initialize: async preview => {
+						initialized.push(preview);
+						enabled = preview === true;
+					},
+				});
+			}
+			const localServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(disposables.add(new CanvasService()), stateManager, localServer, {
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			}, disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService, managedSettingsService, clientConnections));
+			const transport = new MockProtocolTransport(options.transport);
+			localServer.simulateConnection(transport);
+			const response = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION], clientId: `canvas-first-${outcomes.length}`, capabilities: { canvases: {} },
+				_meta: { [AgentHostCanvasPreviewEnabledMetaKey]: options.enabled },
+			}));
+			const result = await response;
+			assert.ok(hasKey(result, { result: true }) && typeof result.result === 'object' && result.result !== null);
+			outcomes.push({ initialized, enabled, advertised: Object.hasOwn(result.result, 'canvases') });
+		}
+		assert.deepStrictEqual(outcomes, [
+			{ initialized: [true], enabled: true, advertised: true },
+			{ initialized: [false], enabled: false, advertised: false },
+			{ initialized: [], enabled: false, advertised: false },
+			{ initialized: [], enabled: false, advertised: false },
+		]);
+	});
+
+	test('canonical mutations use the authenticated sender and reject malformed operation IDs', async () => {
+		const calls: { clientId: string; chat: string }[] = [];
+		class CanvasService extends MockAgentService {
+			readonly canvasPackagesEnabled = true;
+			readonly canvasProtocol = upcastPartial<IAgentHostCanvasProtocol>({
+				supported: true,
+				open: async (clientId, params) => {
+					calls.push({ clientId, chat: params.identity.chat });
+					return { canvas: { resource: params.canvas, identity: { ...params.identity, incarnation: 'initial' }, title: params.title, trust: { status: CanvasTrustStatus.Trusted }, availability: CanvasAvailabilityStatus.NotLoaded, revision: 1 } };
+				},
+			});
+		}
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(disposables.add(new CanvasService()), stateManager, localServer, { hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess }, disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService, managedSettingsService, clientConnections));
+		const transport = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'actual-client', capabilities: { canvases: {} } }));
+		const params = { channel: sessionUri, canvas: 'ahp-canvas:/requested', identity: { chat: defaultChatUri, source: { kind: 'extension', extensionId: 'fixture' }, canvasType: 'counter', instanceId: 'one' }, title: 'Counter', requestId: 'one', clientId: 'forged-client' };
+		const valid = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'openCanvas', params));
+		await valid;
+		const invalid = waitForResponse(transport, 3);
+		transport.simulateMessage(request(3, 'openCanvas', { ...params, requestId: '' }));
+		const response = await invalid;
+		assert.ok(isJsonRpcResponse(response) && hasKey(response, { error: true }));
+		assert.deepStrictEqual({ calls, code: response.error.code }, { calls: [{ clientId: 'actual-client', chat: defaultChatUri }], code: JsonRpcErrorCodes.InvalidParams });
+	});
+
+	test('canvas state and membership actions stay server-only', () => {
+		const transport = connectClient('forged-canvas-actions');
+		const rejected: ActionType[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.rejectionReason) {
+				rejected.push(envelope.action.type);
+			}
+		}));
+		const actions = [
+			{ type: ActionType.CanvasTrustChanged, trust: { status: CanvasTrustStatus.Trusted }, revision: 2 },
+			{ type: ActionType.CanvasAvailabilityChanged, availability: { status: CanvasAvailabilityStatus.Ready, actions: [] }, revision: 2 },
+			{ type: ActionType.CanvasIncarnationChanged, incarnation: 'forged', revision: 2 },
+			{ type: ActionType.SessionCanvasRemoved, resource: 'ahp-canvas:/other' },
+		];
+		for (const [index, action] of actions.entries()) {
+			transport.simulateMessage(notification('dispatchAction', { channel: sessionUri, action, clientSeq: index + 1 }));
+		}
+		assert.deepStrictEqual(rejected, actions.map(action => action.type));
+	});
+
+	test('local canvas extension methods are restricted to an opted-in desktop MessagePort', async () => {
+		const calls: string[] = [];
+		class CanvasService extends MockAgentService {
+			async getCanvases(chat: URI): Promise<IAgentHostCanvasState> {
+				calls.push(chat.toString());
+				return { supported: true, catalog: [], instances: [] };
+			}
+		}
+		const outcomes: { enabled: boolean; code: number | undefined; workspace: string | undefined }[] = [];
+		const workspace = URI.file('/canvas-demo/workspace').toString();
+		for (const [index, config] of [
+			{ enabled: true, host: AgentHostLaunchKind.VSCodeMainProcess, transport: AgentHostTransportKind.MessagePort },
+			{ enabled: false, host: AgentHostLaunchKind.VSCodeMainProcess, transport: AgentHostTransportKind.MessagePort },
+			{ enabled: true, host: AgentHostLaunchKind.VSCodeMainProcess, transport: AgentHostTransportKind.WebSocket },
+			{ enabled: true, host: AgentHostLaunchKind.VSCodeCLI, transport: AgentHostTransportKind.MessagePort },
+		].entries()) {
+			const localServer = disposables.add(new MockProtocolServer());
+			const service = disposables.add(new CanvasService());
+			disposables.add(new ProtocolServerHandler(service, stateManager, localServer, {
+				allowExtensionMethods: false, allowLocalCanvasMethods: config.enabled, localCanvasWorkspace: workspace, hostLaunchKind: config.host,
+			}, disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService, managedSettingsService, clientConnections));
+			const transport = new MockProtocolTransport(config.transport);
+			localServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `canvas-${index}` }));
+			const initialization = findResponse(transport.sent, 1);
+			assert.ok(initialization && hasKey(initialization, { result: true }));
+			const initialized = initialization.result;
+			assert.ok(initialized && typeof initialized === 'object' && hasKey(initialized, { protocolVersion: true }));
+			const pending = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'vscode/getCanvases', { chat: defaultChatUri }));
+			const response = await pending;
+			if (!isJsonRpcResponse(response)) {
+				assert.fail('Expected a response');
+			}
+			outcomes.push({
+				enabled: config.enabled,
+				code: hasKey(response, { error: true }) ? response.error.code : undefined,
+				workspace: readAgentHostLocalCanvasWorkspace(initialized)?.toString(),
+			});
+			transport.simulateMessage(request(3, 'shutdown', {}));
+			assert.strictEqual(service.shutdownCalls, 0);
+		}
+		assert.deepStrictEqual({ outcomes, calls }, {
+			outcomes: [{ enabled: true, code: undefined, workspace }, { enabled: false, code: JsonRpcErrorCodes.MethodNotFound, workspace: undefined }, { enabled: true, code: JsonRpcErrorCodes.MethodNotFound, workspace: undefined }, { enabled: true, code: JsonRpcErrorCodes.MethodNotFound, workspace: undefined }],
+			calls: [defaultChatUri],
+		});
+	});
+
+	test('local canvas requests preserve peer targeting and the SDK action result envelope', async () => {
+		const calls: { method: string; chat: string; params?: IAgentHostCanvasOpenParams | IAgentHostCanvasActionParams | string }[] = [];
+		class CanvasService extends MockAgentService {
+			async getCanvases(chat: URI) {
+				calls.push({ method: 'get', chat: chat.toString() });
+				return { supported: true, catalog: [], instances: [] };
+			}
+			async openCanvas(chat: URI, params: IAgentHostCanvasOpenParams) {
+				calls.push({ method: 'open', chat: chat.toString(), params });
+				return { ...params, availability: 'unavailable' as const };
+			}
+			async invokeCanvasAction(chat: URI, params: IAgentHostCanvasActionParams) {
+				calls.push({ method: 'action', chat: chat.toString(), params });
+				return { result: { value: 7 } };
+			}
+			async closeCanvas(chat: URI, instanceId: string) { calls.push({ method: 'close', chat: chat.toString(), params: instanceId }); }
+			async reloadCanvases(chat: URI) { calls.push({ method: 'reload', chat: chat.toString() }); }
+		}
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(disposables.add(new CanvasService()), stateManager, localServer, {
+			allowExtensionMethods: false, allowLocalCanvasMethods: true, hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+		}, disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService, managedSettingsService, clientConnections));
+		const transport = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'canvas-peer' }));
+		const peer = buildChatUri(sessionUri, 'peer');
+		const open = { extensionId: 'fixture', canvasId: 'counter', instanceId: 'one', input: { documentId: 'demo' } };
+		const action = { instanceId: 'one', actionName: 'increment', input: { amount: 7 } };
+		const results: unknown[] = [];
+		let id = 2;
+		for (const [method, params] of [
+			['vscode/getCanvases', { chat: peer }],
+			['vscode/openCanvas', { chat: peer, ...open }],
+			['vscode/invokeCanvasAction', { chat: peer, ...action }],
+			['vscode/closeCanvas', { chat: peer, instanceId: 'one' }],
+			['vscode/reloadCanvases', { chat: peer }],
+		] as const) {
+			const pending = waitForResponse(transport, id);
+			transport.simulateMessage(request(id++, method, params));
+			const response = await pending;
+			assert.ok(hasKey(response, { result: true }));
+			results.push(response.result);
+		}
+		const invalid = waitForResponse(transport, id);
+		transport.simulateMessage(request(id, 'vscode/openCanvas', { chat: sessionUri, ...open }));
+		const invalidResponse = await invalid;
+		assert.ok(hasKey(invalidResponse, { error: true }));
+		assert.deepStrictEqual({ calls, results, invalid: invalidResponse.error }, {
+			calls: [{ method: 'get', chat: peer }, { method: 'open', chat: peer, params: open }, { method: 'action', chat: peer, params: action }, { method: 'close', chat: peer, params: 'one' }, { method: 'reload', chat: peer }],
+			results: [{ supported: true, catalog: [], instances: [] }, { ...open, availability: 'unavailable' }, { result: { value: 7 } }, null, null],
+			invalid: { code: JsonRpcErrorCodes.InvalidParams, message: 'chat must be an Agent Host chat URI' },
+		});
+
+		test('canvas package control is restricted to the local desktop transport and explicit preview gate', async () => {
+			const calls: string[] = [];
+			const outcomes: Array<{ advertised: boolean; code: number | undefined }> = [];
+			for (const [index, options] of [
+				{ enabled: true, host: AgentHostLaunchKind.VSCodeMainProcess, transport: AgentHostTransportKind.MessagePort },
+				{ enabled: false, host: AgentHostLaunchKind.VSCodeMainProcess, transport: AgentHostTransportKind.MessagePort },
+				{ enabled: true, host: AgentHostLaunchKind.VSCodeMainProcess, transport: AgentHostTransportKind.WebSocket },
+				{ enabled: true, host: AgentHostLaunchKind.VSCodeCLI, transport: AgentHostTransportKind.MessagePort },
+			].entries()) {
+				class PackageAgentService extends MockAgentService {
+					readonly canvasPackagesEnabled = options.enabled;
+					readonly canvasPackages = upcastPartial<IAgentHostCanvasPackagesService>({
+						supported: true,
+						list: () => { calls.push('list'); return []; },
+					});
+				}
+				const server = disposables.add(new MockProtocolServer());
+				disposables.add(new ProtocolServerHandler(disposables.add(new PackageAgentService()), stateManager, server, {
+					hostLaunchKind: options.host, allowExtensionMethods: false,
+				}, disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService, managedSettingsService, clientConnections));
+				const transport = new MockProtocolTransport(options.transport);
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `packages-${index}` }));
+				const initialized = findResponse(transport.sent, 1);
+				assert.ok(initialized && hasKey(initialized, { result: true }));
+				const result = initialized.result;
+				assert.ok(result && typeof result === 'object' && hasKey(result, { protocolVersion: true }));
+				const pending = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'vscode/listCanvasPackages', undefined));
+				const response = await pending;
+				assert.ok(isJsonRpcResponse(response));
+				outcomes.push({
+					advertised: supportsAgentHostCanvasPackages(result),
+					code: hasKey(response, { error: true }) ? response.error.code : undefined,
+				});
+			}
+			assert.deepStrictEqual({ outcomes, calls }, {
+				outcomes: [
+					{ advertised: true, code: undefined },
+					{ advertised: true, code: AhpErrorCodes.PermissionDenied },
+					{ advertised: false, code: JsonRpcErrorCodes.MethodNotFound },
+					{ advertised: false, code: JsonRpcErrorCodes.MethodNotFound },
+				],
+				calls: ['list'],
+			});
+		});
+
+		test('canvas package control validates local URIs and keeps review scope explicit', async () => {
+			const calls: Array<{ kind: string; source?: string; id?: string; revision?: string; workspace?: string }> = [];
+			class PackageAgentService extends MockAgentService {
+				canvasPackagesEnabled = true;
+				readonly canvasPackages = upcastPartial<IAgentHostCanvasPackagesService>({
+					supported: true,
+					prepare: async source => {
+						calls.push({ kind: 'prepare', source: source.toString() });
+						return { id: 'package', name: 'Example', source: source.toString(), snapshot: 'file:///snapshot', revision: 'revision', fileCount: 1, byteLength: 12 };
+					},
+					approve: async (id, revision, workspace) => { calls.push({ kind: 'approve', id, revision, workspace: workspace?.toString() }); },
+					revoke: async id => { calls.push({ kind: 'revoke', id }); },
+					remove: async id => { calls.push({ kind: 'remove', id }); },
+				});
+			}
+			const service = disposables.add(new PackageAgentService());
+			const server = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(service, stateManager, server, {
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, allowExtensionMethods: false,
+			}, disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService, managedSettingsService, clientConnections));
+			const transport = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'package-actions' }));
+			let id = 2;
+			const errors: Array<number | undefined> = [];
+			for (const [method, params] of [
+				['vscode/prepareCanvasPackage', { source: 'file:///source' }],
+				['vscode/approveCanvasPackage', { id: 'package', revision: 'revision', workspace: 'file:///workspace' }],
+				['vscode/revokeCanvasPackage', { id: 'package' }],
+				['vscode/removeCanvasPackage', { id: 'package' }],
+				['vscode/prepareCanvasPackage', { source: 'https://example.com/package' }],
+				['vscode/prepareCanvasPackage', {}],
+				['vscode/approveCanvasPackage', { id: 'package', revision: 'revision', workspace: 'file:///workspace?extra' }],
+			] as const) {
+				const pending = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, method, params));
+				const response = await pending;
+				assert.ok(isJsonRpcResponse(response));
+				errors.push(hasKey(response, { error: true }) ? response.error.code : undefined);
+			}
+			service.canvasPackagesEnabled = false;
+			const pending = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, 'vscode/revokeCanvasPackage', { id: 'package' }));
+			const response = await pending;
+			assert.ok(isJsonRpcResponse(response));
+			errors.push(hasKey(response, { error: true }) ? response.error.code : undefined);
+			assert.deepStrictEqual({ calls, errors }, {
+				calls: [
+					{ kind: 'prepare', source: 'file:///source' },
+					{ kind: 'approve', id: 'package', revision: 'revision', workspace: 'file:///workspace' },
+					{ kind: 'revoke', id: 'package' },
+					{ kind: 'remove', id: 'package' },
+				],
+				errors: [undefined, undefined, undefined, undefined, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, AhpErrorCodes.PermissionDenied],
+			});
 		});
 	});
 

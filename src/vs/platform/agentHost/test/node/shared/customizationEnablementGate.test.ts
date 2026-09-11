@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isCustomizationEnabled, sortCustomizationEnablement } from '../../../common/customizationEnablement.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget, type WorkingDirectoryState } from '../../../node/agentHostCustomizationEnablementService.js';
-import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement } from '../../../node/shared/customizationEnablementGate.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement, targetForPlugin } from '../../../node/shared/customizationEnablementGate.js';
 
 class TestEnablementService implements IAgentHostCustomizationEnablementService {
 	declare readonly _serviceBrand: undefined;
@@ -145,6 +145,18 @@ function firstChildEnablement(customizations: readonly Customization[]): readonl
 suite('CustomizationEnablementGate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('host-installed plugins keep host global ownership without changing client-bundled ownership', () => {
+		const host = plugin();
+		const client = { ...host, clientId: 'client' };
+		const service = new TestEnablementService();
+		resolveCustomizationEnablement(service, URI.parse('ahp://copilot/session-1'), [host], undefined, new Map([[host.uri, { ...host, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }]]));
+		assert.deepStrictEqual({
+			host: targetForPlugin(host).isClientBundled,
+			client: targetForPlugin(client).isClientBundled,
+			beforeClientPublication: service.lastResolvedTarget?.isClientBundled,
+		}, { host: false, client: true, beforeClientPublication: true });
+	});
 
 	test('does not fabricate enablement while a resolution is pending and excludes it from the SDK', () => {
 		const service = new TestEnablementService();

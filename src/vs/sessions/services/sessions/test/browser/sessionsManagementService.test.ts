@@ -485,6 +485,43 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'target');
 	});
 
+	test('captured navigation is cancelled before a newer session finishes resource resolution', async () => {
+		const active = stubSession({ sessionId: 'active', providerId: 'test' });
+		const target = stubSession({ sessionId: 'target', providerId: 'test' });
+		const resolutionStarted = new DeferredPromise<void>();
+		const targetResolution = new DeferredPromise<URI | undefined>();
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return [active, target]; }
+			override resolveSessionResource(resource: URI): Promise<URI | undefined> {
+				if (extUriBiasedIgnorePathCase.isEqual(resource, target.resource)) {
+					void resolutionStarted.complete();
+					return targetResolution.p;
+				}
+				return Promise.resolve(undefined);
+			}
+		}(active);
+		const { view } = createSessionsManagementService(active, disposables, provider);
+		const initial = view.captureNavigation();
+		const sameInitial = view.captureNavigation() === initial;
+		await view.openSession(active.resource);
+		const previous = view.captureNavigation();
+		const opening = view.openSession(target.resource);
+		await resolutionStarted.p;
+		const pending = view.captureNavigation();
+		const beforeResolution = {
+			sameInitial, initialCancelled: initial.isCancellationRequested, previousCancelled: previous.isCancellationRequested,
+			pendingCancelled: pending.isCancellationRequested, active: view.activeSession.get()?.sessionId,
+		};
+		await targetResolution.complete(undefined);
+		await opening;
+		assert.deepStrictEqual({
+			beforeResolution, active: view.activeSession.get()?.sessionId, pendingCancelled: pending.isCancellationRequested,
+		}, {
+			beforeResolution: { sameInitial: true, initialCancelled: true, previousCancelled: true, pendingCancelled: false, active: 'active' },
+			active: 'target', pendingCancelled: false,
+		});
+	});
+
 	test('removing the active session with a fallback keeps the custom view open', async () => {
 		const fallback = stubSession({ sessionId: 'fallback', providerId: 'test' });
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });

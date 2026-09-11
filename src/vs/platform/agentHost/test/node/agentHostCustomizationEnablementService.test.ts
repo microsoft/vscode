@@ -160,6 +160,23 @@ suite('AgentHostCustomizationEnablementService', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('resolves a pre-registration launch against its exact directory without changing other sessions', async () => {
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false);
+		const restoring = 'ahp://copilot/restoring';
+		await service.initializeSession(restoring);
+		assert.deepStrictEqual([
+			serializableResolution(service.resolve(restoring, plugin)),
+			serializableResolution(service.resolve(restoring, plugin, workspace)),
+			serializableResolution(service.resolve(restoring, plugin, URI.file('/other'))),
+			serializableResolution(service.resolve(restoring, plugin)),
+		], [
+			{ kind: 'pending', reason: 'workingDirectory' },
+			{ kind: 'resolved', enabled: false, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }], workingDirectory: { kind: 'directory', uri: workspace.toString() } },
+			{ kind: 'resolved', enabled: true, enablement: [], workingDirectory: { kind: 'directory', uri: URI.file('/other').toString() } },
+			{ kind: 'pending', reason: 'workingDirectory' },
+		]);
+	});
+
 	test('resolves session, workspace, global, and default decisions in precedence order', () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, true);

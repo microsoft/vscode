@@ -213,6 +213,25 @@ export interface ClientCapabilities {
 	 * App-bearing tool calls as ordinary MCP tool calls.
 	 */
 	mcpApps?: Record<string, never>;
+	/**
+	 * Client can render local canvases: `listCanvasTypes`, `openCanvas`,
+	 * subscribe to the resulting `ahp-canvas:` channel, and drive
+	 * `resolveCanvasSource` / `invokeCanvasAction` / `restartCanvasProvider` /
+	 * `closeCanvas`.
+	 *
+	 * Hosts SHOULD NOT offer canvas admission to a client that omits this
+	 * capability; such a client MUST be treated as if every canvas were
+	 * {@link CanvasAvailabilityStatus.Unsupported}. Omission does not imply
+	 * anything about server/runtime execution trust — see
+	 * {@link CanvasTrustStatus}, which is a separate, host-owned decision.
+	 *
+	 * This declares only the CLIENT's rendering capability. Protocol version
+	 * support alone (i.e. speaking >= 0.10.0) is not evidence that the SERVER
+	 * actually has a working canvas runtime — see
+	 * {@link InitializeResult.canvases}, the server-side counterpart, which a
+	 * client MUST also check before treating canvases as usable.
+	 */
+	canvases?: Record<string, never>;
 }
 
 /**
@@ -287,7 +306,34 @@ export interface InitializeResult {
 	 * @see {@link /guide/automations | Automations Guide}
 	 */
 	automations?: AutomationCapabilities;
+	/**
+	 * Host/runtime-owned local-canvas support. Presence means the SERVER
+	 * currently has a working runtime able to serve `openCanvas` /
+	 * `invokeCanvasAction` for at least one qualifying (explicitly installed
+	 * and trust-eligible) extension/package source; absence means the host
+	 * has no available canvas runtime, and clients MUST treat every canvas as
+	 * {@link CanvasAvailabilityStatus.Unsupported} regardless of what
+	 * {@link ClientCapabilities.canvases} declared.
+	 *
+	 * **Protocol version support alone is not a runtime capability**: a host
+	 * speaking protocol `>= 0.10.0` without this field present MUST NOT be
+	 * assumed to have a usable canvas runtime. This field — not the
+	 * negotiated `protocolVersion` — is the authoritative signal, and is
+	 * independent of any individual canvas's live availability
+	 * ({@link CanvasAvailabilityState}) or trust decision
+	 * ({@link CanvasTrustState}).
+	 */
+	canvases?: CanvasCapabilities;
 }
+
+/**
+ * Local-canvas runtime features supported by this host authority. The empty
+ * object means "supported" — see {@link InitializeResult.canvases} for what
+ * presence/absence of this field itself means.
+ *
+ * @category Commands
+ */
+export interface CanvasCapabilities { }
 
 /**
  * Automation features supported by this host authority.
@@ -1130,7 +1176,8 @@ export interface ResourceMkdirResult {
  * ```jsonc
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 3, "method": "authenticate",
- *   "params": { "channel": "ahp-root://", "resource": "https://api.github.com", "token": "gho_xxxx" } }
+ *   "params": { "channel": "ahp-root://", "resource": "https://api.github.com",
+ *     "token": "gho_xxxx", "expiresIn": 3540 } }
  *
  * // Server → Client (success)
  * { "jsonrpc": "2.0", "id": 3, "result": {} }
@@ -1150,6 +1197,23 @@ export interface AuthenticateParams extends BaseParams {
 	resource: string;
 	/** Bearer token obtained from the resource's authorization server */
 	token: string;
+	/**
+	 * The access token's remaining lifetime, in seconds, when this
+	 * `authenticate` request is sent. This corresponds to `expires_in` in an
+	 * OAuth 2.0 token response (RFC 6749 section 5.1).
+	 *
+	 * If the client retained the original token response, it MUST subtract the
+	 * elapsed time before forwarding this value. Omit this field when the
+	 * authorization server did not supply an expiry or the expiry is otherwise
+	 * unknown. When supplied, the value MUST be a positive integer.
+	 *
+	 * This field is irrelevant when `token` is empty to revoke authentication
+	 * and SHOULD be omitted in that case.
+	 *
+	 * @integer
+	 * @minimum 1
+	 */
+	expiresIn?: number;
 	/**
 	 * OAuth scopes the token grants, when known. Lets the server determine
 	 * whether a specific challenge — e.g. the `requiredScopes` on a live

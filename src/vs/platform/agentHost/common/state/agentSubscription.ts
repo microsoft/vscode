@@ -15,6 +15,9 @@ import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
 import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
+import { isCanvasAction } from '../agentHostCanvasProtocol.js';
+import { canvasReducer } from './protocol/channels-canvas/reducer.js';
+import type { CanvasState } from './protocol/channels-canvas/state.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
 
@@ -613,6 +616,20 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 	}
 }
 
+export class CanvasStateSubscription extends BaseAgentSubscription<CanvasState> {
+	constructor(private readonly _resource: string, clientId: string, log: (msg: string) => void) {
+		super(clientId, log);
+	}
+
+	protected override _applyReducer(state: CanvasState, action: StateAction): CanvasState {
+		return isCanvasAction(action) ? canvasReducer(state, action, this._log) : state;
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return envelope.channel === this._resource && isCanvasAction(envelope.action);
+	}
+}
+
 /** Subscription to the singleton host-owned automation catalogue. */
 export class AutomationCatalogSubscription extends BaseAgentSubscription<AutomationState> {
 
@@ -758,7 +775,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription;
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription | CanvasStateSubscription;
 
 // --- Annotations State Subscription ------------------------------------------
 
@@ -1264,6 +1281,8 @@ export class AgentSubscriptionManager extends Disposable {
 				return new AutomationCatalogSubscription(this._clientId, this._log);
 			case StateComponents.AutomationRun:
 				return new AutomationRunSubscription(key, this._clientId, this._log);
+			case StateComponents.Canvas:
+				return new CanvasStateSubscription(key, this._clientId, this._log);
 			case StateComponents.Root:
 				throw new Error('_createSubscription: root subscription is managed separately');
 			default:

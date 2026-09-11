@@ -861,6 +861,7 @@ suite('NewSessionViewV3Prompt', () => {
 			}(),
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
+					hasInput: constObservable(false),
 					animatePrompt: async (text: string) => {
 						prompt = text;
 						return true;
@@ -918,6 +919,7 @@ suite('NewSessionViewV3Prompt', () => {
 			}(),
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
+					hasInput: constObservable(false),
 					animatePrompt: async (text: string) => {
 						prompt = text;
 						return true;
@@ -1001,6 +1003,7 @@ async function runPrompt(
 	}();
 	const composerService = new class extends mock<INewSessionComposerService>() {
 		override readonly activeComposer = constObservable({
+			hasInput: constObservable(false),
 			animatePrompt: async (prompt: string, durationMs: number, placeholder: string) => {
 				animation = { prompt, durationMs, placeholder };
 				return true;

@@ -15,6 +15,8 @@ import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentHostCanvasOperations, IAgentHostCanvasStateChange } from './agentHostCanvases.js';
+import type { CanvasSource } from './state/protocol/channels-canvas/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
@@ -1117,7 +1119,7 @@ export interface IAgentChatAdoptionResult {
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
  */
-export interface IAgent {
+export interface IAgent extends IAgentHostCanvasOperations {
 	// ---- Identity and catalog -----------------------------------------------
 
 	/** Unique provider identifier. */
@@ -1139,6 +1141,22 @@ export interface IAgent {
 
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
+
+	readonly onDidChangeCanvases?: Event<IAgentHostCanvasStateChange>;
+	readonly supportsCanvasProtocol?: boolean;
+	initializeCanvasRuntime?(): Promise<void>;
+	/** Compatibility projection for reviewed-fixture clients predating canonical canvas channels. */
+	readonly legacyCanvasMetadata?: boolean;
+	getCanvasSource?(chat: URI, extensionId: string): CanvasSource;
+	isCanvasExecutionAuthorized?(chat: URI, extensionId: string): boolean;
+	/** Materializes and retains an explicitly admitted canvas backing before executable effects. */
+	prepareCanvasExecution?(chat: URI, extensionId: string, workingDirectories: readonly URI[], onWillExecute: () => void, context: IAgentChatContext): Promise<void>;
+
+	/** Retires only this chat's executable canvas backing, preserving logical records and data. */
+	revokeCanvasExecution?(chat: URI): Promise<void>;
+
+	/** Captures retirement authority for the current backing, never for a later replacement. */
+	getCanvasExecution?(chat: URI): { isCurrent(): boolean; retire(): Promise<void> } | undefined;
 
 	/** Fires when a provisional chat acquires its SDK backing and durable metadata. */
 	readonly onDidMaterializeChat: Event<IAgentMaterializeChatEvent>;

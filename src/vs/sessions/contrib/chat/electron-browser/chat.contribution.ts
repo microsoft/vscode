@@ -29,11 +29,13 @@ import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTrac
 import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
 import { resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
+import { NewSessionNavigationGuard } from '../browser/newSessionNavigationGuard.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.selectAgentsFolder';
 	private readonly _windowOpenTelemetry = this._register(new MutableDisposable<SessionsWindowOpenTelemetry>());
+	private readonly _folderSelection = this._register(new MutableDisposable<DisposableStore>());
 	private _didHandleInitialWindowOpen = false;
 
 	constructor(
@@ -119,6 +121,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private async handleOpenIntent(folderUri: URI | undefined, sessionResource: URI | undefined, preferDevContainer: boolean): Promise<void> {
+		this._folderSelection.clear();
 		// Opening an existing session establishes its own workspace context, so
 		// the folder selection is only needed for the folder-only handoff (no
 		// session to restore).
@@ -191,10 +194,19 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private async selectFolder(folderUri: URI, preferDevContainer: boolean): Promise<void> {
+		const store = this._folderSelection.value = new DisposableStore();
+		const guard = store.add(new NewSessionNavigationGuard(this.sessionsService.activeSession, this.newSessionComposerService.activeComposer, true));
 		// Wait for the welcome/setup flow to complete before selecting the folder
 		await this.sessionsSetUpService.whenWelcomeDone();
-
-		await this.sessionsService.openNewSession({ cancelRestore: true });
+		if (!guard.canNavigate) {
+			this.logService.info('[AgentsHandoff] preserving a draft or newer navigation');
+			return;
+		}
+		await guard.openComposer(() => this.sessionsService.openNewSession({ cancelRestore: true }));
+		if (!guard.canNavigate) {
+			this.logService.info('[AgentsHandoff] folder selection was superseded');
+			return;
+		}
 
 		// Tell the sessions list this folder is the open-window source folder
 		// so it ranks the matching folder section first. Get the view if it
@@ -202,17 +214,16 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		const sessionsView = this.viewsService.getViewWithId<SessionsView>(SessionsListViewId);
 		sessionsView?.sessionsControl?.setOpenWindowSourceFolder(folderUri);
 
-		if (this.tryResolveAndSelect(folderUri, preferDevContainer)) {
-			return;
-		}
-
-		// Provider not registered yet — wait for it, but give up at Eventually phase
-		const disposable = this.sessionsProvidersService.onDidChangeProviders(() => {
-			if (this.tryResolveAndSelect(folderUri, preferDevContainer)) {
-				disposable.dispose();
+		const trySelect = () => {
+			if (!guard.canNavigate || this.tryResolveAndSelect(folderUri, preferDevContainer)) {
+				store.dispose();
 			}
-		});
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => disposable.dispose());
+		};
+		store.add(this.sessionsProvidersService.onDidChangeProviders(trySelect));
+		store.add(this.sessionsManagementService.onDidChangeSessionTypes(trySelect));
+		store.add(guard.token.onCancellationRequested(() => store.dispose()));
+		trySelect();
+		void this.lifecycleService.when(LifecyclePhase.Eventually).then(() => store.dispose());
 	}
 
 	private tryResolveAndSelect(folderUri: URI, preferDevContainer: boolean): boolean {

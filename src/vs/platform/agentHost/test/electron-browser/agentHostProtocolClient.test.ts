@@ -18,7 +18,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
-import { getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { readAgentHostCanvasPreviewEnabled, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -36,7 +36,8 @@ import { AgentHostTransportFailureReason, NonReconnectableTransportError, type I
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostLocalCanvasesConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostLocalCanvasesSettingId } from '../../common/agentService.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -382,6 +383,31 @@ suite('AgentHostProtocolClient', () => {
 		return createClientForIdentity('test.example:1234', transport, permissionService, loadEstimator, logService, configurationService, clientId, clientInfo);
 	}
 
+	test('canvas requests retain exact chat identity and expose the SDK action envelope', async () => {
+		const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		const chat = URI.parse(buildChatUri('copilot:/session', 'peer'));
+		const open = { extensionId: 'fixture', canvasId: 'counter', instanceId: 'one', input: { documentId: 'demo' } };
+		const action = { instanceId: 'one', actionName: 'increment', input: { amount: 2 } };
+		const pending = [
+			client.getCanvases(chat), client.openCanvas(chat, open), client.invokeCanvasAction(chat, action),
+			client.closeCanvas(chat, 'one'), client.reloadCanvases(chat),
+		];
+		const results = [{ supported: true, catalog: [], instances: [] }, { ...open, availability: 'unavailable' }, { result: { value: 2 } }, null, null];
+		for (const [index, result] of results.entries()) {
+			transport.fireMessage({ jsonrpc: '2.0', id: index + 1, result });
+		}
+		assert.deepStrictEqual({ sent: transport.sentMessages, results: await Promise.all(pending) }, {
+			sent: [
+				{ jsonrpc: '2.0', id: 1, method: 'vscode/getCanvases', params: { chat: chat.toString() } },
+				{ jsonrpc: '2.0', id: 2, method: 'vscode/openCanvas', params: { ...open, chat: chat.toString() } },
+				{ jsonrpc: '2.0', id: 3, method: 'vscode/invokeCanvasAction', params: { ...action, chat: chat.toString() } },
+				{ jsonrpc: '2.0', id: 4, method: 'vscode/closeCanvas', params: { chat: chat.toString(), instanceId: 'one' } },
+				{ jsonrpc: '2.0', id: 5, method: 'vscode/reloadCanvases', params: { chat: chat.toString() } },
+			],
+			results,
+		});
+	});
+
 	async function connectClient(client: AgentHostProtocolClient, transport: TestProtocolTransport, meta?: Record<string, unknown>): Promise<void> {
 		const connectPromise = client.connect();
 		while (transport.sentMessages.length === 0) {
@@ -395,6 +421,96 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await connectPromise;
 	}
+
+	test('canvas package client is unavailable without an advertised local capability', async () => {
+		const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		assert.strictEqual(client.canvasPackages, undefined);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		assert.strictEqual(client.canvasPackages, undefined);
+	});
+
+	test('local canvas admission combines the preview and AI gates without a transient enable', async () => {
+		const { client, transport, configurationService } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		await configurationService.setUserConfiguration(AgentHostLocalCanvasesSettingId, true);
+		await configurationService.setUserConfiguration('chat.disableAIFeatures', true);
+		await connectClient(client, transport);
+		const disabledInitially = findRootConfigValue(transport.sentMessages, AgentHostLocalCanvasesConfigKey);
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration('chat.disableAIFeatures', false);
+		fireConfigurationChange(configurationService, 'chat.disableAIFeatures');
+		const enabled = findRootConfigValue(transport.sentMessages, AgentHostLocalCanvasesConfigKey);
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(AgentHostLocalCanvasesSettingId, false);
+		fireConfigurationChange(configurationService, AgentHostLocalCanvasesSettingId);
+		const disabledAgain = findRootConfigValue(transport.sentMessages, AgentHostLocalCanvasesConfigKey);
+		assert.deepStrictEqual({ disabledInitially, enabled, disabledAgain }, { disabledInitially: false, enabled: true, disabledAgain: false });
+	});
+
+	test('the local canvas preview is never forwarded to a remote host', async () => {
+		const { client, transport, configurationService } = createClient();
+		await configurationService.setUserConfiguration(AgentHostLocalCanvasesSettingId, true);
+		await connectClient(client, transport);
+		const initial = findOptionalRootConfigValue(transport.sentMessages, AgentHostLocalCanvasesConfigKey);
+		transport.sentMessages.length = 0;
+		fireConfigurationChange(configurationService, AgentHostLocalCanvasesSettingId);
+		fireConfigurationChange(configurationService, 'chat.disableAIFeatures');
+		assert.deepStrictEqual({ initial, changes: transport.sentMessages }, { initial: undefined, changes: [] });
+	});
+
+	test('initialize carries the effective preview gate only to a local host', async () => {
+		const results: (boolean | undefined)[] = [];
+		for (const [identity, disableAI] of [
+			[LOCAL_AGENT_HOST_RESOURCE_IDENTITY, false],
+			[LOCAL_AGENT_HOST_RESOURCE_IDENTITY, true],
+			['remote.example:1234', false],
+		] as const) {
+			const { client, transport, configurationService } = createClientForIdentity(identity);
+			await configurationService.setUserConfiguration(AgentHostLocalCanvasesSettingId, true);
+			await configurationService.setUserConfiguration('chat.disableAIFeatures', disableAI);
+			await connectClient(client, transport);
+			const request = transport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'initialize');
+			assert.ok(request && hasKey(request, { params: true }));
+			results.push(readAgentHostCanvasPreviewEnabled(request.params));
+		}
+		assert.deepStrictEqual(results, [true, false, undefined]);
+	});
+
+	test('remote hosts cannot enable the local canvas package client by advertising its metadata', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(false, undefined, true));
+		assert.strictEqual(client.canvasPackages, undefined);
+	});
+
+	test('canvas package client preserves source, revision and approval scope', async () => {
+		const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(false, undefined, true));
+		transport.sentMessages.length = 0;
+		const packages = client.canvasPackages;
+		assert.ok(packages);
+		const item = { id: 'package', revision: 'revision', name: 'Example', source: 'file:///source', snapshot: 'file:///snapshot', byteLength: 12, fileCount: 1 };
+		const pending = [
+			packages.list(),
+			packages.prepare(URI.file('/source')),
+			packages.approve('package', 'revision', URI.file('/workspace')),
+			packages.revoke('package'),
+			packages.remove('package'),
+		];
+		const sent = transport.sentMessages.filter((message): message is JsonRpcRequest => hasKey(message, { method: true }) && hasKey(message, { id: true }));
+		const results = [[item], item, null, null, null];
+		for (const [index, request] of sent.entries()) {
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: results[index] });
+		}
+		assert.deepStrictEqual({ sent: sent.map(request => ({ method: request.method, params: request.params })), results: await Promise.all(pending) }, {
+			sent: [
+				{ method: 'vscode/listCanvasPackages', params: undefined },
+				{ method: 'vscode/prepareCanvasPackage', params: { source: URI.file('/source').toString() } },
+				{ method: 'vscode/approveCanvasPackage', params: { id: 'package', revision: 'revision', workspace: URI.file('/workspace').toString() } },
+				{ method: 'vscode/revokeCanvasPackage', params: { id: 'package' } },
+				{ method: 'vscode/removeCanvasPackage', params: { id: 'package' } },
+			],
+			results,
+		});
+	});
 
 	test('initialize sends the local client telemetry identity only for usage telemetry', async () => {
 		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));

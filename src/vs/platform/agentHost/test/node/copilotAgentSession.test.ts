@@ -13,10 +13,12 @@ import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
@@ -36,6 +38,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
@@ -146,6 +149,9 @@ class MockCopilotSession {
 	readonly samplingResponses: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0][] = [];
 	readonly registeredEventInterests: string[] = [];
 	readonly releasedEventInterests: string[] = [];
+	readonly activeEventInterests = new Set<string>();
+	eventInterestRegistrationGate: Promise<void> | undefined;
+	eventInterestRegistrationHook: (() => void) | undefined;
 	mcpDisableGate: Promise<unknown> | undefined;
 	mcpStopServerGate: Promise<unknown> | undefined;
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number; contextWindow?: { currentTokens: number; tokenLimit: number; messagesLength: number } } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
@@ -185,6 +191,7 @@ class MockCopilotSession {
 	disconnectGate: Promise<void> | undefined;
 	disconnectHook: (() => void) | undefined;
 	disconnectError: Error | undefined;
+	disconnected = false;
 	/**
 	 * Per-call gates, consumed in call order, for holding individual reads in flight.
 	 * Lets a test make an earlier-issued read resolve after a later one.
@@ -290,6 +297,8 @@ class MockCopilotSession {
 		if (this.disconnectError) {
 			throw this.disconnectError;
 		}
+		this.activeEventInterests.clear();
+		this.disconnected = true;
 	}
 
 	readonly rpc = {
@@ -349,10 +358,18 @@ class MockCopilotSession {
 		eventLog: {
 			registerInterest: async ({ eventType }: { eventType: string }) => {
 				this.registeredEventInterests.push(eventType);
-				return { handle: `interest-${this.registeredEventInterests.length}` };
+				const handle = `interest-${this.registeredEventInterests.length}`;
+				this.activeEventInterests.add(handle);
+				this.eventInterestRegistrationHook?.();
+				await this.eventInterestRegistrationGate;
+				return { handle };
 			},
 			releaseInterest: async ({ handle }: { handle: string }) => {
 				this.releasedEventInterests.push(handle);
+				if (this.disconnected) {
+					throw new Error(`Session not found for sessionId: ${this.sessionId}`);
+				}
+				this.activeEventInterests.delete(handle);
 				return { success: true };
 			},
 		},
@@ -814,7 +831,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
-	beforeLaunch?: () => void;
+	beforeLaunch?: () => void | Promise<void>;
+	onCreated?: (session: CopilotAgentSession) => void;
 	realpath?: (path: string) => Promise<string>;
 }): Promise<{
 	session: CopilotAgentSession;
@@ -895,7 +913,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	let launchedRuntime: ICopilotSessionRuntime | undefined;
 	const sessionLauncher: ICopilotSessionLauncher = {
 		launch: async (_plan, runtime) => {
-			options?.beforeLaunch?.();
+			await options?.beforeLaunch?.();
 			launchedRuntime = runtime;
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
@@ -907,6 +925,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const services = new ServiceCollection();
 	services.set(ILogService, options?.logService ?? new NullLogService());
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
+	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 	services.set(IAgentHostGitService, options?.gitService ?? createNoopGitService());
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
 	services.set(IAgentHostOTelService, {
@@ -1108,6 +1127,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		},
 	));
 
+	options?.onCreated?.(session);
 	await session.initializeSession();
 	if (!launchedRuntime) {
 		throw new Error('Expected session runtime');
@@ -1208,6 +1228,68 @@ suite('CopilotAgentSession', () => {
 			},
 			beforeLaunch: () => assert.strictEqual(initialized, true),
 		});
+	});
+
+	test('canvas promotion retains the exact live backing before disconnecting its empty session', async () => {
+		const operations: string[] = [];
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: session => { session.disconnectHook = () => { operations.push('disconnect'); }; },
+		});
+		await session.retainForCanvas(async backing => {
+			assert.strictEqual(backing, mockSession);
+			operations.push('retain');
+		});
+		await session.destroySession(true);
+		assert.deepStrictEqual(operations, ['retain', 'disconnect']);
+	});
+
+	test('canvas promotion cannot continue after its exact backing is disposed during retention', async () => {
+		const { session } = await createAgentSession(disposables);
+		const retaining = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		const pending = session.retainForCanvas(async () => {
+			void started.complete();
+			await retaining.p;
+		});
+		const rejected = assert.rejects(pending, /Cancel/);
+		await started.p;
+		session.dispose();
+		await retaining.complete();
+		await rejected;
+		await assert.rejects(session.retainForCanvas(async () => assert.fail('A disposed backing cannot be retained')), /Cancel/);
+	});
+
+	test('canvas revocation waits for a pending startup and disconnects its late backing', async () => {
+		const created = new DeferredPromise<CopilotAgentSession>();
+		const launchStarted = new DeferredPromise<void>();
+		const launchGate = new DeferredPromise<void>();
+		const disconnectStarted = new DeferredPromise<void>();
+		const disconnectGate = new DeferredPromise<void>();
+		const initializing = createAgentSession(disposables, {
+			onCreated: session => { void created.complete(session); },
+			beforeLaunch: async () => {
+				void launchStarted.complete();
+				await launchGate.p;
+			},
+			configureMockSession: session => {
+				session.disconnectGate = disconnectGate.p;
+				session.disconnectHook = () => { void disconnectStarted.complete(); };
+			},
+		});
+		const cancelled = assert.rejects(initializing, /Cancel/);
+		const session = await created.p;
+		await launchStarted.p;
+		let stopped = false;
+		const stopping = session.stopCanvasExecution().then(() => { stopped = true; });
+		try {
+			await launchGate.complete();
+			await disconnectStarted.p;
+			assert.strictEqual(stopped, false);
+		} finally {
+			await disconnectGate.complete();
+			await stopping;
+			await cancelled;
+		}
 	});
 
 	test('retains transient host instructions until the delayed prompt hook consumes them', async () => {
@@ -1791,6 +1873,116 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(mockSession.disconnectCalls, 1);
 		} finally {
 			disconnectGate.complete();
+		}
+	});
+
+	for (const disconnectFails of [false, true]) {
+		test(`destroySession waits for ${disconnectFails ? 'a rejected' : 'a successful'} disconnect reply before the same backing can resume`, async () => {
+			const disconnectStarted = new DeferredPromise<void>();
+			const disconnectGate = new DeferredPromise<void>();
+			const disconnectError = new Error('Disconnect failed');
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configureMockSession: mockSession => {
+					mockSession.disconnectGate = disconnectGate.p;
+					mockSession.disconnectHook = () => { void disconnectStarted.complete(); };
+					mockSession.disconnectError = disconnectFails ? disconnectError : undefined;
+				},
+			});
+			let settled = false;
+			const completion = Promise.allSettled([session.destroySession(true)]).then(outcomes => {
+				settled = true;
+				return outcomes[0];
+			});
+			try {
+				await disconnectStarted.p;
+				mockSession.fire('session.shutdown', upcastPartial<SessionEventPayload<'session.shutdown'>['data']>({
+					shutdownType: 'routine',
+					totalApiDurationMs: 0,
+				}));
+				await timeout(0);
+				const settledBeforeReply = settled;
+				await disconnectGate.complete();
+				const outcome = await completion;
+				assert.deepStrictEqual({ settledBeforeReply, outcome, disconnectCalls: mockSession.disconnectCalls }, {
+					settledBeforeReply: false,
+					outcome: disconnectFails ? { status: 'rejected', reason: disconnectError } : { status: 'fulfilled', value: undefined },
+					disconnectCalls: 1,
+				});
+			} finally {
+				await disconnectGate.complete();
+				await completion;
+			}
+		});
+	}
+
+	for (const teardown of ['destroy', 'dispose', 'revoke'] as const) {
+		test(`sampling interest ends with its SDK backing on ${teardown}`, async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession } = await createAgentSession(disposables, { logService });
+			if (teardown === 'destroy') {
+				await session.destroySession(true);
+			}
+			if (teardown === 'revoke') {
+				await session.stopCanvasExecution();
+			} else {
+				session.dispose();
+			}
+			await timeout(0);
+			assert.deepStrictEqual({
+				registered: mockSession.registeredEventInterests,
+				released: mockSession.releasedEventInterests,
+				active: [...mockSession.activeEventInterests],
+				disconnected: mockSession.disconnected,
+				errors: logService.errors,
+			}, {
+				registered: ['sampling.requested'],
+				released: [],
+				active: [],
+				disconnected: true,
+				errors: [],
+			});
+		});
+	}
+
+	test('sampling interest registration completing after disposal cannot release a retired backing', async () => {
+		const created = new DeferredPromise<CopilotAgentSession>();
+		const registered = new DeferredPromise<MockCopilotSession>();
+		const registrationReply = new DeferredPromise<void>();
+		const logService = new CapturingLogService();
+		const initialization = Promise.allSettled([createAgentSession(disposables, {
+			logService,
+			onCreated: session => { void created.complete(session); },
+			configureMockSession: mockSession => {
+				mockSession.eventInterestRegistrationGate = registrationReply.p;
+				mockSession.eventInterestRegistrationHook = () => { void registered.complete(mockSession); };
+			},
+		})]);
+		const session = await created.p;
+		const mockSession = await registered.p;
+		const stopping = session.stopCanvasExecution();
+		try {
+			await registrationReply.complete();
+			await stopping;
+			const [outcome] = await initialization;
+			assert.deepStrictEqual({
+				cancelled: outcome.status === 'rejected' && isCancellationError(outcome.reason),
+				released: mockSession.releasedEventInterests,
+				active: [...mockSession.activeEventInterests],
+				disconnected: mockSession.disconnected,
+				errors: logService.errors,
+				warnings: logService.warnings,
+			}, {
+				cancelled: true,
+				released: [],
+				active: [],
+				disconnected: true,
+				errors: [],
+				warnings: [],
+			});
+		} finally {
+			await registrationReply.complete();
+			await initialization;
+			await stopping;
 		}
 	});
 
@@ -6274,7 +6466,7 @@ Use the attached image as context.
 			});
 			session.resetTurnState('turn-original');
 			await session.send('hello agent', undefined, 'turn-original');
-			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data'], { id: 'evt-original' });
 			mockSession.fire('assistant.message', {
 				messageId: 'msg-tools',
 				content: '',
@@ -6286,7 +6478,7 @@ Use the attached image as context.
 			mockSession.fire('user.message', {
 				content: 'focus on tests',
 				interactionId: 'interaction-steer',
-			} as SessionEventPayload<'user.message'>['data']);
+			} as SessionEventPayload<'user.message'>['data'], { id: 'evt-steering' });
 
 			assert.deepStrictEqual(telemetryService.events
 				.filter(event => event.eventName === 'toolCallDetails')
@@ -6862,6 +7054,162 @@ Use the attached image as context.
 		});
 	});
 
+	suite('provider-originated user messages', () => {
+		test('an idle SDK user message establishes its real turn without resending it', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase });
+			const startedAt = '2026-09-11T10:00:00.000Z';
+			mockSession.fire('user.message', upcastPartial<SessionEventPayload<'user.message'>['data']>({
+				content: 'Play one move.\n<context>Provider context</context>',
+				source: 'user',
+				attachments: [{ type: 'file', path: '/workspace/game.txt', displayName: 'Game' }],
+			}), { id: 'sdk-canvas-request', timestamp: startedAt });
+			mockSession.fire('assistant.message_delta', { messageId: 'reply', deltaContent: 'Choosing a move.' });
+			mockSession.fire('session.idle', {});
+
+			const actions = getActions(signals);
+			assert.deepStrictEqual({
+				start: actions.find(action => action.type === ActionType.ChatTurnStarted),
+				responseTurn: actions.find(action => action.type === ActionType.ChatResponsePart)?.turnId,
+				completedTurn: actions.find(action => action.type === ActionType.ChatTurnComplete)?.turnId,
+				eventIds: sessionDatabase.setTurnEventIdCalls,
+				sends: mockSession.sendRequests,
+				active: session.hasActiveTurn,
+			}, {
+				start: {
+					type: ActionType.ChatTurnStarted, turnId: 'sdk-canvas-request', startedAt,
+					message: {
+						text: 'Play one move.', origin: { kind: MessageKind.User },
+						attachments: [{ type: MessageAttachmentKind.Resource, uri: URI.file('/workspace/game.txt').toString(), label: 'Game', displayKind: 'document' }],
+					},
+				},
+				responseTurn: 'sdk-canvas-request', completedTurn: 'sdk-canvas-request',
+				eventIds: [{ turnId: 'sdk-canvas-request', eventId: 'sdk-canvas-request' }],
+				sends: [], active: false,
+			});
+		});
+
+		test('normal host sends retain their turn identity when the SDK echoes them', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase });
+			session.resetTurnState('host-turn');
+			mockSession.fire('user.message', { content: 'Host request', source: 'user' }, { id: 'sdk-host-echo' });
+			assert.deepStrictEqual({
+				starts: getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted),
+				turnId: session.currentTurnId, eventIds: sessionDatabase.setTurnEventIdCalls,
+			}, {
+				starts: [], turnId: 'host-turn',
+				eventIds: [{ turnId: 'host-turn', eventId: 'sdk-host-echo' }],
+			});
+		});
+
+		test('distinct SDK user messages create separate turns even without an intervening idle', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('host-turn');
+			mockSession.fire('user.message', { content: 'Host request', source: 'user' }, { id: 'sdk-host-echo' });
+			mockSession.fire('assistant.message_delta', { messageId: 'reply-first', deltaContent: 'First response.' });
+			mockSession.fire('user.message', { content: 'Canvas request', source: 'user' }, { id: 'sdk-canvas-request' });
+			mockSession.fire('assistant.message_delta', { messageId: 'reply-second', deltaContent: 'Second response.' });
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual(getActions(signals).map(action => {
+				switch (action.type) {
+					case ActionType.ChatResponsePart:
+					case ActionType.ChatTurnComplete:
+					case ActionType.ChatTurnStarted:
+						return { type: action.type, turnId: action.turnId };
+					default:
+						assert.fail(`Unexpected action: ${action.type}`);
+				}
+			}), [
+				{ type: ActionType.ChatResponsePart, turnId: 'host-turn' },
+				{ type: ActionType.ChatTurnComplete, turnId: 'host-turn' },
+				{ type: ActionType.ChatTurnStarted, turnId: 'sdk-canvas-request' },
+				{ type: ActionType.ChatResponsePart, turnId: 'sdk-canvas-request' },
+				{ type: ActionType.ChatTurnComplete, turnId: 'sdk-canvas-request' },
+			]);
+		});
+
+		test('replayed root messages cannot reopen completed turns', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			for (const id of ['sdk-first', 'sdk-second']) {
+				mockSession.fire('user.message', { content: id, source: 'user' }, { id });
+				mockSession.fire('session.idle', {});
+			}
+			const previous = signals.length;
+			mockSession.fire('user.message', { content: 'sdk-first', source: 'user' }, { id: 'sdk-first' });
+			assert.deepStrictEqual({ additionalSignals: signals.length - previous, active: session.hasActiveTurn }, {
+				additionalSignals: 0, active: false,
+			});
+		});
+
+		test('synthetic and subagent user messages never become root requests', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('user.message', { content: 'Skill data', source: 'skill-chess' }, { id: 'sdk-skill' });
+			mockSession.fire('user.message', { content: 'Worker request', source: 'user' }, { id: 'sdk-worker', agentId: 'unknown-worker' });
+			assert.deepStrictEqual({ starts: getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted), active: session.hasActiveTurn }, {
+				starts: [], active: false,
+			});
+		});
+
+		test('a provider-originated turn uses normal explicit tool permission responses', async () => {
+			const { session, mockSession, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.fire('user.message', { content: 'Play one move', source: 'user' }, { id: 'sdk-canvas-request' });
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'canvas-read', toolName: 'invoke_canvas_action', arguments: { instanceId: 'game', actionName: 'get_state' },
+			});
+			let settled = false;
+			const permission = runtime.handlePermissionRequest({
+				kind: 'custom-tool', toolCallId: 'canvas-read', toolName: 'invoke_canvas_action',
+			}).then(result => { settled = true; return result; });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			const settledBeforeResponse = settled;
+			assert.ok(session.respondToPermissionRequest('canvas-read', false));
+			const result = await permission;
+			assert.deepStrictEqual({
+				startedTurn: getActions(signals).find(action => action.type === ActionType.ChatTurnStarted)?.turnId,
+				toolTurn: getActions(signals).find(action => action.type === ActionType.ChatToolCallStart)?.turnId,
+				settledBeforeResponse, result: result.kind, sends: mockSession.sendRequests.length,
+			}, {
+				startedTurn: 'sdk-canvas-request', toolTurn: 'sdk-canvas-request',
+				settledBeforeResponse: false, result: 'reject', sends: 0,
+			});
+		});
+
+		test('cancelling a provider-originated request settles permission and permits a fresh request', async () => {
+			const { session, mockSession, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			mockSession.fire('user.message', { content: 'First canvas request', source: 'user' }, { id: 'sdk-first' });
+			const permission = runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: 'first-tool', toolName: 'invoke_canvas_action' });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === 'first-tool');
+			await session.abort();
+			const cancelledPermission = await permission;
+			mockSession.fire('session.idle', { aborted: true });
+			const afterAbort = signals.length;
+			mockSession.fire('user.message', { content: 'First canvas request', source: 'user' }, { id: 'sdk-first' });
+			const replaySignals = signals.length - afterAbort;
+			mockSession.fire('user.message', { content: 'Second canvas request', source: 'user' }, { id: 'sdk-second' });
+			const nextPermission = runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: 'second-tool', toolName: 'invoke_canvas_action' });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === 'second-tool');
+			assert.ok(session.respondToPermissionRequest('second-tool', false));
+			const nextResult = await nextPermission;
+			assert.deepStrictEqual({
+				aborts: mockSession.abortCalls, cancelledPermission: cancelledPermission.kind,
+				replaySignals, nextTurnId: session.currentTurnId, nextResult: nextResult.kind,
+				sends: mockSession.sendRequests.length,
+			}, {
+				aborts: 1, cancelledPermission: 'reject', replaySignals: 0,
+				nextTurnId: 'sdk-second', nextResult: 'reject', sends: 0,
+			});
+		});
+
+		test('a disposed backing cannot publish another user turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.dispose();
+			mockSession.fire('user.message', { content: 'Retired canvas request', source: 'user' }, { id: 'sdk-retired' });
+			assert.deepStrictEqual(getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted), []);
+		});
+	});
+
 	// ---- system.notification ----
 
 	suite('system.notification', () => {
@@ -7134,10 +7482,12 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				registeredEventInterests: mockSession.registeredEventInterests,
 				releasedEventInterests: mockSession.releasedEventInterests,
+				activeEventInterests: [...mockSession.activeEventInterests],
 				samplingResponses: mockSession.samplingResponses,
 			}, {
 				registeredEventInterests: ['sampling.requested'],
-				releasedEventInterests: ['interest-1'],
+				releasedEventInterests: [],
+				activeEventInterests: [],
 				samplingResponses: [{ requestId: 'sampling-1' }],
 			});
 		});

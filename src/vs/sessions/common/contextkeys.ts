@@ -19,6 +19,8 @@ export const SessionHasGitSyncActionRunningContext = new RawContextKey<boolean>(
 export const SessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('sessionUsesCombinedConfigPicker', false, localize('sessionUsesCombinedConfigPicker', "Whether the session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
 export const SessionSupportsRenameContext = new RawContextKey<boolean>('sessionSupportsRename', false, localize('sessionSupportsRename', "Whether the session can be renamed"));
 export const SessionSupportsDeleteContext = new RawContextKey<boolean>('sessionSupportsDelete', false, localize('sessionSupportsDelete', "Whether the session can be deleted"));
+export const SessionCanvasesSupportedContext = new RawContextKey<boolean>('sessionCanvasesSupported', false, localize('sessionCanvasesSupported', "Whether the scoped chat supports local custom canvases"));
+export const SessionCanvasesEnabledContext = new RawContextKey<boolean>('sessionCanvasesEnabled', false, localize('sessionCanvasesEnabled', "Whether local canvases are enabled by the global preview and AI settings"));
 
 //#endregion
 

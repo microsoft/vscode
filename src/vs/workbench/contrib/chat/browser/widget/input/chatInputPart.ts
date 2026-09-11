@@ -1830,6 +1830,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	/** Detaches the conversation state without changing the input's contents. */
+	public unbindInputModel(): void {
+		this._syncTextDebounced.cancel();
+		this._modelSyncDisposables.clear();
+		this._inputModel = undefined;
+		this._inputModelSessionResource = undefined;
+	}
+
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction = false, storeSelection: boolean = isUserAction) {
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {

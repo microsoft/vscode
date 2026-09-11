@@ -21,8 +21,10 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, messageToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { withCanvasContextReferences } from '../../../../../../platform/agentHost/common/agentHostCanvasContext.js';
+import { collectCanvasContextReferences } from '../../../common/attachments/chatCanvasContext.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -138,6 +140,18 @@ function assertInputOutputDetails(details: unknown): asserts details is IToolRes
 suite('stateToProgressAdapter', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores canvas references as removable variables from queued and persisted messages', () => {
+		const references = [{ resource: 'ahp-canvas:/saved', incarnation: 'saved-incarnation' }];
+		const message = withCanvasContextReferences({ text: 'Keep this draft', origin: { kind: MessageKind.User } }, references);
+		const restored = messageToVariableData(message, 'local');
+		assert.deepStrictEqual({
+			references: collectCanvasContextReferences(restored?.variables ?? []),
+			kinds: restored?.variables.map(variable => variable.kind),
+			names: restored?.variables.map(variable => variable.name),
+			text: message.text,
+		}, { references, kinds: ['generic'], names: ['Canvas'], text: 'Keep this draft' });
+	});
 
 	test('detects the canonical automatic reply answer', () => {
 		assert.deepStrictEqual([

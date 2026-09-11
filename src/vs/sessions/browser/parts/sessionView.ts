@@ -9,6 +9,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -168,6 +169,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			return;
 		}
 		this._hasOpenedSession = true;
+		const previousSession = this._currentSession;
 		this._currentSession = session;
 		this._sessionObs.set(session, undefined);
 		this._openSessionDisposables.clear();
@@ -189,11 +191,11 @@ export class SessionView extends Disposable implements ISerializableView {
 			view.setVisible(this._isVisible);
 			this._openSessionDisposables.add(autorun(reader => {
 				if (session.isCreated.read(reader) && this._currentSession === session) {
-					this._showSessionGroups(session, options);
+					this._showSessionGroups(session, options, true);
 				}
 			}));
 		} else if (session) {
-			this._showSessionGroups(session, options);
+			this._showSessionGroups(session, options, !!previousSession && isEqual(previousSession.resource, session.resource));
 		} else {
 			this._groupsView.setSession(undefined, options);
 			const view = this._chatViewFactory.createNewChatView(false, options);
@@ -206,7 +208,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._layoutChildren();
 	}
 
-	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions): void {
+	private _showSessionGroups(session: IActiveSession, options: ISessionViewOptions, preserveInput = false): void {
+		if (preserveInput) {
+			this._standaloneView.value?.preserveInputForChat(session.activeChat.get().resource);
+		}
 		this._standaloneView.clear();
 		this._contentContainer.replaceChildren(this._groupsView.element);
 		this._groupsView.setSession(session, options);

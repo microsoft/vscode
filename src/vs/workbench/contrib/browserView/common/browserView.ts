@@ -23,6 +23,7 @@ import {
 	BrowserPermissionStore,
 	IPermissionCategoryState,
 } from '../../../../platform/browserView/common/browserPermissions.js';
+import { IBrowserViewAppPolicy } from '../../../../platform/browserView/common/browserAppPolicy.js';
 import type { BrowserEditorInput, IBrowserEditorInputData } from './browserEditorInput.js';
 import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import {
@@ -66,6 +67,7 @@ import { IAgentNetworkFilterService } from '../../../../platform/networkFilter/c
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IBrowserZoomService } from './browserZoomService.js';
 import type { IntegratedBrowserOpenSource } from '../../../../platform/browserView/common/browserViewTelemetry.js';
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export const enum BrowserViewSharingState {
 	/** Tools are available and the page is shared with the agent. */
@@ -174,6 +176,8 @@ type IntegratedBrowserAddElementToChatStartClassification = {
  * View state stored in editor options when opening a browser view.
  */
 export interface IBrowserEditorViewState {
+	/** Stable, non-sensitive page identity. Its current endpoint is never persisted. */
+	readonly source?: URI;
 	readonly url?: string;
 	readonly title?: string;
 	readonly favicon?: string;
@@ -233,6 +237,21 @@ export interface IBrowserViewWorkbenchCreateOptions {
 	readonly initialUrl?: string;
 	readonly associatedResource?: URI;
 	readonly openSource?: IntegratedBrowserOpenSource;
+	/**
+	 * Opt this view into a local custom-app confinement policy (see
+	 * {@link IBrowserViewAppPolicy}). Only meaningful together with an
+	 * Ephemeral {@link session}; the platform layer throws otherwise.
+	 */
+	readonly appPolicy?: IBrowserViewAppPolicy;
+}
+
+/** A current page endpoint and its native browser creation context. */
+export interface IBrowserViewResolvedPageSource extends IBrowserViewWorkbenchCreateOptions {
+	readonly initialUrl: string;
+}
+
+export interface IBrowserViewPageSourceResolver {
+	resolve(source: URI, token: CancellationToken): Promise<IBrowserViewResolvedPageSource>;
 }
 
 /**
@@ -317,6 +336,14 @@ export interface IBrowserViewWorkbenchService {
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
 	 */
 	getOrCreateLazy(data: IBrowserEditorInputData): BrowserEditorInput;
+
+	/** Registers the resolver for a page-source scheme. Disposal invalidates its open pages. */
+	registerPageSourceResolver(scheme: string, resolver: IBrowserViewPageSourceResolver): IDisposable;
+
+	/** Resolves a stable page identity without using a previously resolved endpoint. */
+	resolvePageSource(source: URI, token: CancellationToken): Promise<IBrowserViewResolvedPageSource>;
+
+	readonly onDidUnregisterPageSourceResolver: Event<string>;
 
 	/**
 	 * Clear all storage data for the global browser session
@@ -1078,7 +1105,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._onWillDispose.fire();
 
 		// Clean up the browser view when the model is disposed
-		void this.browserViewService.destroyBrowserView(this.id);
+		void this.browserViewService.destroyBrowserView(this.id, this.host.windowId);
 
 		super.dispose();
 	}

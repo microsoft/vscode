@@ -10,21 +10,23 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService, BrowserViewEditorId } from './browserView.js';
+import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService, BrowserViewEditorId, IBrowserViewResolvedPageSource, IBrowserViewModel } from './browserView.js';
 import { EditorInputCapabilities, GroupIdentifier, IEditorSerializer, IMoveResult, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TAB_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IBrowserViewModel } from '../common/browserView.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { isBrowserViewAssociatedResourceNavigation } from '../../../../platform/browserView/common/browserView.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -67,6 +69,11 @@ function stripUrlQueryAndFragment(url: string): string {
 	return suffix === -1 ? url : url.slice(0, suffix);
 }
 
+interface IBrowserModelResolution {
+	readonly result: DeferredPromise<IBrowserViewModel>;
+	readonly cancellation: CancellationTokenSource;
+}
+
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
 	static readonly EDITOR_ID = BrowserViewEditorId;
@@ -74,11 +81,19 @@ export class BrowserEditorInput extends EditorInput {
 
 	private readonly _id: string;
 	private readonly _associatedResource: URI | undefined;
+	readonly source: URI | undefined;
 	private _initialData: IBrowserEditorInputData;
 
 	private _model: IBrowserViewModel | undefined;
-	private _modelPromise: Promise<IBrowserViewModel> | undefined;
+	private _modelResolution: IBrowserModelResolution | undefined;
+	private readonly _pendingModelResolutions = this._register(new DisposableMap<IBrowserModelResolution>());
 	private _modelStore = this._register(new DisposableStore());
+	private _isDisposing = false;
+
+	private _resolveError: Error | undefined;
+	private _requiresExplicitSourceRetry = false;
+	private readonly _onDidChangeResolveError = this._register(new Emitter<Error | undefined>());
+	readonly onDidChangeResolveError = this._onDidChangeResolveError.event;
 
 	private readonly _onBeforeDispose = this._register(new Emitter<IBeforeDisposeBrowserEditorEvent>());
 	readonly onBeforeDispose: Event<IBeforeDisposeBrowserEditorEvent> = this._onBeforeDispose.event;
@@ -88,16 +103,58 @@ export class BrowserEditorInput extends EditorInput {
 
 	constructor(
 		options: IBrowserEditorInputData,
-		private _resolveModel: () => Promise<IBrowserViewModel>,
+		private readonly _resolveModel: (token: CancellationToken, source?: IBrowserViewResolvedPageSource) => Promise<IBrowserViewModel>,
 		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
+		if (options.source && options.associatedResource) {
+			super.dispose();
+			throw new Error('A browser page source cannot also be an associated file resource.');
+		}
 		this._id = options.id;
 		this._associatedResource = options.associatedResource;
-		this._initialData = options;
+		this.source = URI.revive(options.source);
+		this._initialData = this.source ? { id: options.id, source: this.source, title: options.title } : options;
+		if (this.source) {
+			this._register(this.browserViewWorkbenchService.onDidUnregisterPageSourceResolver(scheme => {
+				if (this.source?.scheme === scheme) {
+					this.invalidateSource(new Error(localize('browser.pageSourceUnavailable', "The page source is no longer available.")));
+				}
+			}));
+		}
+	}
+
+	get resolveError(): Error | undefined {
+		return this._resolveError;
+	}
+
+	get requiresExplicitSourceRetry(): boolean {
+		return this._requiresExplicitSourceRetry;
+	}
+
+	/** Cancels resolution and discards the current endpoint without closing the resource-backed editor. */
+	invalidateSource(error: Error, requiresExplicitRetry = false): void {
+		if (!this.source) {
+			throw new Error('Only resource-backed browser pages can be invalidated.');
+		}
+		const resolution = this._modelResolution;
+		this._modelResolution = undefined;
+		const model = this._model;
+		this._model = undefined;
+		this._modelStore.clear();
+		this._resolveError = error;
+		this._requiresExplicitSourceRetry = requiresExplicitRetry;
+		if (resolution) {
+			void resolution.result.error(error);
+			resolution.cancellation.cancel();
+		}
+		model?.dispose();
+		this._onDidChangeLabel.fire();
+		if (this._resolveError === error) {
+			this._onDidChangeResolveError.fire(error);
+		}
 	}
 
 	get model(): IBrowserViewModel | undefined {
@@ -120,7 +177,11 @@ export class BrowserEditorInput extends EditorInput {
 
 		// Auto-close editor when webcontents closes
 		this._modelStore.add(this._model.onDidClose(() => {
-			this.dispose(true);
+			if (this.source && model.error?.appPolicyViolation) {
+				this.invalidateSource(new Error(model.error.errorDescription), true);
+			} else {
+				this.dispose(true);
+			}
 		}));
 
 		// Listen for label-relevant changes to fire onDidChangeLabel
@@ -128,12 +189,16 @@ export class BrowserEditorInput extends EditorInput {
 		this._modelStore.add(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
 		this._modelStore.add(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
 		this._modelStore.add(this._model.onDidNavigate(() => {
-			this._initialData = { ...this._initialData, title: undefined, favicon: undefined };
+			if (!this.source) {
+				this._initialData = { ...this._initialData, title: undefined, favicon: undefined };
+			}
 			this._onDidChangeLabel.fire();
 		}));
 
 		this._onDidChangeLabel.fire();
-		this._onDidResolveModel.fire(model);
+		if (this._model === model && !this.isDisposed()) {
+			this._onDidResolveModel.fire(model);
+		}
 	}
 
 	onceModelResolves(cb: (model: IBrowserViewModel) => void): IDisposable {
@@ -184,6 +249,9 @@ export class BrowserEditorInput extends EditorInput {
 		if (this._model) {
 			void this._model.loadURL(destination, options);
 		} else {
+			if (this.source) {
+				throw new Error(localize('browser.pageSourceNotResolved', "Resolve the page source before navigating."));
+			}
 			this._initialData = {
 				id: this._id,
 				url: destination
@@ -193,15 +261,77 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override async resolve(): Promise<IBrowserViewModel> {
-		if (!this._model && !this._modelPromise) {
-			this._modelPromise = (async () => {
-				this._model = await this._resolveModel();
-				this._modelPromise = undefined;
-
-				return this._model;
-			})();
+		if (this.isDisposed() || this._isDisposing) {
+			throw new CancellationError();
 		}
-		return this._model || this._modelPromise!;
+		if (this._model) {
+			return this._model;
+		}
+		let resolution = this._modelResolution;
+		if (!resolution) {
+			const attempt: IBrowserModelResolution = {
+				result: new DeferredPromise<IBrowserViewModel>(),
+				cancellation: new CancellationTokenSource(),
+			};
+			this._pendingModelResolutions.set(attempt, toDisposable(() => {
+				if (!attempt.result.isSettled) {
+					void attempt.result.cancel();
+					attempt.cancellation.cancel();
+				}
+				attempt.cancellation.dispose();
+			}));
+			this._modelResolution = resolution = attempt;
+			void this.resolveModel(attempt);
+		}
+		return resolution.result.p;
+	}
+
+	private isCurrentResolution(resolution: IBrowserModelResolution): boolean {
+		return this._modelResolution === resolution && !this.isDisposed() && !this._isDisposing && !resolution.cancellation.token.isCancellationRequested;
+	}
+
+	private async resolveModel(resolution: IBrowserModelResolution): Promise<void> {
+		const token = resolution.cancellation.token;
+		try {
+			this._resolveError = undefined;
+			this._requiresExplicitSourceRetry = false;
+			this._onDidChangeResolveError.fire(undefined);
+			if (!this.isCurrentResolution(resolution)) {
+				throw new CancellationError();
+			}
+			const source = this.source ? await this.browserViewWorkbenchService.resolvePageSource(this.source, token) : undefined;
+			if (!this.isCurrentResolution(resolution)) {
+				throw new CancellationError();
+			}
+			const model = await this._resolveModel(token, source);
+			if (!this.isCurrentResolution(resolution)) {
+				model.dispose();
+				throw new CancellationError();
+			}
+			this.model = model;
+			if (!this.isCurrentResolution(resolution)) {
+				throw new CancellationError();
+			}
+			void resolution.result.complete(model);
+		} catch (error) {
+			if (!this.isCurrentResolution(resolution)) {
+				void resolution.result.cancel();
+			} else if (!this.source) {
+				void resolution.result.error(error);
+			} else {
+				const resolveError = isCancellationError(error)
+					? new Error(localize('browser.pageSourceCancelled', "Page source resolution was cancelled."), { cause: error })
+					: error instanceof Error ? error : new Error(localize('browser.pageSourceFailed', "Unable to resolve the page source."), { cause: error });
+				this._resolveError = resolveError;
+				this._onDidChangeResolveError.fire(resolveError);
+				void resolution.result.error(resolveError);
+			}
+		} finally {
+			if (this._modelResolution === resolution) {
+				this._modelResolution = undefined;
+			}
+			this._pendingModelResolutions.deleteAndDispose(resolution);
+		}
 	}
 
 	override get typeId(): string {
@@ -247,17 +377,20 @@ export class BrowserEditorInput extends EditorInput {
 			return truncate(this.title!, MAX_TITLE_LENGTH);
 		}
 
-		const name = this._associatedResource ? basename(this._associatedResource) : this.url && this.getURLTitles.get(this.url)[Verbosity.SHORT] || BrowserEditorInput.DEFAULT_LABEL;
+		const name = this._associatedResource ? basename(this._associatedResource) : !this.source && this.url && this.getURLTitles.get(this.url)[Verbosity.SHORT] || BrowserEditorInput.DEFAULT_LABEL;
 		return truncate(name, MAX_TITLE_LENGTH);
 	}
 
 	override getTitle(verbosity = Verbosity.MEDIUM): string {
-		const description = this.url && this.getURLTitles.get(this.url)[verbosity];
+		const description = this.getDescription(verbosity);
 		const title = this.title ? `${this.title} (${description})` : description;
 		return title || BrowserEditorInput.DEFAULT_LABEL;
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
+		if (this.source) {
+			return stripUrlQueryAndFragment(this.source.toString());
+		}
 		return this.url && this.getURLTitles.get(this.url)[verbosity];
 	}
 
@@ -327,29 +460,29 @@ export class BrowserEditorInput extends EditorInput {
 	override copy(): EditorInput {
 		logBrowserOpen(this.telemetryService, 'copyToNewWindow');
 
-		return this.instantiationService.invokeFunction((accessor) => {
-			const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
-			return browserViewWorkbenchService.getOrCreateLazy({
-				id: generateUuid(),
-				url: this.url,
-				title: this.title,
-				favicon: this.favicon,
-				associatedResource: this._associatedResource
-			});
+		return this.browserViewWorkbenchService.getOrCreateLazy({
+			...this.serialize(),
+			id: generateUuid()
 		});
 	}
 
-	override toUntyped(): IUntypedEditorInput {
-		const viewState: IBrowserEditorViewState = {
+	private getViewState(): IBrowserEditorViewState {
+		if (this.source) {
+			return { source: this.source, title: this._initialData.title };
+		}
+		return {
 			url: this.url,
 			title: this.title,
 			favicon: this.favicon
 		};
+	}
+
+	override toUntyped(): IUntypedEditorInput {
 		return {
 			resource: this.preferredResource,
 			options: {
 				override: BrowserEditorInput.EDITOR_ID,
-				viewState
+				viewState: this.getViewState()
 			}
 		};
 	}
@@ -381,6 +514,9 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override dispose(force?: boolean): void {
+		if (this.isDisposed() || this._isDisposing) {
+			return;
+		}
 		if (!force) {
 			let vetoed = false;
 			this._onBeforeDispose.fire({ veto: () => { vetoed = true; } });
@@ -389,27 +525,20 @@ export class BrowserEditorInput extends EditorInput {
 			}
 		}
 
+		this._isDisposing = true;
+		this._modelResolution = undefined;
+		this._initialData = this.serialize();
+		const model = this._model;
 		super.dispose(); // Emit `onWillDispose` event first, then clean up the model.
-		if (this._model) {
-			// `toUntyped()` is called after disposal. Store the latest data in `_initialData` so we can still get them there.
-			this._initialData = {
-				id: this._id,
-				url: this._model.url,
-				title: this._model.title,
-				favicon: this._model.favicon
-			};
-			this._model.dispose();
-			this._model = undefined;
-		}
+		model?.dispose();
+		this._model = undefined;
 	}
 
 	serialize(): IBrowserEditorInputData {
 		return {
 			id: this._id,
 			associatedResource: this._associatedResource,
-			url: this.url,
-			title: this.title,
-			favicon: this.favicon
+			...this.getViewState()
 		};
 	}
 }
@@ -434,6 +563,7 @@ export class BrowserEditorSerializer implements IEditorSerializer {
 				const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 				return browserViewWorkbenchService.getOrCreateLazy({
 					id: data.id,
+					source: URI.revive(data.source),
 					url: data.url,
 					title: data.title,
 					favicon: data.favicon,

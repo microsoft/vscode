@@ -6,6 +6,8 @@
 import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import type { AgentHostCanvasJson, IAgentHostCanvasActionParams, IAgentHostCanvasInstance, IAgentHostCanvasOpenParams, IAgentHostCanvasState } from '../common/agentHostCanvases.js';
+import type { IAgentHostCanvasPackagesClient } from '../common/agentHostCanvasPackages.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -422,6 +424,34 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		return this._getManagementService().createDetachedWorktree(session, prompt);
+	}
+
+	getCanvases(chat: URI): Promise<IAgentHostCanvasState> {
+		return this._requireClient().getCanvases(chat);
+	}
+
+	get canvasPackages(): IAgentHostCanvasPackagesClient | undefined {
+		return this._protocolClient?.canvasPackages;
+	}
+
+	get canvasProtocol() {
+		return this._protocolClient?.canvasProtocol;
+	}
+
+	openCanvas(chat: URI, params: IAgentHostCanvasOpenParams): Promise<IAgentHostCanvasInstance> {
+		return this._requireClient().openCanvas(chat, params);
+	}
+
+	invokeCanvasAction(chat: URI, params: IAgentHostCanvasActionParams): Promise<AgentHostCanvasJson> {
+		return this._requireClient().invokeCanvasAction(chat, params);
+	}
+
+	closeCanvas(chat: URI, instanceId: string): Promise<void> {
+		return this._requireClient().closeCanvas(chat, instanceId);
+	}
+
+	reloadCanvases(chat: URI): Promise<void> {
+		return this._requireClient().reloadCanvases(chat);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {

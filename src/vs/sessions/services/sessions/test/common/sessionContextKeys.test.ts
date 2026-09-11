@@ -12,11 +12,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
+import { SessionCanvasesSupportedContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasSideChatsContext, SessionIsActiveContext, SessionSupportsSideChatContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
 import { SessionChangesStatsCache } from '../../common/sessionChangesStatsCache.js';
+import type { ISessionCanvases } from '../../common/sessionCanvases.js';
 
 function createSession(hasGitRepository: ISettableObservable<boolean>): ISession {
 	return upcastPartial<ISession>({
@@ -82,6 +83,30 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId'>)
 suite('Session Context Keys', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('canvas controls follow the scoped chat, not another session or a hidden peer', () => {
+		const firstContext = store.add(new MockContextKeyService());
+		const secondContext = store.add(new MockContextKeyService());
+		const canvasChat: IChat = {
+			...stubChat,
+			status: constObservable(SessionStatus.Completed),
+			canvases: upcastPartial<ISessionCanvases>({ state: constObservable({ supported: true, catalog: [], instances: [] }) }),
+		};
+		const activeChat = observableValue('activeChat', canvasChat);
+		const session = upcastPartial<IActiveSession>({
+			...stubSession({ sessionId: 'canvas', chats: constObservable([canvasChat, stubChat]), mainChat: constObservable(canvasChat) }),
+			activeChat, isCreated: constObservable(true), sticky: constObservable(false),
+			visibleChatTabs: constObservable([canvasChat]), shouldShowChatTabs: constObservable(false),
+		});
+		store.add(autorun(reader => setActiveSessionContextKeys(session, firstContext, reader)));
+		setActiveSessionContextKeys(undefined, secondContext, undefined);
+		const initial = [SessionCanvasesSupportedContext.getValue(firstContext), SessionCanvasesSupportedContext.getValue(secondContext)];
+		activeChat.set(stubChat, undefined);
+		assert.deepStrictEqual({
+			initial,
+			afterChatSwitch: [SessionCanvasesSupportedContext.getValue(firstContext), SessionCanvasesSupportedContext.getValue(secondContext)],
+		}, { initial: [true, false], afterChatSwitch: [false, false] });
+	});
+
 	test('publishes Git availability independently to scoped context key services', () => {
 		const firstHasGit = observableValue('firstHasGit', false);
 		const secondHasGit = observableValue('secondHasGit', true);
@@ -100,6 +125,22 @@ suite('Session Context Keys', () => {
 		}, {
 			first: true,
 			second: true,
+		});
+
+		test('a supported untitled chat exposes canvas-first controls without a committed session', () => {
+			const context = store.add(new MockContextKeyService());
+			const chat: IChat = {
+				...stubChat,
+				status: constObservable(SessionStatus.Untitled),
+				canvases: upcastPartial<ISessionCanvases>({ state: constObservable({ supported: true, loaded: false, catalog: [], instances: [] }) }),
+			};
+			const session = upcastPartial<IActiveSession>({
+				...stubSession({ sessionId: 'canvas-first', chats: constObservable([chat]), mainChat: constObservable(chat) }),
+				activeChat: constObservable(chat), isCreated: constObservable(false), sticky: constObservable(false),
+				visibleChatTabs: constObservable([chat]), shouldShowChatTabs: constObservable(false),
+			});
+			setActiveSessionContextKeys(session, context, undefined);
+			assert.strictEqual(SessionCanvasesSupportedContext.getValue(context), true);
 		});
 
 		firstHasGit.set(false, undefined);

@@ -11,7 +11,8 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -19,11 +20,12 @@ import { localize } from '../../../../../nls.js';
 import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
-import { supportsAgentHostDetachedWorktrees } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { supportsAgentHostDetachedWorktrees, supportsAgentHostLocalCanvases } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import type { CanvasEntry } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { withAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
-import { type AgentCustomization, type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentCustomization, type ISessionGitState, type SessionMeta, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -54,6 +56,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from './reconnectableAgentHostAutomationStore.js';
+import { AgentHostSessionCanvases } from './agentHostSessionCanvases.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
@@ -120,6 +123,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
+	private readonly _canvasConnectionVersion = observableValue(this, 0);
+	private readonly _canvasHostSupported: IObservable<boolean>;
+	private _canvasHostOnline = true;
 	private _automationSessionResources = new ResourceSet();
 	private readonly _devContainerAvailableDrafts = new Set<string>();
 	private readonly _devContainerDrafts = new Set<string>();
@@ -201,6 +207,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		this.automations = automations;
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._canvasHostSupported = derived(this, reader => {
+			const initialize = this._agentHostService.initializeResult.read(reader);
+			return initialize?.canvases !== undefined || supportsAgentHostLocalCanvases(initialize);
+		});
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
@@ -251,6 +261,8 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 		const connectionListeners = this._register(new DisposableStore());
 		const bindConnection = () => {
+			this._canvasHostOnline = true;
+			this._canvasConnectionVersion.set(this._canvasConnectionVersion.get() + 1, undefined);
 			connectionListeners.clear();
 			automations.setConnection(this._agentHostService);
 			this._attachConnectionListeners(this._agentHostService, connectionListeners);
@@ -264,6 +276,10 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		};
 		bindConnection();
 		this._register(this._agentHostService.onAgentHostStart(bindConnection));
+		this._register(this._agentHostService.onAgentHostExit(() => {
+			this._canvasHostOnline = false;
+			this._canvasConnectionVersion.set(this._canvasConnectionVersion.get() + 1, undefined);
+		}));
 
 		// Eagerly populate the session cache once authentication has settled.
 		// Without this, the sidebar would only call `getSessions()` after some
@@ -599,6 +615,8 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	protected _adapterOptions() {
 		return {
+			createCanvases: isWeb || !this._isSessionsWindow ? undefined : (chat: URI, metadata: IObservable<SessionMeta | undefined>, entries: IObservable<readonly CanvasEntry[]>, prepareOpen?: () => Promise<IDisposable>) =>
+				new AgentHostSessionCanvases(chat, metadata, () => this._canvasHostOnline ? this._agentHostService : undefined, this._canvasConnectionVersion, this._canvasHostSupported, entries, prepareOpen),
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
 				const uriForDescription = project?.uri ?? primary;

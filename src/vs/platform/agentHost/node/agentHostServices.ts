@@ -58,6 +58,9 @@ import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agent
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostProviderService, IAgentHostProviderService } from './agentHostProviderService.js';
+import { AgentHostCanvasesService, IAgentHostCanvasesService } from './agentHostCanvasesService.js';
+import { IAgentHostCanvasPackagesService } from '../common/agentHostCanvasPackages.js';
+import { AgentHostCanvasPackagesService, UnsupportedCanvasPackagesService } from './agentHostCanvasPackagesService.js';
 import { AgentEditAttributionService } from './shared/agentEditAttributionService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
@@ -74,6 +77,8 @@ export interface IAgentHostCoreServiceInputs {
 }
 
 export function registerAgentHostCoreServices(services: ServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
+	services.set(IAgentHostCanvasPackagesService, new SyncDescriptor(UnsupportedCanvasPackagesService));
+	services.set(IAgentHostCanvasesService, new SyncDescriptor(AgentHostCanvasesService));
 	services.set(IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
 	services.set(INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
 	services.set(IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
@@ -120,6 +125,7 @@ export function registerAgentHostHostServices(services: ServiceCollection, input
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
 	services.set(IAgentPluginManager, new SyncDescriptor(AgentPluginManager, [inputs.userDataPath]));
+	services.set(IAgentHostCanvasPackagesService, new SyncDescriptor(AgentHostCanvasPackagesService));
 	services.set(IAgentSdkDownloader, new SyncDescriptor(AgentSdkDownloader));
 	services.set(IClaudeAgentSdkService, new SyncDescriptor(ClaudeAgentSdkService));
 	services.set(IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));

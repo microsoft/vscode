@@ -27,4 +27,14 @@ suite('CopilotAgentStartupConfig', () => {
 			description: 'sessionSync=true, multiTurnContextRouting=true, copilotSdkLogLevel=trace, enterpriseHost=github.example.com, systemProxy=false, githubMcpServer=false, managedSettingsPermissions',
 		});
 	});
+
+	test('changing the local canvas gate requires a new SDK client negotiation', () => {
+		const previous = new CopilotAgentStartupConfig(false, false, false, 'info', undefined, false, false, {});
+		const enabled = new CopilotAgentStartupConfig(false, false, false, 'info', undefined, false, false, {}, true);
+		assert.deepStrictEqual({
+			equal: enabled.equals(previous),
+			description: enabled.describeChangesFrom(previous),
+			proxyChanged: enabled.proxyTargetChangedFrom(previous),
+		}, { equal: false, description: 'localCanvases=true', proxyChanged: false });
+	});
 });

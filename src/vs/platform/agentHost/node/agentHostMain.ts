@@ -32,6 +32,7 @@ import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
+import { LocalCanvasPoc } from './copilot/localCanvasPoc.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
@@ -247,12 +248,13 @@ async function startAgentHost(): Promise<void> {
 		};
 		try {
 			// Handler for the renderer's MessagePort data plane.
+			const localCanvasPoc = LocalCanvasPoc.read(environmentService.isBuilt);
 			const messagePortProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
 				ProtocolServerHandler,
 				agentService,
 				stateManager,
 				messagePortProtocolServer,
-				localProtocolHandlerConfig,
+				{ ...localProtocolHandlerConfig, allowLocalCanvasMethods: !!localCanvasPoc, localCanvasWorkspace: localCanvasPoc?.workspace.toString() },
 				clientFileSystemProvider,
 			));
 			protocolHandlers.push(messagePortProtocolHandler);

@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewStorageScope, canReuseBrowserView, getAgentBrowserViewCreationDefaults, IBrowserViewCreateOptions, IBrowserViewInfo, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,6 +28,38 @@ suite('BrowserView', () => {
 			otherFile: false,
 			otherScheme: false
 		});
+	});
+
+	test('retains ordinary browser reuse but recreates resolved sources', () => {
+		const source = URI.parse('test-page:/document');
+		const existing = upcastPartial<IBrowserViewInfo>({ host: { windowId: 1 } });
+		const options: IBrowserViewCreateOptions = {
+			host: { windowId: 1 },
+			owner: { type: 'user' },
+			session: { scope: BrowserViewStorageScope.Ephemeral },
+		};
+
+		assert.deepStrictEqual({
+			ordinary: canReuseBrowserView(existing, options),
+			ordinaryInAnotherWindow: canReuseBrowserView(existing, { ...options, host: { windowId: 2 } }),
+			source: canReuseBrowserView({ ...existing, source }, { ...options, source }),
+		}, { ordinary: true, ordinaryInAnotherWindow: true, source: false });
+	});
+
+	test('rejects source restoration with a different source or owning window', () => {
+		const source = URI.parse('test-page:/document');
+		const existing = upcastPartial<IBrowserViewInfo>({ host: { windowId: 1 }, source });
+		const options: IBrowserViewCreateOptions = {
+			host: { windowId: 1 },
+			owner: { type: 'user' },
+			session: { scope: BrowserViewStorageScope.Ephemeral },
+			source,
+		};
+
+		assert.throws(() => canReuseBrowserView(existing, { ...options, host: { windowId: 2 } }), /different workbench window/);
+		assert.throws(() => canReuseBrowserView(existing, { ...options, source: source.with({ path: '/another-document' }) }), /source does not match/);
+		assert.throws(() => canReuseBrowserView(existing, { ...options, source: undefined }), /source does not match/);
+		assert.throws(() => canReuseBrowserView({ ...existing, source: undefined }, options), /source does not match/);
 	});
 
 	test('matches audiences against patterns', () => {

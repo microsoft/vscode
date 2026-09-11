@@ -11,6 +11,7 @@ import type { ErrorInfo, URI } from '../common/state.js';
 import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, CustomizationEnablement, McpServerState } from './state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
+import type { CanvasEntry } from '../channels-canvas/state.js';
 
 // ─── Session Actions ─────────────────────────────────────────────────────────
 
@@ -184,6 +185,44 @@ export interface SessionChangesetsChangedAction {
 	type: ActionType.SessionChangesetsChanged;
 	/** New catalogue, or `undefined` to clear it */
 	changesets: Changeset[] | undefined;
+}
+
+/**
+ * A canvas was admitted (opened) or its catalog entry changed.
+ *
+ * Upsert semantics keyed by {@link CanvasEntry.resource | `resource`}: the
+ * server dispatches this with the full entry to record a newly opened
+ * canvas, or to republish it after a trust/availability/incarnation change
+ * so subscribers following only the session channel stay in sync with
+ * {@link CanvasState}. Never client-dispatchable — canvases are admitted
+ * only through the `openCanvas` command. A stale/out-of-order delivery
+ * (`canvas.revision` not strictly greater than the currently-recorded
+ * entry's revision) MUST be rejected (no-op) rather than overwrite a newer
+ * entry with older data.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionCanvasSetAction {
+	type: ActionType.SessionCanvasSet;
+	/** The canvas entry to add or update, matched by `resource`. */
+	canvas: CanvasEntry;
+}
+
+/**
+ * A canvas was logically closed.
+ *
+ * Remove semantics keyed by `resource`: an unknown URI is a no-op. This
+ * represents durable membership removal, not a client hiding a local
+ * tab/view — see `closeCanvas`.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionCanvasRemovedAction {
+	type: ActionType.SessionCanvasRemoved;
+	/** Entry in {@link SessionState.canvases} to remove, matching {@link CanvasEntry.resource}. */
+	resource: URI;
 }
 
 /**

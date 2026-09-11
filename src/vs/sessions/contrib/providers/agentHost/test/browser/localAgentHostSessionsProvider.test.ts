@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -18,6 +19,9 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { unsupportedAgentHostCanvasState, withAgentHostCanvasState, type IAgentHostCanvasOpenParams, type IAgentHostCanvasInstance, type IAgentHostCanvasState } from '../../../../../../platform/agentHost/common/agentHostCanvases.js';
+import { CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus, type CanvasEntry } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import type { IAgentHostExtensionInitializeResult } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -72,6 +76,18 @@ type SubscriptionState = SessionState | ChangesetState | ChatState | AutomationS
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
+	canvasState: IAgentHostCanvasState = unsupportedAgentHostCanvasState;
+	onCanvasOpen: ((chat: URI, params: IAgentHostCanvasOpenParams) => Promise<IAgentHostCanvasInstance>) | undefined;
+	override async getCanvases(): Promise<IAgentHostCanvasState> { return this.canvasState; }
+	override async openCanvas(chat: URI, params: IAgentHostCanvasOpenParams): Promise<IAgentHostCanvasInstance> {
+		if (!this.onCanvasOpen) {
+			throw new Error('No canvas open implementation');
+		}
+		return this.onCanvasOpen(chat, params);
+	}
+	override async invokeCanvasAction(): Promise<null> { return null; }
+	override async closeCanvas(): Promise<void> { }
+	override async reloadCanvases(): Promise<void> { }
 
 	private _onDidAction = new Emitter<ActionEnvelope>();
 	override get onDidAction(): Event<ActionEnvelope> { return this._onDidAction.event; }
@@ -88,7 +104,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override get rootState(): IAgentSubscription<RootState> { return this._rootStateSubscription; }
 	private readonly _onAgentHostStart = new Emitter<void>();
 	override readonly onAgentHostStart = this._onAgentHostStart.event;
-	override readonly initializeResult = constObservable({
+	override readonly onAgentHostExit = Event.None;
+	override readonly initializeResult = observableValue<IAgentHostExtensionInitializeResult>(this, {
 		protocolVersion: '1',
 		serverSeq: 0,
 		snapshots: [],
@@ -5438,6 +5455,101 @@ suite('LocalAgentHostSessionsProvider', () => {
 			// Force a session-state subscription so pushed states reach the adapter.
 			provider.getSessionConfig(session!.sessionId);
 			return session!;
+		}
+
+		test('local canvas metadata is projected independently onto the owning default and peer chats', () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { 'vscode.localCanvases': true } }, undefined);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'canvas-projection');
+			const sessionUri = AgentSession.uri('copilotcli', 'canvas-projection');
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			const mainState: IAgentHostCanvasState = { supported: true, catalog: [], instances: [{ extensionId: 'user:test', canvasId: 'counter', instanceId: 'main', availability: 'unavailable' }] };
+			const peerState: IAgentHostCanvasState = { supported: true, catalog: [], instances: [{ extensionId: 'user:test', canvasId: 'counter', instanceId: 'peer', availability: 'unavailable' }] };
+			agentHost.setSessionState('canvas-projection', 'copilotcli', {
+				...makeState([makeChatSummary(defaultChat, ''), makeChatSummary(peerChat, 'Peer')], { defaultChat }),
+				_meta: withAgentHostCanvasState(withAgentHostCanvasState(undefined, defaultChat, mainState), peerChat, peerState),
+			});
+			assert.deepStrictEqual(session.chats.get().map(chat => ({
+				chat: chat.resource.fragment,
+				instances: chat.canvases?.state.get().instances.map(instance => instance.instanceId),
+			})), [
+				{ chat: '', instances: isWeb ? undefined : ['main'] },
+				{ chat: 'peer', instances: isWeb ? undefined : ['peer'] },
+			]);
+		});
+
+		test('local canvas metadata cannot enable a host without the negotiated local opt-in', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'canvas-disabled');
+			const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'canvas-disabled'));
+			agentHost.setSessionState('canvas-disabled', 'copilotcli', {
+				...makeState([makeChatSummary(defaultChat, '')], { defaultChat }),
+				_meta: withAgentHostCanvasState(undefined, defaultChat, { supported: true, catalog: [], instances: [] }),
+			});
+			assert.strictEqual(session.mainChat.get().canvases?.state.get().supported ?? false, false);
+		});
+
+		for (const abandon of [false, true]) {
+			test(`canvas-first draft ${abandon ? 'abandonment preserves an admitted backing' : 'graduates without a chat request'}`, async function () {
+				if (isWeb) {
+					this.skip();
+				}
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { 'vscode.localCanvases': true } }, undefined);
+				agentHost.canvasState = {
+					supported: true, catalog: [{ extensionId: 'fixture', canvasId: 'counter', displayName: 'Counter', description: '', actions: [] }], instances: [],
+				};
+				let sends = 0;
+				const provider = createProvider(disposables, agentHost, undefined, {
+					sendRequest: async () => {
+						sends++;
+						throw new Error('Canvas materialization must not send a chat request');
+					}
+				});
+				const draft = provider.createNewSession(URI.file('/home/user/canvas-workspace'), provider.sessionTypes[0].id);
+				await timeout(0);
+				const canvases = draft.mainChat.get().canvases;
+				assert.ok(canvases);
+				const rawId = AgentSession.id(draft.resource);
+				const started = new DeferredPromise<void>();
+				const finish = new DeferredPromise<void>();
+				agentHost.onCanvasOpen = async (chat, params) => {
+					void started.complete();
+					await finish.p;
+					const instance: IAgentHostCanvasInstance = { ...params, availability: 'ready', url: 'http://localhost:45000/' };
+					agentHost.canvasState = { ...agentHost.canvasState, instances: [instance] };
+					const entry: CanvasEntry = {
+						resource: 'ahp-canvas:/draft',
+						identity: { chat: chat.toString(), source: { kind: CanvasSourceKind.Extension, extensionId: 'fixture' }, canvasType: 'counter', instanceId: 'one', incarnation: 'first' },
+						title: 'Counter', availability: CanvasAvailabilityStatus.Ready, revision: 1, trust: { status: CanvasTrustStatus.Trusted },
+					};
+					agentHost.addSession(createSession(rawId, { summary: 'Canvas session', workingDirectory: URI.file('/home/user/canvas-workspace') }));
+					fireSessionAdded(agentHost, rawId, { title: 'Canvas session' });
+					agentHost.setSessionState(rawId, 'copilotcli', {
+						...makeState([makeChatSummary(chat.toString(), '')], { defaultChat: chat.toString() }),
+						canvases: [entry],
+						_meta: withAgentHostCanvasState(undefined, chat, agentHost.canvasState),
+					});
+					return instance;
+				};
+				const opening = canvases.open({ extensionId: 'fixture', canvasId: 'counter', instanceId: 'one' });
+				await started.p;
+				if (abandon) {
+					const cancelled = assert.rejects(opening, /Cancel/);
+					provider.deleteNewSession(draft.sessionId);
+					await finish.complete();
+					await cancelled;
+				} else {
+					await finish.complete();
+					await opening;
+				}
+				assert.deepStrictEqual({
+					sends,
+					disposed: agentHost.disposedSessions.map(session => session.toString()),
+					persisted: provider.getSessions().some(session => session.resource.toString() === draft.resource.toString()),
+					untitled: provider.getSessionByResource(draft.resource)?.status.get() === SessionStatus.Untitled,
+				}, { sends: 0, disposed: [], persisted: true, untitled: false });
+			});
 		}
 
 		test('default + peer catalog surfaces both chats with the default as mainChat', () => {

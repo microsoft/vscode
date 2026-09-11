@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ReasoningSummary, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ReasoningSummary, SessionEvent, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { upcastDeepPartial } from '../../../../base/test/common/mock.js';
 import { PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -378,7 +380,212 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 
 suite('CopilotSessionLauncher shared session config', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('canvas opt-in pins config discovery and changes extension flags without changing permissions', async () => {
+		const configs: NonNullable<Parameters<CopilotClient['resumeSession']>[1]>[] = [];
+		const sdk = upcastDeepPartial<CopilotSession>({
+			sessionId: 'canvas-config',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
+		});
+		const client = {
+			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => { configs.push(config); return sdk; },
+			resumeSession: async (_id: string, config: NonNullable<Parameters<CopilotClient['resumeSession']>[1]>) => { configs.push(config); return sdk; },
+		};
+		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', ask: ['Shell'] };
+		const launcher = createTestLauncher(permissions);
+		const plan: CopilotSessionLaunchPlan = {
+			kind: 'create', client, sessionId: 'canvas-config', workingDirectory: testWorkingDirectory,
+			model: undefined, resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined, githubToken: undefined,
+		};
+		const sessions = new DisposableStore();
+		const copilotHome = URI.joinPath(testWorkingDirectory, '.build', 'canvas-config-home').fsPath;
+		try {
+			sessions.add(await launcher.launch(plan, testRuntime));
+			sessions.add(await launcher.launch({ ...plan, enableLocalCanvases: true, copilotHome }, testRuntime));
+			sessions.add(await launcher.launch({ ...plan, kind: 'resume', workingDirectory: testWorkingDirectory, fallback: { model: undefined }, enableLocalCanvases: true, copilotHome }, testRuntime));
+			const normal = {
+				extensions: false, renderer: undefined, excluded: [`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				managedSettings: { permissions }, permissionHandler: true, configDirectory: undefined,
+			};
+			const enabled = { ...normal, extensions: true, renderer: true, excluded: [...normal.excluded, 'extensions_manage', 'extensions_reload'], configDirectory: copilotHome };
+			assert.deepStrictEqual(configs.map(config => ({
+				extensions: config.requestExtensions,
+				renderer: config.requestCanvasRenderer,
+				excluded: config.excludedTools,
+				managedSettings: config.managedSettings,
+				permissionHandler: typeof config.onPermissionRequest === 'function',
+				configDirectory: config.configDirectory,
+			})), [normal, enabled, enabled]);
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
+	test('canvas-first launch retains an extension-free backing before resuming the same ID with extensions', async () => {
+		for (const kind of ['create', 'resume'] as const) {
+			const operations: string[] = [];
+			const sdk = upcastDeepPartial<CopilotSession>({
+				sessionId: 'retained-canvas', on: () => () => { },
+				disconnect: async () => { operations.push('disconnect'); },
+				rpc: { options: { update: async () => ({ success: true }) } },
+			});
+			const client = {
+				createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+					operations.push(`create:${config.sessionId}:${config.requestExtensions}`);
+					return sdk;
+				},
+				resumeSession: async (id: string, config: NonNullable<Parameters<CopilotClient['resumeSession']>[1]>) => {
+					operations.push(`resume:${id}:${config.requestExtensions}`);
+					return sdk;
+				},
+			};
+			const plan: CopilotSessionLaunchPlan = {
+				kind, client, sessionId: sdk.sessionId, workingDirectory: testWorkingDirectory,
+				model: undefined, fallback: { model: undefined }, resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined, githubToken: undefined,
+				enableLocalCanvases: true,
+				retainForCanvas: async session => { operations.push(`retain:${session.sessionId}`); },
+			};
+			const launcher = createTestLauncher();
+			const wrapper = await launcher.launch(plan, testRuntime);
+			try {
+				assert.deepStrictEqual({ operations, id: wrapper.sessionId }, {
+					operations: [`${kind}:retained-canvas:false`, 'retain:retained-canvas', 'disconnect', 'resume:retained-canvas:true'],
+					id: 'retained-canvas',
+				});
+			} finally {
+				wrapper.dispose();
+				await launcher.disposeByokProxyHandle();
+			}
+		}
+	});
+
+	for (const kind of ['create', 'resume'] as const) {
+		for (const disconnectFails of [false, true]) {
+			test(`canvas-first ${kind} waits for ${disconnectFails ? 'a rejected' : 'a successful'} disconnect reply after an early shutdown`, async () => {
+				const operations: string[] = [];
+				const disconnectStarted = new DeferredPromise<void>();
+				const disconnectReply = new DeferredPromise<void>();
+				const disconnectError = new Error('Disconnect failed');
+				const events = store.add(new Emitter<SessionEvent>());
+				const dormant = upcastDeepPartial<CopilotSession>({
+					sessionId: 'retained-canvas',
+					on: (listener: (event: SessionEvent) => void) => {
+						const subscription = events.event(listener);
+						return () => subscription.dispose();
+					},
+					disconnect: async () => {
+						operations.push('disconnect:start');
+						void disconnectStarted.complete();
+						await disconnectReply.p;
+						operations.push('disconnect:complete');
+					},
+					rpc: { options: { update: async () => ({ success: true }) } },
+				});
+				const resumed = upcastDeepPartial<CopilotSession>({
+					sessionId: dormant.sessionId, on: () => () => { }, disconnect: async () => { },
+					rpc: { options: { update: async () => ({ success: true }) } },
+				});
+				const client = {
+					createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+						operations.push(`create:${config.sessionId}:${config.requestExtensions}`);
+						return dormant;
+					},
+					resumeSession: async (id: string, config: NonNullable<Parameters<CopilotClient['resumeSession']>[1]>) => {
+						operations.push(`resume:${id}:${config.requestExtensions}`);
+						return config.requestExtensions ? resumed : dormant;
+					},
+				};
+				const plan: CopilotSessionLaunchPlan = {
+					kind, client, sessionId: dormant.sessionId, workingDirectory: testWorkingDirectory,
+					model: undefined, fallback: { model: undefined }, resolvedAgentName: undefined,
+					snapshot: { tools: [], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined, githubToken: undefined,
+					enableLocalCanvases: true,
+					retainForCanvas: async session => { operations.push(`retain:${session.sessionId}`); },
+				};
+				const launcher = createTestLauncher();
+				const launch = launcher.launch(plan, testRuntime).then(wrapper => store.add(wrapper));
+				const completion = Promise.allSettled([launch]);
+				try {
+					await disconnectStarted.p;
+					events.fire(upcastDeepPartial<SessionEvent>({
+						type: 'session.shutdown', data: { shutdownType: 'routine', totalApiDurationMs: 0 },
+					}));
+					await timeout(0);
+					const beforeReply = [...operations];
+					if (disconnectFails) {
+						await disconnectReply.error(disconnectError);
+					} else {
+						await disconnectReply.complete();
+					}
+					const [outcome] = await completion;
+					const pending = [`${kind}:retained-canvas:false`, 'retain:retained-canvas', 'disconnect:start'];
+					assert.deepStrictEqual({
+						beforeReply,
+						afterReply: operations,
+						result: outcome.status === 'fulfilled' ? outcome.value.sessionId : outcome.reason,
+					}, {
+						beforeReply: pending,
+						afterReply: disconnectFails ? pending : [...pending, 'disconnect:complete', 'resume:retained-canvas:true'],
+						result: disconnectFails ? disconnectError : 'retained-canvas',
+					});
+				} finally {
+					if (!disconnectReply.isSettled) {
+						await disconnectReply.complete();
+					}
+					await completion;
+					await launcher.disposeByokProxyHandle();
+				}
+			});
+		}
+	}
+
+	test('failed canvas retention never enables extensions and cold missing data never falls back to create', async () => {
+		for (const kind of ['create', 'resume'] as const) {
+			const operations: string[] = [];
+			const sdk = upcastDeepPartial<CopilotSession>({
+				sessionId: 'retained-canvas', on: () => () => { },
+				disconnect: async () => { operations.push('disconnect'); },
+				rpc: { options: { update: async () => ({ success: true }) } },
+			});
+			const client = {
+				createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+					operations.push(`create:${config.requestExtensions}`);
+					return sdk;
+				},
+				resumeSession: async (_id: string, config: NonNullable<Parameters<CopilotClient['resumeSession']>[1]>) => {
+					operations.push(`resume:${config.requestExtensions}`);
+					throw new Error('Session not found');
+				},
+			};
+			const plan: CopilotSessionLaunchPlan = {
+				kind, client, sessionId: sdk.sessionId, workingDirectory: testWorkingDirectory,
+				model: undefined, fallback: { model: undefined }, resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined, githubToken: undefined,
+				enableLocalCanvases: true,
+				retainForCanvas: async () => {
+					operations.push('retain');
+					throw new Error('Retention failed');
+				},
+			};
+			const launcher = createTestLauncher();
+			try {
+				await assert.rejects(launcher.launch(plan, testRuntime), kind === 'create' ? /Retention failed/ : /Session not found/);
+				assert.deepStrictEqual(operations, kind === 'create' ? ['create:false', 'retain', 'disconnect'] : ['resume:false']);
+			} finally {
+				await launcher.disposeByokProxyHandle();
+			}
+		}
+	});
 
 	test('derives explicit MCP registration from client metadata rather than cwd equality', () => {
 		const pluginDir = URI.file('/tmp/plugin');

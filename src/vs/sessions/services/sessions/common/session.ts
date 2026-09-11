@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import type { ISessionCanvases } from './sessionCanvases.js';
 
 export { getHighestPriorityPullRequestIcon };
 
@@ -654,6 +655,8 @@ export interface IChat {
 	 * output stream. Providers that cannot determine this omit the observable.
 	 */
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
+	/** Live custom canvases belonging to this chat, when supported by its provider. */
+	readonly canvases?: ISessionCanvases;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */

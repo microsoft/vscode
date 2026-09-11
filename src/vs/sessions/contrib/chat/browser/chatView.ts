@@ -80,6 +80,7 @@ export class NewChatView extends AbstractChatView {
 		isNewChatInSession: boolean,
 		options: INewChatViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 	) {
 		super();
 
@@ -119,6 +120,15 @@ export class NewChatView extends AbstractChatView {
 	override prefillInput(text: string): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.prefillInput(text);
+		}
+	}
+
+	override preserveInputForChat(resource: URI): void {
+		if (this._widget instanceof NewChatWidget) {
+			const input = this._widget.takeInputState();
+			if (input) {
+				this.viewStateService.setPendingInput(resource, input);
+			}
 		}
 	}
 
@@ -172,6 +182,8 @@ export class ChatView extends AbstractChatView {
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
+
+	private readonly _pendingInputTransfer = this._register(new MutableDisposable());
 
 	/** Tracks the current chat's interactivity and hides the input for read-only chats. */
 	private readonly _interactiveDisposable = this._register(new MutableDisposable());
@@ -483,6 +495,7 @@ export class ChatView extends AbstractChatView {
 	private _loadChat(resource: URI, session: ISession | undefined, previousChatResource?: URI, previousSession?: ISession): void {
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
+		this._pendingInputTransfer.clear();
 		if (previousChatResource) {
 			this._clearCurrentChat(previousSession, previousChatResource);
 		}
@@ -490,6 +503,23 @@ export class ChatView extends AbstractChatView {
 		this._loadCts.value = cts;
 		const token = cts.token;
 		this._setLoading(true);
+
+		const pendingInput = this.viewStateService.takePendingInput(resource);
+		let inputTransferred = false;
+		if (pendingInput) {
+			// Seed the replacement composer before it can accept edits during the model load.
+			this._widget.setInput(pendingInput.inputText);
+			this._widget.attachmentModel.clearAndSetContext(...pendingInput.attachments);
+			if (pendingInput.selections.length) {
+				this._widget.inputEditor.setSelections(pendingInput.selections);
+			}
+			this._pendingInputTransfer.value = toDisposable(() => {
+				if (!inputTransferred) {
+					const { inputText, attachments, selections } = this._widget.inputPart.getCurrentInputState();
+					this.viewStateService.setPendingInput(resource, { inputText, attachments, selections });
+				}
+			});
+		}
 
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
@@ -504,6 +534,7 @@ export class ChatView extends AbstractChatView {
 					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
 				}
 				if (isCurrentChat && isCurrentLoad) {
+					this._pendingInputTransfer.clear();
 					this._setLoading(false);
 				}
 				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
@@ -512,6 +543,12 @@ export class ChatView extends AbstractChatView {
 			this.logService.trace(`[ChatView] setChat model loaded uri=${resource.toString()}`);
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
+			if (pendingInput) {
+				const { inputText, attachments, selections } = this._widget.inputPart.getCurrentInputState();
+				ref.object.inputModel.setState({ inputText, attachments, selections });
+				inputTransferred = true;
+				this._pendingInputTransfer.clear();
+			}
 			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
 			const widgetViewState = this.viewStateService.get(resource);
 			if (widgetViewState) {
@@ -534,6 +571,7 @@ export class ChatView extends AbstractChatView {
 				this.logService.trace(`[ChatView] setChat cancelled uri=${resource.toString()}`);
 			}
 			if (isEqual(this._currentChatResource, resource) && this._loadCts.value === cts) { // might have changed while we were waiting, only reset if it is still the same
+				this._pendingInputTransfer.clear();
 				this._currentChatResource = undefined;
 				this._currentChatResourceObs.set(undefined, undefined);
 				this._setLoading(false);
@@ -563,6 +601,7 @@ export class ChatView extends AbstractChatView {
 		}
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
 		this._widget.setModel(undefined);
+		this._widget.inputPart.unbindInputModel();
 		this._modelRef.clear();
 		// Clear the bound-resource attribute while the rebind is in flight so
 		// test automation can wait for the next `setChat` cycle to finish

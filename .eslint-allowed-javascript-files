@@ -112,6 +112,9 @@ src/vs/editor/test/node/diffing/fixtures/difficult-move/1.js
 src/vs/editor/test/node/diffing/fixtures/difficult-move/2.js
 src/vs/editor/test/node/diffing/fixtures/just-whitespace/1.js
 src/vs/editor/test/node/diffing/fixtures/just-whitespace/2.js
+src/vs/platform/agentHost/test/node/providerIntegration/fixtures/liveCanvas/extension.mjs
+src/vs/platform/agentHost/test/node/providerIntegration/fixtures/localCanvas/client.js
+src/vs/platform/agentHost/test/node/providerIntegration/fixtures/localCanvas/extension.mjs
 src/vs/platform/files/test/node/fixtures/resolver/examples/company.js
 src/vs/platform/files/test/node/fixtures/resolver/examples/conway.js
 src/vs/platform/files/test/node/fixtures/resolver/examples/employee.js
@@ -124,6 +127,8 @@ src/vs/platform/files/test/node/fixtures/service/deep/company.js
 src/vs/platform/files/test/node/fixtures/service/deep/conway.js
 src/vs/platform/files/test/node/fixtures/service/deep/employee.js
 src/vs/platform/files/test/node/fixtures/service/deep/small.js
+src/vs/sessions/contrib/providers/agentHost/canvasAuthoringTemplate/client.js
+src/vs/sessions/contrib/providers/agentHost/canvasAuthoringTemplate/extension.mjs
 src/vs/sessions/test/e2e/common.cjs
 src/vs/sessions/test/e2e/extensions/sessions-e2e-mock/extension.js
 src/vs/sessions/test/e2e/generate.cjs

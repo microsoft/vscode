@@ -48,6 +48,13 @@ export interface IOutgoingTurn {
 	readonly turnId: string;
 }
 
+export interface IMessageSubmission {
+	readonly session: ProtocolURI;
+	readonly chat: ProtocolURI;
+	readonly clientId: string;
+	readonly message: Message;
+}
+
 /**
  * Additive host context supplied by a contribution before a turn is sent.
  * The object form lets this hook grow without replacing a bare instruction array.
@@ -220,6 +227,8 @@ export interface IAgentHostChatContributionContext {
 
 /** A self-contained behavior contributed to the agent host chat lifecycle. */
 export interface IAgentHostChatContribution extends IDisposable {
+	/** Synchronous, fail-closed transformation before a client message is queued or committed. */
+	onMessageSubmitted?(submission: IMessageSubmission): Message;
 	/**
 	 * Lower runs first. Contributions that require a specific relative sequence
 	 * must declare an explicit order; registration order only breaks ties.
@@ -318,6 +327,7 @@ export interface IAgentHostChatContributions extends IDisposable {
 	didApplyClientAction(action: IAppliedClientAction): void;
 	didDispatchAction(dispatched: IDispatchedAction): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
+	messageSubmitted(submission: IMessageSubmission): Message;
 	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;
 	hydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat>;

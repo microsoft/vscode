@@ -17,6 +17,9 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentS
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentHostCanvasOperations } from './agentHostCanvases.js';
+import type { IAgentHostCanvasPackagesClient, IAgentHostCanvasPackagesService } from './agentHostCanvasPackages.js';
+import type { IAgentHostCanvasProtocol, IAgentHostCanvasProtocolClient } from './agentHostCanvasProtocol.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -119,6 +122,9 @@ export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.ex
 
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
+
+/** Default-off preview of installed local canvas packages in the Agents Window. */
+export const AgentHostLocalCanvasesSettingId = 'chat.agentHost.localCanvases.enabled';
 
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
@@ -803,8 +809,11 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
  * Clients observe root state (agents, models) and session state via subscriptions,
  * and mutate state by dispatching actions (e.g. session/turnStarted, session/turnCancelled).
  */
-export interface IAgentService {
+export interface IAgentService extends IAgentHostCanvasOperations {
 	readonly _serviceBrand: undefined;
+	readonly canvasPackages?: IAgentHostCanvasPackagesService;
+	readonly canvasPackagesEnabled?: boolean;
+	readonly canvasProtocol?: IAgentHostCanvasProtocol;
 
 	/**
 	 * Authenticate for a protected resource on the server.
@@ -1054,7 +1063,9 @@ export interface IAgentService {
  * Implementations wrap an {@link IAgentService} and layer subscription
  * management and optimistic write-ahead on top.
  */
-export interface IAgentConnection {
+export interface IAgentConnection extends IAgentHostCanvasOperations {
+	readonly canvasPackages?: IAgentHostCanvasPackagesClient;
+	readonly canvasProtocol?: IAgentHostCanvasProtocolClient;
 
 	readonly clientId: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;

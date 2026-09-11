@@ -58,6 +58,8 @@ export interface INewSessionPromptOptionsController {
 }
 
 export interface INewSessionComposer {
+	/** Whether the composer contains draft text or attachments. */
+	readonly hasInput: IObservable<boolean>;
 	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
 	animatePrompt(text: string, durationMs: number, placeholder: string, token: CancellationToken): Promise<boolean>;
 	showPromptOptions(state: NewSessionPromptOptionsState | undefined): boolean;

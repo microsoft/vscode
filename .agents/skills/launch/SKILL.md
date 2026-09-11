@@ -52,6 +52,8 @@ SESSION_TITLE=<title-from-get_current_session>
 "$LAUNCH" --agents --session-title "$SESSION_TITLE"
 "$LAUNCH" -- <workspace-path>                # forward extra args to code.sh
 "$LAUNCH" --source-user-data-dir <path>      # pick a specific authed profile
+"$LAUNCH" --settings-overrides <json-file>  # boolean/string settings applied to the copy before launch
+"$LAUNCH" --clean-agent-config              # keep auth, omit copied settings/MCP/plugins/Agent Host state
 "$LAUNCH" --repo <vscode-repo-root>          # if not run from the repo
 "$LAUNCH" --clone-extensions                 # start with a copy of the source extensions/ (~few seconds)
 "$LAUNCH" --full                             # skip slim excludes; copy everything
@@ -59,7 +61,22 @@ SESSION_TITLE=<title-from-get_current_session>
 "$LAUNCH" --disable-workspace-trust          # avoid trust prompts for trusted automation inputs
 ```
 
-On Windows, invoke the PowerShell launcher with the same flags:
+On macOS/Linux, `--settings-overrides` accepts a JSON object of boolean/string
+settings applied to the throwaway profile before Code OSS starts. Use this for
+scenario-specific setup such as disabling scheduled Automations or cloud agents
+in a local-only test. Authentication clones retain application-level session and
+Automation metadata even in slim mode; isolated directories alone do not disable
+those features. The source profile is never changed.
+
+For a controlled local-agent scenario, combine it with `--clean-agent-config`.
+This also omits user settings/keybindings, MCP files, prompt/plugin directories,
+BYOK model configuration and persisted Agent Host/session data. It retains the
+opaque authentication storage, which can still contain cached UI metadata; it is
+not a general authentication-only export. This macOS/Linux option is incompatible
+with `--full`.
+
+On Windows, invoke the PowerShell launcher with the same flags except the
+macOS/Linux-only `--settings-overrides` and `--clean-agent-config`:
 
 ```powershell
 $skillDir = '<dir-of-this-SKILL.md>'
@@ -101,6 +118,7 @@ To (re)establish the source session: run `.\scripts\code.bat --user-data-dir=$en
 
 Excluded (transient, regenerable, or known-not-needed):
 - `User/workspaceStorage/` - per-workspace state, **including stored chat sessions** (often multi-GB)
+- `User/agent-sessions.code-workspace` - the generated Agents workspace, which can otherwise reopen unrelated folders in the copy
 - `User/History/` - local file edit history
 - `CachedExtensionVSIXs` - backup VSIXs (hundreds of MB)
 - `logs`
@@ -397,6 +415,10 @@ Every launch picks fresh ports and a fresh temp `runDir`, so you can run as many
 The launcher also passes `--shared-data-dir=<runDir>/shared-data`. This is **required** for multi-instance isolation: Code OSS keeps a fixed-path SQLite DB at `~/.<dataFolderName>-shared/sharedStorage/state.vscdb` that is *not* covered by `--user-data-dir`. Without overriding it, two concurrent instances would fight over the same file and one would die with "shared background process terminated unexpectedly". Each launch gets its own `shared-data` dir, **seeded from the source shared-data-dir** so the Windows GitHub session survives - see [Windows authentication](#windows-authentication) for why that copy matters.
 
 ## Restart after source changes
+
+The macOS/Linux launcher also passes `--agent-plugins-dir=<runDir>/agent-plugins`
+so plugin state in the throwaway profile does not share the original profile's
+machine-level plugin directory.
 
 Workbench code is loaded when the Code OSS window starts; source changes are not hot-reloaded into an already-running instance. After the build output is current, kill the launched process, launch again, and reattach to the new `cdpPort` from the new JSON blob.
 

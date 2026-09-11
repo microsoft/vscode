@@ -11,6 +11,8 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../base/common
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
+import type { IValidator } from '../../../base/common/validation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -20,7 +22,9 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CloseAgentHostCanvasExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostCanvasesExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, InvokeAgentHostCanvasActionExtensionMethod, isAgentHostCanvasExtensionMethod, OpenAgentHostCanvasExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, ReloadAgentHostCanvasesExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, ListCanvasPackagesExtensionMethod, PrepareCanvasPackageExtensionMethod, ApproveCanvasPackageExtensionMethod, RevokeCanvasPackageExtensionMethod, RemoveCanvasPackageExtensionMethod, isCanvasPackageExtensionMethod, prepareCanvasPackageValidator, approveCanvasPackageValidator, canvasPackageIdValidator, readAgentHostCanvasPreviewEnabled, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { isAgentHostCanvasJson } from '../common/agentHostCanvases.js';
+import { isAgentHostCanvasUri, validateCanvasRequest, type IAgentHostCanvasProtocol } from '../common/agentHostCanvasProtocol.js';
 import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -80,6 +84,12 @@ const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
 	ActionType.ChatWorkingDirectorySet,
 	ActionType.ChatWorkingDirectoryRemoved,
+	ActionType.CanvasAvailabilityChanged,
+	ActionType.CanvasIncarnationChanged,
+	ActionType.CanvasTitleChanged,
+	ActionType.CanvasTrustChanged,
+	ActionType.SessionCanvasSet,
+	ActionType.SessionCanvasRemoved,
 ]);
 
 /** A client tool call in any of these statuses is still awaiting its result. */
@@ -204,6 +214,7 @@ type ChannelSubscription =
  */
 interface IConnectedClient {
 	readonly clientId: string;
+	readonly canRenderCanvases: boolean;
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext;
 	readonly protocolVersion: string;
@@ -257,6 +268,7 @@ interface IActiveClientRecord {
 
 interface IGraceClientRecord {
 	readonly state: 'grace';
+	readonly canRenderCanvases?: boolean;
 	readonly seenConnection: boolean;
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext | undefined;
@@ -319,6 +331,10 @@ export interface IProtocolServerConfig {
 	 * Defaults to `true` for existing remote listeners.
 	 */
 	readonly allowExtensionMethods?: boolean;
+	/** Reviewed-fixture canvas methods on the local desktop MessagePort only. */
+	readonly allowLocalCanvasMethods?: boolean;
+	/** The prepared demo directory, advertised only with the local canvas capability. */
+	readonly localCanvasWorkspace?: string;
 	/**
 	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
 	 * cause the client to issue a `completions` request. Announced to
@@ -457,7 +473,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					try {
 						const result = this._handleInitialize(msg.params, transport, disposables);
 						client = result.client;
-						transport.send(jsonRpcSuccess(msg.id, result.response));
+						const previewEnabled = this._isLocalCanvasRenderer(client) ? readAgentHostCanvasPreviewEnabled(msg.params) : undefined;
+						if ((previewEnabled !== undefined || this._canUseCanvasProtocol(client)) && this._agentService.canvasProtocol?.initialize) {
+							const initializing = this._trackRequest(this._completeCanvasInitialization(client, result.response, previewEnabled));
+							void initializing.then(
+								response => { if (!disposables.isDisposed) { transport.send(jsonRpcSuccess(msg.id, response)); } },
+								error => { if (!disposables.isDisposed) { transport.send(jsonRpcErrorFrom(msg.id, error)); } },
+							);
+						} else {
+							transport.send(jsonRpcSuccess(msg.id, result.response));
+						}
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 					}
@@ -568,6 +593,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
+							canRenderCanvases: client.canRenderCanvases,
 							lastSeenAt: Date.now(),
 							disconnectTimeouts: new DisposableMap(),
 						});
@@ -619,6 +645,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
 			clientId: params.clientId,
+			canRenderCanvases: params.capabilities?.canvases !== undefined,
 			clientInfo: params.clientInfo,
 			telemetryContext,
 			protocolVersion: negotiated,
@@ -666,13 +693,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				response: {
 					protocolVersion: negotiated,
 					serverSeq: this._stateManager.serverSeq,
-					_meta: getAgentHostExtensionInitializeResultMeta(),
+					_meta: getAgentHostExtensionInitializeResultMeta(this._allowsLocalCanvases(client), this._config.localCanvasWorkspace, this._allowsCanvasPackages(client)),
 					snapshots,
 					defaultDirectory: this._config.defaultDirectory,
 					completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 					terminalCommandPrefix: this._config.terminalCommandPrefix,
 					telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 					automations: this._agentService.automationCapabilities,
+					...(this._allowsCanvasProtocol(client) ? { canvases: {} } : {}),
 				},
 			};
 		} catch (error) {
@@ -698,6 +726,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * remain subscribed even when their snapshot has not materialized yet.
 	 */
 	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined {
+		if (isAgentHostCanvasUri(channel) && !this._allowsCanvasProtocol(client)) {
+			return undefined;
+		}
 		const sub = classifyChannel(channel);
 		if (!sub) {
 			return undefined;
@@ -756,6 +787,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private async _subscribeStateChannel(channel: string, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
+		if (isAgentHostCanvasUri(channel)) {
+			const snapshot = this._stateManager.getSnapshot(channel);
+			if (!snapshot) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, 'The canvas has not been admitted.');
+			}
+			if (isActive && !isActive()) {
+				throw new Error(`Subscription cancelled: ${channel}`);
+			}
+			this._agentService.addSubscriber(URI.parse(channel), clientId);
+			return snapshot;
+		}
 		if (!isAhpAutomationCatalogChannel(channel)) {
 			return this._agentService.subscribe(URI.parse(channel), clientId, isActive);
 		}
@@ -824,6 +866,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
 			clientId: params.clientId,
+			canRenderCanvases: existingRecord.state === 'active' ? existingRecord.connections.at(-1)?.canRenderCanvases === true : existingRecord.canRenderCanvases === true,
 			clientInfo: existingRecord.clientInfo,
 			telemetryContext: this._createClientTelemetryContext(existingRecord.clientInfo, params._meta, transport, priorTelemetryContext?.connectionKind),
 			protocolVersion: priorProtocolVersion ?? PROTOCOL_VERSION,
@@ -917,6 +960,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const pendingSubscriptions: { readonly pending: ChannelSubscription; readonly active: ChannelSubscription }[] = [];
 		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
 			const key = sub.toString();
+			if (isAgentHostCanvasUri(key) && !this._allowsCanvasProtocol(client)) {
+				missing.push(key);
+				return undefined;
+			}
 			const classified = classifyChannel(key);
 			if (!classified) {
 				return undefined;
@@ -1464,6 +1511,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
 		subscribe: async (client, params) => {
+			if (isAgentHostCanvasUri(params.channel)) {
+				this._canvasProtocol(client);
+			}
 			const classified = classifyChannel(params.channel);
 			if (!classified) {
 				// OTLP-flavoured URI we don't understand (e.g. unknown
@@ -1593,6 +1643,32 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				URI.parse(params.chat),
 				options,
 			);
+			return null;
+		},
+		listCanvasTypes: async (client, params) => {
+			validateCanvasRequest('listCanvasTypes', params);
+			return this._canvasProtocol(client).listTypes(params);
+		},
+		openCanvas: async (client, params) => {
+			validateCanvasRequest('openCanvas', params);
+			return this._canvasProtocol(client).open(client.clientId, params);
+		},
+		resolveCanvasSource: async (client, params) => {
+			validateCanvasRequest('resolveCanvasSource', params);
+			return this._canvasProtocol(client).resolveSource(params);
+		},
+		invokeCanvasAction: async (client, params) => {
+			validateCanvasRequest('invokeCanvasAction', params);
+			return this._canvasProtocol(client).invokeAction(client.clientId, params);
+		},
+		restartCanvasProvider: async (client, params) => {
+			validateCanvasRequest('restartCanvasProvider', params);
+			await this._canvasProtocol(client).restart(client.clientId, params);
+			return null;
+		},
+		closeCanvas: async (client, params) => {
+			validateCanvasRequest('closeCanvas', params);
+			await this._canvasProtocol(client).close(client.clientId, params);
 			return null;
 		},
 		disposeChat: async (_client, params) => {
@@ -1778,7 +1854,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		// VS Code extension methods (not in the typed protocol maps yet)
-		const extensionResult = this._handleExtensionRequest(method, params);
+		const extensionResult = this._handleExtensionRequest(client, method, params);
 		if (extensionResult) {
 			this._trackRequest(extensionResult).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
@@ -1831,7 +1907,164 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+	private _allowsLocalCanvases(client: IConnectedClient): boolean {
+		return this._config.allowLocalCanvasMethods === true
+			&& this._config.hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess
+			&& client.transport.transportKind === AgentHostTransportKind.MessagePort;
+	}
+
+	private _allowsCanvasProtocol(client: IConnectedClient): boolean {
+		return this._canUseCanvasProtocol(client) && this._agentService.canvasProtocol?.supported === true;
+	}
+
+	private _canUseCanvasProtocol(client: IConnectedClient): boolean {
+		return this._isLocalCanvasRenderer(client)
+			&& (this._allowsLocalCanvases(client) || this._agentService.canvasPackagesEnabled === true);
+	}
+
+	private _isLocalCanvasRenderer(client: IConnectedClient): boolean {
+		return client.canRenderCanvases && client.transport.transportKind === AgentHostTransportKind.MessagePort
+			&& this._config.hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess;
+	}
+
+	private async _completeCanvasInitialization(client: IConnectedClient, initial: IAgentHostExtensionInitializeResult, previewEnabled?: boolean): Promise<IAgentHostExtensionInitializeResult> {
+		try {
+			await this._agentService.canvasProtocol?.initialize?.(previewEnabled);
+		} catch (error) {
+			this._logService.warn('[Canvases] The SDK/runtime does not provide the required launch contract.', error);
+		}
+		const { canvases: _canvases, ...response } = initial;
+		const snapshots = response.snapshots?.flatMap(snapshot => {
+			const current = this._stateManager.getSnapshot(snapshot.resource);
+			return current ? [current] : [];
+		});
+		return { ...response, snapshots, serverSeq: this._stateManager.serverSeq, ...(this._allowsCanvasProtocol(client) ? { canvases: {} } : {}) };
+	}
+
+	private _canvasProtocol(client: IConnectedClient): IAgentHostCanvasProtocol {
+		const protocol = this._agentService.canvasProtocol;
+		if (!this._allowsCanvasProtocol(client) || !protocol) {
+			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'This connection has no local canvas runtime capability.');
+		}
+		return protocol;
+	}
+	private _allowsCanvasPackages(client: IConnectedClient): boolean {
+		return !!this._agentService.canvasPackages
+			&& this._config.hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess
+			&& client.transport.transportKind === AgentHostTransportKind.MessagePort;
+	}
+
+	private async _handleCanvasPackageRequest(method: string, params: unknown): Promise<unknown> {
+		const packages = this._agentService.canvasPackages;
+		if (!packages) {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`);
+		}
+		if (!this._agentService.canvasPackagesEnabled) {
+			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'The local canvas preview is disabled.');
+		}
+		const validate = <T>(validator: IValidator<T>): T => {
+			const result = validator.validate(params);
+			if (result.error) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, result.error.message);
+			}
+			return result.content;
+		};
+		const localUri = (value: string): URI => {
+			let uri: URI;
+			try {
+				uri = URI.parse(value, true);
+			} catch {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Expected a local folder URI.');
+			}
+			if (uri.scheme !== Schemas.file || uri.query || uri.fragment) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Expected a local folder URI.');
+			}
+			return uri;
+		};
+		switch (method) {
+			case ListCanvasPackagesExtensionMethod:
+				return packages.list();
+			case PrepareCanvasPackageExtensionMethod:
+				return packages.prepare(localUri(validate(prepareCanvasPackageValidator).source));
+			case ApproveCanvasPackageExtensionMethod: {
+				const value = validate(approveCanvasPackageValidator);
+				return packages.approve(value.id, value.revision, value.workspace === undefined ? undefined : localUri(value.workspace));
+			}
+			case RevokeCanvasPackageExtensionMethod:
+				return packages.revoke(validate(canvasPackageIdValidator).id);
+			case RemoveCanvasPackageExtensionMethod:
+				return packages.remove(validate(canvasPackageIdValidator).id);
+		}
+		throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`);
+	}
+
+	private async _handleCanvasRequest(method: string, params: unknown): Promise<unknown> {
+		if (!isParamsObject(params) || typeof params.chat !== 'string') {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be an Agent Host chat URI');
+		}
+		let chat: URI;
+		try {
+			chat = URI.parse(params.chat, true);
+		} catch {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be an Agent Host chat URI');
+		}
+		if (!parseChatUri(chat)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be an Agent Host chat URI');
+		}
+		const input = params.input;
+		if (input !== undefined && !isAgentHostCanvasJson(input)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'input must be JSON');
+		}
+		const requireString = (name: string): string => {
+			const value = params[name];
+			if (typeof value !== 'string' || !value.trim()) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `${name} must be a non-empty string`);
+			}
+			return value;
+		};
+		switch (method) {
+			case GetAgentHostCanvasesExtensionMethod:
+				if (this._agentService.getCanvases) {
+					return this._agentService.getCanvases(chat);
+				}
+				break;
+			case OpenAgentHostCanvasExtensionMethod:
+				if (this._agentService.openCanvas) {
+					return this._agentService.openCanvas(chat, {
+						extensionId: requireString('extensionId'), canvasId: requireString('canvasId'), instanceId: requireString('instanceId'),
+						...(input !== undefined ? { input } : {}),
+					});
+				}
+				break;
+			case InvokeAgentHostCanvasActionExtensionMethod:
+				if (this._agentService.invokeCanvasAction) {
+					return this._agentService.invokeCanvasAction(chat, {
+						instanceId: requireString('instanceId'), actionName: requireString('actionName'),
+						...(input !== undefined ? { input } : {}),
+					});
+				}
+				break;
+			case CloseAgentHostCanvasExtensionMethod:
+				if (this._agentService.closeCanvas) {
+					return this._agentService.closeCanvas(chat, requireString('instanceId'));
+				}
+				break;
+			case ReloadAgentHostCanvasesExtensionMethod:
+				if (this._agentService.reloadCanvases) {
+					return this._agentService.reloadCanvases(chat);
+				}
+				break;
+		}
+		throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`);
+	}
+
+	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		if (isCanvasPackageExtensionMethod(method)) {
+			return this._allowsCanvasPackages(client) ? this._handleCanvasPackageRequest(method, params) : undefined;
+		}
+		if (isAgentHostCanvasExtensionMethod(method)) {
+			return this._allowsLocalCanvases(client) ? this._handleCanvasRequest(method, params) : undefined;
+		}
 		if (this._config.allowExtensionMethods === false) {
 			return undefined;
 		}

@@ -8,6 +8,10 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isChatContextIconPath, isExplicitFileOrImageVariableEntry, resolveChatContextIcon } from '../../../common/attachments/chatVariableEntries.js';
+import { collectCanvasContextReferences, getCanvasContextReference, toCanvasContextVariableEntry, withCanvasVariableContext } from '../../../common/attachments/chatCanvasContext.js';
+import { CanvasContextReferencesMetaKey, freezeCanvasMessageContext, withoutCanvasContextSnapshot } from '../../../../../../platform/agentHost/common/agentHostCanvasContext.js';
+import { MessageKind, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus, type CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 
 suite('Chat variable entries', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,6 +63,52 @@ suite('Chat variable entries', () => {
 				: restored,
 			{ ...entry, imageData: [1, 2, 3] }
 		);
+	});
+
+	suite('canvas context', () => {
+		const reference = { resource: 'ahp-canvas:/selected', incarnation: 'first' };
+		const message: Message = { text: 'My unchanged draft', origin: { kind: MessageKind.User } };
+
+		test('round trips visible references without endpoint or generic attachment text', () => {
+			const entry = toCanvasContextVariableEntry(reference, 'My canvas');
+			const restored = IChatRequestVariableEntry.fromExport(IChatRequestVariableEntry.toExport(entry));
+			assert.deepStrictEqual({
+				reference: getCanvasContextReference(restored),
+				submission: withCanvasVariableContext(message, [restored]),
+				removed: withCanvasVariableContext(message, []),
+			}, {
+				reference,
+				submission: { ...message, _meta: { [CanvasContextReferencesMetaKey]: [reference] } },
+				removed: message,
+			});
+		});
+
+		test('coalesces identical references and rejects conflicting incarnations', () => {
+			const first = toCanvasContextVariableEntry(reference, 'First');
+			const conflicting = toCanvasContextVariableEntry({ ...reference, incarnation: 'replacement' }, 'Replacement');
+			assert.deepStrictEqual(collectCanvasContextReferences([first, first]), [reference]);
+			assert.throws(() => collectCanvasContextReferences([first, conflicting]), /conflicting incarnations/);
+		});
+
+		test('rejects a malformed reference rather than treating it as ordinary text', () => {
+			assert.throws(() => getCanvasContextReference({
+				kind: 'generic', id: 'invalid', name: 'Canvas', value: { $mid: 'sessionCanvasContext', resource: 'https://example.com', incarnation: 'first' },
+			}), /Invalid canvas context attachment/);
+		});
+
+		test('a host-frozen queue echo compares equal without submitting or freezing the context again', () => {
+			const canvas: CanvasState = {
+				resource: reference.resource, identity: {
+					chat: 'ahp-chat:/session/main', source: { kind: CanvasSourceKind.Extension, extensionId: 'extension' },
+					canvasType: 'counter', instanceId: 'one', incarnation: reference.incarnation,
+				},
+				title: 'Original title', trust: { status: CanvasTrustStatus.Trusted },
+				availability: { status: CanvasAvailabilityStatus.NotLoaded }, revision: 1,
+			};
+			const submitted = withCanvasVariableContext(message, [toCanvasContextVariableEntry(reference, canvas.title)]);
+			const frozen = freezeCanvasMessageContext(submitted, canvas.identity.chat, 'client', () => canvas);
+			assert.deepStrictEqual(withoutCanvasContextSnapshot(frozen), submitted);
+		});
 	});
 
 	suite('resolveChatContextIcon', () => {

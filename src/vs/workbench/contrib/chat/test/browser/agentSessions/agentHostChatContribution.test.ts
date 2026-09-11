@@ -117,6 +117,8 @@ import { reviveSerializableInputState, type IChatModel, type IChatModelInputStat
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { CanvasContextReferencesMetaKey } from '../../../../../../platform/agentHost/common/agentHostCanvasContext.js';
+import { toCanvasContextVariableEntry } from '../../../common/attachments/chatCanvasContext.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
@@ -9136,6 +9138,22 @@ suite('AgentHostChatContribution', () => {
 	// ---- Attachment context conversion --------------------------------------
 
 	suite('attachment context', () => {
+
+		test('canvas references reach top-level message context without becoming prompt text or generic attachments', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const reference = { resource: 'ahp-canvas:/visible', incarnation: 'current' };
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'Keep my draft',
+				variables: { variables: [toCanvasContextVariableEntry(reference, 'Selected canvas')] },
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message, {
+				text: 'Keep my draft', origin: { kind: MessageKind.User },
+				_meta: { [CanvasContextReferencesMetaKey]: [reference] },
+			});
+		}));
 
 		test('file variable with file:// URI becomes file attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);

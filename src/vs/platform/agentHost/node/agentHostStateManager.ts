@@ -25,6 +25,9 @@ import { preserveProviderBackedRootConfigValues } from '../common/agentCustomiza
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
 import { type IChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
+import { isAgentHostCanvasUri, isCanvasAction } from '../common/agentHostCanvasProtocol.js';
+import type { CanvasState } from '../common/state/protocol/channels-canvas/state.js';
+import { canvasReducer } from '../common/state/protocol/channels-canvas/reducer.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
@@ -261,6 +264,7 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _annotations = new Map<string, AnnotationsState>();
 	private _automationCatalog: AutomationState | undefined;
 	private readonly _automationRuns = new Map<string, AutomationRunState>();
+	private readonly _canvases = new Map<string, CanvasState>();
 
 	/**
 	 * Active turns per session, keyed by session URI string with the value
@@ -683,6 +687,10 @@ export class AgentHostStateManager extends Disposable {
 	 * the client should process subsequent envelopes with serverSeq > fromSeq.
 	 */
 	getSnapshot(resource: URI): IStateSnapshot | undefined {
+		if (isAgentHostCanvasUri(resource)) {
+			const state = this._canvases.get(resource);
+			return state ? { resource, state, fromSeq: this._serverSeq } : undefined;
+		}
 		if (isAhpRootChannel(resource)) {
 			return {
 				resource: ROOT_STATE_URI,
@@ -1594,6 +1602,36 @@ export class AgentHostStateManager extends Disposable {
 		return this._annotations.get(resource);
 	}
 
+	registerCanvas(state: CanvasState, markUsed = true): void {
+		if (!isAgentHostCanvasUri(state.resource) || this._canvases.has(state.resource)) {
+			throw new Error('Invalid or already registered canvas channel.');
+		}
+		this._canvases.set(state.resource, state);
+		if (markUsed) {
+			this.markCanvasUsed(state.resource);
+		}
+	}
+
+	markCanvasUsed(resource: URI): void {
+		const state = this._canvases.get(resource);
+		if (!state) {
+			throw new Error('Cannot retain an unknown canvas.');
+		}
+		this._markSessionUsed(parseRequiredSessionUriFromChatUri(state.identity.chat));
+	}
+
+	getCanvasState(resource: URI): CanvasState | undefined {
+		return this._canvases.get(resource);
+	}
+
+	getChatCanvasStates(chat: URI): readonly CanvasState[] {
+		return [...this._canvases.values()].filter(state => state.identity.chat === chat);
+	}
+
+	removeCanvas(resource: URI): void {
+		this._canvases.delete(resource);
+	}
+
 	// ---- Turn tracking ------------------------------------------------------
 
 	/**
@@ -1828,6 +1866,16 @@ export class AgentHostStateManager extends Disposable {
 				this._automationRuns.set(channel, newState);
 			}
 			resultingState = newState;
+		}
+
+		if (isCanvasAction(action)) {
+			const state = this._canvases.get(channel);
+			if (!state || !isAgentHostCanvasUri(channel)) {
+				return undefined;
+			}
+			const next = canvasReducer(state, action, this._log);
+			this._canvases.set(channel, next);
+			resultingState = next;
 		}
 
 		// Emit envelope

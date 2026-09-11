@@ -207,6 +207,9 @@ export interface ISessionsService {
 	 */
 	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
 
+	/** A snapshot of the current navigation, cancelled when another navigation starts. */
+	captureNavigation(): CancellationToken;
+
 	/**
 	 * Close a chat from the session view. The chat is hidden from the tab strip
 	 * and can be reopened from the session header's chats dropdown.
@@ -710,6 +713,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const cts = new CancellationTokenSource();
 		this._openSessionCts.value = cts;
 		return cts.token;
+	}
+
+	captureNavigation(): CancellationToken {
+		if (this._store.isDisposed) {
+			return CancellationToken.Cancelled;
+		}
+		this._openSessionCts.value ??= new CancellationTokenSource();
+		return this._openSessionCts.value.token;
 	}
 
 	private _dismissCustomViewForNavigation(intent: SessionNavigationIntent): void {

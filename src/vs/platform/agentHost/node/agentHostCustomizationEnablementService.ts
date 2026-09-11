@@ -97,7 +97,8 @@ export interface IAgentHostCustomizationEnablementService {
 	readonly onDidChange: Event<ICustomizationEnablementChangeEvent>;
 	initializeSession(session: string): Promise<void>;
 	getWorkingDirectoryState(session: string): WorkingDirectoryState;
-	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
+	/** An explicit launch directory applies while provider startup precedes host directory registration. */
+	resolve(session: string, target: ICustomizationEnablementTarget, launchDirectory?: URI): CustomizationEnablementResolution;
 	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution;
@@ -231,13 +232,13 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		return { kind: 'directory', uri: URI.parse(directory) };
 	}
 
-	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution {
+	resolve(session: string, target: ICustomizationEnablementTarget, launchDirectory?: URI): CustomizationEnablementResolution {
 		const sessionEnablement = this._sessionEnablement.get(session);
 		if (sessionEnablement === undefined) {
 			return { kind: 'pending', reason: 'session' };
 		}
 
-		const workingDirectory = this.getWorkingDirectoryState(session);
+		const workingDirectory: WorkingDirectoryState = launchDirectory ? { kind: 'directory', uri: launchDirectory } : this.getWorkingDirectoryState(session);
 		if (workingDirectory.kind === 'pending') {
 			return { kind: 'pending', reason: 'workingDirectory' };
 		}

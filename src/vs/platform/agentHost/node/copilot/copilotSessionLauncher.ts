@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { ContextTier, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ReasoningSummary, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { ICopilotClient, ICopilotSession, ICopilotResumeSessionConfig } from './copilotSdkTypes.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
@@ -73,7 +74,7 @@ export const AutoTierConfigKey = 'tier';
 const ReasoningEfforts = reasoningEffortLevels;
 type AgentHostReasoningEffort = ReasoningEffortLevel;
 
-function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined, additionalDisabledMcpServers: readonly string[] | undefined): Partial<SessionConfig> {
+function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined, additionalDisabledMcpServers: readonly string[] | undefined): Pick<SessionConfig, 'disabledMcpServers'> {
 	const disabledMcpServers = [...new Set([
 		...plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 		...(disabledRootMcpServers ?? []),
@@ -221,11 +222,16 @@ export interface ICopilotSessionLauncher {
 	launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper>;
 }
 
-type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'>;
+type CopilotSessionClient = Pick<ICopilotClient, 'createSession' | 'resumeSession'>;
 
 interface ICopilotSessionLaunchBase {
 	readonly client: CopilotSessionClient;
 	readonly sessionId: string;
+	readonly enableLocalCanvases?: boolean;
+	/** Commits durable retention and host materialization before extension startup is admitted. */
+	readonly retainForCanvas?: (session: ICopilotSession) => Promise<void>;
+	readonly onCanvasRetained?: () => Promise<void>;
+	readonly copilotHome?: string;
 	/** Whether this launch is for a transient session that skips durable-only provider work. */
 	readonly isEphemeral?: boolean;
 	/**
@@ -610,6 +616,32 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		const config = await this._buildSessionConfig(plan, runtime);
 		const sandboxConfig = this._computeSandboxConfig();
+		if (plan.retainForCanvas) {
+			if (!plan.enableLocalCanvases || !plan.workingDirectory || plan.isEphemeral) {
+				throw new Error('Canvas retention requires a persistent workspace session.');
+			}
+			const dormant = await this._launchSession(plan, { ...config, requestExtensions: false, requestCanvasRenderer: false }, sandboxConfig, plan.kind === 'resume');
+			try {
+				await plan.retainForCanvas(dormant.session);
+			} finally {
+				try {
+					await dormant.disconnect(true);
+				} finally {
+					dormant.dispose();
+				}
+			}
+			const resumed: ICopilotResumeSessionLaunchPlan = {
+				...plan, kind: 'resume', workingDirectory: plan.workingDirectory,
+				fallback: plan.kind === 'resume' ? plan.fallback : {
+					model: plan.model, longContextWindow: plan.longContextWindow, freeLongContext: plan.freeLongContext, autoTier: plan.autoTier,
+				},
+			};
+			return this._launchSession(resumed, config, sandboxConfig, true);
+		}
+		return this._launchSession(plan, config, sandboxConfig);
+	}
+
+	private async _launchSession(plan: CopilotSessionLaunchPlan, config: ICopilotResumeSessionConfig, sandboxConfig: SandboxConfig | undefined, retained = false): Promise<CopilotSessionWrapper> {
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig);
 		}
@@ -643,7 +675,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Only a session with no events on disk may fall back to creating a
 			// fresh one under the same ID (seeding model & working directory
 			// from stored metadata); every other failure propagates.
-			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
+			if (retained || !shouldCreateEmptySessionAfterResumeError(resumeError)) {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}
@@ -663,7 +695,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
+	private _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ICopilotResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {
 		return this._sessionOpenTelemetry.withSdkResume(
 			session,
 			() => this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, config)),
@@ -675,7 +707,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._otelService.withTraceContext(this._otelService.getSessionTraceContext(sessionId, sessionUri), fn);
 	}
 
-	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: SandboxConfig | undefined): Promise<CopilotSessionWrapper> {
+	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ICopilotResumeSessionConfig, sandboxConfig: SandboxConfig | undefined): Promise<CopilotSessionWrapper> {
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
@@ -863,7 +895,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<ResumeSessionConfig> {
+	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<ICopilotResumeSessionConfig> {
 		const plugins = plan.snapshot.plugins;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
@@ -916,9 +948,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			? [...(toSdkToolFilterPatterns(excludedTools) ?? []), ...EPHEMERAL_DISABLED_COPILOT_TOOLS]
 			: toSdkToolFilterPatterns(excludedTools);
 		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
-		const sdkExcludedTools = clientToolNames.has(SEMANTIC_SEARCH_TOOL_NAME)
+		const semanticSearchExcludedTools = clientToolNames.has(SEMANTIC_SEARCH_TOOL_NAME)
 			? configuredSdkExcludedTools
 			: [...new Set([...(configuredSdkExcludedTools ?? []), `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])];
+		const sdkExcludedTools = plan.enableLocalCanvases
+			? [...(semanticSearchExcludedTools ?? []), 'extensions_manage', 'extensions_reload']
+			: semanticSearchExcludedTools;
 		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', (value): value is Record<string, unknown> => isObject(value), () => {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		});
@@ -990,7 +1025,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
-			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
+			...(plan.copilotHome ? { configDirectory: plan.copilotHome } : {}),
+			requestExtensions: plan.enableLocalCanvases === true,
+			...(plan.enableLocalCanvases ? { requestCanvasRenderer: true } : {}),
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),

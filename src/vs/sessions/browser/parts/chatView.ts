@@ -111,6 +111,9 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	/** Transfers an unsent composer draft to the exact chat replacing this view. */
+	preserveInputForChat(_resource: URI): void { }
+
 	/**
 	 * Submit the given text as a chat query. The default implementation is
 	 * a no-op; subclasses that host an input widget (e.g. `NewChatView`)

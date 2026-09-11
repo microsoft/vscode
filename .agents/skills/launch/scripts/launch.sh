@@ -44,6 +44,8 @@ FULL=0
 SKIP_PRELAUNCH=0
 DISABLE_WORKSPACE_TRUST=0
 SESSION_TITLE=""
+SETTINGS_OVERRIDES=""
+CLEAN_AGENT_CONFIG=0
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -57,6 +59,8 @@ while [[ $# -gt 0 ]]; do
 			shift 2
 			;;
 		--source-user-data-dir) SOURCE_UDD="$2"; shift 2 ;;
+		--settings-overrides) SETTINGS_OVERRIDES="$2"; shift 2 ;;
+		--clean-agent-config) CLEAN_AGENT_CONFIG=1; shift ;;
 		--repo) REPO="$2"; shift 2 ;;
 		--clone-extensions|--copy-extensions) CLONE_EXTENSIONS=1; shift ;;
 		--full) FULL=1; shift ;;
@@ -66,6 +70,11 @@ while [[ $# -gt 0 ]]; do
 		*) echo "Unknown arg: $1" >&2; exit 2 ;;
 	esac
 done
+
+if [[ "$CLEAN_AGENT_CONFIG" == "1" && "$FULL" == "1" ]]; then
+	echo "--clean-agent-config cannot be combined with --full." >&2
+	exit 2
+fi
 
 monotonic_ms() {
 	node -e 'process.stdout.write(String(process.hrtime.bigint() / 1_000_000n))'
@@ -134,6 +143,7 @@ mkdir -p "$DEST_UDD" "$SHARED_DATA_DIR"
 EXCLUDES=(
 	'/extensions'                                       # handled separately below
 	'/workspaceStorage' 'User/workspaceStorage'         # per-workspace state, incl. chat sessions
+	'User/agent-sessions.code-workspace'                # generated Agents workspace, not authentication
 	'User/History'                                      # local file edit history
 	'/CachedExtensionVSIXs'                             # backup VSIXs
 	'/logs'
@@ -146,6 +156,15 @@ EXCLUDES=(
 	'/Singleton*'
 	'*.lock' '*.sock'
 )
+if [[ "$CLEAN_AGENT_CONFIG" == "1" ]]; then
+	EXCLUDES+=(
+		'User/settings.json' 'User/keybindings.json' 'User/mcp.json' 'User/prompts'
+		'User/chatLanguageModels.json' 'User/agentHostCustomizations'
+		'User/profiles/*/settings.json' 'User/profiles/*/keybindings.json'
+		'User/profiles/*/mcp.json' 'User/profiles/*/prompts'
+		'/agent-host' '/agentSessionData' '/agentPlugins' '/agent-plugins'
+	)
+fi
 
 if [[ "$FULL" == "1" ]]; then
 	echo "[launch.sh] full copy: $SOURCE_UDD -> $DEST_UDD" >&2
@@ -182,7 +201,7 @@ SETTINGS_SESSION_TITLE="$SESSION_TITLE"
 if [[ "$AGENTS" == "1" ]]; then
 	SETTINGS_SESSION_TITLE=""
 fi
-if ! node "$SETTINGS_SCRIPT" "$SETTINGS_FILE" "$SETTINGS_SESSION_TITLE" "$SOURCE_SETTINGS_FILE"; then
+if ! node "$SETTINGS_SCRIPT" "$SETTINGS_FILE" "$SETTINGS_SESSION_TITLE" "$SOURCE_SETTINGS_FILE" "$SETTINGS_OVERRIDES"; then
 	echo "[launch.sh] failed to update launch settings in $SETTINGS_FILE" >&2
 	exit 1
 fi
@@ -210,6 +229,7 @@ ARGS=(
 	"--user-data-dir=$DEST_UDD"
 	"--extensions-dir=$EXT_DIR"
 	"--shared-data-dir=$SHARED_DATA_DIR"
+	"--agent-plugins-dir=$RUN_DIR/agent-plugins"
 	"--remote-debugging-port=$CDP_PORT"
 	"--inspect-extensions=$EXTHOST_PORT"
 	"--inspect=$MAIN_PORT"

@@ -59,6 +59,7 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { resolveAgentsWindowFolder } from '../node/agentsWindow.js';
 
 //#region Helper Interfaces
 
@@ -294,6 +295,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
+
+		folderUri = await resolveAgentsWindowFolder(openConfig.cli, folderUri, sessionResource, cli => this.doExtractPathsFromCLI(cli));
 
 		// Open in a new browser window with the agent sessions workspace
 		const windows = await this.open(await this.ensureAgentsWindow(openConfig));

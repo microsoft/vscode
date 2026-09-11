@@ -17,3 +17,4 @@ export * from './channels-otlp/state.js';
 export * from './channels-resource-watch/state.js';
 export * from './channels-automation/state.js';
 export * from './channels-automation-run/state.js';
+export * from './channels-canvas/state.js';

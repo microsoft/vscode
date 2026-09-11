@@ -29,6 +29,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
+import { AgentHostCanvasesMetaKey, readAgentHostCanvasState, type IAgentHostCanvasState, type IAgentHostCanvasStateChange } from '../../common/agentHostCanvases.js';
+import { CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus, type CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -530,6 +532,26 @@ suite('AgentService (node dispatcher)', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('canvas subscriptions', () => {
+		test('reads an admitted canvas without restoring a provider and rejects unknown or cancelled reads', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			let materialized = 0;
+			copilotAgent.materializeChat = async () => { materialized++; };
+			const resource = URI.parse('ahp-canvas:/read-only');
+			const state: CanvasState = {
+				resource: resource.toString(),
+				identity: { chat: buildDefaultChatUri('copilot:/owner'), source: { kind: CanvasSourceKind.Extension, extensionId: 'fixture' }, canvasType: 'counter', instanceId: 'one', incarnation: 'current' },
+				title: 'Canvas', trust: { status: CanvasTrustStatus.Pending }, availability: { status: CanvasAvailabilityStatus.NotLoaded }, revision: 1,
+			};
+			getStateManager(service).registerCanvas(state);
+			const snapshot = await service.subscribe(resource, 'client');
+			await assert.rejects(service.subscribe(URI.parse('ahp-canvas:/missing'), 'client'), /not been admitted/);
+			await assert.rejects(service.subscribe(resource, 'client', () => false), /Cancel/);
+			service.unsubscribe(resource, 'client');
+			assert.deepStrictEqual({ state: snapshot.state, materialized }, { state, materialized: 0 });
+		});
+	});
 
 	suite('resolveAgentChatContext', () => {
 
@@ -7611,6 +7633,36 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(await db.getChatDraft(chat), expected);
 		}
 
+		test('publishes canvas state materialized before restored chat registration', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const changes = disposables.add(new Emitter<IAgentHostCanvasStateChange>());
+			const snapshot: IAgentHostCanvasState = {
+				supported: true, catalog: [],
+				instances: [{ instanceId: 'counter', extensionId: 'fixture', canvasId: 'counter', availability: 'ready', url: 'http://127.0.0.1:3000/current' }],
+			};
+			const registrations: boolean[] = [];
+			class CanvasAgent extends MockAgent {
+				readonly onDidChangeCanvases = changes.event;
+				override async getSessionMessages(chat: URI) {
+					const parsed = parseChatUri(chat);
+					if (parsed) {
+						registrations.push(!!getStateManager(svc).getSessionState(parsed.session));
+						changes.fire({ chat, state: snapshot });
+					}
+					return super.getSessionMessages(chat);
+				}
+			}
+			const agent = disposables.add(new CanvasAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: agent.id });
+			getStateManager(svc).removeSession(session.toString());
+			await svc.restoreSession(session);
+			assert.deepStrictEqual({
+				emittedBeforeRegistration: registrations.includes(false),
+				canvas: readAgentHostCanvasState(getStateManager(svc).getSessionState(session.toString())?._meta, buildDefaultChatUri(session)),
+			}, { emittedBeforeRegistration: true, canvas: snapshot });
+		});
+
 		test('refuses to restore a workspace-conversion quarantine before materializing the provider', async () => {
 			const database = new TestSessionDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -9729,6 +9781,37 @@ suite('AgentService (node dispatcher)', () => {
 			await service.createChat(session, chatUri);
 
 			assert.strictEqual(catalogHadChatDuringCreate, false);
+		});
+
+		test('publishes a peer canvas after registration and evicts it on chat disposal', async () => {
+			const changes = disposables.add(new Emitter<IAgentHostCanvasStateChange>());
+			const snapshot: IAgentHostCanvasState = {
+				supported: true, catalog: [],
+				instances: [{ instanceId: 'counter', extensionId: 'fixture', canvasId: 'counter', availability: 'unavailable' }],
+			};
+			class CanvasAgent extends MockAgent {
+				readonly onDidChangeCanvases = changes.event;
+				override async createChat(_session: URI, chat: URI): Promise<void> {
+					changes.fire({ chat, state: snapshot });
+				}
+				override async disposeChat(_session: URI, _chat: URI): Promise<void> { }
+			}
+			const agent = disposables.add(new CanvasAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ provider: agent.id });
+			const main = URI.parse(buildDefaultChatUri(session));
+			changes.fire({ chat: main, state: snapshot });
+			const peer = URI.parse(buildChatUri(session, 'peer-canvas'));
+			await service.createChat(session, peer);
+			const before = getStateManager(service).getSessionState(session.toString())?._meta?.[AgentHostCanvasesMetaKey];
+			await service.disposeChat(session, peer);
+			assert.deepStrictEqual({
+				before,
+				after: getStateManager(service).getSessionState(session.toString())?._meta?.[AgentHostCanvasesMetaKey],
+			}, {
+				before: { [main.toString()]: snapshot, [peer.toString()]: snapshot },
+				after: { [main.toString()]: snapshot },
+			});
 		});
 
 		test('throws when the provider does not support multiple chats', async () => {

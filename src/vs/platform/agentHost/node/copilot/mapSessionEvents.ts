@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, Attachment, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData } from '@github/copilot-sdk';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename, isAbsolute, join } from '../../../../base/common/path.js';
@@ -81,6 +81,15 @@ function stripPromptScaffolding(text: string): string {
 	}
 	const inner = withoutAux.match(/<userRequest>([\s\S]*?)<\/userRequest>/) ?? withoutAux.match(/<user_query>([\s\S]*?)<\/user_query>/);
 	return inner ? inner[1].trim() : withoutAux.trim();
+}
+
+export function mapCopilotUserMessage(data: SessionEventPayload<'user.message'>['data']): Message {
+	const attachments = sdkAttachmentsToProtocol(data.attachments);
+	return {
+		text: stripPromptScaffolding(data.content ?? ''),
+		origin: { kind: MessageKind.User },
+		...(attachments?.length ? { attachments } : {}),
+	};
 }
 
 /**
@@ -549,8 +558,7 @@ export async function mapSessionEvents(
 				}
 				const d = e.data;
 				const messageId = d.interactionId ?? '';
-				const content = stripPromptScaffolding(d.content ?? '');
-				const attachments = sdkAttachmentsToProtocol(d.attachments);
+				const { text: content, attachments } = mapCopilotUserMessage(d);
 				// User messages carry no deprecated `parentToolCallId`; route
 				// sub-agent user messages by the envelope `agentId` only.
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);

@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { ICopilotSession } from './copilotSdkTypes.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { AgentTurnProviderSessionState } from '../../common/agent.js';
 
 /**
- * Thin wrapper around {@link CopilotSession} that exposes each SDK event as a
+ * Thin wrapper around {@link ICopilotSession} that exposes each SDK event as a
  * proper VS Code `Event<T>`. All subscriptions and the underlying SDK session
  * are cleaned up on dispose.
  */
@@ -23,7 +24,7 @@ export class CopilotSessionWrapper extends Disposable {
 	private _disconnectPromise: Promise<void> | undefined;
 	private _disconnectCompleted = false;
 
-	constructor(readonly session: CopilotSession) {
+	constructor(readonly session: ICopilotSession) {
 		super();
 		const unsubscribeAll = session.on(event => {
 			if (event.type === 'session.shutdown') {
@@ -50,25 +51,30 @@ export class CopilotSessionWrapper extends Disposable {
 					: 'active';
 	}
 
-	/** Disconnects once the request completes or the SDK reports session shutdown. */
-	disconnect(): Promise<void> {
-		if (this._shutdown.isSettled) {
+	/** Reusing a backing requires the disconnect reply, not just an early shutdown notification. */
+	disconnect(waitForCompletion = false): Promise<void> {
+		if (this._shutdown.isSettled && !waitForCompletion) {
 			return this._shutdown.p;
 		}
 		if (!this._disconnectPromise) {
 			const disconnectPromise = this.session.disconnect()
 				.then(() => { this._disconnectCompleted = true; })
 				.catch(error => {
-					if (!this._shutdown.isSettled) {
-						if (this._disconnectPromise === disconnectPromise) {
-							this._disconnectPromise = undefined;
-						}
-						throw error;
+					if (this._disconnectPromise === disconnectPromise) {
+						this._disconnectPromise = undefined;
 					}
+					throw error;
 				});
 			this._disconnectPromise = disconnectPromise;
 		}
-		return Promise.race([this._disconnectPromise, this._shutdown.p]);
+		return waitForCompletion ? this._disconnectPromise : Promise.race([
+			this._disconnectPromise.catch(error => {
+				if (!this._shutdown.isSettled) {
+					throw error;
+				}
+			}),
+			this._shutdown.p,
+		]);
 	}
 
 	private _onMessageDelta: Event<SessionEventPayload<'assistant.message_delta'>> | undefined;
