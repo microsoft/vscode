@@ -31,12 +31,13 @@ suite('Animations', () => {
 			return {
 				particleCount: particles.length,
 				allParticlesAreConfetti: particles.length === overlay.children.length,
+				allDelaysBackfilled: particles.every(particle => particle.getAnimations()[0]?.effect?.getTiming().fill === 'both'),
 				colorCount: new Set(particles.map(particle => particle.style.backgroundColor)).size,
 				shapes: Array.from(new Set(particles.map(particle => particle.style.borderRadius))).sort(),
 			};
 		}), [
-			{ particleCount: 24, allParticlesAreConfetti: true, colorCount: 8, shapes: ['1px', '50%'] },
-			{ particleCount: 24, allParticlesAreConfetti: true, colorCount: 8, shapes: ['1px', '50%'] },
+			{ particleCount: 24, allParticlesAreConfetti: true, allDelaysBackfilled: true, colorCount: 6, shapes: ['1px', '50%'] },
+			{ particleCount: 24, allParticlesAreConfetti: true, allDelaysBackfilled: true, colorCount: 6, shapes: ['1px', '50%'] },
 		]);
 	});
 });

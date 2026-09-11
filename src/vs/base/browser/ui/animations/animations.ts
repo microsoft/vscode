@@ -14,14 +14,12 @@ export const enum ClickAnimation {
 }
 
 const confettiColors = [
-	'#f44336',
-	'#e91e63',
-	'#9c27b0',
-	'#3f51b5',
-	'#03a9f4',
-	'#4caf50',
-	'#ffeb3b',
-	'#ff9800',
+	'var(--vscode-charts-red)',
+	'var(--vscode-charts-orange)',
+	'var(--vscode-charts-yellow)',
+	'var(--vscode-charts-green)',
+	'var(--vscode-charts-blue)',
+	'var(--vscode-charts-purple)',
 ];
 
 /**
@@ -143,7 +141,7 @@ export function triggerConfettiAnimation(element: HTMLElement) {
 			duration: 900 + Math.random() * 400,
 			delay: Math.random() * 100,
 			easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
-			fill: 'forwards',
+			fill: 'both',
 		});
 	}
 
