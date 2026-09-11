@@ -1034,7 +1034,8 @@ export class ActionListWidget<T> extends Disposable {
 				filterRow.appendChild(this._filterInput);
 				this._register(dom.addDisposableListener(this._filterInput, dom.EventType.KEY_DOWN, e => {
 					this._setKeyboardNavigation(true);
-					if (e.key !== 'Escape' && this._filterInput?.closest('.action-list-submenu-panel')) {
+					if (!e.isComposing && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey
+						&& this._filterInput?.closest('.action-list-submenu-panel')) {
 						e.stopPropagation();
 					}
 				}));
@@ -2313,7 +2314,8 @@ export class ActionListWidget<T> extends Disposable {
 						description: child.tooltip || undefined,
 						group: { title: '', icon },
 						hideIcon: false,
-						hover: hoverContent ? { content: hoverContent } : {},
+						hover: hoverContent ? { content: `${child.label}\n\n${hoverContent}` } : undefined,
+						tooltip: child.label,
 						onRemove: extendedChild.onRemove,
 					});
 				}
@@ -2324,7 +2326,8 @@ export class ActionListWidget<T> extends Disposable {
 			// Also include non-SubmenuAction items directly
 			for (const action of submenuActions) {
 				if (!(action instanceof SubmenuAction)) {
-					const extendedAction = action as IAction & { onRemove?: () => void };
+					const extendedAction = action as IAction & { hoverContent?: string; onRemove?: () => void };
+					const hoverContent = extendedAction.hoverContent;
 					submenuItems.push({
 						item: action,
 						kind: ActionListItemKind.Action,
@@ -2332,7 +2335,8 @@ export class ActionListWidget<T> extends Disposable {
 						description: action.tooltip || undefined,
 						group: { title: '' },
 						hideIcon: false,
-						hover: {},
+						hover: hoverContent ? { content: `${action.label}\n\n${hoverContent}` } : undefined,
+						tooltip: action.label,
 						onRemove: extendedAction.onRemove,
 					});
 				}
@@ -2477,6 +2481,12 @@ export class ActionListWidget<T> extends Disposable {
 					: row
 						? anchorRect.top - parentRect.top + (anchorRect.height - anchorHeight) / 2
 						: panelRect.top - parentRect.top;
+			if (preserveVerticalPosition && currentElement.hover?.alignToAnchorTop && viewport && submenuWidget) {
+				const outerChromeHeight = panelRect.height - viewport.getBoundingClientRect().height;
+				const submenuChromeHeight = (submenuWidget.headerContainer?.offsetHeight ?? 0) + (submenuWidget.filterContainer?.offsetHeight ?? 0);
+				const minimumPanelHeight = outerChromeHeight + (submenuChromeHeight + this._actionLineHeight) * zoom;
+				top = Math.min(top, targetWindow.innerHeight - parentRect.top - minimumPanelHeight - 8);
+			}
 			const panelBottom = parentRect.top + top + anchorHeight;
 			if (panelBottom > targetWindow.innerHeight && !(preserveVerticalPosition && currentElement.hover?.alignToAnchorTop)) {
 				top -= panelBottom - targetWindow.innerHeight + 8;

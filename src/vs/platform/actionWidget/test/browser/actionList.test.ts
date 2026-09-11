@@ -1226,7 +1226,7 @@ suite('ActionListWidget', () => {
 				...action('remote'),
 				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
 				submenuActions: [
-					toAction({ id: 'alpha', label: 'Alpha', run: () => { } }),
+					toAction({ id: 'alpha', label: 'A long remote host label', run: () => { } }),
 					toAction({ id: 'beta', label: 'Beta', run: () => { } }),
 				],
 				submenuOptions: {
@@ -1247,7 +1247,15 @@ suite('ActionListWidget', () => {
 		const filter = panel.querySelector<HTMLInputElement>('.action-list-filter-input')!;
 		const bubbledKeys: string[] = [];
 		disposables.add(addDisposableListener(widget.domNode, 'keydown', event => bubbledKeys.push(event.key)));
-		filter.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
+		const longLabelTooltip = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector<HTMLElement>('.title')?.textContent === 'A long remote host label')?.title;
+		[
+			{ key: 'r' },
+			{ key: 'P', ctrlKey: true },
+			{ key: 'F1', altKey: true },
+			{ key: ' ' },
+			{ key: 'Process' },
+		].forEach(init => filter.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ...init })));
 		filter.value = 'bet';
 		filter.dispatchEvent(new Event('input'));
 
@@ -1261,6 +1269,7 @@ suite('ActionListWidget', () => {
 			},
 			bubbledKeys,
 			listWidth: panel.querySelector<HTMLElement>('.actionList')?.style.width,
+			longLabelTooltip,
 			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action')).map(row => row.querySelector<HTMLElement>('.title')?.textContent),
 		}, {
 			placeholder: 'Search Remote',
@@ -1270,11 +1279,58 @@ suite('ActionListWidget', () => {
 				panelStyle: '0px',
 				expectedStyle: '0px',
 			},
-			bubbledKeys: [],
+			bubbledKeys: ['P', 'F1', ' ', 'Process'],
 			listWidth: '180px',
+			longLabelTooltip: 'A long remote host label',
 			rows: ['Beta'],
 		});
 	});
+
+	test('a filtered submenu near the viewport bottom shifts enough to show one row', () => withWindowInnerHeight(300, () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuActions: Array.from({ length: 10 }, (_, index) =>
+					toAction({ id: `remote-${index}`, label: `Remote ${index}`, run: () => { } })),
+				submenuOptions: {
+					showFilter: true,
+					filterPlaceholder: 'Search Remote',
+					filterAsCombobox: true,
+					minWidth: 180,
+					maxWidth: 180,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
+		widget.domNode.getBoundingClientRect = () => new mainWindow.DOMRect(40, 260, 180, 24);
+		row.getBoundingClientRect = () => new mainWindow.DOMRect(40, 260, 180, 24);
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const viewport = panel.querySelector<HTMLElement>('.action-list-submenu-viewport')!;
+		const filter = panel.querySelector<HTMLElement>('.action-list-filter')!;
+		const submenuList = panel.querySelector<HTMLElement>('.actionList')!;
+		panel.getBoundingClientRect = () => new mainWindow.DOMRect(220, 260, 190, 200);
+		viewport.getBoundingClientRect = () => new mainWindow.DOMRect(220, 260, 190, 190);
+		Object.defineProperty(filter, 'offsetHeight', { configurable: true, value: 30 });
+		mainWindow.dispatchEvent(new Event('resize'));
+
+		const top = parseFloat(panel.style.top);
+		assert.deepStrictEqual({
+			top,
+			minimumPanelBottom: 260 + top + 10 + 30 + 24,
+			listHeight: submenuList.style.height,
+			viewportHeight: viewport.style.height,
+		}, {
+			top: -32,
+			minimumPanelBottom: 292,
+			listHeight: '24px',
+			viewportHeight: '54px',
+		});
+	}));
 
 	test('a long filtered submenu scrolls its rows beneath the fixed filter', () => withWindowInnerHeight(300, () => {
 		const widget = createActionListWidget(disposables, {
