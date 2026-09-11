@@ -565,7 +565,7 @@ export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests'
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
 
-// Root config key forwarded from the renderer when the `chat.agentSessions.sessionCatalog.enabled`
+// Root config key forwarded from the renderer when the `chat.agentHost.sessionCatalog.enabled`
 // setting changes. When `false`, the host lists sessions from provider metadata and per-session
 // storage instead of the central catalog, and performs no catalog import or background repair.
 export const AgentHostSessionCatalogEnabledConfigKey = 'sessionCatalogEnabled';
