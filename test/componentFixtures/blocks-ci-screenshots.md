@@ -210,6 +210,18 @@
 #### chat/petAchievements/standaloneModal/chatPetAchievementsEditor/MixedSelected/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b4e697f87416c5f384d7dd0338fcf76ca128bf695efa96ed885abc124a8736e1)
 
+#### comments/commentTree/CommentTreeMetadataZoomed/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1a868371c89df3ba1f23de1c82d2d27d2c0c044e7f52d2964b5052c9457527d4)
+
+#### comments/commentTree/CommentTreeMetadataZoomed/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/60a63cc5b0df6f49efcd113ae4070fd0d5eab81836f646c6268308b1e0430045)
+
+#### comments/commentTree/CommentTreeMetadataZoomed/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a81446b88a24acb43f7713d0d84c921bb9d79d4c06448e77b4baae5c1f5c9026)
+
+#### comments/commentTree/CommentTreeMetadataZoomed/LightHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0ef899f1c38118a9e795682b8a2659ad7d2f06fe06700bf2321b3346f3bebbe9)
+
 #### editor/codeEditor/CodeEditor/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b4617f74b50a09295a5151a0d53481c37a53839f94f23f6e7d0a5a6159a7a231)
 
@@ -287,6 +299,39 @@
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidgetTerminated/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8d8b39f9a3dd85453ad1594df888c7ac1908d5c7ed80a5b15238d818a89aeb1b)
+
+#### editor/wordWrapIndicator/WordWrapIndicator/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e3730bbf363c9b4f53eacffa84eab3bdc2e7918976fe587a103fb8b58497d10b)
+
+#### editor/wordWrapIndicator/WordWrapIndicator/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2c60071062672d2bb4d39c089120d25839c155fb04d9e5bc8100131a5601a3b8)
+
+#### editor/wordWrapIndicator/WordWrapIndicator/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/9b7191f3dc7cede99687efc61bc2e50324e23b2bd0781ab62aed5bb6c113e77e)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorDisabled/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ba8177448872e3a16dcb477d4c6dd43910796428122761706ac72159b6a6cf1b)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorDisabled/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/bfd14bc97613141a7bb9914a204d04b4d2e4f1cd3cedfd806201827fdfa6b05c)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorFixedColumnBeyondViewport/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3c9b1335680970e669c48dbadb816b4f42a733e36d5d1585eae3f5b2a90ce88b)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorFixedColumnBeyondViewport/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/44a44a161770ed83c0d9e6214175f1153fe44938942ed85c722fc2d1858cac07)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorVariableLineHeight/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3060cc772b4475c7c0bd22ba966f9a2e865056254b27165974c9cb6c6f9f7b48)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorVariableLineHeight/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f6a34b4ac5a13300f402a922b935765ec0a55b712b2bc6951da7be8fa1c1eb7c)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorViewportWrapping/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a566d109318a76dcf050cc22abec5651b22cdde14c203a4f7f5a004d763aed55)
+
+#### editor/wordWrapIndicator/WordWrapIndicatorViewportWrapping/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2945563f28440c62c812e2c80ac40620807822ec8b691bac9b79a85610b4fc50)
 
 #### sessions/accountMenu/petAchievementBadges/chatPetAchievementBadges/AllBadges/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/1e3ddc3ee992c5ce9561c6b3a473ec3036675a5582c8a6ddb931da6095cb5d37)
