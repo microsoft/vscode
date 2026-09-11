@@ -10,6 +10,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
+import { ILogService } from '../../../../platform/log/common/logService';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -133,6 +134,21 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	afterEach(() => {
 		disposables.clear();
 		vi.restoreAllMocks();
+	});
+
+	it.each(['fake-secret\u200bvalue', 'fake-secret\nvalue'])('rejects invalid credential headers without logging their values', invalidValue => {
+		const log = accessor.get(ILogService);
+		const warnings = vi.spyOn(log, 'warn');
+		const endpoint = instaService.createInstance(OpenAIEndpoint, {
+			...modelMetadata,
+			requestHeaders: { Authorization: invalidValue, 'X-Credential': invalidValue, 'X-Valid': 'allowed' },
+		}, 'configured-key', 'https://example.test/v1/chat/completions');
+		const headers = endpoint.getExtraHeaders();
+		expect(headers.Authorization).toBe('Bearer configured-key');
+		expect(headers['X-Credential']).toBeUndefined();
+		expect(headers['X-Valid']).toBe('allowed');
+		expect(warnings).toHaveBeenCalled();
+		expect(warnings.mock.calls.flat().join(' ')).not.toContain('fake-secret');
 	});
 
 	describe('ownsAuthorization', () => {

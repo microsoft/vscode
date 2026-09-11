@@ -27,6 +27,8 @@ export interface ExtendedLanguageModelChatInformation<C extends LanguageModelCha
 
 export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelChatConfiguration = LanguageModelChatConfiguration, T extends ExtendedLanguageModelChatInformation<C> = ExtendedLanguageModelChatInformation<C>> implements LanguageModelChatProvider<T> {
 
+	private _defaultGroupMigration: Promise<string | undefined> | undefined;
+
 	constructor(
 		protected readonly _id: string,
 		protected readonly _name: string,
@@ -34,7 +36,9 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 		protected readonly _byokStorageService: IBYOKStorageService,
 		@ILogService protected readonly _logService: ILogService,
 	) {
-		this.configureDefaultGroupWithApiKeyOnly();
+		void this.configureDefaultGroupWithApiKeyOnly().catch(() => {
+			this._logService.error('BYOK API key migration failed; the existing credential was retained.');
+		});
 	}
 
 	updateKnownModels(knownModels: BYOKKnownModels | undefined): void {
@@ -46,9 +50,18 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 
 	// TODO: Remove this after 6 months
 	protected async configureDefaultGroupWithApiKeyOnly(): Promise<string | undefined> {
+		if (!this._defaultGroupMigration) {
+			this._defaultGroupMigration = this._migrateDefaultGroupWithApiKeyOnly().finally(() => {
+				this._defaultGroupMigration = undefined;
+			});
+		}
+		return this._defaultGroupMigration;
+	}
+
+	private async _migrateDefaultGroupWithApiKeyOnly(): Promise<string | undefined> {
 		const apiKey = await this._byokStorageService.getAPIKey(this._name);
 		if (apiKey) {
-			this.configureDefaultGroupIfExists(this._name, { apiKey } as C);
+			await this.configureDefaultGroupIfExists(this._name, { apiKey } as C);
 			await this._byokStorageService.deleteAPIKey(this._name, BYOKAuthType.GlobalApiKey);
 		}
 		return apiKey;

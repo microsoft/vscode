@@ -93,7 +93,9 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 			expService,
 			extensionContext
 		);
-		this.migrateExistingConfigs();
+		void this.migrateExistingConfigs().catch(() => {
+			this._logService.error('Azure BYOK configuration migration failed; the existing configuration was retained.');
+		});
 	}
 
 	// TODO: Remove this after 6 months

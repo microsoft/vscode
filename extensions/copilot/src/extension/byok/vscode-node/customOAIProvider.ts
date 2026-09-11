@@ -185,7 +185,9 @@ export class CustomOAIBYOKModelProvider extends AbstractCustomOAIBYOKModelProvid
 		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext
 	) {
 		super(CustomOAIBYOKModelProvider.providerId, CustomOAIBYOKModelProvider.providerName, _byokStorageService, logService, fetcherService, instantiationService, configurationService, expService, extensionContext);
-		this.migrateExistingConfigs();
+		void this.migrateExistingConfigs().catch(() => {
+			this._logService.error('Custom OAI BYOK configuration migration failed; the existing configuration was retained.');
+		});
 	}
 
 	// TODO: Remove this after 6 months
