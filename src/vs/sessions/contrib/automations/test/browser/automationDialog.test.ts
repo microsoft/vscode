@@ -1247,12 +1247,14 @@ suite('Automation branch picker', () => {
 suite('Automation dialog keyboard navigation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const { name, interveningEvents } of [
+	const escapeScenarios = [
 		{ name: 'a normal Escape press', interveningEvents: [] },
-		{ name: 'repeated Escape keydowns after focus returns to the select', interveningEvents: [{ type: 'keydown', repeat: true }, { type: 'keydown', repeat: true }] },
+		{ name: 'repeated Escape keydowns', interveningEvents: [{ type: 'keydown', repeat: true }, { type: 'keydown', repeat: true }] },
 		{ name: 'another keydown before Escape is released', interveningEvents: [{ type: 'keydown', key: 'a', keyCode: 65 }] },
 		{ name: 'another keyup before Escape is released', interveningEvents: [{ type: 'keyup', key: 'a', keyCode: 65 }] },
-	]) {
+	];
+
+	for (const { name, interveningEvents } of escapeScenarios) {
 		test(`keeps the dialog open when the Schedule popup handles ${name}`, async () => {
 			const container = DOM.append(document.body, DOM.$('div'));
 			disposables.add({ dispose: () => container.remove() });
@@ -1262,6 +1264,7 @@ suite('Automation dialog keyboard navigation', () => {
 				onDidLayoutContainer: Event.None,
 			})));
 			let select!: HTMLSelectElement;
+			let promptCancellationAttempts = 0;
 			const dialog = disposables.add(new Dialog(container, 'New automation', ['Cancel'], {
 				cancelId: 0,
 				isExternalFocusAllowed: isAutomationDialogPopupTarget,
@@ -1279,6 +1282,11 @@ suite('Automation dialog keyboard navigation', () => {
 						DOM.getWindow(body),
 						() => [select],
 						isAutomationDialogPopupTarget,
+						undefined,
+						() => {
+							promptCancellationAttempts++;
+							return false;
+						},
 					));
 				},
 				buttonStyles: defaultButtonStyles,
@@ -1309,17 +1317,138 @@ suite('Automation dialog keyboard navigation', () => {
 				expanded: select.getAttribute('aria-expanded'),
 				focusRestored: document.activeElement === select,
 				value: select.value,
+				promptCancellationAttempts,
 			}, {
 				closed: false,
 				expanded: 'false',
 				focusRestored: true,
 				value: 'Daily',
+				promptCancellationAttempts: 0,
 			});
 
 			dispatch('keydown');
 			dispatch('keyup');
 			await timeout(0);
 			assert.strictEqual(closed, true, 'A separate Escape press still closes the dialog');
+			dialog.dispose();
+			await result;
+		});
+	}
+
+	function createPromptDialog(cancelPromptSuggestion: () => boolean) {
+		const container = DOM.append(document.body, DOM.$('div'));
+		disposables.add({ dispose: () => container.remove() });
+		const prompt = DOM.$('textarea');
+		prompt.value = 'Unsaved automation prompt';
+		const dialog = disposables.add(new Dialog(container, 'New automation', ['Cancel'], {
+			cancelId: 0,
+			isExternalFocusAllowed: isAutomationDialogPopupTarget,
+			renderBody: body => {
+				body.appendChild(prompt);
+				disposables.add(registerAutomationDialogKeyboardNavigation(
+					DOM.getWindow(body),
+					() => [prompt],
+					isAutomationDialogPopupTarget,
+					undefined,
+					cancelPromptSuggestion,
+				));
+			},
+			buttonStyles: defaultButtonStyles,
+			checkboxStyles: defaultCheckboxStyles,
+			inputBoxStyles: defaultInputBoxStyles,
+			dialogStyles: defaultDialogStyles,
+		}));
+		let closed = false;
+		const result = dialog.show().then(() => { closed = true; });
+		prompt.focus();
+		return {
+			dialog,
+			prompt,
+			result,
+			isClosed: () => closed,
+			dispatch: (type: string, options: KeyboardEventInit = {}) => {
+				const event = new KeyboardEvent(type, {
+					key: 'Escape', keyCode: 27, bubbles: true, cancelable: true, ...options,
+				});
+				document.activeElement!.dispatchEvent(event);
+				return event;
+			},
+		};
+	}
+
+	for (const { name, interveningEvents, shiftKey } of [
+		...escapeScenarios.map(scenario => ({ ...scenario, shiftKey: false })),
+		{ name: 'Shift+Escape', interveningEvents: [], shiftKey: true },
+	]) {
+		test(`keeps the dialog open when prompt suggestions handle ${name}`, async () => {
+			let suggestionsActive = true;
+			let cancellationAttempts = 0;
+			const { dialog, prompt, result, isClosed, dispatch } = createPromptDialog(() => {
+				cancellationAttempts++;
+				const cancelled = suggestionsActive;
+				suggestionsActive = false;
+				return cancelled;
+			});
+			const keydown = dispatch('keydown', { shiftKey });
+			for (const { type, ...options } of interveningEvents) {
+				dispatch(type, options);
+			}
+			dispatch('keyup', { shiftKey });
+			await timeout(0);
+
+			const afterSuggestionEscape = {
+				closed: isClosed(),
+				suggestionsActive,
+				cancellationAttempts,
+				promptFocused: document.activeElement === prompt,
+				value: prompt.value,
+				keydownPrevented: keydown.defaultPrevented,
+			};
+			dispatch('keydown');
+			dispatch('keyup');
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterSuggestionEscape,
+				closedAfterNextEscape: isClosed(),
+			}, {
+				afterSuggestionEscape: {
+					closed: false,
+					suggestionsActive: false,
+					cancellationAttempts: 1,
+					promptFocused: true,
+					value: 'Unsaved automation prompt',
+					keydownPrevented: true,
+				},
+				closedAfterNextEscape: true,
+			});
+			dialog.dispose();
+			await result;
+		});
+	}
+
+	for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
+		test(`does not cancel prompt suggestions for Escape with ${modifier}`, async () => {
+			let cancellationAttempts = 0;
+			const { dialog, prompt, result, isClosed, dispatch } = createPromptDialog(() => {
+				cancellationAttempts++;
+				return true;
+			});
+			const keydown = dispatch('keydown', { [modifier]: true });
+			dispatch('keyup', { [modifier]: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closed: isClosed(),
+				cancellationAttempts,
+				promptFocused: document.activeElement === prompt,
+				keydownPrevented: keydown.defaultPrevented,
+			}, {
+				closed: false,
+				cancellationAttempts: 0,
+				promptFocused: true,
+				keydownPrevented: false,
+			});
 			dialog.dispose();
 			await result;
 		});
