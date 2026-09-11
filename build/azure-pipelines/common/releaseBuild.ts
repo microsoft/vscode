@@ -45,7 +45,7 @@ async function main(force: boolean): Promise<void> {
 	const quality = getEnv('VSCODE_QUALITY');
 
 	const { cosmosDBAccessToken } = JSON.parse(getEnv('PUBLISH_AUTH_TOKENS'));
-	const client = new CosmosClient({ endpoint: process.env.AZURE_DOCUMENTDB_ENDPOINT!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
+	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
 
 	if (!force) {
 		const config = await getConfig(client, quality);

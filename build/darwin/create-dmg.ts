@@ -140,8 +140,8 @@ async function runDmgBuild(settingsFile: string, volumeName: string, artifactPat
 }
 
 async function main(buildDir?: string, outDir?: string): Promise<void> {
-	const arch = process.env.VSCODE_ARCH;
-	const quality = process.env.VSCODE_QUALITY;
+	const arch = process.env['VSCODE_ARCH'];
+	const quality = process.env['VSCODE_QUALITY'];
 
 	if (!buildDir) {
 		throw new Error('Build directory argument is required');

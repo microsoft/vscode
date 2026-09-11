@@ -36,7 +36,7 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	const options: ts.CompilerOptions = {};
 	options.verbose = false;
 	options.sourceMap = true;
-	if (process.env.VSCODE_NO_SOURCEMAP) { // To be used by developers in a hurry
+	if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
 		options.sourceMap = false;
 	}
 	options.rootDir = rootDir;

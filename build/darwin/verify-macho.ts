@@ -141,9 +141,9 @@ async function checkMachOFiles(appPath: string, arch: string) {
 }
 
 const archToCheck = process.argv[2];
-assert(process.env.APP_PATH, 'APP_PATH not set');
+assert(process.env['APP_PATH'], 'APP_PATH not set');
 assert(archToCheck === 'x64' || archToCheck === 'arm64' || archToCheck === 'universal', `Invalid architecture ${archToCheck} to check`);
-checkMachOFiles(process.env.APP_PATH, archToCheck).then(invalidFiles => {
+checkMachOFiles(process.env['APP_PATH'], archToCheck).then(invalidFiles => {
 	// Filter out files that should be skipped
 	const actualInvalidFiles = invalidFiles.filter(file => !isFileSkipped(file));
 	if (actualInvalidFiles.length > 0) {

@@ -40,12 +40,12 @@ async function main(serverDir: string): Promise<void> {
 		throw new Error('Server directory argument is required');
 	}
 
-	const tempDir = process.env.AGENT_TEMPDIRECTORY;
+	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
 	if (!tempDir) {
 		throw new Error('$AGENT_TEMPDIRECTORY not set');
 	}
 
-	const identity = process.env.CODESIGN_IDENTITY;
+	const identity = process.env['CODESIGN_IDENTITY'];
 	if (!identity) {
 		throw new Error('$CODESIGN_IDENTITY not set');
 	}

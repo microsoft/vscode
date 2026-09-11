@@ -108,7 +108,7 @@ function validateEnvironment(): void {
 
 function parseArguments(args: readonly string[]): { jobs: number; forwardedArgs: readonly string[] } {
 	const forwardedArgs: string[] = [];
-	let requestedJobs: string | undefined = process.env.AGENT_HOST_E2E_JOBS;
+	let requestedJobs: string | undefined = process.env['AGENT_HOST_E2E_JOBS'];
 
 	for (let index = 0; index < args.length; index++) {
 		const argument = args[index];
@@ -146,7 +146,7 @@ function prepareTestRuntime(): void {
 	if (!existsSync(join(repoRoot, 'node_modules'))) {
 		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install'], environment);
 	}
-	if (process.env.VSCODE_SKIP_PRELAUNCH !== '1') {
+	if (process.env['VSCODE_SKIP_PRELAUNCH'] !== '1') {
 		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'electron'], environment);
 	}
 }
@@ -179,7 +179,7 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 	return new Promise(resolveResult => {
 		const testArguments = ['--run', suite.file, ...suiteArguments(forwardedArgs, suite)];
 		const child = process.platform === 'win32'
-			? spawn(join(process.env.SYSTEMROOT ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
+			? spawn(join(process.env['SYSTEMROOT'] ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
 				'-NoLogo',
 				'-NoProfile',
 				'-NonInteractive',
@@ -264,11 +264,11 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 }
 
 function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
-	if (process.env.AGENT_HOST_RECORD_PROTOCOL_SURFACE !== '1') {
+	if (process.env['AGENT_HOST_RECORD_PROTOCOL_SURFACE'] !== '1') {
 		return new Map();
 	}
 
-	const combinedOutput = process.env.AGENT_HOST_PROTOCOL_SURFACE_OUT
+	const combinedOutput = process.env['AGENT_HOST_PROTOCOL_SURFACE_OUT']
 		?? join(repoRoot, '.build', 'agent-host-e2e-coverage', 'protocol-surface', 'observed.json');
 	const extension = extname(combinedOutput);
 	const stem = basename(combinedOutput, extension);
@@ -282,7 +282,7 @@ function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
 }
 
 function mergeSurfaceOutputs(outputs: ReadonlyMap<string, string>): void {
-	const combinedOutput = process.env.AGENT_HOST_PROTOCOL_SURFACE_OUT
+	const combinedOutput = process.env['AGENT_HOST_PROTOCOL_SURFACE_OUT']
 		?? join(repoRoot, '.build', 'agent-host-e2e-coverage', 'protocol-surface', 'observed.json');
 	const commands = new Set<string>();
 	const notifications = new Set<string>();
@@ -290,7 +290,7 @@ function mergeSurfaceOutputs(outputs: ReadonlyMap<string, string>): void {
 
 	for (const output of outputs.values()) {
 		if (!existsSync(output)) {
-			if (process.env.AGENT_HOST_E2E_COVERAGE === '1') {
+			if (process.env['AGENT_HOST_E2E_COVERAGE'] === '1') {
 				throw new Error(`Missing protocol surface observations from ${output}`);
 			}
 			continue;

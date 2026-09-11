@@ -141,7 +141,7 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 	const key = crypto.randomBytes(32);
 	const iv = crypto.randomBytes(16);
 	const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-	const encryptedToken = cipher.update(process.env.SYSTEM_ACCESSTOKEN!.trim(), 'utf8', 'hex') + cipher.final('hex');
+	const encryptedToken = cipher.update(process.env['SYSTEM_ACCESSTOKEN']!.trim(), 'utf8', 'hex') + cipher.final('hex');
 
 	const encryptionDetailsPath = tmp.tmpNameSync();
 	fs.writeFileSync(encryptionDetailsPath, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
@@ -159,14 +159,14 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 	const adoTaskVersion = path.basename(path.dirname(path.dirname(esrpCliPath)));
 
 	const federatedTokenData = {
-		jobId: process.env.SYSTEM_JOBID,
-		planId: process.env.SYSTEM_PLANID,
-		projectId: process.env.SYSTEM_TEAMPROJECTID,
-		hub: process.env.SYSTEM_HOSTTYPE,
-		uri: process.env.SYSTEM_COLLECTIONURI,
-		managedIdentityId: process.env.VSCODE_ESRP_CLIENT_ID,
-		managedIdentityTenantId: process.env.VSCODE_ESRP_TENANT_ID,
-		serviceConnectionId: process.env.VSCODE_ESRP_SERVICE_CONNECTION_ID,
+		jobId: process.env['SYSTEM_JOBID'],
+		planId: process.env['SYSTEM_PLANID'],
+		projectId: process.env['SYSTEM_TEAMPROJECTID'],
+		hub: process.env['SYSTEM_HOSTTYPE'],
+		uri: process.env['SYSTEM_COLLECTIONURI'],
+		managedIdentityId: process.env['VSCODE_ESRP_CLIENT_ID'],
+		managedIdentityTenantId: process.env['VSCODE_ESRP_TENANT_ID'],
+		serviceConnectionId: process.env['VSCODE_ESRP_SERVICE_CONNECTION_ID'],
 		tempDirectory: os.tmpdir(),
 		systemAccessToken: encryptedTokenPath,
 		encryptionKey: encryptionDetailsPath
@@ -175,8 +175,8 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 	const args = [
 		esrpCliPath,
 		'vsts.sign',
-		'-a', process.env.ESRP_CLIENT_ID!,
-		'-d', process.env.ESRP_TENANT_ID!,
+		'-a', process.env['ESRP_CLIENT_ID']!,
+		'-d', process.env['ESRP_TENANT_ID']!,
 		'-k', JSON.stringify({ akv: 'vscode-esrp' }),
 		'-z', JSON.stringify({ akv: 'vscode-esrp', cert: 'esrp-sign' }),
 		'-f', folderPath,
@@ -202,7 +202,7 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 		'-pendingAnalysisWaitTimeoutMinutes', '5',
 		'-adoTaskVersion', adoTaskVersion,
 		'-resourceUri', 'https://msazurecloud.onmicrosoft.com/api.esrp.microsoft.com',
-		'-esrpClientId', process.env.ESRP_CLIENT_ID!,
+		'-esrpClientId', process.env['ESRP_CLIENT_ID']!,
 		'-useMSIAuthentication', 'true',
 		'-federatedTokenData', JSON.stringify(federatedTokenData)
 	];

@@ -58,7 +58,7 @@ export async function downloadExplorerDll(outDir: string, quality: string = 'sta
 }
 
 async function main(outputDir?: string): Promise<void> {
-	const arch = process.env.VSCODE_ARCH;
+	const arch = process.env['VSCODE_ARCH'];
 
 	if (!outputDir) {
 		throw new Error('Required build env not set');

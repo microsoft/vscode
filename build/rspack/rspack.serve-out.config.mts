@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
-const isStaticComponentExplorerBuild = process.env.COMPONENT_EXPLORER_STATIC_BUILD === '1';
+const isStaticComponentExplorerBuild = process.env['COMPONENT_EXPLORER_STATIC_BUILD'] === '1';
 const builtInFileIconThemeDirectories = [
 	'extensions/theme-defaults/fileicons',
 	'extensions/theme-seti/icons',

@@ -11,8 +11,8 @@ import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
 import { VinylStat } from '../lib/util.ts';
 
-const commit = process.env.BUILD_SOURCEVERSION;
-const credential = new ClientAssertionCredential(process.env.AZURE_TENANT_ID!, process.env.AZURE_CLIENT_ID!, () => Promise.resolve(process.env.AZURE_ID_TOKEN!));
+const commit = process.env['BUILD_SOURCEVERSION'];
+const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 
 mime.define({
 	'application/typescript': ['ts'],

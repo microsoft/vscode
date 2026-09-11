@@ -122,7 +122,7 @@ async function main(): Promise<void> {
 		execSync('npm run transpile-client', { cwd: rootPath, stdio: 'inherit' });
 	}
 
-	if (!process.env.GITHUB_TOKEN && !process.env.DISTRO_PRODUCT_JSON) {
+	if (!process.env['GITHUB_TOKEN'] && !process.env['DISTRO_PRODUCT_JSON']) {
 		let token: string | undefined;
 		try {
 			token = execFileSync('gh', ['auth', 'token'], { encoding: 'utf8' }).trim();
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
 			token = await acquireTokenViaDeviceFlow();
 			console.log('GitHub authorization successful.');
 		}
-		process.env.GITHUB_TOKEN = token;
+		process.env['GITHUB_TOKEN'] = token;
 	}
 
 	const codeScript = process.platform === 'win32'

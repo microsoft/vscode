@@ -61,9 +61,9 @@ async function retrySignOnKeychainError<T>(fn: () => Promise<T>, maxRetries: num
 }
 
 async function main(buildDir?: string): Promise<void> {
-	const tempDir = process.env.AGENT_TEMPDIRECTORY;
-	const arch = process.env.VSCODE_ARCH;
-	const identity = process.env.CODESIGN_IDENTITY;
+	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
+	const arch = process.env['VSCODE_ARCH'];
+	const identity = process.env['CODESIGN_IDENTITY'];
 
 	if (!buildDir) {
 		throw new Error('$AGENT_BUILDDIRECTORY not set');
@@ -137,7 +137,7 @@ async function main(buildDir?: string): Promise<void> {
 if (import.meta.main) {
 	main(process.argv[2]).catch(async err => {
 		console.error(err);
-		const tempDir = process.env.AGENT_TEMPDIRECTORY;
+		const tempDir = process.env['AGENT_TEMPDIRECTORY'];
 		if (tempDir) {
 			const keychain = path.join(tempDir, 'buildagent.keychain');
 			const identities = await spawn('security', ['find-identity', '-p', 'codesigning', '-v', keychain]);

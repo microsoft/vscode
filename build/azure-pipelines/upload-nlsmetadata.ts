@@ -11,8 +11,8 @@ import { ClientAssertionCredential } from '@azure/identity';
 import path from 'path';
 import { readFileSync } from 'fs';
 
-const commit = process.env.BUILD_SOURCEVERSION;
-const credential = new ClientAssertionCredential(process.env.AZURE_TENANT_ID!, process.env.AZURE_CLIENT_ID!, () => Promise.resolve(process.env.AZURE_ID_TOKEN!));
+const commit = process.env['BUILD_SOURCEVERSION'];
+const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 
 interface NlsMetadata {
 	keys: { [module: string]: string };

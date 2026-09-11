@@ -46,7 +46,7 @@ const productjson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '.
 const builtInExtensions = productjson.builtInExtensions as IExtensionDefinition[] || [];
 const webBuiltInExtensions = productjson.webBuiltInExtensions as IExtensionDefinition[] || [];
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
-const ENABLE_LOGGING = !process.env.VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE;
+const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 
 function log(...messages: string[]): void {
 	if (ENABLE_LOGGING) {
@@ -76,7 +76,7 @@ function isUpToDate(extension: IExtensionDefinition): boolean {
 }
 
 function isInsiders(): boolean {
-	return process.env.VSCODE_QUALITY === 'insider';
+	return process.env['VSCODE_QUALITY'] === 'insider';
 }
 
 function getExtensionDownloadStream(extension: IExtensionDefinition) {
@@ -107,7 +107,7 @@ function resolvePlatformSpecificAsset(extension: IExtensionDefinition): { assetN
 	if (!target) {
 		// Unsupported build platform (e.g. FreeBSD): no platform-specific asset can apply, so skip
 		// this extension gracefully instead of failing the whole build.
-		log(ansiColors.yellow('[skip]'), `${extension.name}: no platform-specific asset for unsupported platform '${process.platform}-${process.env.VSCODE_ARCH ?? process.arch}'`);
+		log(ansiColors.yellow('[skip]'), `${extension.name}: no platform-specific asset for unsupported platform '${process.platform}-${process.env['VSCODE_ARCH'] ?? process.arch}'`);
 		return undefined;
 	}
 

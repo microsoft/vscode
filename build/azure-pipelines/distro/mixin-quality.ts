@@ -28,7 +28,7 @@ function log(...args: unknown[]): void {
 }
 
 function main() {
-	const quality = process.env.VSCODE_QUALITY;
+	const quality = process.env['VSCODE_QUALITY'];
 
 	if (!quality) {
 		throw new Error('Missing VSCODE_QUALITY, skipping mixin');

@@ -216,7 +216,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		.pipe(snapshotFilter)
 		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
-		.pipe(process.env.BUILD_SOURCEVERSION ? es.through() : trackCheckedFile().pipe(productJson))
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : trackCheckedFile().pipe(productJson))
 		.pipe(productJsonFilter.restore)
 		.pipe(unicodeFilterStream)
 		.pipe(trackCheckedFile())
@@ -263,7 +263,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 		es.through(
 			function (data: unknown) {
 				count++;
-				if (process.env.TRAVIS && count % 10 === 0) {
+				if (process.env['TRAVIS'] && count % 10 === 0) {
 					process.stdout.write('.');
 				}
 				this.emit('data', data);

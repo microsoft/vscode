@@ -29,8 +29,8 @@ async function main(): Promise<void> {
 	const queuedBy = getEnv('BUILD_QUEUEDBY');
 	const sourceBranch = getEnv('BUILD_SOURCEBRANCH');
 	const version = _version + (quality === 'stable' ? '' : `-${quality}`);
-	const buildId = process.env.BUILD_BUILDID;
-	const definitionId = process.env.SYSTEM_DEFINITIONID;
+	const buildId = process.env['BUILD_BUILDID'];
+	const definitionId = process.env['SYSTEM_DEFINITIONID'];
 
 	console.log('Creating build...');
 	console.log('Quality:', quality);
@@ -43,7 +43,7 @@ async function main(): Promise<void> {
 		timestamp,
 		version,
 		isReleased: false,
-		private: process.env.VSCODE_PRIVATE_BUILD?.toLowerCase() === 'true',
+		private: process.env['VSCODE_PRIVATE_BUILD']?.toLowerCase() === 'true',
 		sourceBranch,
 		queuedBy,
 		assets: [],
@@ -56,8 +56,8 @@ async function main(): Promise<void> {
 		definitionId
 	};
 
-	const aadCredentials = new ClientAssertionCredential(process.env.AZURE_TENANT_ID!, process.env.AZURE_CLIENT_ID!, () => Promise.resolve(process.env.AZURE_ID_TOKEN!));
-	const client = new CosmosClient({ endpoint: process.env.AZURE_DOCUMENTDB_ENDPOINT!, aadCredentials });
+	const aadCredentials = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
+	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, aadCredentials });
 	const scripts = client.database('builds').container(quality).scripts;
 	await retry(() => scripts.storedProcedure('createBuild').execute('', [{ ...build, _partitionKey: '' }]));
 }

@@ -279,7 +279,7 @@ function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefi
 
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${nodejsArtifactFeed || 'https://nodejs.org'}...`);
 
-	const glibcPrefix = process.env.VSCODE_NODE_GLIBC ?? '';
+	const glibcPrefix = process.env['VSCODE_NODE_GLIBC'] ?? '';
 	let expectedName: string | undefined;
 	switch (platform) {
 		case 'win32':

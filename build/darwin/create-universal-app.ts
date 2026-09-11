@@ -35,7 +35,7 @@ function crossCopyPlatformDir(x64AppPath: string, arm64AppPath: string, relative
 }
 
 async function main(buildDir?: string) {
-	const arch = process.env.VSCODE_ARCH;
+	const arch = process.env['VSCODE_ARCH'];
 
 	if (!buildDir) {
 		throw new Error('Build dir not provided');

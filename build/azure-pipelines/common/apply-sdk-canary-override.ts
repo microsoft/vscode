@@ -176,8 +176,8 @@ function resolveLatestCanary(): string {
 }
 
 function collectOverrides(): Override[] {
-	let sdkVersion = (process.env.VSCODE_SDK_CANARY_VERSION ?? '').trim();
-	const explicitCli = (process.env.VSCODE_CLI_CANARY_VERSION ?? '').trim();
+	let sdkVersion = (process.env['VSCODE_SDK_CANARY_VERSION'] ?? '').trim();
+	const explicitCli = (process.env['VSCODE_CLI_CANARY_VERSION'] ?? '').trim();
 	// `latest-canary` sentinel: resolve the newest published @github/copilot-sdk
 	// canary here, inside the build, where private-feed npm auth already exists —
 	// so the GitHub-side orchestrator that queues this build never needs

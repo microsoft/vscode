@@ -14,8 +14,8 @@ import Stream from 'stream';
 import { azureStorage } from '../lib/gulp/facade.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
-const commit = process.env.BUILD_SOURCEVERSION;
-const credential = new ClientAssertionCredential(process.env.AZURE_TENANT_ID!, process.env.AZURE_CLIENT_ID!, () => Promise.resolve(process.env.AZURE_ID_TOKEN!));
+const commit = process.env['BUILD_SOURCEVERSION'];
+const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;

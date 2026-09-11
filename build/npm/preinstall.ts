@@ -8,7 +8,7 @@ import * as child_process from 'child_process';
 import * as os from 'os';
 import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
 
-if (!process.env.VSCODE_SKIP_NODE_VERSION_CHECK) {
+if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
 	const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
 	const majorNodeVersion = parseInt(nodeVersion![1]);
@@ -54,7 +54,7 @@ if (npmVersionMatch) {
 
 // Fast path: if nothing changed since last successful install, skip everything.
 // This makes `npm i` near-instant when dependencies haven't changed.
-if (!process.env.VSCODE_FORCE_INSTALL && isUpToDate()) {
+if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
 	process.exit(0);
 }
@@ -91,7 +91,7 @@ function hasSupportedVisualStudioVersion() {
 
 		// Check default installation paths
 		const programFiles86Path = process.env['ProgramFiles(x86)'];
-		const programFiles64Path = process.env.ProgramFiles;
+		const programFiles64Path = process.env['ProgramFiles'];
 
 		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
 		if (programFiles64Path) {

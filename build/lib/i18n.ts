@@ -336,7 +336,7 @@ function processCoreBundleFormat(base: string, fileHeader: string, languages: La
 	}
 	const sortedLanguages = sortLanguages(languages);
 	sortedLanguages.forEach((language) => {
-		if (process.env.VSCODE_BUILD_VERBOSE) {
+		if (process.env['VSCODE_BUILD_VERBOSE']) {
 			log(`Generating nls bundles for: ${language.id}`);
 		}
 

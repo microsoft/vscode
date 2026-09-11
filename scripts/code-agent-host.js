@@ -33,7 +33,7 @@ async function main() {
 		return;
 	}
 
-	const port = args.port || process.env.VSCODE_AGENT_HOST_PORT || '8081';
+	const port = args.port || process.env['VSCODE_AGENT_HOST_PORT'] || '8081';
 
 	/** @type {string[]} */
 	const serverArgs = ['--port', String(port)];
