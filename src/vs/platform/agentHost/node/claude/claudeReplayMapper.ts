@@ -168,7 +168,8 @@ function parseUserMessage(msg: SessionMessage, timestamp: string | undefined): P
 	}
 	// Mixed or text-only: text wins — matches prior behavior where tool_results
 	// in a text-bearing envelope are dropped (they should already have been delivered).
-	return { kind: 'user-text', uuid: msg.uuid, text: textBlocks.map(b => b.text).join('\n'), timestamp };
+	// Only the first block is the prompt; the rest is host-composed context.
+	return { kind: 'user-text', uuid: msg.uuid, text: textBlocks[0].text, timestamp };
 }
 
 function parseAssistantMessage(msg: SessionMessage, timestamp: string | undefined): ParsedSessionMessage | undefined {
