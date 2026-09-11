@@ -31,6 +31,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
+import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
 import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -509,6 +510,47 @@ suite('SessionChatInputToolbar', () => {
 			valid: 'Sep 3',
 			missing: undefined,
 			invalid: undefined,
+		});
+	});
+
+	test('reveals a bounded title when keyboard focus reaches its reference link', () => {
+		const title = `${'Long issue title '.repeat(8)}ending`;
+		const hover = createIssueHoverElement({
+			owner: 'microsoft',
+			repo: 'vscode',
+			number: 42,
+			repositoryHref: 'https://github.com/microsoft/vscode',
+			referenceHref: 'https://github.com/microsoft/vscode/issues/42',
+			issue: {
+				number: 42,
+				title,
+				body: '',
+				state: GitHubIssueState.Open,
+				stateReason: undefined,
+				author: { login: 'octocat', avatarUrl: '' },
+				createdAt: '2026-09-03T10:00:00Z',
+				updatedAt: '2026-09-03T10:00:00Z',
+				closedAt: undefined,
+			},
+			density: 'compact',
+		});
+		const titleContent = hover.querySelector('.sessions-issue-hover-title-content');
+		const reference = hover.querySelector<HTMLAnchorElement>('.sessions-issue-hover-reference');
+		const bounded = titleContent?.textContent;
+		reference?.dispatchEvent(new FocusEvent('focus'));
+		const focused = titleContent?.textContent;
+		reference?.dispatchEvent(new FocusEvent('blur'));
+
+		assert.deepStrictEqual({
+			bounded,
+			focused,
+			restored: titleContent?.textContent,
+			fullTitle: hover.querySelector('.sessions-issue-hover-title')?.getAttribute('title'),
+		}, {
+			bounded: `${getGitHubHoverTitle(title)}\u00a0#42`,
+			focused: `${title}\u00a0#42`,
+			restored: `${getGitHubHoverTitle(title)}\u00a0#42`,
+			fullTitle: title,
 		});
 	});
 

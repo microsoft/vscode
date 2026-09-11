@@ -8,7 +8,7 @@ import './media/issueHover.css';
 import { $, append } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { GitHubIssueState, GitHubIssueStateReason, IGitHubIssue } from '../common/types.js';
-import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitleParts } from './githubHover.js';
+import { appendGitHubHoverTitle, getGitHubHoverDate, getGitHubHoverDescription } from './githubHover.js';
 
 export interface IIssueHoverData {
 	readonly owner: string;
@@ -41,11 +41,10 @@ export function createIssueHover(data: IIssueHoverData): IIssueHover {
 	const title = data.issue.title || localize('agentSessions.issueHover.titleFallback', "Issue #{0}", data.number);
 	const titleElement = append(hoverElement, $('.sessions-issue-hover-title'));
 	const titleContent = append(titleElement, $('.sessions-issue-hover-title-content'));
-	const titleParts = getGitHubHoverTitleParts(title);
-	titleContent.append(titleParts.leading);
-	const titleTail = titleParts.trailing === undefined ? titleContent : append(titleContent, $('.sessions-issue-hover-title-tail'));
-	titleTail.append(titleParts.trailing === undefined ? '\u00a0' : `${titleParts.trailing}\u00a0`);
-	const referenceLink = appendHoverLink(titleTail, 'sessions-issue-hover-reference', data.referenceHref, `#${data.number}`, data.onDidClickReference, localize('agentSessions.issueHover.reference', "Issue #{0}", data.number));
+	const titleLayout = appendGitHubHoverTitle(titleContent, title, 'sessions-issue-hover-title-tail');
+	const referenceLink = appendHoverLink(titleLayout.referenceContainer, 'sessions-issue-hover-reference', data.referenceHref, `#${data.number}`, data.onDidClickReference, localize('agentSessions.issueHover.reference', "Issue #{0}", data.number));
+	referenceLink.onfocus = titleLayout.showFullTitle;
+	referenceLink.onblur = titleLayout.showBoundedTitle;
 	titleElement.title = title;
 
 	const statusRow = append(hoverElement, $('.sessions-issue-hover-status-row'));

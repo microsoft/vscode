@@ -8,7 +8,7 @@ import './media/pullRequestHover.css';
 import { $, append } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { GitHubPullRequestState, IGitHubPullRequest } from '../common/types.js';
-import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitleParts } from './githubHover.js';
+import { appendGitHubHoverTitle, getGitHubHoverDate, getGitHubHoverDescription } from './githubHover.js';
 
 export interface IPullRequestHoverData {
 	readonly owner: string;
@@ -43,11 +43,10 @@ export function createPullRequestHover(data: IPullRequestHoverData): IPullReques
 	const title = data.pullRequest.title || localize('agentSessions.pullRequestHover.titleFallback', "Pull Request #{0}", data.number);
 	const titleElement = append(hoverElement, $('.sessions-pr-hover-title'));
 	const titleContent = append(titleElement, $('.sessions-pr-hover-title-content'));
-	const titleParts = getGitHubHoverTitleParts(title);
-	titleContent.append(titleParts.leading);
-	const titleTail = titleParts.trailing === undefined ? titleContent : append(titleContent, $('.sessions-pr-hover-title-tail'));
-	titleTail.append(titleParts.trailing === undefined ? '\u00a0' : `${titleParts.trailing}\u00a0`);
-	const referenceLink = appendHoverLink(titleTail, 'sessions-pr-hover-reference', data.referenceHref, `#${data.number}`, data.onDidClickReference, localize('agentSessions.pullRequestHover.reference', "Pull Request #{0}", data.number));
+	const titleLayout = appendGitHubHoverTitle(titleContent, title, 'sessions-pr-hover-title-tail');
+	const referenceLink = appendHoverLink(titleLayout.referenceContainer, 'sessions-pr-hover-reference', data.referenceHref, `#${data.number}`, data.onDidClickReference, localize('agentSessions.pullRequestHover.reference', "Pull Request #{0}", data.number));
+	referenceLink.onfocus = titleLayout.showFullTitle;
+	referenceLink.onblur = titleLayout.showBoundedTitle;
 	titleElement.title = title;
 
 	const statusRow = append(hoverElement, $('.sessions-pr-hover-status-row'));

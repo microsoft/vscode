@@ -33,6 +33,38 @@ export function getGitHubHoverTitleParts(title: string): { readonly leading: str
 	};
 }
 
+interface IGitHubHoverTitleLayout {
+	readonly referenceContainer: HTMLElement;
+	readonly showFullTitle: () => void;
+	readonly showBoundedTitle: () => void;
+}
+
+export function appendGitHubHoverTitle(container: HTMLElement, title: string, tailClassName: string): IGitHubHoverTitleLayout {
+	const titleParts = getGitHubHoverTitleParts(title);
+	const leadingText = container.ownerDocument.createTextNode(titleParts.leading);
+	container.append(leadingText);
+
+	const referenceContainer = titleParts.trailing === undefined ? container : container.ownerDocument.createElement('span');
+	if (referenceContainer !== container) {
+		referenceContainer.className = tailClassName;
+		container.append(referenceContainer);
+	}
+	const trailingText = container.ownerDocument.createTextNode(titleParts.trailing === undefined ? '\u00a0' : `${titleParts.trailing}\u00a0`);
+	referenceContainer.append(trailingText);
+
+	return {
+		referenceContainer,
+		showFullTitle: () => {
+			leadingText.nodeValue = title;
+			trailingText.nodeValue = '\u00a0';
+		},
+		showBoundedTitle: () => {
+			leadingText.nodeValue = titleParts.leading;
+			trailingText.nodeValue = titleParts.trailing === undefined ? '\u00a0' : `${titleParts.trailing}\u00a0`;
+		},
+	};
+}
+
 export function getGitHubHoverDate(value: string | undefined): string | undefined {
 	if (!value) {
 		return undefined;
