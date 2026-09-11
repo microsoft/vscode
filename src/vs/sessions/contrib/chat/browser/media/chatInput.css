@@ -333,7 +333,7 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.sessions-chat-config-toolbar .action-label:hover {
+.sessions-chat-config-toolbar .action-label:not(.agent-host-mode-permissions-trigger):hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }

@@ -55,7 +55,7 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 
 const FILTER_THRESHOLD = 10;
@@ -67,6 +67,7 @@ const CODEX_APPROVALS_LEARN_MORE_URL = 'https://developers.openai.com/codex/conc
 export { isWellKnownAutoApproveSchema };
 
 interface IConfigPickerItem {
+	readonly id?: string;
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
@@ -123,7 +124,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
 			...(hover ? { hover: { content: hover } } : {}),
-			item: { ...item, checked: isSelectedValue(currentValue, item.value) },
+			item: { ...item, id: item.value, checked: isSelectedValue(currentValue, item.value) },
 		};
 	});
 	if (property === SessionConfigKey.AutoApprove && sandboxToggle) {
@@ -765,6 +766,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const permissions = this._getModePickerPermissions();
 		const showFilter = modeItems.length > FILTER_THRESHOLD || ctx.schema.enumDynamic;
 		const actionItems: IActionListItem<IConfigPickerItem | IAction>[] = createModePickerModeItems(modeItems, !!permissions);
+		let initialFocusItemId = modeItems.find(item => item.item?.checked)?.item?.id;
 		const permissionContext = permissions ? this._readContext(SessionConfigKey.AutoApprove) : undefined;
 		if (permissions && permissionContext) {
 			const permissionItems = await this._getActionItems(SessionConfigKey.AutoApprove, permissionContext.schema, permissionContext.value);
@@ -781,7 +783,10 @@ export class AgentHostChatInputPicker extends Disposable {
 					}) : undefined,
 				};
 			});
-			actionItems.push({ kind: ActionListItemKind.Separator }, ...createModePickerPermissionsItems<IConfigPickerItem>(permissions, permissionActions, async () => {
+			if (openPermissions) {
+				initialFocusItemId = permissionActions.find(item => item.item?.checked)?.item?.id;
+			}
+			actionItems.push(...createModePickerPermissionsItems<IConfigPickerItem>(permissions, permissionActions, async () => {
 				this._hidePicker();
 				await this._preferencesService.openSettings({ jsonEditor: false, query: AGENT_HOST_PERMISSIONS_SETTINGS_QUERY });
 			}));
@@ -789,6 +794,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (this._store.isDisposed || this._actionWidgetService.isVisible || !isEqual(sessionResource, this._widget.viewModel?.sessionResource)) {
 			return;
 		}
+		const combinedTrigger = permissions ? this._trigger : undefined;
 
 		const delegate: IActionListDelegate<IConfigPickerItem | IAction> = {
 			onSelect: item => hasKey(item, { run: true }) ? item.run() : this._selectItem(this._property, ctx.backendSession, item),
@@ -804,6 +810,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			onHide: () => {
 				this._pickerVisible = false;
 				anchor.ariaExpanded = 'false';
+				combinedTrigger?.removeAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE);
 				this._pickerDisposables.clear();
 				anchor.focus();
 			},
@@ -826,12 +833,13 @@ export class AgentHostChatInputPicker extends Disposable {
 			},
 			withChatInputPickerMotion({
 				...getConfigPickerListOptions(this._property),
-				...(permissions ? getModePermissionsPickerOptions(openPermissions) : {}),
+				...(permissions ? getModePermissionsPickerOptions(openPermissions, initialFocusItemId) : {}),
 				...(showFilter
 					? { showFilter: true, filterPlaceholder: localize('agentHostChatInputPicker.filter', "Filter...") }
 					: {}),
 			}),
 		);
+		combinedTrigger?.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
 		if (permissions) {
 			const allowsBypass = this._agentHostEnablementService.managedSandboxAllowsBypass.get();
 			this._pickerDisposables.add(autorun(reader => {
