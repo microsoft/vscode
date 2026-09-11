@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -17,11 +17,13 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../.
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { type ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { SessionState, SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -32,6 +34,7 @@ import { TestDialogService } from '../../../../../../platform/dialogs/test/commo
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -42,6 +45,8 @@ import { IChatPhoneInputPresenter } from '../../../browser/widget/input/chatPhon
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { AgentHostGenericConfigChips } from '../../../browser/agentSessions/agentHost/agentHostGenericConfigChips.js';
+import { AgentHostChatInputPicker } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { retrySessionConfigSubscriptionOnCreation } from '../../../browser/agentSessions/agentHost/agentHostSessionConfigSubscription.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -73,6 +78,7 @@ suite('AgentHostGenericConfigChips', () => {
 		const released: string[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
 			declare readonly _serviceBrand: undefined;
+			override readonly onDidNotification = Event.None;
 
 			override getSubscription<T extends StateComponents>(_kind: T, resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 				acquired.push(resource.toString());
@@ -125,16 +131,18 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 
 	function makeConfig(): ResolveSessionConfigResult {
 		return {
-			schema: { type: 'object', properties: {
-				customChoice: { type: 'string', title: 'Custom Choice', enum: ['first', 'second'], enumLabels: ['First Option', 'Second Option'], sessionMutable: true },
-				toggle: { type: 'boolean', title: 'Toggle', sessionMutable: true },
-				mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true },
-				autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'], sessionMutable: true },
-				immutable: { type: 'string', title: 'Immutable', enum: ['first'], sessionMutable: false },
-				unspecified: { type: 'boolean', title: 'Unspecified' },
-				locked: { type: 'string', title: 'Locked', enum: ['first'], sessionMutable: true, readOnly: true },
-				structured: { type: 'object', title: 'Structured', sessionMutable: true },
-			} },
+			schema: {
+				type: 'object', properties: {
+					customChoice: { type: 'string', title: 'Custom Choice', enum: ['first', 'second'], enumLabels: ['First Option', 'Second Option'], sessionMutable: true },
+					toggle: { type: 'boolean', title: 'Toggle', sessionMutable: true },
+					mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true },
+					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'], sessionMutable: true },
+					immutable: { type: 'string', title: 'Immutable', enum: ['first'], sessionMutable: false },
+					unspecified: { type: 'boolean', title: 'Unspecified' },
+					locked: { type: 'string', title: 'Locked', enum: ['first'], sessionMutable: true, readOnly: true },
+					structured: { type: 'object', title: 'Structured', sessionMutable: true },
+				}
+			},
 			values: { customChoice: 'first', toggle: false, locked: 'first' },
 		};
 	}
@@ -154,6 +162,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			},
 		};
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly onDidNotification = Event.None;
 			acquired = 0;
 			released = 0;
 			readonly dispatches: { channel: string; config: Record<string, unknown> }[] = [];
@@ -178,20 +187,22 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 				return this.completionResult;
 			}
 		}();
-		return { connection, update: (config: ResolveSessionConfigResult) => {
-			state = { ...state, config };
-			changed.fire(state);
-		} };
+		return {
+			connection, update: (config: ResolveSessionConfigResult) => {
+				state = { ...state, config };
+				changed.fire(state);
+			}
+		};
 	}
 
-	function setup(config = makeConfig(), connected = true) {
+	function setup(config = makeConfig(), connected = true, firstConnection?: IAgentConnection) {
 		const host = makeHost(config);
 		const secondHost = makeHost(makeConfig());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const remoteConnections = new Map<string, IAgentConnection>();
 		if (connected) {
-			remoteConnections.set('host-one', host.connection);
+			remoteConnections.set('host-one', firstConnection ?? host.connection);
 		}
 		remoteConnections.set('host-two', secondHost.connection);
 		const ambient = new class extends mock<IAgentHostService>() {
@@ -247,7 +258,11 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			}
 		}();
 		const refreshes: Parameters<IAgentHostUntitledProvisionalSessionService['refreshResolvedConfig']>[] = [];
+		const warnings: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.set(ILogService, new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}());
 		instantiationService.set(IAgentHostConnectionsService, connectionsService);
 		instantiationService.set(IActionWidgetService, actionWidget);
 		const configuration = new TestConfigurationService();
@@ -276,7 +291,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			return trigger;
 		}
 		return {
-			host, secondHost, config, lane, container, widget, remoteConnections, connectionsChanged, actionWidget, refreshes,
+			host, secondHost, config, lane, container, widget, instantiationService, remoteConnections, connectionsChanged, actionWidget, refreshes, warnings,
 			trigger,
 			addHost: (address: string, connection: IAgentConnection) => {
 				remoteConnections.set(address, connection);
@@ -379,6 +394,93 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		lane.dispose();
 	});
 
+	for (const notificationFirst of [false, true]) {
+		test(`recovers a not-yet-created session when the creation notification arrives ${notificationFirst ? 'before' : 'after'} the subscription error`, async () => {
+			const config = makeConfig();
+			const notifications = store.add(new Emitter<INotification>());
+			const initial = new DeferredPromise<IStateSnapshot>();
+			store.add({ dispose: () => initial.cancel() });
+			let subscribeCalls = 0;
+			let seq = 0;
+			const state = new class extends mock<SessionState>() {
+				override readonly provider = 'test-agent';
+				override readonly config = config;
+			}();
+			const manager = store.add(new AgentSubscriptionManager('test-client', () => ++seq, () => { }, async resource => {
+				subscribeCalls++;
+				return subscribeCalls === 1 ? initial.p : { resource: resource.toString(), state, fromSeq: 0 };
+			}, () => { }));
+			const connection = new class extends mock<IAgentConnection>() {
+				override readonly onDidNotification = notifications.event;
+				override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+					return manager.getSubscription(kind, resource, owner);
+				}
+			}();
+			const { container, widget, instantiationService } = setup(config, true, connection);
+			const standalone = document.createElement('div');
+			store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, 'customChoice')).render(standalone);
+			const notify = () => notifications.fire({
+				type: NotificationType.SessionAdded,
+				channel: 'ahp-root://',
+				summary: new class extends mock<SessionSummary>() { override readonly resource = backendSession.toString(); }(),
+			});
+			if (notificationFirst) {
+				notify();
+			}
+			initial.error(new Error('Session has not been created yet'));
+			await timeout(0);
+			if (!notificationFirst) {
+				notify();
+			}
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				subscribeCalls,
+				buttons: [...container.querySelectorAll('[role="button"]')].map(element => element.getAttribute('aria-label')),
+				standaloneButton: standalone.querySelector('[role="button"]')?.getAttribute('aria-label'),
+			}, {
+				subscribeCalls: 2,
+				buttons: ['Custom Choice: First Option', 'Toggle: Off'],
+				standaloneButton: 'Custom Choice: First Option',
+			});
+		});
+	}
+
+	test('retries only once per matching creation notification and stops listening on disposal', async () => {
+		const notifications = store.add(new Emitter<INotification>());
+		const errors = store.add(new Emitter<Error>());
+		const subscription: IAgentSubscription<SessionState> = {
+			...createSubscription<SessionState>(),
+			value: new Error('Session not available'),
+			onDidError: errors.event,
+		};
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly onDidNotification = notifications.event;
+		}();
+		let retries = 0;
+		const listener = store.add(retrySessionConfigSubscriptionOnCreation(connection, backendSession, subscription, () => retries++));
+		const notify = (resource: string) => notifications.fire({
+			type: NotificationType.SessionAdded,
+			channel: 'ahp-root://',
+			summary: new class extends mock<SessionSummary>() { override readonly resource = resource; }(),
+		});
+		errors.fire(new Error('Still unavailable'));
+		notify('ahp-session:/unrelated');
+		const unrelatedRetries = retries;
+		notify(backendSession.toString());
+		await timeout(0);
+		errors.fire(new Error('Retry also failed'));
+		await timeout(0);
+		const failedRetryCount = retries;
+		notify(backendSession.toString());
+		listener.dispose();
+		notify(backendSession.toString());
+		await timeout(0);
+		assert.deepStrictEqual({ unrelatedRetries, failedRetryCount, afterDisposal: retries }, {
+			unrelatedRetries: 0, failedRetryCount: 1, afterDisposal: 1,
+		});
+	});
+
 	test('keeps an open picker when another connection changes', async () => {
 		const { open, actionWidget, connectionsChanged, host } = setup();
 		await open();
@@ -400,9 +502,12 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			} else {
 				host.update({
 					...config,
-					schema: { ...config.schema, properties: { ...config.schema.properties,
-						customChoice: { ...config.schema.properties.customChoice, [change]: change === 'readOnly' },
-					} },
+					schema: {
+						...config.schema, properties: {
+							...config.schema.properties,
+							customChoice: { ...config.schema.properties.customChoice, [change]: change === 'readOnly' },
+						}
+					},
 				});
 			}
 			await assert.rejects(select('Second Option'), isCancellationError);
@@ -422,6 +527,47 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			labels: ['Dynamic Option'],
 		});
 	});
+
+	test('uses schema options when a dynamic lookup fails', async () => {
+		const config = makeConfig();
+		config.schema.properties.customChoice.enumDynamic = true;
+		const { open, host, actionWidget, warnings } = setup(config);
+		const pending = new DeferredPromise<SessionConfigCompletionsResult>();
+		store.add({ dispose: () => pending.cancel() });
+		host.connection.completionResult = pending.p;
+		const opened = open();
+		pending.error(new Error('Provider unavailable'));
+		await opened;
+		await actionWidget.select('Second Option');
+
+		assert.deepStrictEqual({
+			labels: actionWidget.labels,
+			writes: host.connection.dispatches,
+			warnings,
+		}, {
+			labels: ['First Option', 'Second Option'],
+			writes: [{ channel: backendSession.toString(), config: { customChoice: 'second' } }],
+			warnings: ['[AgentHostChatInputPicker] Failed to load dynamic session configuration options; using schema options.'],
+		});
+	});
+
+	for (const cancellation of ['provider cancellation', 'session switch'] as const) {
+		test(`does not show schema options after ${cancellation}`, async () => {
+			const config = makeConfig();
+			config.schema.properties.customChoice.enumDynamic = true;
+			const { trigger, host, actionWidget, switchSession, warnings } = setup(config);
+			const pending = new DeferredPromise<SessionConfigCompletionsResult>();
+			store.add({ dispose: () => pending.cancel() });
+			host.connection.completionResult = pending.p;
+			trigger('customChoice').click();
+			if (cancellation === 'session switch') {
+				switchSession();
+			}
+			pending.error(cancellation === 'provider cancellation' ? new CancellationError() : new Error('Provider unavailable'));
+			await timeout(0);
+			assert.deepStrictEqual({ shown: actionWidget.showCount, warnings }, { shown: 0, warnings: [] });
+		});
+	}
 
 	test('does not show late completions after switching to a host with the same backend session URI', async () => {
 		const config = makeConfig();
@@ -447,9 +593,12 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		trigger('customChoice').click();
 		host.update({
 			...config,
-			schema: { ...config.schema, properties: { ...config.schema.properties,
-				customChoice: { ...config.schema.properties.customChoice, readOnly: true },
-			} },
+			schema: {
+				...config.schema, properties: {
+					...config.schema.properties,
+					customChoice: { ...config.schema.properties.customChoice, readOnly: true },
+				}
+			},
 		});
 		pending.complete({ items: [{ value: 'second', label: 'Obsolete Option' }] });
 		await timeout(0);

@@ -21,6 +21,7 @@ import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/age
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -155,6 +156,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				}
 			}
 		}();
+		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.stub(IAgentHostConnectionsService, {
 			ambientConnection: connection,
 			onDidChangeSessionResolution: Event.None,
@@ -774,6 +776,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 				override readonly enabled = constObservable(false);
 			}(),
 			new class extends mock<IPreferencesService>() { }(),
+			new NullLogService(),
 		));
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });

@@ -155,6 +155,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 			[StateComponents.Session]: { value: state, verifiedValue: state, onDidChange: changed.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
 		};
 		const connection = new class extends mock<IAgentHostService>() {
+			override readonly onDidNotification = Event.None;
 			override getSubscription<T extends StateComponents>(kind: T): IReference<IAgentSubscription<ComponentToState[T]>> {
 				const subscription = subscriptions[kind];
 				if (!subscription) {

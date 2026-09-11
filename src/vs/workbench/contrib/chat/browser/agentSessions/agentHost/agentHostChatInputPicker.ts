@@ -11,7 +11,7 @@ import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/
 import { Delayer } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { CancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableSignal } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -31,7 +31,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -39,6 +39,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -54,6 +55,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
@@ -402,6 +404,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IChatPhoneInputPresenter private readonly _phoneInputPresenter: IChatPhoneInputPresenter,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -527,12 +530,13 @@ export class AgentHostChatInputPicker extends Disposable {
 			this._renderChip();
 			this._sandboxConfigChanged.trigger(undefined);
 		});
+		const creationListener = retrySessionConfigSubscriptionOnCreation(resolution.connection, resolution.backendSession, sub, () => this._reattach());
 		this._subRef.value = {
 			...resolution,
 			sub,
 			sessionResource,
 			generation: this._sessionGeneration,
-			dispose: () => { listener.dispose(); ref.dispose(); },
+			dispose: () => { creationListener.dispose(); listener.dispose(); ref.dispose(); },
 		};
 		this._renderChip();
 	}
@@ -969,17 +973,30 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!context || !this._isCurrentTarget(context)) {
 				throw new CancellationError();
 			}
-			const result = await context.connection.sessionConfigCompletions({
-				provider: context.provider,
-				property,
-				query,
-				workingDirectory: this._readWorkingDirectory(),
-				config: this._readCurrentValues(),
-			});
+			let result: SessionConfigCompletionsResult | undefined;
+			try {
+				result = await context.connection.sessionConfigCompletions({
+					provider: context.provider,
+					property,
+					query,
+					workingDirectory: this._readWorkingDirectory(),
+					config: this._readCurrentValues(),
+				});
+			} catch (error) {
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				if (!this._isCurrentTarget(context)) {
+					throw new CancellationError();
+				}
+				this._logService.warn('[AgentHostChatInputPicker] Failed to load dynamic session configuration options; using schema options.');
+			}
 			if (!this._isCurrentTarget(context)) {
 				throw new CancellationError();
 			}
-			return this._filterAutoApproveItems(result.items.map(item => this._fromCompletion(item)), property);
+			if (result) {
+				return this._filterAutoApproveItems(result.items.map(item => this._fromCompletion(item)), property);
+			}
 		}
 		return this._filterAutoApproveItems((schema.enum ?? []).map((value, index) => ({
 			value: String(value),

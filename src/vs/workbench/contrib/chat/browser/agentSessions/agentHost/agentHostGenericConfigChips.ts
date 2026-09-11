@@ -22,6 +22,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 
 /**
  * Direct-render chip lane for agent-host session-config properties that are
@@ -106,18 +107,19 @@ export class AgentHostGenericConfigChips extends Disposable {
 		this._initialResolved = undefined;
 		this._cancelInitialResolve();
 		const current = this._subRef.value;
-		if (current && isEqual(current.sessionResource, sessionResource) && current.connection === resolution.connection && isEqual(current.backendSession, resolution.backendSession)) {
+		if (current && !(current.sub.value instanceof Error) && isEqual(current.sessionResource, sessionResource) && current.connection === resolution.connection && isEqual(current.backendSession, resolution.backendSession)) {
 			this._sync();
 			return;
 		}
 		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostGenericConfigChips');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => this._sync());
+		const creationListener = retrySessionConfigSubscriptionOnCreation(resolution.connection, resolution.backendSession, sub, () => this._reattach());
 		this._subRef.value = {
 			...resolution,
 			sub,
 			sessionResource,
-			dispose: () => { listener.dispose(); ref.dispose(); },
+			dispose: () => { creationListener.dispose(); listener.dispose(); ref.dispose(); },
 		};
 		this._sync();
 	}
