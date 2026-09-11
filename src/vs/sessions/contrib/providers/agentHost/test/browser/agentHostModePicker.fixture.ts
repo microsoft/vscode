@@ -164,6 +164,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 			[StateComponents.Session]: { value: state, verifiedValue: state, onDidChange: changed.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
 		};
 		const hostService = new class extends mock<IAgentHostService>() {
+			override readonly onAgentHostStart = Event.None;
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 				return connection.getNetworkDiagnosticsInfo();
 			}
