@@ -141,8 +141,16 @@ export function computeScrollDownState(isScrolledToBottom: boolean, scrollLock: 
 	};
 }
 
-export function isChatBackgroundContextMenuTarget(target: HTMLElement | undefined): boolean {
+export function isChatBackgroundContextMenuTarget(target: Element | undefined): boolean {
 	return !!target && !target.closest('.interactive-item-container, .scrollbar');
+}
+
+export function getChatContextMenuTargetContext(target: EventTarget | null): { isKatexElement: boolean; isBackground: boolean } {
+	const element = target instanceof Element ? target : undefined;
+	return {
+		isKatexElement: !!element?.closest(`.${katexContainerClassName}`),
+		isBackground: isChatBackgroundContextMenuTarget(element),
+	};
 }
 
 class UserToggleResizeTracker extends Disposable {
@@ -831,15 +839,13 @@ export class ChatListWidget extends Disposable {
 
 		const selected = e.element;
 
-		// Check if the context menu was opened on a KaTeX element
-		const target = dom.isHTMLElement(e.browserEvent.target) ? e.browserEvent.target : undefined;
-		const isKatexElement = !!target?.closest(`.${katexContainerClassName}`);
+		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
-			[ChatContextKeys.isKatexMathElement.key, isKatexElement],
-			[ChatContextKeys.contextMenuIsBackground.key, isChatBackgroundContextMenuTarget(target)]
+			[ChatContextKeys.isKatexMathElement.key, targetContext.isKatexElement],
+			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground]
 		]);
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,

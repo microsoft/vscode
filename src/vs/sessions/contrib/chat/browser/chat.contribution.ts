@@ -335,6 +335,11 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.and(SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext),
+			}, {
+				id: MenuId.ChatContext,
+				group: 'zz_background',
+				order: 2,
+				when: ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN, ChatContextKeys.contextMenuIsBackground),
 			}],
 		});
 	}
