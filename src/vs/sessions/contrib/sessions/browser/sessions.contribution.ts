@@ -25,6 +25,7 @@ import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.j
 import './sessionDetailsAction.js';
 import { SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../../browser/sessionActionViewItem.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
+import { USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -102,6 +103,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				name: NEW_SESSION_BUTTON_STYLE_TREATMENT,
 			},
 			description: localize('sessions.newSessionButton.style', "Controls the visual style of the New Session button."),
+		},
+		[USE_WORKTREE_SETTING]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.useWorktree', "Controls whether New Worktree is checked when no previous isolation choice has been saved. Once a choice is saved, it is used across workspaces instead of this setting."),
+			experiment: {
+				mode: 'auto',
+				name: USE_WORKTREE_SETTING_TREATMENT
+			},
 		},
 	},
 });

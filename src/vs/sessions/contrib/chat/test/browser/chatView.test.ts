@@ -29,9 +29,28 @@ import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js'
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
+import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards workspace acknowledgement only from a new-session widget', () => {
+		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+		const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+			selectWorkspace: (folder: URI, options?: ISelectWorkspaceOptions) => {
+				calls.push({ folder, options });
+				return 'applied';
+			},
+		});
+		const results = [undefined, Object.create(NewChatInSessionWidget.prototype), widget].map(_widget => {
+			const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget });
+			return view.selectWorkspace(URI.file('/requested'), { isDefault: true });
+		});
+		assert.deepStrictEqual({ results, calls }, {
+			results: ['notReady', 'notReady', 'applied'],
+			calls: [{ folder: URI.file('/requested'), options: { isDefault: true } }],
+		});
+	});
 
 	/** Reaches the banner without standing up the widget's whole service graph. */
 	interface ISubSessionTipRenderer {
@@ -939,6 +958,7 @@ suite('Sessions - Chat View', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
 		workbench.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0.08)');
+		workbench.style.setProperty('--vscode-button-secondaryHoverBackground', 'rgba(0, 0, 0, 0.16)');
 		workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#202020');
 		workbench.style.setProperty('--vscode-commandCenter-inactiveBorder', '#606060');
@@ -952,11 +972,15 @@ suite('Sessions - Chat View', () => {
 		const newChatContainer = dom.append(newChatWidget, dom.$('.new-chat-widget-container'));
 		const bottomContainer = dom.append(newChatContainer, dom.$('.new-chat-bottom-container'));
 		const bottomAction = dom.append(bottomContainer, dom.$('.action-label'));
+		const combinedBottomAction = dom.append(bottomContainer, dom.$('.action-label.agent-host-mode-permissions-trigger'));
+		combinedBottomAction.setAttribute('data-mode-permissions-picker-open', 'true');
 		const workspacePickerSlot = dom.append(newChatContainer, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		const workspacePill = dom.append(workspacePickerSlot, dom.$('.action-label'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const secondaryToolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
 		const secondaryAction = dom.append(secondaryToolbar, dom.$('.action-label'));
+		const combinedSecondaryAction = dom.append(secondaryToolbar, dom.$('.action-label.agent-host-mode-permissions-trigger'));
+		combinedSecondaryAction.setAttribute('data-mode-permissions-picker-open', 'true');
 		const contextUsage = dom.append(secondaryToolbar, dom.$('.chat-context-usage-widget'));
 		const newSessionView = dom.append(part, dom.$('.session-view'));
 		const newSessionViewContent = dom.append(newSessionView, dom.$('.session-view-content'));
@@ -980,8 +1004,10 @@ suite('Sessions - Chat View', () => {
 
 		const newChatStyle = dom.getWindow(newChatContent).getComputedStyle(newChatContent);
 		const bottomActionStyle = dom.getWindow(bottomAction).getComputedStyle(bottomAction);
+		const combinedBottomActionStyle = dom.getWindow(combinedBottomAction).getComputedStyle(combinedBottomAction);
 		const workspacePillStyle = dom.getWindow(workspacePill).getComputedStyle(workspacePill);
 		const secondaryActionStyle = dom.getWindow(secondaryAction).getComputedStyle(secondaryAction);
+		const combinedSecondaryActionStyle = dom.getWindow(combinedSecondaryAction).getComputedStyle(combinedSecondaryAction);
 		const contextUsageStyle = dom.getWindow(contextUsage).getComputedStyle(contextUsage);
 		const productionBottomActionStyle = dom.getWindow(productionBottomAction).getComputedStyle(productionBottomAction);
 		assert.deepStrictEqual({
@@ -991,11 +1017,13 @@ suite('Sessions - Chat View', () => {
 			bottomActionBorderColor: bottomActionStyle.borderColor,
 			bottomActionBorderStyle: bottomActionStyle.borderStyle,
 			bottomActionBorderRadius: bottomActionStyle.borderRadius,
+			combinedBottomActionBackgroundImage: combinedBottomActionStyle.backgroundImage,
 			workspacePillBackgroundColor: workspacePillStyle.backgroundColor,
 			secondaryActionBackgroundColor: secondaryActionStyle.backgroundColor,
 			secondaryActionBackgroundImage: secondaryActionStyle.backgroundImage,
 			secondaryActionBorderColor: secondaryActionStyle.borderColor,
 			secondaryActionBorderStyle: secondaryActionStyle.borderStyle,
+			combinedSecondaryActionBackgroundImage: combinedSecondaryActionStyle.backgroundImage,
 			contextUsageBackgroundColor: contextUsageStyle.backgroundColor,
 			contextUsageBackgroundImage: contextUsageStyle.backgroundImage,
 			contextUsageBorderRadius: contextUsageStyle.borderRadius,
@@ -1016,11 +1044,13 @@ suite('Sessions - Chat View', () => {
 			bottomActionBorderColor: 'rgb(128, 128, 128)',
 			bottomActionBorderStyle: 'solid',
 			bottomActionBorderRadius: '4px',
+			combinedBottomActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16))',
 			workspacePillBackgroundColor: 'rgb(255, 255, 255)',
 			secondaryActionBackgroundColor: 'rgb(255, 255, 255)',
 			secondaryActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			secondaryActionBorderColor: 'rgb(128, 128, 128)',
 			secondaryActionBorderStyle: 'solid',
+			combinedSecondaryActionBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.16))',
 			contextUsageBackgroundColor: 'rgb(255, 255, 255)',
 			contextUsageBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
 			contextUsageBorderRadius: '4px',

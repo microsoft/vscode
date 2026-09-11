@@ -196,13 +196,13 @@ suite('GitHub Microsoft-brokered sessions', () => {
 					logins.push({ scopes, options });
 					return overrides.login
 						? await overrides.login(logins.length - 1, scopes, options)
-						: { token: `gho_login_${logins.length}`, expiresIn: 7200, account: GITHUB_ACCOUNT };
+						: { token: `gho_login_${logins.length}`, expiresAfter: 7_200_000, account: GITHUB_ACCOUNT };
 				},
 				renewWithMicrosoft: async renewal => {
 					renewals.push(renewal);
 					return overrides.renew
 						? await overrides.renew(renewals.length - 1, renewal)
-						: { token: `gho_${renewals.length}`, expiresIn: 3600, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
+						: { token: `gho_${renewals.length}`, expiresAfter: 3_600_000, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
 				},
 				sendAdditionalTelemetryInfo: async () => { }
 			},
@@ -238,12 +238,12 @@ suite('GitHub Microsoft-brokered sessions', () => {
 
 		assert.deepStrictEqual({
 			token: session.accessToken,
-			expiresIn: session.expiresIn,
+			expiresAfter: session.expiresAfter,
 			logins: harness.logins,
 			announced: harness.announced,
 		}, {
 			token: 'gho_login_1',
-			expiresIn: 7200,
+			expiresAfter: 7_200_000,
 			logins: [{ scopes: SCOPES, options: { microsoftAccount: undefined } }],
 			announced: ['added mona_contoso'],
 		});
@@ -267,14 +267,14 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			renewals: harness.renewals,
 			announced: harness.announced,
 			held: harness.heldSessions(),
-			expiresIn: sessions.map(session => session.expiresIn),
+			hasUsableLifetime: sessions.every(session => session.expiresAfter !== undefined && session.expiresAfter > 0 && session.expiresAfter <= 3_600_000),
 		}, {
 			accounts: ['mona_contoso'],
 			scopes: [SCOPES],
 			renewals: [{ scopes: SCOPES, gitHubAccountId: '42', microsoftAccount: MICROSOFT_ACCOUNT }],
 			announced: ['added mona_contoso'],
 			held: ['mona_contoso live'],
-			expiresIn: [3600]
+			hasUsableLifetime: true
 		});
 	});
 
@@ -286,7 +286,7 @@ suite('GitHub Microsoft-brokered sessions', () => {
 
 		const [resolved] = await harness.provider.getSessions(SCOPES);
 
-		assert.ok(resolved.expiresIn !== undefined && resolved.expiresIn > 3600 && resolved.expiresIn <= 7200);
+		assert.ok(resolved.expiresAfter !== undefined && resolved.expiresAfter > 3_600_000 && resolved.expiresAfter <= 7_200_000);
 	});
 
 	test('keeps what the user agreed to when a restore fails for a reason that says nothing about who they are', async () => {
@@ -340,7 +340,7 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			// eviction it triggers cannot see, because the session does not exist yet.
 			renew: async (_call, renewal) => {
 				harness.state._microsoftGeneration++;
-				return { token: 'gho_late', expiresIn: 3600, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
+				return { token: 'gho_late', expiresAfter: 3_600_000, account: GITHUB_ACCOUNT, scopes: renewal.scopes ?? SCOPES };
 			}
 		}));
 
@@ -377,13 +377,13 @@ suite('GitHub Microsoft-brokered sessions', () => {
 			// account going away and another arriving.
 			announced: harness.announced,
 			tokens: sessions.map(session => session.accessToken).sort(),
-			expirations: sessions.map(session => [session.account.label, session.expiresIn]).sort(),
+			expirations: sessions.map(session => [session.account.label, session.expiresAfter]).sort(),
 		}, {
 			accounts: ['hubot', 'mona_contoso'],
 			held: ['mona_contoso live'],
 			announced: ['changed mona_contoso'],
 			tokens: ['gho_1', 'gho_persisted'],
-			expirations: [['hubot', undefined], ['mona_contoso', 3600]]
+			expirations: [['hubot', undefined], ['mona_contoso', 3_600_000]]
 		});
 	});
 
@@ -397,7 +397,7 @@ suite('GitHub Microsoft-brokered sessions', () => {
 
 		assert.deepStrictEqual({
 			tokens: sessions.map(session => session.accessToken),
-			hasUsableLifetime: sessions.every(session => session.expiresIn !== undefined && session.expiresIn > 0 && session.expiresIn <= 3600),
+			hasUsableLifetime: sessions.every(session => session.expiresAfter !== undefined && session.expiresAfter > 0 && session.expiresAfter <= 3_600_000),
 			held: harness.heldSessions(),
 			announced: harness.announced,
 			renewals: harness.renewals.length

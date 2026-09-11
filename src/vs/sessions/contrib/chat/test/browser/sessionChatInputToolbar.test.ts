@@ -27,7 +27,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { GitHubIssueState, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
@@ -95,60 +95,87 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	for (const activation of ['click', 'Enter', 'Space'] as const) {
-		test(`opens Session Changes from the changes pill with ${activation}`, () => {
-			const { instantiationService } = createServices();
-			const session = upcastPartial<IActiveSession>({
-				sessionId: 'provider:session',
-				capabilities: constObservable({ supportsMultipleChats: false }),
-				resource: URI.parse('session:1'),
-				chats: constObservable([]),
-				workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
-				changesets: constObservable([]),
-				changes: constObservable([{
-					modifiedUri: URI.file('/session-change.ts'),
-					insertions: 10,
-					deletions: 4,
-				}]),
-			});
-			const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
-			instantiationService.stub(ISessionsService, 'setActive', (session: IActiveSession | undefined) => {
-				calls.push({ action: 'activate', resource: session?.resource });
-			});
-			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
-				revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
-			}));
-			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
-				openChangesEditor: async (resource, options) => {
-					calls.push({ action: 'open', resource, options });
-					return undefined;
-				},
-			}));
-			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
-			toolbar.setSession(session, undefined);
-			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
-			assert.ok(pill);
-
-			if (activation === 'click') {
-				pill.click();
-			} else {
-				pill.dispatchEvent(new KeyboardEvent('keydown', {
-					key: activation === 'Enter' ? 'Enter' : ' ',
-					keyCode: activation === 'Enter' ? 13 : 32,
-					bubbles: true,
+	for (const worktree of [false, true]) {
+		for (const activation of ['click', 'Enter', 'Space'] as const) {
+			test(`opens ${worktree ? 'Branch' : 'Session'} Changes from the pill with ${activation} and follows workspace updates`, () => {
+				const { instantiationService } = createServices();
+				const root = URI.file('/repo');
+				const createWorkspace = (worktree: boolean) => upcastPartial<ISessionWorkspace>({
+					folders: [{
+						root,
+						name: 'repo',
+						description: undefined,
+						workingDirectory: worktree ? URI.file('/worktrees/repo') : root,
+						gitRepository: {
+							uri: root,
+							workTreeUri: worktree ? URI.file('/worktrees/repo') : undefined,
+							baseBranchName: 'main',
+							gitHubInfo: constObservable(undefined),
+						},
+					}],
+				});
+				const workspace = observableValue('workspace', createWorkspace(worktree));
+				const session = upcastPartial<IActiveSession>({
+					sessionId: 'provider:session',
+					capabilities: constObservable({ supportsMultipleChats: false }),
+					resource: URI.parse('session:1'),
+					chats: constObservable([]),
+					workspace,
+					changesets: constObservable([]),
+					changes: constObservable([{
+						modifiedUri: URI.file('/session-change.ts'),
+						insertions: 10,
+						deletions: 4,
+					}]),
+				});
+				const calls: { action: string; resource?: URI; options?: ISessionChangesEditorOptions }[] = [];
+				instantiationService.stub(ISessionsService, 'setActive', (session: IActiveSession | undefined) => {
+					calls.push({ action: 'activate', resource: session?.resource });
+				});
+				instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+					revealEditorPartExplicitly: () => { calls.push({ action: 'reveal' }); },
 				}));
-			}
+				instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+					openChangesEditor: async (resource, options) => {
+						calls.push({ action: 'open', resource, options });
+						return undefined;
+					},
+				}));
+				const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+				toolbar.setSession(session, undefined);
+				for (const currentWorktree of [worktree, !worktree]) {
+					workspace.set(createWorkspace(currentWorktree), undefined);
+					const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
+					assert.ok(pill);
 
-			assert.deepStrictEqual(calls, [
-				{ action: 'activate', resource: session.resource },
-				{ action: 'reveal' },
-				{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: SESSION_CHANGES_CHANGESET_ID } } },
-			]);
-		});
+					if (activation === 'click') {
+						pill.click();
+					} else {
+						pill.dispatchEvent(new KeyboardEvent('keydown', {
+							key: activation === 'Enter' ? 'Enter' : ' ',
+							keyCode: activation === 'Enter' ? 13 : 32,
+							bubbles: true,
+						}));
+					}
+				}
+
+				assert.deepStrictEqual(calls, [worktree, !worktree].flatMap(currentWorktree => [
+					{ action: 'activate', resource: session.resource },
+					{ action: 'reveal' },
+					{ action: 'open', resource: session.resource, options: { changesetSelection: { kind: 'id', id: currentWorktree ? BRANCH_CHANGES_CHANGESET_ID : SESSION_CHANGES_CHANGESET_ID } } },
+				]));
+			});
+		}
 	}
 
 	test('adds rich GitHub hovers only when live details are available', async () => {
-		const commandService = upcastPartial<ICommandService>({ executeCommand: async () => undefined });
+		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];
+		const commandService = upcastPartial<ICommandService>({
+			executeCommand: async (id, ...args) => {
+				commands.push({ id, args });
+				return undefined;
+			},
+		});
 		const clipboardService = upcastPartial<IClipboardService>({ writeText: async () => { } });
 		const openerService = upcastPartial<IOpenerService>({ open: async () => true });
 		const sessionsService = upcastPartial<ISessionsService>({ setActive: () => { } });
@@ -157,6 +184,7 @@ suite('SessionChatInputToolbar', () => {
 			repo: 'vscode',
 			number: 332982,
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/332982'),
+			title: 'Recorded pull request title',
 		};
 		const pullRequest: IGitHubPullRequest = {
 			number: pullRequestRef.number,
@@ -179,6 +207,7 @@ suite('SessionChatInputToolbar', () => {
 			repo: 'vscode',
 			number: 42,
 			uri: URI.parse('https://github.com/microsoft/vscode/issues/42'),
+			title: 'Recorded issue title',
 		};
 		const issue: IGitHubIssue = {
 			number: issueRef.number,
@@ -232,38 +261,67 @@ suite('SessionChatInputToolbar', () => {
 		};
 		const pullRequestHover = await renderHover(pullRequestEntry);
 		const issueHover = await renderHover(issueEntry);
+		pullRequestEntry?.open();
+		unresolvedIssueEntry?.open();
 
 		assert.deepStrictEqual({
 			pullRequest: {
+				label: pullRequestEntry?.label,
 				className: pullRequestHover?.className,
 				repository: pullRequestHover?.querySelector('.sessions-pr-hover-repository')?.textContent,
 				title: pullRequestHover?.querySelector('.sessions-pr-hover-title')?.textContent,
 				description: pullRequestHover?.querySelector('.sessions-pr-hover-description-content')?.textContent,
 				branches: [...pullRequestHover?.querySelectorAll('.sessions-pr-hover-branch') ?? []].map(element => element.textContent),
+				unresolvedLabel: unresolvedPullRequestEntry?.label,
+				unresolvedAriaLabel: unresolvedPullRequestEntry?.ariaLabel,
+				unresolvedTooltip: unresolvedPullRequestEntry?.tooltip,
 				unresolvedHover: unresolvedPullRequestEntry?.pillHover,
 			},
 			issue: {
+				label: issueEntry?.label,
 				className: issueHover?.className,
 				repository: issueHover?.querySelector('.sessions-issue-hover-repository')?.textContent,
 				title: issueHover?.querySelector('.sessions-issue-hover-title')?.textContent,
 				description: issueHover?.querySelector('.sessions-issue-hover-description-content')?.textContent,
+				unresolvedLabel: unresolvedIssueEntry?.label,
+				unresolvedAriaLabel: unresolvedIssueEntry?.ariaLabel,
+				unresolvedTooltip: unresolvedIssueEntry?.tooltip,
 				unresolvedHover: unresolvedIssueEntry?.pillHover,
+				openCommands: commands,
 			},
 		}, {
 			pullRequest: {
+				label: 'Pull Request #332982: Restore rich pill hovers',
 				className: 'sessions-pr-hover',
 				repository: 'microsoft/vscode',
 				title: 'Restore rich pill hovers',
 				description: 'Provides detailed pull request context.',
 				branches: ['main', 'feature/rich-hover'],
+				unresolvedLabel: 'Pull Request #332982: Recorded pull request title',
+				unresolvedAriaLabel: 'Open Pull Request #332982: Recorded pull request title',
+				unresolvedTooltip: 'Pull Request #332982: Recorded pull request title\nhttps://github.com/microsoft/vscode/pull/332982',
 				unresolvedHover: undefined,
 			},
 			issue: {
+				label: 'Issue #42: Rich issue hover',
 				className: 'sessions-issue-hover',
 				repository: 'microsoft/vscode#42',
 				title: 'Rich issue hover',
 				description: 'Provides detailed issue context.',
+				unresolvedLabel: 'Issue #42: Recorded issue title',
+				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
+				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
 				unresolvedHover: undefined,
+				openCommands: [
+					{
+						id: 'workbench.agentSessions.action.openPullRequest',
+						args: [{ pullRequest: pullRequestRef }],
+					},
+					{
+						id: 'workbench.agentSessions.action.openIssue',
+						args: [{ issue: issueRef }],
+					},
+				],
 			},
 		});
 	});
