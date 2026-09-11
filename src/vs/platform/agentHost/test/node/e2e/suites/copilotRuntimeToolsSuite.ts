@@ -9,7 +9,8 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
-import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ToolDefinition } from '../../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
@@ -31,6 +32,51 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		const sessionUri = await createRealSession(context.client, context.config, prefix, context.createdSessions, URI.file(workspace));
 		return { sessionUri, workspace };
 	}
+
+	test('runtime tools: compacted shell output preserves the complete original', async function () {
+		this.timeout(180_000);
+		const { sessionUri, workspace } = await createSession('shell-compaction');
+		const warning = '(node:123) Warning: repeated warning for shell compaction';
+		const original = [...Array<string>(80).fill(warning), 'FINAL_STATUS: SHELL_COMPACTION_OK'].join('\n');
+		assert.ok(Buffer.byteLength(original) < 8192, 'Output must not take the generic large-output spill path');
+		writeFileSync(join(workspace, 'warnings.ts'), `process.stdout.write(${JSON.stringify(original)});\n`);
+		await driveTurnWithModelToCompletion(context.client, sessionUri, 'turn-shell-compaction',
+			'Run exactly `node warnings.ts` with your shell tool in synchronous mode. Do not run any other tools. Then reply exactly "DONE".',
+			'claude-sonnet-5', 1);
+
+		const body = context.observedModelRequestBodies.at(-1);
+		assert.ok(body, 'Expected a model request containing the native shell result');
+		const request: { messages: { content: string | { type: string; content?: string }[] }[] } = JSON.parse(body);
+		const compacted = request.messages.flatMap(message => typeof message.content === 'string' ? [] : message.content)
+			.find(block => block.type === 'tool_result' && block.content?.includes('Shell output was automatically compacted'))?.content;
+		assert.ok(compacted, `Expected lossy native-shell compaction in the tool result: ${body}`);
+		const originalPath = /Original at (?<path>.+?); only use if exact omitted lines are needed\./.exec(compacted)?.groups?.path;
+		assert.ok(originalPath, 'Compacted output must advertise its recoverable original');
+		const recovered = await context.client.call<ResourceReadResult>('resourceRead', {
+			channel: ROOT_STATE_URI,
+			uri: URI.file(originalPath).toString(),
+			encoding: ContentEncoding.Utf8,
+		});
+		const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell-compaction-followup', 'Reply exactly "FOLLOWUP_DONE".', 2);
+
+		assert.deepStrictEqual({
+			omitsRepeatedWarnings: compacted.includes('[node warnings: omitted 79 repeated warning line(s)]'),
+			retainsFinalStatus: compacted.includes('FINAL_STATUS: SHELL_COMPACTION_OK'),
+			retainsExitCode: compacted.includes('completed with exit code 0'),
+			fitsOutputLimit: Buffer.byteLength(compacted) <= 8192,
+			savesAtLeastOneThousandCharacters: original.length - compacted.length >= 1000,
+			recovered: recovered.data,
+			followup: followup.responseText.trim(),
+		}, {
+			omitsRepeatedWarnings: true,
+			retainsFinalStatus: true,
+			retainsExitCode: true,
+			fitsOutputLimit: true,
+			savesAtLeastOneThousandCharacters: true,
+			recovered: original,
+			followup: 'FOLLOWUP_DONE',
+		});
+	});
 
 	test('runtime tools: an accepted empty response reports a query error instead of completing silently', async function () {
 		this.timeout(180_000);

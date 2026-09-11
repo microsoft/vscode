@@ -74,6 +74,54 @@ suite('CapiReplayProxy path normalization', () => {
 		await assertCopiedPluginPathReplay(win32);
 	});
 
+	test('normalizes compacted shell output paths and rebinds them from live requests', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-shell-output-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const paths = [
+			'/tmp/with spaces/original-output-1234567890123-0123456789abcdef0123456789abcdef.txt',
+			'C:\\Users\\test user\\Temp\\original-output-1234567890124-abcdef0123456789abcdef0123456789.txt',
+		];
+		const request = (path: string) => JSON.stringify({
+			model: 'claude-sonnet-5',
+			system: 'system',
+			messages: [{ role: 'user', content: `Original at ${path}; only use if exact omitted lines are needed.` }],
+		});
+		const recorder = new CapiReplayProxy({
+			fixturePath,
+			mode: 'record',
+			recordingModelResponse: {
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+				body: anthropicMessageToSse({
+					content: [{ type: 'tool_use', id: 'toolu_1', name: 'view', input: { path: paths[0] } }],
+					stopReason: 'tool_use',
+				}),
+			},
+		});
+		try {
+			await (await fetch(`${await recorder.start()}/v1/messages`, { method: 'POST', body: request(paths[0]) })).text();
+			await recorder.stop();
+			const fixture = readFileSync(fixturePath, 'utf8');
+			assert.ok(fixture.includes('${shell_output_0}') && !fixture.includes('original-output-'));
+			const replay = new CapiReplayProxy({ fixturePath, mode: 'replay' });
+			try {
+				const url = await replay.start();
+				for (const path of paths) {
+					replay.resetForReplay(fixturePath);
+					const response = await fetch(`${url}/v1/messages`, { method: 'POST', body: request(path) });
+					const content = aggregateAnthropicSse(await response.text())?.content;
+					assert.deepStrictEqual(content?.map(block => block.type === 'tool_use' ? block.input : undefined), [{ path }]);
+					replay.assertNoReplayMismatches();
+				}
+			} finally {
+				await replay.stop();
+			}
+		} finally {
+			await recorder.stop();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('normalizes truncated harness workspaces from session titles', async () => {
 		const testDirectory = mkdtempSync(join(tmpdir(), 'capi-replay-path-normalization-'));
 		const fixturePath = join(testDirectory, 'capture.yaml');
