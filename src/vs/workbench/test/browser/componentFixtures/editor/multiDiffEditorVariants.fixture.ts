@@ -490,6 +490,19 @@ function createVariantFixtures(variant: 'cards' | 'noCards') {
 				createDocuments: createLongPathDocuments,
 			}),
 		}),
+		NarrowInlineOriginalLineNumbers: defineComponentFixture({
+			...fixtureOptions,
+			labels: { kind: 'screenshot' },
+			expectedVisualDescriptions: [treatment, 'Narrow inline diffs with original-side line numbers shown by an explicit setting override.'],
+			render: context => renderMultiDiffVisualFixture(context, {
+				width: 420,
+				height: 500,
+				variant,
+				renderSideBySide: false,
+				diffEditorOptions: { hideOriginalLineNumbers: false },
+				createDocuments: createLongPathDocuments,
+			}),
+		}),
 		StickyHorizontalOverflow: defineComponentFixture({
 			...representativeThemeOptions,
 			labels: { kind: 'screenshot' },

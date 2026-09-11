@@ -64,7 +64,6 @@ const HEADER_HEIGHT = 35;
  * preserving the multi-diff editor's expandable unchanged-region widgets.
  */
 const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
-	hideOriginalLineNumbers: true,
 	folding: false,
 	lineNumbersMinChars: 3,
 };
