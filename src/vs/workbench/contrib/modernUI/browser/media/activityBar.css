@@ -64,6 +64,10 @@
 	justify-content: center;
 }
 
+.modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button > .menubar-menu-items-holder > .monaco-scrollable-element > .scrollbar.vertical {
+	z-index: 0;
+}
+
 .modern-ui.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:is(:focus, .open) {
 	background-color: transparent;
 }

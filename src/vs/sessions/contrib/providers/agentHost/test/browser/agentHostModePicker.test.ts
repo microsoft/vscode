@@ -14,6 +14,7 @@ import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { getAgentHostCopilotSandboxSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService, IConfigurationValue, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -32,7 +33,7 @@ import { resetShownWarnings } from '../../../../../../workbench/contrib/chat/com
 import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
@@ -55,6 +56,7 @@ suite('AgentHostModePicker', () => {
 				properties: {
 					mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], enumLabels: ['Interactive', 'Plan', 'Autopilot'] },
 					autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'] },
+					[SessionConfigKey.SandboxEnabled]: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
 				},
 			},
 			values: { mode: 'interactive', autoApprove: 'default' },
@@ -72,6 +74,7 @@ suite('AgentHostModePicker', () => {
 				config.values[property] = value;
 				configChanged.fire(session);
 			}
+			override trackSessionConfigOperation(): void { }
 		}();
 		const providers = new Map<string, ISessionsProvider>([[provider.id, provider]]);
 		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
@@ -95,6 +98,7 @@ suite('AgentHostModePicker', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const actionWidget = new class extends mock<IActionWidgetService>() {
 			override isVisible = false;
+			updateCount = 0;
 			items: readonly IActionListItem<unknown>[] = [];
 			anchor: Parameters<IActionWidgetService['show']>[4] | undefined;
 			options: IActionListOptions | undefined;
@@ -114,6 +118,10 @@ suite('AgentHostModePicker', () => {
 						await delegate.onSelect(item);
 					}
 				};
+			}
+			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
+				this.items = items;
+				this.updateCount++;
 			}
 			override hide(): void {
 				this.isVisible = false;
@@ -166,12 +174,45 @@ suite('AgentHostModePicker', () => {
 		assert.deepStrictEqual(hoverTargets.map(target => target === trigger), [true]);
 	});
 
+	test('reconciles external sandbox changes without refreshing matching session echoes', () => {
+		const { picker, trigger, config, configChanged, actionWidget, writes } = setup();
+		picker.showPicker(trigger);
+		const toggle = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle;
+		assert.ok(toggle);
+		toggle.onChange(true);
+		const matchingUpdateCount = actionWidget.updateCount;
+		const shieldAfterClick = !!trigger.querySelector('.agent-host-mode-sandbox-icon');
+		config.values[SessionConfigKey.SandboxEnabled] = 'off';
+		configChanged.fire('test-session');
+		const checked = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle?.checked;
+		const shieldAfterExternalChange = !!trigger.querySelector('.agent-host-mode-sandbox-icon');
+		const externalUpdateCount = actionWidget.updateCount;
+		const menuOpen = actionWidget.isVisible;
+		actionWidget.hide();
+		config.values[SessionConfigKey.SandboxEnabled] = 'on';
+		configChanged.fire('test-session');
+		assert.deepStrictEqual({ writes, matchingUpdateCount, externalUpdateCount, checked, shieldAfterClick, shieldAfterExternalChange, menuOpen, afterCloseUpdateCount: actionWidget.updateCount }, {
+			writes: [{ session: 'test-session', property: SessionConfigKey.SandboxEnabled, value: 'on' }],
+			matchingUpdateCount: 0,
+			externalUpdateCount: 1,
+			checked: false,
+			shieldAfterClick: true,
+			shieldAfterExternalChange: false,
+			menuOpen: true,
+			afterCloseUpdateCount: 1,
+		});
+	});
+
 	test('new-chat controls keep the same padding and compact dimensions as in-session controls', () => {
 		const states = [];
 		for (const newChat of [false, true]) {
-			const { picker } = setup();
+			const { picker, config, configChanged } = setup();
+			config.values[SessionConfigKey.SandboxEnabled] = 'on';
+			configChanged.fire('test-session');
 			const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 			store.add({ dispose: () => workbench.remove() });
+			workbench.style.setProperty('--vscode-spacing-size20', '2px');
+			workbench.style.setProperty('--vscode-spacing-size40', '4px');
 			workbench.style.setProperty('--vscode-spacing-size60', '6px');
 			workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			const host = dom.append(workbench, dom.$(newChat ? '.new-chat-widget-container.revealed' : '.interactive-session'));
@@ -182,12 +223,20 @@ suite('AgentHostModePicker', () => {
 			const trigger = picker.render(item);
 			const mode = trigger.querySelector<HTMLElement>('.agent-host-mode-button')!;
 			const permissions = trigger.querySelector<HTMLElement>('.agent-host-permissions-button')!;
+			const leftInset = mode.firstElementChild!.getBoundingClientRect().left - trigger.getBoundingClientRect().left;
+			const gap = permissions.firstElementChild!.getBoundingClientRect().left - mode.lastElementChild!.getBoundingClientRect().right;
+			const rightInset = trigger.getBoundingClientRect().right - permissions.lastElementChild!.getBoundingClientRect().right;
 			const expanded = {
 				padding: dom.getWindow(trigger).getComputedStyle(trigger).padding,
 				height: trigger.getBoundingClientRect().height,
-				gap: permissions.firstElementChild!.getBoundingClientRect().left - mode.lastElementChild!.getBoundingClientRect().right,
-				leftInset: mode.firstElementChild!.getBoundingClientRect().left - trigger.getBoundingClientRect().left,
-				rightInset: trigger.getBoundingClientRect().right - permissions.lastElementChild!.getBoundingClientRect().right,
+				gap,
+				leftInset,
+				rightInset,
+				totalChrome: leftInset + gap + rightInset,
+				iconSizes: Array.from(trigger.querySelectorAll<HTMLElement>('.codicon'), icon => {
+					const bounds = icon.getBoundingClientRect();
+					return { width: bounds.width, height: bounds.height, fontSize: dom.getWindow(icon).getComputedStyle(icon).fontSize };
+				}),
 			};
 			item.classList.add('compact-picker');
 			const compact = {
@@ -199,7 +248,18 @@ suite('AgentHostModePicker', () => {
 		}
 		assert.deepStrictEqual(states, [false, true].map(newChat => ({
 			newChat,
-			expanded: { padding: '0px', height: 22, gap: 6, leftInset: 6, rightInset: 6 },
+			expanded: {
+				padding: '0px',
+				height: 22,
+				gap: 10,
+				leftInset: 4,
+				rightInset: 4,
+				totalChrome: 18,
+				iconSizes: [
+					{ width: 12, height: 12, fontSize: '12px' },
+					{ width: 12, height: 12, fontSize: '12px' },
+				],
+			},
 			compact: { width: 22, height: 22, permissions: 'none' },
 		})));
 	});
@@ -239,12 +299,12 @@ suite('AgentHostModePicker', () => {
 			change: { keys: [ChatConfiguration.ExperimentalModePermissionsPicker], overrides: [] },
 		});
 		trigger.querySelector<HTMLElement>('.agent-host-permissions-button')!.click();
-		const header = actionWidget.items.find(item => item.isSectionToggle);
+		const header = actionWidget.items.find(item => item.className?.includes('agent-host-mode-permissions'));
+		const modeHeader = actionWidget.items.find(item => item.className === 'agent-host-mode-section');
 		const enabled = {
 			header: header?.label,
-			modeHeader: actionWidget.items.find(item => item.kind === ActionListItemKind.Header)?.label,
+			modeHeader: { label: modeHeader?.label, summary: modeHeader?.description, aria: modeHeader?.ariaDescription },
 			selected: actionWidget.selectedLabels,
-			focusGroup: actionWidget.options?.initialFocusGroup,
 			focusItem: actionWidget.options?.initialFocusItemId,
 			collapsed: actionWidget.options?.collapsedByDefault,
 			levels: actionWidget.items.filter(item => item.detail).map(item => item.label),
@@ -261,11 +321,10 @@ suite('AgentHostModePicker', () => {
 			disabled: ['Interactive', 'Plan', 'Autopilot'],
 			enabled: {
 				header: 'Permissions',
-				modeHeader: 'Agent mode',
+				modeHeader: { label: 'Agent mode', summary: 'Interactive', aria: 'Current mode: Interactive' },
 				selected: ['Interactive', 'Manual permissions'],
-				focusGroup: 'agentHostModePicker.permissions',
-				focusItem: undefined,
-				collapsed: undefined,
+				focusItem: 'permissionPicker.default',
+				collapsed: new Set(['agentHostModePicker.mode']),
 				levels: ['Manual permissions', 'Assisted permissions', 'Allow all'],
 			},
 			writes: [{ session: 'test-session', property: 'autoApprove', value: 'autoApprove' }],
@@ -280,7 +339,13 @@ suite('AgentHostModePicker', () => {
 		trigger.click();
 		await actionWidget.select('Allow all');
 		trigger.click();
-		assert.deepStrictEqual(actionWidget.selectedLabels, ['Plan', 'Allow all']);
+		assert.deepStrictEqual({
+			selected: actionWidget.selectedLabels,
+			modeSummary: actionWidget.items.find(item => item.className === 'agent-host-mode-section')?.description,
+		}, {
+			selected: ['Plan', 'Allow all'],
+			modeSummary: 'Plan',
+		});
 	});
 
 	test('switches the combined picker gate live without changing session configuration', async () => {
@@ -335,16 +400,21 @@ suite('AgentHostModePicker', () => {
 			const state = {
 				anchorMatches: actionWidget.anchor === button,
 				above: actionWidget.options?.anchorPosition === AnchorPosition.ABOVE,
-				focusGroup: actionWidget.options?.initialFocusGroup,
+				initialFocusItem: actionWidget.options?.initialFocusItemId,
 				collapsed: [...actionWidget.options?.collapsedByDefault ?? []],
 				expanded: button.ariaExpanded,
+				rowOpen: trigger.getAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE),
 			};
 			actionWidget.hide();
-			states.push({ ...state, focusRestored: document.activeElement === button });
+			states.push({
+				...state,
+				rowClosed: !trigger.hasAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE),
+				focusRestored: document.activeElement === button,
+			});
 		}
 		assert.deepStrictEqual(states, [
-			{ anchorMatches: true, above: true, focusGroup: undefined, collapsed: ['agentHostModePicker.permissions'], expanded: 'true', focusRestored: true },
-			{ anchorMatches: true, above: true, focusGroup: 'agentHostModePicker.permissions', collapsed: [], expanded: 'true', focusRestored: true },
+			{ anchorMatches: true, above: true, initialFocusItem: 'interactive', collapsed: ['agentHostModePicker.permissions'], expanded: 'true', rowOpen: 'true', rowClosed: true, focusRestored: true },
+			{ anchorMatches: true, above: true, initialFocusItem: 'permissionPicker.default', collapsed: ['agentHostModePicker.mode'], expanded: 'true', rowOpen: 'true', rowClosed: true, focusRestored: true },
 		]);
 	});
 
@@ -391,7 +461,7 @@ suite('AgentHostModePicker', () => {
 	test('opens permission settings from the gear without changing session configuration', async () => {
 		const { trigger, actionWidget, settingsRequests, writes } = setup();
 		trigger.click();
-		const gear = actionWidget.items.find(item => item.isSectionToggle)?.toolbarActions?.[0];
+		const gear = actionWidget.items.find(item => item.toolbarActions?.length)?.toolbarActions?.[0];
 		assert.ok(gear);
 		await gear.run();
 		assert.deepStrictEqual({
@@ -463,6 +533,40 @@ suite('AgentHostModePicker', () => {
 		assert.deepStrictEqual(states, [{ checked: false, icon: 'shield' }, { checked: true, icon: 'shield' }]);
 	});
 
+	test('refreshes inherited sandbox defaults without overriding an explicit session choice', async () => {
+		const { trigger, actionWidget, configuration, config, configChanged, writes } = setup();
+		const settingId = getAgentHostCopilotSandboxSettingId(false);
+		const states = [];
+		trigger.click();
+		for (const enabled of [true, false, true]) {
+			await configuration.setUserConfiguration(settingId, enabled ? 'on' : 'off');
+			configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === settingId, affectedKeys: new Set([settingId]), source: ConfigurationTarget.USER, change: { keys: [settingId], overrides: [] } });
+			states.push({ checked: actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle?.checked, updates: actionWidget.updateCount });
+			config.values[SessionConfigKey.SandboxEnabled] = 'on';
+			configChanged.fire('test-session');
+		}
+		assert.deepStrictEqual({ states, writes, menuOpen: actionWidget.isVisible }, {
+			states: [{ checked: true, updates: 1 }, { checked: true, updates: 1 }, { checked: true, updates: 1 }],
+			writes: [],
+			menuOpen: true,
+		});
+	});
+
+	test('closes on managed policy changes and rejects stale sandbox callbacks', () => {
+		const { trigger, actionWidget, managedSandboxEnforced, writes } = setup();
+		trigger.click();
+		const toggle = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle;
+		assert.ok(toggle);
+		managedSandboxEnforced.set(true, undefined);
+		const closedOnPolicyChange = !actionWidget.isVisible;
+		toggle.onChange(true);
+		trigger.click();
+		const reopenedToggle = actionWidget.items.find(item => item.standaloneToggle)?.standaloneToggle;
+		assert.deepStrictEqual({ closedOnPolicyChange, writes, updates: actionWidget.updateCount, checked: reopenedToggle?.checked, disabled: reopenedToggle?.disabled }, {
+			closedOnPolicyChange: true, writes: [], updates: 0, checked: true, disabled: true,
+		});
+	});
+
 	test('updates the gate live and leaves other harnesses and phone layout unchanged', async () => {
 		const { trigger, configuration, session, phone, permissionDelegate } = setup(false);
 		const states: boolean[][] = [];
@@ -492,12 +596,14 @@ suite('AgentHostModePicker', () => {
 		assert.deepStrictEqual({
 			icons: trigger.querySelectorAll('.codicon').length,
 			shields: trigger.querySelectorAll('.agent-host-mode-sandbox-icon').length,
+			shieldClass: trigger.querySelector('.agent-host-mode-sandbox-icon')?.className,
 			aria: trigger.ariaLabel,
 			disabled: trigger.ariaDisabled,
 			menuOpen: actionWidget.isVisible,
 		}, {
 			icons: 2,
 			shields: 1,
+			shieldClass: 'codicon codicon-shield-compact agent-host-mode-sandbox-icon',
 			aria: 'Pick Mode and Permissions, Interactive, Manual permissions, terminal sandboxed',
 			disabled: 'true',
 			menuOpen: false,

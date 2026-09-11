@@ -78,6 +78,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 			value: 'word word word word word word word word word word word word word word word word word word word word word word word word',
 		})
 	}),
+	SessionsWindowRequestInProgress: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The running request shows a red Stop icon while the other Agents Window chat input controls retain their normal appearance.'],
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			isSessionsWindow: true,
+			requestInProgress: true,
+		})
+	}),
 	SessionsWindowBackgroundControls: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderChatInput(sessionsWindowContext(context, true), {

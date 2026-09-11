@@ -11,6 +11,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
@@ -21,6 +22,8 @@ import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import type { ISessionSandboxPolicy } from './sessionSandbox.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
 
@@ -109,6 +112,10 @@ export interface IAgentConfigurationService {
 	 */
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void;
 
+	/** Runtime-owned sandbox floor; never accepted from client configuration. */
+	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined;
+	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
+
 	/**
 	 * Returns the merged config values currently stored on `session`.
 	 *
@@ -155,6 +162,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	declare readonly _serviceBrand: undefined;
 	private _rootConfigWrite = Promise.resolve();
 	private readonly _rootTransientValueKeys = new Set<string>();
+	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
@@ -186,11 +194,16 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		for (const registration of providerConfigurations) {
 			this.registerProviderConfiguration(registration);
 		}
+		this._register(this._stateManager.onDidRemoveSession(session => this._sessionSandboxPolicies.delete(session)));
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
 				this._onDidRootConfigChange.fire();
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
+				const policy = this.getSessionSandboxPolicy(envelope.channel);
+				if (envelope.action.config[SessionConfigKey.SandboxEnabled] === 'off' && policy?.enabled && !policy.allowBypass) {
+					this.updateSessionConfig(envelope.channel, { [SessionConfigKey.SandboxEnabled]: 'default' });
+				}
 				this._onDidSessionConfigChange.fire({
 					session: envelope.channel,
 					config: envelope.action.config,
@@ -230,6 +243,19 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			type: ActionType.SessionConfigChanged,
 			config: patch,
 		});
+	}
+
+	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined {
+		const owner = resolveAgentHostSession(URI.parse(session)).toString();
+		return this._sessionSandboxPolicies.get(owner);
+	}
+
+	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void {
+		this._sessionSandboxPolicies.set(session, policy);
+		if (policy.enabled && !policy.allowBypass && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off') {
+			this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: 'default' });
+		}
+		this._onDidSessionConfigChange.fire({ session, config: { [SessionConfigKey.SandboxEnabled]: this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] }, origin: undefined });
 	}
 
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {

@@ -11,13 +11,10 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { localize } from '../../../../nls.js';
@@ -40,30 +37,6 @@ const DEFAULT_AUTO_DELETE_AFTER_DAYS = 15;
 const AUTO_ARCHIVE_PROMPTED_STORAGE_KEY = 'sessions.github.autoArchiveMerged.prompted';
 
 export { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING };
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'chat',
-	properties: {
-		[AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING]: {
-			type: 'integer',
-			minimum: 0,
-			default: 0,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['preview'],
-			markdownDescription: localize('autoArchiveMergedSessions.description', "Controls the number of inactive days before agent sessions with a merged pull request are automatically archived. Archiving safely removes eligible worktrees. Permanent deletion is controlled separately by {0}. Set to 0 to disable automatic archival. The recommended value is 15.", '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`'),
-			agentHost: { key: AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey },
-		},
-		[AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING]: {
-			type: 'integer',
-			minimum: 0,
-			default: 0,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['preview'],
-			markdownDescription: localize('autoDeleteArchivedMergedSessions.description', "Controls the number of days after automatic archival before agent sessions with a merged pull request are permanently deleted. Retained eligible worktrees are safely removed before deletion. Automatic archival is controlled separately by {0}. Set to 0 to disable permanent deletion. The recommended value is 15.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`'),
-			agentHost: { key: AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey },
-		},
-	},
-});
 
 /**
  * Resolved PR identity for a session's poller, or the specific stage at which

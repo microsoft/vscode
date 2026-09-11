@@ -310,6 +310,27 @@ suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('routes artifact removal to the owning provider and propagates errors', async () => {
+		const session = stubSession({
+			sessionId: 'session', providerId: 'test',
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true }),
+		});
+		const calls: string[][] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async removeSessionArtifact(sessionId: string, artifactId: string): Promise<void> {
+				calls.push([sessionId, artifactId]);
+				if (artifactId === 'failure') {
+					throw new Error('Removal failed');
+				}
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await service.removeSessionArtifact(session, 'artifact');
+		await assert.rejects(() => service.removeSessionArtifact(session, 'failure'), /Removal failed/);
+		await assert.rejects(() => service.removeSessionArtifact(stubSession({ sessionId: 'unsupported', providerId: 'test' }), 'artifact'), /not supported/);
+		assert.deepStrictEqual(calls, [['session', 'artifact'], ['session', 'failure']]);
+	});
+
 	test('cancelCurrentRequest loads the chat model then cancels the main chat request', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test' });
 		const { service, chatService } = createSessionsManagementService(session, disposables);
@@ -704,6 +725,58 @@ suite('SessionsManagementService', () => {
 			afterOpenNewSession: undefined,
 			afterOpenNewSessionWithoutActiveSession: undefined,
 			afterOpenSession: undefined,
+		});
+	});
+
+	test('publishes navigation requests even when the empty composer is already active', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const { view } = createSessionsManagementService(session, disposables);
+		const request = disposables.add(new CancellationTokenSource());
+		const tokens: CancellationToken[] = [];
+		disposables.add(autorun(reader => {
+			const navigation = view.navigationRequest.read(reader);
+			if (navigation) {
+				tokens.push(navigation.token);
+			}
+		}));
+
+		await view.openNewSession(undefined, request.token);
+		await view.openNewSession();
+		await view.openNewSession();
+
+		assert.deepStrictEqual({ tokens, activeSession: view.activeSession.get() }, {
+			tokens: [request.token, CancellationToken.None, CancellationToken.None],
+			activeSession: undefined,
+		});
+	});
+
+	test('creating a composer draft preserves navigation while an explicit opening replaces it', async () => {
+		const folderUri = URI.file('/test/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: folderUri, label: 'workspace', icon: Codicon.vm,
+			folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+			requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+		};
+		const session = stubSession({
+			sessionId: 'draft', providerId: 'test', workspace: constObservable(workspace), status: constObservable(SessionStatus.Untitled),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+		}(session);
+		const { view } = createSessionsManagementService(session, disposables, provider);
+		await view.openNewSession();
+		const initialNavigation = view.navigationRequest.get();
+
+		await view.openNewSession({ folderUri, preserveNavigation: true });
+		const draftCreation = {
+			sessionId: view.activeSession.get()?.sessionId,
+			preservedNavigation: view.navigationRequest.get() === initialNavigation,
+		};
+		await view.openNewSession();
+
+		assert.deepStrictEqual({ draftCreation, explicitNavigation: view.navigationRequest.get() !== initialNavigation }, {
+			draftCreation: { sessionId: 'draft', preservedNavigation: true },
+			explicitNavigation: true,
 		});
 	});
 

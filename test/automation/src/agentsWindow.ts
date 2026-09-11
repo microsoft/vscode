@@ -12,10 +12,11 @@ const AGENTS_WORKBENCH = '.agent-sessions-workbench';
 const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
+const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
+const WORKSPACE_PICKER_DEV_CONTAINER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"])';
+const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
-const DEV_CONTAINER_CHECKBOX = `${NEW_SESSION_VIEW} .sessions-chat-dev-container-checkbox .monaco-checkbox`;
-const NEW_WORKTREE_CHECKBOX = `${NEW_SESSION_VIEW} .sessions-chat-isolation-checkbox .monaco-checkbox`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
 const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
@@ -119,34 +120,37 @@ export class AgentsWindow {
 
 	async selectDevContainer(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const devContainer = page.locator(DEV_CONTAINER_CHECKBOX).first();
-		const newWorktree = page.locator(NEW_WORKTREE_CHECKBOX).first();
+		const picker = page.locator(WORKSPACE_PICKER).first();
+		const workspaceRow = page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
+		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
 		const deadline = Date.now() + 120_000;
+		let lastError: unknown;
+
 		while (Date.now() < deadline) {
-			if (await newWorktree.count() > 0 && await newWorktree.getAttribute('aria-checked') === 'true') {
-				await newWorktree.click();
-				continue;
+			if (await picker.getAttribute('aria-expanded') === 'true') {
+				await page.keyboard.press('Escape');
 			}
-			if (await devContainer.count() > 0 && await devContainer.getAttribute('aria-disabled') !== 'true') {
-				break;
+			try {
+				await picker.click();
+				await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
+				await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
+				await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
+				await devContainerRow.click();
+				await page.waitForFunction(
+					selector => document.querySelector(selector)?.textContent?.includes('Dev Container') === true,
+					WORKSPACE_PICKER,
+					{ timeout: 15_000 },
+				);
+				return;
+			} catch (error) {
+				lastError = error;
+				if (await picker.getAttribute('aria-expanded') === 'true') {
+					await page.keyboard.press('Escape');
+				}
+				await new Promise(resolve => setTimeout(resolve, 500));
 			}
-			await new Promise(resolve => setTimeout(resolve, 100));
 		}
-		if (await devContainer.count() === 0) {
-			throw new Error('Timed out waiting for Dev Container checkbox to appear');
-		}
-		if (await devContainer.getAttribute('aria-disabled') === 'true') {
-			throw new Error('Timed out waiting for Dev Container checkbox to become enabled');
-		}
-		if (await devContainer.getAttribute('aria-checked') !== 'true') {
-			await devContainer.click();
-		}
-		while (await devContainer.getAttribute('aria-checked') !== 'true') {
-			if (Date.now() >= deadline) {
-				throw new Error('Timed out waiting for Dev Container checkbox to become checked');
-			}
-			await new Promise(resolve => setTimeout(resolve, 100));
-		}
+		throw new Error(`Timed out selecting Use Dev Container from the workspace picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 
 	private async isSessionTypeSelected(label: string): Promise<boolean> {
