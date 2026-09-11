@@ -2605,8 +2605,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// transient disconnect so the OS mic-in-use indicator doesn't blink
 		// and so reconnection feels seamless. The mic is cycled (stop+start)
 		// when the WS comes back, or fully stopped on terminal `disconnect()`.
-		// Keep the gesture-unlocked AudioContext alive for mobile browsers.
-		this.ttsPlaybackService.stopPlayback();
+		this.ttsPlaybackService.closeContext();
 		this._pttHeld = false;
 		this._pttToggleMode = false;
 		this._pttCurrentTurnId = '';
