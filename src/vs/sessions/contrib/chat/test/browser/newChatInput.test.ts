@@ -46,6 +46,7 @@ const updateAndSaveDraftState = Reflect.get(NewChatInputWidget.prototype, '_upda
 const syncInputGitHubContext = Reflect.get(NewChatInputWidget.prototype, '_syncInputGitHubContext') as (this: ISyncInputGitHubContextHarness) => void;
 const attachTextContext = Reflect.get(NewChatInputWidget.prototype, 'attachTextContext') as (this: IAttachTextContextHarness, name: string, content: string, icon: ThemeIcon, id: string) => void;
 const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_updateSendButtonState') as (this: IUpdateSendButtonStateHarness) => void;
+const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
@@ -118,6 +119,11 @@ interface IUpdateSendButtonStateHarness {
 	readonly _canSendRequest: { get(): boolean };
 }
 
+interface ILoadingSpinnerHarness {
+	readonly _loadingSpinner: HTMLElement | undefined;
+	readonly _sendButtonContainer: HTMLElement | undefined;
+}
+
 interface IAttachmentRenderingHarness {
 	readonly _container: HTMLElement;
 	readonly _attachedContext: readonly IChatRequestVariableEntry[];
@@ -188,6 +194,39 @@ suite('NewChatInputWidget', () => {
 		}, {
 			focused: { input: true, stack: true },
 			blurred: { input: false, stack: false },
+		});
+	});
+
+	test('shows loading in the send button slot', () => {
+		const sendButtonContainer = document.createElement('div');
+		const loadingSpinner = document.createElement('div');
+		const harness: ILoadingSpinnerHarness = {
+			_loadingSpinner: loadingSpinner,
+			_sendButtonContainer: sendButtonContainer,
+		};
+
+		setLoadingSpinnerVisible.call(harness, true);
+		const loadingClasses = {
+			spinner: [...loadingSpinner.classList],
+			sendButton: [...sendButtonContainer.classList],
+		};
+		setLoadingSpinnerVisible.call(harness, false);
+
+		assert.deepStrictEqual({
+			loadingClasses,
+			idleClasses: {
+				spinner: [...loadingSpinner.classList],
+				sendButton: [...sendButtonContainer.classList],
+			},
+		}, {
+			loadingClasses: {
+				spinner: ['visible'],
+				sendButton: ['loading'],
+			},
+			idleClasses: {
+				spinner: [],
+				sendButton: [],
+			},
 		});
 	});
 

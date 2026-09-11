@@ -476,6 +476,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _promptOptionsSelected = false;
 
 	// Send button
+	private _sendButtonContainer: HTMLElement | undefined;
 	private _sendButton: Button | undefined;
 	private _sending = false;
 
@@ -611,7 +612,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._canSendRequest.read(reader);
 			this.options.hasAdditionalSendContent?.read(reader);
 			const isLoading = this.options.loading.read(reader);
-			this._loadingSpinner?.classList.toggle('visible', isLoading);
+			this._setLoadingSpinnerVisible(isLoading);
 			this._updateSendButtonState();
 		}));
 	}
@@ -855,15 +856,20 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				const timer = setTimeout(() => {
 					this._loadingDelayDisposable.clear();
 					if (this._sending) {
-						this._loadingSpinner?.classList.add('visible');
+						this._setLoadingSpinnerVisible(true);
 					}
 				}, 500);
 				this._loadingDelayDisposable.value = toDisposable(() => clearTimeout(timer));
 			}
 		} else {
 			this._loadingDelayDisposable.clear();
-			this._loadingSpinner?.classList.remove('visible');
+			this._setLoadingSpinnerVisible(false);
 		}
+	}
+
+	private _setLoadingSpinnerVisible(visible: boolean): void {
+		this._loadingSpinner?.classList.toggle('visible', visible);
+		this._sendButtonContainer?.classList.toggle('loading', visible);
 	}
 
 	// --- Editor ---
@@ -1228,15 +1234,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.logService.error('Failed to create new-session voice input mode pill:', error);
 		}
 
-		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
-		const loadingIcon = dom.append(this._loadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+		this._sendButtonContainer = this.options.renderSendButton !== false
+			? dom.append(toolbar, dom.$('.sessions-chat-send-button'))
+			: undefined;
+		this._loadingSpinner = dom.append(this._sendButtonContainer ?? toolbar, dom.$('.sessions-chat-loading-spinner'));
+		const loadingIcon = dom.append(this._loadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 		loadingIcon.setAttribute('aria-hidden', 'true');
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
-		this._loadingSpinner.classList.toggle('visible', this.options.loading.get());
 
-		if (this.options.renderSendButton !== false) {
-			const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
-			const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
+		if (this._sendButtonContainer) {
+			const sendButton = this._sendButton = this._register(new Button(this._sendButtonContainer, {
 				secondary: true,
 				title: this.options.supportsBackground
 					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
@@ -1247,6 +1254,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Hold Alt while clicking Send to start the session in the background.
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}
+		this._setLoadingSpinnerVisible(this.options.loading.get());
 		updateVoiceInputActionBorder();
 
 		this._primaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.primaryPicker', configContainer, {
