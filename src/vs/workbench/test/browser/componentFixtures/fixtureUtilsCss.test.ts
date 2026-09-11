@@ -87,6 +87,25 @@ suite('Component fixture theme CSS', () => {
 			})));
 		});
 	}
+
+	test('preserves theme variables on nested editor theme roots', () => {
+		const originalStyleSheets = [...mainWindow.document.adoptedStyleSheets];
+		disposables.add(toDisposable(() => { mainWindow.document.adoptedStyleSheets = originalStyleSheets; }));
+		const theme = ColorThemeData.createLoadedEmptyTheme(`${ThemeTypeSelector.VS} fixture-light`, 'Light');
+		theme.setCustomColors({ 'editor.background': '#123456' });
+		mainWindow.document.adoptedStyleSheets = [
+			...mainWindow.document.adoptedStyleSheets,
+			getThemeStyleSheet(theme),
+		];
+		const root = mainWindow.document.body.appendChild($('.monaco-workbench'));
+		disposables.add(toDisposable(() => root.remove()));
+		root.classList.add(...theme.classNames);
+		root.style.setProperty('--vscode-editor-background', '#abcdef');
+		const editor = root.appendChild($('.monaco-editor.vs'));
+		editor.style.backgroundColor = 'var(--vscode-editor-background)';
+
+		assert.strictEqual(mainWindow.getComputedStyle(editor).backgroundColor, 'rgb(18, 52, 86)');
+	});
 });
 
 function createCurrentLine(parent: HTMLElement): HTMLElement {

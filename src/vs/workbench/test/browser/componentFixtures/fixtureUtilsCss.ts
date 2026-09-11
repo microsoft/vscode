@@ -191,7 +191,7 @@ function getFileIconThemeStyleSheetCached(scopeSelector: string, styleSheetConte
 	return fileIconThemeStyleSheet;
 }
 
-function createScopedThemingParticipant(scopeSelector: string, scopeRootSelector: string, participants: readonly IThemingParticipant[]): IThemingParticipant {
+function createScopedThemingParticipant(scopeRootSelector: string, participants: readonly IThemingParticipant[]): IThemingParticipant {
 	return (theme, collector, environment) => {
 		const rules = new Set<string>();
 		const scopedCollector = { addRule: (rule: string) => rules.add(rule) };
@@ -199,7 +199,7 @@ function createScopedThemingParticipant(scopeSelector: string, scopeRootSelector
 		const scopedRules = [...rules].map(rule => rule
 			.replace(/^(\s*):root(?=\s*\{)/, '$1:scope')
 			.replaceAll(scopeRootSelector, ':scope'));
-		collector.addRule(`@scope (${scopeSelector}) {\n${scopedRules.join('\n')}\n}`);
+		collector.addRule(scopedRules.join('\n'));
 	};
 }
 
@@ -209,16 +209,18 @@ export function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 		return cachedStyleSheet;
 	}
 
-	const scopeSelector = '.' + theme.classNames.join('.');
+	const scopeSelector = '.' + theme.classNames[0];
+	const themeScopeSelector = '.' + theme.classNames.join('.');
 	const themingParticipants = themingRegistry.getThemingParticipants();
 	const sheet = new CSSStyleSheet();
 	const css = generateColorThemeCSS(
 		theme,
 		scopeSelector,
-		[createScopedThemingParticipant(scopeSelector, '.monaco-workbench', themingParticipants)],
+		[createScopedThemingParticipant('.monaco-workbench', themingParticipants)],
 		mockEnvironmentService
 	);
-	sheet.replaceSync(css.code);
+	// Preserve base-theme variable declarations on nested editors without leaking across fixtures.
+	sheet.replaceSync(`@scope (${themeScopeSelector}) {\n${css.code}\n}`);
 
 	themeStyleSheetCache.set(theme, sheet);
 	return sheet;
