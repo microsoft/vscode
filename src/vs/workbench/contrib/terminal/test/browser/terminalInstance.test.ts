@@ -72,7 +72,8 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	constructor(
-		readonly shouldPersist: boolean
+		readonly shouldPersist: boolean,
+		private readonly _resolvedShellLaunchConfig?: IShellLaunchConfig
 	) {
 		super();
 	}
@@ -89,7 +90,12 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	onProcessReady = Event.None;
 	onProcessTitleChanged = Event.None;
 	onProcessShellTypeChanged = Event.None;
-	async start(): Promise<undefined> { return undefined; }
+	async start(): Promise<undefined> {
+		if (this._resolvedShellLaunchConfig) {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ResolvedShellLaunchConfig, value: this._resolvedShellLaunchConfig });
+		}
+		return undefined;
+	}
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
 	sendSignal(signal: string): void { }
@@ -101,15 +107,11 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	async getCwd(): Promise<string> { return ''; }
 	async processBinary(data: string): Promise<void> { }
 	refreshProperty(property: any): Promise<any> { return Promise.resolve(''); }
-
-	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ResolvedShellLaunchConfig, value: shellLaunchConfig });
-	}
 }
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
 	createProcessCount = 0;
-	lastProcess: TestTerminalChildProcess | undefined;
+	attachResolvedShellLaunchConfig: IShellLaunchConfig | undefined;
 	private readonly _processCreatedPromise: Promise<void>;
 	private _resolveProcessCreated!: () => void;
 
@@ -143,16 +145,16 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 			) => {
 				this.createProcessCount++;
 				this._resolveProcessCreated();
-				return this.lastProcess = this._register(new TestTerminalChildProcess(shouldPersist));
+				return this._register(new TestTerminalChildProcess(shouldPersist));
 			},
 			getLatency: () => Promise.resolve([]),
 			attachToProcess: async () => {
 				this._resolveProcessCreated();
-				return this.lastProcess = this._register(new TestTerminalChildProcess(true));
+				return this._register(new TestTerminalChildProcess(true, this.attachResolvedShellLaunchConfig));
 			},
 			attachToRevivedProcess: async () => {
 				this._resolveProcessCreated();
-				return this.lastProcess = this._register(new TestTerminalChildProcess(true));
+				return this._register(new TestTerminalChildProcess(true, this.attachResolvedShellLaunchConfig));
 			}
 		} as unknown as ITerminalBackend;
 	}
@@ -275,6 +277,7 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should hydrate extension ownership for old terminal editor state', async () => {
 			const terminalInstanceService = store.add(new TestTerminalInstanceService());
+			terminalInstanceService.attachResolvedShellLaunchConfig = { isExtensionOwnedTerminal: true };
 			const instance = await createTerminalInstance(terminalInstanceService, undefined, {
 				attachPersistentProcess: {
 					id: 1,
@@ -289,14 +292,6 @@ suite('Workbench - TerminalInstance', () => {
 			});
 			await terminalInstanceService.processCreatedPromise;
 
-			await writeP(instance.xterm!.raw, '\x1b]633;P;Cwd=/before-hydration\x07');
-			strictEqual(instance.xterm?.shellIntegration.capabilities.has(TerminalCapability.CwdDetection), false);
-
-			const attachedProcess = terminalInstanceService.lastProcess;
-			if (!attachedProcess) {
-				throw new Error('Expected attached terminal process');
-			}
-			attachedProcess.emitResolvedShellLaunchConfig({ isExtensionOwnedTerminal: true });
 			await writeP(instance.xterm!.raw, '\x1b]633;P;Cwd=/after-hydration\x07');
 			const cwdDetection = instance.xterm?.shellIntegration.capabilities.get(TerminalCapability.CwdDetection);
 			deepStrictEqual(
