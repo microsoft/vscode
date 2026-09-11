@@ -13,11 +13,12 @@ import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type I
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY } from '../../../../../../platform/agentHost/common/automationMigration.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -38,7 +39,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
@@ -49,7 +50,7 @@ import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -115,6 +116,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public createDetachedWorktreeCalls: { session: URI; prompt: string }[] = [];
 	public claimedDetachedWorktrees: string[] = [];
 	public deletedDetachedWorktrees: string[] = [];
+	public removedArtifacts: { session: URI; artifactId: string }[] = [];
+	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		this.removedArtifacts.push({ session, artifactId });
+	}
 	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
@@ -3191,7 +3196,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
 	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -3574,6 +3579,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('switches incompatible worktree isolation to folder when enabling a preferred Dev Container', async () => {
+		const configurationService = new TestConfigurationService({
+			[DevContainerWorktreeEnabledSettingId]: false,
+		});
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService,
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> {
+					return true;
+				}
+			}(),
+		});
+		const session = provider.createNewSession(
+			URI.file('/home/user/project'),
+			provider.sessionTypes[0].id,
+		);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values[SessionConfigKey.Isolation] === 'worktree');
+		provider.preferDevContainer(session.sessionId);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values[SessionConfigKey.Isolation] === 'folder');
+
+		assert.deepStrictEqual({
+			enabled: provider.isDevContainerEnabled(session.sessionId),
+			isolation: provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.Isolation],
+			forwardedIsolation: agentHost.resolveSessionConfigRequests.at(-1)?.config?.[SessionConfigKey.Isolation],
+		}, {
+			enabled: true,
+			isolation: 'folder',
+			forwardedIsolation: 'folder',
+		});
+	});
+
 	test('does not enable a preferred Dev Container when unavailable or canceled', async () => {
 		const unavailable = new DeferredPromise<boolean>();
 		const canceled = new DeferredPromise<boolean>();
@@ -3938,17 +3974,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
 			[SessionConfigKey.Branch]: 'legacy-branch',
+			[SessionConfigKey.SandboxEnabled]: 'off',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
 
+		const initialSandbox = agentHost.resolveSessionConfigRequests.at(-1)?.config?.[SessionConfigKey.SandboxEnabled];
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, 'off');
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
 		await provider.setSessionConfigValue(session.sessionId, '__proto__', 'polluted');
 
 		assert.deepStrictEqual(
-			storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
-			{ [SessionConfigKey.Isolation]: 'folder' },
+			{
+				initialSandbox,
+				remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+			},
+			{ initialSandbox: undefined, remembered: { [SessionConfigKey.Isolation]: 'folder' } },
 		);
 	});
 
@@ -7262,6 +7304,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('sendRequest forwards resolved session config to chat service', async () => {
 		const sendOptions: IChatSendRequestOptions[] = [];
+		const metadata = { 'test.request': { enabled: true } };
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
 			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
@@ -7276,18 +7319,42 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
 		const chat = await provider.createNewChat(session.sessionId);
-		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello', title: 'Pull Request', hideFromTranscript: true });
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello', title: 'Pull Request', hideFromTranscript: true, metadata });
 
 		assert.deepStrictEqual({
 			sendOptions: sendOptions.map(options => ({
 				agentHostSessionConfig: options.agentHostSessionConfig,
 				hideFromTranscript: options.hideFromTranscript,
+				metadata: options.metadata,
 			})),
 			title: committed.title.get(),
 		}, {
-			sendOptions: [{ agentHostSessionConfig: { isolation: 'worktree' }, hideFromTranscript: true }],
+			sendOptions: [{ agentHostSessionConfig: { isolation: 'worktree' }, hideFromTranscript: true, metadata }],
 			title: 'Pull Request',
 		});
+	});
+
+	test('sendRequest preserves provider metadata for a committed session', async () => {
+		const forwarded: (Record<string, unknown> | undefined)[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (_resource, _message, options) => {
+				forwarded.push(options?.metadata);
+				return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+			},
+		});
+		fireSessionAdded(agentHost, 'send-metadata', { title: 'Send Metadata' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Send Metadata');
+		assert.ok(session);
+		const metadata = { 'test.request': { enabled: true } };
+		await provider.sendRequest(session.sessionId, session.resource, { query: 'hello', metadata });
+		assert.deepStrictEqual(forwarded, [metadata]);
 	});
 
 	test('sendRequest clears chat input draft while preserving selected model and agent', async () => {
@@ -7824,7 +7891,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'a1', type: SessionArtifactType.PullRequest, label: 'Created', isArtifact: true, link: 'https://github.com/owner/repo/pull/50', isGitHub: true },
 			{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Referenced', isArtifact: false, link: 'https://github.com/owner/repo/pull/60', isGitHub: true },
 			{ id: 'a3', type: SessionArtifactType.PullRequest, label: 'Duplicate', isArtifact: true, link: 'https://github.com/OWNER/REPO/pull/41/', isGitHub: true },
-			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Issue', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Preserve promoted issue titles', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
 			{ id: 'a5', type: SessionArtifactType.PullRequest, label: 'Elsewhere', isArtifact: true, link: 'https://gitlab.com/owner/repo/-/merge_requests/3', isGitHub: false },
 			{ id: 'a6', type: SessionArtifactType.File, label: 'Plan', isArtifact: true, uri: 'file:///repo/plan.md' },
 			{ id: 'a7', type: SessionArtifactType.Issue, label: 'Referenced issue', isArtifact: false, link: 'https://github.com/owner/repo/issues/8', isGitHub: true },
@@ -7842,13 +7909,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			activePullRequest: gitHubInfo?.pullRequest?.number,
 			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
-			issues: gitHubInfo?.issues?.map(issue => issue.number),
+			issues: gitHubInfo?.issues?.map(issue => [issue.number, issue.title]),
 			artifacts: session.artifacts?.get().map(artifact => [artifact.id, artifact.isArtifact]),
 		}, {
 			activePullRequest: 41,
 			pullRequests: [41, 50, 42],
 			// Only issues the session produced are polled; a referenced one stays a reference.
-			issues: [7],
+			issues: [[7, 'Preserve promoted issue titles']],
 			artifacts: [
 				['a8', false],
 				['a7', false],
@@ -7861,6 +7928,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 			],
 		});
 	}));
+
+	test('gates artifact removal on the host capability and routes the backend session URI', async () => {
+		agentHost.addSession(createSession('remove-artifact'));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const supported: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => supported.push(session.capabilities.read(reader).supportsRemoveArtifacts)));
+		await assert.rejects(() => provider.removeSessionArtifact(session.sessionId, 'artifact'), /unavailable/);
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: getAgentHostExtensionInitializeResultMeta() }, undefined);
+		await provider.removeSessionArtifact(session.sessionId, 'artifact');
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: {} }, undefined);
+		await assert.rejects(() => provider.removeSessionArtifact(session.sessionId, 'artifact'), /unavailable/);
+		assert.deepStrictEqual({
+			supported,
+			removed: agentHost.removedArtifacts.map(call => ({ session: call.session.toString(), artifactId: call.artifactId })),
+		}, {
+			supported: [false, true, false],
+			removed: [{ session: AgentSession.uri('copilotcli', 'remove-artifact').toString(), artifactId: 'artifact' }],
+		});
+	});
 
 	test('preserves recorded artifacts as GitHub repository metadata hydrates', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {

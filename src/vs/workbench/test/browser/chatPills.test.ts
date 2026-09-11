@@ -395,7 +395,7 @@ suite('ChatPills', () => {
 		});
 		const sections = observableValue<readonly IChatPillSection[]>('chatPills.openSections', [{
 			title: 'Pull Requests',
-			entries: [entry('1'), entry('2')],
+			entries: [entry('1'), entry('2'), entry('3')],
 		}]);
 		const pill = createChatSectionPill(action, sections, {
 			widgetId: 'pullRequests',
@@ -421,6 +421,12 @@ suite('ChatPills', () => {
 		includeSibling.set(true, undefined);
 		const expandedAfterUpdate = button.getAttribute('aria-expanded');
 		const dropdownFocusPreserved = mainWindow.document.activeElement === dropdownFocus;
+		sections.set([{ title: 'Pull Requests', entries: [entry('3')] }], undefined);
+		const single = {
+			visible,
+			focused: mainWindow.document.activeElement === button,
+			expanded: button.getAttribute('aria-expanded'),
+		};
 		sections.set([], undefined);
 
 		assert.deepStrictEqual({
@@ -428,13 +434,15 @@ suite('ChatPills', () => {
 			updatedLabels,
 			expandedAfterUpdate,
 			dropdownFocusPreserved,
+			single,
 			hideCount,
 			expandedAfterEmpty: button.getAttribute('aria-expanded'),
 		}, {
-			shownLabels: ['Pull Requests', 'Pull Request #1', 'Pull Request #2'],
+			shownLabels: ['Pull Requests', 'Pull Request #1', 'Pull Request #2', 'Pull Request #3'],
 			updatedLabels: ['Pull Requests', 'Pull Request #2', 'Pull Request #3'],
 			expandedAfterUpdate: 'true',
 			dropdownFocusPreserved: true,
+			single: { visible: false, focused: true, expanded: null },
 			hideCount: 1,
 			expandedAfterEmpty: null,
 		});

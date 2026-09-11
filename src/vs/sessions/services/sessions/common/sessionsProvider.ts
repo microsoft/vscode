@@ -39,6 +39,8 @@ export interface IPreparedNewSession {
 export interface ISendRequestOptions {
 	/** The query text to send. */
 	readonly query: string;
+	/** Provider-specific request metadata, separate from the prompt. */
+	readonly metadata?: Record<string, unknown>;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	/** Optional display title for the new session. */
@@ -354,6 +356,9 @@ export interface ISessionsProvider {
 	 * @param title The new title for the session.
 	 */
 	renameSession(sessionId: string, title: string): Promise<void>;
+
+	/** Remove a recorded artifact without changing independent session associations. */
+	removeSessionArtifact?(sessionId: string, artifactId: string): Promise<void>;
 
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.

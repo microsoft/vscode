@@ -58,7 +58,7 @@ import { IChatOutputRendererService } from '../../../../contrib/chat/browser/cha
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
-import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
@@ -336,7 +336,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAiEditTelemetryService, new class extends mock<IAiEditTelemetryService>() {
 		override createSuggestionId() { return EditSuggestionId.newId(); }
 	}());
-	reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
+	reg.define(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry);
 	reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { }());
 	reg.defineInstance(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() { override getHistory() { return []; } override readonly onDidChangeHistory = Event.None; }());
 	reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
@@ -410,6 +410,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
 		override readonly enabled = constObservable(false);
 		override readonly managedSandboxEnforced = constObservable(false);
+		override readonly managedSandboxAllowsBypass = constObservable(true);
 	}());
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);

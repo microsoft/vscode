@@ -10,7 +10,7 @@ import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { PROMPT_DOCUMENTATION_URL, PromptsType, getSourceDescription } from '../../../common/promptSyntax/promptTypes.js';
+import { getDocumentationUrl, PromptsType, getSourceDescription } from '../../../common/promptSyntax/promptTypes.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -170,13 +170,14 @@ function getPlaceholderStringforMove(type: PromptsType, isMove: boolean): string
 export async function showNoFoldersDialog(accessor: ServicesAccessor, type: PromptsType): Promise<void> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const openerService = accessor.get(IOpenerService);
+	const documentationUrl = getDocumentationUrl(type);
 
 	const docsQuickPick: IQuickPickItem & { value: URI } = {
 		type: 'item',
 		label: getLearnLabel(type),
-		description: PROMPT_DOCUMENTATION_URL,
-		tooltip: PROMPT_DOCUMENTATION_URL,
-		value: URI.parse(PROMPT_DOCUMENTATION_URL),
+		description: documentationUrl,
+		tooltip: documentationUrl,
+		value: URI.parse(documentationUrl),
 	};
 
 	const result = await quickInputService.pick(
