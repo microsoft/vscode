@@ -22,6 +22,7 @@ import { EnterOperation } from '../../../common/cursor/cursorTypeEditOperations.
 import { TypeOperations } from '../../../common/cursor/cursorTypeOperations.js';
 import { ICommand } from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../common/model.js';
 import { CopyLinesCommand } from './copyLinesCommand.js';
@@ -1125,6 +1126,7 @@ export abstract class AbstractCaseAction extends EditorAction {
 		}
 
 		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const skipStringsAndComments = editor.getOption(EditorOption.transformCase).skipStringsAndComments;
 		const textEdits: ISingleEditOperation[] = [];
 
 		for (const selection of selections) {
@@ -1137,8 +1139,17 @@ export abstract class AbstractCaseAction extends EditorAction {
 				}
 
 				const wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				if (skipStringsAndComments && isRangeInStringOrComment(model, wordRange)) {
+					continue;
+				}
 				const text = model.getValueInRange(wordRange);
 				textEdits.push(EditOperation.replace(wordRange, this._modifyText(text, wordSeparators)));
+			} else if (skipStringsAndComments) {
+				const codeRanges = splitRangeAroundStringsAndComments(model, selection);
+				for (const codeRange of codeRanges) {
+					const text = model.getValueInRange(codeRange);
+					textEdits.push(EditOperation.replace(codeRange, this._modifyText(text, wordSeparators)));
+				}
 			} else {
 				const text = model.getValueInRange(selection);
 				textEdits.push(EditOperation.replace(selection, this._modifyText(text, wordSeparators)));
@@ -1151,6 +1162,90 @@ export abstract class AbstractCaseAction extends EditorAction {
 	}
 
 	protected abstract _modifyText(text: string, wordSeparators: string): string;
+}
+
+function isStringOrCommentTokenType(tokenType: StandardTokenType): boolean {
+	return tokenType === StandardTokenType.String || tokenType === StandardTokenType.Comment;
+}
+
+/**
+ * Returns true when the entire `range` is classified as either a string or a comment by the
+ * model's tokenizer. The check is conservative: when tokens are not yet available the function
+ * forces tokenization for the affected lines so the caller gets a deterministic answer.
+ */
+function isRangeInStringOrComment(model: ITextModel, range: Range): boolean {
+	if (range.isEmpty()) {
+		return false;
+	}
+	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+		model.tokenization.forceTokenization(lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(lineNumber);
+		const lineLength = model.getLineLength(lineNumber);
+		const startOffset = lineNumber === range.startLineNumber ? range.startColumn - 1 : 0;
+		const endOffset = lineNumber === range.endLineNumber ? Math.min(range.endColumn - 1, lineLength) : lineLength;
+		if (startOffset >= endOffset) {
+			continue;
+		}
+		const startTokenIndex = lineTokens.findTokenIndexAtOffset(startOffset);
+		// findTokenIndexAtOffset uses a half-open lookup; for the end side we look at the last
+		// token strictly inside the range (endOffset - 1).
+		const endTokenIndex = lineTokens.findTokenIndexAtOffset(endOffset - 1);
+		for (let i = startTokenIndex; i <= endTokenIndex; i++) {
+			if (!isStringOrCommentTokenType(lineTokens.getStandardTokenType(i))) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+/**
+ * Splits a non-empty `range` into one or more sub-ranges that exclude any portions classified as
+ * strings or comments by the model's tokenizer. The original range is returned unchanged when the
+ * model has no tokens for it (e.g. plaintext) or when no string/comment tokens are present.
+ */
+function splitRangeAroundStringsAndComments(model: ITextModel, range: Range): Range[] {
+	if (range.isEmpty()) {
+		return [];
+	}
+	const result: Range[] = [];
+	let pendingStartLine = range.startLineNumber;
+	let pendingStartColumn = range.startColumn;
+	const flushPending = (endLine: number, endColumn: number) => {
+		if (endLine > pendingStartLine || endColumn > pendingStartColumn) {
+			result.push(new Range(pendingStartLine, pendingStartColumn, endLine, endColumn));
+		}
+	};
+
+	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+		model.tokenization.forceTokenization(lineNumber);
+		const lineTokens = model.tokenization.getLineTokens(lineNumber);
+		const lineLength = model.getLineLength(lineNumber);
+		const startOffset = lineNumber === range.startLineNumber ? range.startColumn - 1 : 0;
+		const endOffset = lineNumber === range.endLineNumber ? Math.min(range.endColumn - 1, lineLength) : lineLength;
+		if (startOffset >= endOffset) {
+			continue;
+		}
+
+		const startTokenIndex = lineTokens.findTokenIndexAtOffset(startOffset);
+		const endTokenIndex = lineTokens.findTokenIndexAtOffset(endOffset - 1);
+		for (let i = startTokenIndex; i <= endTokenIndex; i++) {
+			const tokenType = lineTokens.getStandardTokenType(i);
+			const tokenStart = Math.max(lineTokens.getStartOffset(i), startOffset);
+			const tokenEnd = Math.min(lineTokens.getEndOffset(i), endOffset);
+			if (tokenStart >= tokenEnd) {
+				continue;
+			}
+			if (isStringOrCommentTokenType(tokenType)) {
+				flushPending(lineNumber, tokenStart + 1);
+				pendingStartLine = lineNumber;
+				pendingStartColumn = tokenEnd + 1;
+			}
+		}
+	}
+
+	flushPending(range.endLineNumber, range.endColumn);
+	return result;
 }
 
 export class UpperCaseAction extends AbstractCaseAction {
