@@ -4215,10 +4215,10 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session));
 	}
 
-	async disposeSessionIf(session: URI, validate: () => Promise<boolean>): Promise<boolean> {
+	async disposeSessionIf(session: URI, validate: () => Promise<boolean>, canCommit: () => boolean): Promise<boolean> {
 		this._logService.trace(`[AgentService] disposeSessionIf: ${session.toString()}`);
 		return this._sessionResidency.runDisposal(session, async () => {
-			if (!await validate()) {
+			if (!await validate() || !canCommit()) {
 				return false;
 			}
 			await this._doDisposeSession(session);

@@ -44,6 +44,7 @@ suite('AgentHostSessionLifecycle', () => {
 		readonly worktreePresent?: boolean;
 		readonly onGetAutoArchivedAt?: (configurationService: AgentConfigurationService) => void;
 		readonly onSetAutoArchivedAt?: (timestamp: number, configurationService: AgentConfigurationService, stateManager: AgentHostStateManager, session: URI) => void;
+		readonly onDeleteValidationResolved?: (configurationService: AgentConfigurationService) => void;
 	}) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -138,8 +139,16 @@ suite('AgentHostSessionLifecycle', () => {
 					cleanedWorktrees.push(resource.toString());
 					worktreePresent = false;
 				},
-				deleteSession: async (resource, validate) => {
-					if (!await validate()) {
+				deleteSession: async (resource, validate, canCommit) => {
+					const validation = validate();
+					if (options?.onDeleteValidationResolved) {
+						void validation.then(valid => {
+							if (valid) {
+								options.onDeleteValidationResolved?.(configurationService);
+							}
+						});
+					}
+					if (!await validation || !canCommit()) {
 						return false;
 					}
 					deleted.push(resource.toString());
@@ -568,6 +577,28 @@ suite('AgentHostSessionLifecycle', () => {
 				if (resolveCount === 3) {
 					configurationService.updateRootConfig({ [AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0 });
 				}
+			},
+		});
+
+		await lifecycle.run();
+
+		assert.deepStrictEqual({
+			deleted,
+			archived: isSessionStatusArchived(stateManager.getSessionSummary(session.toString())?.status),
+		}, {
+			deleted: [],
+			archived: true,
+		});
+	});
+
+	test('does not delete when cleanup is disabled before the disposer commit boundary', async () => {
+		const { lifecycle, stateManager, session, deleted } = createHarness({
+			sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived,
+			modifiedTime: NOW - 3 * DAY_MS,
+			status: mergedPullRequestStatus(),
+			autoArchivedAt: NOW - 2 * DAY_MS,
+			onDeleteValidationResolved: configurationService => {
+				configurationService.updateRootConfig({ [AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey]: 0 });
 			},
 		});
 

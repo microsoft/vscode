@@ -31,7 +31,7 @@ export interface IAgentHostSessionLifecycleAccessor {
 	readonly archiveSession: (session: URI) => void;
 	readonly canDeleteSession: (session: URI) => Promise<boolean>;
 	readonly cleanupWorktree: (session: URI, sessionId: string) => Promise<void>;
-	readonly deleteSession: (session: URI, validate: () => Promise<boolean>) => Promise<boolean>;
+	readonly deleteSession: (session: URI, validate: () => Promise<boolean>, canCommit: () => boolean) => Promise<boolean>;
 }
 
 export interface IAgentHostSessionLifecycleOptions {
@@ -179,6 +179,7 @@ export class AgentHostSessionLifecycle extends Disposable {
 			await this._accessor.setAutoArchivedAt(session, this._now());
 		} else {
 			try {
+				let validatedDeleteAfterDays: number | undefined;
 				const deleted = await this._accessor.deleteSession(session, async () => {
 					if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
 						return false;
@@ -205,8 +206,11 @@ export class AgentHostSessionLifecycle extends Disposable {
 						|| !await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
 						return false;
 					}
+					validatedDeleteAfterDays = finalDeleteAfterDays;
+					return true;
+				}, () => {
 					const latestSummary = this._stateManager.getSessionSummary(sessionKey);
-					return this._settings.deleteAfterDays === finalDeleteAfterDays
+					return this._settings.deleteAfterDays === validatedDeleteAfterDays
 						&& latestSummary !== undefined
 						&& isSessionStatusArchived(latestSummary.status)
 						&& !isSessionStatusActive(latestSummary.status)
