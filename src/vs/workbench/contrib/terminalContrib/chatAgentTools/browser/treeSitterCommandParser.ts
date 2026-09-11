@@ -44,7 +44,7 @@ const envOptionsWithValue = new Set(['-u', '--unset', '-C', '--chdir', '-a', '--
 function maskPwshPosixNativeArgs(commandLine: string): string {
 	return commandLine
 		.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `)
-		.replace(pwshStandaloneDoubleDashRegex, (_, pre) => `${pre}__`);
+		.replace(pwshStandaloneDoubleDashRegex, (_, pre) => `${pre}  `);
 }
 
 export class TreeSitterCommandParser extends Disposable {

@@ -192,7 +192,10 @@ suite('TreeSitterCommandParser', () => {
 				test('double-dash flag with quoted value', () => t('git log --format="abc"', ['git log --format="abc"']));
 				test('double-dash flag with value containing pipe', () => t('git log --format="a|b"', ['git log --format="a|b"']));
 				test('double-dash flag with single-quoted value', () => t(`git log --format='%h|%s'`, [`git log --format='%h|%s'`]));
-				test('standalone double dash pathspec separator', () => t('git diff -- package.json pnpm-lock.yaml', ['git diff -- package.json pnpm-lock.yaml']));
+				test('standalone double dash following a variable expression', () => t('$val --', []));
+				test('standalone double dash preceding a variable expression', () => t('-- $val', []));
+				test('standalone double dash at the end of a native CLI command', () => t('git diff --', ['git diff --']));
+				test('standalone double dash pathspec separator', () => t('git diff -- file.txt', ['git diff -- file.txt']));
 				test('standalone double dash command separator', () => t('npm exec -- tsc --noEmit --pretty false', ['npm exec -- tsc --noEmit --pretty false']));
 				test('multiple flag=value arguments', () => t('git log --format="%h" --date=short HEAD -1', ['git log --format="%h" --date=short HEAD -1']));
 				test('chained git log with format containing pipes', () => t(
