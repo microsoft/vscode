@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableSignal } from '../../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -24,8 +25,9 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { getCodexApprovalsPickerListOptions } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
 import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxToggleState } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostCopilotSandboxSettingId, getAgentHostCopilotSandboxSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCopilotSandboxSettingId, getAgentHostCopilotSandboxSettingId, IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { getAgentHostOperatingSystem } from '../../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -36,10 +38,10 @@ import type { SessionState } from '../../../../../../platform/agentHost/common/s
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -58,7 +60,7 @@ import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './age
 import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 
 const FILTER_THRESHOLD = 10;
@@ -70,6 +72,7 @@ const CODEX_APPROVALS_LEARN_MORE_URL = 'https://developers.openai.com/codex/conc
 export { isWellKnownAutoApproveSchema };
 
 interface IConfigPickerItem {
+	readonly id?: string;
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
@@ -139,7 +142,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
 			...(hover ? { hover: { content: hover } } : {}),
-			item: { ...item, checked: isSelectedValue(currentValue, item.value) },
+			item: { ...item, id: item.value, checked: isSelectedValue(currentValue, item.value) },
 		};
 	});
 	if (property === SessionConfigKey.AutoApprove && sandboxToggle) {
@@ -158,11 +161,11 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 	return actionItems;
 }
 
-export function getAgentHostSandboxSettingId(sessionType: string | undefined, customTerminalToolEnabled: boolean, windows?: boolean): AgentHostCopilotSandboxSettingId | undefined {
+export function getAgentHostSandboxSettingId(sessionType: string | undefined, windows?: boolean): AgentHostCopilotSandboxSettingId | undefined {
 	if (sessionType !== SessionType.AgentHostCopilot) {
 		return undefined;
 	}
-	return getAgentHostCopilotSandboxSettingId(customTerminalToolEnabled, windows);
+	return getAgentHostCopilotSandboxSettingId(windows);
 }
 
 export function getConfigPickerTriggerLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
@@ -386,11 +389,13 @@ export class AgentHostChatInputPicker extends Disposable {
 	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private readonly _subRef = this._register(new MutableDisposable<IDisposable & IConfigPickerTarget & { readonly sub: IAgentSubscription<SessionState> }>());
 	private _sessionGeneration = 0;
+	private _hostOperatingSystem: OperatingSystem | undefined;
+	private _hostOperatingSystemRequest: Promise<void> | undefined;
 
 	constructor(
 		private readonly _widget: IChatWidget,
 		private readonly _property: string,
-		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -405,6 +410,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IChatPhoneInputPresenter private readonly _phoneInputPresenter: IChatPhoneInputPresenter,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -422,6 +428,15 @@ export class AgentHostChatInputPicker extends Disposable {
 			const current = this._widget.viewModel?.sessionResource;
 			if (current && current.toString() === sessionResource.toString()) {
 				this._reattach();
+			}
+		}));
+		this._register(this._agentHostService.onAgentHostStart(async () => {
+			const request = this._hostOperatingSystemRequest;
+			// Recovery can be reported before an interrupted diagnostics request settles.
+			await request;
+			if (!this._store.isDisposed && request && this._hostOperatingSystemRequest === request && this._hostOperatingSystem === undefined) {
+				this._hostOperatingSystemRequest = undefined;
+				this._getSandboxSettingId();
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -814,6 +829,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const permissions = this._getModePickerPermissions();
 		const showFilter = modeItems.length > FILTER_THRESHOLD || ctx.schema.enumDynamic;
 		const actionItems: IActionListItem<IConfigPickerItem | IAction>[] = createModePickerModeItems(modeItems, !!permissions);
+		let initialFocusItemId = modeItems.find(item => item.item?.checked)?.item?.id;
 		const permissionContext = permissions ? this._readContext(SessionConfigKey.AutoApprove) : undefined;
 		if (permissions && permissionContext) {
 			const permissionItems = await this._getActionItems(SessionConfigKey.AutoApprove, permissionContext.schema, permissionContext.value);
@@ -830,7 +846,10 @@ export class AgentHostChatInputPicker extends Disposable {
 					}) : undefined,
 				};
 			});
-			actionItems.push({ kind: ActionListItemKind.Separator }, ...createModePickerPermissionsItems<IConfigPickerItem>(permissions, permissionActions, async () => {
+			if (openPermissions) {
+				initialFocusItemId = permissionActions.find(item => item.item?.checked)?.item?.id;
+			}
+			actionItems.push(...createModePickerPermissionsItems<IConfigPickerItem>(permissions, permissionActions, async () => {
 				this._hidePicker();
 				await this._preferencesService.openSettings({ jsonEditor: false, query: AGENT_HOST_PERMISSIONS_SETTINGS_QUERY });
 			}));
@@ -839,6 +858,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (this._actionWidgetService.isVisible || !this._isCurrentTarget(ctx) || !currentContext || !this._canEdit(currentContext, this._property)) {
 			return;
 		}
+		const combinedTrigger = permissions ? this._trigger : undefined;
 
 		const delegate: IActionListDelegate<IConfigPickerItem | IAction> = {
 			onSelect: item => hasKey(item, { run: true }) ? item.run() : this._selectItem(this._property, ctx, item),
@@ -854,6 +874,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			onHide: () => {
 				this._pickerVisible = false;
 				anchor.ariaExpanded = 'false';
+				combinedTrigger?.removeAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE);
 				this._pickerDisposables.clear();
 				anchor.focus();
 			},
@@ -876,12 +897,13 @@ export class AgentHostChatInputPicker extends Disposable {
 			},
 			withChatInputPickerMotion({
 				...getConfigPickerListOptions(this._property),
-				...(permissions ? getModePermissionsPickerOptions(openPermissions) : {}),
+				...(permissions ? getModePermissionsPickerOptions(openPermissions, initialFocusItemId) : {}),
 				...(showFilter
 					? { showFilter: true, filterPlaceholder: localize('agentHostChatInputPicker.filter', "Filter...") }
 					: {}),
 			}),
 		);
+		combinedTrigger?.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
 		if (permissions) {
 			const allowsBypass = this._agentHostEnablementService.managedSandboxAllowsBypass.get();
 			this._pickerDisposables.add(autorun(reader => {
@@ -923,8 +945,29 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _getSandboxSettingId(): ReturnType<typeof getAgentHostSandboxSettingId> {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const sessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
-		const customTerminalToolEnabled = this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true;
-		return getAgentHostSandboxSettingId(sessionType, customTerminalToolEnabled);
+		if (sessionType !== SessionType.AgentHostCopilot || this._store.isDisposed) {
+			return undefined;
+		}
+		this._hostOperatingSystemRequest ??= this._resolveHostOperatingSystem();
+		return getAgentHostSandboxSettingId(sessionType, this._hostOperatingSystem === OperatingSystem.Windows);
+	}
+
+	private async _resolveHostOperatingSystem(): Promise<void> {
+		try {
+			const os = await getAgentHostOperatingSystem(this._agentHostService);
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._hostOperatingSystem = os;
+			if (this._getSandboxSettingId() === undefined) {
+				return;
+			}
+			this._hidePicker();
+			this._refreshTrigger();
+			this._sandboxConfigChanged.trigger(undefined);
+		} catch (error) {
+			this._logService.error('Failed to resolve agent host OS for the sandbox picker', error);
+		}
 	}
 
 	private _isSandboxToggleSettingEnabled(): boolean {

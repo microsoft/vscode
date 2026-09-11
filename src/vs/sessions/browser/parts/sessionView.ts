@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../services/sessions/common/session.js';
-import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions } from './chatView.js';
+import { AbstractChatView, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
@@ -282,9 +282,9 @@ export class SessionView extends Disposable implements ISerializableView {
 		return this._currentSession;
 	}
 
-	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): void {
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		const standaloneView = this._standaloneView.value;
-		standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
+		return standaloneView ? standaloneView.selectWorkspace(folderUri, options) : this._groupsView.selectWorkspace(folderUri, options);
 	}
 
 	selectNoWorkspace(): void {

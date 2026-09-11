@@ -57,6 +57,7 @@ export const discoverySourceSettingsLabel: Record<ExternalDiscoverySource, strin
 
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
+export const mcpWorkspaceRootConfig = 'chat.mcp.workspaceRootConfig.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
 export const mcpServerCollisionBehaviorSection = 'chat.mcp.collisionBehavior';
 /**

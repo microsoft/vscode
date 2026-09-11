@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -28,6 +29,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatu
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { USE_WORKTREE_SETTING } from '../../../../../common/sessionConfig.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -2838,7 +2840,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			status: SessionStatus.Untitled,
 			workspaceLabel: 'my-project',
 			sessionType: provider.sessionTypes[0].id,
-			config: { schema: { type: 'object', properties: {} }, values: {} },
+			config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
 		});
 	});
 
@@ -3950,7 +3952,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			initialValues: provider.getSessionConfig(session.sessionId)?.values,
 			forwardedAutoApprove: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
 		}, {
-			initialValues: {},
+			initialValues: { isolation: 'worktree' },
 			forwardedAutoApprove: undefined,
 		});
 	});
@@ -3968,6 +3970,144 @@ suite('LocalAgentHostSessionsProvider', () => {
 			seededImmediately: 'default',
 			forwardedToAgentHost: 'default',
 		});
+	});
+
+	for (const useWorktree of [true, false]) {
+		test(`remembered isolation bypasses useWorktree=${useWorktree} across workspaces`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration(USE_WORKTREE_SETTING, useWorktree);
+			const reads = spy(configurationService, 'getValue');
+			disposables.add(toDisposable(() => reads.restore()));
+			const rememberedIsolation = useWorktree ? 'folder' : 'worktree';
+			storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({ isolation: rememberedIsolation }), StorageScope.PROFILE, StorageTarget.MACHINE);
+			const provider = createProvider(disposables, agentHost, undefined, { storageService, configurationService });
+			const workspace = URI.file('/project');
+			const first = provider.createNewSession(workspace, provider.sessionTypes[0].id);
+			const initial = provider.getSessionConfig(first.sessionId)?.values.isolation;
+			provider.deleteNewSession(first.sessionId);
+
+			const second = provider.createNewSession(URI.file('/another-project'), provider.sessionTypes[0].id);
+			const subsequent = provider.getSessionConfig(second.sessionId)?.values.isolation;
+
+			assert.deepStrictEqual({
+				initial,
+				subsequent,
+				settingReads: reads.getCalls().filter(call => call.args[0] === USE_WORKTREE_SETTING).length,
+			}, {
+				initial: rememberedIsolation,
+				subsequent: rememberedIsolation,
+				settingReads: 0,
+			});
+		});
+
+		test(`persists an untouched useWorktree=${useWorktree} on the first accepted request`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({ providerOption: 'remembered' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration(USE_WORKTREE_SETTING, useWorktree);
+			const reads = spy(configurationService, 'getValue');
+			disposables.add(toDisposable(() => reads.restore()));
+			const isolation = useWorktree ? 'worktree' : 'folder';
+			agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation } };
+			const provider = createProvider(disposables, agentHost, undefined, {
+				storageService, configurationService, openSession: true,
+				sendRequest: async () => {
+					agentHost.addSession(createSession('initial-worktree-session'));
+					return { kind: 'sent', data: {} as IChatSendRequestData };
+				},
+			});
+			const workspace = URI.file('/project');
+			const first = provider.createNewSession(workspace, provider.sessionTypes[0].id);
+			const initial = provider.getSessionConfig(first.sessionId)?.values.isolation;
+			const chat = await provider.createNewChat(first.sessionId);
+			await provider.sendRequest(first.sessionId, chat.resource, { query: 'hello' });
+			await configurationService.setUserConfiguration(USE_WORKTREE_SETTING, !useWorktree);
+
+			const restoredProvider = createProvider(disposables, agentHost, undefined, { storageService, configurationService });
+			const second = restoredProvider.createNewSession(URI.file('/another-project'), restoredProvider.sessionTypes[0].id);
+			assert.deepStrictEqual({
+				initial,
+				remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE),
+				subsequent: restoredProvider.getSessionConfig(second.sessionId)?.values.isolation,
+				settingReads: reads.getCalls().filter(call => call.args[0] === USE_WORKTREE_SETTING).length,
+			}, { initial: isolation, remembered: { providerOption: 'remembered', isolation }, subsequent: isolation, settingReads: 1 });
+		});
+	}
+
+	test('accepting the initial default does not overwrite a choice saved while sending', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const configurationService = new TestConfigurationService({ [USE_WORKTREE_SETTING]: false });
+		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'folder' } };
+		const provider = createProvider(disposables, agentHost, undefined, {
+			storageService, configurationService, openSession: true,
+			sendRequest: async () => {
+				storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({ isolation: 'worktree' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+				agentHost.addSession(createSession('initial-worktree-session'));
+				return { kind: 'sent', data: {} as IChatSendRequestData };
+			},
+		});
+		const first = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(first.sessionId);
+		await provider.sendRequest(first.sessionId, chat.resource, { query: 'hello' });
+		const second = provider.createNewSession(URI.file('/another-project'), provider.sessionTypes[0].id);
+		assert.deepStrictEqual({
+			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE),
+			subsequent: provider.getSessionConfig(second.sessionId)?.values.isolation,
+		}, { remembered: { isolation: 'worktree' }, subsequent: 'worktree' });
+	});
+
+	test('a rejected first request does not consume the initial worktree default', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration(USE_WORKTREE_SETTING, false);
+		const provider = createProvider(disposables, agentHost, undefined, {
+			storageService, configurationService, openSession: true,
+			sendRequest: async () => ({ kind: 'rejected', reason: 'Test rejection' }),
+		});
+		const workspace = URI.file('/project');
+		const first = provider.createNewSession(workspace, provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(first.sessionId);
+		await assert.rejects(provider.sendRequest(first.sessionId, chat.resource, { query: 'hello' }), /Test rejection/);
+		provider.deleteNewSession(first.sessionId);
+		await configurationService.setUserConfiguration(USE_WORKTREE_SETTING, true);
+		const second = provider.createNewSession(workspace, provider.sessionTypes[0].id);
+		assert.deepStrictEqual({
+			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE),
+			retried: provider.getSessionConfig(second.sessionId)?.values.isolation,
+		}, { remembered: undefined, retried: 'worktree' });
+	});
+
+	test('workspaces continue sharing the last explicit isolation choice', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const configurationService = new TestConfigurationService({ [USE_WORKTREE_SETTING]: false });
+		const reads = spy(configurationService, 'getValue');
+		disposables.add(toDisposable(() => reads.restore()));
+		const workspaceA = URI.file('/project-a');
+		const workspaceB = URI.file('/project-b');
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({ isolation: 'worktree' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService, configurationService });
+		const first = provider.createNewSession(workspaceA, provider.sessionTypes[0].id);
+		await provider.setSessionConfigValue(first.sessionId, SessionConfigKey.Isolation, 'folder');
+		const second = provider.createNewSession(workspaceB, provider.sessionTypes[0].id);
+		const fromWorkspaceA = provider.getSessionConfig(second.sessionId)?.values.isolation;
+		await provider.setSessionConfigValue(second.sessionId, SessionConfigKey.Isolation, 'worktree');
+		const third = provider.createNewSession(workspaceA, provider.sessionTypes[0].id);
+		assert.deepStrictEqual({
+			fromWorkspaceA,
+			fromWorkspaceB: provider.getSessionConfig(third.sessionId)?.values.isolation,
+			settingReads: reads.getCalls().filter(call => call.args[0] === USE_WORKTREE_SETTING).length,
+		}, { fromWorkspaceA: 'folder', fromWorkspaceB: 'worktree', settingReads: 0 });
+	});
+
+	test('quick chats and automation drafts do not consult the initial worktree setting', () => {
+		const configurationService = new TestConfigurationService({ [USE_WORKTREE_SETTING]: false });
+		const reads = spy(configurationService, 'getValue');
+		disposables.add(toDisposable(() => reads.restore()));
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		provider.createQuickChat(provider.sessionTypes[0].id);
+		provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id, { automationConfiguration: { sessionTemplate: {} } });
+		assert.strictEqual(reads.getCalls().filter(call => call.args[0] === USE_WORKTREE_SETTING).length, 0);
 	});
 
 	test('setSessionConfigValue remembers portable string picks and drops non-remembered keys', async () => {
@@ -4007,7 +4147,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		});
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
 		const chat = await provider.createNewChat(session.sessionId);
 
 		agentHost.resolveSessionConfigResult = {
@@ -4348,7 +4488,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			config: provider.getCreateSessionConfig(session.sessionId),
 		}, {
 			requestsBeforeResolve: [
-				{},
+				{ isolation: 'worktree' },
 				{
 					[SessionConfigKey.Isolation]: 'worktree',
 					[SessionConfigKey.WorktreeBranchTrack]: true,
@@ -4419,7 +4559,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await setting;
 
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.map(request => request.config), [
-			{},
+			{ isolation: 'worktree' },
 			{ isolation: 'worktree', branch: 'feature/automation' },
 		]);
 	});
@@ -4526,8 +4666,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
 		}, {
-			seededImmediately: { worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
-			forwardedToAgentHost: { worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
+			seededImmediately: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
+			forwardedToAgentHost: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
 		});
 	});
 
@@ -4609,6 +4749,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
 			mode: 'autopilot',
 			autoApprove: 'default',
+			isolation: 'worktree',
 		});
 	});
 
@@ -4980,6 +5121,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
 			mode: 'plan',
 			autoApprove: 'autoApprove',
+			isolation: 'worktree',
 		});
 	});
 
@@ -4999,6 +5141,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
 			mode: 'plan',
 			autoApprove: 'autoApprove',
+			isolation: 'worktree',
 		});
 	});
 
@@ -5012,6 +5155,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
 			mode: 'autopilot',
 			autoApprove: 'autoApprove',
+			isolation: 'worktree',
 		});
 	});
 
@@ -5037,6 +5181,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
 			mode: 'autopilot',
 			autoApprove: 'default',
+			isolation: 'worktree',
 		});
 	});
 
@@ -7024,11 +7169,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			loading: true,
 			createdSessions: 0,
 			resolveRequests: 0,
-			config: { schema: { type: 'object', properties: {} }, values: {} },
+			config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
 		});
 
 		agentHost.setAuthenticationPending(false);
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
 
 		assert.deepStrictEqual({
 			loading: session.loading.get(),
@@ -7063,7 +7208,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			loading: true,
 			createdSessions: 0,
 			resolveRequests: 0,
-			config: { schema: { type: 'object', properties: {} }, values: {} },
+			config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
 		});
 
 		agentHost.setAuthenticationPending(false);
@@ -7891,7 +8036,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'a1', type: SessionArtifactType.PullRequest, label: 'Created', isArtifact: true, link: 'https://github.com/owner/repo/pull/50', isGitHub: true },
 			{ id: 'a2', type: SessionArtifactType.PullRequest, label: 'Referenced', isArtifact: false, link: 'https://github.com/owner/repo/pull/60', isGitHub: true },
 			{ id: 'a3', type: SessionArtifactType.PullRequest, label: 'Duplicate', isArtifact: true, link: 'https://github.com/OWNER/REPO/pull/41/', isGitHub: true },
-			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Issue', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
+			{ id: 'a4', type: SessionArtifactType.Issue, label: 'Preserve promoted issue titles', isArtifact: true, link: 'https://github.com/owner/repo/issues/7', isGitHub: true },
 			{ id: 'a5', type: SessionArtifactType.PullRequest, label: 'Elsewhere', isArtifact: true, link: 'https://gitlab.com/owner/repo/-/merge_requests/3', isGitHub: false },
 			{ id: 'a6', type: SessionArtifactType.File, label: 'Plan', isArtifact: true, uri: 'file:///repo/plan.md' },
 			{ id: 'a7', type: SessionArtifactType.Issue, label: 'Referenced issue', isArtifact: false, link: 'https://github.com/owner/repo/issues/8', isGitHub: true },
@@ -7909,13 +8054,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			activePullRequest: gitHubInfo?.pullRequest?.number,
 			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => pullRequest.number),
-			issues: gitHubInfo?.issues?.map(issue => issue.number),
+			issues: gitHubInfo?.issues?.map(issue => [issue.number, issue.title]),
 			artifacts: session.artifacts?.get().map(artifact => [artifact.id, artifact.isArtifact]),
 		}, {
 			activePullRequest: 41,
 			pullRequests: [41, 50, 42],
 			// Only issues the session produced are polled; a referenced one stays a reference.
-			issues: [7],
+			issues: [[7, 'Preserve promoted issue titles']],
 			artifacts: [
 				['a8', false],
 				['a7', false],

@@ -264,6 +264,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			override warn(message: string): void { warnings.push(message); }
 		}());
 		instantiationService.set(IAgentHostConnectionsService, connectionsService);
+		instantiationService.set(IAgentHostService, ambient);
 		instantiationService.set(IActionWidgetService, actionWidget);
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);

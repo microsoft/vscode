@@ -10,10 +10,20 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
-import { resolveAgentsWindowFolderIntent } from '../../browser/agentsWindowOpenIntent.js';
+import { getAgentsWindowWorkspaceArgumentKind, resolveAgentsWindowFolderIntent } from '../../browser/agentsWindowOpenIntent.js';
 
 suite('Agents Window open intent', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('classifies the original workspace argument without exposing resource identifiers', () => {
+		assert.deepStrictEqual([
+			undefined,
+			URI.file('/private/project'),
+			URI.parse('vscode-remote://dev-container+invalid/private/project'),
+			URI.parse('vscode-remote://ssh-remote+private-host/private/project'),
+			URI.parse('vscode-vfs://github/private/repository'),
+		].map(getAgentsWindowWorkspaceArgumentKind), ['none', 'local', 'devContainer', 'remote', 'other']);
+	});
 
 	test('resolves local and Dev Container editor workspaces', () => {
 		const configurationService = (enabled: boolean) => new TestConfigurationService({
