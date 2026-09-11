@@ -130,7 +130,7 @@ export interface IAICustomizationWorkspaceService {
 	/**
 	 * Launches the AI-guided creation flow for the given customization type.
 	 */
-	generateCustomization(type: PromptsType): Promise<void>;
+	generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void>;
 
 	/**
 	 * Whether a transient project root override is currently active.

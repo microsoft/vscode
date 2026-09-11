@@ -38,6 +38,7 @@ import {
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
 	getMcpServerHoverContent,
+	getMcpServerAriaLabel,
 	getMcpServerSecondaryText,
 	getMcpStatusPresentation,
 	isMcpServerCollectionVisible,
@@ -210,11 +211,15 @@ suite('mcpListWidget', () => {
 			plugin: getMcpServerSecondaryText(source, 'Example Plugin', labelService),
 			descriptionHover: getMcpServerHoverContent('  Server description.  ', '.vscode/mcp.json'),
 			fallbackHover: getMcpServerHoverContent(undefined, '.vscode/mcp.json'),
+			accessibleSource: getMcpServerAriaLabel('Filesystem', '.vscode/mcp.json', undefined),
+			accessiblePluginAndStatus: getMcpServerAriaLabel('GitHub', 'Plugin: GitHub', 'Running'),
 		}, {
 			source: '.vscode/mcp.json',
 			plugin: 'Plugin: Example Plugin',
 			descriptionHover: 'Server description.',
 			fallbackHover: '.vscode/mcp.json',
+			accessibleSource: 'Filesystem. .vscode/mcp.json',
+			accessiblePluginAndStatus: 'GitHub. Plugin: GitHub, Running',
 		});
 	});
 

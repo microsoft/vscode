@@ -10,16 +10,17 @@ import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getCustomizationItemHoverContent, getTargetedCreateActionLabel, getWorkspaceCustomizationGroupKey, usesCustomizationCardLayout } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
-import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -29,6 +30,8 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,6 +50,30 @@ suite('aiCustomizationListWidget', () => {
 			hooks: true,
 			prompts: true,
 		});
+	});
+
+	test('uses relative source labels for remote workspace customizations', () => {
+		const remoteUri = URI.parse('vscode-remote://ssh-remote+test/workspace/.github/skills/review/SKILL.md');
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean }): string {
+				assert.deepStrictEqual({ resource: resource.toString(), options }, {
+					resource: remoteUri.toString(),
+					options: { relative: true, noPrefix: true },
+				});
+				return '.github/skills/review/SKILL.md';
+			}
+		};
+		const normalizer = new AICustomizationItemNormalizer(labelService, new class extends mock<IProductService>() { });
+		const item: ICustomizationItem = {
+			uri: remoteUri,
+			type: PromptsType.skill,
+			name: 'Review',
+			source: AICustomizationSources.local,
+			extensionId: undefined,
+			pluginUri: undefined,
+		};
+
+		assert.strictEqual(normalizer.normalizeItem(item, PromptsType.skill).filename, '.github/skills/review/SKILL.md');
 	});
 
 	test('keeps editable source sections visible until search filtering starts', () => {
@@ -769,7 +796,10 @@ suite('aiCustomizationListWidget', () => {
 			widget.layout(800, 500);
 			let createRequest: URI | undefined;
 			disposables.add(widget.onDidRequestCreateManual(event => createRequest = event.workspaceFolder));
+			let generateRequest: URI | undefined;
+			disposables.add(widget.onDidRequestCreate(event => generateRequest = event.workspaceFolder));
 			widget.element.querySelector<HTMLButtonElement>('.plugin-card-section .customization-create-action')?.click();
+			widget.element.querySelectorAll<HTMLElement>('.plugin-card-section')[1].querySelector<HTMLButtonElement>('.customization-generate-action')?.click();
 
 			assert.deepStrictEqual(
 				{
@@ -779,6 +809,7 @@ suite('aiCustomizationListWidget', () => {
 						sources: Array.from(section.querySelectorAll('.item-description')).map(item => item.textContent),
 					})),
 					createRequest: createRequest?.toString(),
+					generateRequest: generateRequest?.toString(),
 				},
 				{
 					sections: [
@@ -787,6 +818,7 @@ suite('aiCustomizationListWidget', () => {
 						{ title: 'User', items: [], sources: [] },
 					],
 					createRequest: firstFolderUri.toString(),
+					generateRequest: secondFolderUri.toString(),
 				}
 			);
 			assert.notStrictEqual(getWorkspaceCustomizationGroupKey(firstFolderUri), getWorkspaceCustomizationGroupKey(secondFolderUri));

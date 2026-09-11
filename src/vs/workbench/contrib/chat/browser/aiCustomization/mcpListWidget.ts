@@ -29,7 +29,7 @@ import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqualOrParent } from '../../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -134,6 +134,29 @@ export function isMcpServerCollectionVisible(collectionId: string, hiddenCollect
 }
 
 type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry;
+
+function getMcpEntrySecondaryText(element: IMcpInstalledEntry, plugins: readonly { uri: URI; label: string }[], labelService: ILabelService): string | undefined {
+	const activeSessionServer = getActiveSessionServer(element);
+	const localServer = element.type === 'session-server-item' ? undefined : element.localServer;
+	const pluginUriString = getPluginUriFromCollectionId(localServer?.collection.id);
+	const pluginUri = pluginUriString ? URI.parse(pluginUriString) : undefined;
+	const sourceUri = createInstalledMcpServerDetailInput(element).source?.uri;
+	const plugin = pluginUri
+		? plugins.find(candidate => isEqual(candidate.uri, pluginUri))
+		: activeSessionServer?.isPluginProvided && sourceUri
+			? plugins.find(candidate => isEqualOrParent(sourceUri, candidate.uri))
+			: undefined;
+	const disabledReason = activeSessionServer?.disabledReason;
+	const pluginLabel = plugin?.label ?? (disabledReason?.source === 'plugin' ? disabledReason.plugin.name : undefined);
+	return getMcpServerSecondaryText(sourceUri, pluginLabel, labelService);
+}
+
+export function getMcpServerAriaLabel(label: string, secondaryText: string | undefined, status: string | undefined): string {
+	const labelWithSource = secondaryText ? localize('mcpServerAriaLabelWithSource', "{0}. {1}", label, secondaryText) : label;
+	return status
+		? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", labelWithSource, status)
+		: labelWithSource;
+}
 
 interface IMcpMarketplaceEntry {
 	readonly type: 'marketplace-item';
@@ -324,18 +347,7 @@ export class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry 
 	}
 
 	private getSecondaryText(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string | undefined {
-		const activeSessionServer = getActiveSessionServer(element);
-		const localServer = element.type === 'session-server-item' ? undefined : element.localServer;
-		const pluginUriString = getPluginUriFromCollectionId(localServer?.collection.id);
-		const sourceUri = createInstalledMcpServerDetailInput(element).source?.uri;
-		const plugin = pluginUriString
-			? this.agentPluginService.plugins.get().find(candidate => candidate.uri.toString() === pluginUriString)
-			: activeSessionServer?.isPluginProvided && sourceUri
-				? this.agentPluginService.plugins.get().find(candidate => isEqualOrParent(sourceUri, candidate.uri))
-				: undefined;
-		const disabledReason = activeSessionServer?.disabledReason;
-		const pluginLabel = plugin?.label ?? (disabledReason?.source === 'plugin' ? disabledReason.plugin.name : undefined);
-		return getMcpServerSecondaryText(sourceUri, pluginLabel, this.labelService);
+		return getMcpEntrySecondaryText(element, this.agentPluginService.plugins.get(), this.labelService);
 	}
 
 	private updateKnownServerStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpBuiltinItemEntry): void {
@@ -717,9 +729,7 @@ function getMcpEntryAriaLabel(element: IMcpInstalledEntry, isSessionsWindow: boo
 	const statusKind = getMcpStatusKind(element, isSessionsWindow);
 	const disabledReason = statusKind === 'disabled' ? getMcpDisabledReason(element) : undefined;
 	const status = getMcpStatusPresentation(statusKind, disabledReason);
-	return status
-		? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", label, status.label)
-		: label;
+	return getMcpServerAriaLabel(label, undefined, status?.label);
 }
 
 function getMcpDisabledReason(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): CustomizationDisabledReason | undefined {
@@ -1274,6 +1284,7 @@ export class McpListWidget extends Disposable {
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
 		super();
@@ -1765,7 +1776,8 @@ export class McpListWidget extends Disposable {
 				statusKind = entry.localServer?.connectionState.read(reader).state;
 			}
 			const status = getMcpStatusPresentation(statusKind, disabledReason);
-			return status ? localize('mcpServerAriaLabelWithStatus', "{0}, {1}", label, status.label) : label;
+			const secondaryText = getMcpEntrySecondaryText(entry, this.agentPluginService.plugins.read(reader), this.labelService);
+			return getMcpServerAriaLabel(label, secondaryText, status?.label);
 		});
 	}
 
