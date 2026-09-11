@@ -774,6 +774,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _imeSessionInProgress = false;
 	private _suppressHover = false;
 	private _ignoreInitialHover = true;
+	private _keyboardNavigation: boolean | undefined;
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
@@ -842,6 +843,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			dom.EventHelper.stop(e, true);
 			this._hideSubmenu();
+			this._setKeyboardNavigation(true);
 			this._list.domFocus();
 		}));
 
@@ -974,6 +976,12 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._list.style(defaultListStyles);
 
+		this._register(this._list.onKeyDown(() => this._setKeyboardNavigation(true)));
+		this._register(dom.addDisposableListener(this._list.getHTMLElement(), dom.EventType.MOUSE_MOVE, (e: MouseEvent) => {
+			if (e.movementX !== 0 || e.movementY !== 0) {
+				this._setKeyboardNavigation(false);
+			}
+		}));
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		// Ignore the initial mouseover when a keyboard-invoked menu appears beneath a stationary pointer,
 		// so the item under the pointer does not take keyboard focus.
@@ -993,6 +1001,7 @@ export class ActionListWidget<T> extends Disposable {
 		this._register(this._list.onMouseDown(() => {
 			initialMouseMove.clear();
 			this._ignoreInitialHover = false;
+			this._setKeyboardNavigation(false);
 		}));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
@@ -1016,6 +1025,8 @@ export class ActionListWidget<T> extends Disposable {
 				this._filterInput.value = this._filterText;
 				this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
 				filterRow.appendChild(this._filterInput);
+				this._register(dom.addDisposableListener(this._filterInput, dom.EventType.KEY_DOWN, () => this._setKeyboardNavigation(true)));
+				this._register(dom.addDisposableListener(this._filterInput, dom.EventType.MOUSE_DOWN, () => this._setKeyboardNavigation(false)));
 
 				if (this._options.filterAsCombobox) {
 					const listElement = this._list.getHTMLElement();
@@ -1476,6 +1487,16 @@ export class ActionListWidget<T> extends Disposable {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
+	private _setKeyboardNavigation(keyboardNavigation: boolean | undefined): void {
+		if (this._keyboardNavigation === keyboardNavigation) {
+			return;
+		}
+		this._keyboardNavigation = keyboardNavigation;
+		const listElement = this._list.getHTMLElement();
+		listElement.classList.toggle('keyboard-navigation', keyboardNavigation === true);
+		listElement.classList.toggle('mouse-navigation', keyboardNavigation === false);
+	}
+
 	private _updateFilterActiveDescendant(): void {
 		if (!this._filterInput) {
 			return;
@@ -1489,6 +1510,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	focus(): void {
+		this._setKeyboardNavigation(undefined);
 		if (this._filterInput && this._options?.focusFilterOnOpen) {
 			this._filterInput.focus();
 			// Highlight the first item so Enter works immediately
@@ -1849,6 +1871,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	focusPrevious() {
+		this._setKeyboardNavigation(true);
 		if (this._focusFilterResult('previous')) {
 			return;
 		}
@@ -1889,6 +1912,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	focusNext() {
+		this._setKeyboardNavigation(true);
 		if (this._focusFilterResult('next')) {
 			return;
 		}
@@ -2347,6 +2371,7 @@ export class ActionListWidget<T> extends Disposable {
 				} else if (e.key === 'ArrowLeft') {
 					dom.EventHelper.stop(e, true);
 					this._hideSubmenu();
+					this._setKeyboardNavigation(true);
 					this._list.domFocus();
 				} else if (e.key === 'Enter' || e.key === ' ') {
 					dom.EventHelper.stop(e, true);
@@ -2557,6 +2582,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
+		this._setKeyboardNavigation(false);
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {

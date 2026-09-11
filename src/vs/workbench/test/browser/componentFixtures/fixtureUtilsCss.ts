@@ -209,7 +209,9 @@ export function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 		return cachedStyleSheet;
 	}
 
-	const scopeSelector = '.' + theme.classNames[0];
+	const themeScopeSelector = '.' + theme.classNames.join('.');
+	// Keep matching nested editor theme roots without increasing selector specificity.
+	const scopeSelector = `.${theme.classNames[0]}:where(${themeScopeSelector}, ${themeScopeSelector} *)`;
 	const themingParticipants = themingRegistry.getThemingParticipants();
 	const sheet = new CSSStyleSheet();
 	const css = generateColorThemeCSS(

@@ -245,6 +245,67 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'third');
 	});
 
+	for (const filterAsCombobox of [false, true]) {
+		test(`only keyboard navigation draws the selection border (combobox: ${filterAsCombobox})`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [action('first'), action('second')],
+				listOptions: { showFilter: filterAsCombobox, focusFilterOnOpen: filterAsCombobox, filterAsCombobox },
+			});
+			widget.domNode.classList.add('action-widget');
+			widget.domNode.style.setProperty('--vscode-menu-selectionBorder', '#0069cc');
+			widget.domNode.style.setProperty('--vscode-list-focusOutline', '#0069cc');
+			widget.domNode.style.setProperty('--vscode-contrastActiveBorder', 'transparent');
+			const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+			const outline = () => mainWindow.getComputedStyle(widget.domNode.querySelector<HTMLElement>('.monaco-list-row.focused')!).outlineColor;
+
+			widget.focus();
+			widget.focusNext();
+			const states = [outline()];
+			rows[0].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			states.push(outline());
+			widget.focusNext();
+			states.push(outline());
+			rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
+			states.push(outline());
+			widget.focusPrevious();
+			states.push(outline());
+			rows[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			states.push(outline());
+			dispatchKeyDown(filterAsCombobox ? widget.filterInput! : widget.domNode.querySelector<HTMLElement>('.monaco-list')!, { key: 'Shift', keyCode: 16 });
+			states.push(outline());
+			if (filterAsCombobox) {
+				widget.focus();
+				states.push(outline());
+			}
+
+			assert.deepStrictEqual(states, [
+				'rgb(0, 105, 204)',
+				'rgba(0, 0, 0, 0)',
+				'rgb(0, 105, 204)',
+				'rgba(0, 0, 0, 0)',
+				'rgb(0, 105, 204)',
+				'rgba(0, 0, 0, 0)',
+				'rgb(0, 105, 204)',
+				...filterAsCombobox ? ['rgba(0, 0, 0, 0)'] : [],
+			]);
+		});
+	}
+
+	test('preserves high contrast outlines during pointer navigation', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('second')],
+			listOptions: { showFilter: false },
+		});
+		widget.domNode.classList.add('action-widget');
+		widget.domNode.style.setProperty('--vscode-menu-selectionBorder', '#f38518');
+		widget.domNode.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		widget.focus();
+		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+
+		assert.strictEqual(mainWindow.getComputedStyle(row).outlineColor, 'rgb(243, 133, 24)');
+	});
+
 	test('the first click selects its row without prior pointer movement', () => {
 		const selected: string[] = [];
 		const widget = createActionListWidget(disposables, {
