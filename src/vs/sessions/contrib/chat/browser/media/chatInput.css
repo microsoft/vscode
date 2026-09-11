@@ -420,6 +420,10 @@
 	cursor: default;
 }
 
+.sessions-chat-send-button.loading .monaco-button {
+	display: none;
+}
+
 /* Focus indicator drawn on the wrapper so it sits cleanly around the
 	22x22 button surface (the inner Button widget doesn't draw its own
 	focus border). */
@@ -476,12 +480,18 @@
 	color: var(--vscode-icon-foreground);
 }
 
+.sessions-chat-send-button .sessions-chat-loading-spinner {
+	width: 22px;
+	height: 22px;
+	margin-right: 0;
+}
+
 .sessions-chat-loading-spinner.visible {
 	display: flex;
 }
 
 .sessions-chat-loading-spinner .codicon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* Attach row (pills only, above editor, inside input area) */
