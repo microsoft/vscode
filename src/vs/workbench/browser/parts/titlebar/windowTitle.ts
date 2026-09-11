@@ -123,7 +123,7 @@ export class WindowTitle extends Disposable {
 			}
 		}));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(this.variables)) {
+			if (e.affectsSome(this.variables) || e.affectsSome(new Set(['inZenMode']))) {
 				this.titleUpdater.schedule();
 			}
 		}));
@@ -302,6 +302,7 @@ export class WindowTitle extends Disposable {
 	 * {focusedView}: e.g. Terminal
 	 * {separator}: conditional separator
 	 * {activeEditorState}: e.g. Modified
+	 * {zenMode}: Zen Mode indicator
 	 */
 	getWindowTitle(): string {
 		const editor = this.editorService.activeEditor;
@@ -363,6 +364,7 @@ export class WindowTitle extends Disposable {
 		const focusedView: string = this.viewsService.getFocusedViewName();
 		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
 		const activeEditorLanguageId = this.editorService.activeTextEditorLanguageId;
+		const zenMode = this.contextKeyService.getContextKeyValue<boolean>('inZenMode') ? localize('zenMode', "Zen Mode") : '';
 
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
@@ -375,7 +377,7 @@ export class WindowTitle extends Disposable {
 		}
 
 		if (!this.titleIncludesEditorState && this.accessibilityService.isScreenReaderOptimized() && this.configurationService.getValue('accessibility.windowTitleOptimized')) {
-			titleTemplate += '${separator}${activeEditorState}';
+			titleTemplate += '${separator}${activeEditorState}${separator}${zenMode}';
 		}
 
 		let separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
@@ -403,6 +405,7 @@ export class WindowTitle extends Disposable {
 			profileName,
 			focusedView,
 			activeEditorState,
+			zenMode,
 			separator: { label: separator }
 		});
 	}
