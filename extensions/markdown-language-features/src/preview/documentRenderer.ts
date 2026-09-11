@@ -277,6 +277,12 @@ export class MdDocumentRenderer {
 	}
 }
 
+/** Length of the leading list marker (`- `, `1. `) that must stay intact for list parsing. */
+function getListMarkerPrefixLength(line: string): number {
+	const match = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/.exec(line);
+	return match ? match[0].length : 0;
+}
+
 /**
  * Injects empty marker `<span>` elements into the markdown source text at inner change positions.
  */
@@ -301,13 +307,18 @@ function injectInnerChangeMarkers(text: string, innerChanges: readonly MarkdownP
 		}
 
 		let line = lines[lineNum];
+		const listPrefixLength = getListMarkerPrefixLength(line);
 
 		// Sort by startColumn descending so that insertions don't shift earlier positions
 		changes.sort((a, b) => b.change.startColumn - a.change.startColumn);
 
 		for (const { index, change } of changes) {
-			const start = Math.min(change.startColumn, line.length);
+			let start = Math.min(change.startColumn, line.length);
 			const end = Math.min(change.endColumn, line.length);
+			// Keep the highlight out of the list marker so the line still parses as a list item.
+			if (start < listPrefixLength) {
+				start = listPrefixLength;
+			}
 			if (start >= end) {
 				continue;
 			}
