@@ -1226,6 +1226,7 @@ class CompletionsAdapter {
 		}
 
 		const dto1 = this._convertCompletionItem(item, id);
+		const command1 = item.command;
 
 		const resolvedItem = await this._provider.resolveCompletionItem(item, token);
 
@@ -1241,10 +1242,10 @@ class CompletionsAdapter {
 			this._apiDeprecation.report('CompletionItem.insertText', this._extension, 'extension MAY NOT change \'insertText\' of a CompletionItem during resolve');
 		}
 
-		if (dto1[extHostProtocol.ISuggestDataDtoField.commandIdent] !== dto2[extHostProtocol.ISuggestDataDtoField.commandIdent]
-			|| dto1[extHostProtocol.ISuggestDataDtoField.commandId] !== dto2[extHostProtocol.ISuggestDataDtoField.commandId]
-			|| !equals(dto1[extHostProtocol.ISuggestDataDtoField.commandArguments], dto2[extHostProtocol.ISuggestDataDtoField.commandArguments])
-		) {
+		// Compare the raw commands captured before/after resolving, not dto1/dto2: `commandIdent` is
+		// minted fresh on every conversion (see `CommandsConverter#toInternal`), so diffing the dtos
+		// always reports a change even when `command` was left untouched.
+		if (!equals(command1, resolvedItem.command)) {
 			this._apiDeprecation.report('CompletionItem.command', this._extension, 'extension MAY NOT change \'command\' of a CompletionItem during resolve');
 		}
 
