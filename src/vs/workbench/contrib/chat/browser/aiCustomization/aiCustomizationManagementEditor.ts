@@ -612,6 +612,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	// Embedded plugin detail view
 	private pluginDetailContainer: HTMLElement | undefined;
 	private embeddedPluginDetail: EmbeddedAgentPluginDetail | undefined;
+	private pluginDetailScrollable: DomScrollableElement | undefined;
 	private readonly pluginDetailDisposables = this._register(new DisposableStore());
 	/** Section to restore when navigating back from plugin detail (when opened from a non-plugin section). */
 	private pluginDetailReturnSection: AICustomizationManagementSection | undefined;
@@ -4470,10 +4471,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		// Container for the compact plugin detail component
-		const detailBody = DOM.append(this.pluginDetailContainer, $('.plugin-detail-editor-container'));
+		const detailBody = $('.plugin-detail-editor-container');
+		this.pluginDetailScrollable = this.editorDisposables.add(new DomScrollableElement(detailBody, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		const scrollableNode = this.pluginDetailScrollable.getDomNode();
+		scrollableNode.classList.add('plugin-detail-editor-scrollable');
+		this.pluginDetailContainer.appendChild(scrollableNode);
+		const resizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
+			'AICustomizationManagementEditor.pluginDetailScrollable',
+			() => this.pluginDetailScrollable?.scanDomNode(),
+		));
+		this.editorDisposables.add(resizeObserver.observe(detailBody));
 
 		this.embeddedPluginDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedAgentPluginDetail, detailBody));
+		this.editorDisposables.add(this.embeddedPluginDetail.onDidChangeContent(() => this.pluginDetailScrollable?.scanDomNode()));
 		this.editorDisposables.add(this.embeddedPluginDetail.onDidRequestOpenSkill(uri => {
 			this.openSkillFromPluginDetail(uri);
 		}));
@@ -4509,6 +4523,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.pluginDetailDisposables.clear();
 		this.embeddedPluginDetail.setInput(item);
+		this.pluginDetailScrollable?.scanDomNode();
 
 		if (this.dimension) {
 			this.layout(this.dimension);

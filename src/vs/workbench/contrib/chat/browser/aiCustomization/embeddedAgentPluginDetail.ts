@@ -133,6 +133,8 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	readonly onDidRequestOpenSection = this._onDidRequestOpenSection.event;
 	private readonly _onDidUninstall = this._register(new Emitter<void>());
 	readonly onDidUninstall = this._onDidUninstall.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	private readonly root: HTMLElement;
 	private readonly headerEl: HTMLElement;
@@ -306,6 +308,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.contributionsEl.style.display = 'none';
 			DOM.clearNode(this.readmeContentEl);
 			this.readmeEl.style.display = 'none';
+			this._onDidChangeContent.fire();
 			return;
 		}
 
@@ -329,6 +332,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		const description = (item.description || '').trim();
 		this.descriptionEl.textContent = description || localize('pluginNoDescription', "No description provided.");
 		this.descriptionEl.style.display = '';
+		this._onDidChangeContent.fire();
 	}
 
 	private updateInstalledState(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
@@ -610,6 +614,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			if (!this._store.isDisposed && this.current === item && this.readmeRenderGuard.isCurrent(renderGeneration)) {
 				const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
 				message.textContent = localize('pluginReadmeLoadError', "The plugin README could not be loaded.");
+				this._onDidChangeContent.fire();
 			}
 			return;
 		}
@@ -619,17 +624,20 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		if (readme === undefined) {
 			const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
 			message.textContent = localize('pluginReadmeMissing', "No README was provided for this plugin.");
+			this._onDidChangeContent.fire();
 			return;
 		}
 		if (!readme.content.trim()) {
 			const message = DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message'));
 			message.textContent = localize('pluginReadmeEmpty', "The plugin README is empty.");
+			this._onDidChangeContent.fire();
 			return;
 		}
 		const markdown = new MarkdownString(readme.content, { supportHtml: false });
 		markdown.baseUri = readme.baseUri;
 		const rendered = this.renderDisposables.add(this.markdownRendererService.render(markdown));
 		this.readmeContentEl.appendChild(rendered.element);
+		this._onDidChangeContent.fire();
 	}
 
 	override dispose(): void {
