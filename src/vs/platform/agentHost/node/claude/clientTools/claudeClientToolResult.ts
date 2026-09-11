@@ -35,6 +35,10 @@ const CLAUDE_CLIENT_RESOURCE_SCHEME = 'claude-client';
 export function convertToolCallResult(result: ToolCallResult, toolUseId: string): CallToolResult {
 	const blocks = result.content ?? [];
 	const content = blocks.map((block, index) => convertBlock(block, toolUseId, index));
+	// `isError` below already marks the failure; without this the model would not learn why it failed.
+	if (result.error && content.length === 0) {
+		content.push({ type: 'text', text: result.error.message });
+	}
 	const out: CallToolResult = { content };
 	if (result.structuredContent !== undefined) {
 		out.structuredContent = result.structuredContent;
