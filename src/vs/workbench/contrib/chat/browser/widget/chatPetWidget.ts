@@ -517,8 +517,8 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 	return 'idle';
 }
 
-export function getChatPetListPadding(enabled: boolean, visible: boolean): number {
-	return enabled && visible ? CHAT_PET_DISPLAY_SIZE : 0;
+export function getChatPetListPadding(enabled: boolean, visible: boolean, scale: number): number {
+	return enabled && visible ? CHAT_PET_DISPLAY_SIZE * scale : 0;
 }
 
 export function isChatPetVisible(enabled: boolean, windowActive = true): boolean {

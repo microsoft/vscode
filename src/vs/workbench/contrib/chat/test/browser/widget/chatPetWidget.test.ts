@@ -660,13 +660,15 @@ suite('ChatPetWidget', () => {
 				isChatPetVisible(true, true),
 			],
 			listPadding: [
-				getChatPetListPadding(false, false),
-				getChatPetListPadding(true, false),
-				getChatPetListPadding(true, true),
+				getChatPetListPadding(false, false, 1),
+				getChatPetListPadding(true, false, 2),
+				getChatPetListPadding(true, true, 0.5),
+				getChatPetListPadding(true, true, 1),
+				getChatPetListPadding(true, true, 2),
 			],
 		}, {
 			visible: [false, false, true],
-			listPadding: [0, 0, 48],
+			listPadding: [0, 0, 24, 48, 96],
 		});
 	});
 

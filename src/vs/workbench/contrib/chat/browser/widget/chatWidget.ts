@@ -1162,7 +1162,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getPlatformTop: petCenterX => this.inputPart.getChatPetPlatformTop(petCenterX),
 				onDidChangePlatform: this.inputPart.onDidChangeChatPetHorizontalPlatforms,
 			}, preferredPetHost));
-			const chatPetListPadding = derived(this, reader => getChatPetListPadding(this.chatPetService.enabled.read(reader), this._visible.read(reader)));
+			const chatPetListPadding = derived(this, reader => getChatPetListPadding(this.chatPetService.enabled.read(reader), this._visible.read(reader), this.chatPetService.scale.read(reader)));
 			this._register(autorun(reader => {
 				this._chatPetListPadding = chatPetListPadding.read(reader);
 				this._applyListPaddingBottom();
