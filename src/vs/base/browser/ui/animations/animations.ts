@@ -22,16 +22,10 @@ const confettiColors = [
 	'#42a5f5',
 ];
 
-let activeOverlay: HTMLElement | undefined;
-
 /**
  * Creates a fixed-positioned overlay centered on the given element.
  */
-function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number; cy: number } | undefined {
-	if (activeOverlay) {
-		return undefined;
-	}
-
+function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number; cy: number } {
 	const rect = element.getBoundingClientRect();
 	const ownerDocument = dom.getWindow(element).document;
 
@@ -44,9 +38,7 @@ function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number
 	overlay.style.pointerEvents = 'none';
 	overlay.style.overflow = 'visible';
 	overlay.style.zIndex = '10000';
-
 	ownerDocument.body.appendChild(overlay);
-	activeOverlay = overlay;
 
 	return { overlay, cx: rect.width / 2, cy: rect.height / 2 };
 }
@@ -54,12 +46,9 @@ function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number
 /**
  * Cleans up the overlay after specified period.
  */
-function cleanupOverlay(duration: number) {
-	setTimeout(() => {
-		if (activeOverlay) {
-			activeOverlay.remove();
-			activeOverlay = undefined;
-		}
+function cleanupOverlay(overlay: HTMLElement, duration: number) {
+	dom.getWindow(overlay).setTimeout(() => {
+		overlay.remove();
 	}, duration);
 }
 
@@ -111,12 +100,7 @@ export function bounceElement(element: HTMLElement, opts: { scale?: number[]; ro
  * with an expanding ring.
  */
 export function triggerConfettiAnimation(element: HTMLElement) {
-	const result = createOverlay(element);
-	if (!result) {
-		return;
-	}
-
-	const { overlay, cx, cy } = result;
+	const { overlay, cx, cy } = createOverlay(element);
 	const rect = element.getBoundingClientRect();
 
 	// Element bounce
@@ -180,19 +164,14 @@ export function triggerConfettiAnimation(element: HTMLElement) {
 		fill: 'forwards',
 	});
 
-	cleanupOverlay(2000);
+	cleanupOverlay(overlay, 2000);
 }
 
 /**
  * Floating Icons: small icons float upward from the element.
  */
 export function triggerFloatingIconsAnimation(element: HTMLElement, icon: ThemeIcon) {
-	const result = createOverlay(element);
-	if (!result) {
-		return;
-	}
-
-	const { overlay, cx, cy } = result;
+	const { overlay, cx, cy } = createOverlay(element);
 	const rect = element.getBoundingClientRect();
 
 	// Element bounce upward
@@ -254,19 +233,14 @@ export function triggerFloatingIconsAnimation(element: HTMLElement, icon: ThemeI
 		fill: 'forwards',
 	});
 
-	cleanupOverlay(2000);
+	cleanupOverlay(overlay, 2000);
 }
 
 /**
  * Pulse Wave: expanding rings and sparkle dots radiate from the element center.
  */
 export function triggerPulseWaveAnimation(element: HTMLElement) {
-	const result = createOverlay(element);
-	if (!result) {
-		return;
-	}
-
-	const { overlay, cx, cy } = result;
+	const { overlay, cx, cy } = createOverlay(element);
 	const rect = element.getBoundingClientRect();
 
 	// Element bounce with slight rotation
@@ -353,19 +327,14 @@ export function triggerPulseWaveAnimation(element: HTMLElement) {
 		fill: 'forwards',
 	});
 
-	cleanupOverlay(2000);
+	cleanupOverlay(overlay, 2000);
 }
 
 /**
  * Radiant Lines: lines and dots emanate outward from the element center.
  */
 export function triggerRadiantLinesAnimation(element: HTMLElement) {
-	const result = createOverlay(element);
-	if (!result) {
-		return;
-	}
-
-	const { overlay, cx, cy } = result;
+	const { overlay, cx, cy } = createOverlay(element);
 
 	// Element scale bounce
 	bounceElement(element, {
@@ -446,7 +415,7 @@ export function triggerRadiantLinesAnimation(element: HTMLElement) {
 		});
 	}
 
-	cleanupOverlay(2000);
+	cleanupOverlay(overlay, 2000);
 }
 
 /**

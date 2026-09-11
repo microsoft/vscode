@@ -52,20 +52,28 @@ suite('SessionActionViewItem', () => {
 		});
 	});
 
-	test('uses the default action view item when disabled', () => {
+	test('uses an archive action view item when disabled', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		const expected = Object.create(MenuEntryActionViewItem.prototype) as MenuEntryActionViewItem;
+		instantiationService.stubInstance<MenuEntryActionViewItem>(MenuEntryActionViewItem, expected);
 		const provider = createSessionActionViewItemProvider(instantiationService, new TestConfigurationService());
 
-		assert.strictEqual(provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}), undefined);
+		assert.strictEqual(provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}), expected);
 	});
 
-	test('shares configured archive animation options with specialized view items', () => {
+	test('resolves configured archive animation when clicked', async () => {
+		const configurationService = new TestConfigurationService();
+		const options = getSessionArchiveActionViewItemOptions({ icon: true }, configurationService);
+		const disabled = options.onClickAnimation;
+		await configurationService.setUserConfiguration(SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING, true);
+		const enabled = options.onClickAnimation;
+
 		assert.deepStrictEqual({
-			enabled: getSessionArchiveActionViewItemOptions({ icon: true }, new TestConfigurationService({ [SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING]: true })),
-			disabled: getSessionArchiveActionViewItemOptions({ icon: true }, new TestConfigurationService({ [SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING]: false })),
+			disabled,
+			enabled,
 		}, {
-			enabled: { icon: true, onClickAnimation: ClickAnimation.Confetti },
 			disabled: undefined,
+			enabled: ClickAnimation.Confetti,
 		});
 	});
 });
