@@ -19,7 +19,7 @@ import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/fi
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -44,6 +44,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -102,6 +103,7 @@ import { AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../auto
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
+import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 
 const $ = DOM.$;
 
@@ -119,6 +121,7 @@ export const NEW_SESSION_FOR_WORKSPACE_ACTION_ID = 'sessionsView.sectionNewSessi
 
 /** Controls whether the empty default Chats group is shown in the sessions list. */
 export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.showEmptyDefaultGroups';
+export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions.list.showUnreadInCollapsedSections';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
@@ -1274,9 +1277,57 @@ function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefine
 //#region Section Header Renderer
 
 interface ISessionHeaderTemplate {
+	readonly icon: HTMLElement;
+	readonly collapsed: ISettableObservable<boolean>;
 	readonly toolbarContainer: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
 	readonly elementDisposables: DisposableStore;
+}
+
+const enum SessionHeaderStatus {
+	NeedsInput,
+	FailingCI,
+	Unread,
+}
+
+function getSessionHeaderStatus(sessions: readonly ISession[], reader: IReader, sessionsWithFailingCI: ReadonlySet<string> | undefined): SessionHeaderStatus | undefined {
+	let hasFailingCI = false;
+	let hasUnread = false;
+	for (const session of sessions) {
+		if (session.isArchived.read(reader)) {
+			continue;
+		}
+		const status = session.status.read(reader);
+		if (status === SessionStatus.NeedsInput) {
+			return SessionHeaderStatus.NeedsInput;
+		}
+		hasFailingCI ||= status !== SessionStatus.InProgress && sessionsWithFailingCI?.has(session.sessionId) === true;
+		hasUnread ||= !session.isRead.read(reader);
+	}
+	return hasFailingCI ? SessionHeaderStatus.FailingCI : hasUnread ? SessionHeaderStatus.Unread : undefined;
+}
+
+function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: readonly ISession[], icon: ThemeIcon | undefined, showUnreadInCollapsedSections: IObservable<boolean>, sessionsWithFailingCI: IObservable<ReadonlySet<string>>, instantiationService: IInstantiationService): void {
+	const headerStatus = derived(reader => template.collapsed.read(reader) && showUnreadInCollapsedSections.read(reader)
+		? getSessionHeaderStatus(sessions, reader, sessionsWithFailingCI.read(reader))
+		: undefined);
+	template.elementDisposables.add(autorun(reader => {
+		const status = headerStatus.read(reader);
+		DOM.clearNode(template.icon);
+		template.icon.className = 'session-section-icon';
+		template.icon.style.display = status !== undefined || icon ? '' : 'none';
+		if (status !== undefined) {
+			const statusIcon = reader.store.add(instantiationService.createInstance(SessionStatusIcon, template.icon));
+			statusIcon.setStatus(
+				status === SessionHeaderStatus.NeedsInput ? SessionStatus.NeedsInput : SessionStatus.Completed,
+				status !== SessionHeaderStatus.Unread,
+				false,
+				status === SessionHeaderStatus.FailingCI ? { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') } : undefined,
+			);
+		} else if (icon) {
+			template.icon.classList.add(...ThemeIcon.asClassNameArray(icon));
+		}
+	}));
 }
 
 function renderSessionHeaderToolbar<T>(template: ISessionHeaderTemplate, element: T, select: (element: T, event: MouseEvent) => void): void {
@@ -1286,7 +1337,6 @@ function renderSessionHeaderToolbar<T>(template: ISessionHeaderTemplate, element
 
 interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
-	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly newBadge: HTMLElement;
@@ -1338,6 +1388,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	constructor(
 		private readonly hideSectionCount: boolean,
 		private readonly select: (element: ISessionSection, event: MouseEvent) => void,
+		private readonly showUnreadInCollapsedSections: IObservable<boolean>,
+		private readonly sessionsWithFailingCI: IObservable<ReadonlySet<string>>,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
@@ -1411,7 +1463,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			},
 		}));
 
-		return { container, icon, label, count, newBadge, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, collapsed: observableValue(this, false), label, count, newBadge, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -1435,14 +1487,11 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.container.classList.add('session-section-shortcut');
 		}
 
-		// Leading icon for the "Pinned" and "Chats" (quick chats) section headers.
-		// Templates are reused across rows, so recompute the icon every render.
-		DOM.clearNode(template.icon);
-		const sectionIcon = getSessionSectionIcon(element.id);
-		template.icon.className = sectionIcon ? `session-section-icon ${ThemeIcon.asClassName(sectionIcon)}` : 'session-section-icon';
-		template.icon.style.display = sectionIcon ? '' : 'none';
+		this.updateChevron(template, node.collapsible, node.collapsed);
 
 		if (element.id === AUTOMATIONS_SECTION_ID) {
+			DOM.clearNode(template.icon);
+			template.icon.style.display = '';
 			template.elementDisposables.add(autorun(reader => {
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
 				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID);
@@ -1473,6 +1522,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					template.icon.className = `session-section-icon ${ThemeIcon.asClassName(Codicon.calendar)}`;
 				}
 			}));
+		} else {
+			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
 		}
 
 		template.label.textContent = element.label;
@@ -1483,9 +1534,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.count.textContent = String(element.sessions.length);
 			template.count.style.display = '';
 		}
-
-		this.updateChevron(template, node.collapsible, node.collapsed);
-		template.chevron.classList.toggle('collapsible', node.collapsible);
 
 		// Set context key for section type so toolbar actions can use when clauses
 		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id;
@@ -1508,11 +1556,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}));
 	}
 
-	/**
-	 * Updates the expand/collapse chevron for an already-rendered section. The
-	 * tree only re-invokes `renderTwistie` (not `renderElement`) when a section's
-	 * collapse state toggles, so the owning list forwards collapse changes here.
-	 */
+	/** Updates the leading icon and chevron when the tree toggles a section without re-rendering it. */
 	updateCollapseState(element: ISessionSection, collapsed: boolean): void {
 		const template = this.templatesByElement.get(element);
 		if (template) {
@@ -1526,6 +1570,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	}
 
 	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
+		template.collapsed.set(collapsible && collapsed, undefined);
 		template.chevron.className = 'session-section-chevron';
 		if (collapsible) {
 			template.chevron.classList.add('collapsible');
@@ -1578,6 +1623,8 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 	constructor(
 		private readonly delegate: ISessionGroupRendererDelegate,
+		private readonly showUnreadInCollapsedSections: IObservable<boolean>,
+		private readonly sessionsWithFailingCI: IObservable<ReadonlySet<string>>,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 	) { }
@@ -1589,7 +1636,6 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const chevron = DOM.append(container, $('span.session-section-chevron'));
 		chevron.setAttribute('aria-hidden', 'true');
 		const icon = DOM.append(container, $('span.session-section-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.folderLibrary));
 		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const inputContainer = DOM.append(container, $('.session-group-input'));
@@ -1601,7 +1647,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { container, icon, collapsed: observableValue(this, false), label, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -1617,6 +1663,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 		template.label.textContent = element.group.name;
 		this.updateChevron(template, node.collapsible, node.collapsed);
+		renderSessionHeaderIcon(template, element.sessions, Codicon.folderLibrary, this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.instantiationService);
 		SessionGroupHasVisibleSessionsContext.bindTo(template.contextKeyService).set(element.sessions.length > 0);
 		SessionGroupIsEmptyContext.bindTo(template.contextKeyService).set(element.isEmpty);
 
@@ -1686,6 +1733,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 	}
 
 	private updateChevron(template: ISessionGroupTemplate, collapsible: boolean, collapsed: boolean): void {
+		template.collapsed.set(collapsible && collapsed, undefined);
 		template.chevron.className = 'session-section-chevron';
 		if (collapsible) {
 			template.chevron.classList.add('collapsible');
@@ -1791,6 +1839,8 @@ interface ISessionsAccessibilityProviderOptions {
 	readonly isRenderedInCustomGroup?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
+	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
+	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
 	readonly deriveStatusFromMainChat?: boolean;
 }
@@ -1816,7 +1866,7 @@ class SessionsAccessibilityProvider {
 			));
 		}
 		if (isSessionGroupItem(element)) {
-			return `${element.group.name}, ${element.sessions.length}`;
+			return this.getSectionAriaLabel(element.group.name, element.sessions);
 		}
 		if (isSessionSection(element)) {
 			if (element.id === AUTOMATIONS_SECTION_ID) {
@@ -1838,7 +1888,7 @@ class SessionsAccessibilityProvider {
 						: label;
 				});
 			}
-			return `${element.label}, ${element.sessions.length}`;
+			return this.getSectionAriaLabel(element.label, element.sessions);
 		}
 		if (isSessionShowMore(element)) {
 			if (element.mode === 'less') {
@@ -1889,6 +1939,22 @@ class SessionsAccessibilityProvider {
 				label = localize('sessionItemWorkspaceAria', "{0}, in {1}", label, workspaceLabel);
 			}
 			return label;
+		});
+	}
+
+	private getSectionAriaLabel(label: string, sessions: readonly ISession[]): IObservable<string> {
+		return derived(this, reader => {
+			const status = this.options?.showUnreadInCollapsedSections?.read(reader) ? getSessionHeaderStatus(sessions, reader, this.options.sessionsWithFailingCI?.read(reader)) : undefined;
+			switch (status) {
+				case SessionHeaderStatus.NeedsInput:
+					return localize('sessionSectionNeedsInputAria', "{0}, {1}, session needs input", label, sessions.length);
+				case SessionHeaderStatus.FailingCI:
+					return localize('sessionSectionFailingCIAria', "{0}, {1}, session has failing CI checks", label, sessions.length);
+				case SessionHeaderStatus.Unread:
+					return localize('sessionSectionUnreadAria', "{0}, {1}, contains unread sessions", label, sessions.length);
+				default:
+					return localize('sessionSectionAria', "{0}, {1}", label, sessions.length);
+			}
 		});
 	}
 }
@@ -2641,9 +2707,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.tree.setFocus([element], event);
 			this.tree.setSelection([element], event);
 		};
+		const showUnreadInCollapsedSections = observableConfigValue(SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, false, this.configurationService);
+		const blockedSessions = derived(this, reader => showUnreadInCollapsedSections.read(reader)
+			? reader.store.add(instantiationService.createInstance(BlockedSessions))
+			: undefined);
+		const sessionsWithFailingCI = derived(this, reader => new Set(
+			blockedSessions.read(reader)?.blockedSessionsWithReasons.read(reader)
+				.filter(blocked => blocked.reason === BlockedSessionReason.FailingCI)
+				.map(blocked => blocked.session.sessionId)
+		));
 		const sectionRenderer = new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
+			showUnreadInCollapsedSections,
+			sessionsWithFailingCI,
 			instantiationService,
 			contextKeyService,
 			this.automationService,
@@ -2658,7 +2735,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
-		}, instantiationService, contextKeyService);
+		}, showUnreadInCollapsedSections, sessionsWithFailingCI, instantiationService, contextKeyService);
 		this._groupRenderer = groupRenderer;
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
@@ -2696,6 +2773,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
 					deriveStatusFromMainChat: true,
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
+					showUnreadInCollapsedSections,
+					sessionsWithFailingCI,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
