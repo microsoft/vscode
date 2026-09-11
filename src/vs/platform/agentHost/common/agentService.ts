@@ -10,6 +10,7 @@ import { IReference } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
+import type { AgentCanvasInput, IAgentCanvas, IAgentCanvasType } from './meta/agentCanvasMeta.js';
 import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
@@ -776,6 +777,10 @@ export interface IAgentHostManagementService {
 	 * `createChat` (`title` and `model`).
 	 */
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
+	/** Local Canvas dismissal until Canvas commands are represented in AHP. */
+	closeCanvas(session: URI, chat: URI, instanceId: string): Promise<void>;
+	listCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasType[]>;
+	openCanvas(session: URI, chat: URI, extensionId: string, canvasTypeId: string, input?: AgentCanvasInput): Promise<IAgentCanvas>;
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
 	claimDetachedWorktree(handle: string): Promise<void>;
@@ -821,6 +826,10 @@ export interface IAgentService {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Dismisses a Canvas owned by an already-live provider chat. */
+	closeCanvas?(session: URI, chat: URI, instanceId: string): Promise<void>;
+	listCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasType[]>;
+	openCanvas?(session: URI, chat: URI, extensionId: string, canvasTypeId: string, input?: AgentCanvasInput): Promise<IAgentCanvas>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -1129,6 +1138,11 @@ export interface IAgentConnection {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Requires the vscode.closeCanvas capability advertised by initialize. */
+	closeCanvas(session: URI, chat: URI, instanceId: string): Promise<void>;
+	/** Requires version 1 of the vscode.canvasManagement capability. */
+	listCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasType[]>;
+	openCanvas(session: URI, chat: URI, extensionId: string, canvasTypeId: string, input?: AgentCanvasInput): Promise<IAgentCanvas>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;

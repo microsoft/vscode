@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
+import { vEnum, vObj, vOptionalProp, vString, vUnchecked, type ValidatorType } from '../../../base/common/validation.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
+import { agentCloseCanvasCapabilityMetaKey, agentOpenCanvasCapabilityMetaKey, type AgentCanvasInput, type IAgentCanvas, type IAgentCanvasType } from './meta/agentCanvasMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 
@@ -20,6 +21,9 @@ export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostD
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const CloseCanvasExtensionMethod = 'vscode/closeCanvas';
+export const ListCanvasesExtensionMethod = 'vscode/listCanvases';
+export const OpenCanvasExtensionMethod = 'vscode/openCanvas';
 
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
@@ -28,17 +32,21 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
+	readonly [agentCloseCanvasCapabilityMetaKey]?: true;
+	readonly [agentOpenCanvasCapabilityMetaKey]?: 1;
 }
 
 export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, closeCanvas = false, canvasManagement = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
+		[agentCloseCanvasCapabilityMetaKey]: closeCanvas ? true : undefined,
+		[agentOpenCanvasCapabilityMetaKey]: canvasManagement ? 1 : undefined,
 	};
 }
 
@@ -65,7 +73,32 @@ export const removeSessionArtifactParamsValidator = vObj({
 	artifactId: vString(),
 });
 
+export const closeCanvasParamsValidator = vObj({
+	session: vString(),
+	chat: vString(),
+	instanceId: vString(),
+});
+
+export const listCanvasesParamsValidator = vObj({ session: vString(), chat: vString() });
+export const openCanvasParamsValidator = vObj({
+	session: vString(), chat: vString(), extensionId: vString(), canvasTypeId: vString(),
+	// The handler validates JSON recursively for both remote and local callers.
+	input: vOptionalProp(vUnchecked<AgentCanvasInput>()),
+});
+
 export interface IAgentHostExtensionCommandMap {
+	[ListCanvasesExtensionMethod]: {
+		params: ValidatorType<typeof listCanvasesParamsValidator>;
+		result: readonly IAgentCanvasType[];
+	};
+	[OpenCanvasExtensionMethod]: {
+		params: ValidatorType<typeof openCanvasParamsValidator>;
+		result: IAgentCanvas;
+	};
+	[CloseCanvasExtensionMethod]: {
+		params: ValidatorType<typeof closeCanvasParamsValidator>;
+		result: void;
+	};
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;

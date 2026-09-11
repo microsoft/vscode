@@ -12,6 +12,7 @@ import { Disposable, DisposableStore, MutableDisposable, IReference } from '../.
 import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { supportsAgentHostCanvasClose, supportsAgentHostCanvasOpen, type AgentCanvasInput, type IAgentCanvas, type IAgentCanvasType } from '../common/meta/agentCanvasMeta.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -19,7 +20,7 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CloseCanvasExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ListCanvasesExtensionMethod, OpenCanvasExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -1349,6 +1350,27 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		await this._sendExtensionRequest(RemoveSessionArtifactExtensionMethod, { session: session.toString(), artifactId });
+	}
+
+	async closeCanvas(session: URI, chat: URI, instanceId: string): Promise<void> {
+		if (!supportsAgentHostCanvasClose(this._initializeResult.get())) {
+			throw new Error('This agent host does not support closing canvases');
+		}
+		await this._sendExtensionRequest(CloseCanvasExtensionMethod, { session: session.toString(), chat: chat.toString(), instanceId });
+	}
+
+	async listCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasType[]> {
+		if (!supportsAgentHostCanvasOpen(this._initializeResult.get())) {
+			throw new Error('This agent host does not support opening canvases');
+		}
+		return this._sendExtensionRequest(ListCanvasesExtensionMethod, { session: session.toString(), chat: chat.toString() });
+	}
+
+	async openCanvas(session: URI, chat: URI, extensionId: string, canvasTypeId: string, input?: AgentCanvasInput): Promise<IAgentCanvas> {
+		if (!supportsAgentHostCanvasOpen(this._initializeResult.get())) {
+			throw new Error('This agent host does not support opening canvases');
+		}
+		return this._sendExtensionRequest(OpenCanvasExtensionMethod, { session: session.toString(), chat: chat.toString(), extensionId, canvasTypeId, input });
 	}
 
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {

@@ -340,7 +340,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	async createBrowserView(options: IBrowserViewWorkbenchCreateOptions, editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput> {
 		const input = this._getOrCreateLazy({
-			id: generateUuid(),
+			id: options.id ?? generateUuid(),
+			transient: options.transient,
 			associatedResource: options.associatedResource,
 			url: options.initialUrl
 		}, undefined, { ...options, initialUrl: undefined });
@@ -387,7 +388,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				);
 				return this._createModel(info);
 			});
-			input.onWillDispose(() => {
+			Event.once(input.onWillDispose)(() => {
 				this._known.delete(id);
 				this._onDidChangeBrowserViews.fire();
 			});

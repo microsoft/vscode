@@ -617,6 +617,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private _byokProxyHandle: Promise<IByokLmProxyHandle> | undefined;
 
 	constructor(
+		private readonly _getExtensionSdkPath: () => string | undefined,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
@@ -994,7 +995,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
-			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
+			requestExtensions: !plan.isEphemeral && this._getExtensionSdkPath() !== undefined,
+			requestCanvasRenderer: !plan.isEphemeral,
+			extensionSdkPath: plan.isEphemeral ? undefined : this._getExtensionSdkPath(),
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
