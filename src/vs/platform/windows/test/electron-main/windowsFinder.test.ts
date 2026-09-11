@@ -50,7 +50,6 @@ suite('WindowsFinder', () => {
 			openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
 			backupPath?: string | undefined;
 			remoteAuthority?: string | undefined;
-			iconPath?: URI | undefined;
 			isExtensionDevelopmentHost = false;
 			isExtensionTestHost = false;
 			lastFocusTime = options.lastFocusTime;

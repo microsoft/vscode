@@ -341,6 +341,13 @@ suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('marks the non-interactive toolbar host for focus-outline suppression', () => {
+		const services = setupServices(store);
+		const { container } = renderPicker(store, services);
+
+		assert.strictEqual(container.classList.contains('sessions-chat-agent-host-config-host'), true);
+	});
+
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
 		const services = setupServices(store);
 		const { container } = renderPicker(store, services);
