@@ -1316,6 +1316,7 @@ suite('ActionListWidget', () => {
 		panel.getBoundingClientRect = () => new mainWindow.DOMRect(220, 260, 190, 200);
 		viewport.getBoundingClientRect = () => new mainWindow.DOMRect(220, 260, 190, 190);
 		Object.defineProperty(filter, 'offsetHeight', { configurable: true, value: 30 });
+		const actionLineHeight = parseFloat(submenuList.style.height);
 		mainWindow.dispatchEvent(new Event('resize'));
 
 		const top = parseFloat(panel.style.top);
@@ -1325,10 +1326,10 @@ suite('ActionListWidget', () => {
 			listHeight: submenuList.style.height,
 			viewportHeight: viewport.style.height,
 		}, {
-			top: -32,
+			top: 300 - 260 - 10 - 30 - actionLineHeight - 8,
 			minimumPanelBottom: 292,
-			listHeight: '24px',
-			viewportHeight: '54px',
+			listHeight: `${actionLineHeight}px`,
+			viewportHeight: `${30 + actionLineHeight}px`,
 		});
 	}));
 
