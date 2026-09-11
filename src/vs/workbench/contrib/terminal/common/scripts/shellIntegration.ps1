@@ -128,7 +128,7 @@ function Global:Prompt() {
 	# OSC 633 ; A ST
 	$Result += "$([char]0x1b)]633;A`a"
 	# Current working directory
-	# OSC 633 ; <Property>=<Value> ST
+	# OSC 633 ; <Property>=<Value> ; <Nonce> ST
 	$Result += if ($pwd.Provider.Name -eq 'FileSystem') { "$([char]0x1b)]633;P;Cwd=$(__VSCode-Escape-Value $pwd.ProviderPath);$($Global:__VSCodeState.Nonce)`a" }
 
 	# Send current environment variables as JSON

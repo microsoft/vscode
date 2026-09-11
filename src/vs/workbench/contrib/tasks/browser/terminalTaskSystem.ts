@@ -79,10 +79,23 @@ export interface IReconnectionTaskData {
 	id: string;
 	lastTask: string;
 	group?: string;
-	shellIntegrationNonce?: string;
 }
 
 const TaskTerminalType = 'Task';
+
+export function rewriteTaskShellIntegrationNonce(
+	initialText: IShellLaunchConfig['initialText'],
+	launchNonce: string | undefined,
+	terminalNonce: string | undefined
+): IShellLaunchConfig['initialText'] {
+	if (!initialText || !launchNonce || !terminalNonce) {
+		return initialText;
+	}
+	if (Types.isString(initialText)) {
+		return initialText.replaceAll(launchNonce, terminalNonce);
+	}
+	return { ...initialText, text: initialText.text.replaceAll(launchNonce, terminalNonce) };
+}
 
 class VariableResolver {
 	private static _regex = /\$\{(.*?)\}/g;
@@ -1597,13 +1610,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 			// HACK: Rewrite the nonce in initialText only for reused terminals, this ensures the
 			// command line and CWD sequences report the correct nonce and become trusted as a result.
-			if (terminalToReuse.shellIntegrationNonce && launchConfigs.shellIntegrationNonce) {
-				if (Types.isString(launchConfigs.initialText)) {
-					launchConfigs.initialText = launchConfigs.initialText.replaceAll(launchConfigs.shellIntegrationNonce, terminalToReuse.shellIntegrationNonce);
-				} else if (launchConfigs.initialText) {
-					launchConfigs.initialText.text = launchConfigs.initialText.text.replaceAll(launchConfigs.shellIntegrationNonce, terminalToReuse.shellIntegrationNonce);
-				}
-			}
+			launchConfigs.initialText = rewriteTaskShellIntegrationNonce(launchConfigs.initialText, launchConfigs.shellIntegrationNonce, terminalToReuse.shellIntegrationNonce);
 			await terminalToReuse.terminal.reuseTerminal(launchConfigs);
 
 			if (task.command.presentation && task.command.presentation.clear) {
