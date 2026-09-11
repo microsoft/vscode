@@ -320,6 +320,7 @@ suite('SessionChatInputToolbar', () => {
 				description: pullRequestHover?.querySelector('.sessions-pr-hover-description-content')?.textContent,
 				author: pullRequestHover?.querySelector('.sessions-pr-hover-author')?.textContent,
 				branches: [...pullRequestHover?.querySelectorAll('.sessions-pr-hover-branch') ?? []].map(element => element.textContent),
+				branchArrowAriaHidden: pullRequestHover?.querySelector('.sessions-pr-hover-branch-arrow')?.getAttribute('aria-hidden'),
 				branchControls: [...pullRequestHover?.querySelectorAll('.sessions-pr-hover-branch') ?? []].map(element => ({
 					tagName: element.tagName,
 					ariaLabel: element.getAttribute('aria-label'),
@@ -409,6 +410,7 @@ suite('SessionChatInputToolbar', () => {
 				description: 'Provides detailed pull request context.',
 				author: '@octocat opened this pull request',
 				branches: ['main', 'feature/rich-hover'],
+				branchArrowAriaHidden: 'true',
 				branchControls: [
 					{ tagName: 'BUTTON', ariaLabel: 'Copy base branch main' },
 					{ tagName: 'BUTTON', ariaLabel: 'Copy head branch feature/rich-hover' },

@@ -69,7 +69,8 @@ export function createPullRequestHover(data: IPullRequestHoverData): IPullReques
 
 	const branchRow = append(hoverElement, $('.sessions-pr-hover-branches'));
 	const baseBranch = appendBranchPill(branchRow, data.pullRequest.baseRef || localize('agentSessions.pullRequestHover.baseFallback', "target"), 'base', data.onDidClickBaseBranch);
-	append(branchRow, $('span.sessions-pr-hover-branch-arrow', undefined, '\u2190'));
+	const branchArrow = append(branchRow, $('span.sessions-pr-hover-branch-arrow', undefined, '\u2190'));
+	branchArrow.setAttribute('aria-hidden', 'true');
 	const headBranch = appendBranchPill(branchRow, data.pullRequest.headRef || localize('agentSessions.pullRequestHover.headFallback', "source"), 'head', data.onDidClickHeadBranch);
 
 	append(hoverElement, $('.sessions-pr-hover-author', undefined, localize('agentSessions.pullRequestHover.author', "@{0} opened this pull request", data.pullRequest.author.login)));
