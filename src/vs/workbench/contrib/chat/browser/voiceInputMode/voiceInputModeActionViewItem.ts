@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Gesture } from '../../../../../base/browser/touch.js';
 import '../../../../../base/browser/ui/segmentedIconToggle/segmentedIconToggle.css';
 import './media/voiceInputMode.css';
 import { getActiveWindow, getWindow } from '../../../../../base/browser/dom.js';
@@ -408,6 +409,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		// Connected    → the voice cell takes the dictation cell's place (now animated
 		//                + disconnect) and either listen or mute occupies the second slot.
 		const pill = dom.append(container, dom.$('.monaco-segmented-icon-toggle.chat-voice-input-mode'));
+		this._register(Gesture.ignoreTarget(pill));
 		this._reel = dom.append(pill, dom.$('.monaco-segmented-icon-toggle-reel.chat-voice-input-mode-reel'));
 
 		// --- Dictation cell ---

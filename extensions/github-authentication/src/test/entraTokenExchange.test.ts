@@ -275,8 +275,7 @@ suite('EntraTokenExchange', () => {
 			linked: 'mona@contoso.com',
 			result: {
 				token: 'gho_granted',
-				// Reported as GitHub reported it: turning it into a deadline is the caller's job.
-				expiresIn: 3600,
+				expiresAfter: 3_600_000,
 				account: ACCOUNT
 			}
 		});
@@ -502,7 +501,7 @@ suite('EntraTokenExchange', () => {
 			confirmations: [],
 			// The account is handed back rather than only checked, so the session built from this
 			// carries the same label and avatar a freshly created one would.
-			renewed: { token: 'gho_granted', expiresIn: 3600, account: ACCOUNT, scopes: ['read:user', 'user:email'] }
+			renewed: { token: 'gho_granted', expiresAfter: 3_600_000, account: ACCOUNT, scopes: ['read:user', 'user:email'] }
 		});
 	});
 
@@ -520,7 +519,7 @@ suite('EntraTokenExchange', () => {
 			scope: undefined,
 			renewed: {
 				token: 'gho_granted',
-				expiresIn: 3600,
+				expiresAfter: 3_600_000,
 				account: ACCOUNT,
 				// GitHub's own comma separated answer, split back apart so the session can be found
 				// by a scoped lookup.
