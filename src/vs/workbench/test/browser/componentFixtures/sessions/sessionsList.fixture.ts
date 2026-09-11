@@ -569,7 +569,7 @@ async function renderSessionsList(ctx: ComponentFixtureContext, options: IRender
 		if (!sessions[0] || !list.reveal(sessions[0].resource)) {
 			throw new Error('Expected a session to select for keyboard navigation.');
 		}
-		list.focus();
+		ctx.focus(list);
 	}
 
 	if (options.showFocusedToolbar) {

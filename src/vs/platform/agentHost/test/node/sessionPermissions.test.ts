@@ -205,6 +205,8 @@ suite('SessionPermissionManager', () => {
 				join('.CLAUDE', 'settings.json'),
 				join('.CLAUDE', 'settings.local.json'),
 				join('.claude', 'SETTINGS.LOCAL.JSON'),
+				join('.CODEX', 'hooks.json'),
+				join('.codex', 'CONFIG.TOML'),
 			];
 			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
 			assert.deepStrictEqual(results, files.map(() => undefined));
@@ -273,6 +275,9 @@ suite('SessionPermissionManager', () => {
 			join('.claude', 'agents', 'dev-helper.md'),
 			join('.claude', 'settings.json'),
 			join('.claude', 'settings.local.json'),
+			join('.codex', 'agents', 'dev-helper.md'),
+			join('.codex', 'config.toml'),
+			join('.codex', 'hooks.json'),
 		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
 		for (const file of files) {

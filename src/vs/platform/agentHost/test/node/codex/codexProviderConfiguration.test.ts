@@ -42,6 +42,8 @@ function userConfiguration(config: JsonValue = {}, version = 'version-1'): Confi
 			service_tier: null,
 			analytics: null,
 			apps: null,
+			browser_use: null,
+			computer_use: null,
 			desktop: null,
 			model_providers: { 'vscode-proxy': { name: 'VS Code Proxy', base_url: 'http://127.0.0.1:1234/v1', env_key: 'OPENAI_API_KEY', requires_openai_auth: false } },
 		},

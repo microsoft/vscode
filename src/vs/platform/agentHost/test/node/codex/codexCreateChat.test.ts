@@ -34,6 +34,7 @@ import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { sessionServerToolDefinitions } from '../../../node/shared/sessionServerTools.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -44,6 +45,8 @@ import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
+import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
+import type { JsonValue } from '../../../node/codex/protocol/generated/serde_json/JsonValue.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
@@ -57,10 +60,11 @@ interface ITestWireRequest {
 	readonly method: string;
 	readonly params: {
 		readonly cwd?: string;
+		readonly cwds?: readonly string[];
 		readonly threadId?: string;
 		readonly model?: string;
 		readonly modelProvider?: string;
-		readonly config?: { readonly 'features.default_mode_request_user_input'?: boolean };
+		readonly config?: Readonly<Record<string, JsonValue>>;
 		readonly includeTurns?: boolean;
 		readonly numTurns?: number;
 		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
@@ -144,6 +148,7 @@ interface ICreateAgentOptions {
 	 * default inert no-op.
 	 */
 	readonly otelService?: Pick<IAgentHostOTelService, 'getSessionTraceContext' | 'releaseSessionTraceContext'>;
+	readonly logService?: ILogService;
 }
 
 /**
@@ -187,7 +192,7 @@ function createSessionDatabaseReference(database: ISessionDatabase) {
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
 	const models = [{ id: 'gpt-test', name: 'GPT Test', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
 	const instantiationService = new TestInstantiationService();
-	const logService = new NullLogService();
+	const logService = options.logService ?? new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -259,6 +264,72 @@ function connectPeer(agent: CodexAgent, peer: ITestPeer): void {
 		usageSource: 'github',
 		child: { kill: () => true },
 	} as never;
+}
+
+function setWorkspaceTrust(agent: CodexAgent, trustedUris: readonly URI[], enabled = true): void {
+	agent['_configurationService'].updateRootConfig({
+		[AgentHostWorkspaceTrustConfigKey]: { enabled, trustedUris: trustedUris.map(uri => uri.toString()) },
+	});
+}
+
+interface SerializedHookMetadata {
+	readonly key: string;
+	readonly eventName: HookMetadata['eventName'];
+	readonly matcher: string | null;
+	readonly timeoutSec: number;
+	readonly statusMessage: string | null;
+	readonly additionalContextLimit: number | null;
+	readonly sourcePath: string;
+	readonly source: HookMetadata['source'];
+	readonly pluginId: string | null;
+	readonly displayOrder: number;
+	readonly enabled: boolean;
+	readonly isManaged: boolean;
+	readonly currentHash: string;
+	readonly trustStatus: HookMetadata['trustStatus'];
+	readonly handlerType: 'command';
+	readonly command: string;
+	readonly async: boolean;
+}
+
+function projectHook(cwd: string, overrides: Partial<SerializedHookMetadata> = {}): SerializedHookMetadata {
+	return {
+		key: `${cwd}/.codex/hooks.json:session_start:0:0`,
+		eventName: 'sessionStart',
+		matcher: null,
+		timeoutSec: 5,
+		statusMessage: null,
+		additionalContextLimit: null,
+		sourcePath: `${cwd}/.codex/hooks.json`,
+		source: 'project',
+		pluginId: null,
+		displayOrder: 0,
+		enabled: true,
+		isManaged: false,
+		currentHash: 'current-project-hash',
+		trustStatus: 'untrusted',
+		handlerType: 'command',
+		command: 'echo hook',
+		async: false,
+		...overrides,
+	};
+}
+
+function respondToHooksList(peer: ITestPeer, request: ITestWireRequest, cwd: string, hooks: readonly SerializedHookMetadata[] = [projectHook(cwd)]): void {
+	peer.push({
+		id: request.id,
+		result: {
+			data: [{ cwd, hooks, warnings: [], errors: [] }],
+		},
+	});
+}
+
+class RecordingLogService extends NullLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push([message, ...args].map(String).join(' '));
+	}
 }
 
 /**
@@ -451,6 +522,355 @@ suite('CodexAgent createChat', () => {
 		}, {
 			workingDirectory: initialFolder.toString(),
 			needsResume: true,
+		});
+	});
+
+	test('workspace hook trust: ordinary start preserves Codex keys and selects unmanaged project hooks', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-start');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/hook-trust-start');
+		setWorkspaceTrust(agent, [folder]);
+
+		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const hooks = await readNextRequest(peer.outbound);
+		const acceptedHook = projectHook(folder.fsPath);
+		respondToHooksList(peer, hooks, folder.fsPath, [
+			acceptedHook,
+			projectHook(folder.fsPath, { key: 'user-hook', source: 'user' }),
+			projectHook(folder.fsPath, { key: 'managed-hook', isManaged: true }),
+			projectHook('/repo/hook-trust-start-untrusted'),
+		]);
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'hook-trust-start-thread', cwd: folder.fsPath } } });
+		await entry.materializePromise;
+
+		assert.deepStrictEqual({
+			hooks: { method: hooks.method, cwds: hooks.params.cwds },
+			start: {
+				method: start.method,
+				state: start.params.config?.['hooks.state'],
+			},
+		}, {
+			hooks: { method: 'hooks/list', cwds: [folder.fsPath] },
+			start: {
+				method: 'thread/start',
+				state: {
+					[acceptedHook.key]: { trusted_hash: acceptedHook.currentHash },
+				},
+			},
+		});
+	});
+
+	test('workspace hook trust: direct-backing start receives the thread overlay', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-direct');
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+		const peerChat = URI.parse(buildChatUri(session, 'hook-trust-direct-peer'));
+		const folder = URI.file('/repo/hook-trust-direct');
+		await createSessionBackedChat(agent, defaultChat, { configurationResource: session, resource: defaultChat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const ownerStart = await readNextRequest(peer.outbound);
+		peer.push({ id: ownerStart.id, result: { thread: { id: 'hook-trust-owner-thread', cwd: folder.fsPath } } });
+		await entry.materializePromise;
+		setWorkspaceTrust(agent, [folder]);
+
+		const creating = agent.chats.createChat(peerChat, { configurationResource: session, resource: peerChat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const hooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, hooks, folder.fsPath);
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'hook-trust-direct-thread', cwd: folder.fsPath } } });
+		await creating;
+
+		assert.deepStrictEqual({
+			methods: [hooks.method, start.method],
+			state: start.params.config?.['hooks.state'],
+		}, {
+			methods: ['hooks/list', 'thread/start'],
+			state: {
+				[`${folder.fsPath}/.codex/hooks.json:session_start:0:0`]: { trusted_hash: 'current-project-hash' },
+			},
+		});
+	});
+
+	test('workspace hook trust: fork uses the inherited source cwd', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const sourceSession = AgentSession.uri('codex', 'hook-trust-fork-source');
+		const sourceChat = URI.parse(buildDefaultChatUri(sourceSession));
+		const folder = URI.file('/repo/hook-trust-fork');
+		await createSessionBackedChat(agent, sourceChat, { configurationResource: sourceSession, resource: sourceChat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const sourceEntry = agent['_sessions'].get(AgentSession.id(sourceSession))!;
+		const sourceStart = await readNextRequest(peer.outbound);
+		peer.push({ id: sourceStart.id, result: { thread: { id: 'hook-trust-source-thread', cwd: folder.fsPath } } });
+		await sourceEntry.materializePromise;
+		setWorkspaceTrust(agent, [folder]);
+
+		const targetSession = AgentSession.uri('codex', 'hook-trust-fork-target');
+		const targetChat = URI.parse(buildDefaultChatUri(targetSession));
+		const forking = createSessionBackedChat(agent, targetChat, { configurationResource: targetSession, resource: targetChat }, {
+			fork: { source: sourceChat, turnId: 'source-turn', turnIndex: 0 },
+		});
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+		const historyRead = await readNextRequest(peer.outbound);
+		peer.push({ id: historyRead.id, result: { thread: { id: sourceEntry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'source-turn' }] } } });
+		const hooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, hooks, folder.fsPath);
+		const fork = await readNextRequest(peer.outbound);
+		peer.push({ id: fork.id, result: { thread: { id: 'hook-trust-fork-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
+		await forking;
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+
+		assert.deepStrictEqual({
+			hooks: { method: hooks.method, cwds: hooks.params.cwds },
+			fork: { method: fork.method, cwd: fork.params.cwd, state: fork.params.config?.['hooks.state'] },
+		}, {
+			hooks: { method: 'hooks/list', cwds: [folder.fsPath] },
+			fork: {
+				method: 'thread/fork',
+				cwd: undefined,
+				state: {
+					[`${folder.fsPath}/.codex/hooks.json:session_start:0:0`]: { trusted_hash: 'current-project-hash' },
+				},
+			},
+		});
+	});
+
+	test('workspace hook trust: cold reload resume receives the thread overlay', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-resume');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/hook-trust-resume');
+		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = 'hook-trust-resume-thread';
+		entry.needsResume = true;
+		entry.unsubscribeBeforeResume = true;
+		entry.hasNativeHistory = undefined;
+		agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+		setWorkspaceTrust(agent, [folder]);
+
+		const resuming = agent['_resumeSession'](entry);
+		const providerRead = await readNextRequest(peer.outbound);
+		peer.push({
+			id: providerRead.id,
+			result: {
+				thread: {
+					id: entry.threadId,
+					cwd: folder.fsPath,
+					modelProvider: 'vscode-proxy',
+					historyMode: 'legacy',
+					turns: [],
+				},
+			},
+		});
+		const hooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, hooks, folder.fsPath);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+		await resuming;
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+
+		assert.deepStrictEqual({
+			methods: [providerRead.method, hooks.method, unsubscribe.method, resume.method],
+			state: resume.params.config?.['hooks.state'],
+		}, {
+			methods: ['thread/read', 'hooks/list', 'thread/unsubscribe', 'thread/resume'],
+			state: {
+				[`${folder.fsPath}/.codex/hooks.json:session_start:0:0`]: { trusted_hash: 'current-project-hash' },
+			},
+		});
+	});
+
+	test('workspace hook trust: hooks/list failure continues without an overlay', async () => {
+		const logService = new RecordingLogService();
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, logService });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-failure');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/hook-trust-failure');
+		setWorkspaceTrust(agent, [folder]);
+
+		await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const hooks = await readNextRequest(peer.outbound);
+		peer.push({ id: hooks.id, error: { code: -32603, message: 'hooks unavailable' } });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'hook-trust-failure-thread', cwd: folder.fsPath } } });
+		await entry.materializePromise;
+
+		assert.deepStrictEqual({
+			methods: [hooks.method, start.method],
+			hasState: Object.hasOwn(start.params.config ?? {}, 'hooks.state'),
+			threadId: entry.threadId,
+			hookWarnings: logService.warnings.filter(message => message.includes('hooks/list for session hook trust')),
+		}, {
+			methods: ['hooks/list', 'thread/start'],
+			hasState: false,
+			threadId: 'hook-trust-failure-thread',
+			hookWarnings: ['[Codex] hooks/list for session hook trust failed: hooks unavailable'],
+		});
+	});
+
+	for (const trust of [undefined, {}, { enabled: false }, { enabled: true, trustedUris: [false] }, { enabled: true, trustedUris: ['file:///repo/other'] }]) {
+		test(`workspace hook trust: missing, invalid or unrelated trust fails closed (${JSON.stringify(trust)})`, async () => {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+			agent['_configurationService'].updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: trust });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const session = AgentSession.uri('codex', 'hook-trust-untrusted');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const folder = URI.file('/repo/untrusted');
+			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+				config: { [AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] } },
+			});
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'untrusted-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get(AgentSession.id(session))!.materializePromise;
+
+			assert.deepStrictEqual({ method: start.method, trust: start.params.config?.['hooks.state'] }, { method: 'thread/start', trust: undefined });
+		});
+	}
+
+	test('workspace hook trust: native discovery covers inherited hooks and updated hashes for all events', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		const client = disposables.add(new CodexAppServerClient(peer.transport));
+		const folder = URI.file('/worktrees/project');
+		setWorkspaceTrust(agent, [folder, URI.file('/repo/project')]);
+		const listing = agent['_buildSessionHookTrustState'](client, folder.fsPath);
+		const request = await readNextRequest(peer.outbound);
+		const hook = projectHook('/repo/project', {
+			key: '/repo/project/.codex/config.toml:session_end:0:0',
+			sourcePath: '/repo/project/.codex/config.toml',
+			eventName: 'sessionEnd',
+			currentHash: 'updated-hash',
+		});
+		respondToHooksList(peer, request, folder.fsPath, [hook]);
+		assert.deepStrictEqual(await listing, { [hook.key]: { trusted_hash: 'updated-hash' } });
+	});
+
+	test('workspace hook trust: disabled Workspace Trust still uses per-hook hashes', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		const client = disposables.add(new CodexAppServerClient(peer.transport));
+		const folder = URI.file('/repo/hooks');
+		setWorkspaceTrust(agent, [], false);
+		const listing = agent['_buildSessionHookTrustState'](client, folder.fsPath);
+		const request = await readNextRequest(peer.outbound);
+		const hook = projectHook(folder.fsPath);
+		respondToHooksList(peer, request, folder.fsPath, [hook]);
+		assert.deepStrictEqual(await listing, { [hook.key]: { trusted_hash: hook.currentHash } });
+	});
+
+	test('workspace hook trust: successful discovery surfaces errors and warnings', async () => {
+		const logService = new RecordingLogService();
+		const agent = await createAgent(disposables, { logService });
+		const peer = disposables.add(createTestPeer());
+		const client = disposables.add(new CodexAppServerClient(peer.transport));
+		const folder = URI.file('/repo/hooks');
+		setWorkspaceTrust(agent, [folder]);
+		const listing = agent['_buildSessionHookTrustState'](client, folder.fsPath);
+		const request = await readNextRequest(peer.outbound);
+		peer.push({
+			id: request.id, result: {
+				data: [{
+					cwd: folder.fsPath,
+					hooks: [],
+					errors: [{ path: '/repo/hooks/.codex/hooks.json', message: 'invalid JSON' }],
+					warnings: ['hook timeout clamped'],
+				}]
+			}
+		});
+		assert.deepStrictEqual({ trust: await listing, warnings: logService.warnings.filter(message => message.includes('hooks/list for session hook trust')) }, {
+			trust: {},
+			warnings: [
+				'[Codex] hooks/list for session hook trust: /repo/hooks/.codex/hooks.json: invalid JSON',
+				'[Codex] hooks/list for session hook trust: hook timeout clamped',
+			],
+		});
+	});
+
+	test('workspace hook trust: revocation during discovery prevents a grant', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		const client = disposables.add(new CodexAppServerClient(peer.transport));
+		const folder = URI.file('/repo/hooks');
+		setWorkspaceTrust(agent, [folder]);
+		const listing = agent['_buildSessionHookTrustState'](client, folder.fsPath);
+		const request = await readNextRequest(peer.outbound);
+		setWorkspaceTrust(agent, []);
+		respondToHooksList(peer, request, folder.fsPath);
+		assert.deepStrictEqual(await listing, {});
+	});
+
+	test('workspace hook trust: granting trust after prewarm refreshes the thread before sending', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+		const session = AgentSession.uri('codex', 'hook-trust-prewarm');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file('/repo/hooks');
+		const context = { configurationResource: session, resource: chat };
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const prewarm = await readNextRequest(peer.outbound);
+		peer.push({ id: prewarm.id, result: { thread: { id: 'prewarm-thread', cwd: folder.fsPath } } });
+		await agent['_sessions'].get(AgentSession.id(session))!.materializePromise;
+		setWorkspaceTrust(agent, [folder]);
+		const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const hooks = await readNextRequest(peer.outbound);
+		respondToHooksList(peer, hooks, folder.fsPath);
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'trusted-thread', cwd: folder.fsPath } } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+		assert.deepStrictEqual({
+			methods: [prewarm, unsubscribe, hooks, start, turn].map(request => request.method),
+			prewarmTrust: prewarm.params.config?.['hooks.state'],
+			trust: start.params.config?.['hooks.state'],
+			thread: turn.params.threadId,
+		}, {
+			methods: ['thread/start', 'thread/unsubscribe', 'hooks/list', 'thread/start', 'turn/start'],
+			prewarmTrust: undefined,
+			trust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
+			thread: 'trusted-thread',
 		});
 	});
 
