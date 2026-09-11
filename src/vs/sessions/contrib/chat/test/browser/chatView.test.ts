@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -23,7 +24,7 @@ import { ISession, SessionStatus } from '../../../../services/sessions/common/se
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -1657,6 +1658,52 @@ suite('Sessions - Chat View', () => {
 			inProgress: false,
 			needsInput: false,
 			completed: true,
+		});
+	});
+
+	test('recognizes an unmodified Shift+Tab as the chat-pills focus shortcut', () => {
+		const base = { keyCode: KeyCode.Tab, shiftKey: true, ctrlKey: false, metaKey: false, altKey: false };
+		assert.deepStrictEqual({
+			shiftTab: isFocusChatPillsKeyDown(base),
+			plainTab: isFocusChatPillsKeyDown({ ...base, shiftKey: false }),
+			ctrlShiftTab: isFocusChatPillsKeyDown({ ...base, ctrlKey: true }),
+			metaShiftTab: isFocusChatPillsKeyDown({ ...base, metaKey: true }),
+			altShiftTab: isFocusChatPillsKeyDown({ ...base, altKey: true }),
+			otherKey: isFocusChatPillsKeyDown({ ...base, keyCode: KeyCode.Escape }),
+		}, {
+			shiftTab: true,
+			plainTab: false,
+			ctrlShiftTab: false,
+			metaShiftTab: false,
+			altShiftTab: false,
+			otherKey: false,
+		});
+	});
+
+	test('only cancels the chat input keydown when the pills accept focus', () => {
+		const handleKeyDown = (event: { keyCode: KeyCode; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean; preventDefault(): void; stopPropagation(): void }, focusFirst: () => boolean) => {
+			if (isFocusChatPillsKeyDown(event) && focusFirst()) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		};
+		const fire = (shiftKey: boolean, focusFirstResult: boolean) => {
+			const calls: string[] = [];
+			handleKeyDown(
+				{ keyCode: KeyCode.Tab, shiftKey, ctrlKey: false, metaKey: false, altKey: false, preventDefault: () => calls.push('preventDefault'), stopPropagation: () => calls.push('stopPropagation') },
+				() => focusFirstResult,
+			);
+			return calls;
+		};
+
+		assert.deepStrictEqual({
+			matchingAndFocused: fire(true, true),
+			matchingButNoPills: fire(true, false),
+			nonMatching: fire(false, true),
+		}, {
+			matchingAndFocused: ['preventDefault', 'stopPropagation'],
+			matchingButNoPills: [],
+			nonMatching: [],
 		});
 	});
 

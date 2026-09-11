@@ -40,6 +40,9 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 
+/** Action ID of the auto-appended toolbar action created from {@link IActionListItem.onRemove}. */
+const removeToolbarActionId = 'actionList.remove';
+
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
@@ -507,7 +510,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const toolbarActions = [...(element.toolbarActions ?? [])];
 		if (element.onRemove) {
 			toolbarActions.push(toAction({
-				id: 'actionList.remove',
+				id: removeToolbarActionId,
 				label: localize('actionList.remove', "Remove"),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: async () => {
@@ -2208,6 +2211,21 @@ export class ActionListWidget<T> extends Disposable {
 		};
 	}
 
+	/**
+	 * The toolbar index Shift+Tab should return to when leaving the panel. Skips a trailing
+	 * removal action (appended after the item's own {@link IActionListItem.toolbarActions})
+	 * so the destructive Remove control isn't the panel's silent return target.
+	 */
+	private _lastPrimaryToolbarActionIndex(toolbar: ActionBar): number {
+		const items = toolbar.viewItems;
+		for (let i = items.length - 1; i >= 0; i--) {
+			if (items[i].action.id !== removeToolbarActionId) {
+				return i;
+			}
+		}
+		return items.length - 1;
+	}
+
 	private _focusFirstTabThroughPanelControl(element: IActionListItem<T>, row: HTMLElement): void {
 		const controls = this._getTabThroughPanelControls(element, row);
 		if (controls.toolbar?.length()) {
@@ -2259,7 +2277,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (inPanel) {
 				if (controls.toolbar?.length()) {
 					dom.EventHelper.stop(event, true);
-					controls.toolbar.focus(controls.toolbar.length() - 1);
+					controls.toolbar.focus(this._lastPrimaryToolbarActionIndex(controls.toolbar));
 					return;
 				}
 				target = this._list.getHTMLElement();

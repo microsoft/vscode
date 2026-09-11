@@ -1500,6 +1500,50 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('Shift+Tab from the panel returns to the last non-removal toolbar action', () => {
+		const createPanel = () => {
+			const panel = document.createElement('div');
+			const control = document.createElement('a');
+			control.href = 'https://example.com';
+			control.textContent = 'link';
+			panel.append(control);
+			return { panel, controls: [control] };
+		};
+		let panelControls: readonly HTMLElement[] = [];
+		const item: IActionListItem<ITestActionItem> = {
+			...action('one'),
+			toolbarActions: [toAction({ id: 'copy', label: 'Copy', run: () => { } })],
+			onRemove: () => { },
+			hover: {
+				content: () => {
+					const result = createPanel();
+					panelControls = result.controls;
+					return result.panel;
+				},
+				expandable: true,
+				showIndicator: false,
+				tabThroughPanel: true,
+				getTabbableElements: () => panelControls,
+				contentOwnsPadding: true,
+			},
+		};
+		const widget = createActionListWidget(disposables, {
+			items: [item],
+			listOptions: { showFilter: false, reserveSubmenuSpace: false },
+		});
+		const press = (key: string, shiftKey = false) =>
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true }));
+		const focusedToolbarLabel = () => document.activeElement?.closest('.action-list-item-toolbar') ? document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent : undefined;
+
+		widget.focus();
+		press('Tab'); // list -> Copy
+		press('Tab'); // Copy -> Remove
+		press('Tab'); // Remove -> panel link
+		press('Tab', true); // panel link -> Shift+Tab back into the toolbar
+
+		assert.strictEqual(focusedToolbarLabel(), 'Copy');
+	});
+
 	test('rebuilding the items in place re-measures only when the row count changed', () => {
 		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
 		const layouts: string[] = [];

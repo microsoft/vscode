@@ -134,7 +134,10 @@ function appendBranchPill(container: HTMLElement, label: string, kind: 'base' | 
 		: localize('agentSessions.pullRequestHover.copyHeadBranch', "Copy head branch {0}", label);
 	branch.title = actionLabel;
 	branch.setAttribute('aria-label', actionLabel);
-	branch.onclick = onDidClick;
+	branch.onclick = event => {
+		event.stopPropagation();
+		onDidClick();
+	};
 	append(container, branch);
 	return branch;
 }
