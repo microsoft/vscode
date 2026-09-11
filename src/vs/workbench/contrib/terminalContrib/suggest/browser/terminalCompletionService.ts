@@ -317,9 +317,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const lastWordFolderHasDotPrefix = !!lastWordFolder.match(/^\.\.?[\\\/]/);
 		const lastWordFolderHasTildePrefix = !!lastWordFolder.match(/^~[\\\/]?/);
 		const isAbsolutePath = getIsAbsolutePath(shellType, resourceOptions.pathSeparator, lastWordFolder, useWindowsStylePath);
-		const type = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
+		let type: 'tilde' | 'absolute' | 'relative' = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
 		const cwd = URI.revive(resourceOptions.cwd);
 		let lastWordFolderResource: URI | string | undefined;
+		// When a relative folder prefix can't be resolved against cwd but matches a folder under
+		// a $CDPATH entry, this is set to that absolute resource so completions are emitted using
+		// absolute paths instead of failing or producing misleading relative ones. See #241858.
+		let cdPathFallbackResource: URI | undefined;
 		if (type === 'relative' && lastWordFolder.length > 0) {
 			// If the typed folder matches the tail of cwd (common when the extension already
 			// resolved the path, such as `./src/vs/`), reuse cwd to avoid duplicating segments.
@@ -358,7 +362,33 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					await this._fileService.stat(folderToResolve);
 					lastWordFolderResource = folderToResolve;
 				} catch {
-					return undefined;
+					// The relative path doesn't exist under cwd. If we're completing a `cd`
+					// argument, the input may match a folder reachable through $CDPATH (for
+					// example zsh's tab completion replaces the typed prefix with an exact
+					// CDPATH-folder name plus a trailing `/`). In that case, resolve against
+					// CDPATH entries and fall through to emit absolute path completions so the
+					// suggestions actually match where `cd` would take the user. See #241858.
+					if (!hasDotPrefix && promptValue.startsWith('cd ')) {
+						const cdPathConfig = this._configurationService.getValue(TerminalSuggestSettingId.CdPath);
+						if (cdPathConfig === 'absolute' || cdPathConfig === 'relative') {
+							const cdPath = this._getEnvVar('CDPATH', capabilities);
+							if (cdPath) {
+								const cdPathEntries = cdPath.split(useWindowsStylePath ? ';' : ':');
+								for (const cdPathEntry of cdPathEntries) {
+									const candidate = URI.joinPath(createUriFromLocalPath(cwd, cdPathEntry), normalizedFolder);
+									try {
+										await this._fileService.stat(candidate);
+										cdPathFallbackResource = candidate;
+										break;
+									} catch { /* try next CDPATH entry */ }
+								}
+							}
+						}
+					}
+					if (!cdPathFallbackResource) {
+						return undefined;
+					}
+					lastWordFolderResource = cdPathFallbackResource;
 				}
 			}
 		} else if (type === 'relative') {
@@ -371,6 +401,18 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			} catch {
 				return undefined;
 			}
+		}
+
+		// When the relative input was resolved via $CDPATH, emit completions using absolute paths
+		// rather than relative ones so they actually point to the right directory. See #241858.
+		if (cdPathFallbackResource) {
+			type = 'absolute';
+			let absolutePath = cdPathFallbackResource.fsPath;
+			if (!absolutePath.endsWith(resourceOptions.pathSeparator)) {
+				absolutePath += resourceOptions.pathSeparator;
+			}
+			lastWordFolder = absolutePath;
+			lastWordFolderResource = cdPathFallbackResource;
 		}
 
 		switch (type) {
