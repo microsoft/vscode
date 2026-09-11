@@ -70,16 +70,16 @@ suite('GrepResultService', () => {
 		const service = new GrepResultService();
 		const removedResults: { sessionUri: vscode.Uri; requestId: string }[] = [];
 		service.onDidRemoveGrepResult(result => removedResults.push(result));
-		const sessionUris = Array.from({ length: 11 }, (_, index) => URI.file(`/session-${index}`));
+		const sessionUris = Array.from({ length: 17 }, (_, index) => URI.file(`/session-${index}`));
 
 		service.addGrepResult(sessionUris[0], 'request-0', { files: [] });
 		service.addGrepResult(sessionUris[1], 'request-1-first', { files: [] });
 		service.addGrepResult(sessionUris[1], 'request-1-second', { files: [] });
-		for (let i = 2; i < 10; i++) {
+		for (let i = 2; i < 16; i++) {
 			service.addGrepResult(sessionUris[i], `request-${i}`, { files: [] });
 		}
 		service.getGrepResult(sessionUris[0], uri, 0, 0);
-		service.addGrepResult(sessionUris[10], 'request-10', { files: [] });
+		service.addGrepResult(sessionUris[16], 'request-16', { files: [] });
 
 		expect(removedResults).toEqual([
 			{ sessionUri: sessionUris[1], requestId: 'request-1-first' },
