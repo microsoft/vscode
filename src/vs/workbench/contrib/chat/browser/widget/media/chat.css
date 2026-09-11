@@ -1424,7 +1424,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Focus indicator drawn on the action-item wrapper so it sits cleanly around
 	the button surface with a small offset. */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled):has(> .action-label:focus-visible) {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:has(> .action-label:focus-visible) {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 	border-radius: var(--vscode-cornerRadius-circle);

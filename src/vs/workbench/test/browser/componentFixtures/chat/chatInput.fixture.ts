@@ -126,6 +126,12 @@ const combinedPickerOptions: ChatInputFixtureOptions = {
 
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
+	DisabledSendFocused: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The disabled Send button in the editor chat input has a visible circular focus indicator.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { focusDisabledSendButton: true }),
+	}),
 	RequestInProgress: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The running request shows a red Stop icon while the other chat input controls retain their normal appearance.'],

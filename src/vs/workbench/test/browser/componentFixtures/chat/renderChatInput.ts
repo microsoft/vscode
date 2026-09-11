@@ -13,6 +13,7 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
 import { CancelAction } from '../../../../contrib/chat/browser/actions/chatExecuteActions.js';
 import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
@@ -100,6 +101,8 @@ export interface ChatInputFixtureOptions {
 	/** Seeds the input editor with this text. */
 	readonly value?: string;
 	readonly requestInProgress?: boolean;
+	/** Disables and focuses the Send action to exercise its keyboard focus treatment. */
+	readonly focusDisabledSendButton?: boolean;
 	/** Selects this range after seeding the text, to exercise selection rendering (e.g. reverse-rounded corners). */
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
 	/** Sets the fixture width, useful for exercising the compact picker layout. */
@@ -128,7 +131,7 @@ export interface ChatInputFixtureOptions {
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, requestInProgress = false, focusDisabledSendButton = false, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 	const sessionResource = agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined;
@@ -215,9 +218,9 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		// real dictation / Voice Mode actions are contributed.
 		menuService.addItem(MenuId.ChatExecute, { command: { id: 'fixture.voiceControl', title: 'Voice', icon: voiceControlRenderings[voiceControl].icon }, group: 'navigation', order: 2 });
 	}
-	const executeCommand = fixtureOptions.requestInProgress
+	const executeCommand = requestInProgress
 		? new CancelAction().desc
-		: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact };
+		: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact, precondition: focusDisabledSendButton ? ContextKeyExpr.false() : undefined };
 	menuService.addItem(MenuId.ChatExecute, { command: executeCommand, group: 'navigation', order: 4 });
 	const hasCustomSecondaryPickerLabels = fixtureOptions.secondaryPickerLabels !== undefined;
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: hasCustomSecondaryPickerLabels ? 'fixture.secondaryTarget' : 'workbench.action.chat.openSessionTargetPicker', title: secondaryPickerLabels[0] }, group: 'navigation', order: 0 });
@@ -298,6 +301,12 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	inputPart.renderArtifactsWidget(URI.parse('chat-session:test-session'));
 	await inputPart.renderChatTodoListWidget(URI.parse('chat-session:test-session'));
 	await new Promise(r => setTimeout(r, 50));
+	if (focusDisabledSendButton) {
+		const sendButton = container.querySelector<HTMLElement>('.chat-submit-button > .action-label');
+		if (sendButton) {
+			context.focus(sendButton);
+		}
+	}
 
 	if (editingSession) {
 		inputPart.renderChatEditingSessionState(editingSession);
