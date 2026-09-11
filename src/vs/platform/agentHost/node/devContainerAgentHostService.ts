@@ -48,6 +48,10 @@ const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 
+export function getDevContainerExecArgs(workspaceFolder: string, command: string): readonly string[] {
+	return ['exec', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command];
+}
+
 interface IDevContainerUpResult {
 	readonly containerId: string;
 	readonly remoteWorkspaceFolder: string;
@@ -316,7 +320,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return async (command, options) => {
 			const result = await this._runDevContainer(
 				connectionId,
-				['exec', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command],
+				getDevContainerExecArgs(workspaceFolder, command),
 				token,
 			);
 			if (result.code !== 0 && !options?.ignoreExitCode) {
@@ -385,14 +389,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const child = this._spawnDevContainer([
-			'exec',
-			'--workspace-folder',
-			workspaceFolder,
-			'/bin/sh',
-			'-c',
-			command,
-		], environment);
+		const child = this._spawnDevContainer(getDevContainerExecArgs(workspaceFolder, command), environment);
 		const cancellationListener = token.onCancellationRequested(() => {
 			if (!child.killed) {
 				child.kill();

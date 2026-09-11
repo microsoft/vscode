@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -109,13 +109,16 @@ suite('Dev Container Agent Host Connector', () => {
 		assert.throws(() => ensureDevContainerAgentHostsEnabled(configurationService(true, false)), /Remote Agent Host connections are not enabled/);
 	});
 
-	test('reveals the Dev Container output channel when setup fails', async () => {
+	async function connectWithFailure(error: Error, token: CancellationToken, onConnect?: () => void): Promise<string[]> {
 		const calls: string[] = [];
-		const setupError = new Error('Dev Container setup failed');
 		const channel = new class extends mock<IChannel>() {
 			override call<T>(command: string): Promise<T> {
 				calls.push(command);
-				return command === 'connect' ? Promise.reject(setupError) : Promise.resolve(undefined as T);
+				if (command === 'connect') {
+					onConnect?.();
+					return Promise.reject(error);
+				}
+				return Promise.resolve(undefined as T);
 			}
 
 			override listen<T>(): Event<T> {
@@ -153,15 +156,37 @@ suite('Dev Container Agent Host Connector', () => {
 		);
 
 		await assert.rejects(
-			connector.createConnection(URI.file('/workspace'), 'devcontainer:test', CancellationToken.None),
-			setupError,
+			connector.createConnection(URI.file('/workspace'), 'devcontainer:test', token),
+			error,
 		);
+		return calls.map(call => call.replace(/devContainer\.[^:]+/, 'devContainer.<workspace>'));
+	}
 
-		assert.deepStrictEqual(calls.map(call => call.replace(/devContainer\.[^:]+/, 'devContainer.<workspace>')), [
+	test('reveals the Dev Container output channel when setup fails', async () => {
+		const setupError = new Error('Dev Container setup failed');
+
+		assert.deepStrictEqual(await connectWithFailure(setupError, CancellationToken.None), [
 			'get:devContainer.<workspace>',
 			'connect',
 			'show:devContainer.<workspace>:true',
 			'disconnect',
 		]);
+	});
+
+	test('does not reveal the Dev Container output channel when setup is canceled', async () => {
+		const canceledError = new Error('Canceled');
+		canceledError.name = 'Canceled';
+		const tokenSource = new CancellationTokenSource();
+		try {
+			assert.deepStrictEqual({
+				serializedCancellation: await connectWithFailure(canceledError, CancellationToken.None),
+				canceledToken: await connectWithFailure(new Error('Setup stopped'), tokenSource.token, () => tokenSource.cancel()),
+			}, {
+				serializedCancellation: ['get:devContainer.<workspace>', 'connect', 'disconnect'],
+				canceledToken: ['get:devContainer.<workspace>', 'connect', 'disconnect', 'disconnect'],
+			});
+		} finally {
+			tokenSource.dispose();
+		}
 	});
 });

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
 import { combinedDisposable, Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -194,7 +194,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 					};
 				} catch (error) {
 					outputWriter.removeConnection(reconnectConnectionId);
-					if (error instanceof CancellationError) {
+					if (isCancellationError(error)) {
 						throw new NonReconnectableTransportError('Dev Container Agent Host connection was cancelled.');
 					}
 					throw error;
@@ -238,7 +238,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				defaultDirectory: result.remoteWorkspaceFolder,
 			};
 		} catch (error) {
-			if (!(error instanceof CancellationError)) {
+			if (!token.isCancellationRequested && !isCancellationError(error)) {
 				await outputWriter.reveal();
 			}
 			outputWriter.dispose();

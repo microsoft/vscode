@@ -22,7 +22,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult } from '../../node/devContainerAgentHostService.js';
 import { ISshExec } from '../../node/sshRemoteAgentHostHelpers.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -586,6 +586,13 @@ suite('Dev Container Agent Host Main Service', () => {
 			'-c',
 			'printf test',
 		]]);
+	});
+
+	test('runs the relay Dev Container exec command with debug logging', () => {
+		assert.deepStrictEqual(
+			getDevContainerExecArgs('/workspace', 'relay command'),
+			['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '/bin/sh', '-c', 'relay command'],
+		);
 	});
 
 	test('allows a cold Agent Host to register after the short default deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
