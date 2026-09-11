@@ -38,7 +38,7 @@ function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number
 	overlay.style.pointerEvents = 'none';
 	overlay.style.overflow = 'visible';
 	overlay.style.zIndex = '10000';
-	ownerDocument.body.appendChild(overlay);
+	(element.closest('.monaco-workbench') ?? ownerDocument.body).appendChild(overlay);
 
 	return { overlay, cx: rect.width / 2, cy: rect.height / 2 };
 }
