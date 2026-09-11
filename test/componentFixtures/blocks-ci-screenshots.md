@@ -210,6 +210,18 @@
 #### chat/petAchievements/standaloneModal/chatPetAchievementsEditor/MixedSelected/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b4e697f87416c5f384d7dd0338fcf76ca128bf695efa96ed885abc124a8736e1)
 
+#### comments/commentTree/CommentTreeMetadataZoomed/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1a868371c89df3ba1f23de1c82d2d27d2c0c044e7f52d2964b5052c9457527d4)
+
+#### comments/commentTree/CommentTreeMetadataZoomed/DarkHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/60a63cc5b0df6f49efcd113ae4070fd0d5eab81836f646c6268308b1e0430045)
+
+#### comments/commentTree/CommentTreeMetadataZoomed/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a81446b88a24acb43f7713d0d84c921bb9d79d4c06448e77b4baae5c1f5c9026)
+
+#### comments/commentTree/CommentTreeMetadataZoomed/LightHighContrast
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0ef899f1c38118a9e795682b8a2659ad7d2f06fe06700bf2321b3346f3bebbe9)
+
 #### editor/codeEditor/CodeEditor/Dark
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b4617f74b50a09295a5151a0d53481c37a53839f94f23f6e7d0a5a6159a7a231)
 
