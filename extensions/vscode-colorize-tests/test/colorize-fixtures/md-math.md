@@ -176,8 +176,6 @@ $$ \% Should not be highlighted $$
 
 \$ not math \$ and `code` after it
 
-Let's consider X vs \$ where `admin` parties differ. The \$ settlement and `admin` again.
-
 \$\$ not display math \$\$ and `code` after it
 
-Still math $x+y$ and `code` after it
+Still math $x+y$
