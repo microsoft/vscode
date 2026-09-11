@@ -227,6 +227,31 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(effectiveValues.length, extraValues.length);
 	});
 
+	test('readConfiguredMarketplaces preserves object-form policy entries', () => {
+		const configService = new TestConfigurationService({
+			[ChatConfiguration.ExtraMarketplaces]: {
+				'enterprise-marketplace': {
+					source: { source: 'git', url: 'https://dev.azure.com/example/project/_git/plugins' },
+					autoUpdate: true,
+				},
+			},
+		});
+		const { extraValues } = readConfiguredMarketplaces(configService as unknown as IConfigurationService);
+		const refs = parseMarketplaceReferences(extraValues);
+
+		assert.deepStrictEqual(refs.map(ref => ({
+			displayLabel: ref.displayLabel,
+			cloneUrl: ref.cloneUrl,
+			kind: ref.kind,
+			autoUpdate: ref.autoUpdate,
+		})), [{
+			displayLabel: 'enterprise-marketplace',
+			cloneUrl: 'https://dev.azure.com/example/project/_git/plugins',
+			kind: MarketplaceReferenceKind.GitUri,
+			autoUpdate: true,
+		}]);
+	});
+
 	test('extraKnownMarketplacesToConfigDict: returns undefined for empty/missing input', () => {
 		assert.strictEqual(extraKnownMarketplacesToConfigDict(undefined), undefined);
 		assert.strictEqual(extraKnownMarketplacesToConfigDict([]), undefined);
