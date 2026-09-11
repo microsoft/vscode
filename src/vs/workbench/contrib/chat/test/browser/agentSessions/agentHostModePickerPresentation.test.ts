@@ -314,7 +314,7 @@ suite('Combined mode and permissions picker', () => {
 		container.style.setProperty('--vscode-spacing-size20', '2px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
 		container.style.setProperty('--vscode-spacing-size60', '6px');
-		container.style.setProperty('--vscode-spacing-size80', '8px');
+		container.style.setProperty('--vscode-spacing-size120', '12px');
 		const highlights = Array.from(popup.querySelectorAll('.monaco-list-row.action.focused'), row => ({
 			label: row.querySelector('.title')?.textContent,
 			background: dom.getWindow(row).getComputedStyle(row).backgroundColor,
@@ -375,7 +375,7 @@ suite('Combined mode and permissions picker', () => {
 				titleColumnAligned: true,
 				gearBeforeSummary: true,
 				gearSummaryGap: 4,
-				rightInset: 8,
+				rightInset: 12,
 			},
 			colors: {
 				modeHeader: 'rgb(140, 140, 140)',
