@@ -21,9 +21,8 @@ import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
 	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
-	type ToolDefinition, type ToolResultContent,
+	type SessionActiveClient, type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
-import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../../common/toolSearchConstants.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { TerminalClaimKind } from '../../../../common/state/protocol/channels-terminal/state.js';
 import {
@@ -466,82 +465,8 @@ export async function setRootConfigValues(c: TestProtocolClient, config: Record<
 	throwIfRejected(notification, ActionType.RootConfigChanged);
 }
 
-/**
- * Stable representative client-contract data from the default product tool
- * sets (`semanticSearch` is absent: its setting defaults to off). Includes
- * non-deferred core tools plus a deferred browser pair, so prompt snapshots
- * exercise both deferral and tool-gated guidance without copying the product's
- * dynamic, extension-dependent tool inventory. Not derived from host internals;
- * update deliberately when these product contracts change.
- */
-function canonicalClientTools(): ToolDefinition[] {
-	const plain = (name: string): ToolDefinition =>
-		({ name, description: `Client-provided ${name} tool.`, inputSchema: { type: 'object', properties: {} } });
-	return [
-		{
-			// The Copilot extension publishes ToolSearchTool over AHP by its
-			// toolReferenceName; its internal `tool_search` name does not cross this boundary.
-			name: CLIENT_TOOL_SEARCH_REFERENCE_NAME,
-			description: 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the deferred tools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.',
-			inputSchema: {
-				type: 'object',
-				properties: {
-					query: {
-						type: 'string',
-						description: 'Natural language description of what tool capability you are looking for. Use broad queries to cover related tools in one search (e.g., "github" instead of separate searches for issues and PRs).',
-					},
-				},
-				required: ['query'],
-			},
-		},
-		plain('runTests'),
-		plain('rename'),
-		plain('usages'),
-		{
-			name: 'openBrowserPage',
-			description: `Open a new browser page in the integrated browser at the given URL.
-May prompt the user to share a page if there is a similar one already open, unless "forceNew" is true.
-Returns a page ID that must be used with other browser tools to interact with the page, as well as an accessibility snapshot of the page.
-
-Important: Prefer to reuse existing pages whenever possible and only call this tool if you do not already have access to a tab you can reuse.`,
-			inputSchema: {
-				type: 'object',
-				properties: {
-					url: {
-						type: 'string',
-						description: 'The URL to open in the browser. Must be an absolute URI with a scheme such as file:, http:, or https:. For local files, use the canonical absolute form, for example file:///path/to/file.',
-					},
-					forceNew: {
-						type: 'boolean',
-						description: 'Whether to force opening a new page even if a page with the same host already exists. Default is false.',
-					},
-				},
-			},
-		},
-		{
-			name: 'readPage',
-			description: 'Get a snapshot of the current browser page state. This is better than screenshot.',
-			inputSchema: {
-				type: 'object',
-				properties: {
-					pageId: {
-						type: 'string',
-						description: 'The browser page ID to read, acquired from context or the open tool.',
-					},
-				},
-				required: ['pageId'],
-			},
-		},
-	];
-}
-
-/**
- * Publishes the canonical active client onto `sessionUri`. Must complete
- * before the first turn: the chat freezes its client snapshot at
- * materialization, and a session with no client tools silently disables
- * client-tool-gated launch features.
- */
-export async function registerCanonicalActiveClient(c: TestProtocolClient, sessionUri: string, clientId: string, extraTools: readonly ToolDefinition[] = []): Promise<void> {
+/** Publishes the supplied active client and waits for its successful echo before the first turn. */
+export async function registerActiveClient(c: TestProtocolClient, sessionUri: string, activeClient: SessionActiveClient): Promise<void> {
 	const clientSeq = 1;
 	const afterServerSeq = latestReceivedServerSeq(c);
 	c.dispatch({
@@ -549,7 +474,7 @@ export async function registerCanonicalActiveClient(c: TestProtocolClient, sessi
 		clientSeq,
 		action: {
 			type: ActionType.SessionActiveClientSet,
-			activeClient: { clientId, tools: [...canonicalClientTools(), ...extraTools] },
+			activeClient,
 		},
 	});
 	const notification = await c.waitForNotification(n => {
@@ -561,7 +486,7 @@ export async function registerCanonicalActiveClient(c: TestProtocolClient, sessi
 		return envelope.serverSeq > afterServerSeq
 			&& envelope.channel === sessionUri
 			&& envelope.origin?.clientSeq === clientSeq
-			&& action.activeClient?.clientId === clientId;
+			&& action.activeClient?.clientId === activeClient.clientId;
 	}, 30_000);
 	throwIfRejected(notification, ActionType.SessionActiveClientSet);
 }

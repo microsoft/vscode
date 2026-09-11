@@ -55,10 +55,19 @@ const pathPrefixes = [
 	'src/tsconfig',
 	'src/vs/base/',
 	'src/vs/platform/',
+	'src/vs/editor/',
+	'src/vs/workbench/',
+	'src/vs/code/',
+	'extensions/copilot/',
 	'test/unit/electron/',
 ];
 
 function affectsAgentHostE2E(path: string): boolean {
+	if (path.startsWith('src/vs/platform/agentHost/test/node/e2e/providers/')
+		|| path.startsWith('src/vs/platform/agentHost/test/node/e2e/captures/')
+		|| path.startsWith('extensions/copilot/src/')) {
+		return true;
+	}
 	if (path.endsWith('.md')) {
 		return false;
 	}

@@ -17,7 +17,7 @@ RUN_GLOB=""
 GREP_PATTERN=""
 SUITE_FILTER=""
 HELP=false
-AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js"
+AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,providers/copilotPromptsE2E,conformance/*}.integrationTest.js"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in

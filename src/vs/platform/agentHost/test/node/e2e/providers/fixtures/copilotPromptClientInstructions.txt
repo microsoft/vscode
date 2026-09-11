@@ -1,0 +1,4 @@
+# Client Prompt Customization
+
+Explain the purpose of a change before describing its implementation.
+Use the provided client tools when their capabilities fit the task.

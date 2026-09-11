@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Pins every field of the model request body the bundled Copilot CLI sends per
- * model.
+ * Pins the complete normalized initial model request for a defined client profile.
  *
  * The prompt is compiled into the `@github/copilot` binary and only becomes
  * observable when the CLI serializes it onto the wire, so it is read off a
@@ -18,12 +17,8 @@
  * the CLI. See the README's "Prompt snapshots" section for what is elided and
  * how to add a model.
  *
- * Sessions run with the harness's representative production client-tool
- * profile, including the Copilot extension's `toolSearch` AHP reference and a
- * deferred browser pair. The host consumes the search reference, so these
- * model-wire snapshots pin its prompt contribution rather than the extension's
- * internal tool definition, while also exercising deferred-tool assembly and
- * browser-gated guidance.
+ * Workspace and client-plugin instructions are controlled fixture inputs whose
+ * contents remain visible alongside the client tool definitions and model catalog.
  *
  * Run, then accept a new baseline and review the diff:
  *   ./scripts/test-integration.sh --run <this file>
@@ -31,14 +26,19 @@
  */
 
 import assert from 'assert';
-import { existsSync, writeFileSync } from 'fs';
-import { mkdtemp, rm } from 'fs/promises';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
+import { retry } from '../../../../../../base/common/async.js';
+import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
+import { CustomizationEnablementKind } from '../../../../common/state/protocol/state.js';
+import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { MessageKind, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
-import { AgentHostE2EServerLease, createRealSession, registerCanonicalActiveClient, setRootConfigValues } from '../harness/agentHostE2ETestHarness.js';
+import { CustomizationLoadStatus, CustomizationType, MessageKind, ToolCallConfirmationReason, buildDefaultChatUri, customizationId, type ClientPluginCustomization, type SessionState, type ToolDefinition } from '../../../../common/state/sessionState.js';
+import { AgentHostE2EServerLease, createRealSession, initTestGitRepo, registerActiveClient, setRootConfigValues } from '../harness/agentHostE2ETestHarness.js';
+import { collectWorkbenchClientTools } from '../harness/workbenchClientProfile.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
@@ -50,6 +50,9 @@ import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1';
 const RECORDING = process.env[AgentHostUpdateSnapshotsEnvVar] === '1'
 	|| process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+
+const WORKSPACE_INSTRUCTIONS = readFileSync(new URL('./fixtures/copilotPromptWorkspaceInstructions.txt', import.meta.url), 'utf8');
+const CLIENT_INSTRUCTIONS = readFileSync(new URL('./fixtures/copilotPromptClientInstructions.txt', import.meta.url), 'utf8');
 
 /**
  * Includes the model families covered by the extension's `agentPrompt.spec.tsx`
@@ -107,28 +110,17 @@ const GPT_CLIENT_TOOL_SEARCH_MODELS: ReadonlySet<SnapshotModel> = new Set([
 	'gpt-5.6-terra',
 ]);
 
-const DEFERRED_CLIENT_TOOL_NAMES = ['openBrowserPage', 'readPage'] as const;
-
-const EXPECTED_CLIENT_TOOL_SEARCH_DESCRIPTION = 'Search for relevant tools by describing what you need. Returns tool references for tools matching your query. Use this when you need to find a tool but aren\'t sure of its exact name. Check the deferred tools list in your instructions for the full set of deferred tools, and include relevant tool names from that list in your query for more accurate results. Use broad queries to find all related tools in a single call rather than making multiple narrow searches.';
-const EXPECTED_CLIENT_TOOL_SEARCH_SCHEMA = {
-	type: 'object',
-	properties: {
-		query: {
-			type: 'string',
-			description: 'Natural language description of what tool capability you are looking for. Use broad queries to cover related tools in one search (e.g., "github" instead of separate searches for issues and PRs).',
-		},
-	},
-	required: ['query'],
-};
-
-suite('Agent Host E2E — Copilot prompts', function () {
+(process.platform === 'win32' ? suite.skip : suite)('Agent Host E2E — Copilot prompts', function () {
 
 	let client: TestProtocolClient;
+	let clientTools: ToolDefinition[];
 	let lease: AgentHostE2EServerLease | undefined;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
 
-	suiteSetup(function () {
+	suiteSetup(async function () {
+		this.timeout(180_000);
+		clientTools = await collectWorkbenchClientTools();
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
 	});
 
@@ -178,26 +170,70 @@ suite('Agent Host E2E — Copilot prompts', function () {
 		// than being a renaming of this one, and one is gated on a machine probe.
 		// SDK drift is provider-wide, so POSIX runners already catch it. See
 		// KNOWN_ISSUES.md.
-		(process.platform === 'win32' ? test.skip : test)(model, async function () {
+		test(model, async function () {
 			this.timeout(120_000);
 
 			const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-prompt-snap-`);
 			tempDirs.push(workspaceDir);
+			initTestGitRepo(workspaceDir);
+			const customization = await createPromptInstructions(workspaceDir);
 
 			const sessionUri = await createRealSession(client, COPILOT_CONFIG, `prompt-snap-${model}`, createdSessions, URI.file(workspaceDir));
 			await setRootConfigValues(client, { [CopilotCliConfigKey.ToolSearchEnabled]: true }, 1);
-			await registerCanonicalActiveClient(client, sessionUri, `prompt-snap-${model}`);
+			await registerActiveClient(client, sessionUri, {
+				clientId: `prompt-snap-${model}`,
+				tools: clientTools,
+				customizations: [customization],
+			});
+			await waitForPromptInstructions(client, sessionUri, customization.id);
 			await driveTurnWithModel(client, sessionUri, model);
 
-			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
-			const body = lease!.observedModelRequestBodies.at(-1);
-			assert.ok(body, 'no model request body was captured — the turn never reached the model');
-			assertToolSearchWire(body, model);
+			const body = getInitialModelRequest(lease!.observedModelRequestBodies);
+			assertToolSearchWire(body, model, clientTools);
+			const request = JSON.parse(body) as IWireRequest;
+			const requestText = [extractText(request.instructions ?? request.system), ...readMessages(request).map(message => message.text)].join('\n');
+			for (const instructions of [WORKSPACE_INSTRUCTIONS, CLIENT_INSTRUCTIONS]) {
+				assert.ok(requestText.includes(instructions.trim()), `initial request for '${model}' omitted fixture instructions: ${instructions.trim()}`);
+			}
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
 	}
 });
+
+function getInitialModelRequest(bodies: readonly string[]): string {
+	assert.strictEqual(bodies.length, 1, 'expected exactly one initial model request');
+	return bodies[0];
+}
+
+async function createPromptInstructions(workspaceDir: string): Promise<ClientPluginCustomization> {
+	await writeFile(join(workspaceDir, 'AGENTS.md'), WORKSPACE_INSTRUCTIONS);
+	const pluginDirectory = join(workspaceDir, '.client-plugin');
+	await mkdir(join(pluginDirectory, '.plugin'), { recursive: true });
+	await mkdir(join(pluginDirectory, 'rules'));
+	await writeFile(join(pluginDirectory, '.plugin', 'plugin.json'), JSON.stringify({ name: 'request-snapshot-client' }));
+	await writeFile(join(pluginDirectory, 'rules', 'snapshot.instructions.md'), `---\napplyTo: "**/*"\n---\n${CLIENT_INSTRUCTIONS}`);
+	const uri = URI.file(pluginDirectory).toString();
+	return {
+		type: CustomizationType.Plugin,
+		id: customizationId(uri),
+		uri,
+		name: 'request-snapshot-client',
+		nonce: '1',
+		enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+	};
+}
+
+async function waitForPromptInstructions(c: TestProtocolClient, sessionUri: string, id: string): Promise<void> {
+	await retry(async () => {
+		const result = await c.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const plugin = (result.snapshot!.state as SessionState).customizations?.find(customization => customization.id === id);
+		assert.ok(plugin?.type === CustomizationType.Plugin
+			&& plugin.load?.kind === CustomizationLoadStatus.Loaded
+			&& plugin.children?.some(child => child.type === CustomizationType.Rule),
+			'client instruction plugin is not loaded');
+	}, 100, 100);
+}
 
 /** Dispatches a turn with an explicit model selection and waits for completion. */
 async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, model: string): Promise<void> {
@@ -294,7 +330,7 @@ interface IWireTool {
 	readonly execution?: unknown;
 }
 
-function assertToolSearchWire(rawBody: string, model: SnapshotModel): void {
+function assertToolSearchWire(rawBody: string, model: SnapshotModel, clientTools: readonly ToolDefinition[]): void {
 	const request = JSON.parse(rawBody) as IWireRequest;
 	assert.ok(Array.isArray(request.tools), `request for '${model}' carried no tool definitions`);
 	const tools = request.tools as readonly IWireTool[];
@@ -311,29 +347,34 @@ function assertToolSearchWire(rawBody: string, model: SnapshotModel): void {
 		`request for '${model}' has unexpected Responses tool-search execution`);
 
 	if (clientSearch) {
-		assertNaturalLanguageToolSearchDefinition(clientSearch.description, clientSearch.input_schema, model);
+		assertNaturalLanguageToolSearchDefinition(clientSearch.description, clientSearch.input_schema, model, clientTools);
 	}
 	if (hostedSearch) {
-		assertNaturalLanguageToolSearchDefinition(hostedSearch.description, hostedSearch.parameters, model);
+		assertNaturalLanguageToolSearchDefinition(hostedSearch.description, hostedSearch.parameters, model, clientTools);
 	}
 
-	for (const toolName of DEFERRED_CLIENT_TOOL_NAMES) {
+	const instructionLines = new Set([extractText(request.instructions ?? request.system), ...readMessages(request).map(message => message.text)].flatMap(text => text.split('\n')));
+	for (const clientTool of clientTools.filter(tool => tool.name !== 'toolSearch')) {
+		const toolName = clientTool.name;
 		const tool = tools.find(candidate => candidate.name === toolName);
-		if (expectsGptClientSearch) {
-			assert.strictEqual(tool, undefined,
-				`request for '${model}' preloaded client-search tool '${toolName}'`);
+		if (!tool && expectsGptClientSearch) {
+			assert.ok(instructionLines.has(`- ${toolName}`), `request for '${model}' omitted deferred client tool '${toolName}'`);
 		} else {
-			assert.ok(tool, `request for '${model}' is missing representative client tool '${toolName}'`);
-			assert.strictEqual(tool.defer_loading === true, expectsClaudeClientSearch,
-				`request for '${model}' has unexpected defer_loading for '${toolName}'`);
+			assert.ok(tool, `request for '${model}' is missing client tool '${toolName}'`);
+			assert.strictEqual(tool.description, clientTool.description, `request for '${model}' changed '${toolName}' description`);
+			if (!expectsClaudeClientSearch) {
+				assert.notStrictEqual(tool.defer_loading, true, `request for '${model}' unexpectedly deferred '${toolName}'`);
+			}
 		}
 	}
 }
 
-function assertNaturalLanguageToolSearchDefinition(description: unknown, schema: unknown, model: SnapshotModel): void {
-	assert.strictEqual(description, EXPECTED_CLIENT_TOOL_SEARCH_DESCRIPTION,
+function assertNaturalLanguageToolSearchDefinition(description: unknown, schema: unknown, model: SnapshotModel, clientTools: readonly ToolDefinition[]): void {
+	const searchTool = clientTools.find(tool => tool.name === 'toolSearch');
+	assert.ok(searchTool, 'client profile must contain toolSearch');
+	assert.strictEqual(description, searchTool.description,
 		`client tool search for '${model}' does not use the extension's exact description`);
-	assert.deepStrictEqual(schema, EXPECTED_CLIENT_TOOL_SEARCH_SCHEMA,
+	assert.deepStrictEqual(schema, searchTool.inputSchema,
 		`client tool search for '${model}' does not use the extension's exact input schema`);
 }
 
@@ -444,14 +485,7 @@ function extractText(content: unknown): string {
 	return '';
 }
 
-/**
- * Elides what `CapiReplayProxy._normalize` does not: values that differ between
- * two correct runs, plus two that are stable but belong to another file's change
- * budget — the injected repository instructions, and the model catalog the CLI
- * inlines into the `Task` schema, either of which would otherwise rewrite every
- * baseline here on an unrelated edit. Each keeps its label or wrapper, so a
- * change to the shape of these lines, or their disappearance, still fails.
- */
+/** Normalizes runtime-generated values while preserving tool, instruction, and model-catalog content. */
 function normalizeVolatile(text: string): string {
 	return text
 		.replaceAll('\r\n', '\n')
@@ -459,15 +493,17 @@ function normalizeVolatile(text: string): string {
 		.replace(/<current_datetime>[^<]*<\/current_datetime>/g, '<current_datetime>${datetime}</current_datetime>')
 		.replace(/^\* Operating System: .*$/gm, '* Operating System: ${os}')
 		.replace(/^\* Available tools: .*$/gm, '* Available tools: ${available_tools}')
-		.replace(/^\* You can install (?:Linux, )?Python, JavaScript and Go packages with the (?:`apt`, )?`pip`, `npm` and `go` commands\.$/gm, '* You can install ${platform_packages}.')
-		.replace(/<custom_instruction>[\s\S]*?<\/custom_instruction>/g, '<custom_instruction>${repository_instructions}</custom_instruction>')
-		.replace(/\(\d+ models available\)/g, '(${model_count} models available)')
-		.replace(/(Available models:)(?:\n {2}- '[^']*' \([^)]*\)[^\n]*)+/g, '$1${model_catalog}')
-		// Last, so the labelled ids above keep their own placeholders.
-		.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '${uuid}');
+		.replace(/^\* You can install (?:Linux, )?Python, JavaScript and Go packages with the (?:`apt`, )?`pip`, `npm` and `go` commands\.$/gm, '* You can install ${platform_packages}.');
 }
 
 suite('Copilot prompt snapshot formatting', () => {
+	test('rejects missing or additional requests instead of silently selecting the last', () => {
+		assert.strictEqual(getInitialModelRequest(['initial']), 'initial');
+		for (const bodies of [[], ['initial', 'follow-up']]) {
+			assert.throws(() => getInitialModelRequest(bodies), /expected exactly one initial model request/);
+		}
+	});
+
 	test('rejects incomplete request body shapes', () => {
 		const validBody = {
 			system: 'System prompt',
@@ -507,7 +543,21 @@ suite('Copilot prompt snapshot formatting', () => {
 		assert.deepStrictEqual(JSON.parse(lines.slice(1, lines.indexOf('```', 1)).join('\n')), {
 			...body,
 			system: 'System prompt\n* Operating System: ${os}\n<current_datetime>${datetime}</current_datetime>',
-			metadata: { session_id: '${uuid}' },
 		});
+	});
+
+	test('preserves customization text, tool schemas, model catalogs, and literal identifiers', () => {
+		const instructions = '<custom_instruction>Keep reference 12345678-1234-1234-1234-123456789abc intact.</custom_instruction>';
+		const body = {
+			instructions,
+			tools: [{
+				name: 'task',
+				description: 'Choose a model (2 models available)\nAvailable models:\n  - \'first\' (First Model)\n  - \'second\' (Second Model)',
+				parameters: { type: 'object', properties: { model: { enum: ['first', 'second'] } }, additionalProperties: false },
+			}],
+			input: [{ role: 'user', content: [{ type: 'input_text', text: CLIENT_INSTRUCTIONS }] }],
+			new_request_field: { enabled: true },
+		};
+		assert.strictEqual(formatPromptSnapshot(JSON.stringify(body)), `\`\`\`json\n${JSON.stringify(body, null, 2)}\n\`\`\`\n`);
 	});
 });

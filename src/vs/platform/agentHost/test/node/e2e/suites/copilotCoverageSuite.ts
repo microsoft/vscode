@@ -21,7 +21,7 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
-import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, registerCanonicalActiveClient, resolveGitHubToken, setRootConfigValues, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, registerActiveClient, resolveGitHubToken, setRootConfigValues, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -81,6 +81,21 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 
 	async function setRootConfig(config: Record<string, unknown>, clientSeq: number): Promise<void> {
 		await setRootConfigValues(context.client, config, clientSeq);
+	}
+
+	async function registerToolSearchClient(sessionUri: string, clientId: string): Promise<void> {
+		await registerActiveClient(context.client, sessionUri, {
+			clientId,
+			tools: [{
+				name: 'toolSearch',
+				description: 'Searches deferred tools by name.',
+				inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+			}, {
+				name: 'get_magic_word',
+				description: 'Returns the magic word.',
+				inputSchema: { type: 'object', properties: {} },
+			}],
+		});
 	}
 
 	async function driveToolSearchTurn(sessionUri: string, turnId: string, toolSearchResult: string): Promise<{ toolNames: string[]; responseText: string }> {
@@ -338,11 +353,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const { sessionUri } = await createWorkspaceSession('tool-search-success');
 		try {
 			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: true }, 100);
-			await registerCanonicalActiveClient(context.client, sessionUri, 'tool-search-success-client', [{
-				name: 'get_magic_word',
-				description: 'Returns the magic word.',
-				inputSchema: { type: 'object', properties: {} },
-			}]);
+			await registerToolSearchClient(sessionUri, 'tool-search-success-client');
 
 			const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-success', '["get_magic_word"]');
 			assert.deepStrictEqual({
@@ -364,11 +375,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const { sessionUri } = await createWorkspaceSession('tool-search-malformed');
 		try {
 			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: true }, 100);
-			await registerCanonicalActiveClient(context.client, sessionUri, 'tool-search-malformed-client', [{
-				name: 'get_magic_word',
-				description: 'Returns the magic word.',
-				inputSchema: { type: 'object', properties: {} },
-			}]);
+			await registerToolSearchClient(sessionUri, 'tool-search-malformed-client');
 
 			const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-malformed', 'not-json');
 			assert.deepStrictEqual({

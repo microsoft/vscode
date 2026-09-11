@@ -126,6 +126,9 @@ export interface IWorkbenchContributionsRegistry {
 	 */
 	readonly whenRestored: Promise<void>;
 
+	/** Resolves after all contributions through the `Eventually` phase have been instantiated. */
+	readonly whenEventually: Promise<void>;
+
 	/**
 	 * Provides access to the instantiation times of all contributions by
 	 * lifecycle phase.
@@ -163,6 +166,8 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 
 	private readonly pendingRestoredContributions = new DeferredPromise<void>();
 	readonly whenRestored = this.pendingRestoredContributions.p;
+	private readonly pendingEventuallyContributions = new DeferredPromise<void>();
+	readonly whenEventually = this.pendingEventuallyContributions.p;
 
 	registerWorkbenchContribution2(id: string, ctor: IConstructorSignature<IWorkbenchContribution>, phase: WorkbenchPhase.BlockStartup | WorkbenchPhase.BlockRestore): void;
 	registerWorkbenchContribution2(id: string | undefined, ctor: IConstructorSignature<IWorkbenchContribution>, phase: WorkbenchPhase.AfterRestored | WorkbenchPhase.Eventually): void;
@@ -295,6 +300,14 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 
 	private async doInstantiateByPhase(instantiationService: IInstantiationService, logService: ILogService, environmentService: IEnvironmentService, phase: LifecyclePhase): Promise<void> {
 		const contributions = this.contributionsByPhase.get(phase);
+		if (!contributions) {
+			if (phase === LifecyclePhase.Restored) {
+				this.pendingRestoredContributions.complete();
+			} else if (phase === LifecyclePhase.Eventually) {
+				await this.pendingRestoredContributions.p;
+				this.pendingEventuallyContributions.complete();
+			}
+		}
 		if (contributions) {
 			this.contributionsByPhase.delete(phase);
 
@@ -359,6 +372,8 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 
 				if (phase === LifecyclePhase.Restored) {
 					this.pendingRestoredContributions.complete();
+				} else if (phase === LifecyclePhase.Eventually) {
+					this.pendingEventuallyContributions.complete();
 				}
 			}
 		};

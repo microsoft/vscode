@@ -136,7 +136,7 @@ if defined RUN_GLOB (
 		if errorlevel 1 goto :failed
 	)
 	set VSCODE_SKIP_PRELAUNCH=1
-	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeRunGlob "**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js" %*
+	call .\scripts\test.bat --runGlob **\*.integrationTest.js --excludeRunGlob "**/agentHost/test/node/e2e/{providers/*AgentHostE2E,providers/copilotPromptsE2E,conformance/*}.integrationTest.js" %*
 )
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_nodejs_tests

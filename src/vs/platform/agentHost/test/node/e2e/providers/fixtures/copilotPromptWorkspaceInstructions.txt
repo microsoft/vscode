@@ -1,0 +1,4 @@
+# Request Snapshot Workspace
+
+Prefer explicit names when explaining code in this fixture workspace.
+Keep changes focused on the user's request.

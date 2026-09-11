@@ -170,8 +170,26 @@ suite('Contributions', () => {
 		assert.ok(aCreated);
 
 		accessor.lifecycleService.phase = LifecyclePhase.Eventually;
-		await bCreatedPromise.p;
+		await registry.whenEventually;
 		assert.ok(bCreated);
+	});
+
+	test('late-phase readiness resolves when no contributions are registered', async () => {
+		const registry = disposables.add(new WorkbenchContributionsRegistry());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const accessor = instantiationService.createInstance(TestServiceAccessor);
+		accessor.lifecycleService.usePhases = true;
+		registry.start(instantiationService);
+
+		let eventuallyReady = false;
+		registry.whenEventually.then(() => { eventuallyReady = true; });
+		accessor.lifecycleService.phase = LifecyclePhase.Restored;
+		await registry.whenRestored;
+		assert.strictEqual(eventuallyReady, false);
+
+		accessor.lifecycleService.phase = LifecyclePhase.Eventually;
+		await registry.whenEventually;
+		assert.strictEqual(eventuallyReady, true);
 	});
 
 	test('contribution on editor - editor exists before start', async function () {

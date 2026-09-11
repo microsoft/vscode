@@ -73,6 +73,9 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpService, IMcpWorkbenchService, LazyCollectionState } from '../../../../mcp/common/mcpTypes.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import '../../../browser/agentSessions/agentHost/agentHostClientProfileCapture.js';
 
 // =============================================================================
 // Unit tests for toolDataToDefinition and toolResultToProtocol
@@ -87,6 +90,28 @@ suite('AgentHostClientTools', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('client profile capture guard', () => {
+		async function capture(options: unknown, extensionTestMode: boolean): Promise<unknown> {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
+				override extensionTestsLocationURI = extensionTestMode ? URI.file('/tests/clientProfile.cjs') : undefined;
+			});
+			const command = CommandsRegistry.getCommand('_test.captureAgentHostClientProfile');
+			assert.ok(command);
+			return instantiationService.invokeFunction(accessor => command.handler(accessor, options));
+		}
+
+		test('rejects use outside extension tests', async () => {
+			await assert.rejects(capture({ toolSets: ['vscode-general'] }, false), /only available during extension tests/);
+		});
+
+		test('requires an explicit non-empty tool-set profile', async () => {
+			for (const options of [undefined, {}, { toolSets: [] }, { toolSets: [42] }]) {
+				await assert.rejects(capture(options, true), /requires a non-empty list of tool sets/);
+			}
+		});
+	});
 
 	function createActiveClientService(
 		tools: IObservable<readonly IToolData[]> = constObservable([]),
