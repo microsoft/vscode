@@ -7,7 +7,7 @@ import * as l10n from '@vscode/l10n';
 async function setupMain() {
 	const l10nLog: string[] = [];
 
-	const i10lLocation = process.env.VSCODE_L10N_BUNDLE_LOCATION;
+	const i10lLocation = process.env['VSCODE_L10N_BUNDLE_LOCATION'];
 	if (i10lLocation) {
 		try {
 			await l10n.config({ uri: i10lLocation });

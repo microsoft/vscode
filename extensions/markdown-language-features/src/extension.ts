@@ -48,7 +48,7 @@ function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promi
 	};
 
 	// pass the location of the localization bundle to the server
-	process.env.VSCODE_L10N_BUNDLE_LOCATION = vscode.l10n.uri?.toString() ?? '';
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = vscode.l10n.uri?.toString() ?? '';
 
 	return startClient((id, name, clientOptions) => {
 		return new LanguageClient(id, name, serverOptions, clientOptions);
