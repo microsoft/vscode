@@ -826,7 +826,7 @@ function renderWrappedConnectedSurface(activeTabIndex: number, forcedHoverTab?: 
 	});
 }
 
-const connectedSurfaceThemes: readonly ComponentFixtureAdditionalTheme[] = ['dark2026', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast', 'abyss', 'monokai', 'quietLight', 'solarizedDark', 'solarizedLight'];
+const connectedSurfaceThemes: readonly ComponentFixtureAdditionalTheme[] = ['darkModern', 'dark2026', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast', 'abyss', 'monokai', 'quietLight', 'solarizedDark', 'solarizedLight'];
 
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
 	FileIconThemes: defineThemedFixtureGroup({

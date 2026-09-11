@@ -377,6 +377,7 @@ type ComponentFixtureThemeVariant = {
 const darkThemeVariant = { label: 'Dark', background: 'dark', theme: darkTheme } as const satisfies ComponentFixtureThemeVariant;
 const lightThemeVariant = { label: 'Light', background: 'light', theme: lightTheme } as const satisfies ComponentFixtureThemeVariant;
 const additionalThemeVariants = {
+	darkModern: { label: 'DarkModern', background: 'dark', theme: createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK) },
 	dark2026: { label: 'Dark2026', background: 'dark', theme: createBuiltInTheme('/extensions/theme-defaults/themes/2026-dark.json', ThemeTypeSelector.VS_DARK) },
 	light2026: { label: 'Light2026', background: 'light', theme: createBuiltInTheme('/extensions/theme-defaults/themes/2026-light.json', ThemeTypeSelector.VS) },
 	darkPlus: { label: 'DarkPlus', background: 'dark', theme: createBuiltInTheme('/extensions/theme-defaults/themes/dark_plus.json', ThemeTypeSelector.VS_DARK) },
