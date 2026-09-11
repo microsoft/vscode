@@ -6,12 +6,9 @@
 import './media/pullRequestHover.css';
 
 import { $, append } from '../../../../base/browser/dom.js';
-import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { GitHubPullRequestState, IGitHubPullRequest } from '../common/types.js';
-import { getGitHubHoverDescription } from './githubHover.js';
-
-const pullRequestDateFormatter = safeIntl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+import { getGitHubHoverDescription, getGitHubHoverRelativeTime } from './githubHover.js';
 
 export interface IPullRequestHoverData {
 	readonly owner: string;
@@ -47,10 +44,16 @@ export function createPullRequestHover(data: IPullRequestHoverData): IPullReques
 
 	const date = getPullRequestDate(data.pullRequest);
 	if (date) {
-		append(header, $('span.sessions-pr-hover-date', undefined, date));
+		if (date.separate) {
+			append(header, $('span.sessions-pr-hover-separator', { 'aria-hidden': 'true' }, '\u00b7'));
+		}
+		append(header, $('span.sessions-pr-hover-date', undefined, date.label));
 	}
 
-	append(hoverElement, $('.sessions-pr-hover-title', undefined, data.pullRequest.title || localize('agentSessions.pullRequestHover.titleFallback', "Pull Request #{0}", data.number)));
+	const title = data.pullRequest.title || localize('agentSessions.pullRequestHover.titleFallback', "Pull Request #{0}", data.number);
+	const titleElement = append(hoverElement, $('.sessions-pr-hover-title'));
+	append(titleElement, $('.sessions-pr-hover-title-content', undefined, title));
+	titleElement.title = title;
 
 	const body = getGitHubHoverDescription(data.pullRequest.body, localize('agentSessions.pullRequestHover.bodyFallback', "No description provided."));
 	const description = append(hoverElement, $('.sessions-pr-hover-description'));
@@ -104,24 +107,24 @@ function getPullRequestStatus(pullRequest: IGitHubPullRequest): { readonly kind:
 	return { kind: 'open', label: localize('agentSessions.pullRequestHover.open', "Open") };
 }
 
-function getPullRequestDate(pullRequest: IGitHubPullRequest): string | undefined {
+function getPullRequestDate(pullRequest: IGitHubPullRequest): { readonly label: string; readonly separate: boolean } | undefined {
 	const transitionedAt = pullRequest.state === GitHubPullRequestState.Merged
 		? pullRequest.mergedAt
 		: pullRequest.state === GitHubPullRequestState.Closed
 			? pullRequest.closedAt
 			: undefined;
 	if (transitionedAt) {
-		const transitioned = formatPullRequestDate(transitionedAt);
+		const transitioned = getGitHubHoverRelativeTime(transitionedAt);
 		if (transitioned) {
-			return transitioned;
+			return { label: transitioned, separate: false };
 		}
 	}
-	const updated = formatPullRequestDate(pullRequest.updatedAt);
+	const updated = getGitHubHoverRelativeTime(pullRequest.updatedAt);
 	if (updated) {
-		return localize('agentSessions.pullRequestHover.updatedDate', "updated {0}", updated);
+		return { label: localize('agentSessions.pullRequestHover.updatedDate', "updated {0}", updated), separate: true };
 	}
-	const opened = formatPullRequestDate(pullRequest.createdAt);
-	return opened ? localize('agentSessions.pullRequestHover.openedDate', "opened {0}", opened) : undefined;
+	const opened = getGitHubHoverRelativeTime(pullRequest.createdAt);
+	return opened ? { label: localize('agentSessions.pullRequestHover.openedDate', "opened {0}", opened), separate: true } : undefined;
 }
 
 function appendBranchPill(container: HTMLElement, label: string, kind: 'base' | 'head', onDidClick: (() => void) | undefined): HTMLButtonElement | undefined {
@@ -143,17 +146,4 @@ function appendBranchPill(container: HTMLElement, label: string, kind: 'base' | 
 	branch.onclick = onDidClick;
 	append(container, branch);
 	return branch;
-}
-
-function formatPullRequestDate(value: string | undefined): string | undefined {
-	if (!value) {
-		return undefined;
-	}
-
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return undefined;
-	}
-
-	return pullRequestDateFormatter.value.format(date);
 }

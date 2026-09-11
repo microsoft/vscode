@@ -13,8 +13,6 @@
 }
 
 .sessions-pr-hover.compact .sessions-pr-hover-title {
-	font-size: var(--vscode-fontSize-body1);
-	line-height: 1.4;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size80);
 }
 
@@ -23,7 +21,7 @@
 }
 
 .sessions-pr-hover.compact .sessions-pr-hover-description {
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120) 0;
+	padding: 0 var(--vscode-spacing-size120);
 }
 
 .sessions-pr-hover.compact .sessions-pr-hover-branches {
@@ -64,15 +62,22 @@
 
 .sessions-pr-hover-title {
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160) var(--vscode-spacing-size120);
-	font-size: var(--vscode-fontSize-heading2, 18px);
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
-	line-height: 1.25;
+	line-height: 1.4;
+}
+
+.sessions-pr-hover-title-content {
+	display: -webkit-box;
+	line-clamp: 2;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
 	overflow-wrap: anywhere;
 }
 
 .sessions-pr-hover-description {
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) 0 var(--vscode-spacing-size160);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	padding: 0 var(--vscode-spacing-size160);
 	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);

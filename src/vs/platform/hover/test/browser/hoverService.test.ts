@@ -806,6 +806,27 @@ suite('HoverService', () => {
 			);
 		}));
 
+		test('should let managed HTML content own the hover boundary padding', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));
+			store.add(hoverService.setupManagedHover(delegate, target, {
+				element: () => mainWindow.document.createElement('div'),
+				contentOwnsPadding: true,
+			}));
+
+			target.dispatchEvent(new FocusEvent('focus', { bubbles: true, relatedTarget: document.body }));
+			await timeout(500);
+
+			const hover = fixture.querySelector('.monaco-hover');
+			assert.deepStrictEqual({
+				isCompact: hover?.classList.contains('compact'),
+				contentOwnsPadding: hover?.classList.contains('managed-hover-content-owns-padding'),
+			}, {
+				isCompact: true,
+				contentOwnsPadding: true,
+			});
+		}));
+
 		test('should not re-show hover on focus when relatedTarget is from a dismissed hover', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const target = createTarget();
 			const delegate = store.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, {}));

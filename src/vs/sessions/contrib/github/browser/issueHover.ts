@@ -6,12 +6,9 @@
 import './media/issueHover.css';
 
 import { $, append } from '../../../../base/browser/dom.js';
-import { safeIntl } from '../../../../base/common/date.js';
 import { localize } from '../../../../nls.js';
 import { GitHubIssueState, GitHubIssueStateReason, IGitHubIssue } from '../common/types.js';
-import { getGitHubHoverDescription } from './githubHover.js';
-
-const issueDateFormatter = safeIntl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+import { getGitHubHoverDescription, getGitHubHoverRelativeTime } from './githubHover.js';
 
 export interface IIssueHoverData {
 	readonly owner: string;
@@ -45,10 +42,16 @@ export function createIssueHover(data: IIssueHoverData): IIssueHover {
 
 	const date = getIssueDate(data.issue);
 	if (date) {
-		append(header, $('span.sessions-issue-hover-date', undefined, date));
+		if (date.separate) {
+			append(header, $('span.sessions-issue-hover-separator', { 'aria-hidden': 'true' }, '\u00b7'));
+		}
+		append(header, $('span.sessions-issue-hover-date', undefined, date.label));
 	}
 
-	append(hoverElement, $('.sessions-issue-hover-title', undefined, data.issue.title || localize('agentSessions.issueHover.titleFallback', "Issue #{0}", data.number)));
+	const title = data.issue.title || localize('agentSessions.issueHover.titleFallback', "Issue #{0}", data.number);
+	const titleElement = append(hoverElement, $('.sessions-issue-hover-title'));
+	append(titleElement, $('.sessions-issue-hover-title-content', undefined, title));
+	titleElement.title = title;
 
 	const body = getGitHubHoverDescription(data.issue.body, localize('agentSessions.issueHover.bodyFallback', "No description provided."));
 	const description = append(hoverElement, $('.sessions-issue-hover-description'));
@@ -91,30 +94,17 @@ function getIssueStatus(issue: IGitHubIssue): { readonly kind: 'open' | 'closed'
 	return { kind: 'closed', label: localize('agentSessions.issueHover.closed', "Closed") };
 }
 
-function getIssueDate(issue: IGitHubIssue): string | undefined {
+function getIssueDate(issue: IGitHubIssue): { readonly label: string; readonly separate: boolean } | undefined {
 	if (issue.state === GitHubIssueState.Closed && issue.closedAt) {
-		const closed = formatIssueDate(issue.closedAt);
+		const closed = getGitHubHoverRelativeTime(issue.closedAt);
 		if (closed) {
-			return closed;
+			return { label: closed, separate: false };
 		}
 	}
-	const updated = formatIssueDate(issue.updatedAt);
+	const updated = getGitHubHoverRelativeTime(issue.updatedAt);
 	if (updated) {
-		return localize('agentSessions.issueHover.updatedDate', "updated {0}", updated);
+		return { label: localize('agentSessions.issueHover.updatedDate', "updated {0}", updated), separate: true };
 	}
-	const opened = formatIssueDate(issue.createdAt);
-	return opened ? localize('agentSessions.issueHover.openedDate', "opened {0}", opened) : undefined;
-}
-
-function formatIssueDate(value: string | undefined): string | undefined {
-	if (!value) {
-		return undefined;
-	}
-
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return undefined;
-	}
-
-	return issueDateFormatter.value.format(date);
+	const opened = getGitHubHoverRelativeTime(issue.createdAt);
+	return opened ? { label: localize('agentSessions.issueHover.openedDate', "opened {0}", opened), separate: true } : undefined;
 }

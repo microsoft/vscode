@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { fromNow } from '../../../../base/common/date.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const MAX_DESCRIPTION_LENGTH = 200;
@@ -15,4 +16,17 @@ export function getGitHubHoverDescription(body: string, fallback: string): strin
 		return description;
 	}
 	return `${characters.slice(0, MAX_DESCRIPTION_LENGTH - 1).join('').trimEnd()}…`;
+}
+
+export function getGitHubHoverRelativeTime(value: string | undefined): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		return undefined;
+	}
+
+	return fromNow(date, true, true);
 }

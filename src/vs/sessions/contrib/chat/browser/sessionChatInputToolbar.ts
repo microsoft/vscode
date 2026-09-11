@@ -144,7 +144,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			...(!pullRequest && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
 			...(createDropdownHover && createHover ? {
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
-				pillHover: { element: () => createHover('default').element },
+				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
 			} : {}),
 			open: () => {
 				if (session) {
@@ -198,7 +198,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			...(!issue && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
 			...(createDropdownHover && createHover ? {
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
-				pillHover: { element: () => createHover('default').element },
+				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
 			} : {}),
 			open: () => {
 				if (session) {
