@@ -29,10 +29,11 @@ class AgentsDashboardAccessibilityHelp implements IAccessibleViewImplementation 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const restoreFocus = createFocusRestorer(accessor.get(IAgentWorkbenchLayoutService));
 		const content = [
-			localize('agentsDashboard.help.overview', "You are in the Agents Dashboard. It contains historical statistics and a Sessions table with working directories, worktree size, credits, and status."),
-			localize('agentsDashboard.help.tabs', "Use the Statistics and Sessions tabs to switch between historical graphs and the session table. Use Left Arrow and Right Arrow while a tab is focused."),
-			localize('agentsDashboard.help.range', "The Statistics tab can show Today, 7 days, or 30 days. Use Tab to reach the range buttons and press Enter or Space to select a range."),
-			localize('agentsDashboard.help.tables', "Use Up Arrow and Down Arrow to navigate a table. Press Enter to open a session."),
+			localize('agentsDashboard.help.overview', "You are in Manage Sessions. It contains a Sessions table with working directories, worktree size, credits, and status, plus a Dashboard with historical statistics."),
+			localize('agentsDashboard.help.tabs', "Use the Sessions and Dashboard tabs to switch between session management and aggregate historical graphs. Use Left Arrow and Right Arrow while a tab is focused."),
+			localize('agentsDashboard.help.range', "The Dashboard tab can show Today, 7 days, or 30 days. Use Tab to reach the range buttons and press Enter or Space to select a range."),
+			localize('agentsDashboard.help.chatActivity', "In the Sessions tab, click a session row or press Space on the focused row to expand its activity directly below the row. The activity runs from session start to completion or now and shows requests, messages between peer chats, and pull request creation. Repeat the action or press Escape to collapse it."),
+			localize('agentsDashboard.help.tables', "Use Up Arrow and Down Arrow to navigate the table. Press Enter to open the focused session."),
 			localize('agentsDashboard.help.sessionActions', "Session actions appear when a row is hovered or focused. Each session can be archived or unarchived, and deleted when its provider supports deletion. Deletion asks for confirmation."),
 			localize('agentsDashboard.help.refresh', "Use the Refresh action beside the command center to rescan worktrees and disk usage."),
 			localize('agentsDashboard.help.accessibleView', "Use Open Accessible View to read the current dashboard as text."),
@@ -85,7 +86,7 @@ export function buildAgentsDashboardAccessibleContent(
 	history: readonly AgentsDashboardHistoryEvent[] = [],
 ): string {
 	const lines = [
-		localize('agentsDashboard.accessible.title', "Agents Dashboard"),
+		localize('agentsDashboard.accessible.title', "Manage Sessions"),
 		'',
 		localize('agentsDashboard.accessible.summary', "Summary"),
 	];
@@ -102,10 +103,19 @@ export function buildAgentsDashboardAccessibleContent(
 			ByteSize.formatSize(summary.worktreeSizeBytes),
 		),
 		'',
-		localize('agentsDashboard.accessible.statistics', "Statistics"),
-		formatHistorySummary(localize('agentsDashboard.accessible.today', "Today"), buildAgentsDashboardHistoryBuckets(history, 'today', now)),
-		formatHistorySummary(localize('agentsDashboard.accessible.week', "Last 7 days"), buildAgentsDashboardHistoryBuckets(history, 'week', now)),
-		formatHistorySummary(localize('agentsDashboard.accessible.month', "Last 30 days"), buildAgentsDashboardHistoryBuckets(history, 'month', now)),
+		localize('agentsDashboard.accessible.statistics', "Dashboard"),
+		formatHistorySummary(
+			localize('agentsDashboard.accessible.today', "Today"),
+			buildAgentsDashboardHistoryBuckets(history, 'today', now),
+		),
+		formatHistorySummary(
+			localize('agentsDashboard.accessible.week', "Last 7 days"),
+			buildAgentsDashboardHistoryBuckets(history, 'week', now),
+		),
+		formatHistorySummary(
+			localize('agentsDashboard.accessible.month', "Last 30 days"),
+			buildAgentsDashboardHistoryBuckets(history, 'month', now),
+		),
 		'',
 		localize('agentsDashboard.accessible.sessions', "Sessions"),
 	);
@@ -121,9 +131,10 @@ export function buildAgentsDashboardAccessibleContent(
 					: localize('agentsDashboard.accessible.folderDirectory', "{0} (folder)", directory.path)).join(', ');
 			lines.push(localize(
 				'agentsDashboard.accessible.session',
-				"{0}, working directories {1}, size {2}, credits {3}, status {4}.",
+				"{0}, working directories {1}, {2} chats, size {3}, credits {4}, status {5}.",
 				row.title,
 				workingDirectories,
+				row.chatCount,
 				row.worktreeSizeBytes === undefined ? localize('agentsDashboard.accessible.sizeUnknown', "unknown") : ByteSize.formatSize(row.worktreeSizeBytes),
 				row.credits === undefined ? localize('agentsDashboard.accessible.creditsUnknownValue', "unknown") : formatCopilotCreditsLabel(row.credits),
 				getAccessibleSessionStatus(row),

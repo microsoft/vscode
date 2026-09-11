@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AgentsDashboardHistoryEvent, AgentsDashboardHistoryEventType, buildAgentsDashboardHistoryBuckets } from '../../common/agentsDashboardHistory.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { AgentsDashboardHistoryEvent, AgentsDashboardHistoryEventType, buildAgentsDashboardChatActivity, buildAgentsDashboardHistoryBuckets } from '../../common/agentsDashboardHistory.js';
 
 suite('AgentsDashboardHistory', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,6 +62,115 @@ suite('AgentsDashboardHistory', () => {
 				medianStorage: 1024,
 				largestStorage: 1536,
 			},
+		});
+
+	});
+
+	test('prioritizes multi-chat activity and counts interactions', () => {
+		const now = new Date(2026, 8, 8, 15).getTime();
+		const timestamp = now - 60_000;
+		const events: AgentsDashboardHistoryEvent[] = [
+			{ id: 'created-main', type: AgentsDashboardHistoryEventType.ChatCreated, timestamp, sessionId: 'multi', chatId: 'main', chatKind: 'main' },
+			{ id: 'created-peer', type: AgentsDashboardHistoryEventType.ChatCreated, timestamp, sessionId: 'multi', chatId: 'peer', chatKind: 'chat' },
+			{ id: 'request-main', type: AgentsDashboardHistoryEventType.ChatInteraction, timestamp: timestamp + 1, sessionId: 'multi', chatId: 'main' },
+			{ id: 'request-peer', type: AgentsDashboardHistoryEventType.ChatInteraction, timestamp: timestamp + 2, sessionId: 'multi', chatId: 'peer' },
+			{ id: 'delegated', type: AgentsDashboardHistoryEventType.ChatDelegatedRequest, timestamp: timestamp + 3, sessionId: 'multi', sourceChatId: 'main', targetChatId: 'peer' },
+			{ id: 'pr', type: AgentsDashboardHistoryEventType.PullRequestCreated, timestamp: timestamp + 4, sessionId: 'multi' },
+			{ id: 'created-single', type: AgentsDashboardHistoryEventType.ChatCreated, timestamp, sessionId: 'single', chatId: 'only', chatKind: 'main' },
+			{ id: 'request-single', type: AgentsDashboardHistoryEventType.ChatInteraction, timestamp: timestamp + 5, sessionId: 'single', chatId: 'only' },
+		];
+
+		const activity = buildAgentsDashboardChatActivity(events, [], 'today', now);
+
+		assert.deepStrictEqual({
+			totalSessions: activity.totalSessions,
+			totalChats: activity.totalChats,
+			totalInteractions: activity.totalInteractions,
+			totalMultiChatSessions: activity.totalMultiChatSessions,
+			sessions: activity.sessions.map(session => ({
+				sessionId: session.sessionId,
+				chats: session.chats.map(chat => ({
+					id: chat.chatId,
+					kind: chat.kind,
+					events: chat.events.map(event => ({ type: event.type, direction: event.direction })),
+				})),
+				interactions: session.interactionCount,
+				pullRequests: session.pullRequestCreatedAt.length,
+			})),
+		}, {
+			totalSessions: 2,
+			totalChats: 3,
+			totalInteractions: 3,
+			totalMultiChatSessions: 1,
+			sessions: [{
+				sessionId: 'multi',
+				chats: [
+					{
+						id: 'main',
+						kind: 'main',
+						events: [
+							{ type: AgentsDashboardHistoryEventType.ChatCreated, direction: undefined },
+							{ type: AgentsDashboardHistoryEventType.ChatInteraction, direction: undefined },
+							{ type: AgentsDashboardHistoryEventType.ChatDelegatedRequest, direction: 'sent' },
+						],
+					},
+					{
+						id: 'peer',
+						kind: 'chat',
+						events: [
+							{ type: AgentsDashboardHistoryEventType.ChatCreated, direction: undefined },
+							{ type: AgentsDashboardHistoryEventType.ChatInteraction, direction: undefined },
+							{ type: AgentsDashboardHistoryEventType.ChatDelegatedRequest, direction: 'received' },
+						],
+					},
+				],
+				interactions: 3,
+				pullRequests: 1,
+			}, {
+				sessionId: 'single',
+				chats: [{
+					id: 'only',
+					kind: 'main',
+					events: [
+						{ type: AgentsDashboardHistoryEventType.ChatCreated, direction: undefined },
+						{ type: AgentsDashboardHistoryEventType.ChatInteraction, direction: undefined },
+					],
+				}],
+				interactions: 1,
+				pullRequests: 0,
+			}],
+		});
+	});
+
+	test('uses the selected session lifetime instead of the dashboard range', () => {
+		const startedAt = new Date(2026, 8, 1, 9).getTime();
+		const completedAt = new Date(2026, 8, 3, 11).getTime();
+		const now = new Date(2026, 8, 8, 15).getTime();
+		const session = new class extends mock<ISession>() {
+			override readonly sessionId = 'selected';
+			override readonly createdAt = new Date(startedAt);
+			override readonly title = constObservable('Selected');
+			override readonly status = constObservable(SessionStatus.Completed);
+			override readonly lastTurnEnd = constObservable(new Date(completedAt));
+			override readonly chats = constObservable([]);
+		}();
+		const events: AgentsDashboardHistoryEvent[] = [
+			{ id: 'created', type: AgentsDashboardHistoryEventType.ChatCreated, timestamp: startedAt + 1, sessionId: 'selected', chatId: 'main', chatKind: 'main' },
+			{ id: 'request', type: AgentsDashboardHistoryEventType.ChatInteraction, timestamp: startedAt + 2, sessionId: 'selected', chatId: 'main' },
+		];
+
+		const activity = buildAgentsDashboardChatActivity(events, [session], 'today', now, session.sessionId);
+
+		assert.deepStrictEqual({
+			start: activity.start,
+			end: activity.end,
+			completed: activity.completed,
+			interactions: activity.totalInteractions,
+		}, {
+			start: startedAt,
+			end: completedAt + 1,
+			completed: true,
+			interactions: 1,
 		});
 	});
 });

@@ -5,8 +5,10 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { IAgentsDashboardHistoryBucket } from '../common/agentsDashboardHistory.js';
+import { AgentsDashboardChatKind, AgentsDashboardHistoryEventType, IAgentsDashboardChatActivity, IAgentsDashboardHistoryBucket } from '../common/agentsDashboardHistory.js';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const CHART_WIDTH = 640;
@@ -20,6 +22,146 @@ export interface IAgentsDashboardChartSeries {
 }
 
 export type AgentsDashboardChartKind = 'bar' | 'line';
+
+export function renderAgentsDashboardChatActivity(container: HTMLElement, activity: IAgentsDashboardChatActivity): void {
+	DOM.clearNode(container);
+	container.setAttribute('aria-hidden', 'true');
+	const legend = DOM.append(container, DOM.$('.agents-dashboard-chart-legend'));
+	appendActivityLegend(legend, 'agents-dashboard-chat-marker-interaction', localize('agentsDashboard.chatActivity.request', "Request"));
+	appendActivityLegend(legend, 'agents-dashboard-chat-marker-message', localize('agentsDashboard.chatActivity.message', "Chat message"));
+	appendActivityLegend(legend, 'agents-dashboard-chat-marker-pr', localize('agentsDashboard.chatActivity.prCreated', "PR created"));
+
+	if (activity.sessions.length === 0) {
+		DOM.append(container, DOM.$('.agents-dashboard-chart-empty', undefined, localize('agentsDashboard.chatActivity.noData', "No recorded chat activity")));
+		return;
+	}
+
+	const axis = DOM.append(container, DOM.$('.agents-dashboard-chat-axis'));
+	DOM.append(axis, DOM.$('span', undefined, localize('agentsDashboard.chatActivity.started', "Started {0}", formatActivityTime(activity.start))));
+	DOM.append(axis, DOM.$('span', undefined, activity.completed
+		? localize('agentsDashboard.chatActivity.ended', "Ended {0}", formatActivityTime(activity.end - 1))
+		: localize('agentsDashboard.chatActivity.active', "Active · {0}", formatActivityTime(activity.end - 1))));
+	const timeline = DOM.append(container, DOM.$('.agents-dashboard-chat-timeline'));
+	for (const session of activity.sessions) {
+		const group = DOM.append(timeline, DOM.$('.agents-dashboard-chat-session'));
+		const header = DOM.append(group, DOM.$('.agents-dashboard-chat-session-header'));
+		DOM.append(header, DOM.$('.agents-dashboard-chat-session-title', undefined, session.label));
+		DOM.append(header, DOM.$('.agents-dashboard-chat-session-detail', undefined, localize(
+			'agentsDashboard.chatActivity.sessionDetail',
+			"{0} chats · {1} interactions",
+			session.chats.length,
+			session.interactionCount,
+		)));
+		const chatLabels = new Map(session.chats.map(chat => [chat.chatId, chat.label]));
+		const chatLanes = DOM.append(group, DOM.$('.agents-dashboard-chat-lanes'));
+		for (const [chatIndex, chat] of session.chats.entries()) {
+			const lane = DOM.append(chatLanes, DOM.$('.agents-dashboard-chat-lane'));
+			const label = DOM.append(lane, DOM.$('.agents-dashboard-chat-lane-label'));
+			DOM.append(label, DOM.$(`span.agents-dashboard-chat-kind-icon${ThemeIcon.asCSSSelector(chatKindIcon(chat.kind))}`, { 'aria-hidden': 'true' }));
+			DOM.append(label, DOM.$('.agents-dashboard-chat-lane-name', undefined, chat.label));
+			const track = DOM.append(lane, DOM.$('.agents-dashboard-chat-track'));
+			const firstEvent = chat.events.find(event => event.type === AgentsDashboardHistoryEventType.ChatCreated) ?? chat.events[0];
+			const startPosition = firstEvent
+				? Math.max(0, Math.min(100, (firstEvent.timestamp - activity.start) / Math.max(1, activity.end - activity.start) * 100))
+				: 0;
+			const trackLine = DOM.append(track, DOM.$('.agents-dashboard-chat-track-line', { 'aria-hidden': 'true' }));
+			trackLine.style.left = `${startPosition}%`;
+			for (const event of chat.events) {
+				if (event.type !== AgentsDashboardHistoryEventType.ChatInteraction) {
+					continue;
+				}
+				const marker = DOM.append(track, DOM.$('span.agents-dashboard-chat-marker.agents-dashboard-chat-marker-interaction'));
+				const position = Math.max(0, Math.min(100, (event.timestamp - activity.start) / Math.max(1, activity.end - activity.start) * 100));
+				marker.style.left = `${position}%`;
+				marker.title = formatChatActivityMarker(event);
+			}
+			if (chatIndex === 0) {
+				for (const timestamp of session.pullRequestCreatedAt) {
+					const marker = DOM.append(track, DOM.$('span.agents-dashboard-chat-marker.agents-dashboard-chat-marker-pr'));
+					marker.style.left = `${Math.max(0, Math.min(100, (timestamp - activity.start) / Math.max(1, activity.end - activity.start) * 100))}%`;
+					marker.title = localize('agentsDashboard.chatActivity.prCreatedAt', "Pull request created · {0}", new Date(timestamp).toLocaleString());
+				}
+			}
+		}
+		renderChatMessageConnectors(chatLanes, session.chats, activity, chatLabels);
+
+		function renderChatMessageConnectors(
+			container: HTMLElement,
+			chats: IAgentsDashboardChatActivity['sessions'][number]['chats'],
+			activity: IAgentsDashboardChatActivity,
+			chatLabels: ReadonlyMap<string, string>,
+		): void {
+			const chatIndexes = new Map(chats.map((chat, index) => [chat.chatId, index]));
+			const sentMessages = chats.flatMap(chat => chat.events
+				.filter(event => event.type === AgentsDashboardHistoryEventType.ChatDelegatedRequest && event.direction === 'sent')
+				.map(event => ({ sourceChatId: chat.chatId, targetChatId: event.peerChatId, timestamp: event.timestamp })));
+			if (sentMessages.length === 0) {
+				return;
+			}
+			const laneHeight = 20;
+			const svg = createSvgElement('svg', {
+				viewBox: `0 0 1000 ${chats.length * laneHeight}`,
+				preserveAspectRatio: 'none',
+				'aria-hidden': 'true',
+			});
+			svg.classList.add('agents-dashboard-chat-message-connectors');
+			container.appendChild(svg);
+			const definitions = createSvgElement('defs', {});
+			const arrowhead = createSvgElement('marker', {
+				id: 'agents-dashboard-chat-message-arrowhead',
+				viewBox: '0 0 6 6',
+				refX: '5',
+				refY: '3',
+				markerWidth: '6',
+				markerHeight: '6',
+				orient: 'auto',
+				markerUnits: 'strokeWidth',
+			});
+			arrowhead.appendChild(createSvgElement('path', {
+				d: 'M 0 0 L 6 3 L 0 6 Z',
+				class: 'agents-dashboard-chat-message-arrowhead',
+			}));
+			definitions.appendChild(arrowhead);
+			svg.appendChild(definitions);
+			for (const message of sentMessages) {
+				const sourceIndex = chatIndexes.get(message.sourceChatId);
+				const targetIndex = message.targetChatId ? chatIndexes.get(message.targetChatId) : undefined;
+				if (sourceIndex === undefined || targetIndex === undefined) {
+					continue;
+				}
+				const x = Math.max(0, Math.min(1000, (message.timestamp - activity.start) / Math.max(1, activity.end - activity.start) * 1000));
+				const sourceY = sourceIndex * laneHeight + laneHeight / 2;
+				const targetY = targetIndex * laneHeight + laneHeight / 2;
+				const connector = createSvgElement('path', {
+					d: `M ${x} ${sourceY} V ${targetY}`,
+					class: 'agents-dashboard-chat-message-connector',
+					'marker-end': 'url(#agents-dashboard-chat-message-arrowhead)',
+				});
+				const title = localize(
+					'agentsDashboard.chatActivity.messageConnection',
+					"Message from {0} to {1} · {2}",
+					chatLabels.get(message.sourceChatId) ?? localize('agentsDashboard.chatActivity.unknownSource', "source chat"),
+					chatLabels.get(message.targetChatId ?? '') ?? localize('agentsDashboard.chatActivity.unknownTarget', "target chat"),
+					new Date(message.timestamp).toLocaleString(),
+				);
+				appendTitle(connector, title);
+				svg.appendChild(createSvgElement('circle', {
+					cx: String(x),
+					cy: String(targetY),
+					r: '2.5',
+					class: 'agents-dashboard-chat-message-target agents-dashboard-chat-marker-interaction',
+				}));
+				svg.appendChild(connector);
+				svg.appendChild(createSvgElement('circle', {
+					cx: String(x),
+					cy: String(sourceY),
+					r: '2.5',
+					class: 'agents-dashboard-chat-message-source',
+				}));
+			}
+		}
+	}
+}
 
 export function renderAgentsDashboardChart(
 	container: HTMLElement,
@@ -194,4 +336,29 @@ function appendTitle(element: SVGElement, text: string): void {
 	const title = createSvgElement('title', {});
 	title.textContent = text;
 	element.appendChild(title);
+}
+
+function appendActivityLegend(parent: HTMLElement, markerClass: string, label: string): void {
+	const item = DOM.append(parent, DOM.$('.agents-dashboard-chart-legend-item'));
+	DOM.append(item, DOM.$(`span.agents-dashboard-chat-marker.agents-dashboard-chat-legend-marker.${markerClass}`, { 'aria-hidden': 'true' }));
+	DOM.append(item, DOM.$('span', undefined, label));
+}
+
+function chatKindIcon(kind: AgentsDashboardChatKind): ThemeIcon {
+	switch (kind) {
+		case 'main': return Codicon.commentDiscussion;
+		case 'fork': return Codicon.gitBranch;
+		case 'sideChat': return Codicon.splitHorizontal;
+		case 'subagent': return Codicon.agent;
+		case 'chat': return Codicon.comment;
+	}
+}
+
+function formatChatActivityMarker(event: IAgentsDashboardChatActivity['sessions'][number]['chats'][number]['events'][number]): string {
+	const time = new Date(event.timestamp).toLocaleString();
+	return localize('agentsDashboard.chatActivity.requestAt', "Request sent · {0}", time);
+}
+
+function formatActivityTime(timestamp: number): string {
+	return new Date(timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' });
 }

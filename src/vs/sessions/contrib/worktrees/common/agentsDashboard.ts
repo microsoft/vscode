@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** Stable id used to register and show the Agents Dashboard custom view. */
+/** Stable id used to register and show the Manage Sessions custom view. */
 export const AGENTS_DASHBOARD_CUSTOM_VIEW_ID = 'sessions.customView.agentsDashboard';
 export const OPEN_AGENTS_DASHBOARD_COMMAND_ID = 'workbench.action.sessions.openAgentsDashboard';
 export const REFRESH_AGENTS_DASHBOARD_COMMAND_ID = 'workbench.action.sessions.refreshAgentsDashboard';

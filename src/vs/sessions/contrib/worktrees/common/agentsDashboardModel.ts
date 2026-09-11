@@ -12,13 +12,14 @@ export interface IAgentsDashboardWorkingDirectory {
 	readonly isWorktree: boolean;
 }
 
-/** A single row in the Agents Dashboard's Sessions table. */
+/** A single row in the Manage Sessions table. */
 export interface IAgentsDashboardSessionRow {
 	readonly session: ISession;
 	readonly title: string;
 	readonly status: SessionStatus;
 	readonly archived: boolean;
 	readonly workingDirectories: readonly IAgentsDashboardWorkingDirectory[];
+	readonly chatCount: number;
 	readonly worktreeSizeBytes: number | undefined;
 	readonly credits: number | undefined;
 }
@@ -52,6 +53,7 @@ export function buildSessionRows(sessions: readonly ISession[], worktreeEntries:
 					path: folder.workingDirectory.fsPath,
 					isWorktree: folder.gitRepository?.workTreeUri !== undefined,
 				})) ?? [],
+				chatCount: session.chats.get().length,
 				worktreeSizeBytes: worktree?.sizeBytes,
 				credits: session.usage?.get()?.credits,
 			};

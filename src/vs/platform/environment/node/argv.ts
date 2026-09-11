@@ -109,7 +109,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
 	'agents': { type: 'boolean', cat: 'o', deprecates: ['sessions'], description: localize('agents', "Opens the agents window.") },
-	'agents-dashboard-demo': { type: 'boolean' },
 	'session-title-base64': { type: 'string' },
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
 	'waitMarkerFilePath': { type: 'string' },

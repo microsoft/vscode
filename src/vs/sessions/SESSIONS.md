@@ -84,7 +84,7 @@ An `ISession` has a provider-owned resource URI, provider identifier, session ty
 
 Consumers derive state from those observables. Provider events announce catalog membership changes; they are not a parallel state store.
 
-The Agents Dashboard history service derives a bounded, machine-local numerical history from provider-neutral session state. It records lifecycle transitions, pull-request outcomes, completion duration, and worktree disk snapshots without retaining prompts, titles, file contents, or paths; visual and accessible statistics consume the same bucketed history.
+The Manage Sessions history service derives a bounded, machine-local history from shared session and chat state. It records lifecycle transitions, pull-request outcomes, completion duration, worktree disk snapshots, chat creation/request/status events, and delegated source-to-target requests using hashed chat identities without retaining prompts, responses, titles, file contents, or paths; visual and accessible dashboard statistics consume the same history.
 
 Sessions backed by a remote agent host may expose `remoteConnectionStatus`, derived from their backing provider; it is absent when the session has no remote host. Its session-facing disconnected variant may include a machine-readable failure reason.
 

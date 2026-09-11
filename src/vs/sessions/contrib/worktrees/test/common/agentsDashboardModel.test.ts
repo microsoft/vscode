@@ -153,11 +153,13 @@ suite('AgentsDashboardModel', () => {
 		assert.deepStrictEqual({
 			archived: row.archived,
 			workingDirectories: row.workingDirectories,
+			chatCount: row.chatCount,
 			worktreeSizeBytes: row.worktreeSizeBytes,
 			credits: row.credits,
 		}, {
 			archived: false,
 			workingDirectories: [{ path: '/repo.worktrees/x', isWorktree: true }],
+			chatCount: 1,
 			worktreeSizeBytes: 4096,
 			credits: 1.5,
 		});

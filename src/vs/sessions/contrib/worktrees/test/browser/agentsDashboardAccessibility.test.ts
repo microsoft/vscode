@@ -26,8 +26,11 @@ suite('AgentsDashboardAccessibility', () => {
 
 		const content = buildAgentsDashboardAccessibleContent([], [worktree]);
 
+		assert.ok(content.startsWith('Manage Sessions'));
+		assert.ok(content.includes('\nDashboard\n'));
 		assert.ok(content.includes('0 sessions, 0 active, 0 archived.'));
 		assert.ok(content.includes('0 sessions done, with 0 pull requests.'));
+		assert.ok(!content.includes('Chat activity:'));
 		assert.ok(!content.includes('Credits usage'));
 		assert.ok(content.includes('No sessions.'));
 		assert.ok(!content.includes('agents/example'));

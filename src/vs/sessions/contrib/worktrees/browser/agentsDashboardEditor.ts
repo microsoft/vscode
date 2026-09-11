@@ -6,6 +6,7 @@
 import './media/agentsDashboardEditor.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -30,12 +31,12 @@ import { AgentsDashboardCustomViewFocusContext } from '../../../common/contextke
 import { Menus } from '../../../browser/menus.js';
 import { ARCHIVE_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { buildAgentsDashboardSummary, buildSessionRows, IAgentsDashboardSessionRow, IAgentsDashboardSummary } from '../common/agentsDashboardModel.js';
-import { AgentsDashboardHistoryRange, buildAgentsDashboardHistoryBuckets, IAgentsDashboardHistoryBucket, IAgentsDashboardHistoryService } from '../common/agentsDashboardHistory.js';
+import { AgentsDashboardHistoryEvent, AgentsDashboardHistoryRange, buildAgentsDashboardChatActivity, buildAgentsDashboardHistoryBuckets, IAgentsDashboardHistoryService } from '../common/agentsDashboardHistory.js';
 import { IWorktreeDashboardService } from '../common/worktreeDashboard.js';
-import { IAgentsDashboardChartSeries, renderAgentsDashboardChart } from './agentsDashboardCharts.js';
+import { IAgentsDashboardChartSeries, renderAgentsDashboardChart, renderAgentsDashboardChatActivity } from './agentsDashboardCharts.js';
 
 const $ = DOM.$;
 const TABLE_HEADER_HEIGHT = 30;
@@ -43,16 +44,25 @@ const TABLE_HEADER_HEIGHT = 30;
 //#region Sessions table
 
 const SESSION_ROW_HEIGHT = 32;
+const SESSION_EXPANDED_ROW_HEIGHT = 260;
 const SESSION_ROW_TEMPLATE_ID = 'agentsDashboard.sessionRow';
 
 class SessionsTableDelegate implements ITableVirtualDelegate<IAgentsDashboardSessionRow> {
 	readonly headerRowHeight = TABLE_HEADER_HEIGHT;
-	getHeight(): number { return SESSION_ROW_HEIGHT; }
+
+	constructor(private readonly view: AgentsDashboardCustomView) { }
+
+	getHeight(row: IAgentsDashboardSessionRow): number {
+		return this.view.isChatActivityExpanded(row.session) ? SESSION_EXPANDED_ROW_HEIGHT : SESSION_ROW_HEIGHT;
+	}
 }
 
 interface ISessionCellTemplateData {
 	readonly container: HTMLElement;
 	readonly title: HTMLElement;
+	readonly row: HTMLElement;
+	readonly listRow: HTMLElement;
+	readonly details: HTMLElement;
 	readonly hover: MutableDisposable<IDisposable>;
 }
 
@@ -61,17 +71,30 @@ class SessionColumnRenderer implements ITableRenderer<IAgentsDashboardSessionRow
 	readonly templateId = SessionColumnRenderer.TEMPLATE_ID;
 
 	constructor(
+		private readonly view: AgentsDashboardCustomView,
 		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionCellTemplateData {
 		const cell = DOM.append(container, $('.agents-dashboard-cell.agents-dashboard-cell-session'));
 		const title = DOM.append(cell, $('.agents-dashboard-label-text'));
-		return { container: cell, title, hover: new MutableDisposable() };
+		const row = container.parentElement!;
+		const listRow = row.parentElement!;
+		const details = DOM.append(row, $('.agents-dashboard-chat-inline-details'));
+		return { container: cell, title, row, listRow, details, hover: new MutableDisposable() };
 	}
 
 	renderElement(row: IAgentsDashboardSessionRow, index: number, templateData: ISessionCellTemplateData): void {
 		templateData.title.textContent = row.title;
+		const expanded = this.view.isChatActivityExpanded(row.session);
+		templateData.row.classList.toggle('agents-dashboard-session-row-expanded', expanded);
+		templateData.listRow.classList.toggle('agents-dashboard-session-row-expanded', expanded);
+		templateData.details.classList.toggle('hidden', !expanded);
+		if (expanded) {
+			this.view.renderChatActivity(templateData.details, row.session);
+		} else {
+			DOM.clearNode(templateData.details);
+		}
 		templateData.hover.value = this.hoverService.setupDelayedHover(templateData.container, {
 			content: row.title,
 		});
@@ -218,7 +241,15 @@ class SessionActionsColumnRenderer implements ITableRenderer<IAgentsDashboardSes
 		const archivePresentation = getChatSessionArchiveActionPresentation(getChatSessionArchiveActionWording(this.configurationService));
 		const archiveAction = row.archived ? archivePresentation.unarchive : archivePresentation.archive;
 		const archiveCommandId = row.archived ? UNARCHIVE_SESSION_COMMAND_ID : ARCHIVE_SESSION_COMMAND_ID;
+		const openLabel = localize('agentsDashboard.openSession', "Open Session");
 		const actions = [{
+			id: 'agentsDashboard.openSession',
+			label: openLabel,
+			class: ThemeIcon.asClassName(Codicon.goToFile),
+			enabled: true,
+			tooltip: openLabel,
+			run: () => this.view.revealSession(row.session.resource),
+		}, {
 			id: archiveCommandId,
 			label: archiveAction.title.value,
 			class: ThemeIcon.asClassName(archiveAction.icon),
@@ -263,7 +294,7 @@ interface ISummaryCards {
 	readonly diskUsage: ISummaryCard;
 }
 
-type AgentsDashboardTab = 'statistics' | 'sessions';
+type AgentsDashboardTab = 'dashboard' | 'sessions';
 
 interface IChartCard {
 	readonly body: HTMLElement;
@@ -328,10 +359,10 @@ function createSessionsTabContent(
 	return { tableContainer, emptyState };
 }
 
-/** Custom view with historical Statistics and live Sessions tabs. */
+/** Manage Sessions view with live Sessions and historical Dashboard tabs. */
 export class AgentsDashboardCustomView extends AbstractCustomView {
 
-	readonly title: IObservable<string> = constObservable(localize('agentsDashboard.title', "Agents Dashboard"));
+	readonly title: IObservable<string> = constObservable(localize('agentsDashboard.title', "Manage Sessions"));
 	override readonly description: IObservable<string | undefined> = constObservable(
 		localize('agentsDashboard.description', "Monitor agent sessions, worktrees, and disk usage."));
 	override readonly maxWidth = Number.POSITIVE_INFINITY;
@@ -340,10 +371,10 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 	private sessionsSection!: ISessionsTabContent;
 	private sessionsTable!: WorkbenchTable<IAgentsDashboardSessionRow>;
 	private summaryCards!: ISummaryCards;
-	private statisticsCharts!: IStatisticsCharts;
-	private statisticsTab!: HTMLElement;
+	private dashboardCharts!: IStatisticsCharts;
+	private dashboardTab!: HTMLElement;
 	private sessionsTab!: HTMLElement;
-	private statisticsPanel!: HTMLElement;
+	private dashboardPanel!: HTMLElement;
 	private sessionsPanel!: HTMLElement;
 	private readonly rangeButtons = new Map<AgentsDashboardHistoryRange, HTMLButtonElement>();
 	private readonly viewDisposables = this._register(new DisposableStore());
@@ -351,8 +382,11 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 	private sessionRowCount = 0;
 	private lastLayoutWidth = 0;
 	private lastLayoutHeight = 0;
-	private activeTab: AgentsDashboardTab = 'statistics';
+	private activeTab: AgentsDashboardTab = 'sessions';
 	private historyRange: AgentsDashboardHistoryRange = 'week';
+	private selectedChatActivitySession: ISession | undefined;
+	private latestSessionRows: readonly IAgentsDashboardSessionRow[] = [];
+	private latestHistoryEvents: readonly AgentsDashboardHistoryEvent[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -375,11 +409,19 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 		const focusTracker = this._register(DOM.trackFocus(this.container));
 		this._register(focusTracker.onDidFocus(() => this.focusContext.set(true)));
 		this._register(focusTracker.onDidBlur(() => this.focusContext.set(false)));
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, event => {
+			if (this.selectedChatActivitySession && (event as KeyboardEvent).key === 'Escape') {
+				event.preventDefault();
+				event.stopPropagation();
+				this.hideChatActivity();
+				this.sessionsTable.domFocus();
+			}
+		}));
 
 		const content = DOM.append(this.container, $('.agents-dashboard-content'));
-		const tabs = DOM.append(content, $('.agents-dashboard-tabs.modern-ui-editor-tab-group.modern-ui-editor-tab-group-active', { role: 'tablist', 'aria-label': localize('agentsDashboard.tabs', "Agents Dashboard") }));
-		this.statisticsTab = this.createTab(tabs, 'statistics', localize('agentsDashboard.tab.statistics', "Statistics"));
+		const tabs = DOM.append(content, $('.agents-dashboard-tabs.modern-ui-editor-tab-group.modern-ui-editor-tab-group-active', { role: 'tablist', 'aria-label': localize('agentsDashboard.tabs', "Manage Sessions") }));
 		this.sessionsTab = this.createTab(tabs, 'sessions', localize('agentsDashboard.tab.sessions', "Sessions"));
+		this.dashboardTab = this.createTab(tabs, 'dashboard', localize('agentsDashboard.tab.dashboard', "Dashboard"));
 		const tabActions = DOM.append(tabs, $('.agents-dashboard-tab-actions'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, tabActions, Menus.AgentsDashboardTabs, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -387,18 +429,18 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		this.statisticsPanel = DOM.append(content, $('.agents-dashboard-tab-panel.agents-dashboard-statistics-panel', {
-			id: 'agents-dashboard-statistics-panel',
+		this.dashboardPanel = DOM.append(content, $('.agents-dashboard-tab-panel.agents-dashboard-statistics-panel.hidden', {
+			id: 'agents-dashboard-dashboard-panel',
 			role: 'tabpanel',
-			'aria-labelledby': 'agents-dashboard-statistics-tab',
+			'aria-labelledby': 'agents-dashboard-dashboard-tab',
 		}));
-		this.sessionsPanel = DOM.append(content, $('.agents-dashboard-tab-panel.agents-dashboard-sessions-panel.hidden', {
+		this.sessionsPanel = DOM.append(content, $('.agents-dashboard-tab-panel.agents-dashboard-sessions-panel', {
 			id: 'agents-dashboard-sessions-panel',
 			role: 'tabpanel',
 			'aria-labelledby': 'agents-dashboard-sessions-tab',
 		}));
 
-		const statisticsHeader = DOM.append(this.statisticsPanel, $('.agents-dashboard-statistics-header'));
+		const statisticsHeader = DOM.append(this.dashboardPanel, $('.agents-dashboard-statistics-header'));
 		const summary = DOM.append(statisticsHeader, $('.agents-dashboard-summary', {
 			role: 'group',
 			'aria-label': localize('agentsDashboard.summaryAriaLabel', "Session summary"),
@@ -410,14 +452,14 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 		};
 		const rangeSelector = DOM.append(statisticsHeader, $('.agents-dashboard-range-selector', {
 			role: 'group',
-			'aria-label': localize('agentsDashboard.range', "Statistics range"),
+			'aria-label': localize('agentsDashboard.range', "Dashboard range"),
 		}));
 		this.createRangeButton(rangeSelector, 'today', localize('agentsDashboard.range.today', "Today"));
 		this.createRangeButton(rangeSelector, 'week', localize('agentsDashboard.range.week', "7 days"));
 		this.createRangeButton(rangeSelector, 'month', localize('agentsDashboard.range.month', "30 days"));
 
-		const charts = DOM.append(this.statisticsPanel, $('.agents-dashboard-charts'));
-		this.statisticsCharts = {
+		const charts = DOM.append(this.dashboardPanel, $('.agents-dashboard-charts'));
+		this.dashboardCharts = {
 			sessions: createChartCard(charts,
 				localize('agentsDashboard.chart.sessions', "Sessions started vs done"),
 				localize('agentsDashboard.chart.sessionsDescription', "New work compared with completed work.")),
@@ -434,32 +476,35 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 				localize('agentsDashboard.chart.storagePerSession', "Storage per session"),
 				localize('agentsDashboard.chart.storagePerSessionDescription', "Median and largest session-owned worktree size.")),
 		};
-		this.selectTab('statistics');
+		this.selectTab('sessions');
 
+		const sessionsTablePane = $('.agents-dashboard-sessions-table-pane');
+		this.sessionsPanel.appendChild(sessionsTablePane);
 		this.sessionsSection = createSessionsTabContent(
-			this.sessionsPanel,
+			sessionsTablePane,
 			'agents-dashboard-sessions-section',
 			Codicon.commentDiscussion,
 			localize('agentsDashboard.sessionsEmptyTitle', "No sessions yet"),
 			localize('agentsDashboard.sessionsEmptyDescription', "Start an agent session and it will appear here."),
 		);
+
 		this.sessionsTable = (this._register(this.instantiationService.createInstance(
 			WorkbenchTable,
 			'AgentsDashboardSessions',
 			this.sessionsSection.tableContainer,
-			new SessionsTableDelegate(),
+			new SessionsTableDelegate(this),
 			[
 				{
 					label: localize('agentsDashboard.column.title', "Title"),
 					tooltip: '',
-					weight: 0.39,
+					weight: 0.42,
 					templateId: SessionColumnRenderer.TEMPLATE_ID,
 					project(row: IAgentsDashboardSessionRow) { return row; },
 				},
 				{
 					label: localize('agentsDashboard.column.workingDirectories', "Working directories"),
 					tooltip: '',
-					weight: 0.3,
+					weight: 0.29,
 					minimumWidth: 160,
 					templateId: SessionWorkingDirectoriesColumnRenderer.TEMPLATE_ID,
 					project(row: IAgentsDashboardSessionRow) { return row; },
@@ -499,7 +544,7 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 				},
 			],
 			[
-				this.instantiationService.createInstance(SessionColumnRenderer),
+				this.instantiationService.createInstance(SessionColumnRenderer, this),
 				this.instantiationService.createInstance(SessionWorkingDirectoriesColumnRenderer),
 				this.instantiationService.createInstance(SessionSizeColumnRenderer),
 				this.instantiationService.createInstance(SessionCreditsColumnRenderer),
@@ -512,21 +557,46 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 					getWidgetAriaLabel: () => localize('agentsDashboard.sessionsAriaLabel', "Sessions"),
 					getAriaLabel: (row: IAgentsDashboardSessionRow) => localize(
 						'agentsDashboard.sessionRowAriaLabel',
-						"{0}, working directories {1}, size {2}, credits {3}, status {4}",
+						"{0}, working directories {1}, {2} chats, size {3}, credits {4}, status {5}",
 						row.title,
 						row.workingDirectories.length === 0
 							? localize('agentsDashboard.workingDirectoriesNoneAria', "none")
 							: row.workingDirectories.map(directory => directory.isWorktree
 								? localize('agentsDashboard.workingDirectoryWorktreeAria', "{0} (worktree)", directory.path)
 								: localize('agentsDashboard.workingDirectoryFolderAria', "{0} (folder)", directory.path)).join(', '),
+						row.chatCount,
 						row.worktreeSizeBytes === undefined ? localize('agentsDashboard.sizeUnknown', "unknown") : ByteSize.formatSize(row.worktreeSizeBytes),
 						row.credits === undefined ? localize('agentsDashboard.creditsUnknown', "unknown") : formatCopilotCredits(row.credits),
 						getSessionStatusLabel(row),
 					),
 				},
 				multipleSelectionSupport: false,
+				openOnSingleClick: false,
 			},
 		))) as WorkbenchTable<IAgentsDashboardSessionRow>;
+		this._register(this.sessionsTable.onMouseClick(event => {
+			if (!event.element) {
+				return;
+			}
+			const target = event.browserEvent.target;
+			if (DOM.isHTMLElement(target) && DOM.findParentWithClass(target, 'action-item', this.sessionsTable.getHTMLElement())) {
+				return;
+			}
+			this.toggleChatActivity(event.element.session);
+		}));
+		this._register(DOM.addDisposableListener(this.sessionsTable.getHTMLElement(), DOM.EventType.KEY_DOWN, event => {
+			const keyboardEvent = event as KeyboardEvent;
+			const target = keyboardEvent.target;
+			if (keyboardEvent.key !== ' ' || (DOM.isHTMLElement(target) && DOM.findParentWithClass(target, 'action-item', this.sessionsTable.getHTMLElement()))) {
+				return;
+			}
+			const row = this.sessionsTable.getFocusedElements()[0];
+			if (row) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				this.toggleChatActivity(row.session);
+			}
+		}));
 		this._register(this.sessionsTable.onDidOpen(event => {
 			if (event.element) {
 				void this.revealSession(event.element.session.resource);
@@ -539,12 +609,17 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 			const sessions = this.sessionsManagementService.getSessions();
 			const worktreeEntries = this.worktreeDashboardService.entries.read(reader);
 			const sessionRows = buildSessionRows(sessions, worktreeEntries);
+			this.latestSessionRows = sessionRows;
 			const historyEvents = this.historyService.events.read(reader);
+			this.latestHistoryEvents = historyEvents;
+			if (this.selectedChatActivitySession && !sessions.some(session => session.sessionId === this.selectedChatActivitySession!.sessionId)) {
+				this.hideChatActivity();
+			}
 
 			this.sessionsTable.splice(0, this.sessionsTable.length, sessionRows);
 			this.updateSummary(buildAgentsDashboardSummary(sessionRows));
-			if (this.activeTab === 'statistics') {
-				this.updateStatistics(buildAgentsDashboardHistoryBuckets(historyEvents, this.historyRange, Date.now()));
+			if (this.activeTab === 'dashboard') {
+				this.updateStatistics(historyEvents);
 			}
 			this.sessionRowCount = sessionRows.length;
 			this.updateSection(this.sessionsSection, this.sessionRowCount);
@@ -571,9 +646,9 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 				this.selectTab(tab);
 			} else if (keyboardEvent.key === 'ArrowLeft' || keyboardEvent.key === 'ArrowRight') {
 				keyboardEvent.preventDefault();
-				const next = tab === 'statistics' ? 'sessions' : 'statistics';
+				const next = tab === 'dashboard' ? 'sessions' : 'dashboard';
 				this.selectTab(next);
-				(next === 'statistics' ? this.statisticsTab : this.sessionsTab).focus();
+				(next === 'dashboard' ? this.dashboardTab : this.sessionsTab).focus();
 			}
 		}));
 		return button;
@@ -591,48 +666,50 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 				candidateButton.classList.toggle('active', candidate === range);
 				candidateButton.setAttribute('aria-pressed', String(candidate === range));
 			}
-			this.updateStatistics(buildAgentsDashboardHistoryBuckets(this.historyService.events.get(), range, Date.now()));
+			this.updateStatistics(this.historyService.events.get());
 		}));
 	}
 
 	private selectTab(tab: AgentsDashboardTab): void {
 		this.activeTab = tab;
-		const statisticsSelected = tab === 'statistics';
-		this.statisticsTab.classList.toggle('active', statisticsSelected);
-		this.statisticsTab.setAttribute('aria-selected', String(statisticsSelected));
-		this.statisticsTab.tabIndex = statisticsSelected ? 0 : -1;
-		this.statisticsPanel.classList.toggle('hidden', !statisticsSelected);
-		this.sessionsTab.classList.toggle('active', !statisticsSelected);
-		this.sessionsTab.setAttribute('aria-selected', String(!statisticsSelected));
-		this.sessionsTab.tabIndex = statisticsSelected ? -1 : 0;
-		this.sessionsPanel.classList.toggle('hidden', statisticsSelected);
-		if (statisticsSelected) {
-			this.updateStatistics(buildAgentsDashboardHistoryBuckets(this.historyService.events.get(), this.historyRange, Date.now()));
+		const dashboardSelected = tab === 'dashboard';
+		this.dashboardTab.classList.toggle('active', dashboardSelected);
+		this.dashboardTab.setAttribute('aria-selected', String(dashboardSelected));
+		this.dashboardTab.tabIndex = dashboardSelected ? 0 : -1;
+		this.dashboardPanel.classList.toggle('hidden', !dashboardSelected);
+		this.sessionsTab.classList.toggle('active', !dashboardSelected);
+		this.sessionsTab.setAttribute('aria-selected', String(!dashboardSelected));
+		this.sessionsTab.tabIndex = dashboardSelected ? -1 : 0;
+		this.sessionsPanel.classList.toggle('hidden', dashboardSelected);
+		if (dashboardSelected) {
+			this.updateStatistics(this.historyService.events.get());
 		} else {
 			this.layoutTables(this.lastLayoutWidth);
 		}
 	}
 
-	private updateStatistics(buckets: readonly IAgentsDashboardHistoryBucket[]): void {
+	private updateStatistics(events: readonly AgentsDashboardHistoryEvent[]): void {
+		const now = Date.now();
+		const buckets = buildAgentsDashboardHistoryBuckets(events, this.historyRange, now);
 		const countFormat = (value: number) => Number.isInteger(value) ? value.toLocaleString() : parseFloat(value.toFixed(1)).toLocaleString();
 		const durationFormat = (value: number) => formatDuration(value);
 		const byteFormat = (value: number) => ByteSize.formatSize(value);
-		renderAgentsDashboardChart(this.statisticsCharts.sessions.body, buckets, [
+		renderAgentsDashboardChart(this.dashboardCharts.sessions.body, buckets, [
 			chartSeries(localize('agentsDashboard.chart.started', "Started"), 'var(--vscode-charts-blue)', valuesIfAny(buckets.map(bucket => bucket.sessionsStarted))),
 			chartSeries(localize('agentsDashboard.chart.done', "Done"), 'var(--vscode-charts-green)', valuesIfAny(buckets.map(bucket => bucket.sessionsDone))),
 		], 'bar', countFormat);
-		renderAgentsDashboardChart(this.statisticsCharts.outcomes.body, buckets, [
+		renderAgentsDashboardChart(this.dashboardCharts.outcomes.body, buckets, [
 			chartSeries(localize('agentsDashboard.chart.done', "Done"), 'var(--vscode-charts-green)', valuesIfAny(buckets.map(bucket => bucket.sessionsDone))),
 			chartSeries(localize('agentsDashboard.chart.prCreated', "PR created"), 'var(--vscode-charts-blue)', valuesIfAny(buckets.map(bucket => bucket.pullRequestsCreated))),
 			chartSeries(localize('agentsDashboard.chart.prMerged', "PR merged"), 'var(--vscode-charts-purple)', valuesIfAny(buckets.map(bucket => bucket.pullRequestsMerged))),
 		], 'bar', countFormat);
-		renderAgentsDashboardChart(this.statisticsCharts.duration.body, buckets, [
+		renderAgentsDashboardChart(this.dashboardCharts.duration.body, buckets, [
 			chartSeries(localize('agentsDashboard.chart.median', "Median"), 'var(--vscode-charts-orange)', buckets.map(bucket => bucket.medianCompletionDurationMs)),
 		], 'line', durationFormat);
-		renderAgentsDashboardChart(this.statisticsCharts.disk.body, buckets, [
+		renderAgentsDashboardChart(this.dashboardCharts.disk.body, buckets, [
 			chartSeries(localize('agentsDashboard.chart.diskSeries', "Worktrees"), 'var(--vscode-charts-yellow)', buckets.map(bucket => bucket.diskUsageBytes)),
 		], 'line', byteFormat);
-		renderAgentsDashboardChart(this.statisticsCharts.storagePerSession.body, buckets, [
+		renderAgentsDashboardChart(this.dashboardCharts.storagePerSession.body, buckets, [
 			chartSeries(localize('agentsDashboard.chart.storageMedian', "Median"), 'var(--vscode-charts-blue)', buckets.map(bucket => bucket.medianSessionStorageBytes)),
 			chartSeries(localize('agentsDashboard.chart.storageLargest', "Largest"), 'var(--vscode-charts-orange)', buckets.map(bucket => bucket.largestSessionStorageBytes)),
 		], 'line', byteFormat);
@@ -664,8 +741,8 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 	}
 
 	override focus(): void {
-		if (this.activeTab === 'statistics') {
-			this.statisticsTab.focus();
+		if (this.activeTab === 'dashboard') {
+			this.dashboardTab.focus();
 		} else if (this.sessionRowCount > 0) {
 			this.sessionsTable.domFocus();
 		} else {
@@ -682,10 +759,63 @@ export class AgentsDashboardCustomView extends AbstractCustomView {
 		if (this.activeTab !== 'sessions' || this.sessionRowCount === 0 || this.lastLayoutHeight === 0) {
 			return;
 		}
+		this.layoutTable();
+	}
+
+	private layoutTable(): void {
 		const height = this.sessionsSection.tableContainer.clientHeight;
 		if (height > 0) {
-			this.sessionsTable.layout(height, this.sessionsSection.tableContainer.clientWidth || width);
+			this.sessionsTable.layout(height, this.sessionsSection.tableContainer.clientWidth || this.lastLayoutWidth);
 		}
+	}
+
+	isChatActivityExpanded(session: ISession): boolean {
+		return this.selectedChatActivitySession?.sessionId === session.sessionId;
+	}
+
+	toggleChatActivity(session: ISession): void {
+		const expanded = this.isChatActivityExpanded(session);
+		this.selectedChatActivitySession = expanded ? undefined : session;
+		this.refreshSessionRows();
+		if (!expanded) {
+			const title = session.title.get() || localize('agentsDashboard.chatActivity.untitledSession', "Untitled session");
+			status(localize('agentsDashboard.chatActivity.opened', "Expanded chat activity for {0}", title));
+			const index = this.latestSessionRows.findIndex(row => row.session.sessionId === session.sessionId);
+			if (index >= 0) {
+				this.sessionsTable.reveal(index);
+			}
+		}
+	}
+
+	private hideChatActivity(): void {
+		if (!this.selectedChatActivitySession) {
+			return;
+		}
+		this.selectedChatActivitySession = undefined;
+		this.refreshSessionRows();
+	}
+
+	renderChatActivity(container: HTMLElement, session: ISession): void {
+		DOM.clearNode(container);
+		container.setAttribute('role', 'region');
+		container.setAttribute('aria-label', localize('agentsDashboard.chatActivity.inlineAriaLabel', "Chat activity for {0}", session.title.get()));
+		const header = DOM.append(container, $('.agents-dashboard-chat-inline-header'));
+		DOM.append(header, $('h2.agents-dashboard-chat-inline-title', undefined, localize('agentsDashboard.chatActivity.title', "Chat activity")));
+		DOM.append(header, $('.agents-dashboard-chat-inline-description', undefined,
+			localize('agentsDashboard.chatActivity.inlineDescription', "From session start to completion or now.")));
+		const body = DOM.append(container, $('.agents-dashboard-chat-inline-body'));
+		const activity = buildAgentsDashboardChatActivity(
+			this.latestHistoryEvents,
+			[session],
+			'month',
+			Date.now(),
+			session.sessionId,
+		);
+		renderAgentsDashboardChatActivity(body, activity);
+	}
+
+	private refreshSessionRows(): void {
+		this.sessionsTable.splice(0, this.sessionsTable.length, this.latestSessionRows);
 	}
 
 	async revealSession(sessionResource: URI): Promise<void> {

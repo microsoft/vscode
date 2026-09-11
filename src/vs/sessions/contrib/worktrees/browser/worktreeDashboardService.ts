@@ -5,7 +5,7 @@
 
 import { Limiter, RunOnceScheduler, Throttler } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, autorun, derived, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, autorun, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -28,11 +28,7 @@ class WorktreeDashboardService extends Disposable implements IWorktreeDashboardS
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = observableValue<IWorktreeDashboardEntry[]>(this, []);
-	private readonly _developmentEntries = observableValue<readonly IWorktreeDashboardEntry[]>(this, []);
-	readonly entries: IObservable<IWorktreeDashboardEntry[]> = derived(this, reader => [
-		...this._entries.read(reader),
-		...this._developmentEntries.read(reader),
-	]);
+	readonly entries: IObservable<IWorktreeDashboardEntry[]> = this._entries;
 	private readonly _hasRefreshed = observableValue(this, false);
 	readonly hasRefreshed: IObservable<boolean> = this._hasRefreshed;
 	private readonly _refreshThrottler = this._register(new Throttler());
@@ -65,10 +61,6 @@ class WorktreeDashboardService extends Disposable implements IWorktreeDashboardS
 	async refresh(): Promise<void> {
 		this._refreshScheduler.cancel();
 		await this._refreshThrottler.queue(() => this._refresh());
-	}
-
-	setDevelopmentEntries(entries: readonly IWorktreeDashboardEntry[]): void {
-		this._developmentEntries.set(entries, undefined);
 	}
 
 	private async _refresh(): Promise<void> {

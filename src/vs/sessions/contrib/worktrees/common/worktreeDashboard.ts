@@ -72,9 +72,6 @@ export interface IWorktreeDashboardService {
 	/** Whether the first authoritative Git and disk scan has completed. */
 	readonly hasRefreshed: IObservable<boolean>;
 
-	/** Adds in-memory worktree entries for development fixtures. Never persisted or scanned. */
-	setDevelopmentEntries(entries: readonly IWorktreeDashboardEntry[]): void;
-
 	/** Re-enumerates worktrees through Git and re-correlates them with sessions. */
 	refresh(): Promise<void>;
 

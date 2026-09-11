@@ -25,7 +25,7 @@ registerAction2(class OpenAgentsDashboardAction extends Action2 {
 	constructor() {
 		super({
 			id: OPEN_AGENTS_DASHBOARD_COMMAND_ID,
-			title: localize2('openAgentsDashboard', "Open Agents Dashboard"),
+			title: localize2('openAgentsDashboard', "Manage Sessions"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			precondition: IsSessionsWindowContext,
@@ -47,7 +47,7 @@ registerAction2(class RefreshAgentsDashboardAction extends Action2 {
 	constructor() {
 		super({
 			id: REFRESH_AGENTS_DASHBOARD_COMMAND_ID,
-			title: localize2('refreshAgentsDashboard', "Refresh Agents Dashboard"),
+			title: localize2('refreshAgentsDashboard', "Refresh Manage Sessions"),
 			icon: Codicon.refresh,
 			menu: [{
 				id: Menus.AgentsDashboardTabs,
@@ -63,7 +63,7 @@ registerAction2(class RefreshAgentsDashboardAction extends Action2 {
 		} catch (error) {
 			accessor.get(INotificationService).notify({
 				severity: Severity.Error,
-				message: localize('agentsDashboard.refreshFailed', "Failed to refresh Agents Dashboard: {0}", toErrorMessage(error)),
+				message: localize('agentsDashboard.refreshFailed', "Failed to refresh Manage Sessions: {0}", toErrorMessage(error)),
 			});
 		}
 	}

@@ -28,7 +28,7 @@ class AgentsDashboardCustomViewContribution extends Disposable implements IWorkb
 			id: AGENTS_DASHBOARD_CUSTOM_VIEW_ID,
 			ctor: new SyncDescriptor(AgentsDashboardCustomView),
 			hideHeader: true,
-			commandCenterTitle: localize('agentsDashboard.commandCenterTitle', "Agents Dashboard"),
+			commandCenterTitle: localize('agentsDashboard.commandCenterTitle', "Manage Sessions"),
 		}));
 	}
 }
