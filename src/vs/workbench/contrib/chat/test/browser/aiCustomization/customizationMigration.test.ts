@@ -230,15 +230,12 @@ suite('customizationMigration', () => {
 		};
 
 		assert.deepStrictEqual({
-			shortcut: category.getShortcutAriaLabel(1),
 			agent: {
 				card: category.getCardDescription([agent], harnessLabel),
-				page: category.getPageDescription([agent], harnessLabel),
 				confirmation: category.getConfirmation([agent], harnessLabel, '~/.copilot/agents'),
 			},
 			instruction: {
 				card: category.getCardDescription([instruction], harnessLabel),
-				page: category.getPageDescription([instruction], harnessLabel),
 				confirmation: category.getConfirmation([instruction], harnessLabel).detail,
 			},
 			mixed: {
@@ -248,10 +245,8 @@ suite('customizationMigration', () => {
 			migrated: category.getMigratedMessage(1),
 			failed: category.getFailedMessage(['reviewer.agent.md'], 0),
 		}, {
-			shortcut: 'User data, 1 customization needs migration',
 			agent: {
 				card: 'User data customizations are only used by VS Code. Found 1 agent that Copilot ignores. Move it to keep it available.',
-				page: 'Found 1 agent in user data that local VS Code can still use, but Copilot ignores. Move it to the harness agents folder to keep it available.',
 				confirmation: {
 					message: 'Migrate user data customizations to \'~/.copilot/agents\'?',
 					detail: 'This moves 1 agent out of user data.',
@@ -261,7 +256,6 @@ suite('customizationMigration', () => {
 			},
 			instruction: {
 				card: 'User data customizations are only used by VS Code. Found 1 instruction file that Copilot ignores. Move it to keep it available.',
-				page: 'Found 1 instruction file in user data that local VS Code can still use, but Copilot ignores. Move it to the harness instructions folder to keep it available.',
 				confirmation: 'This moves 1 instruction file out of user data.',
 			},
 			mixed: {
@@ -388,6 +382,7 @@ suite('customizationMigration', () => {
 			result: {
 				...result,
 				migratedCustomizations: result.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
+				migratedSources: result.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			migratedSkillHasManualInvocation: migratedSkillContent.includes('disable-model-invocation: true'),
 			migratedAgentContent: (await fileService.readFile(migratedAgentUri)).value.toString(),
@@ -404,6 +399,7 @@ suite('customizationMigration', () => {
 					{ uri: migratedAgentUri.path, type: PromptsType.agent },
 					{ uri: migratedInstructionsUri.path, type: PromptsType.instructions },
 				],
+				migratedSources: customizations.slice(0, 3).map(customization => ({ uri: customization.uri.path, storage: customization.storage })),
 			},
 			migratedSkillHasManualInvocation: true,
 			migratedAgentContent: '---\ndescription: Plan work\n---\nPlan.',
@@ -458,6 +454,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: [],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [{ uri: migratedUri.path, type: PromptsType.skill }],
+				migratedSources: [{ uri: skill.uri, storage: skill.storage }],
 			},
 			migratedContents: [
 				'---\nname: release\n---\nRelease safely.',
@@ -507,6 +504,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: ['SKILL.md'],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [],
+				migratedSources: [],
 			},
 			sourceContents: [
 				'---\nname: release\n---\nRelease safely.',
@@ -542,6 +540,7 @@ suite('customizationMigration', () => {
 			result: {
 				...result,
 				migratedCustomizations: result.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
+				migratedSources: result.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			sourceExists: await fileService.exists(sourceUri),
 			workspaceTargetExists: await fileService.exists(workspaceSkillUri),
@@ -554,6 +553,10 @@ suite('customizationMigration', () => {
 				migratedCustomizations: [
 					{ uri: workspaceSkillUri.path, type: PromptsType.skill },
 					{ uri: userSkillUri.path, type: PromptsType.skill },
+				],
+				migratedSources: [
+					{ uri: sourceUri.path, storage: PromptsStorage.local },
+					{ uri: sourceUri.path, storage: PromptsStorage.user },
 				],
 			},
 			sourceExists: false,
@@ -595,11 +598,15 @@ suite('customizationMigration', () => {
 		const retriedResult = await migrateCustomizations([customization], targetFolders, fileService);
 
 		assert.deepStrictEqual({
-			failedResult,
+			failedResult: {
+				...failedResult,
+				migratedSources: failedResult.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
+			},
 			afterFailure,
 			retriedResult: {
 				...retriedResult,
 				migratedCustomizations: retriedResult.migratedCustomizations.map(item => item.uri.path),
+				migratedSources: retriedResult.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			afterRetry: {
 				sourceExists: await fileService.exists(sourceUri),
@@ -612,6 +619,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: ['style.instructions.md'],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [],
+				migratedSources: [],
 			},
 			afterFailure: {
 				sourceExists: true,
@@ -623,6 +631,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: [],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [targetUri.path],
+				migratedSources: [{ uri: sourceUri.path, storage: PromptsStorage.user }],
 			},
 			afterRetry: {
 				sourceExists: false,
@@ -669,6 +678,7 @@ suite('customizationMigration', () => {
 				failedCustomizationFileNames: ['style.instructions.md'],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [],
+				migratedSources: [],
 			},
 			sourceExists: true,
 			targetContent: 'foreign content',

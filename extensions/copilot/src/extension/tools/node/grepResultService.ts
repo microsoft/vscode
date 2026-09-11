@@ -6,6 +6,9 @@
 import type * as vscode from 'vscode';
 
 import { createServiceIdentifier } from '../../../util/common/services';
+import { binarySearch2 } from '../../../util/vs/base/common/arrays';
+import { Emitter, Event } from '../../../util/vs/base/common/event';
+import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { LRUCache } from '../../../util/vs/base/common/map';
 
 export const IGrepResultService = createServiceIdentifier<IGrepResultService>('IGrepResultService');
@@ -21,95 +24,126 @@ interface MatchResult {
 
 export interface IGrepResultService {
 	readonly _serviceBrand: undefined;
+	readonly onDidRemoveGrepResult: Event<{ sessionUri: vscode.Uri; requestId: string }>;
 
-	addGrepResult(requestId: string, result: MatchResult): void;
-	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined;
+	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void;
+	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined;
 }
 
 export class NullGrepResultService implements IGrepResultService {
 	declare readonly _serviceBrand: undefined;
+	readonly onDidRemoveGrepResult = Event.None;
 
-	addGrepResult(requestId: string, result: MatchResult): void {
+	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void {
 		// No-op
 	}
 
-	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
+	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
 		return undefined;
 	}
 }
 
-interface Matches {
-	files: Map<string, vscode.Range[]>;
+interface FileMatches {
+	ranges: vscode.Range[];
+	prefixMaxEndLines: number[];
 }
 
-export class GrepResultService implements IGrepResultService {
-	readonly _serviceBrand: undefined;
+interface GrepResult {
+	requestId: string;
+	matches: Map<string, FileMatches>;
+}
 
-	private readonly cache: LRUCache<string, Matches>;
+class SessionMatches {
+	private static readonly maxMatches = 16;
+
+	private readonly matches: GrepResult[];
 
 	constructor() {
-		this.cache = new LRUCache<string, Matches>(10);
+		this.matches = [];
 	}
 
-	addGrepResult(requestId: string, result: MatchResult): void {
-		let matches: Matches | undefined = this.cache.get(requestId);
-		if (matches === undefined) {
-			matches = { files: new Map() };
-			for (const file of result.files) {
-				matches.files.set(file.uri.toString(), file.matches.map(m => m.ranges[0].sourceRange));
+	add(result: GrepResult): string | undefined {
+		this.matches.push(result);
+		if (this.matches.length > SessionMatches.maxMatches) {
+			return this.matches.shift()?.requestId;
+		}
+		return undefined;
+	}
+
+	get(uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] {
+		const result: vscode.Range[] = [];
+		const seen = new Set<string>();
+		const uriKey = uri.toString();
+
+		for (let i = this.matches.length - 1; i >= 0; i--) {
+			const fileMatches = this.matches[i].matches.get(uriKey);
+			if (!fileMatches) {
+				continue;
 			}
-			this.cache.set(requestId, matches);
-		} else {
-			for (const file of result.files) {
-				const existingRanges = matches.files.get(file.uri.toString());
-				if (existingRanges === undefined) {
-					matches.files.set(file.uri.toString(), file.matches.map(m => m.ranges[0].sourceRange));
-				} else {
-					const existingRangesSet = new Set<number>(existingRanges.map(r => r.start.line));
-					for (const match of file.matches) {
-						const line = match.ranges[0].sourceRange.start.line;
-						if (!existingRangesSet.has(line)) {
-							existingRanges.push(match.ranges[0].sourceRange);
-							existingRangesSet.add(line);
-						}
-					}
-					existingRanges.sort((a, b) => a.start.line - b.start.line);
-					matches.files.set(file.uri.toString(), existingRanges);
+
+			const startIndex = ~binarySearch2(fileMatches.ranges.length, index => fileMatches.prefixMaxEndLines[index] < startLine ? -1 : 1);
+			const endIndex = ~binarySearch2(fileMatches.ranges.length, index => fileMatches.ranges[index].start.line <= endLine ? -1 : 1);
+			for (let matchIndex = startIndex; matchIndex < endIndex; matchIndex++) {
+				const match = fileMatches.ranges[matchIndex];
+				if (match.end.line < startLine || match.start.line > endLine) {
+					continue;
+				}
+
+				const key = `${match.start.line}:${match.start.character}-${match.end.line}:${match.end.character}`;
+				if (!seen.has(key)) {
+					seen.add(key);
+					result.push(match);
 				}
 			}
 		}
+
+		return result;
+	}
+}
+
+export class GrepResultService extends Disposable implements IGrepResultService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidRemoveGrepResult = this._register(new Emitter<{ sessionUri: vscode.Uri; requestId: string }>());
+	readonly onDidRemoveGrepResult = this._onDidRemoveGrepResult.event;
+
+	private readonly cache: LRUCache<string, SessionMatches>;
+
+	constructor() {
+		super();
+		this.cache = new LRUCache<string, SessionMatches>(10);
 	}
 
-	getGrepResult(requestId: string, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
-		const matches = this.cache.get(requestId);
+	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void {
+		const key = sessionUri.toString();
+		let sessionMatches = this.cache.get(key);
+		if (sessionMatches === undefined) {
+			sessionMatches = new SessionMatches();
+			this.cache.set(key, sessionMatches);
+		}
+
+		const matches = new Map<string, FileMatches>();
+		for (const file of result.files) {
+			const ranges = file.matches.map(match => match.ranges[0].sourceRange);
+			const prefixMaxEndLines: number[] = [];
+			let maxEndLine = -1;
+			for (const range of ranges) {
+				maxEndLine = Math.max(maxEndLine, range.end.line);
+				prefixMaxEndLines.push(maxEndLine);
+			}
+			matches.set(file.uri.toString(), { ranges, prefixMaxEndLines });
+		}
+		const removedRequestId = sessionMatches.add({ requestId, matches });
+		if (removedRequestId !== undefined) {
+			this._onDidRemoveGrepResult.fire({ sessionUri, requestId: removedRequestId });
+		}
+	}
+
+	getGrepResult(sessionUri: vscode.Uri, uri: vscode.Uri, startLine: number, endLine: number): vscode.Range[] | undefined {
+		const matches = this.cache.get(sessionUri.toString());
 		if (!matches) {
 			return undefined;
 		}
-		const fileMatches = matches.files.get(uri.toString());
-		if (!fileMatches) {
-			return undefined;
-		}
-
-		let low = 0;
-		let high = fileMatches.length;
-		while (low < high) {
-			const mid = low + Math.floor((high - low) / 2);
-			if (fileMatches[mid].start.line < startLine) {
-				low = mid + 1;
-			} else {
-				high = mid;
-			}
-		}
-
-		const result: vscode.Range[] = [];
-		for (let i = low; i < fileMatches.length; i++) {
-			const match = fileMatches[i];
-			if (match.start.line > endLine) {
-				break;
-			}
-			result.push(match);
-		}
-
-		return result;
+		return matches.get(uri, startLine, endLine);
 	}
 }

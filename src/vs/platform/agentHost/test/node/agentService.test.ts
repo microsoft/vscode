@@ -36,7 +36,7 @@ import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js'
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
-import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
+import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
@@ -4737,6 +4737,82 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('restoring an unregistered session does not re-announce existing sessions from a completed legacy migration', async () => {
+			const database = new TransientRegistryWriteDatabase();
+			const sessionData = createPerSessionDataService();
+			const session = AgentSession.uri('copilot', 'existing-legacy');
+			const missingSession = AgentSession.uri('copilot', 'missing');
+			await Promise.all([
+				sessionData.database(session).setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'false'),
+				sessionData.database(session).setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true'),
+				sessionData.database(session).setMetadata('customTitle', 'Persisted title'),
+				database.registerSession(session.toString(), {
+					provider: 'copilot',
+					startTime: 1,
+					modifiedTime: 2,
+					source: 'explicit',
+				}, { checkTombstone: true }),
+				database.markProviderBackfilled('copilot'),
+			]);
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: false });
+			svc.primeMigrateLegacyGate();
+			const agent = disposables.add(new class extends MockAgent {
+				legacyCalls = 0;
+
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					this.legacyCalls++;
+					return [{
+						chat: URI.parse(buildDefaultChatUri(session)),
+						startTime: 1,
+						modifiedTime: 2,
+						summary: 'Stale provider title',
+					}];
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
+					return chat.toString() === buildDefaultChatUri(session) ? {
+						chat,
+						startTime: 1,
+						modifiedTime: 2,
+						summary: 'Stale provider title',
+					} : undefined;
+				}
+				async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+					return { adopted: false, eligible: false };
+				}
+			}('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const before = await svc.listSessions();
+			const catalogState = svc as unknown as {
+				_readableProviderCatalogs: Set<string>;
+				_deferredProviderMigrations: Set<string>;
+			};
+			const beforeRestore = {
+				providerBackfilled: await svc.isProviderRegistryBackfilled('copilot'),
+				readable: catalogState._readableProviderCatalogs.has('copilot'),
+				deferred: catalogState._deferredProviderMigrations.has('copilot'),
+			};
+			const notifications: INotification[] = [];
+			disposables.add(getStateManager(svc).onDidEmitNotification(notification => notifications.push(notification)));
+
+			await assert.rejects(svc.restoreSession(missingSession), /Session is not an adoptable legacy chat/);
+			const after = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				beforeRestore,
+				legacyCalls: agent.legacyCalls,
+				before: before.map(item => ({ title: item.summary, status: item.status })),
+				after: after.map(item => ({ title: item.summary, status: item.status })),
+				sessionAdded: notifications.filter(notification => notification.type === NotificationType.SessionAdded),
+			}, {
+				beforeRestore: { providerBackfilled: true, readable: false, deferred: false },
+				legacyCalls: 1,
+				before: [{ title: 'Persisted title', status: SessionStatus.Idle | SessionStatus.IsArchived }],
+				after: [{ title: 'Persisted title', status: SessionStatus.Idle | SessionStatus.IsArchived }],
+				sessionAdded: [],
+			});
+		});
+
 		test('legacy migration and external discovery use separate provider catalogs and signals', async () => {
 			class SeparateCatalogAgent extends MockAgent {
 				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
@@ -6401,6 +6477,32 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
 		});
 
+		for (const isolation of ['folder', 'worktree']) {
+			test(`listSessions reads session config alongside changeset metadata for an unopened ${isolation} session`, async () => {
+				const db = new TestSessionDatabase();
+				const agent = disposables.add(new MockAgent('copilot'));
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: agent.id });
+				await db.setMetadata('configValues', JSON.stringify({ [SessionConfigKey.Isolation]: isolation }));
+				await db.setMetadata(META_CHANGESET_BRANCH, JSON.stringify([
+					{ diff: { added: 7, removed: 2 } },
+					{ diff: { added: 4, removed: 1 } },
+				]));
+				await db.setMetadata(META_CHANGESET_SESSION, JSON.stringify([{ diff: { added: 3, removed: 1 } }]));
+				const stateManager = getStateManager(svc);
+				stateManager.deleteSession(session.toString());
+
+				const listed = await svc.listSessions();
+				const expected = isolation === 'worktree' ? { additions: 11, deletions: 3, files: 2 } : { additions: 3, deletions: 1, files: 1 };
+				assert.deepStrictEqual({
+					changes: listed.find(entry => entry.session.toString() === session.toString())?.changes,
+					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					sessionRestored: !!stateManager.getSessionState(session.toString()),
+				}, { changes: expected, persisted: expected, sessionRestored: false });
+			});
+		}
+
 		test('listSessions never returns subagent sessions', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const parentSession = await service.createSession({ provider: 'copilot' });
@@ -7986,14 +8088,18 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		for (const [isolation, cold] of [['folder', true], ['folder', false], ['worktree', true], ['worktree', false]] as const) {
-			test(`session selection replaces cached branch counts for a ${cold ? 'cold' : 'warm'} ${isolation} session`, async () => {
+			test(`session selection replaces cached counts from the selected source for a ${cold ? 'cold' : 'warm'} ${isolation} session`, async () => {
 				const db = new TestSessionDatabase();
 				const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/folder-summary' });
 				const cached = { additions: 100, deletions: 20, files: 8 };
+				const expected = isolation === 'worktree' ? { additions: 7, deletions: 2, files: 1 } : { additions: 0, deletions: 0, files: 0 };
 				const agent = disposables.add(new MockAgent('copilot'));
 				agent.resolvedWorkingDirectory = workingDirectory;
 				agent.sessionMetadataOverrides = { workingDirectories: [workingDirectory], changes: cached };
-				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const git = createNoopGitService();
+				const file = URI.joinPath(workingDirectory, 'branch.txt').toString();
+				git.computeSessionFileDiffs = async () => [{ after: { uri: file, content: { uri: file } }, diff: { added: 7, removed: 2 } }];
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
 				registerTestAgentProvider(svc, agent);
 				const session = await svc.createSession({
 					provider: agent.id, workingDirectories: [workingDirectory], config: { [SessionConfigKey.Isolation]: isolation },
@@ -8006,7 +8112,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				await svc.subscribe(session, 'summary-client');
-				for (let i = 0; i < 100 && stateManager.getSessionSummary(session.toString())?.changes?.files !== 0; i++) {
+				for (let i = 0; i < 100 && stateManager.getSessionSummary(session.toString())?.changes?.files !== expected.files; i++) {
 					await timeout(5);
 				}
 
@@ -8017,9 +8123,9 @@ suite('AgentService (node dispatcher)', () => {
 					listed: (await svc.listSessions()).find(entry => entry.session.toString() === session.toString())?.changes,
 				}, {
 					isolation,
-					live: { additions: 0, deletions: 0, files: 0 },
-					persisted: { additions: 0, deletions: 0, files: 0 },
-					listed: { additions: 0, deletions: 0, files: 0 },
+					live: expected,
+					persisted: expected,
+					listed: expected,
 				});
 				svc.unsubscribe(session, 'summary-client');
 			});
