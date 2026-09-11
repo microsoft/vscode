@@ -939,7 +939,10 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 			return;
 		}
 
-		const selectionSearchString = getSelectionSearchString(editor, 'single', false);
+		const seedSearchStringFromSelection = editor.getOption(EditorOption.find).seedSearchStringFromSelection;
+		const selectionSearchString = seedSearchStringFromSelection !== 'never'
+			? getSelectionSearchString(editor, 'single', seedSearchStringFromSelection === 'selection')
+			: null;
 		if (selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
 		}
