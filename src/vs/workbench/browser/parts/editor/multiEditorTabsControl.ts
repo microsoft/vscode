@@ -38,7 +38,7 @@ import { IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroup
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { basenameOrAuthority } from '../../../../base/common/resources.js';
+import { basename, basenameOrAuthority, extname } from '../../../../base/common/resources.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPath, win32, posix } from '../../../../base/common/path.js';
@@ -1825,12 +1825,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Label
+		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		let suffix: string | undefined;
-		if (name && this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs') && !(options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex))) {
-			const extensionIndex = name.lastIndexOf('.');
-			if (extensionIndex > 0 && extensionIndex < name.length - 1) {
-				suffix = name.substring(extensionIndex);
-				name = name.substring(0, extensionIndex);
+		if (name && resource && name === basename(resource) && this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs') && !(options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex))) {
+			const extension = extname(resource);
+			if (extension.length > 1) {
+				suffix = extension;
+				name = name.substring(0, name.length - extension.length);
 			}
 		}
 		tabLabelWidget.setResource(
@@ -1852,7 +1853,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		);
 
 		// Tests helper
-		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			tabContainer.setAttribute('data-resource-name', basenameOrAuthority(resource));
 		} else {

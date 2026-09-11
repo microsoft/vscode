@@ -248,6 +248,43 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('protects extensions only when the tab title matches the resource filename', async () => {
+		const group = connectedGroup();
+		const cases = [
+			{ resource: URI.file('/path/archive.tar.gz'), name: 'archive.tar.gz' },
+			{ resource: URI.file('/path/.env'), name: '.env' },
+			{ resource: URI.file('/path/file.'), name: 'file.' },
+			{ resource: URI.file('/path/notes.md'), name: 'Release 1.2 notes and announcements' },
+			{ resource: URI.from({ scheme: 'test', path: '/views/123' }), name: 'Example.org documentation' },
+			{ resource: undefined, name: 'Release 1.2 notes and announcements' },
+		];
+		const results = [];
+		for (const { resource, name } of cases) {
+			const editor = disposables.add(new class extends EditorInput {
+				override get typeId(): string { return 'testEditorTitle'; }
+				override get resource(): URI | undefined { return resource; }
+				override getName(): string { return name; }
+			}());
+			model.openEditor(editor, { pinned: true, active: true });
+			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+			await layoutConnectedGroup(group, 240);
+			const tab = container.querySelector<HTMLElement>('.tab.active')!;
+			results.push({
+				name: tab.querySelector('.label-name')?.textContent,
+				suffix: tab.querySelector('.label-suffix')?.textContent ?? '',
+				accessibleName: tab.getAttribute('aria-label')?.includes(name),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ name: 'archive.tar', suffix: '.gz', accessibleName: true },
+			{ name: '.env', suffix: '', accessibleName: true },
+			{ name: 'file.', suffix: '', accessibleName: true },
+			{ name: 'Release 1.2 notes and announcements', suffix: '', accessibleName: true },
+			{ name: 'Example.org documentation', suffix: '', accessibleName: true },
+			{ name: 'Release 1.2 notes and announcements', suffix: '', accessibleName: true },
+		]);
+	});
+
 	test('connected actions keep active and dirty visible but inactive clean quiet', async () => {
 		const group = connectedGroup();
 		container.classList.add('tab-actions-reserve-space');
