@@ -2678,7 +2678,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item {
-	background-color: var(--vscode-editorWidget-background);
+	background-color: transparent;
 }
 
 .plugin-list-widget .customization-inventory-list .monaco-list-row.ai-customization-list-item:hover {
