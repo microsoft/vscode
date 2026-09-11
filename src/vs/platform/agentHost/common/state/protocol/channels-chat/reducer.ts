@@ -337,6 +337,11 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		// ── Turn Lifecycle ────────────────────────────────────────────────────
 
 		case ActionType.ChatTurnStarted: {
+			const alreadyStarted = state.activeTurn?.id === action.turnId
+				|| state.turns.some(turn => turn.id === action.turnId);
+			if (alreadyStarted) {
+				return state;
+			}
 			let next: ChatState = {
 				...state,
 				activeTurn: {

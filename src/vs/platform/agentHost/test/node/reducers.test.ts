@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { sortCustomizationEnablement, withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatTruncatedAction, type ChatTurnStartedAction } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, ToolCallContributorKind, type ToolCallContributor } from '../../common/state/protocol/state.js';
 
@@ -802,5 +802,69 @@ suite('customization enablement', () => {
 			[{ ...plugin, children: [{ ...plugin.children![0], enabled: false }] }, mcp],
 			[{ ...plugin, children: [{ ...plugin.children![0], enabled: true }] }, mcp],
 		]);
+	});
+});
+
+suite('chatReducer replaying client-dispatched actions', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const turnStarted: ChatTurnStartedAction = {
+		type: ActionType.ChatTurnStarted,
+		turnId: 'turn-1',
+		startedAt: '2025-01-01T00:00:00.000Z',
+		message: { text: 'hello', origin: { kind: MessageKind.User } },
+	};
+
+	function withStreamedMarkdown(state: ChatState, turnId = 'turn-1'): ChatState {
+		state = chatReducer(state, {
+			type: ActionType.ChatResponsePart,
+			turnId,
+			part: { kind: ResponsePartKind.Markdown, id: 'part-1', content: 'Hel' },
+		});
+		return chatReducer(state, { type: ActionType.ChatDelta, turnId, partId: 'part-1', content: 'lo' });
+	}
+
+	test('ChatTurnStarted replayed over the turn it started is a no-op', () => {
+		const started = chatReducer(makeChat(), turnStarted);
+		const streaming = withStreamedMarkdown(started);
+
+		assert.deepStrictEqual({
+			replayedOnStart: chatReducer(started, turnStarted),
+			replayedWhileStreaming: chatReducer(streaming, turnStarted),
+			streamedContent: streaming.activeTurn?.responseParts,
+		}, {
+			replayedOnStart: started,
+			replayedWhileStreaming: streaming,
+			streamedContent: [{ kind: ResponsePartKind.Markdown, id: 'part-1', content: 'Hello' }],
+		});
+	});
+
+	test('ChatTurnStarted for a completed turn is a no-op', () => {
+		const completed = chatReducer(withStreamedMarkdown(chatReducer(makeChat(), turnStarted)), {
+			type: ActionType.ChatTurnComplete,
+			turnId: 'turn-1',
+			duration: 100,
+		});
+
+		assert.strictEqual(chatReducer(completed, turnStarted), completed);
+	});
+
+	test('ChatTruncated is idempotent', () => {
+		let state = makeChat();
+		for (const turnId of ['turn-1', 'turn-2']) {
+			state = chatReducer(state, { ...turnStarted, turnId });
+			state = chatReducer(state, { type: ActionType.ChatTurnComplete, turnId, duration: 100 });
+		}
+		state = withStreamedMarkdown(chatReducer(state, { ...turnStarted, turnId: 'turn-3' }), 'turn-3');
+		const truncations: ChatTruncatedAction[] = [
+			{ type: ActionType.ChatTruncated, turnId: 'turn-1' },
+			{ type: ActionType.ChatTruncated },
+		];
+
+		assert.deepStrictEqual(
+			truncations.map(action => chatReducer(chatReducer(state, action), action)),
+			truncations.map(action => chatReducer(state, action)),
+		);
 	});
 });
