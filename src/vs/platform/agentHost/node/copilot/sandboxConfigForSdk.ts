@@ -104,12 +104,6 @@ export interface SandboxSeatbeltPolicy {
  * opaque `sandboxConfig` shape the Copilot SDK forwards to the runtime
  * via `session.options.update`.
  *
- * Used when {@link CopilotCliConfigKey.EnableCustomTerminalTool} is OFF — the
- * SDK's built-in shell tool runs the user's commands, so we have to push the
- * sandbox policy down into the SDK itself. When the custom terminal tool is
- * ON, the AgentHost's own {@link TerminalSandboxEngine} wraps commands and
- * this function is not consulted.
- *
  * Mirrors `buildSandboxConfigForCLI` in
  * `extensions/copilot/src/extension/chatSessions/copilotcli/node/copilotcliSessionService.ts`
  * so the two surfaces behave the same:

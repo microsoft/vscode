@@ -126,9 +126,9 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly isCreated: IObservable<boolean>;
 	override readonly isNewSessionRequestInProgress = observableValue(this, false);
 	override readonly isArchived = observableValue(this, false);
-	override readonly loading: IObservable<boolean> = constObservable(false);
+	override readonly loading: ISettableObservable<boolean>;
 
-	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true, providerId = 'test', remoteConnectionStatus?: SessionRemoteConnectionStatus) {
+	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true, providerId = 'test', remoteConnectionStatus?: SessionRemoteConnectionStatus, loading = false) {
 		super();
 		this.providerId = providerId;
 		this.remoteConnectionStatus = remoteConnectionStatus && observableValue(this, remoteConnectionStatus);
@@ -148,6 +148,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 		this.shouldShowChatTabs = derived(reader => this.visibleChatTabs.read(reader).length > 1);
 		this.mainChat = constObservable(mainChat);
 		this.isCreated = constObservable(isCreated);
+		this.loading = observableValue(this, loading);
 	}
 }
 
@@ -448,6 +449,75 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('restores subagent groups, tab order, and active chat', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const firstSubagent = createChat('subagent-1', SessionStatus.Completed, main.resource);
+		const secondSubagent = createChat('subagent-2', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, peer, firstSubagent, secondSubagent]);
+		view.setSession(session, options);
+		view.splitChatToSide(peer.resource);
+		await view.openChatInNewGroup(firstSubagent.resource);
+		await view.openChatInNewGroup(secondSubagent.resource);
+		view['_openChat'](view['_groups'][2], firstSubagent.resource);
+		const beforeReload = Array.from(view.element.querySelectorAll('.chat-group-view')).map(group =>
+			Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource));
+		view.setSession(undefined, options);
+
+		const restored = new TestActiveSession([main, peer, firstSubagent, secondSubagent]);
+		restored.activeChat.set(firstSubagent, undefined);
+		view.setSession(restored, options);
+
+		const groups = Array.from(view.element.querySelectorAll('.chat-group-view'));
+		assert.deepStrictEqual({
+			beforeReload,
+			groupTabs: groups.map(group => Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeGroupTab: view.element.querySelector<HTMLElement>('.chat-group-view.active-group .chat-composite-bar-tab.active')?.dataset.chatResource,
+		}, {
+			beforeReload: [
+				[main.resource.toString()],
+				[secondSubagent.resource.toString()],
+				[firstSubagent.resource.toString()],
+				[peer.resource.toString()],
+			],
+			groupTabs: beforeReload,
+			activeGroupTab: firstSubagent.resource.toString(),
+		});
+	});
+
+	test('keeps saved subagent groups until delayed chat discovery completes', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const subagent = createChat('subagent', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, subagent]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(subagent.resource);
+		view.setSession(undefined, options);
+
+		const restored = new TestActiveSession([main], [main], true, 'test', undefined, true);
+		view.setSession(restored, options);
+		const beforeDiscovery = view.groupCount.get();
+
+		transaction(tx => {
+			restored.allChats.set([main, subagent], tx);
+			restored.visibleChatTabs.set([main, subagent], tx);
+			restored.activeChat.set(subagent, tx);
+			restored.loading.set(false, tx);
+		});
+
+		assert.deepStrictEqual({
+			beforeDiscovery,
+			groupTabs: Array.from(view.element.querySelectorAll('.chat-group-view')).map(group =>
+				Array.from(group.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')).map(tab => tab.dataset.chatResource)),
+			activeChat: restored.activeChat.get().resource.toString(),
+		}, {
+			beforeDiscovery: 2,
+			groupTabs: [[main.resource.toString()], [subagent.resource.toString()]],
+			activeChat: subagent.resource.toString(),
+		});
+	});
+
 	test('new session drafts do not restore a persisted chat grid', () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');
@@ -549,6 +619,149 @@ suite('Sessions - ChatGroupsView', () => {
 		sessionsService.openChatError = new Error('open failed');
 
 		await assert.rejects(view.openChatInNewGroup(secondary.resource), /open failed/);
+	});
+
+	for (const alreadyVisible of [false, true]) {
+		test(`opens a ${alreadyVisible ? 'visible' : 'hidden'} fork beside its source rather than the active group`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const source = createChat('source');
+			const neighbor = createChat('neighbor');
+			const fork = createChat('fork');
+			const session = new TestActiveSession([main, source, neighbor, fork], [main, source, neighbor]);
+			view.setSession(session, options);
+			view.layout(1200, 600, 0, 0);
+			await sessionsService.openChat(session, source.resource);
+			await view.openChatInNewGroup(neighbor.resource);
+			if (alreadyVisible) {
+				session.visibleChatTabs.set([...session.visibleChatTabs.get(), fork], undefined);
+			}
+
+			await view.openChatInNewGroup(fork.resource, source.resource);
+			const readGroups = () => view['_groups'].map(group => ({
+				chats: group.resourceIds.get(),
+				active: group.activeResourceId.get(),
+			}));
+			const afterOpen = readGroups();
+			const focusedAfterOpen = view.getFocusedChat()?.resource.toString();
+			await view.openChatInNewGroup(fork.resource, source.resource);
+			const afterRepeatedOpen = readGroups();
+			view.setSession(undefined, options);
+			view.setSession(session, options);
+
+			const expected = [
+				{ chats: [main.resource.toString(), source.resource.toString()], active: source.resource.toString() },
+				{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+				{ chats: [neighbor.resource.toString()], active: neighbor.resource.toString() },
+			];
+			assert.deepStrictEqual({
+				afterOpen,
+				focusedAfterOpen,
+				afterRepeatedOpen,
+				afterRestore: readGroups(),
+				activeChat: session.activeChat.get().resource.toString(),
+			}, {
+				afterOpen: expected,
+				focusedAfterOpen: fork.resource.toString(),
+				afterRepeatedOpen: expected,
+				afterRestore: expected,
+				activeChat: fork.resource.toString(),
+			});
+		});
+	}
+
+	test('keeps the source peer visible when a fork was activated before being split', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const source = createChat('source');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([main, source, fork]);
+		view.setSession(session, options);
+		await sessionsService.openChat(session, fork.resource);
+
+		await view.openChatInNewGroup(fork.resource, source.resource);
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [
+			{ chats: [main.resource.toString(), source.resource.toString()], active: source.resource.toString() },
+			{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+		]);
+	});
+
+	for (const closeSource of [false, true]) {
+		test(`handles ${closeSource ? 'closing' : 'leaving'} the source group while opening a fork`, async () => {
+			const { sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const source = createChat('source');
+			const fork = createChat('fork');
+			const session = new TestActiveSession([main, source, fork], [main, source]);
+			view.setSession(session, options);
+			await view.openChatInNewGroup(source.resource);
+			const gate = new DeferredPromise<void>();
+			sessionsService.openChatGate = gate.p;
+			const opening = view.openChatInNewGroup(fork.resource, source.resource);
+			transaction(tx => {
+				session.activeChat.set(main, tx);
+				if (closeSource) {
+					session.visibleChatTabs.set([main], tx);
+				}
+			});
+			gate.complete();
+			await opening;
+
+			assert.deepStrictEqual({
+				groups: view['_groups'].map(group => group.activeResourceId.get()),
+				active: session.activeChat.get().resource.toString(),
+				focused: view.getFocusedChat()?.resource.toString(),
+			}, {
+				groups: closeSource ? [main.resource.toString(), fork.resource.toString()] : [main.resource.toString(), source.resource.toString(), fork.resource.toString()],
+				active: fork.resource.toString(),
+				focused: fork.resource.toString(),
+			});
+		});
+	}
+
+	test('does not create a group when opening a hidden fork fails', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const source = createChat('source');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([source, fork], [source]);
+		view.setSession(session, options);
+		sessionsService.openChatError = new Error('open failed');
+
+		await assert.rejects(view.openChatInNewGroup(fork.resource, source.resource), /open failed/);
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [{ chats: [source.resource.toString()], active: source.resource.toString() }]);
+	});
+
+	test('falls back to the active group when the source tab closes but its group remains', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const source = createChat('source');
+		const neighbor = createChat('neighbor');
+		const fork = createChat('fork');
+		const session = new TestActiveSession([main, source, neighbor, fork], [main, source, neighbor]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(neighbor.resource);
+		const gate = new DeferredPromise<void>();
+		sessionsService.openChatGate = gate.p;
+		const opening = view.openChatInNewGroup(fork.resource, source.resource);
+		session.visibleChatTabs.set([main, neighbor], undefined);
+		gate.complete();
+		await opening;
+
+		assert.deepStrictEqual(view['_groups'].map(group => ({
+			chats: group.resourceIds.get(),
+			active: group.activeResourceId.get(),
+		})), [
+			{ chats: [main.resource.toString()], active: main.resource.toString() },
+			{ chats: [neighbor.resource.toString()], active: neighbor.resource.toString() },
+			{ chats: [fork.resource.toString()], active: fork.resource.toString() },
+		]);
 	});
 
 	test('dropping a hidden subagent on an edge opens it in a new group', async () => {

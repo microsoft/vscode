@@ -12,6 +12,7 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -99,6 +100,7 @@ function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0],
 function makeLookup(prefix: string, displayNames: Record<string, string>, fallbackRawModelId?: string): TurnModelLookup {
 	const resolveRaw = (raw: string | undefined): string | undefined => raw ?? fallbackRawModelId;
 	return {
+		toActualModelId: raw => raw ? `${prefix}${raw}` : undefined,
 		toLanguageModelId: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? `${prefix}${r}` : undefined;
@@ -341,6 +343,25 @@ suite('stateToProgressAdapter', () => {
 				isSystemInitiated: true,
 				systemInitiatedLabel: 'Workspace Set',
 			});
+		});
+
+		test('identifies Agent Merge history by system origin and metadata, not prompt text', () => {
+			const messages: Message[] = [
+				{ ...message('Repair the pull request', MessageKind.SystemNotification), _meta: toAgentMergeMessageMeta() },
+				message('Repair the pull request', MessageKind.SystemNotification),
+				{ ...message('Repair the pull request'), _meta: toAgentMergeMessageMeta() },
+				{ ...message('Repair the pull request', MessageKind.SystemNotification), _meta: { 'vscode.chat.agentMerge': 'true' } },
+			];
+			const history = turnsToHistory(URI.file('/'), messages.map(message => createTurn({ message })), 'participant-1');
+			assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => ({
+				isSystemInitiated: item.isSystemInitiated,
+				requestSource: item.requestSource,
+			})), [
+				{ isSystemInitiated: true, requestSource: 'agentMerge' },
+				{ isSystemInitiated: true, requestSource: undefined },
+				{ isSystemInitiated: undefined, requestSource: undefined },
+				{ isSystemInitiated: true, requestSource: undefined },
+			]);
 		});
 
 		test('hidden turn remains hidden when restored from protocol history', () => {
@@ -831,6 +852,23 @@ suite('stateToProgressAdapter', () => {
 					{ type: 'response', details: 'Claude Opus 4.7' },
 				],
 			);
+		});
+
+		test('preserves selected models independently of routed models in restored requests', () => {
+			const turns = [
+				createTurn({ message: { ...message('Auto'), model: { id: 'auto' } }, usage: { model: 'gpt-5', inputTokens: 100, outputTokens: 20 } }),
+				createTurn({ message: { ...message('Explicit model'), model: { id: 'opus-4.7' } }, usage: { inputTokens: 100, outputTokens: 20 } }),
+			];
+			const history = turnsToHistory(URI.file('/'), turns, 'p', makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5', 'opus-4.7': 'Claude Opus 4.7' }, 'opus-4.7'));
+
+			assert.deepStrictEqual(history.map(item => item.type === 'request'
+				? { type: item.type, modelId: item.modelId }
+				: { type: item.type, details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }), [
+				{ type: 'request', modelId: 'agent-host-copilot:auto' },
+				{ type: 'response', details: 'GPT-5', actualModelId: 'agent-host-copilot:gpt-5' },
+				{ type: 'request', modelId: 'agent-host-copilot:opus-4.7' },
+				{ type: 'response', details: 'Claude Opus 4.7', actualModelId: undefined },
+			]);
 		});
 
 		test('restores Auto model routing with the shared chat UI part', () => {

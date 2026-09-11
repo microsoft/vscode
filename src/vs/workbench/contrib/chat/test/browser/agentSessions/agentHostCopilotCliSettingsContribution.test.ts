@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostMultiTurnContextRoutingEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -77,7 +77,7 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.ToolSearchEnabled]: { type: 'boolean', title: 'Agent Host Tool Search' },
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
 	[CopilotCliConfigKey.ReasoningSummary]: { type: 'boolean', title: 'Reasoning Summary' },
-	[CopilotCliConfigKey.MultiTurnContextRouting]: { type: 'boolean', title: 'Auto Multi-Turn Context Routing' },
+	[CopilotCliConfigKey.HydraFusion]: { type: 'boolean', title: 'HydraFusion' },
 	[CopilotCliConfigKey.AutoModeTiers]: { type: 'boolean', title: 'Auto Optimize for' },
 	[CopilotCliConfigKey.AutoModeTierOverride]: { type: 'string', title: 'Auto Optimize for Override' },
 	[CopilotCliConfigKey.SubagentModelGuidance]: { type: 'boolean', title: 'Subagent Model Guidance' },
@@ -127,7 +127,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
 			[AgentHostReasoningSummaryEnabledSettingId]: true,
-			[AgentHostMultiTurnContextRoutingEnabledSettingId]: true,
+			[AgentHostHydraFusionEnabledSettingId]: true,
 			'github.copilot.chat.autoMode.tiers.enabled': true,
 			'github.copilot.chat.autoModeTierOverride': 'intelligence',
 			[CopilotSubagentModelGuidanceEnabledSettingId]: true,
@@ -147,7 +147,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ToolSearchEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
 			[CopilotCliConfigKey.ReasoningSummary]: true,
-			[CopilotCliConfigKey.MultiTurnContextRouting]: true,
+			[CopilotCliConfigKey.HydraFusion]: true,
 			[CopilotCliConfigKey.AutoModeTiers]: true,
 			[CopilotCliConfigKey.AutoModeTierOverride]: 'intelligence',
 			[CopilotCliConfigKey.SubagentModelGuidance]: true,
@@ -208,7 +208,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.ToolSearchEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
 			[CopilotCliConfigKey.ReasoningSummary]: false,
-			[CopilotCliConfigKey.MultiTurnContextRouting]: false,
+			[CopilotCliConfigKey.HydraFusion]: false,
 			[CopilotCliConfigKey.AutoModeTiers]: false,
 			[CopilotCliConfigKey.AutoModeTierOverride]: '',
 			[CopilotCliConfigKey.SubagentModelGuidance]: false,

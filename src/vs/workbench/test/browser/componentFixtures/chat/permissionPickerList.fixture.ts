@@ -103,7 +103,7 @@ function buildItems(options: PermissionPickerListFixtureOptions): IActionListIte
 				...actionTemplate,
 				id: 'chat.permissions.sandbox',
 				label: localize('permissions.sandbox.toggle', "Sandboxing for terminal"),
-				icon: ThemeIcon.fromId(Codicon.blank.id),
+				icon: ThemeIcon.fromId(Codicon.shield.id),
 				checked: false,
 				standaloneToggle: {
 					label: localize('permissions.sandbox.toggle', "Sandboxing for terminal"),

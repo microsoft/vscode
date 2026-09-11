@@ -26,6 +26,7 @@ import { IMarkdownRendererService } from '../../../markdown/browser/markdownRend
 import type { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { AnchorAlignment } from '../../../../base/common/layout.js';
+import '../../browser/hover.css';
 
 suite('HoverService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -199,6 +200,98 @@ suite('HoverService', () => {
 			hoverWidget.layout();
 
 			assert.strictEqual(hoverWidget.x, 198);
+			hover.dispose();
+		});
+
+		test('should centre the hover pointer on its target for odd and even hover widths', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(300, 100, 100, 20);
+			const hover = showHover('Pointer centering', target, {
+				position: { hoverPosition: HoverPosition.BELOW },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+
+			const pointerOriginFor = (clientWidth: number) => {
+				Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: clientWidth });
+				hoverWidget.layout();
+				return hoverWidget.x + Number.parseFloat(pointer.style.left);
+			};
+
+			// An even width halves exactly, so it pins the caret's own half width.
+			const evenOrigin = pointerOriginFor(200);
+			const caretHalfWidth = 350 - evenOrigin;
+			const oddOrigin = pointerOriginFor(201);
+
+			assert.deepStrictEqual({
+				caretHalfWidth,
+				evenWidthCaretCentre: evenOrigin + caretHalfWidth,
+				oddWidthCaretCentre: oddOrigin + caretHalfWidth
+			}, {
+				caretHalfWidth: 3,
+				evenWidthCaretCentre: 350,
+				oddWidthCaretCentre: 350
+			});
+			hover.dispose();
+		});
+
+		test('should centre the hover pointer vertically for odd hover heights', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(300, 100, 100, 200);
+			const hover = showHover('Pointer centering', target, {
+				position: { hoverPosition: HoverPosition.RIGHT },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+
+			const pointerTopFor = (clientHeight: number) => {
+				Object.defineProperty(hoverWidget.domNode, 'clientHeight', { configurable: true, value: clientHeight });
+				hoverWidget.layout();
+				return Number.parseFloat(pointer.style.top);
+			};
+
+			const evenTop = pointerTopFor(40);
+			const caretHalfHeight = 20 - evenTop;
+			const oddTop = pointerTopFor(41);
+
+			assert.deepStrictEqual({
+				caretHalfHeight,
+				evenHeightCaretCentre: evenTop + caretHalfHeight,
+				oddHeightCaretCentre: oddTop + caretHalfHeight
+			}, {
+				caretHalfHeight: 3,
+				evenHeightCaretCentre: 20,
+				oddHeightCaretCentre: 20.5
+			});
+			hover.dispose();
+		});
+
+		test('should size the hover pointer as a border box so its centre matches the pointer size', () => {
+			const target = createTarget();
+			const hover = showHover('Pointer geometry', target, {
+				position: { hoverPosition: HoverPosition.BELOW },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+			const caret = mainWindow.getComputedStyle(pointer, '::after');
+
+			assert.deepStrictEqual({
+				boxSizing: caret.boxSizing,
+				width: caret.width,
+				height: caret.height,
+				centre: caret.transformOrigin
+			}, {
+				boxSizing: 'border-box',
+				width: '6px',
+				height: '6px',
+				centre: '3px 3px'
+			});
 			hover.dispose();
 		});
 

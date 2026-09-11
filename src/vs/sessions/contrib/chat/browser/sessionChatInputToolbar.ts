@@ -6,6 +6,8 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { Event } from '../../../../base/common/event.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -16,6 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
@@ -28,8 +31,8 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getGitHubPullRequestRefs, IChat, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
@@ -42,6 +45,7 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
 import { createIssueHoverElement } from '../../github/browser/issueHover.js';
 import { createPullRequestHoverElement } from '../../github/browser/pullRequestHover.js';
+import { linkKey } from '../../../common/sessionLinks.js';
 
 /** Fake artifacts for the pill debug overlay. */
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
@@ -77,8 +81,9 @@ function getGitHubRepositoryHoverData(owner: string, repo: string, openerService
 }
 
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
-export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPullRequestPillSection[] {
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: { readonly artifacts: readonly ISessionArtifact[]; remove(artifactIds: readonly string[]): Promise<void> }): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status }) => {
+		const artifacts = artifactActions?.artifacts.filter(artifact => artifact.isArtifact && artifact.kind === SessionArtifactKind.PullRequest && artifact.link && linkKey(artifact.link.toString(true)) === linkKey(ref.uri.toString(true)));
 		const title = pullRequest?.title ?? ref.title;
 		const label = title
 			? localize('sessionChatPills.pullRequestWithTitle', "Pull Request #{0}: {1}", ref.number, title)
@@ -104,6 +109,12 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			pillLabel: `#${ref.number}`,
 			icon: resolvedIcon,
 			pullRequestState: state,
+			removeAction: artifacts?.length && artifactActions ? toAction({
+				id: `sessionChatPills.removePullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
+				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Artifact from Session"),
+				class: ThemeIcon.asClassName(Codicon.close),
+				run: () => artifactActions.remove(artifacts.map(artifact => artifact.id)),
+			}) : undefined,
 			toolbarActions: [toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyPullRequest', "Copy Pull Request URL"),
@@ -112,6 +123,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			})],
 			...getChatPillResourceLocation(ref.uri, label),
 			ariaDescription: localize('sessionChatPills.pullRequestDescription', "{0}. {1}", stateDescription, ref.uri.toString(true)),
+			...(!pullRequest && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
 			...(pullRequest ? {
 				pillHover: {
 					element: () => createPullRequestHoverElement({
@@ -142,8 +154,9 @@ interface IResolvedSessionIssue {
 /** Builds Agents Window issue pill entries, enriching them when live details are available. */
 export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPillSection[] {
 	const entries = issues.map(({ ref, issue }) => {
-		const label = issue?.title
-			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, issue.title)
+		const title = issue?.title ?? ref.title;
+		const label = title
+			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, title)
 			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
 		return {
 			id: ref.uri.toString(),
@@ -157,6 +170,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			})],
 			...getChatPillResourceLocation(ref.uri, label),
+			...(!issue && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
 			...(issue ? {
 				pillHover: {
 					element: () => createIssueHoverElement({
@@ -251,6 +265,8 @@ export class SessionChatInputToolbar extends Disposable {
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@INotificationService notificationService: INotificationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
 		@ISessionChangesService sessionChangesService: ISessionChangesService,
@@ -296,7 +312,23 @@ export class SessionChatInputToolbar extends Disposable {
 			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService).read(reader) : undefined;
 		});
 		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService));
-		const pullRequestSections = derived(this, reader => buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), this._session.read(reader), commandService, clipboardService, openerService, this._sessionsService));
+		const pullRequestSections = derived(this, reader => {
+			const session = this._session.read(reader);
+			const artifactActions = session?.capabilities.read(reader).supportsRemoveArtifacts ? {
+				artifacts: session.artifacts?.read(reader) ?? [],
+				remove: async (artifactIds: readonly string[]) => {
+					try {
+						for (const artifactId of artifactIds) {
+							await sessionsManagementService.removeSessionArtifact(session, artifactId);
+						}
+						status(localize('sessionChatPills.pullRequestRemoved', "Pull request artifact removed from session."));
+					} catch (error) {
+						notificationService.error(localize('sessionChatPills.removePullRequestFailed', "Could not remove pull request artifact: {0}", toErrorMessage(error)));
+					}
+				},
+			} : undefined;
+			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, artifactActions);
+		});
 		const issueRefs = derived(this, reader => gitHubInfo.read(reader)?.issues ?? []);
 		const issues = derived(this, reader => issueRefs.read(reader).map(ref => {
 			const reference = reader.store.add(gitHubService.createIssueModelReference(ref.owner, ref.repo, ref.number));
@@ -344,8 +376,16 @@ export class SessionChatInputToolbar extends Disposable {
 					if (!session || this._debugData.get()) {
 						return;
 					}
+					const isWorktree = session.workspace.get()?.folders[0]?.gitRepository?.workTreeUri !== undefined;
 					layoutService.revealEditorPartExplicitly();
-					void sessionChangesService.openChangesEditor(session.resource, { changesetSelection: { kind: 'id', id: undefined } });
+					void sessionChangesService.openChangesEditor(session.resource, {
+						changesetSelection: {
+							kind: 'id',
+							id: isWorktree
+								? BRANCH_CHANGES_CHANGESET_ID
+								: SESSION_CHANGES_CHANGESET_ID
+						}
+					});
 				},
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),
