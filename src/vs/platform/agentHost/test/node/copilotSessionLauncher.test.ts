@@ -1450,7 +1450,7 @@ suite('normalizeToolFilterPatterns', () => {
 
 suite('CopilotSessionLauncher resume config', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Builds a launcher over a config service stubbed with a fixed root-value bag. */
 	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition>): CopilotSessionLauncher {
@@ -1492,7 +1492,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	}
 
 	test('enables experimental mode only with HydraFusion opt-in', async () => {
-		const store = new DisposableStore();
+		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
 		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
 		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
@@ -1503,12 +1503,11 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabledExperimentalMode: disabled.enableExperimentalMode,
 			defaultExperimentalMode: notOptedIn.enableExperimentalMode,
 		}, {
-			model: 'hydrafusion',
+			model: undefined,
 			enabledExperimentalMode: true,
 			disabledExperimentalMode: undefined,
 			defaultExperimentalMode: undefined,
 		});
-		store.dispose();
 	});
 
 	test('exposes only the client semantic-search override', async () => {

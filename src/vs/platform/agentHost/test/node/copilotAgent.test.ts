@@ -7551,6 +7551,7 @@ suite('CopilotAgent', () => {
 		test(`agent-created sessions set experimental mode for HydraFusion=${enabled}`, async () => {
 			const { agent, instantiationService } = createTestAgentContext(disposables, {
 				environmentServiceRegistration: 'native',
+				sessionDataService: disposables.add(new TestSessionDataService()),
 				rootConfig: { [CopilotCliConfigKey.HydraFusion]: enabled },
 			});
 			try {
