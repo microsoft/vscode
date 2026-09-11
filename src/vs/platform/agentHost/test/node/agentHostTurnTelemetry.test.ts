@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import { buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -120,6 +120,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	let telemetry: CapturingTelemetryService;
 	let logService: NullLogService;
 	let turnTracker: AgentHostTurnTracker;
+	let chatContributions: AgentHostChatContributions;
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 	const sessionKey = sessionUri.toString();
@@ -265,7 +266,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			}],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
-		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
@@ -425,9 +426,17 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setSessionConfig({ autoApprove: 'autopilot', mode: 'interactive' });
 		startTurn('turn-original');
 		await new Promise(resolve => setTimeout(resolve, 0));
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-original', duration: 1000 });
+		fireModelCallFinished('turn-original', 'call-before-steering', 100, 'success', true);
 
+		let previousTurnId = 'turn-original';
 		for (const turnId of ['turn-steering-1', 'turn-steering-2']) {
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering,
+				id: `queued-${turnId}`,
+				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
+			}, { clientId: 'test', clientSeq: 2 });
+			fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
 			fire({
 				type: ActionType.ChatTurnStarted,
 				turnId,
@@ -436,8 +445,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				queuedMessageId: `queued-${turnId}`,
 			});
 			fireModelCallFinished(turnId, `call-${turnId}`, 250, 'success', true);
-			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+			previousTurnId = turnId;
 		}
+		fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		assert.deepStrictEqual({
@@ -447,6 +457,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				return {
 					turnId: data.turnId,
 					timeToFirstEdit: data.timeToFirstEdit,
+					timeToFirstEditClassifierVersion: data.timeToFirstEditClassifierVersion,
+					startedWithSteering: data.startedWithSteering,
+					receivedSteering: data.receivedSteering,
 					hostLaunchKind: data.hostLaunchKind,
 					permissionLevel: data.permissionLevel,
 					interactionMode: data.interactionMode,
@@ -457,13 +470,149 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			sentPrompts: ['hello'],
 			completed: ['turn-original', 'turn-steering-1', 'turn-steering-2'].map(turnId => ({
 				turnId,
-				timeToFirstEdit: turnId === 'turn-original' ? undefined : 250,
+				timeToFirstEdit: turnId === 'turn-original' ? 100 : 250,
+				timeToFirstEditClassifierVersion: 1,
+				startedWithSteering: turnId !== 'turn-original',
+				receivedSteering: turnId !== 'turn-steering-2',
 				hostLaunchKind: undefined,
 				permissionLevel: 'autopilot',
 				interactionMode: 'interactive',
 				messageOriginKind: 'user',
 			})),
 		});
+	});
+
+	for (const result of ['success', 'cancelled', 'error'] as const) {
+		test(`preserves steering submission and first edit on ${result} even if steering is removed`, () => {
+			setupSession();
+			startTurn('turn-steered');
+			fireModelCallFinished('turn-steered', 'edit', 150, 'success', true);
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering,
+				id: 'steer',
+				message: { text: 'change direction', origin: { kind: MessageKind.User } },
+			}, { clientId: 'test', clientSeq: 2 });
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageRemoved,
+				kind: PendingMessageKind.Steering,
+				id: 'steer',
+			}, { clientId: 'test', clientSeq: 3 });
+			if (result === 'error') {
+				fire({ type: ActionType.ChatError, turnId: 'turn-steered', duration: 1000, part: createErrorResponsePart({ errorType: 'test', message: 'failed' }) });
+			} else {
+				fire({ type: result === 'success' ? ActionType.ChatTurnComplete : ActionType.ChatTurnCancelled, turnId: 'turn-steered', duration: 1000 });
+			}
+			startTurn('turn-next');
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-next', duration: 1000 });
+
+			assert.deepStrictEqual(completedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					turnId: data.turnId,
+					result: data.result,
+					timeToFirstEdit: data.timeToFirstEdit,
+					startedWithSteering: data.startedWithSteering,
+					receivedSteering: data.receivedSteering,
+				};
+			}), [
+				{ turnId: 'turn-steered', result, timeToFirstEdit: 150, startedWithSteering: false, receivedSteering: true },
+				{ turnId: 'turn-next', result: 'success', timeToFirstEdit: undefined, startedWithSteering: false, receivedSteering: false },
+			]);
+		});
+	}
+
+	test('does not classify queued follow-ups as steering', () => {
+		setupSession();
+		startTurn('turn-original');
+		const queued: ChatAction = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: 'queued-follow-up',
+			message: { text: 'follow up', origin: { kind: MessageKind.User } },
+		};
+		stateManager.dispatchClientAction(defaultChatUri, queued, { clientId: 'test', clientSeq: 2 });
+		sideEffects.handleAction(defaultChatUri, queued);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-original', duration: 1000 });
+		const queuedTurnId = stateManager.getActiveTurnId(defaultChatUri);
+		assert.ok(queuedTurnId);
+		fireModelCallFinished(queuedTurnId, 'edit', 200, 'success', true);
+		fire({ type: ActionType.ChatTurnComplete, turnId: queuedTurnId, duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				timeToFirstEdit: data.timeToFirstEdit,
+				startedWithSteering: data.startedWithSteering,
+				receivedSteering: data.receivedSteering,
+			};
+		}), [
+			{ timeToFirstEdit: undefined, startedWithSteering: false, receivedSteering: false },
+			{ timeToFirstEdit: 200, startedWithSteering: false, receivedSteering: false },
+		]);
+	});
+
+	test('ignores rejected steering actions and submissions made while idle', () => {
+		setupSession();
+		const action: ChatAction = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'steer-idle',
+			message: { text: 'change direction', origin: { kind: MessageKind.User } },
+		};
+		stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+		startTurn('turn-after-idle');
+		chatContributions.didDispatchAction({ channel: defaultChatUri, session: sessionKey, action, rejectionReason: 'rejected' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-after-idle', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			startedWithSteering: data.startedWithSteering,
+			receivedSteering: data.receivedSteering,
+		}, { startedWithSteering: false, receivedSteering: false });
+	});
+
+	test('attributes steering only to the targeted peer chat', () => {
+		setupSession();
+		const peerChatUri = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionKey, peerChatUri);
+		startTurn('turn-default');
+		startTurn('turn-peer', 'hello peer', undefined, peerChatUri);
+		stateManager.dispatchClientAction(peerChatUri, {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'steer-peer',
+			message: { text: 'change direction', origin: { kind: MessageKind.User } },
+		}, { clientId: 'test', clientSeq: 2 });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-peer', duration: 1000 }, peerChatUri);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-default', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { turnId: data.turnId, startedWithSteering: data.startedWithSteering, receivedSteering: data.receivedSteering };
+		}), [
+			{ turnId: 'turn-peer', startedWithSteering: false, receivedSteering: true },
+			{ turnId: 'turn-default', startedWithSteering: false, receivedSteering: false },
+		]);
+	});
+
+	test('does not classify provider starts without a pending message as steering', () => {
+		setupSession();
+		fire({
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-notification',
+			startedAt: new Date().toISOString(),
+			message: { text: 'background task done', origin: { kind: MessageKind.SystemNotification } },
+		});
+		fireModelCallFinished('turn-notification', 'edit', 300, 'success', true);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-notification', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			timeToFirstEdit: data.timeToFirstEdit,
+			startedWithSteering: data.startedWithSteering,
+			receivedSteering: data.receivedSteering,
+		}, { timeToFirstEdit: 300, startedWithSteering: false, receivedSteering: false });
 	});
 
 	test('deduplicates model-call attempts and leaves time to first edit absent when no edit is requested', () => {

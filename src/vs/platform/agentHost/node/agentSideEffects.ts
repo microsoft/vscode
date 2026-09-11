@@ -724,6 +724,10 @@ export class AgentSideEffects extends Disposable {
 					hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				};
 				this._turnTracker.turnStarted(agent, sessionKey, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(sessionChannel)));
+				// Queue-drained starts are host-owned; a provider start consuming a pending message is steering.
+				if (action.queuedMessageId !== undefined) {
+					this._turnTracker.markSteering(sessionKey, action.turnId, 'started');
+				}
 				this._turnTracker.setCurrentStage(sessionKey, action.turnId, 'provider');
 			} else if (action.type === ActionType.ChatTurnComplete) {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
