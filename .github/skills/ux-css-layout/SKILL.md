@@ -274,7 +274,7 @@ VS Code ships a design-system **size** ramp, registered in `src/vs/platform/them
 
 ### Spacing — `padding`, `margin`, `gap`
 
-Read the current spacing IDs and values from `baseSizes.ts`. Select an intentional registered step rather than an arbitrary relationship, and use the design-token validator for nearest-step guidance. Leave structural percentages and relative units, and deliberate `var()`/`calc()` expressions, to case-by-case review.
+Read the current spacing IDs and values from `baseSizes.ts`. Select an intentional registered step rather than an arbitrary value. Use `npm run stylelint -- <path>` for nearest-step guidance outside the validator's default `src/vs/sessions` scope. Leave structural percentages and relative units, and deliberate `var()`/`calc()` expressions, to case-by-case review.
 
 ### Corner radius — `border-radius`
 
