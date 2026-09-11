@@ -12,7 +12,7 @@ import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummary
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubPullRequestRef, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, ISession, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
 /** Shared session diff counts, omitting entries without line changes. */
@@ -86,13 +86,7 @@ function getPullRequests(session: ISession, openerService: IOpenerService): read
 		return undefined;
 	}
 
-	// Providers that do not distinguish created from inherited pull requests
-	// publish only the main one, which is the pull request of the session.
-	const refs: readonly IGitHubPullRequestRef[] = gitHubInfo.pullRequests
-		? gitHubInfo.pullRequests.filter(ref => ref.createdByThisSession)
-		: gitHubInfo.pullRequest
-			? [{ owner: gitHubInfo.owner, repo: gitHubInfo.repo, ...gitHubInfo.pullRequest }]
-			: [];
+	const refs = getSessionOwnedGitHubPullRequestRefs(gitHubInfo);
 
 	return refs.length
 		? refs.map(ref => ({
