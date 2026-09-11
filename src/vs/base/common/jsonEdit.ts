@@ -48,12 +48,45 @@ export function setProperty(text: string, originalPath: JSONPath, value: unknown
 				const propertyIndex = parent.children.indexOf(existing.parent);
 				let removeBegin: number;
 				let removeEnd = existing.parent.offset + existing.parent.length;
+
+				// Find the start of the line that contains the property being deleted,
+				// including the newline that precedes it. This ensures that a comment
+				// placed on the line immediately above the property is not accidentally
+				// deleted alongside it.
+				const propOffset = existing.parent.offset;
+				let propLineStart = propOffset;
+				while (propLineStart > 0 && text[propLineStart - 1] !== '\n') {
+					propLineStart--;
+				}
+				// Include the preceding newline so the removed line doesn't leave a blank line
+				const propLineWithNewline = propLineStart > 0 ? propLineStart - 1 : propLineStart;
+
 				if (propertyIndex > 0) {
-					// remove the comma of the previous node
 					const previous = parent.children[propertyIndex - 1];
-					removeBegin = previous.offset + previous.length;
+					const commaOffset = previous.offset + previous.length;
+					if (propLineWithNewline > commaOffset) {
+						// There is content (e.g. a comment) between the previous property and
+						// the property being deleted. Use two edits to preserve that content:
+						// 1. Remove the trailing comma of the previous property.
+						// 2. Remove the property's own line (including its trailing comma for
+						//    middle properties, so the JSON remains valid).
+						let lineRemoveEnd = removeEnd;
+						if (lineRemoveEnd < text.length && text[lineRemoveEnd] === ',') {
+							lineRemoveEnd++; // include trailing comma of a middle property
+						}
+						const commaEdit: Edit = { offset: commaOffset, length: 1, content: '' };
+						const lineEdit: Edit = { offset: propLineWithNewline, length: lineRemoveEnd - propLineWithNewline, content: '' };
+						// Return higher-offset edit first so that applyEdits can apply them
+						// right-to-left without offset interference.
+						return [
+							...withFormatting(text, lineEdit, formattingOptions),
+							...withFormatting(text, commaEdit, formattingOptions)
+						];
+					}
+					// No gap — use the original single-range approach
+					removeBegin = commaOffset;
 				} else {
-					removeBegin = parent.offset + 1;
+					removeBegin = propLineWithNewline > parent.offset + 1 ? propLineWithNewline : parent.offset + 1;
 					if (parent.children.length > 1) {
 						// remove the comma of the next node
 						const next = parent.children[1];
