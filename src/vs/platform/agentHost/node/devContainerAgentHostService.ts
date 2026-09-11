@@ -46,6 +46,7 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
+const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 
 interface IDevContainerUpResult {
 	readonly containerId: string;
@@ -143,7 +144,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.workspaceFolder}`);
 			const up = await this._runDevContainer(
 				config.connectionId,
-				['up', '--workspace-folder', config.workspaceFolder],
+				['up', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', config.workspaceFolder],
 				tokenSource.token,
 			);
 			const upResult = parseDevContainerUpResult(up.stdout);
@@ -315,7 +316,7 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		return async (command, options) => {
 			const result = await this._runDevContainer(
 				connectionId,
-				['exec', '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command],
+				['exec', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command],
 				token,
 			);
 			if (result.code !== 0 && !options?.ignoreExitCode) {

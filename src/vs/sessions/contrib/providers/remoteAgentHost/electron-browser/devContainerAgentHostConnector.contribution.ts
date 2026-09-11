@@ -106,12 +106,16 @@ class DevContainerOutputWriter extends Disposable {
 		this._connectionIds.delete(connectionId);
 	}
 
+	reveal(): Promise<void> {
+		return this._outputService.showChannel(this._channelId, true);
+	}
+
 	private _append(value: string): void {
 		this._outputService.getChannel(this._channelId)?.append(value);
 	}
 }
 
-class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector {
+export class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector {
 	private readonly _mainService: IDevContainerAgentHostMainService;
 
 	constructor(
@@ -234,6 +238,9 @@ class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector 
 				defaultDirectory: result.remoteWorkspaceFolder,
 			};
 		} catch (error) {
+			if (!(error instanceof CancellationError)) {
+				await outputWriter.reveal();
+			}
 			outputWriter.dispose();
 			await this._mainService.disconnect(connectionId);
 			throw error;
