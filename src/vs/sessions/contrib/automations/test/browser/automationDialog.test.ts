@@ -1338,7 +1338,7 @@ suite('Automation dialog keyboard navigation', () => {
 	function createPromptDialog(cancelPromptSuggestion: () => boolean) {
 		const container = DOM.append(document.body, DOM.$('div'));
 		disposables.add({ dispose: () => container.remove() });
-		const prompt = DOM.$('textarea');
+		const prompt = DOM.$<HTMLTextAreaElement>('textarea');
 		prompt.value = 'Unsaved automation prompt';
 		const dialog = disposables.add(new Dialog(container, 'New automation', ['Cancel'], {
 			cancelId: 0,
