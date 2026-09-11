@@ -133,6 +133,8 @@ export class BranchPicker extends Disposable {
 			this._actionWidgetService.hide(true);
 		}
 		this._renderDisposables.clear();
+		container.classList.add('sessions-chat-branch-picker-host');
+		this._renderDisposables.add(toDisposable(() => container.classList.remove('sessions-chat-branch-picker-host')));
 
 		const renderTarget = this._options.isolation
 			? dom.append(container, dom.$('span.sessions-chat-branch-picker-group'))
