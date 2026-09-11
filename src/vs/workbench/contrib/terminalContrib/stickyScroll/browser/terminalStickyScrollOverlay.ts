@@ -30,6 +30,7 @@ import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
 import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollConfiguration.js';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from './terminalStickyScrollColorRegistry.js';
 import { XtermAddonImporter } from '../../../terminal/browser/xterm/xtermAddonImporter.js';
+import { updateTerminalFontRendering } from '../../../terminal/browser/xterm/terminalFontRendering.js';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -422,6 +423,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 
 		this._stickyScrollOverlay.open(this._element);
+		updateTerminalFontRendering(this._stickyScrollOverlay, this._terminalConfigurationService.config.fontRendering);
 
 		// Prevent tab key from being handled by the xterm overlay to allow natural tab navigation
 		this._stickyScrollOverlay.attachCustomKeyEventHandler((event: KeyboardEvent) => {
@@ -476,6 +478,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		this._stickyScrollOverlay.resize(this._xterm.raw.cols, this._stickyScrollOverlay.rows);
 		this._stickyScrollOverlay.options = this._getOptions();
+		updateTerminalFontRendering(this._stickyScrollOverlay, this._terminalConfigurationService.config.fontRendering);
 		this._refreshGpuAcceleration();
 	}
 
