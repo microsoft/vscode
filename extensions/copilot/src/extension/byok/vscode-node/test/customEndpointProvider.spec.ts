@@ -167,6 +167,24 @@ describe('CustomEndpointBYOKModelProvider', () => {
 
 
 	describe('resolveCustomEndpointUrl', () => {
+		it('uses only pathname while preserving encoded query, fragment and explicit URL', () => {
+			expect(resolveCustomEndpointUrl('m', 'https://messages.example.com')).toBe('https://messages.example.com/v1/chat/completions');
+			expect(resolveCustomEndpointUrl('m', 'https://x.test/v2/?k=a%2Fb#frag')).toBe('https://x.test/v2/chat/completions?k=a%2Fb#frag');
+			expect(resolveCustomEndpointUrl('m', 'https://x.test/?next=/messages')).toBe('https://x.test/v1/chat/completions?next=/messages');
+			expect(resolveCustomEndpointUrl('m', 'https://x.test/messages-gateway', 'responses')).toBe('https://x.test/messages-gateway/v1/responses');
+			const explicit = 'https://x.test/v1/messages/?key=a%2Fb#f';
+			expect(resolveCustomEndpointUrl('m', explicit, 'responses')).toBe(explicit);
+			expect(hasExplicitApiPath(explicit)).toBe(true);
+			expect(hasExplicitApiPath('https://x.test/?next=/messages')).toBe(false);
+		});
+
+		it('rejects invalid URLs and unsupported schemes without echoing credentials', () => {
+			for (const url of ['not-a-url', 'file:///messages', 'ftp://x.test/responses']) {
+				expect(() => resolveCustomEndpointUrl('m', url)).toThrow('Invalid custom endpoint URL.');
+				expect(hasExplicitApiPath(url)).toBe(false);
+			}
+		});
+
 		it('appends /v1/chat/completions to bare base URL by default', () => {
 			expect(resolveCustomEndpointUrl('m', 'https://api.example.com')).toBe('https://api.example.com/v1/chat/completions');
 		});
