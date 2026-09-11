@@ -2,6 +2,14 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light+",
 	"include": "./light_vs.json",
+	"colors": {
+		"activityBar.activeBackground": "#354355",
+		"activityBar.activeBorder": "#d3deeb",
+		"tab.inactiveBackground": "#e7e8e9",
+		"tab.inactiveForeground": "#666666",
+		"titleBar.activeBackground": "#d9dde2",
+		"titleBar.border": "#b3b3b3"
+	},
 	"tokenColors": [ // adds rules to the light vs rules
 		{
 			"name": "Function declarations",
