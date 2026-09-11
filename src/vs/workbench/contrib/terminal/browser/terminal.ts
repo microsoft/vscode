@@ -1411,6 +1411,11 @@ export interface IXtermTerminal extends IDisposable {
 	 */
 	readonly shellIntegration: IShellIntegration;
 
+	/**
+	 * Controls whether nonce-less CWD reports are retained as untrusted.
+	 */
+	setAllowUntrustedCwd(value: boolean): void;
+
 	readonly decorationAddon: IDecorationAddon;
 
 	readonly onDidChangeSelection: Event<void>;

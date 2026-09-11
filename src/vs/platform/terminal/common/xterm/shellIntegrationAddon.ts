@@ -351,13 +351,17 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		private _onDidExecuteText: Event<void> | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
 		private readonly _logService: ILogService,
-		private readonly _allowUntrustedCwd: boolean = false
+		private _allowUntrustedCwd: boolean = false
 	) {
 		super();
 		this._register(toDisposable(() => {
 			this._clearActivationTimeout();
 			this._disposeCommonProtocol();
 		}));
+	}
+
+	setAllowUntrustedCwd(value: boolean): void {
+		this._allowUntrustedCwd = value;
 	}
 
 	private _disposeCommonProtocol(): void {

@@ -45,6 +45,7 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			color: instance.color,
 			hasChildProcesses: instance.hasChildProcesses,
 			isFeatureTerminal: instance.shellLaunchConfig.isFeatureTerminal,
+			isExtensionOwnedTerminal: instance.shellLaunchConfig.isExtensionOwnedTerminal,
 			hideFromUser: instance.shellLaunchConfig.hideFromUser,
 			reconnectionProperties: instance.shellLaunchConfig.reconnectionProperties,
 			shellIntegrationNonce: instance.shellIntegrationNonce

@@ -138,7 +138,9 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 				this._resolveProcessCreated();
 				return this._register(new TestTerminalChildProcess(shouldPersist));
 			},
-			getLatency: () => Promise.resolve([])
+			getLatency: () => Promise.resolve([]),
+			attachToProcess: async () => this._register(new TestTerminalChildProcess(true)),
+			attachToRevivedProcess: async () => this._register(new TestTerminalChildProcess(true))
 		} as unknown as ITerminalBackend;
 	}
 }
@@ -205,6 +207,61 @@ suite('Workbench - TerminalInstance', () => {
 			await instance.xtermReadyPromise;
 			return instance;
 		}
+
+		test('should update nonce-less CWD policy when reusing a terminal', async () => {
+			const instance = await createTerminalInstance();
+			const capabilities = instance.xterm?.shellIntegration.capabilities;
+			const customPty = new TestTerminalChildProcess(false);
+
+			await instance.reuseTerminal({
+				customPtyImplementation: () => customPty,
+				initialText: '\x1b]633;P;Cwd=/custom-pty\x07',
+			}, true);
+			deepStrictEqual(
+				{
+					cwd: capabilities?.get(TerminalCapability.CwdDetection)?.getCwd(),
+					isTrusted: capabilities?.get(TerminalCapability.CwdDetection)?.isTrusted,
+				},
+				{ cwd: '/custom-pty', isTrusted: false }
+			);
+
+			await instance.reuseTerminal({
+				executable: '/usr/bin/zsh',
+				initialText: '\x1b]633;P;Cwd=/process\x07',
+			}, true);
+			strictEqual(capabilities?.get(TerminalCapability.CwdDetection)?.getCwd(), '/custom-pty');
+			customPty.dispose();
+		});
+
+		test('should restore extension-owned CWD compatibility for persistent terminals', async () => {
+			const createAttachTarget = (isExtensionOwnedTerminal?: boolean): IShellLaunchConfig['attachPersistentProcess'] => ({
+				id: 1,
+				pid: 1,
+				title: 'test',
+				titleSource: TitleEventSource.Api,
+				cwd: '/workspace',
+				workspaceId: 'workspace',
+				workspaceName: 'workspace',
+				isOrphan: false,
+				hasChildProcesses: false,
+				shellIntegrationNonce: 'test-nonce',
+				isExtensionOwnedTerminal,
+			});
+			const extensionOwned = await createTerminalInstance(undefined, undefined, { attachPersistentProcess: createAttachTarget(true) });
+			await writeP(extensionOwned.xterm!.raw, '\x1b]633;P;Cwd=/extension\x07');
+			deepStrictEqual(
+				{
+					isExtensionOwnedTerminal: extensionOwned.shellLaunchConfig.isExtensionOwnedTerminal,
+					cwd: extensionOwned.xterm?.shellIntegration.capabilities.get(TerminalCapability.CwdDetection)?.getCwd(),
+					isTrusted: extensionOwned.xterm?.shellIntegration.capabilities.get(TerminalCapability.CwdDetection)?.isTrusted,
+				},
+				{ isExtensionOwnedTerminal: true, cwd: '/extension', isTrusted: false }
+			);
+
+			const ordinary = await createTerminalInstance(undefined, undefined, { attachPersistentProcess: createAttachTarget() });
+			await writeP(ordinary.xterm!.raw, '\x1b]633;P;Cwd=/ordinary\x07');
+			strictEqual(ordinary.xterm?.shellIntegration.capabilities.has(TerminalCapability.CwdDetection), false);
+		});
 
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			terminalInstance = await createTerminalInstance();

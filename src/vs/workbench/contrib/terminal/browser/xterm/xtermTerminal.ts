@@ -192,6 +192,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 	get decorationAddon(): IDecorationAddon { return this._decorationAddon; }
 
+	setAllowUntrustedCwd(value: boolean): void {
+		this._shellIntegrationAddon.setAllowUntrustedCwd(value);
+	}
+
 	get textureAtlas(): Promise<ImageBitmap> | undefined {
 		const canvas = this._webglAddon?.textureAtlas;
 		if (!canvas) {

@@ -204,6 +204,7 @@ export interface IPtyHostAttachTarget {
 	waitOnExit?: WaitOnExitValue;
 	hideFromUser?: boolean;
 	isFeatureTerminal?: boolean;
+	isExtensionOwnedTerminal?: boolean;
 	type?: TerminalType;
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
@@ -581,6 +582,7 @@ export interface IShellLaunchConfig {
 		waitOnExit?: WaitOnExitValue;
 		hideFromUser?: boolean;
 		isFeatureTerminal?: boolean;
+		isExtensionOwnedTerminal?: boolean;
 		shellIntegrationNonce: string;
 		tabActions?: ITerminalTabAction[];
 	};

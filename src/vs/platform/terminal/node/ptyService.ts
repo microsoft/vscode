@@ -657,6 +657,7 @@ export class PtyService extends Disposable implements IPtyService {
 			waitOnExit: persistentProcess.shellLaunchConfig.waitOnExit,
 			hideFromUser: persistentProcess.shellLaunchConfig.hideFromUser,
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
+			isExtensionOwnedTerminal: persistentProcess.shellLaunchConfig.isExtensionOwnedTerminal,
 			type: persistentProcess.shellLaunchConfig.type,
 			hasChildProcesses: persistentProcess.hasChildProcesses,
 			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce,

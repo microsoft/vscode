@@ -133,11 +133,14 @@ suite('XtermTerminal', () => {
 			xtermColorProvider: { getBackgroundColor: () => undefined },
 			capabilities: store.add(new TerminalCapabilityStore()),
 			shellIntegrationNonce: 'test-nonce',
-			allowUntrustedCwd: true,
 			disableShellIntegrationReporting: true,
 			xtermAddonImporter: new TestXtermAddonImporter(),
 		}, undefined));
 
+		await new Promise<void>(resolve => customXterm.write('\x1b]633;P;Cwd=/rejected\x07', resolve));
+		strictEqual(customXterm.shellIntegration.capabilities.has(TerminalCapability.CwdDetection), false);
+
+		customXterm.setAllowUntrustedCwd(true);
 		await new Promise<void>(resolve => customXterm.write('\x1b]633;P;Cwd=/custom-pty\x07', resolve));
 
 		const cwdDetection = customXterm.shellIntegration.capabilities.get(TerminalCapability.CwdDetection);
@@ -145,6 +148,10 @@ suite('XtermTerminal', () => {
 			{ cwd: cwdDetection?.getCwd(), isTrusted: cwdDetection?.isTrusted },
 			{ cwd: '/custom-pty', isTrusted: false }
 		);
+
+		customXterm.setAllowUntrustedCwd(false);
+		await new Promise<void>(resolve => customXterm.write('\x1b]633;P;Cwd=/rejected-again\x07', resolve));
+		strictEqual(cwdDetection?.getCwd(), '/custom-pty');
 	});
 
 	test('detached terminals do not register decoration shutdown listeners', () => {

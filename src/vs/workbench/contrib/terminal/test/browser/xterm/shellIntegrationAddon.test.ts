@@ -84,7 +84,11 @@ suite('ShellIntegrationAddon', () => {
 		});
 
 		test('should retain nonce-less cwd reports as untrusted when explicitly allowed', async () => {
-			const { xterm, addon } = await createShellIntegrationAddon(shellIntegrationNonce, true);
+			const { xterm, addon } = await createShellIntegrationAddon(shellIntegrationNonce);
+			await writeP(xterm, '\x1b]633;P;Cwd=/rejected\x07');
+			strictEqual(addon.capabilities.has(TerminalCapability.CwdDetection), false);
+
+			addon.setAllowUntrustedCwd(true);
 			await writeP(xterm, '\x1b]633;P;Cwd=/custom-pty\x07');
 
 			const cwdDetection = addon.capabilities.get(TerminalCapability.CwdDetection);
@@ -94,6 +98,10 @@ suite('ShellIntegrationAddon', () => {
 			);
 
 			await writeP(xterm, '\x1b]633;P;Cwd=/mismatched;invalid-nonce\x07');
+			strictEqual(cwdDetection?.getCwd(), '/custom-pty');
+
+			addon.setAllowUntrustedCwd(false);
+			await writeP(xterm, '\x1b]633;P;Cwd=/rejected-again\x07');
 			strictEqual(cwdDetection?.getCwd(), '/custom-pty');
 		});
 

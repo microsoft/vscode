@@ -56,6 +56,7 @@ export interface IProcessDetails {
 	waitOnExit?: WaitOnExitValue;
 	hideFromUser?: boolean;
 	isFeatureTerminal?: boolean;
+	isExtensionOwnedTerminal?: boolean;
 	type?: TerminalType;
 	hasChildProcesses: boolean;
 	shellIntegrationNonce: string;
