@@ -65,6 +65,7 @@
 	flex: 0 1 auto;
 	min-width: 0;
 	margin-left: calc(-1 * var(--vscode-spacing-size20));
+	margin-right: var(--vscode-spacing-size80);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;

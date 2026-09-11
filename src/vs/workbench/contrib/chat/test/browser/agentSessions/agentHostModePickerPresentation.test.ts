@@ -314,16 +314,20 @@ suite('Combined mode and permissions picker', () => {
 		container.style.setProperty('--vscode-spacing-size20', '2px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
 		container.style.setProperty('--vscode-spacing-size60', '6px');
+		container.style.setProperty('--vscode-spacing-size80', '8px');
 		container.style.setProperty('--vscode-spacing-size120', '12px');
 		const highlights = Array.from(popup.querySelectorAll('.monaco-list-row.action.focused'), row => ({
 			label: row.querySelector('.title')?.textContent,
 			background: dom.getWindow(row).getComputedStyle(row).backgroundColor,
 		}));
 		const permissionSummary = permissionHeader().querySelector<HTMLElement>('.description')!;
+		const modeSummary = modeHeader().querySelector<HTMLElement>('.description')!;
 		const permissionGear = permissionHeader().querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!;
 		const modeTitle = modeHeader().querySelector<HTMLElement>('.title')!;
 		const permissionChoiceTitle = getRow(popup, 'Manual permissions').querySelector<HTMLElement>('.title')!;
+		const modeBounds = modeHeader().getBoundingClientRect();
 		const permissionBounds = permissionHeader().getBoundingClientRect();
+		const modeSummaryBounds = modeSummary.getBoundingClientRect();
 		const summaryBounds = permissionSummary.getBoundingClientRect();
 		const gearBounds = permissionGear.getBoundingClientRect();
 
@@ -345,7 +349,10 @@ suite('Combined mode and permissions picker', () => {
 				titleColumnAligned: Math.abs(modeTitle.getBoundingClientRect().left - permissionChoiceTitle.getBoundingClientRect().left) < 1,
 				gearBeforeSummary: gearBounds.right <= summaryBounds.left,
 				gearSummaryGap: summaryBounds.left - gearBounds.right,
-				rightInset: permissionBounds.right - summaryBounds.right,
+				rightInsets: {
+					mode: modeBounds.right - modeSummaryBounds.right,
+					permissions: permissionBounds.right - summaryBounds.right,
+				},
 			},
 			colors: {
 				modeHeader: dom.getWindow(modeHeader()).getComputedStyle(modeHeader()).color,
@@ -375,7 +382,10 @@ suite('Combined mode and permissions picker', () => {
 				titleColumnAligned: true,
 				gearBeforeSummary: true,
 				gearSummaryGap: 4,
-				rightInset: 12,
+				rightInsets: {
+					mode: 20,
+					permissions: 20,
+				},
 			},
 			colors: {
 				modeHeader: 'rgb(140, 140, 140)',
