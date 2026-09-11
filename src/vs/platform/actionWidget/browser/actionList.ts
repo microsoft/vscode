@@ -2211,21 +2211,6 @@ export class ActionListWidget<T> extends Disposable {
 		};
 	}
 
-	/**
-	 * The toolbar index Shift+Tab should return to when leaving the panel. Skips a trailing
-	 * removal action (appended after the item's own {@link IActionListItem.toolbarActions})
-	 * so the destructive Remove control isn't the panel's silent return target.
-	 */
-	private _lastPrimaryToolbarActionIndex(toolbar: ActionBar): number {
-		const items = toolbar.viewItems;
-		for (let i = items.length - 1; i >= 0; i--) {
-			if (items[i].action.id !== removeToolbarActionId) {
-				return i;
-			}
-		}
-		return items.length - 1;
-	}
-
 	private _focusFirstTabThroughPanelControl(element: IActionListItem<T>, row: HTMLElement): void {
 		const controls = this._getTabThroughPanelControls(element, row);
 		if (controls.toolbar?.length()) {
@@ -2275,12 +2260,16 @@ export class ActionListWidget<T> extends Disposable {
 		let target: HTMLElement | undefined;
 		if (event.shiftKey) {
 			if (inPanel) {
-				if (controls.toolbar?.length()) {
+				const panelControlIndex = controls.panelControls.indexOf(activeElement);
+				if (panelControlIndex > 0) {
+					target = controls.panelControls[panelControlIndex - 1];
+				} else if (controls.toolbar?.length()) {
 					dom.EventHelper.stop(event, true);
-					controls.toolbar.focus(this._lastPrimaryToolbarActionIndex(controls.toolbar));
+					controls.toolbar.focus(controls.toolbar.length() - 1);
 					return;
+				} else {
+					target = this._list.getHTMLElement();
 				}
-				target = this._list.getHTMLElement();
 			} else if (controls.toolbar?.isFocused()) {
 				const toolbarIndex = controls.toolbar.viewItems.findIndex((_, actionIndex) => controls.toolbar?.isFocused(actionIndex));
 				if (toolbarIndex > 0) {

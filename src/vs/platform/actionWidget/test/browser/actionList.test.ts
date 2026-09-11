@@ -1456,6 +1456,10 @@ suite('ActionListWidget', () => {
 		const enterDefaultPreserved = press('Enter');
 		const spaceDefaultPreserved = press(' ');
 		press('Tab', true);
+		const backToReference = focusState();
+		press('Tab', true);
+		const backToRepository = focusState();
+		press('Tab', true);
 		const backToCopy = focusState();
 		press('Tab', true);
 		const backToList = focusState();
@@ -1475,6 +1479,8 @@ suite('ActionListWidget', () => {
 			reference,
 			branch,
 			panelActivation: { bubbledPanelActivationKeys, enterDefaultPreserved, spaceDefaultPreserved },
+			backToReference,
+			backToRepository,
 			backToCopy,
 			backToList,
 			nextItem,
@@ -1490,6 +1496,8 @@ suite('ActionListWidget', () => {
 			reference: { location: 'panel', label: '#one' },
 			branch: { location: 'panel', label: 'Copy branch one' },
 			panelActivation: { bubbledPanelActivationKeys: [], enterDefaultPreserved: true, spaceDefaultPreserved: true },
+			backToReference: { location: 'panel', label: '#one' },
+			backToRepository: { location: 'panel', label: 'repo-one' },
 			backToCopy: { location: 'toolbar', label: 'Copy one' },
 			backToList: { location: 'list', label: 'Action Widget' },
 			nextItem: {
@@ -1500,7 +1508,7 @@ suite('ActionListWidget', () => {
 		});
 	});
 
-	test('Shift+Tab from the panel returns to the last non-removal toolbar action', () => {
+	test('Shift+Tab traverses the panel and toolbar controls in reverse order', () => {
 		const createPanel = () => {
 			const panel = document.createElement('div');
 			const control = document.createElement('a');
@@ -1540,8 +1548,13 @@ suite('ActionListWidget', () => {
 		press('Tab'); // Copy -> Remove
 		press('Tab'); // Remove -> panel link
 		press('Tab', true); // panel link -> Shift+Tab back into the toolbar
+		const firstReverseTarget = focusedToolbarLabel();
+		press('Tab', true); // Remove -> Copy
 
-		assert.strictEqual(focusedToolbarLabel(), 'Copy');
+		assert.deepStrictEqual({ firstReverseTarget, secondReverseTarget: focusedToolbarLabel() }, {
+			firstReverseTarget: 'Remove',
+			secondReverseTarget: 'Copy',
+		});
 	});
 
 	test('rebuilding the items in place re-measures only when the row count changed', () => {

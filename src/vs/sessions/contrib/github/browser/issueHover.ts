@@ -94,11 +94,14 @@ function appendHoverLink(container: HTMLElement, className: string, href: string
 	return link;
 }
 
-function getIssueStatus(issue: IGitHubIssue): { readonly kind: 'open' | 'closed' | 'notPlanned'; readonly label: string } {
+function getIssueStatus(issue: IGitHubIssue): { readonly kind: 'open' | 'closed' | 'notPlanned' | 'duplicate'; readonly label: string } {
 	if (issue.state === GitHubIssueState.Open) {
 		return { kind: 'open', label: localize('agentSessions.issueHover.open', "Open") };
 	}
-	if (issue.stateReason === GitHubIssueStateReason.NotPlanned || issue.stateReason === GitHubIssueStateReason.Duplicate) {
+	if (issue.stateReason === GitHubIssueStateReason.Duplicate) {
+		return { kind: 'duplicate', label: localize('agentSessions.issueHover.duplicate', "Duplicate") };
+	}
+	if (issue.stateReason === GitHubIssueStateReason.NotPlanned) {
 		return { kind: 'notPlanned', label: localize('agentSessions.issueHover.notPlanned', "Not planned") };
 	}
 	return { kind: 'closed', label: localize('agentSessions.issueHover.closed', "Closed") };

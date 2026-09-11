@@ -264,6 +264,14 @@ suite('SessionChatInputToolbar', () => {
 			openerService,
 			sessionsService,
 		).flatMap(section => section.entries)[0];
+		const duplicateIssueEntry = buildSessionIssueSections(
+			[{ ref: issueRef, issue: { ...issue, stateReason: GitHubIssueStateReason.Duplicate } }],
+			undefined,
+			commandService,
+			clipboardService,
+			openerService,
+			sessionsService,
+		).flatMap(section => section.entries)[0];
 		const unresolvedIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue: undefined }],
 			undefined,
@@ -284,6 +292,7 @@ suite('SessionChatInputToolbar', () => {
 		const pullRequestHover = await renderHover(pullRequestEntry);
 		const issueHover = await renderHover(issueEntry);
 		const activeIssueHover = await renderHover(activeIssueEntry);
+		const duplicateIssueHover = await renderHover(duplicateIssueEntry);
 		const pullRequestDropdownHover = renderDropdownHover(pullRequestEntry);
 		const issueDropdownHover = renderDropdownHover(issueEntry);
 		pullRequestHover?.querySelectorAll<HTMLButtonElement>('.sessions-pr-hover-branch').forEach(branch => branch.click());
@@ -372,6 +381,10 @@ suite('SessionChatInputToolbar', () => {
 			activeIssue: {
 				status: activeIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
 				date: activeIssueHover?.querySelector('.sessions-issue-hover-date')?.textContent,
+			},
+			duplicateIssue: {
+				status: duplicateIssueHover?.querySelector('.sessions-issue-hover-status')?.textContent,
+				statusKind: duplicateIssueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
 			},
 		}, {
 			pullRequest: {
@@ -477,6 +490,10 @@ suite('SessionChatInputToolbar', () => {
 			activeIssue: {
 				status: 'Open',
 				date: 'on Sep 3',
+			},
+			duplicateIssue: {
+				status: 'Duplicate',
+				statusKind: 'duplicate',
 			},
 		});
 	});
