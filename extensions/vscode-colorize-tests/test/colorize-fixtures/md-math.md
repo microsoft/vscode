@@ -171,3 +171,13 @@ x $12.45
 <!-- Should not interpret text for skipped percent (\%) -->
 
 $$ \% Should not be highlighted $$
+
+<!-- Should not highlight escaped dollar signs -->
+
+\$ not math \$ and `code` after it
+
+Let's consider X vs \$ where `admin` parties differ. The \$ settlement and `admin` again.
+
+\$\$ not display math \$\$ and `code` after it
+
+Still math $x+y$ and `code` after it
