@@ -2475,8 +2475,8 @@ export class ActionListWidget<T> extends Disposable {
 				: row && currentElement.hover?.alignToAnchorTop
 					? anchorRect.top - parentRect.top
 					: row
-					? anchorRect.top - parentRect.top + (anchorRect.height - anchorHeight) / 2
-					: panelRect.top - parentRect.top;
+						? anchorRect.top - parentRect.top + (anchorRect.height - anchorHeight) / 2
+						: panelRect.top - parentRect.top;
 			const panelBottom = parentRect.top + top + anchorHeight;
 			if (panelBottom > targetWindow.innerHeight && !(preserveVerticalPosition && currentElement.hover?.alignToAnchorTop)) {
 				top -= panelBottom - targetWindow.innerHeight + 8;
