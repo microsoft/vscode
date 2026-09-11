@@ -7,21 +7,15 @@
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
 	width: 520px;
 	max-width: 100%;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
 	color: var(--vscode-editorHoverWidget-foreground);
 }
 
-.sessions-issue-hover.compact .sessions-issue-hover-title {
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size80);
-}
-
-.sessions-issue-hover.compact .sessions-issue-hover-header {
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120) 0;
-}
-
-.sessions-issue-hover.compact .sessions-issue-hover-description {
-	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+.sessions-issue-hover.compact {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 }
 
 .sessions-issue-hover a:focus-visible {
@@ -34,7 +28,6 @@
 	align-items: baseline;
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160) 0;
 	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 }
@@ -57,7 +50,6 @@
 }
 
 .sessions-issue-hover-title {
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160) var(--vscode-spacing-size80);
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
 	line-height: 1.4;
@@ -73,7 +65,6 @@
 }
 
 .sessions-issue-hover-description {
-	padding: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size120);
 	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
