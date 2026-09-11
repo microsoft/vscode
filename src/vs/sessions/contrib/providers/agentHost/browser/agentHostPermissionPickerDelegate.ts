@@ -235,11 +235,12 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!session || !provider || !this.isSandboxToggleApplicable()) {
 			throw new Error('Sandbox configuration is unavailable for this session');
 		}
-		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, enabled ? 'on' : 'off')
-			.catch(onUnexpectedError);
+		const operation = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, enabled ? 'on' : 'off');
+		provider.trackSessionConfigOperation(session.sessionId, operation);
+		void operation.catch(onUnexpectedError);
 	}
 
-	setPermissionLevel(level: ChatPermissionLevel): void {
+	async setPermissionLevel(level: ChatPermissionLevel): Promise<void> {
 		if (!isPermissionLevelVisible(level, isAssistedPermissionsEnabled(this._configurationService))) {
 			return;
 		}
@@ -259,8 +260,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!this.availableLevels.includes(level)) {
 			return;
 		}
-		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level)
-			.catch(() => { /* best-effort */ });
+		const operation = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level);
+		provider.trackSessionConfigOperation(session.sessionId, operation);
+		await operation.catch(onUnexpectedError);
 	}
 
 	getPermissionLevelHover(level: ChatPermissionLevel, _meta: IPermissionLevelMeta): string {
