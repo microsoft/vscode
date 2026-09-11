@@ -581,7 +581,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'Cwd': {
-						// OSC 633 ; P ; Cwd=<value> ; <nonce> ST
+						// OSC 633 ; P ; Cwd=<value> ; <nonce> ST — the nonce is optional and only
+						// present when emitted by a trusted shell integration script. CWD updates
+						// without a matching non-empty nonce are ignored to mitigate spoofing
+						// via OSC sequences injected through arbitrary terminal output.
 						const nonce = args[1];
 						if (this._nonce && nonce === this._nonce) {
 							this._updateCwd(value);

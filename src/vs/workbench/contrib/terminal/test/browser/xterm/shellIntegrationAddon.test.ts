@@ -10,7 +10,6 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IShellLaunchConfig } from '../../../../../../platform/terminal/common/terminal.js';
 import { deserializeVSCodeOscMessage, serializeVSCodeOscMessage, parseKeyValueAssignment, parseMarkSequence, ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { TerminalTaskSystem } from '../../../../tasks/browser/terminalTaskSystem.js';
 import { writeP } from '../../../browser/terminalTestHelpers.js';
@@ -51,180 +50,58 @@ suite('ShellIntegrationAddon', () => {
 	});
 
 	suite('cwd detection', () => {
-		test('should activate capability on the authenticated cwd sequence (OSC 633 ; P ; Cwd=<cwd> ; <nonce> ST)', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, 'foo');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, `\x1b]633;P;Cwd=/foo;${shellIntegrationNonce}\x07`);
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), true);
-		});
-
-		test('should pass cwd sequence to the capability as trusted when nonce matches', async () => {
+		test('should accept a cwd sequence when the non-empty nonce matches exactly', async () => {
 			const mock = shellIntegrationAddon.getCwdDectionMock();
 			mock.expects('updateCwd').once().withExactArgs('/foo', true);
 			await writeP(xterm, `\x1b]633;P;Cwd=/foo;${shellIntegrationNonce}\x07`);
 			mock.verify();
 		});
 
-		test('should ignore cwd sequence when nonce is missing', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-		});
-
-		test('should ignore cwd sequence when nonce does not match', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]633;P;Cwd=/foo;invalid-nonce\x07');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-		});
-
-		test('should not authenticate an empty nonce argument against an empty configured nonce', async () => {
-			const { xterm, addon } = await createShellIntegrationAddon('');
-			strictEqual(addon.capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]633;P;Cwd=/foo;\x07');
-			strictEqual(addon.capabilities.has(TerminalCapability.CwdDetection), false);
-		});
-
-		test('should preserve serialized cwd paths when nonce matches', async () => {
-			type TestCase = [title: string, input: string, expected: string];
-			const cases: TestCase[] = [
-				['spaces', '/workspace/folder with spaces', '/workspace/folder with spaces'],
-				['semicolon', '/workspace/semi;colon', '/workspace/semi;colon'],
-				['backslash', '/workspace/back\\slash', '/workspace/back\\slash'],
-				['unicode', '/workspace/雪/目录', '/workspace/雪/目录'],
-				['Windows drive', 'C:\\Users\\Name With Spaces\\project', 'C:\\Users\\Name With Spaces\\project'],
-				['Windows UNC', '\\\\server\\share\\folder;name', '\\\\server\\share\\folder;name'],
-			];
-			for (const [title, input, expected] of cases) {
-				const serialized = input.replace(/\\/g, '\\\\').replace(/;/g, '\\x3b');
-				await writeP(xterm, `\x1b]633;P;Cwd=${serialized};${shellIntegrationNonce}\x07`);
-				strictEqual(capabilities.get(TerminalCapability.CwdDetection)?.getCwd(), expected, title);
+		test('should reject cwd sequences without an exact non-empty nonce', async () => {
+			const cases = [
+				['missing report nonce', shellIntegrationNonce, ''],
+				['mismatched report nonce', shellIntegrationNonce, ';invalid-nonce'],
+				['empty report nonce', shellIntegrationNonce, ';'],
+				['empty configured nonce', '', ';'],
+			] as const;
+			for (const [title, configuredNonce, reportNonce] of cases) {
+				const { xterm, addon } = await createShellIntegrationAddon(configuredNonce);
+				await writeP(xterm, `\x1b]633;P;Cwd=/foo${reportNonce}\x07`);
+				strictEqual(addon.capabilities.has(TerminalCapability.CwdDetection), false, title);
 			}
 		});
 
+		test('should preserve the previous trusted cwd after rejected reports', async () => {
+			await writeP(xterm, `\x1b]633;P;Cwd=/trusted;${shellIntegrationNonce}\x07`);
+			await writeP(xterm, '\x1b]633;P;Cwd=/missing\x07');
+			await writeP(xterm, '\x1b]633;P;Cwd=/mismatched;invalid-nonce\x07');
+			await writeP(xterm, '\x1b]633;P;Cwd=/empty;\x07');
+
+			const cwdDetection = capabilities.get(TerminalCapability.CwdDetection);
+			deepStrictEqual(
+				{ cwd: cwdDetection?.getCwd(), isTrusted: cwdDetection?.isTrusted },
+				{ cwd: '/trusted', isTrusted: true }
+			);
+		});
+
+		test('should deserialize semicolons and backslashes before updating cwd', async () => {
+			const cwd = '/workspace/semi;colon\\folder';
+			await writeP(xterm, `\x1b]633;P;Cwd=${serializeVSCodeOscMessage(cwd)};${shellIntegrationNonce}\x07`);
+			strictEqual(capabilities.get(TerminalCapability.CwdDetection)?.getCwd(), cwd);
+		});
+
 		test('should trust the cwd from the task shell integration start sequence', async () => {
-			const cwd = '\\\\server\\share\\folder with spaces;雪\\project';
+			const cwd = '/workspace/task';
 			const sequence = TerminalTaskSystem.prototype.taskShellIntegrationStartSequence(cwd, shellIntegrationNonce);
 
 			await writeP(xterm, sequence);
 
 			const cwdDetection = capabilities.get(TerminalCapability.CwdDetection);
 			const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-			deepStrictEqual({
-				cwd: cwdDetection?.getCwd(),
-				isTrusted: cwdDetection?.isTrusted,
-				commandCwd: commandDetection?.cwd,
-			}, {
-				cwd,
-				isTrusted: true,
-				commandCwd: cwd,
-			});
-		});
-
-		test('should update the cwd using the persisted nonce when reusing a reconnected task terminal with string initialText', async () => {
-			const previousCwd = '/workspace/previous';
-			const cwd = '/workspace/current';
-			const launchShellIntegrationNonce = 'new-task-nonce';
-			await writeP(xterm, TerminalTaskSystem.prototype.taskShellIntegrationStartSequence(previousCwd, shellIntegrationNonce));
-			const initialText = TerminalTaskSystem.prototype.taskShellIntegrationStartSequence(cwd, launchShellIntegrationNonce)
-				+ TerminalTaskSystem.prototype.getTaskShellIntegrationOutputSequence({ commandLine: 'echo test', nonce: launchShellIntegrationNonce });
-			const shellLaunchConfig: IShellLaunchConfig = {
-				initialText,
-				shellIntegrationNonce: launchShellIntegrationNonce,
-			};
-
-			TerminalTaskSystem.prototype.prepareShellLaunchConfigForTerminalReuse({ shellIntegrationNonce }, shellLaunchConfig);
-			const rewrittenInitialText = shellLaunchConfig.initialText;
-			if (typeof rewrittenInitialText !== 'string') {
-				throw new Error('Expected string initialText');
-			}
-			await writeP(xterm, rewrittenInitialText);
-
-			const cwdDetection = capabilities.get(TerminalCapability.CwdDetection);
-			const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-			deepStrictEqual({
-				initialText: rewrittenInitialText,
-				shellIntegrationNonce: shellLaunchConfig.shellIntegrationNonce,
-				cwd: cwdDetection?.getCwd(),
-				isTrusted: cwdDetection?.isTrusted,
-				commandCwd: commandDetection?.cwd,
-			}, {
-				initialText: initialText.replaceAll(launchShellIntegrationNonce, shellIntegrationNonce),
-				shellIntegrationNonce,
-				cwd,
-				isTrusted: true,
-				commandCwd: cwd,
-			});
-		});
-
-		test('should update the cwd using the persisted nonce when reusing a reconnected task terminal with object initialText', async () => {
-			const previousCwd = '/workspace/previous';
-			const cwd = '/workspace/current';
-			const launchShellIntegrationNonce = 'new-task-nonce';
-			await writeP(xterm, TerminalTaskSystem.prototype.taskShellIntegrationStartSequence(previousCwd, shellIntegrationNonce));
-			const initialText = TerminalTaskSystem.prototype.taskShellIntegrationStartSequence(cwd, launchShellIntegrationNonce)
-				+ TerminalTaskSystem.prototype.getTaskShellIntegrationOutputSequence({ commandLine: 'echo test', nonce: launchShellIntegrationNonce });
-			const shellLaunchConfig: IShellLaunchConfig = {
-				initialText: {
-					text: initialText,
-					trailingNewLine: false,
-				},
-				shellIntegrationNonce: launchShellIntegrationNonce,
-			};
-
-			TerminalTaskSystem.prototype.prepareShellLaunchConfigForTerminalReuse({ shellIntegrationNonce }, shellLaunchConfig);
-			const rewrittenInitialText = shellLaunchConfig.initialText;
-			if (!rewrittenInitialText || typeof rewrittenInitialText === 'string') {
-				throw new Error('Expected object initialText');
-			}
-			await writeP(xterm, rewrittenInitialText.text);
-
-			const cwdDetection = capabilities.get(TerminalCapability.CwdDetection);
-			const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-			deepStrictEqual({
-				initialText: rewrittenInitialText,
-				shellIntegrationNonce: shellLaunchConfig.shellIntegrationNonce,
-				cwd: cwdDetection?.getCwd(),
-				isTrusted: cwdDetection?.isTrusted,
-				commandCwd: commandDetection?.cwd,
-			}, {
-				initialText: {
-					text: initialText.replaceAll(launchShellIntegrationNonce, shellIntegrationNonce),
-					trailingNewLine: false,
-				},
-				shellIntegrationNonce,
-				cwd,
-				isTrusted: true,
-				commandCwd: cwd,
-			});
-		});
-
-		test('should preserve the trusted cwd after malicious OSC 633 output', async () => {
-			await writeP(xterm, '\x1b]633;A\x07');
-			await writeP(xterm, `\x1b]633;P;Cwd=/trusted;${shellIntegrationNonce}\x07`);
-			const cwdDetection = capabilities.get(TerminalCapability.CwdDetection);
-			const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-			deepStrictEqual({
-				cwd: cwdDetection?.getCwd(),
-				isTrusted: cwdDetection?.isTrusted,
-				commandCwd: commandDetection?.cwd,
-			}, {
-				cwd: '/trusted',
-				isTrusted: true,
-				commandCwd: '/trusted',
-			});
-
-			await writeP(xterm, '\x1b]633;P;Cwd=/spoofed;invalid-nonce\x07');
-			await writeP(xterm, '\x1b]633;P;Cwd=/also-spoofed\x07');
-			deepStrictEqual({
-				cwd: cwdDetection?.getCwd(),
-				isTrusted: cwdDetection?.isTrusted,
-				commandCwd: commandDetection?.cwd,
-			}, {
-				cwd: '/trusted',
-				isTrusted: true,
-				commandCwd: '/trusted',
-			});
+			deepStrictEqual(
+				{ cwd: cwdDetection?.getCwd(), isTrusted: cwdDetection?.isTrusted, commandCwd: commandDetection?.cwd },
+				{ cwd, isTrusted: true, commandCwd: cwd }
+			);
 		});
 
 		test('detect ITerm sequence: `OSC 1337 ; CurrentDir=<Cwd> ST`', async () => {

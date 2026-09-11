@@ -5,7 +5,7 @@
 
 /* eslint-disable local/code-no-test-async-suite */
 import { deepStrictEqual, ok, strictEqual } from 'assert';
-import { realpathSync, rmSync } from 'fs';
+import { readFileSync, realpathSync, rmSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { FileAccess } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
@@ -257,6 +257,18 @@ suite('platform - terminalEnvironment', async () => {
 				});
 			});
 		}
+
+		test('shell integration scripts should report cwd with the nonce', () => {
+			const reports = [
+				['shellIntegration-bash.sh', 'Cwd=%s;%s\\a\' "$(__vsc_escape_value "$__vsc_cwd")" "$__vsc_nonce"'],
+				['shellIntegration-rc.zsh', 'Cwd=%s;%s\\a\' "$(__vsc_escape_value "${PWD}")" "$__vsc_nonce"'],
+				['shellIntegration.fish', '__vsc_esc P Cwd=(__vsc_escape_value "$PWD") $__vsc_nonce'],
+				['shellIntegration.ps1', 'Cwd=$(__VSCode-Escape-Value $pwd.ProviderPath);$($Global:__VSCodeState.Nonce)`a'],
+			] as const;
+			for (const [script, report] of reports) {
+				ok(readFileSync(join(shellIntegrationScriptRoot, script), 'utf8').includes(report), script);
+			}
+		});
 
 		suite('custom shell integration nonce', async () => {
 			test('should fail for unsupported shell but nonce should still be available', async () => {
