@@ -697,8 +697,8 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount: Event<number> = this._onDidChangeItemCount.event;
 
-	private readonly _onDidRequestCreate = this._register(new Emitter<PromptsType>());
-	readonly onDidRequestCreate: Event<PromptsType> = this._onDidRequestCreate.event;
+	private readonly _onDidRequestCreate = this._register(new Emitter<{ type: PromptsType; workspaceFolder?: URI }>());
+	readonly onDidRequestCreate: Event<{ type: PromptsType; workspaceFolder?: URI }> = this._onDidRequestCreate.event;
 
 	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }>());
 	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }> = this._onDidRequestCreateManual.event;
@@ -1217,7 +1217,7 @@ export class AICustomizationListWidget extends Disposable {
 					tooltip: localize('generateCustomizationWithAI', "Generate {0} with AI", typeLabel),
 					enabled: true,
 					kind: 'generate',
-					run: () => { this._onDidRequestCreate.fire(promptType); },
+					run: workspaceFolder => { this._onDidRequestCreate.fire({ type: promptType, workspaceFolder }); },
 				});
 			}
 			if (hasWorkspace) {
@@ -1250,7 +1250,7 @@ export class AICustomizationListWidget extends Disposable {
 					tooltip: localize('generateCustomizationWithAI', "Generate {0} with AI", typeLabel),
 					enabled: true,
 					kind: 'generate',
-					run: () => { this._onDidRequestCreate.fire(promptType); },
+					run: workspaceFolder => { this._onDidRequestCreate.fire({ type: promptType, workspaceFolder }); },
 				});
 			} else if (hasWorkspace) {
 				// Sessions or non-local harness with workspace: workspace is primary

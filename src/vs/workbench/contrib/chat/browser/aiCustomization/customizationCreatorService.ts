@@ -43,7 +43,7 @@ export class CustomizationCreatorService {
 
 	) { }
 
-	async createWithAI(type: PromptsType): Promise<void> {
+	async createWithAI(type: PromptsType, workspaceFolder?: URI): Promise<void> {
 		const currentSessionResource = this.harnessService.activeSessionResource.get();
 
 
@@ -75,6 +75,7 @@ export class CustomizationCreatorService {
 			currentSessionResource,
 			type,
 			'local',
+			workspaceFolder,
 		);
 		if (targetDir === null) {
 			return; // User cancelled the picker

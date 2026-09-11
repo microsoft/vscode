@@ -1125,8 +1125,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		// Handle create actions - AI-guided creation
-		this.editorDisposables.add(this.listWidget.onDidRequestCreate(promptType => {
-			this.createNewItemWithAI(promptType);
+		this.editorDisposables.add(this.listWidget.onDidRequestCreate(({ type, workspaceFolder }) => {
+			this.createNewItemWithAI(type, workspaceFolder);
 		}));
 
 		// Handle manual create actions - open editor directly
@@ -3250,7 +3250,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Creates a new customization using the AI-guided flow.
 	 */
-	private async createNewItemWithAI(type: PromptsType): Promise<void> {
+	private async createNewItemWithAI(type: PromptsType, workspaceFolder?: URI): Promise<void> {
 		this.telemetryService.publicLog2<CustomizationEditorCreateItemEvent, CustomizationEditorCreateItemClassification>('chatCustomizationEditor.createItem', {
 			section: this.selectedSection ?? 'welcome',
 			promptType: type,
@@ -3260,7 +3260,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.input) {
 			this.group.closeEditor(this.input);
 		}
-		await this.workspaceService.generateCustomization(type);
+		await this.workspaceService.generateCustomization(type, workspaceFolder);
 	}
 
 	/**
