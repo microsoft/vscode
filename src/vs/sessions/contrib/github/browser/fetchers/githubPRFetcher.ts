@@ -13,6 +13,7 @@ import {
 	IMergeBlocker,
 	MergeBlockerKind,
 	IGitHubPullRequestReviewThread,
+	IGitHubChangedFile,
 } from '../../common/types.js';
 import { GitHubApiClient, IGitHubApiResponse } from '../githubApiClient.js';
 
@@ -41,6 +42,15 @@ interface IGitHubReviewResponse {
 	readonly user: { readonly login: string; readonly avatar_url: string };
 	readonly state: string;
 	readonly submitted_at: string | null;
+}
+
+interface IGitHubChangedFileResponse {
+	readonly filename: string;
+	readonly previous_filename?: string;
+	readonly status: IGitHubChangedFile['status'];
+	readonly additions: number;
+	readonly deletions: number;
+	readonly patch?: string;
 }
 
 interface IGitHubReviewCommentResponse {
@@ -195,19 +205,71 @@ export class GitHubPRFetcher {
 	}
 
 	async getReviews(owner: string, repo: string, prNumber: number, etag?: string): Promise<IGitHubApiResponse<readonly IGitHubPullRequestReview[]>> {
-		const response = await this._apiClient.request<readonly IGitHubReviewResponse[]>(
-			'GET',
-			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`,
+		const response = await this._getPaginatedPullRequestData<IGitHubReviewResponse>(
+			owner,
+			repo,
+			prNumber,
+			'reviews',
 			'githubApi.getReviews',
-			{ etag }
+			etag,
 		);
 
 		return {
 			...response,
-			data: response.data
-				? response.data.map(mapReview)
-				: undefined
+			data: response.data?.map(mapReview)
 		};
+	}
+
+	async getChangedFiles(owner: string, repo: string, prNumber: number): Promise<readonly IGitHubChangedFile[]> {
+		const response = await this._getPaginatedPullRequestData<IGitHubChangedFileResponse>(
+			owner,
+			repo,
+			prNumber,
+			'files',
+			'githubApi.getPullRequestChangedFiles',
+		);
+		return response.data?.map(file => ({
+			filename: file.filename,
+			previous_filename: file.previous_filename,
+			status: file.status,
+			additions: file.additions,
+			deletions: file.deletions,
+			patch: file.patch,
+		})) ?? [];
+	}
+
+	private async _getPaginatedPullRequestData<T>(
+		owner: string,
+		repo: string,
+		prNumber: number,
+		resource: 'files' | 'reviews',
+		callSite: string,
+		etag?: string,
+	): Promise<IGitHubApiResponse<readonly T[]>> {
+		const perPage = 100;
+		const firstPage = await this._apiClient.request<readonly T[]>(
+			'GET',
+			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/${resource}?per_page=${perPage}&page=1`,
+			callSite,
+			{ etag }
+		);
+		if (!firstPage.data || firstPage.statusCode !== 200) {
+			return firstPage;
+		}
+
+		const data = [...firstPage.data];
+		let pageData = firstPage.data;
+		for (let page = 2; pageData.length === perPage; page++) {
+			const response = await this._apiClient.request<readonly T[]>(
+				'GET',
+				`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/${resource}?per_page=${perPage}&page=${page}`,
+				callSite,
+			);
+			pageData = response.data ?? [];
+			data.push(...pageData);
+		}
+
+		return { ...firstPage, data };
 	}
 
 	async getReviewThreads(owner: string, repo: string, prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {

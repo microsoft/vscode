@@ -15,6 +15,7 @@ import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsMode
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection } from './models/githubPullRequestCIModel.js';
 import { GitHubIssueModel, GitHubIssueModelReferenceCollection } from './models/githubIssueModel.js';
 import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
+import { GitHubPRFetcher } from './fetchers/githubPRFetcher.js';
 import { GitHubRecentUserWorkFetcher, IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentPullRequestReviewThread } from './fetchers/githubRecentUserWorkFetcher.js';
 import { GitHubPullRequestsFetcher } from './fetchers/githubPullRequestsFetcher.js';
 import { GitHubPullRequestContextFetcher } from './fetchers/githubPullRequestContextFetcher.js';
@@ -68,6 +69,7 @@ export interface IGitHubService {
 	 * List files changed between two refs using the GitHub compare API.
 	 */
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]>;
+	getPullRequestChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<readonly IGitHubChangedFile[]>;
 	getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string>;
 
 	/** List one page of open pull requests, ordered by most recently updated. */
@@ -106,6 +108,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _changesFetcher: GitHubChangesFetcher;
 	private readonly _recentUserWorkFetcher: GitHubRecentUserWorkFetcher;
 	private readonly _pullRequestsFetcher: GitHubPullRequestsFetcher;
+	private readonly _pullRequestFetcher: GitHubPRFetcher;
 	private readonly _pullRequestContextFetcher: GitHubPullRequestContextFetcher;
 	private readonly _repositoryReferences: GitHubRepositoryModelReferenceCollection;
 	private readonly _pullRequestReferences: GitHubPullRequestModelReferenceCollection;
@@ -140,6 +143,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._changesFetcher = new GitHubChangesFetcher(apiClient);
 		this._recentUserWorkFetcher = new GitHubRecentUserWorkFetcher(apiClient);
 		this._pullRequestsFetcher = new GitHubPullRequestsFetcher(apiClient);
+		this._pullRequestFetcher = new GitHubPRFetcher(apiClient);
 		this._pullRequestContextFetcher = new GitHubPullRequestContextFetcher(apiClient);
 
 		this._repositoryReferences = instantiationService.createInstance(GitHubRepositoryModelReferenceCollection, apiClient);
@@ -255,6 +259,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
 		return this._changesFetcher.getChangedFiles(owner, repo, base, head);
+	}
+
+	getPullRequestChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<readonly IGitHubChangedFile[]> {
+		return this._pullRequestFetcher.getChangedFiles(owner, repo, pullRequestNumber);
 	}
 
 	async getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string> {

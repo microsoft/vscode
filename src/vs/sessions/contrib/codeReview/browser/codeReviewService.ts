@@ -331,7 +331,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				if (!details) {
 					return undefined;
 				}
-				const changedFiles = await this._gitHubService.getChangedFiles(pullRequest.owner, pullRequest.repo, details.baseRef, details.headSha);
+				const changedFiles = await this._gitHubService.getPullRequestChangedFiles(pullRequest.owner, pullRequest.repo, pullRequest.number);
 				const changedFile = changedFiles.find(file => file.filename === context.path);
 				if (!changedFile?.patch) {
 					return undefined;

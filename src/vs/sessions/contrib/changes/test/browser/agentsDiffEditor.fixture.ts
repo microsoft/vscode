@@ -145,6 +145,7 @@ function createAgentFeedbackService(feedback: readonly IAgentFeedback[] = [], fe
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidRevealSessionComment = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();
 		}

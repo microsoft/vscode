@@ -259,7 +259,7 @@ suite('CodeReviewService', () => {
 			}());
 		}
 
-		override getChangedFiles() {
+		override getPullRequestChangedFiles() {
 			return Promise.resolve([{
 				filename: 'src/a.ts',
 				previous_filename: undefined,
