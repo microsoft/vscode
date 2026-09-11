@@ -8,7 +8,10 @@ import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDele
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { AGENT_SESSION_CLEANUP_SETTINGS_TAG, ChatConfiguration } from '../common/constants.js';
+
+const legacyAutoArchiveMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoArchiveMergedSessionsAfterDays';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
@@ -21,13 +24,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
-		[ChatConfiguration.AutoArchiveMergedSessionsAfterDays]: {
+		[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: {
 			type: 'integer',
 			minimum: 0,
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', AGENT_SESSION_CLEANUP_SETTINGS_TAG],
-			markdownDescription: nls.localize('autoArchiveMergedSessions.description', "Controls the number of inactive days before agent sessions with a merged pull request are automatically archived. Archiving safely removes eligible worktrees. Permanent deletion is controlled separately by {0}. Set to 0 to disable automatic archival. The recommended value is 15.", '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`'),
+			markdownDescription: nls.localize('autoMarkAsDoneMergedSessions.description', "Controls the number of inactive days before agent sessions with a merged pull request are automatically marked as done. Marking a session as done safely removes its eligible worktree. Permanent deletion is controlled separately by {0}. Set to 0 to disable automatically marking sessions as done. The recommended value is 15.", '`#chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays#`'),
 			agentHost: { key: AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey },
 		},
 		[ChatConfiguration.AutoDeleteArchivedMergedSessionsAfterDays]: {
@@ -36,8 +39,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 0,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', AGENT_SESSION_CLEANUP_SETTINGS_TAG],
-			markdownDescription: nls.localize('autoDeleteArchivedMergedSessions.description', "Controls the number of days after automatic archival before agent sessions with a merged pull request are permanently deleted. Retained eligible worktrees are safely removed before deletion. Automatic archival is controlled separately by {0}. Set to 0 to disable permanent deletion. The recommended value is 15.", '`#chat.agentSessions.autoArchiveMergedSessionsAfterDays#`'),
+			markdownDescription: nls.localize('autoDeleteArchivedMergedSessions.description', "Controls the number of days after being automatically marked as done before agent sessions with a merged pull request are permanently deleted. Retained eligible worktrees are safely removed before deletion. Automatically marking sessions as done is controlled separately by {0}. Set to 0 to disable permanent deletion. The recommended value is 15.", '`#chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays#`'),
 			agentHost: { key: AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey },
 		},
 	},
 });
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: legacyAutoArchiveMergedSessionsAfterDaysSetting,
+	includeApplication: true,
+	migrateFn: (value, accessor) => {
+		const pairs: ConfigurationKeyValuePairs = [[legacyAutoArchiveMergedSessionsAfterDaysSetting, { value: undefined }]];
+		if (accessor(ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays) === undefined) {
+			pairs.push([ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays, { value }]);
+		}
+		return pairs;
+	},
+}]);

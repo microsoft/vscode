@@ -22,7 +22,7 @@ import { getGitHubPullRequestRefs, isActiveSessionStatus, ISession } from '../..
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
-import { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../common/sessionLifecycleSettings.js';
+import { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../common/sessionLifecycleSettings.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
 
@@ -36,7 +36,7 @@ const DEFAULT_AUTO_ARCHIVE_AFTER_DAYS = 15;
 const DEFAULT_AUTO_DELETE_AFTER_DAYS = 15;
 const AUTO_ARCHIVE_PROMPTED_STORAGE_KEY = 'sessions.github.autoArchiveMerged.prompted';
 
-export { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING };
+export { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING };
 
 /**
  * Resolved PR identity for a session's poller, or the specific stage at which
@@ -91,7 +91,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		this._cleanupEnabled = observableFromEvent(
 			Event.filter(this._configurationService.onDidChangeConfiguration, event =>
-				event.affectsConfiguration(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING)
+				event.affectsConfiguration(AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING)
 				|| event.affectsConfiguration(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING)),
 			() => this._getArchiveAfterDays() > 0 || this._getDeleteAfterDays() > 0,
 		);
@@ -338,7 +338,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	}
 
 	private _getArchiveAfterDays(): number {
-		const value = this._configurationService.getValue<number>(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING);
+		const value = this._configurationService.getValue<number>(AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING);
 		return Number.isInteger(value) && value > 0 ? value : 0;
 	}
 
@@ -365,7 +365,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 					label: localize('autoArchiveMergedSessions.enable', "Turn On Session Cleanup"),
 					run: () => {
 						void Promise.all([
-							this._configurationService.updateValue(AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS, ConfigurationTarget.USER),
+							this._configurationService.updateValue(AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, DEFAULT_AUTO_ARCHIVE_AFTER_DAYS, ConfigurationTarget.USER),
 							this._configurationService.updateValue(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, DEFAULT_AUTO_DELETE_AFTER_DAYS, ConfigurationTarget.USER),
 						]).catch(error => {
 							this._storageService.remove(AUTO_ARCHIVE_PROMPTED_STORAGE_KEY, StorageScope.APPLICATION);
