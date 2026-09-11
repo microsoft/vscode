@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IMatch } from '../../common/filters.js';
-import { escapeIcons, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from '../../common/iconLabels.js';
+import { escapeIcons, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripCodiconGlyphs, stripIcons } from '../../common/iconLabels.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 interface IIconFilter {
@@ -97,6 +97,19 @@ suite('Icon Labels', () => {
 		assert.strictEqual(stripIcons('$(Hello) W$(oi)rld'), ' Wrld');
 	});
 
+
+	test('stripCodiconGlyphs', () => {
+		// Codicon glyphs are stored in the Unicode Private Use Area of the codicon font.
+		const glyph = String.fromCharCode(0xeab4); // drop-down-button
+		const otherGlyph = String.fromCharCode(0xec1f); // a high codicon glyph
+		assert.strictEqual(stripCodiconGlyphs('Hello World'), 'Hello World');
+		assert.strictEqual(stripCodiconGlyphs(`${glyph}Hello`), 'Hello');
+		assert.strictEqual(stripCodiconGlyphs(`Hello ${glyph} World`), 'Hello  World');
+		assert.strictEqual(stripCodiconGlyphs(`${glyph}${otherGlyph}`), '');
+		assert.strictEqual(stripCodiconGlyphs(`a${glyph}b${otherGlyph}c`), 'abc');
+		// Characters outside the Private Use Area are left untouched.
+		assert.strictEqual(stripCodiconGlyphs('café 日本語 😀'), 'café 日本語 😀');
+	});
 
 	test('escapeIcons', () => {
 		assert.strictEqual(escapeIcons('Hello World'), 'Hello World');

@@ -22,6 +22,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Hover, HoverContext, HoverProvider, HoverVerbosityAction } from '../../../common/languages.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { stripCodiconGlyphs } from '../../../../base/common/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -415,7 +416,10 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		if (!renderedHoverPart) {
 			return undefined;
 		}
-		const hoverElementInnerText = renderedHoverPart.hoverElement.innerText;
+		// Codicon glyphs rendered in the hover (e.g. via markdown `$(icon)` syntax) leak into
+		// `innerText` and are announced as "space" by screen readers, so strip them out before
+		// normalizing whitespace (see #217974).
+		const hoverElementInnerText = stripCodiconGlyphs(renderedHoverPart.hoverElement.innerText);
 		const accessibleContent = hoverElementInnerText.replace(/[^\S\n\r]+/gu, ' ');
 		return accessibleContent;
 	}
