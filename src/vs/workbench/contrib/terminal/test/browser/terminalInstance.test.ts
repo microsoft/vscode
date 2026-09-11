@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
@@ -18,7 +18,7 @@ import { ResultKind } from '../../../../../platform/keybinding/common/keybinding
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, remoteResolverTerminal, TitleEventSource, type IProcessReadyEvent, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -69,7 +69,8 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	id: number = 0;
 	get capabilities() { return []; }
 	constructor(
-		readonly shouldPersist: boolean
+		readonly shouldPersist: boolean,
+		private readonly _readyEvent?: IProcessReadyEvent
 	) {
 		super();
 	}
@@ -84,10 +85,16 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
 	onProcessExit = Event.None;
-	onProcessReady = Event.None;
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	onProcessReady = this._onProcessReady.event;
 	onProcessTitleChanged = Event.None;
 	onProcessShellTypeChanged = Event.None;
-	async start(): Promise<undefined> { return undefined; }
+	async start(): Promise<undefined> {
+		if (this._readyEvent) {
+			this._onProcessReady.fire(this._readyEvent);
+		}
+		return undefined;
+	}
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
 	sendSignal(signal: string): void { }
@@ -103,6 +110,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
 	createProcessCount = 0;
+	processReadyEvent: IProcessReadyEvent | undefined;
 	private readonly _processCreatedPromise: Promise<void>;
 	private _resolveProcessCreated!: () => void;
 
@@ -124,6 +132,8 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 			onDidMoveWindowInstance: Event.None,
 			onDidRequestDetach: Event.None,
 			getShellEnvironment: async () => ({}),
+			attachToProcess: async () => undefined,
+			attachToRevivedProcess: async () => undefined,
 			createProcess: async (
 				shellLaunchConfig: IShellLaunchConfig,
 				cwd: string,
@@ -136,7 +146,7 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 			) => {
 				this.createProcessCount++;
 				this._resolveProcessCreated();
-				return this._register(new TestTerminalChildProcess(shouldPersist));
+				return this._register(new TestTerminalChildProcess(shouldPersist, this.processReadyEvent));
 			},
 			getLatency: () => Promise.resolve([])
 		} as unknown as ITerminalBackend;
@@ -212,6 +222,43 @@ suite('Workbench - TerminalInstance', () => {
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
+
+		for (const findRevivedId of [false, true]) {
+			test(`preserves the restored icon when ${findRevivedId ? 'revival' : 'reattachment'} fails`, async () => {
+				const terminalInstanceService = store.add(new TestTerminalInstanceService());
+				terminalInstanceService.processReadyEvent = { pid: 123, cwd: '', windowsPty: undefined };
+				const instantiationService = createTerminalInstantiationService(terminalInstanceService);
+				const icon = { id: 'rocket' };
+				const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {
+					attachPersistentProcess: {
+						id: 1,
+						pid: 123,
+						title: 'Terminal icon persistence repro',
+						titleSource: TitleEventSource.Api,
+						cwd: '',
+						icon,
+						findRevivedId,
+						shellIntegrationNonce: 'test-nonce'
+					}
+				}));
+				const initialIcon = instance.icon;
+				await instance.processReady;
+
+				deepStrictEqual({
+					initialIcon,
+					restoredIcon: instance.icon,
+					launchIcon: instance.shellLaunchConfig.icon,
+					attachment: instance.shellLaunchConfig.attachPersistentProcess,
+					createdProcesses: terminalInstanceService.createProcessCount
+				}, {
+					initialIcon: icon,
+					restoredIcon: icon,
+					launchIcon: icon,
+					attachment: undefined,
+					createdProcesses: 1
+				});
+			});
+		}
 		test('marked remote resolver terminal bypasses workspace trust request', async () => {
 			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
 			const instance = await createTerminalInstance(undefined, undefined, {

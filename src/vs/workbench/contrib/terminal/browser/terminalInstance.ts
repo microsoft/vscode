@@ -523,6 +523,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			capabilityListeners.get(e.id)?.dispose();
 		}));
 
+		// Keep the restored icon when attaching fails and a new process is launched instead.
+		this._shellLaunchConfig.icon = this._shellLaunchConfig.attachPersistentProcess?.icon ?? this._shellLaunchConfig.icon;
+
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
 		// disabled in remote because this needs to be sync and the OS may differ on the remote
 		// which would result in the wrong profile being selected and the wrong icon being
