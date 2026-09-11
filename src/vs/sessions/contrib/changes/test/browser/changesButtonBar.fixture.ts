@@ -21,8 +21,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 	}),
 	ButtonBarInlineIconLabel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['A production-style Changes outside-card button shows a 6px leading-icon relationship and a multi-part "Commit", check icon, and "Ready" label whose inline icon keeps a tighter 2px relationship to the surrounding text.'],
-		render: context => renderChangesButtonBar(context, 'Commit $(check) Ready'),
+		expectedVisualDescriptions: ['A production-style Changes outside-card button shows a 6px leading-icon relationship and a multi-part label with "Commit" followed by adjacent check and add icons. The inline icons keep a tighter 2px relationship without adding outer spacing at the trailing edge.'],
+		render: context => renderChangesButtonBar(context, 'Commit $(check)$(add)'),
 	}),
 });
 

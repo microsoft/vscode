@@ -141,7 +141,11 @@
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button.monaco-text-button > .codicon:not(.monaco-button-leading-icon) {
-	margin-inline: var(--vscode-spacing-size20);
+	margin: 0;
+}
+
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button.monaco-text-button > span:not(.monaco-button-leading-icon) + span:not(.monaco-button-leading-icon) {
+	margin-inline-start: var(--vscode-spacing-size20);
 }
 
 /* ButtonWithDropdown container grows to fill available space */
