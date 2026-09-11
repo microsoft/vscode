@@ -11,6 +11,8 @@ import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { LRUCache } from '../../../util/vs/base/common/map';
 
+export const MAX_GREP_RESULT_SESSIONS = 16;
+
 export const IGrepResultService = createServiceIdentifier<IGrepResultService>('IGrepResultService');
 
 interface FileMatch {
@@ -123,8 +125,7 @@ export class GrepResultService extends Disposable implements IGrepResultService 
 
 	constructor() {
 		super();
-		// We keep a maximum of 16 sessions in the cache to limit memory usage.
-		this.cache = new LRUCache<string, SessionMatches>(16);
+		this.cache = new LRUCache<string, SessionMatches>(MAX_GREP_RESULT_SESSIONS);
 	}
 
 	addGrepResult(sessionUri: vscode.Uri, requestId: string, result: MatchResult): void {

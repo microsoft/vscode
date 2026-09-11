@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { expect, suite, test } from 'vitest';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { Range } from '../../../../vscodeTypes';
-import { GrepResultService, NullGrepResultService } from '../grepResultService';
+import { GrepResultService, MAX_GREP_RESULT_SESSIONS, NullGrepResultService } from '../grepResultService';
 
 suite('GrepResultService', () => {
 	const uri = URI.file('/file.ts');
@@ -70,16 +70,16 @@ suite('GrepResultService', () => {
 		const service = new GrepResultService();
 		const removedResults: { sessionUri: vscode.Uri; requestId: string }[] = [];
 		service.onDidRemoveGrepResult(result => removedResults.push(result));
-		const sessionUris = Array.from({ length: 17 }, (_, index) => URI.file(`/session-${index}`));
+		const sessionUris = Array.from({ length: MAX_GREP_RESULT_SESSIONS + 1 }, (_, index) => URI.file(`/session-${index}`));
 
 		service.addGrepResult(sessionUris[0], 'request-0', { files: [] });
 		service.addGrepResult(sessionUris[1], 'request-1-first', { files: [] });
 		service.addGrepResult(sessionUris[1], 'request-1-second', { files: [] });
-		for (let i = 2; i < 16; i++) {
+		for (let i = 2; i < MAX_GREP_RESULT_SESSIONS; i++) {
 			service.addGrepResult(sessionUris[i], `request-${i}`, { files: [] });
 		}
 		service.getGrepResult(sessionUris[0], uri, 0, 0);
-		service.addGrepResult(sessionUris[16], 'request-16', { files: [] });
+		service.addGrepResult(sessionUris[MAX_GREP_RESULT_SESSIONS], `request-${MAX_GREP_RESULT_SESSIONS}`, { files: [] });
 
 		expect(removedResults).toEqual([
 			{ sessionUri: sessionUris[1], requestId: 'request-1-first' },
