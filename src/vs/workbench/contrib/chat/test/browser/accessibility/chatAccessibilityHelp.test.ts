@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isNative } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -252,12 +253,14 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('generated image appears below a response'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Multiple generated images are grouped into one gallery'),
+			cleanup: getAccessibilityHelpText('agentView', keybindingService, true).includes('Command Palette even when AI features are disabled'),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('Save action'),
 			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('generated image appears below a response'),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('generated image appears below a response'),
 		}, {
 			panelChat: true,
 			agentView: true,
+			cleanup: isNative,
 			quickChat: true,
 			editsView: false,
 			inlineChat: false,

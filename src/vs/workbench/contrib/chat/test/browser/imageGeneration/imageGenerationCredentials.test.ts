@@ -125,15 +125,18 @@ suite('ImageGenerationCredentialsService', () => {
 		const service = store.add(new ImageGenerationCredentialsService(configurationService, secretStorageService, logService));
 
 		await service.whenReady;
+		const initiallyStored = service.hasStoredData;
 		await service.configure({ endpoint: ' https://images.example.test/ ', deployment: ' image-deployment ' }, ' test-key ');
 
 		assert.deepStrictEqual({
+			stored: [initiallyStored, service.hasStoredData],
 			configuration: service.configuration,
 			connection: await service.resolve(configuration),
 			storedSecret: secretStorageService.writes[0],
 			updates: configurationService.updates,
 			warnings: logService.warnings,
 		}, {
+			stored: [false, true],
 			configuration,
 			connection: { ...configuration, headers: { 'api-key': 'test-key' } },
 			storedSecret: {
@@ -163,6 +166,7 @@ suite('ImageGenerationCredentialsService', () => {
 			restored: restoredConfiguration,
 			connection,
 			cleared: {
+				hasStoredData: restored.hasStoredData,
 				configuration: restored.configuration,
 				secret: await secretStorageService.get(ImageGenerationCredentialsSecret),
 				deletions: secretStorageService.deletions,
@@ -173,6 +177,7 @@ suite('ImageGenerationCredentialsService', () => {
 			restored: configuration,
 			connection: { ...configuration, headers: { 'api-key': 'restored-key' } },
 			cleared: {
+				hasStoredData: false,
 				configuration: undefined,
 				secret: undefined,
 				deletions: [ImageGenerationCredentialsSecret],
@@ -181,6 +186,30 @@ suite('ImageGenerationCredentialsService', () => {
 				{ key: ImageGenerationConnectionSetting, value: undefined, target: ConfigurationTarget.APPLICATION },
 			],
 			warnings: [],
+		});
+	});
+
+	test('tracks orphaned credentials and permits cleanup of an invalid connection', async () => {
+		const configurationService = new CapturingConfigurationService();
+		const secrets = store.add(new CapturingSecretStorageService());
+		const service = store.add(new ImageGenerationCredentialsService(configurationService, secrets, new TestLogService()));
+		await service.whenReady;
+
+		const states: Array<{ stored: boolean; configured: boolean }> = [];
+		const record = () => states.push({ stored: service.hasStoredData, configured: !!service.configuration });
+		store.add(service.onDidChangeConfiguration(record));
+		record();
+		const changed = Event.toPromise(Event.once(service.onDidChangeConfiguration));
+		await secrets.set(ImageGenerationCredentialsSecret, JSON.stringify({ ...configuration, key: 'orphaned-key' }));
+		await changed;
+
+		configurationService.applicationValue = { endpoint: configuration.endpoint };
+		configurationService.fireChange();
+		await service.clear();
+
+		assert.deepStrictEqual({ states, setting: configurationService.applicationValue, secret: await secrets.get(ImageGenerationCredentialsSecret) }, {
+			states: [{ stored: false, configured: false }, { stored: true, configured: false }, { stored: false, configured: false }],
+			setting: undefined, secret: undefined,
 		});
 	});
 

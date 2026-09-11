@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -13,7 +14,7 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { GenerateImageTool, GenerateImageToolData } from '../browser/imageGeneration/generateImageTool.js';
 import { ImageGenerationCredentialsService } from '../browser/imageGeneration/imageGenerationCredentials.js';
 import { MaiImageGenerationService } from '../browser/imageGeneration/maiImageGenerationService.js';
-import { IImageGenerationCredentialsService, IImageGenerationService, imageGenerationConfiguration } from '../common/imageGeneration.js';
+import { IImageGenerationCredentialsService, IImageGenerationService, imageGenerationConfiguration, ImageGenerationHasStoredData } from '../common/imageGeneration.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import '../browser/imageGeneration/imageGenerationActions.js';
 
@@ -30,11 +31,15 @@ class ImageGenerationContribution extends Disposable implements IWorkbenchContri
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		const tool = instantiationService.createInstance(GenerateImageTool);
 		const registration = this._register(new MutableDisposable());
+		const hasStoredData = ImageGenerationHasStoredData.bindTo(contextKeyService);
+		this._register(toDisposable(() => hasStoredData.reset()));
 		const update = () => {
+			hasStoredData.set(credentialsService.hasStoredData);
 			if (credentialsService.configuration && !chatEntitlementService.sentiment.hidden) {
 				if (!registration.value) {
 					registration.value = toolsService.registerTool(GenerateImageToolData, tool);

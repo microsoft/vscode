@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const ImageGenerationConnectionSetting = 'chat.imageGeneration.connection';
@@ -17,6 +18,7 @@ export const RemoveImageGenerationCredentialsActionId = 'workbench.action.chat.r
 export const ImageGenerationMaxPromptLength = 32_000;
 export const ImageGenerationMaxPixels = 1_048_576;
 export const ImageGenerationMinDimension = 768;
+export const ImageGenerationHasStoredData = new RawContextKey<boolean>('chat.imageGenerationHasStoredData', false, localize('imageGeneration.hasStoredData', "Whether image generation settings or credentials are stored."));
 
 export const imageGenerationConfiguration: IConfigurationNode = {
 	id: 'chat',
@@ -65,6 +67,7 @@ export const IImageGenerationCredentialsService = createDecorator<IImageGenerati
 export interface IImageGenerationCredentialsService {
 	readonly _serviceBrand: undefined;
 	readonly configuration: IImageGenerationConfiguration | undefined;
+	readonly hasStoredData: boolean;
 	readonly onDidChangeConfiguration: Event<void>;
 	readonly whenReady: Promise<void>;
 	configure(configuration: IImageGenerationConfiguration, key: string): Promise<void>;

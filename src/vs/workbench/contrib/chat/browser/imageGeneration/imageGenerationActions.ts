@@ -5,13 +5,13 @@
 
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { assertImageGenerationEnabled, IImageGenerationCredentialsService, parseImageGenerationConfiguration, RemoveImageGenerationCredentialsActionId, SetUpImageGenerationActionId } from '../../common/imageGeneration.js';
+import { assertImageGenerationEnabled, IImageGenerationCredentialsService, ImageGenerationHasStoredData, parseImageGenerationConfiguration, RemoveImageGenerationCredentialsActionId, SetUpImageGenerationActionId } from '../../common/imageGeneration.js';
 
 export class SetUpImageGenerationAction extends Action2 {
 	constructor() {
@@ -89,7 +89,7 @@ export class RemoveImageGenerationCredentialsAction extends Action2 {
 			id: RemoveImageGenerationCredentialsActionId,
 			title: localize2('imageGeneration.remove', "Remove Image Generation Credentials"),
 			category: localize2('chat.category', "Chat"),
-			f1: true,
+			menu: { id: MenuId.CommandPalette, when: ImageGenerationHasStoredData },
 		});
 	}
 

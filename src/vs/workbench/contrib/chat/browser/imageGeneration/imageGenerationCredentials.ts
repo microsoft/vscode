@@ -19,6 +19,7 @@ export class ImageGenerationCredentialsService extends Disposable implements IIm
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<void>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 	private _configuration: IImageGenerationConfiguration | undefined;
+	private _hasStoredData = false;
 	private pendingRefresh = Promise.resolve();
 	private readonly updates = new Sequencer();
 	private updating = false;
@@ -26,6 +27,10 @@ export class ImageGenerationCredentialsService extends Disposable implements IIm
 
 	get configuration(): IImageGenerationConfiguration | undefined {
 		return this._configuration;
+	}
+
+	get hasStoredData(): boolean {
+		return this._hasStoredData;
 	}
 
 	constructor(
@@ -47,9 +52,13 @@ export class ImageGenerationCredentialsService extends Disposable implements IIm
 		this.whenReady = this.refresh();
 	}
 
-	private readConfiguration(): IImageGenerationConfiguration | undefined {
+	private get storedConfiguration(): unknown {
 		const inspected = this.configurationService.inspect<unknown>(ImageGenerationConnectionSetting);
-		const value = inspected.applicationValue ?? inspected.userLocalValue;
+		return inspected.applicationValue ?? inspected.userLocalValue;
+	}
+
+	private readConfiguration(): IImageGenerationConfiguration | undefined {
+		const value = this.storedConfiguration;
 		return value === undefined ? undefined : parseImageGenerationConfiguration(value);
 	}
 
@@ -59,7 +68,9 @@ export class ImageGenerationCredentialsService extends Disposable implements IIm
 		}
 		return this.pendingRefresh = this.pendingRefresh.then(async () => {
 			let configuration: IImageGenerationConfiguration | undefined;
+			let hasStoredData = this._hasStoredData;
 			try {
+				hasStoredData = this.storedConfiguration !== undefined || (await this.secretStorageService.get(ImageGenerationCredentialsSecret)) !== undefined;
 				const configured = this.readConfiguration();
 				if (configured) {
 					await this.resolve(configured);
@@ -68,8 +79,9 @@ export class ImageGenerationCredentialsService extends Disposable implements IIm
 			} catch {
 				this.logService.warn('[imageGeneration] Credentials are unavailable or no longer match the configured endpoint. Run Set Up Image Generation again.');
 			}
-			if (!this._store.isDisposed && !equals(this._configuration, configuration)) {
+			if (!this._store.isDisposed && (!equals(this._configuration, configuration) || this._hasStoredData !== hasStoredData)) {
 				this._configuration = configuration;
+				this._hasStoredData = hasStoredData;
 				this._onDidChangeConfiguration.fire();
 			}
 		});
@@ -96,7 +108,7 @@ export class ImageGenerationCredentialsService extends Disposable implements IIm
 	private update(configuration: IImageGenerationConfiguration | undefined, secret: string | undefined): Promise<void> {
 		return this.updates.queue(async () => {
 			await this.pendingRefresh;
-			const previousConfiguration = this.readConfiguration();
+			const previousConfiguration = this.storedConfiguration;
 			const previousSecret = await this.secretStorageService.get(ImageGenerationCredentialsSecret);
 			let secretUpdated = false;
 			let settingsUpdated = false;

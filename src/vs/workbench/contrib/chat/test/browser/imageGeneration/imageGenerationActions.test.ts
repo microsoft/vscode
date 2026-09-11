@@ -5,13 +5,16 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { RemoveImageGenerationCredentialsAction, SetUpImageGenerationAction } from '../../../browser/imageGeneration/imageGenerationActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { IImageGenerationConfiguration, IImageGenerationCredentialsService } from '../../../common/imageGeneration.js';
+import { IImageGenerationConfiguration, IImageGenerationCredentialsService, ImageGenerationHasStoredData, RemoveImageGenerationCredentialsActionId } from '../../../common/imageGeneration.js';
 
 suite('ImageGenerationActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -94,6 +97,23 @@ suite('ImageGenerationActions', () => {
 			cleanupPrecondition: action.desc.precondition,
 			setupRequiresChat: new SetUpImageGenerationAction().desc.precondition === ChatContextKeys.enabled,
 		}, { cleared: 1, inputCount: 0, cleanupPrecondition: undefined, setupRequiresChat: true });
+	});
+
+	test('only shows credential removal in the palette when there is stored data', () => {
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		const hasStoredData = ImageGenerationHasStoredData.bindTo(contextKeyService);
+		const entries = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem)
+			.filter(item => item.command.id === RemoveImageGenerationCredentialsActionId);
+		const visible = () => entries.filter(item => contextKeyService.contextMatchesRules(item.when)).map(item => item.command.id);
+		const unconfigured = visible();
+		hasStoredData.set(true);
+		const configured = visible();
+		hasStoredData.set(false);
+
+		assert.deepStrictEqual({ entryCount: entries.length, unconfigured, configured, cleared: visible() }, {
+			entryCount: 1, unconfigured: [], configured: [RemoveImageGenerationCredentialsActionId], cleared: [],
+		});
 	});
 
 	test('does not show setup when AI is hidden', async () => {
