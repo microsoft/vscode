@@ -7,6 +7,7 @@ import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
@@ -73,6 +74,11 @@ import { parseSessionArtifacts, stringifySessionArtifacts, withSessionArtifacts,
 import { buildWorktreeFailureNotification, IAgentHostWorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import type { IAgentHostSessionLifecycleCandidate } from './agentHostSessionLifecycle.js';
+import { IAgentHostCanvasesService } from './agentHostCanvasesService.js';
+import { IAgentHostCanvasPackagesService } from '../common/agentHostCanvasPackages.js';
+import { LocalCanvasPoc } from './copilot/localCanvasPoc.js';
+import type { AgentHostCanvasJson, IAgentHostCanvasActionParams, IAgentHostCanvasInstance, IAgentHostCanvasOpenParams, IAgentHostCanvasState } from '../common/agentHostCanvases.js';
+import { isAgentHostCanvasUri } from '../common/agentHostCanvasProtocol.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
@@ -93,7 +99,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey, AgentHostLocalCanvasesConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -381,6 +387,7 @@ function reconcileWorkingDirectories(requested: readonly URI[] | undefined, reso
 }
 
 export interface IAgentServiceOptions {
+	readonly localCanvasPoc?: LocalCanvasPoc;
 	readonly rootConfigResource?: URI;
 	readonly copilotApiService?: ICopilotApiService;
 	readonly providerConfigurations?: readonly IAgentCustomizationSettingsRegistration[];
@@ -601,6 +608,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 *   clients time to reconnect.
 	 */
 	private readonly _resourceWatches = this._register(new DisposableMap<string, IActiveResourceWatch>());
+	private readonly _localCanvasPoc: LocalCanvasPoc | undefined;
 
 	constructor(
 		core: IAgentServiceCore,
@@ -621,8 +629,11 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
+		@IAgentHostCanvasesService private readonly _canvasesService: IAgentHostCanvasesService,
+		@IAgentHostCanvasPackagesService private readonly _canvasPackagesService: IAgentHostCanvasPackagesService,
 	) {
 		super();
+		this._localCanvasPoc = options.localCanvasPoc ?? LocalCanvasPoc.forCurrentHost();
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._debugLogsCollector = core.debugLogsCollector;
@@ -943,6 +954,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const pickedFolders = this._configurationService.getEffectiveWorkingDirectories(params.session);
 		const pickedFolderUri = pickedFolders?.[0] ? URI.parse(pickedFolders[0]) : undefined;
 		const tail = (pickedFolders ?? []).slice(1).map(d => URI.parse(d));
+		this._localCanvasPoc?.assertWorkingDirectories(pickedFolders?.map(directory => URI.parse(directory)));
+		if (this._localCanvasPoc && this._worktree.isWorkingDirectoryPending(sessionId)) {
+			throw new Error('The local canvas demo requires folder isolation, not a worktree.');
+		}
 
 		// Only worktree-isolation sessions defer directory resolution to the first
 		// send (so the prompt can name the branch); folder / workspace-less
@@ -952,6 +967,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return undefined;
 			}
 			const resolved = await this._worktree.resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
+			this._localCanvasPoc?.assertWorkingDirectories([resolved, ...tail]);
 			return [resolved, ...tail];
 		}
 
@@ -2891,6 +2907,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		this._localCanvasPoc?.assertWorkingDirectories(config?.workingDirectories);
 		const provider = this._providerService.resolveProvider(config?.provider);
 		const isEphemeral = config ? readEphemeralSessionMeta(config).isEphemeral === true : false;
 		if (!provider) {
@@ -2933,6 +2950,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const initializeSideEffects = this._sideEffects.initialize();
 		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
 		const deferWorktreeCreation = sessionConfig?.values?.[SessionConfigKey.Isolation] === 'worktree' && !config?.importConversation;
+		if (this._localCanvasPoc && deferWorktreeCreation) {
+			throw new Error('The local canvas demo requires folder isolation, not a worktree.');
+		}
 
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
 		const [, created] = await Promise.all([
@@ -3097,6 +3117,7 @@ export class AgentService extends Disposable implements IAgentService {
 				state.activeClients = config?.activeClient ? [config.activeClient] : [];
 			}
 		}
+		this._canvasesService.publishPendingState(session);
 		// Discovery is asynchronous, so publish the result for clients that subscribed while it was in flight.
 		if (initialCustomizations && initialCustomizations.length > 0) {
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...initialCustomizations] });
@@ -3195,6 +3216,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		const sessionKey = session.toString();
+		this._localCanvasPoc?.assertWorkingDirectories(this._stateManager.getSessionState(sessionKey)?.workingDirectories?.map(directory => URI.parse(directory)));
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider) {
 			throw new Error(`[AgentService] createChat: no provider for session ${sessionKey}`);
@@ -3309,6 +3331,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
 			...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 		});
+		this._canvasesService.publishPendingState(session);
 		this._sessionResidency.touch(session);
 		void this._sessionResidency.reconcile();
 
@@ -3407,6 +3430,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sideEffects.clearChannelTelemetry(chatKey);
 			this._chatContributions.disposeChatState(chatKey);
 			this._stateManager.removeChat(sessionKey, chatKey);
+			this._canvasesService.disposeChatState(chat);
 		} finally {
 			this._disposingPeerChats.delete(chatKey);
 		}
@@ -4329,6 +4353,17 @@ export class AgentService extends Disposable implements IAgentService {
 	async subscribe(resource: URI, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
 		const resourceStr = resource.toString();
+		if (isAgentHostCanvasUri(resourceStr)) {
+			const snapshot = this._stateManager.getSnapshot(resourceStr);
+			if (!snapshot) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, 'The canvas has not been admitted.');
+			}
+			if (this._store.isDisposed || isActive && !isActive()) {
+				throw new CancellationError();
+			}
+			this.addSubscriber(resource, clientId);
+			return snapshot;
+		}
 		const subscribe = async (telemetry: IAgentHostSessionOpenTelemetryScope): Promise<IStateSnapshot> => {
 			const restoreSession = (session: URI) => this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore));
 			await this._sessionResidency.waitForRelease(resource);
@@ -4777,6 +4812,14 @@ export class AgentService extends Disposable implements IAgentService {
 		// lookup, telemetry, permissions — all keyed by session).
 		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
+		if (chatChannel && (action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatPendingMessageSet)) {
+			try {
+				action = { ...action, message: this._chatContributions.messageSubmitted({ session: sessionChannel, chat: chatChannel, clientId, message: action.message }) };
+			} catch (error) {
+				this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, toErrorMessage(error));
+				return;
+			}
+		}
 		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
 		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
@@ -4830,7 +4873,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (action.type === ActionType.ChatTurnStarted && requiresTurnOwnerResolution) {
 				await this._resolvePeerChatsForTurnValidation(sessionChannel);
 			}
-			const rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
+			const rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite && (action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatPendingMessageSet)
 				? await this._rewriteUserMessageAttachments(sessionChannel, action, clientId)
 				: action;
 			if (rewritten.type === ActionType.ChangesetFilesReviewChanged) {
@@ -5382,6 +5425,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
 		}
+		if (this._localCanvasPoc) {
+			const metadata = await this._registeredSessionMetadata(agent, session, registeredSession?.external ?? false);
+			this._localCanvasPoc.assertWorkingDirectories(metadata?.workingDirectories);
+		}
 		// Warming the provider catalogue is O(catalogue) — ~48s on a large
 		// `~/.copilot` — and the only decision that needs it is whether a metadata
 		// miss is authoritative (#331648). Defer it so a session that resolves from
@@ -5613,6 +5660,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._logService.trace(`[AgentService] restore: provider metadata resolved for ${sessionStr}`);
+		this._localCanvasPoc?.assertWorkingDirectories(meta.workingDirectories);
 
 		// A freshly-adopted legacy session whose working directory is a
 		// pre-existing git worktree keeps no worktree metadata (adoption seeds
@@ -5893,6 +5941,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._invalidateSessionList();
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: restoredDraft, defaultChatTitle });
+		this._canvasesService.publishPendingState(session);
 		this._logService.trace(`[AgentService] restore: hydrated state for ${sessionStr} with ${mergedTurns.length} turn(s)`);
 		this._serverToolHost.advertise(sessionStr);
 
@@ -5929,10 +5978,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// re-triggering the refresh dispatches to the compute path.
 		this._changesetCoordinator.onSessionRestored(sessionStr, changesetMetadata ?? {});
 
-		// Restore persisted `_meta` (e.g. git state) onto the new session
-		// state. This dispatches a SessionMetaChanged action.
+		// Publish seeded metadata without resetting newer provider state.
 		if (summary._meta) {
-			this._stateManager.setSessionMeta(sessionStr, summary._meta);
+			this._stateManager.setSessionMeta(sessionStr, this._stateManager.getSessionState(sessionStr)?._meta);
 		}
 
 		// Resolve the session config so clients (e.g. the running-session
@@ -6074,6 +6122,7 @@ export class AgentService extends Disposable implements IAgentService {
 				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
 			});
 		}
+		this._canvasesService.publishPendingState(session);
 	}
 
 	/**
@@ -6088,6 +6137,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _materializeRestoredPeerChat(session: URI, chat: URI, providerData: string | undefined): Promise<{ turns: Turn[] }> {
 		const chatKey = chat.toString();
+		this._localCanvasPoc?.assertWorkingDirectories(this._stateManager.getSessionState(session.toString())?.workingDirectories?.map(directory => URI.parse(directory)));
 		const agent = this._providerService.getProviderForSession(session);
 		if (!agent) {
 			throw new Error(`No agent provider for restored peer chat: ${chatKey}`);
@@ -6232,6 +6282,7 @@ export class AgentService extends Disposable implements IAgentService {
 				interactivity: ChatInteractivity.ReadOnly,
 			} : {}),
 		});
+		this._canvasesService.publishPendingState(e.session);
 		this._resolvePendingSubagentChat(e.chat.toString());
 	}
 
@@ -7018,6 +7069,38 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._providerService.getProviderForSession(session)?.getSessionStateFile?.(session, chat);
 	}
 
+	getCanvases(chat: URI): Promise<IAgentHostCanvasState> {
+		return this._canvasesService.getCanvases(chat);
+	}
+
+	get canvasProtocol() {
+		return this._canvasesService.protocol;
+	}
+
+	get canvasPackages(): IAgentHostCanvasPackagesService | undefined {
+		return this._canvasPackagesService.supported || this._canvasPackagesService.unavailableError ? this._canvasPackagesService : undefined;
+	}
+
+	get canvasPackagesEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostLocalCanvasesConfigKey) === true;
+	}
+
+	openCanvas(chat: URI, params: IAgentHostCanvasOpenParams): Promise<IAgentHostCanvasInstance> {
+		return this._canvasesService.openCanvas(chat, params);
+	}
+
+	invokeCanvasAction(chat: URI, params: IAgentHostCanvasActionParams): Promise<AgentHostCanvasJson> {
+		return this._canvasesService.invokeCanvasAction(chat, params);
+	}
+
+	closeCanvas(chat: URI, instanceId: string): Promise<void> {
+		return this._canvasesService.closeCanvas(chat, instanceId);
+	}
+
+	reloadCanvases(chat: URI): Promise<void> {
+		return this._canvasesService.reloadCanvases(chat);
+	}
+
 	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._debugLogsCollector) {
 			throw new Error('Agent Host debug log collection is unavailable');
@@ -7217,6 +7300,7 @@ export class AgentService extends Disposable implements IAgentService {
 			origin,
 			interactivity: ChatInteractivity.ReadOnly,
 		});
+		this._canvasesService.publishPendingState(parentSession);
 	}
 
 	/**
@@ -7369,6 +7453,7 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 			mergedChildTurns,
 		);
+		this._canvasesService.publishPendingState(URI.parse(subagentUri));
 		await this._restoreAnnotations(URI.parse(subagentUri));
 		this._logService.info(`[AgentService] Restored subagent session: ${subagentUri} with ${childTurns.length} turn(s)`);
 	}
@@ -7418,6 +7503,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.updateChatTitle(parentSessionStr, chatUri, title);
 			}
 		}
+		this._canvasesService.publishPendingState(parentSession);
 	}
 
 	private async _resolveRestoredSubagentTurns(agent: IAgent, parentSession: URI, chatUri: string, origin: { readonly kind: ChatOriginKind.Tool; readonly chat: string; readonly toolCallId: string }): Promise<readonly Turn[]> {

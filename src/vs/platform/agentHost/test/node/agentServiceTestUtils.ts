@@ -23,7 +23,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
-import { AgentService } from '../../node/agentService.js';
+import { AgentService, type IAgentServiceOptions } from '../../node/agentService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
@@ -146,6 +146,7 @@ export function createTestAgentService(
 	orchestratorDatabase?: IAgentHostDatabase,
 	sessionResidencyLimit?: number,
 	sessionReleaseRetryMs?: number,
+	localCanvasPoc?: IAgentServiceOptions['localCanvasPoc'],
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
@@ -170,6 +171,7 @@ export function createTestAgentService(
 		orchestratorDatabase,
 		sessionResidencyLimit,
 		sessionReleaseRetryMs,
+		localCanvasPoc,
 	};
 	const foundation = createAgentServiceFoundation({
 		services,

@@ -61,6 +61,8 @@ export interface INewSessionPromptOptionsController {
 }
 
 export interface INewSessionComposer {
+	/** Whether the composer contains draft text or attachments. */
+	readonly hasInputObs: IObservable<boolean>;
 	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
 	readonly workspaceSelection?: IWorkspaceSelectionSnapshot;
 	readonly onDidChangeWorkspaceSelection?: Event<void>;

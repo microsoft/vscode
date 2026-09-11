@@ -26,6 +26,8 @@ import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from 
 import { AgentHostClientType, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import type { IAgentHostCanvasActionParams, IAgentHostCanvasOpenParams } from '../../common/agentHostCanvases.js';
+import { buildChatUri } from '../../common/state/sessionState.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
 
@@ -156,6 +158,43 @@ suite('registerAgentHostClientChannels', () => {
 		assert.deepStrictEqual(notifications.errors, [
 			'The Agent Host failed to start. Restart the application to try again. See the logs for details.',
 		]);
+	});
+
+	test('forwards local canvas operations through the protocol client, not the management channel', async () => {
+		const chat = URI.parse(buildChatUri('copilot:/session', 'peer'));
+		const calls: { method: string; chat: URI }[] = [];
+		const protocolClient = {
+			clientId: 'canvas-client',
+			connect: async () => { },
+			onDidChangeConnectionState: Event.None,
+			onDidFatalClose: Event.None,
+			initializeResult: constObservable(undefined),
+			dispose: () => { },
+			getCanvases: async (chat: URI) => { calls.push({ method: 'get', chat }); return { supported: true, catalog: [], instances: [] }; },
+			openCanvas: async (chat: URI, params: IAgentHostCanvasOpenParams) => { calls.push({ method: 'open', chat }); return { ...params, availability: 'unavailable' as const }; },
+			invokeCanvasAction: async (chat: URI, _params: IAgentHostCanvasActionParams) => { calls.push({ method: 'action', chat }); return { result: { value: 2 } }; },
+			closeCanvas: async (chat: URI, _instanceId: string) => { calls.push({ method: 'close', chat }); },
+			reloadCanvases: async (chat: URI) => { calls.push({ method: 'reload', chat }); },
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostStartupTelemetry, { protocolConnected: () => { }, connectionFailed: () => { }, dispose: () => { } });
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));
+		service.startAgentHost();
+		await service.getCanvases(chat);
+		await service.openCanvas(chat, { extensionId: 'fixture', canvasId: 'counter', instanceId: 'one' });
+		const result = await service.invokeCanvasAction(chat, { instanceId: 'one', actionName: 'increment' });
+		await service.closeCanvas(chat, 'one');
+		await service.reloadCanvases(chat);
+		assert.deepStrictEqual({ calls, result }, {
+			calls: ['get', 'open', 'action', 'close', 'reload'].map(method => ({ method, chat })),
+			result: { result: { value: 2 } },
+		});
 	});
 
 	suite('LocalAgentHostManagementConnection', () => {

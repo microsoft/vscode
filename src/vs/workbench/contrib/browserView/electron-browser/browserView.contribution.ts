@@ -95,7 +95,9 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 
 					// Start resolving the input right away. This will create the browser view.
 					// This allows browser views to be loaded in the background.
-					void browserInput.resolve();
+					if (!browserInput.source) {
+						void browserInput.resolve();
+					}
 
 					return {
 						editor: browserInput,

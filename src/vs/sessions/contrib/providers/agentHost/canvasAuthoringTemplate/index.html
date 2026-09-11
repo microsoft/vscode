@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<!-- Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT License. -->
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Starter canvas</title>
+	<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+	<main>
+		<p class="eyebrow">Local canvas starter</p>
+		<h1>Starter canvas</h1>
+		<p class="description">Edit this page, <code>client.js</code>, <code>style.css</code> and
+			<code>extension.mjs</code> together, then prepare a new snapshot to try your changes.</p>
+		<p class="document">Document: <code id="document">Loading</code></p>
+		<p class="greetings"><output id="greetings" aria-label="Greeting count">0</output> greeting(s) so far</p>
+		<p class="last">Last greeting: <span id="last">(none yet)</span></p>
+		<form id="greet-form">
+			<label for="message">Message</label>
+			<input id="message" name="message" type="text" maxlength="200" required autocomplete="off">
+			<button type="submit">Say hello</button>
+		</form>
+		<p class="hint">Type a message and submit, or ask your agent to call the <code>greet</code> action on this
+			canvas. The document survives a provider restart.</p>
+		<p id="error" class="error" role="alert"></p>
+	</main>
+	<script src="/client.js"></script>
+</body>
+</html>

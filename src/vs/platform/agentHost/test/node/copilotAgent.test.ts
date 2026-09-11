@@ -7,6 +7,8 @@ import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemet
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { IAgentHostCanvasPackagesService } from '../../common/agentHostCanvasPackages.js';
+import { UnsupportedCanvasPackagesService } from '../../node/agentHostCanvasPackagesService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -1013,8 +1015,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 		@IFileService fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktreeIsolation: IAgentHostWorktreeIsolation,
+		@IAgentHostCanvasPackagesService canvasPackages: IAgentHostCanvasPackagesService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, canvasPackages);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -1055,8 +1058,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 		@IFileService fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktreeIsolation: IAgentHostWorktreeIsolation,
+		@IAgentHostCanvasPackagesService canvasPackages: IAgentHostCanvasPackagesService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, canvasPackages);
 		this._now = now;
 	}
 
@@ -1088,6 +1092,7 @@ class TestableCopilotAgent extends CopilotAgent {
 			appliedSnapshot: undefined,
 			dispose: fake.dispose,
 			onDidRequireAuth: Event.None,
+			onDidChangeCanvases: Event.None,
 			hasRunningDetachedShells: async () => false,
 			resetTurnState: (newTurnId: string) => { turnId = newTurnId; },
 			emitInitialMarkdown: (content: string) => {
@@ -1139,6 +1144,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
 	services.set(ISessionDataService, options?.sessionDataService ?? createNullSessionDataService());
 	services.set(IAgentPluginManager, options?.pluginManager ?? new TestAgentPluginManager());
+	services.set(IAgentHostCanvasPackagesService, new UnsupportedCanvasPackagesService());
 	services.set(IAgentHostGitService, options?.gitService ?? new TestAgentHostGitService());
 	services.set(IAgentHostReviewService, NULL_REVIEW_SERVICE);
 	services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
@@ -8751,6 +8757,7 @@ suite('CopilotAgent', () => {
 				appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
+				onDidChangeCanvases: Event.None,
 				mcpServerStates: observableValue('test', []),
 				async initializeSession(): Promise<void> { },
 				async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> { remaps.push(mapping); },
@@ -9820,6 +9827,7 @@ suite('CopilotAgent', () => {
 					appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
+					onDidChangeCanvases: Event.None,
 					mcpServerStates: observableValue('test', []),
 					async initializeSession(): Promise<void> {
 						if (shouldFail) {
@@ -10724,6 +10732,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 			services.set(ISessionDataService, createNullSessionDataService());
 			services.set(IAgentPluginManager, new TestAgentPluginManager());
+			services.set(IAgentHostCanvasPackagesService, new UnsupportedCanvasPackagesService());
 			services.set(IAgentHostGitService, new TestAgentHostGitService());
 			services.set(IAgentHostReviewService, NULL_REVIEW_SERVICE);
 			services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
@@ -10854,6 +10863,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 			services.set(ISessionDataService, createNullSessionDataService());
 			services.set(IAgentPluginManager, new TestAgentPluginManager());
+			services.set(IAgentHostCanvasPackagesService, new UnsupportedCanvasPackagesService());
 			services.set(IAgentHostGitService, new TestAgentHostGitService());
 			services.set(IAgentHostReviewService, NULL_REVIEW_SERVICE);
 			services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
@@ -10867,6 +10877,7 @@ suite('CopilotAgent', () => {
 			services.set(IProductService, TEST_PRODUCT_SERVICE);
 			services.set(IAgentHostPromptCache, new AgentHostPromptCache(stateManager));
 			services.set(IAgentHostSessionTitleSignal, titleSignal);
+			services.set(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 			services.set(INativeEnvironmentService, {
 				_serviceBrand: undefined,
 				userHome: URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
@@ -11359,6 +11370,7 @@ suite('CopilotAgent', () => {
 				appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
+				onDidChangeCanvases: Event.None,
 				mcpServerStates: observableValue('test', []),
 				async initializeSession(): Promise<void> { rec.initialized = true; },
 				async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> { rec.remapCalls.push(mapping); },
@@ -13005,6 +13017,7 @@ suite('CopilotAgent', () => {
 					appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
+					onDidChangeCanvases: Event.None,
 					mcpServerStates: observableValue('test', []),
 					async initializeSession(): Promise<void> { },
 					async remapTurnIds(): Promise<void> { },
@@ -13818,6 +13831,36 @@ suite('CopilotAgent', () => {
 				]);
 			} finally {
 				allowDisconnect.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not resume or send after the previous disconnect fails', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const error = new Error('The previous backing did not confirm disconnection.');
+			let waitedForDisconnect: boolean | undefined;
+			const previousSession = {
+				...refreshSessionStub([]),
+				async destroySession(waitForDisconnect?: boolean) {
+					this.destroyCalls++;
+					waitedForDisconnect = waitForDisconnect;
+					throw error;
+				},
+			};
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' }).tools = [
+				{ name: 'new_tool', description: 'A newly registered tool', inputSchema: { type: 'object', properties: {} } },
+			];
+			try {
+				await assert.rejects(agent.chats.sendMessage(defaultChatUri(session), 'hello', undefined), failure => failure === error);
+				assert.deepStrictEqual({
+					waitedForDisconnect, destroyCalls: previousSession.destroyCalls,
+					disposeCalls: previousSession.disposeCalls, sends: previousSession.sendCalls,
+				}, { waitedForDisconnect: true, destroyCalls: 1, disposeCalls: 0, sends: [] });
+			} finally {
 				await disposeAgent(agent);
 			}
 		});

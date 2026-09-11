@@ -1,0 +1,80 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:root {
+	color-scheme: light dark;
+	font-family: system-ui, sans-serif;
+	background: var(--vscode-editor-background, Canvas);
+	color: var(--vscode-foreground, CanvasText);
+}
+
+body {
+	margin: 0;
+	padding: var(--vscode-spacing-size320, 32px);
+}
+
+main {
+	max-width: 32rem;
+	margin: auto;
+}
+
+h1 {
+	font-size: var(--vscode-fontSize-heading1, 1.5rem);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+	margin: var(--vscode-spacing-size80, 8px) 0;
+}
+
+.eyebrow,
+.document,
+.hint,
+dt {
+	font-size: var(--vscode-fontSize-body2, .85rem);
+	color: var(--vscode-descriptionForeground, GrayText);
+}
+
+.description {
+	line-height: 1.6;
+}
+
+.counter {
+	font-size: 4rem;
+	font-variant-numeric: tabular-nums;
+	margin: var(--vscode-spacing-size320, 32px) 0;
+}
+
+button {
+	font: inherit;
+	padding: var(--vscode-spacing-size80, 8px) var(--vscode-spacing-size160, 16px);
+	border: var(--vscode-strokeThickness, 1px) solid var(--vscode-button-border, ButtonText);
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	background: var(--vscode-button-background, ButtonFace);
+	color: var(--vscode-button-foreground, ButtonText);
+	cursor: pointer;
+}
+
+button:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder, Highlight);
+	outline-offset: 2px;
+}
+
+.sources {
+	display: flex;
+	gap: var(--vscode-spacing-size320, 32px);
+	margin: var(--vscode-spacing-size320, 32px) 0;
+}
+
+dd {
+	margin: var(--vscode-spacing-size80, 8px) 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.hint {
+	line-height: 1.6;
+}
+
+#error {
+	min-height: 1.5em;
+	color: var(--vscode-errorForeground, CanvasText);
+}

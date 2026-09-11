@@ -66,6 +66,8 @@ The view service:
 
 It delegates model lifecycle operations to `ISessionsManagementService`.
 
+Explicit navigation is published through `navigationRequest` before asynchronous resource resolution. Asynchronous presentations observe the request's identity so older work cannot supersede an in-flight user choice; its token identifies the initiating caller, not the navigation's lifetime.
+
 ### Scoped session context
 
 Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.

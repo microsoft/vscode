@@ -18,7 +18,9 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
+import { LocalCanvasPocWorkspaceContribution } from './localCanvasPocWorkspace.js';
 import './codexCustomizationSettings.contribution.js';
+import './agentHostCanvasPackages.contribution.js';
 
 /**
  * Registers the {@link LocalAgentHostSessionsProvider} when the Agent Host is
@@ -96,3 +98,4 @@ registerWorkbenchContribution2(AgentHostAllowSignedOutWhenUsableContribution.ID,
 registerWorkbenchContribution2(AgentHostSignedOutModelsNotificationContribution.ID, AgentHostSignedOutModelsNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSdkSetupNotificationContribution.ID, AgentHostSdkSetupNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(LocalAgentHostContribution.ID, LocalAgentHostContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(LocalCanvasPocWorkspaceContribution.ID, LocalCanvasPocWorkspaceContribution, WorkbenchPhase.AfterRestored);

@@ -177,6 +177,12 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.AutomationRunSessionRemoved]: '0.8.0',
 	[ActionType.AutomationRunPrimarySessionChanged]: '0.8.0',
 	[ActionType.AutomationRunCancelRequested]: '0.8.0',
+	[ActionType.SessionCanvasSet]: '0.9.0',
+	[ActionType.SessionCanvasRemoved]: '0.9.0',
+	[ActionType.CanvasAvailabilityChanged]: '0.9.0',
+	[ActionType.CanvasTrustChanged]: '0.9.0',
+	[ActionType.CanvasIncarnationChanged]: '0.9.0',
+	[ActionType.CanvasTitleChanged]: '0.9.0',
 };
 
 /**

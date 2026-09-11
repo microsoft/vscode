@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<!-- Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT License. -->
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Local counter</title>
+	<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+	<main>
+		<p class="eyebrow">Local canvas demo</p>
+		<h1>Local counter</h1>
+		<p class="description">One live document, shared by you and your agent.</p>
+		<p class="document">Document: <code id="document">Connecting</code></p>
+		<p class="counter"><output id="value" aria-label="Counter value">Loading</output></p>
+		<button type="button" id="increment">Increment</button>
+		<dl class="sources">
+			<div><dt>Button clicks</dt><dd id="interactions">0</dd></div>
+			<div><dt>Declared actions</dt><dd id="actions">0</dd></div>
+		</dl>
+		<p class="hint">Click to add one, or ask your agent to increment this canvas. Updates arrive live; the document survives a provider restart.</p>
+		<p id="error" role="alert"></p>
+	</main>
+	<script src="/client.js"></script>
+</body>
+</html>

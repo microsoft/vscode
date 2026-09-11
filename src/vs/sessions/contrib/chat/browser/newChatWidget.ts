@@ -1104,6 +1104,10 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.saveState();
 	}
 
+	takeInputState() {
+		return this._newChatInput.takeInputState();
+	}
+
 	layout(_height: number, _width: number): void {
 		this._newChatInput.layout(_height, _width);
 	}

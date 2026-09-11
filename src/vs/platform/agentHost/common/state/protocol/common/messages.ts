@@ -14,6 +14,7 @@ import type { CreateTerminalParams, DisposeTerminalParams } from '../channels-te
 import type { CreateResourceWatchParams, CreateResourceWatchResult } from '../channels-resource-watch/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../channels-changeset/commands.js';
 import type { ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult, FetchAutomationRunsParams, FetchAutomationRunsResult } from '../channels-automation/commands.js';
+import type { ListCanvasTypesParams, ListCanvasTypesResult, OpenCanvasParams, OpenCanvasResult, ResolveCanvasSourceParams, ResolveCanvasSourceResult, InvokeCanvasActionParams, InvokeCanvasActionResult, RestartCanvasProviderParams, CloseCanvasParams } from '../channels-canvas/commands.js';
 
 import type { ActionEnvelope } from './actions.js';
 import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams } from '../channels-root/notifications.js';
@@ -112,6 +113,12 @@ export interface CommandMap {
 	'listAutomationTriggerDefinitions': { params: ListAutomationTriggerDefinitionsParams; result: ListAutomationTriggerDefinitionsResult };
 	'runAutomation': { params: RunAutomationParams; result: RunAutomationResult };
 	'fetchAutomationRuns': { params: FetchAutomationRunsParams; result: FetchAutomationRunsResult };
+	'listCanvasTypes': { params: ListCanvasTypesParams; result: ListCanvasTypesResult };
+	'openCanvas': { params: OpenCanvasParams; result: OpenCanvasResult };
+	'resolveCanvasSource': { params: ResolveCanvasSourceParams; result: ResolveCanvasSourceResult };
+	'invokeCanvasAction': { params: InvokeCanvasActionParams; result: InvokeCanvasActionResult };
+	'restartCanvasProvider': { params: RestartCanvasProviderParams; result: null };
+	'closeCanvas': { params: CloseCanvasParams; result: null };
 }
 
 /**

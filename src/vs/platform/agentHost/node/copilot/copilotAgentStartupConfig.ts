@@ -18,6 +18,7 @@ export class CopilotAgentStartupConfig {
 		readonly systemProxy: boolean,
 		readonly githubMcpServer: boolean,
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
+		readonly localCanvases = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

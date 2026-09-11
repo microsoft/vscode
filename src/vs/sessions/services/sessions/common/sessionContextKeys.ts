@@ -34,8 +34,9 @@ import {
 	SessionActiveChatIsDeletableContext,
 	SessionHasSideChatsContext,
 	SessionHasGitRepositoryContext,
+	SessionCanvasesSupportedContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
+import { ChatInteractivity, ChatOriginKind, getChatCapabilities, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
@@ -70,6 +71,7 @@ interface ISessionContextKeys {
 	readonly activeChatIsClosable: IContextKey<boolean>;
 	readonly activeChatIsDeletable: IContextKey<boolean>;
 	readonly hasSideChats: IContextKey<boolean>;
+	readonly supportsCanvases: IContextKey<boolean>;
 }
 
 /**
@@ -113,6 +115,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
 			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
 			hasSideChats: SessionHasSideChatsContext.bindTo(contextKeyService),
+			supportsCanvases: SessionCanvasesSupportedContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -222,6 +225,9 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// non-main chat — including read-only subagent chats, which surface as
 	// closeable tabs. The main chat lives and dies with its session.
 	const activeChat = session?.activeChat.read(reader);
+	keys.supportsCanvases.set(!!activeChat?.canvases?.state.read(reader).supported
+		&& !session?.isArchived.read(reader)
+		&& activeChat?.interactivity.read(reader) === ChatInteractivity.Full);
 	const mainResource = session?.mainChat.read(reader).resource;
 	const isNonMainChat = !!activeChat && !!mainResource && !isEqual(activeChat.resource, mainResource);
 	keys.activeChatIsClosable.set(isNonMainChat);

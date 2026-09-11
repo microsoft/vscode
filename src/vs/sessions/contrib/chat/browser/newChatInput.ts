@@ -504,6 +504,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _updateAttachmentOffset: (() => void) | undefined;
 
 	// Input state
+	private readonly _hasInput = observableValue(this, false);
+	readonly hasInputObs: IObservable<boolean> = this._hasInput;
 	private _draftState: IDraftState | undefined = {
 		inputText: '',
 		attachments: [],
@@ -1527,6 +1529,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			inputText: this._editor?.getModel()?.getValue() ?? '',
 			attachments: [...this._contextAttachments.attachments],
 		};
+		this._hasInput.set(this._draftState.inputText.length > 0 || this._draftState.attachments.length > 0, undefined);
 	}
 
 	private _updateAndSaveDraftState(): void {
@@ -1713,6 +1716,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _clearDraftState(): void {
 		this._draftState = { inputText: '', attachments: [] };
 		this.storageService.store(STORAGE_KEY_DRAFT_STATE, stringify(this._draftState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	takeInputState(): Pick<IChatModelInputState, 'inputText' | 'attachments' | 'selections'> | undefined {
+		if (this._sending || !this._hasInput.get()) {
+			return undefined;
+		}
+		const state = {
+			inputText: this._editor?.getValue() ?? '',
+			attachments: [...this._contextAttachments.attachments],
+			selections: this._editor?.getSelections() ?? [],
+		};
+		this._clearDraftState();
+		return state;
 	}
 
 	saveState(): void {

@@ -7,7 +7,7 @@ import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { webContents as electronWebContents } from 'electron';
+import * as electron from 'electron';
 import { localize } from '../../../nls.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
@@ -143,8 +143,12 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 
 	readonly storageKeys: IBrowserViewStorageKeys;
 
+	private readonly _session: BrowserSession;
+
 	constructor(session: BrowserSession) {
 		super();
+
+		this._session = session;
 
 		this.storageKeys = isInMemoryStorageScope(session.storageScope)
 			? {}
@@ -176,6 +180,23 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 	}
 
 	/**
+	 * Whether the owning {@link BrowserSession} is confined by an app policy
+	 * right now. Under confinement `browserView.ts` never claims
+	 * {@link onDidRequestPermission} / {@link onDidRequestDevice}, so no host UI
+	 * ever surfaces a prompt -- but that alone only closes the *request* path.
+	 * Categories with an allow-by-default state (Sensors, Devices) or a decision
+	 * recorded before confinement began would otherwise still resolve to
+	 * `allow` through the synchronous check handler, the request handler's
+	 * fast path, and the device choosers, none of which ever ask for a prompt.
+	 * Every one of those call sites consults this flag so that, once confined,
+	 * nothing falls back to a default-allow state or an existing decision --
+	 * including permissions otherwise granted unconditionally, such as clipboard writes.
+	 */
+	private get _confined(): boolean {
+		return !!this._session.appPolicy;
+	}
+
+	/**
 	 * Install the permission request / check / device handlers on the session.
 	 * Backed entirely by {@link BrowserPermissionStore}; unrecorded categories
 	 * are brokered to the owning browser view via {@link onDidRequestPermission}.
@@ -185,6 +206,9 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 			this._resolveRequest(webContents, permission, details).then(callback, () => callback(false));
 		});
 		electronSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
+			if (this._confined) {
+				return false;
+			}
 			if (isAlwaysAllowedPermission(permission)) {
 				return true;
 			}
@@ -451,7 +475,7 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 		if (!frame) {
 			return undefined;
 		}
-		const webContents = electronWebContents.fromFrame(frame);
+		const webContents = electron.webContents.fromFrame(frame);
 		if (!webContents) {
 			return undefined;
 		}
@@ -459,10 +483,16 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 	}
 
 	private _deviceAllowed(origin: string): boolean {
+		if (this._confined) {
+			return false;
+		}
 		return !!origin && this._permissionStore.isAllowed(origin, PermissionCategory.Devices);
 	}
 
 	private async _resolveRequest(webContents: Electron.WebContents | null, permission: string, details: PermissionRequestDetails | undefined): Promise<boolean> {
+		if (this._confined) {
+			return false;
+		}
 		if (isAlwaysAllowedPermission(permission)) {
 			return true;
 		}

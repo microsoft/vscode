@@ -211,6 +211,36 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				: stateWithoutChangesets;
 		}
 
+		case ActionType.SessionCanvasSet: {
+			const list = state.canvases ?? [];
+			const idx = list.findIndex(c => c.resource === action.canvas.resource);
+			if (idx < 0) {
+				return { ...state, canvases: [...list, action.canvas] };
+			}
+			// Reject a stale/out-of-order membership update rather than let it
+			// overwrite a newer catalog entry with older data.
+			if (action.canvas.revision <= list[idx].revision) {
+				return state;
+			}
+			const updated = list.slice();
+			updated[idx] = action.canvas;
+			return { ...state, canvases: updated };
+		}
+
+		case ActionType.SessionCanvasRemoved: {
+			const list = state.canvases;
+			if (!list) {
+				return state;
+			}
+			const idx = list.findIndex(c => c.resource === action.resource);
+			if (idx < 0) {
+				return state;
+			}
+			const updated = list.slice();
+			updated.splice(idx, 1);
+			return { ...state, canvases: updated };
+		}
+
 		case ActionType.SessionConfigChanged:
 			if (!state.config) {
 				return state;
