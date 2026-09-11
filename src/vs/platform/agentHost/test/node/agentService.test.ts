@@ -1179,6 +1179,68 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	// The listing cache in `listSessions`/`_startSessionListComputation` never consults
+	// the catalog gate, so this covers both modes. It is only *reproducible* with the
+	// catalog disabled, where the provider round-trip gives a deterministic point to
+	// hold the listing open; with the catalog enabled the same sequence races against
+	// projection writes that bump the epoch again.
+	test('a trailing listing refresh does not pin a settled computation', async () => {
+		const computations: string[] = [];
+		class RecordingLogService extends NullLogService {
+			override trace(message: string): void {
+				if (message.includes('listSessions computation started')) {
+					computations.push(message);
+				}
+			}
+		}
+		// Blocks the resolve phase, which runs after the listing has read the registry.
+		const gate = new DeferredPromise<void>();
+		let blocking = false;
+		class GatedAgent extends MockAgent {
+			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+				if (blocking) {
+					await gate.p;
+				}
+				return super.getChatMetadata(chat, context);
+			}
+		}
+		const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+		const agent = disposables.add(new GatedAgent('copilot'));
+		const svc = disposables.add(createTestAgentService(
+			new RecordingLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+		));
+		getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
+		registerTestAgentProvider(svc, agent);
+		await svc.createSession({ provider: 'copilot' });
+		await svc.listSessions();
+
+		// Hold a listing in flight, change the registry underneath it, then issue a
+		// second listing so the first one gets a trailing refresh attached.
+		blocking = true;
+		const first = svc.listSessions();
+		await timeout(1);
+		await catalogDatabase.registerSession(`copilot:/${generateUuid()}`, { provider: 'copilot', startTime: Date.now(), source: 'explicit' }, { checkTombstone: false });
+		(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
+		const second = svc.listSessions();
+		await timeout(1);
+		blocking = false;
+		gate.complete();
+		await Promise.all([first, second]);
+
+		// A retained entry would serve every later listing from its settled result,
+		// leaving the host unable to recompute until it restarts.
+		const inFlight = (svc as unknown as { _inFlightListSessions: Map<unknown, unknown> })._inFlightListSessions;
+		const retainedAfterSettle = inFlight.size;
+		computations.length = 0;
+		(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
+		await svc.listSessions();
+
+		assert.deepStrictEqual({ retainedAfterSettle, recomputedAfterInvalidate: computations.length }, {
+			retainedAfterSettle: 0, recomputedAfterInvalidate: 1,
+		});
+	});
+
 	suite('catalog summary synchronization', () => {
 		test('restricted pull-request associations replace the central payload without restoring removed links', async () => {
 			const database = new TestSessionDatabase();

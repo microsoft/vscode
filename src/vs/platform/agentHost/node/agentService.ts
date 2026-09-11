@@ -2832,10 +2832,25 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (!inFlight.trailing) {
 			const startTrailing = () => this._startSessionListComputation(mode).promise;
-			inFlight.trailing = inFlight.promise.then(
+			const trailing = inFlight.promise.then(
 				result => inFlight.epoch === epoch ? result : startTrailing(),
 				startTrailing,
 			);
+			inFlight.trailing = trailing;
+			// `clear()` deliberately keeps a settled entry alive while a trailing
+			// hand-off is attached, so concurrent callers await that hand-off
+			// instead of each starting their own recomputation. Once the hand-off
+			// itself settles nobody can join it any more, so the entry has to go:
+			// otherwise it stays in the map as a permanently settled result and
+			// every later listing is served from it without ever recomputing.
+			// `startTrailing()` replaces the map entry with its own computation,
+			// so the identity check leaves that fresh entry alone.
+			const clearTrailing = () => {
+				if (this._inFlightListSessions.get(mode) === inFlight) {
+					this._inFlightListSessions.delete(mode);
+				}
+			};
+			void trailing.then(clearTrailing, clearTrailing);
 		}
 		return [...await inFlight.trailing];
 	}
