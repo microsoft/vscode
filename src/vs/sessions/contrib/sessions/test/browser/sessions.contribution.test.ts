@@ -11,15 +11,18 @@ import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../b
 
 import '../../browser/sessions.contribution.js';
 
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+// Capture the registered schema before configuration tests reset the shared registry.
+const collapsedSectionStatusProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING];
+
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('disables collapsed section status indicators by default with automatic experiments', () => {
-		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING];
 		assert.deepStrictEqual({
-			type: property.type,
-			default: property.default,
-			experiment: property.experiment,
+			type: collapsedSectionStatusProperty.type,
+			default: collapsedSectionStatusProperty.default,
+			experiment: collapsedSectionStatusProperty.experiment,
 		}, {
 			type: 'boolean',
 			default: false,
