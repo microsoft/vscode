@@ -22,7 +22,7 @@ import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { isActiveSessionStatus, ISession, ISessionArtifact, SessionArtifactKind, SessionStatus } from '../../../services/sessions/common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestState } from '../../github/common/types.js';
@@ -62,10 +62,10 @@ type SessionArchiveNudgeEvent = {
 
 type SessionArchiveNudgeClassification = {
 	owner: 'benibenj';
-	comment: 'Tracks exposure to and interaction with the session archive suggestion after pull request artifacts have merged.';
+	comment: 'Tracks exposure to and interaction with the session archive suggestion after GitHub pull requests associated with the session have merged.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, matching session lifecycle events without exposing provider or resource details.' };
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the suggestion was shown, dismissed, or used to archive the session.' };
-	pullRequestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct merged GitHub pull request artifacts.' };
+	pullRequestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct merged GitHub pull requests from session artifacts and session-owned associations.' };
 	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the suggestion explained worktree cleanup.' };
 };
 
@@ -209,9 +209,19 @@ function isSessionAvailableForArchiveNudge(session: ISession, reader: IReader | 
 	return !connectionStatus || connectionStatus.kind === 'connected';
 }
 
-function getPullRequestArtifacts(artifacts: readonly ISessionArtifact[]): readonly { owner: string; repo: string; number: number }[] | undefined {
+function getSessionPullRequests(session: ISession, reader: IReader): readonly { owner: string; repo: string; number: number }[] | undefined {
 	const pullRequests = new Map<string, { owner: string; repo: string; number: number }>();
-	for (const artifact of artifacts) {
+	function addPullRequest(pullRequest: { owner: string; repo: string; number: number }): boolean {
+		const { number } = pullRequest;
+		if (!Number.isSafeInteger(number) || number < 1) {
+			return false;
+		}
+		const owner = pullRequest.owner.toLowerCase();
+		const repo = pullRequest.repo.toLowerCase();
+		pullRequests.set(getPullRequestKey(owner, repo, number), { owner, repo, number });
+		return true;
+	}
+	for (const artifact of session.artifacts?.read(reader) ?? []) {
 		if (!artifact.isArtifact || artifact.kind !== SessionArtifactKind.PullRequest || artifact.isGitHub === false) {
 			continue;
 		}
@@ -222,15 +232,19 @@ function getPullRequestArtifacts(artifacts: readonly ISessionArtifact[]): readon
 			}
 			continue;
 		}
-		const { number } = pullRequest;
-		if (!Number.isSafeInteger(number) || number < 1) {
+		if (!addPullRequest(pullRequest)) {
 			return undefined;
 		}
-		const owner = pullRequest.owner.toLowerCase();
-		const repo = pullRequest.repo.toLowerCase();
-		pullRequests.set(getPullRequestKey(owner, repo, number), { owner, repo, number });
 	}
-	return [...pullRequests.values()];
+	for (const folder of session.workspace.read(reader)?.folders ?? []) {
+		for (const ref of getSessionOwnedGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))) {
+			const pullRequest = parseGitHubPullRequestUrl(ref.uri.toString());
+			if (!pullRequest || !addPullRequest(pullRequest)) {
+				return undefined;
+			}
+		}
+	}
+	return [...pullRequests.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, pullRequest]) => pullRequest);
 }
 
 export class SessionArchiveNudge extends Disposable {
@@ -261,11 +275,10 @@ export class SessionArchiveNudge extends Disposable {
 			}
 			return current;
 		});
-		const pullRequests = derivedOpts<ReturnType<typeof getPullRequestArtifacts>>({ owner: this, equalsFn: structuralEquals }, reader => {
+		const pullRequests = derivedOpts<ReturnType<typeof getSessionPullRequests>>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const current = eligibleSession.read(reader);
-			const artifacts = current?.artifacts?.read(reader);
-			// The shared model must not resolve a github.com artifact against an enterprise host.
-			return artifacts?.length && !gitHubService.enterpriseHost ? getPullRequestArtifacts(artifacts) : undefined;
+			// The shared model must not resolve github.com pull requests against an enterprise host.
+			return current && !gitHubService.enterpriseHost ? getSessionPullRequests(current, reader) : undefined;
 		});
 		const models = derived(this, reader => {
 			return pullRequests.read(reader)?.map(pullRequest => {

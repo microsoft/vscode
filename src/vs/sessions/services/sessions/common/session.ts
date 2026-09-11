@@ -368,7 +368,7 @@ export interface IGitHubPullRequestRef {
 	 */
 	readonly title?: string;
 	/**
-	 * Whether this pull request originated in the session, as opposed to being
+	 * Whether this pull request originated in or was explicitly associated with the session, as opposed to being
 	 * inherited from the checkout it started from or merely referenced by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
@@ -392,6 +392,13 @@ export function getGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): r
 		liveState: gitHubInfo.pullRequest.liveState,
 		title: gitHubInfo.pullRequest.title,
 	}];
+}
+
+/** Excludes inherited checkout PRs, while accepting the primary PR from providers without provenance. */
+export function getSessionOwnedGitHubPullRequestRefs(gitHubInfo: IGitHubInfo | undefined): readonly IGitHubPullRequestRef[] {
+	return gitHubInfo?.pullRequests
+		? gitHubInfo.pullRequests.filter(ref => ref.createdByThisSession)
+		: getGitHubPullRequestRefs(gitHubInfo);
 }
 
 /** A GitHub issue referenced by a session. */
