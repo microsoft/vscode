@@ -33,7 +33,7 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, getSessionTypeSelectionTelemetry } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
@@ -56,7 +56,8 @@ import { ILanguageModelToolsService } from '../../common/tools/languageModelTool
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 
@@ -1759,6 +1760,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 
 	// Determine resource to open
 	const sessionResource = getResourceForNewChatSession(openOptions);
+	const sessionTypeSelectionTelemetry = getSessionTypeSelectionTelemetry(accessor.get(IConfigurationService), 'explicitOverride', accessor.get(IAgentHostEnablementService).managedSandboxEnforced.get());
 
 	// Stash any imported ("Continue in…") conversation before the session is
 	// opened: opening can eagerly pre-create the backend session (via the chat
@@ -1786,9 +1788,9 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 					progressService.withProgress({ location: ChatViewId }, () => transitionProgress!.p);
 				}
 				if (openOptions.type === AgentSessionProviders.Local) {
-					await view.startNewLocalSession();
+					await view.startNewLocalSession(sessionTypeSelectionTelemetry);
 				} else {
-					await view.loadSession(sessionResource, 'explicitOverride');
+					await view.loadSession(sessionResource, sessionTypeSelectionTelemetry);
 				}
 				view.focus();
 				break;
@@ -1797,7 +1799,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				const options: IChatEditorOptions = {
 					override: ChatEditorInput.EditorID,
 					pinned: true,
-					sessionTypeSelectionReason: 'explicitOverride',
+					sessionTypeSelectionTelemetry,
 					...(openOptions.type === AgentSessionProviders.Local ? { explicitSessionType: localChatSessionType } : {}),
 					title: {
 						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),
