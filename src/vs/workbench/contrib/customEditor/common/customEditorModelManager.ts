@@ -62,7 +62,19 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			throw new Error('Model already exists');
 		}
 
-		this._references.set(key, { viewType, model, counter: 0 });
+		const entry = { viewType, model, counter: 0 };
+		this._references.set(key, entry);
+
+		// If the model fails to resolve, evict the cache entry so that a subsequent
+		// open attempts a fresh resolve instead of re-throwing the cached rejection.
+		// Only delete if the entry is still the one that just rejected, so a concurrent
+		// replacement (e.g. via `disposeAllModelsForView` + re-`add`) is not clobbered.
+		model.then(undefined, () => {
+			if (this._references.get(key) === entry) {
+				this._references.delete(key);
+			}
+		});
+
 		return this.tryRetain(resource, viewType)!;
 	}
 
