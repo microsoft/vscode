@@ -208,6 +208,52 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual([name.textContent, suffix.textContent, tab.style.getPropertyValue('--connected-tab-min-width')], ['1: file0.txt', '', '']);
 	});
 
+	for (const showTabIndex of [false, true]) {
+		test(`connected compression preserves initial graphemes and dotfile prefixes (index: ${showTabIndex})`, async () => {
+			const group = connectedGroup();
+			const cases = [
+				{ name: 'e\u0301xample.txt', initial: 'e\u0301' },
+				{ name: '\u0915\u093fname.txt', initial: '\u0915\u093f' },
+				{ name: '😀example.txt', initial: '😀' },
+				{ name: '👍🏽example.txt', initial: '👍🏽' },
+				{ name: '👩🏽‍💻example.txt', initial: '👩🏽‍💻' },
+				{ name: '🇫🇷example.txt', initial: '🇫🇷' },
+				{ name: '.env', initial: '.e' },
+				{ name: '.gitignore', initial: '.g' },
+				{ name: '.👩🏽‍💻example.txt', initial: '.👩🏽‍💻' },
+			];
+			for (const { name } of cases) {
+				const editor = disposables.add(new class extends TestFileEditorInput {
+					override getName(): string { return name; }
+				}(URI.file(`/path/${name}`), 'testEditorInput'));
+				model.openEditor(editor, { pinned: true, active: false, index: model.count });
+			}
+			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, showTabIndex, tabSizing: 'fixed', tabSizingFixedMinWidth: 20, tabSizingFixedMaxWidth: 20, editorActionsLocation: 'hidden', hasIcons: false };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 260);
+			const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab')).slice(2);
+			const context = $<HTMLCanvasElement>('canvas').getContext('2d')!;
+			const results = cases.map(({ name, initial }, index) => {
+				const tab = tabs[index];
+				const labelName = tab.querySelector<HTMLElement>('.label-name')!;
+				const nameContainer = labelName.parentElement!;
+				const prefix = showTabIndex ? `${index + 3}: ` : '';
+				context.font = mainWindow.getComputedStyle(labelName).font;
+				const initialWidth = context.measureText(`${prefix}${initial}`).width;
+				context.font = mainWindow.getComputedStyle(nameContainer).font;
+				const minimumNameWidth = Math.ceil(initialWidth + context.measureText('…').width);
+				return {
+					name,
+					measuredInitial: parseFloat(tab.style.getPropertyValue('--connected-tab-min-name-width')) === minimumNameWidth,
+					initialVisible: nameContainer.clientWidth >= minimumNameWidth,
+				};
+			});
+			assert.deepStrictEqual(results, cases.map(({ name }) => ({ name, measuredInitial: true, initialVisible: true })));
+		});
+	}
+
 	test('connected shrink tabs collapse and restore icons as the editor width changes', async () => {
 		const group = connectedGroup();
 		const iconStyle = document.createElement('style');

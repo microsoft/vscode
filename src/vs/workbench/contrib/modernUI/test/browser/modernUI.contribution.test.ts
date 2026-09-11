@@ -1936,6 +1936,222 @@ suite('ModernUIContribution', () => {
 		]);
 	});
 
+	test('matches upper-row tab action backgrounds to the composited pill surface', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const style = document.createElement('style');
+		root.appendChild(style);
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container wrapping');
+		const tabs = appendElement(row, 'tabs-container');
+		const tab = appendElement(tabs, 'tab connected-tab-upper-row');
+		const fill = appendElement(tab, 'tab-fill');
+		const hoverProbe = appendElement(tab, 'hover-color-probe');
+		hoverProbe.style.backgroundColor = 'var(--modern-ui-editor-tab-hover-background)';
+		const actions = appendElement(tab, 'tab-actions');
+		const action = appendElement(actions, 'action-label');
+		action.tabIndex = 0;
+		action.focus();
+		const targetWindow = getWindow(root);
+
+		for (const { themeId, strip, hover, expected } of [
+			{ themeId: 'vs-dark', strip: '#202020', hover: '#ffffff80', expected: 'rgb(143, 143, 143)' },
+			{ themeId: 'vs', strip: '#eeeeee', hover: '#00000080', expected: 'rgb(118, 118, 118)' },
+			{ themeId: 'vs', strip: '#eeeeee', hover: '#2468ac', expected: 'rgb(36, 104, 172)' },
+			{ themeId: 'vs-dark', strip: '#202020', hover: '#ffffff00', expected: 'rgb(32, 32, 32)' },
+			{ themeId: 'hc-black', strip: '#000000', hover: '#ffffff', expected: 'rgb(255, 255, 255)' },
+			{ themeId: 'hc-light', strip: '#ffffff', hover: '#000000', expected: 'rgb(0, 0, 0)' },
+		]) {
+			const theme = ColorThemeData.createUnloadedTheme(themeId, {
+				[editorBackground]: '#112233',
+				'editorGroupHeader.tabsBackground': strip,
+				[MODERN_EDITOR_TAB_HOVER_BACKGROUND]: hover,
+			});
+			style.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			const highContrast = themeId.startsWith('hc-');
+			for (const compact of [false, true]) {
+				root.className = `monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs ${themeId}`;
+				title.classList.toggle('compact-height', compact);
+				for (const focusedGroup of [false, true]) {
+					group.classList.toggle('active', focusedGroup);
+					for (const actionsLeft of [false, true]) {
+						tab.classList.toggle('tab-actions-left', actionsLeft);
+						for (const active of [false, true]) {
+							tab.classList.toggle('active', active);
+							const stripColor = targetWindow.getComputedStyle(row).backgroundColor;
+							assert.deepStrictEqual({
+								fill: targetWindow.getComputedStyle(fill).backgroundColor,
+								hover: targetWindow.getComputedStyle(hoverProbe).backgroundColor,
+								actions: targetWindow.getComputedStyle(actions).backgroundColor,
+							}, {
+								fill: active ? 'rgb(17, 34, 51)' : highContrast ? 'rgba(0, 0, 0, 0)' : stripColor,
+								hover: expected,
+								actions: active ? 'rgb(17, 34, 51)' : highContrast ? stripColor : expected,
+							}, `${themeId}, ${hover}, compact: ${compact}, focused group: ${focusedGroup}, actions left: ${actionsLeft}, active: ${active}`);
+						}
+					}
+				}
+			}
+		}
+	});
+
+	test('composites translucent connected strip colors only once', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const style = document.createElement('style');
+		root.appendChild(style);
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(row, 'tabs-container');
+		const tab = appendElement(tabs, 'tab');
+		const fill = appendElement(tab, 'tab-fill');
+		const actions = appendElement(tab, 'tab-actions');
+		const action = appendElement(actions, 'action-label');
+		action.tabIndex = 0;
+		const stickyMask = appendElement(row, 'sticky-tabs-background');
+		const addTab = appendElement(tabs, 'tabs-bar-add-tab');
+		const targetWindow = getWindow(root);
+		for (const [strip, expected] of [
+			['#ffffff80', 'rgb(143, 143, 143)'],
+			['#ffffff00', 'rgb(32, 32, 32)'],
+			['#abcdef', 'rgb(171, 205, 239)'],
+			[undefined, 'rgb(32, 32, 32)'],
+		]) {
+			for (const themeId of strip ? ['vs-dark', 'vs', 'hc-black', 'hc-light'] : ['hc-black', 'hc-light']) {
+				root.className = `monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs ${themeId}`;
+				const theme = ColorThemeData.createUnloadedTheme(themeId, {
+					[editorBackground]: '#202020',
+					...(strip ? { 'editorGroupHeader.tabsBackground': strip } : {}),
+				});
+				style.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+				action.focus();
+				const highContrast = themeId.startsWith('hc-');
+				assert.deepStrictEqual({
+					strip: [row, stickyMask, addTab].map(element => targetWindow.getComputedStyle(element).backgroundColor),
+					fill: targetWindow.getComputedStyle(fill).backgroundColor,
+					actionMask: highContrast ? targetWindow.getComputedStyle(actions).backgroundColor : undefined,
+				}, {
+					strip: [expected, expected, expected],
+					fill: highContrast ? 'rgba(0, 0, 0, 0)' : expected,
+					actionMask: highContrast ? expected : undefined,
+				}, `${themeId}, ${strip}`);
+			}
+		}
+	});
+
+	test('retains the empty root connected editor frame in high contrast', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-focusBorder: #ffaa00; --vscode-contrastBorder: #00aaff;';
+		const editor = appendElement(root, 'part editor editor-tabs-multiple');
+		const content = appendElement(editor, 'content empty');
+		const group = appendElement(content, 'editor-group-container empty active');
+		const title = appendElement(group, 'title tabs');
+		const body = appendElement(group, 'editor-container');
+		const targetWindow = getWindow(root);
+		for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+			root.className = `monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs ${theme}`;
+			for (const floating of [false, true]) {
+				root.classList.toggle('floating-panels', floating);
+				for (const empty of [false, true, false]) {
+					content.classList.toggle('empty', empty);
+					group.classList.toggle('empty', empty);
+					const frame = targetWindow.getComputedStyle(group, '::after');
+					const hasFrame = empty && theme.startsWith('hc-');
+					assert.deepStrictEqual({
+						frame: frame.content,
+						border: hasFrame ? [frame.borderTopWidth, frame.borderTopColor, frame.pointerEvents] : undefined,
+						hiddenHosts: empty ? [title, body].map(element => targetWindow.getComputedStyle(element).display) : undefined,
+					}, {
+						frame: hasFrame ? '""' : 'none',
+						border: hasFrame ? ['1px', 'rgb(255, 170, 0)', 'none'] : undefined,
+						hiddenHosts: empty ? ['none', 'none'] : undefined,
+					}, `${theme}, floating: ${floating}, empty: ${empty}`);
+				}
+			}
+		}
+	});
+
+	test('keeps upper-row terminal pills symmetric in wrapped and separate pinned rows', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-cornerRadius-small: 4px; --vscode-strokeThickness: 1px;';
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(row, 'tabs-container');
+		const tab = appendElement(tabs, 'tab active connected-tab-upper-row');
+		const fill = appendElement(tab, 'tab-fill');
+		for (const pinnedRow of [false, true]) {
+			title.classList.toggle('two-tab-bars', pinnedRow);
+			row.classList.toggle('wrapping', !pinnedRow);
+			for (const rowEnd of ['', 'last-in-row', 'connected-tab-right-edge']) {
+				tab.className = `tab active connected-tab-upper-row ${rowEnd}`;
+				const style = getWindow(fill).getComputedStyle(fill);
+				assert.deepStrictEqual([style.left, style.right], ['2px', '2px'], `pinned row: ${pinnedRow}, row end: ${rowEnd}`);
+			}
+		}
+	});
+
+	test('hidden connected close slots do not intercept pointer input', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs tab-actions-reserve-space');
+		const tabs = appendElement(title, 'tabs-container');
+		const tab = appendElement(tabs, 'tab sizing-fit');
+		const actions = appendElement(tab, 'tab-actions');
+		const action = appendElement(actions, 'action-label');
+		action.tabIndex = 0;
+		const targetWindow = getWindow(root);
+		for (const state of ['', 'active', 'dirty', 'sticky', 'focus', '']) {
+			action.blur();
+			tab.className = `tab sizing-fit ${state === 'focus' ? '' : state}`;
+			if (state === 'focus') {
+				action.focus();
+			}
+			assert.deepStrictEqual([targetWindow.getComputedStyle(actions).pointerEvents, targetWindow.getComputedStyle(action).pointerEvents],
+				Array(2).fill(state ? 'auto' : 'none'), state || 'hidden');
+		}
+	});
+
+	test('raises active connected sticky shoulders above peers but below scrollbars', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const scrollable = appendElement(row, 'monaco-scrollable-element');
+		const scrollbar = appendElement(scrollable, 'scrollbar');
+		const tabs = appendElement(scrollable, 'tabs-container');
+		const active = appendElement(tabs, 'tab');
+		const peer = appendElement(tabs, 'tab');
+		const targetWindow = getWindow(root);
+		for (const sizing of ['fit', 'shrink', 'fixed']) {
+			for (const sticky of ['compact', 'shrink']) {
+				active.className = `tab active sticky sizing-${sizing} sticky-${sticky}`;
+				peer.className = `tab sticky sizing-${sizing} sticky-${sticky}`;
+				for (const disabled of [false, true]) {
+					tabs.classList.toggle('disable-sticky-tabs', disabled);
+					assert.deepStrictEqual([active, peer, scrollbar].map(element => targetWindow.getComputedStyle(element).zIndex),
+						[disabled ? 'auto' : '9', disabled ? 'auto' : '8', '11']);
+				}
+			}
+		}
+	});
+
 	test('preserves a single HC frame in every tab mode without changing the outer card geometry', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs floating-panels');
 		store.add(toDisposable(() => root.remove()));

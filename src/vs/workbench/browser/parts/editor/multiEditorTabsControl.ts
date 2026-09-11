@@ -58,6 +58,7 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
+import { nextCharLength } from '../../../../base/common/strings.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -2113,10 +2114,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const suffix = label.querySelector<HTMLElement>('.label-suffix');
 			const style = getWindow(tab).getComputedStyle(tab);
 			const prefix = this.groupsView.partOptions.showTabIndex ? `${this.toEditorIndex(index) + 1}: ` : '';
-			const firstNameCharacter = Array.from((name.textContent ?? '').substring(prefix.length))[0] ?? '';
+			const nameText = (name.textContent ?? '').substring(prefix.length);
+			const firstGraphemeOffset = nameText.startsWith('.') ? 1 : 0;
+			const firstNameGrapheme = nameText.substring(0, firstGraphemeOffset + nextCharLength(nameText, firstGraphemeOffset));
 			// The ellipsis belongs to the overflow container, not the label anchor.
 			// Measure each separately: their fonts can differ, and suffixes cannot kern across elements.
-			const minimumNameWidth = this.measureConnectedTabText(`${prefix}${firstNameCharacter}`, name)
+			const minimumNameWidth = this.measureConnectedTabText(`${prefix}${firstNameGrapheme}`, name)
 				+ this.measureConnectedTabText('…', name.parentElement!);
 			const nameWidth = minimumNameWidth + (suffix ? this.measureConnectedTabText(suffix.textContent ?? '', suffix) : 0);
 			const badge = label.classList.contains('monaco-decoration-badge') ? getWindow(label).getComputedStyle(label, '::after') : undefined;
