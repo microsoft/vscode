@@ -209,7 +209,7 @@ export function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 		return cachedStyleSheet;
 	}
 
-	const scopeSelector = '.' + theme.classNames[0];
+	const scopeSelector = ':scope, .' + theme.classNames[0];
 	const themeScopeSelector = '.' + theme.classNames.join('.');
 	const themingParticipants = themingRegistry.getThemingParticipants();
 	const sheet = new CSSStyleSheet();

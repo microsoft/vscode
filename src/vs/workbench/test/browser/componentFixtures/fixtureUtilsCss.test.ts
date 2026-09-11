@@ -88,7 +88,7 @@ suite('Component fixture theme CSS', () => {
 		});
 	}
 
-	test('preserves theme variables on nested editor theme roots', () => {
+	test('preserves theme variables on fixture and nested editor roots', () => {
 		const originalStyleSheets = [...mainWindow.document.adoptedStyleSheets];
 		disposables.add(toDisposable(() => { mainWindow.document.adoptedStyleSheets = originalStyleSheets; }));
 		const theme = ColorThemeData.createLoadedEmptyTheme(`${ThemeTypeSelector.VS} fixture-light`, 'Light');
@@ -100,11 +100,19 @@ suite('Component fixture theme CSS', () => {
 		const root = mainWindow.document.body.appendChild($('.monaco-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		root.classList.add(...theme.classNames);
+		root.style.backgroundColor = 'var(--vscode-editor-background)';
+		const rootBackground = mainWindow.getComputedStyle(root).backgroundColor;
 		root.style.setProperty('--vscode-editor-background', '#abcdef');
 		const editor = root.appendChild($('.monaco-editor.vs'));
 		editor.style.backgroundColor = 'var(--vscode-editor-background)';
 
-		assert.strictEqual(mainWindow.getComputedStyle(editor).backgroundColor, 'rgb(18, 52, 86)');
+		assert.deepStrictEqual({
+			rootBackground,
+			editorBackground: mainWindow.getComputedStyle(editor).backgroundColor,
+		}, {
+			rootBackground: 'rgb(18, 52, 86)',
+			editorBackground: 'rgb(18, 52, 86)',
+		});
 	});
 });
 
