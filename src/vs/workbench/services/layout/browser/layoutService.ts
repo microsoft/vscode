@@ -170,7 +170,8 @@ export function isFloatingTopEdgeExposed(layoutService: IWorkbenchLayoutService,
  * the middle, and a vertical (left/right) panel immediately next to the editor on its
  * placement side. The outermost *visible* part on each edge wins; a visible Activity Bar is the
  * outermost card of the side bar cluster. A hidden editor is skipped, so a maximized side bar
- * (which spans the full content width) is correctly detected as the owner on both edges.
+ * (which spans the full content width when no horizontal panel occupies the editor branch) is
+ * correctly detected as the owner on both edges.
  *
  * Consumed by `AbstractPaneCompositePart` (side bars and panel) and `EditorPart`
  * (main editor) so the outer-gutter decision stays in sync between them.
@@ -182,7 +183,18 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 
 	const sideBarLeft = layoutService.getSideBarPosition() === Position.LEFT;
 	const panelPosition = layoutService.getPanelPosition();
-	const verticalPanelVisible = !isHorizontal(panelPosition) && layoutService.isVisible(Parts.PANEL_PART);
+	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
+	const editorVisible = layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
+	const verticalPanelVisible = !isHorizontal(panelPosition) && panelVisible;
+	// A maximized horizontal panel replaces the editor in the middle-section branch. Include it
+	// in the horizontal order so a side/aux bar next to it does not incorrectly claim the
+	// panel-facing edge's outer gutter. Without this, a single visible side bar gets a trailing
+	// outer margin in addition to the panel's leading margin, leaving a doubled gap while the
+	// grid sash still targets the normal inter-card gap.
+	const horizontalPanelMaximized = isHorizontal(panelPosition)
+		&& layoutService.getPanelAlignment() === 'center'
+		&& panelVisible
+		&& !editorVisible;
 
 	// A visible vertical panel sits immediately outside the editor on its placement
 	// side (between the editor and the side/aux bar on that side).
@@ -192,16 +204,17 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	// The full window order of the floatable parts, left -> right: the activity bar and
 	// primary side bar sit together on `getSideBarPosition()` (activity bar outermost), the
 	// secondary side bar on the opposite side, a vertical panel immediately beside the editor
-	// on its placement side, and the editor in the middle. Each edge is resolved by walking
-	// this order inward to the first *visible* card, so a hidden editor (e.g. a maximized side
-	// bar that spans the full content width) is skipped and the spanning card is detected on
-	// both edges.
+	// on its placement side, and the editor in the middle. A centered horizontal panel is inserted
+	// next to the side bar group when it replaces the hidden editor in the middle-section branch.
+	// Each edge is resolved by walking this order inward to the first *visible* card. When no
+	// horizontal panel occupies that branch, a hidden editor lets a maximized side bar span the
+	// content width and own both edges.
 	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
 	const panelGroup: Parts[] = [Parts.PANEL_PART];
 	const fullOrder: Parts[] = sideBarLeft
 		? [
 			...sideBarGroup,
-			...(panelInLeftSequence ? panelGroup : []),
+			...(panelInLeftSequence || horizontalPanelMaximized ? panelGroup : []),
 			Parts.EDITOR_PART,
 			...(panelInRightSequence ? panelGroup : []),
 			Parts.AUXILIARYBAR_PART
@@ -210,7 +223,7 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 			Parts.AUXILIARYBAR_PART,
 			...(panelInLeftSequence ? panelGroup : []),
 			Parts.EDITOR_PART,
-			...(panelInRightSequence ? panelGroup : []),
+			...(panelInRightSequence || horizontalPanelMaximized ? panelGroup : []),
 			...[...sideBarGroup].reverse() // activity bar is outermost on the right edge
 		];
 
