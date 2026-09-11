@@ -51,6 +51,7 @@ suite('MultiDiffEditorWidget', () => {
 		}, {
 			variants: ['cards', 'noCards', 'noCardsNonCompact'],
 			cards: {
+				diffEditorVariant: 'compact',
 				classNames: ['multiDiffEditor-compact', 'multiDiffEditor-card'],
 				horizontalInsets: { left: 9, right: 9 },
 				headerHeight: 40,

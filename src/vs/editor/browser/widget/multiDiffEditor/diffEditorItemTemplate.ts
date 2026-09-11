@@ -129,6 +129,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 			fixedOverflowWidgets: true
 		}, {
+			variant: this._variantConfiguration.diffEditorVariant,
 			runWithOriginalEditorScrollAnchor: (anchorLineNumber, update) => this._runWithEditorScrollAnchor(
 				() => this._outerEditorHeight + this._getOriginalEditorLineTop(anchorLineNumber),
 				update
