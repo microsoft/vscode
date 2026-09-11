@@ -16,7 +16,7 @@ export interface IMultiDiffEditorWidgetOptions {
 }
 
 export interface IMultiDiffEditorVariantConfiguration {
-	readonly className: string;
+	readonly classNames: readonly string[];
 	readonly horizontalInsets: Readonly<{ left: number; right: number }>;
 	readonly headerHeight: number;
 	readonly contentBottomPadding: number;
@@ -27,7 +27,7 @@ export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorV
 	switch (variant) {
 		case 'noCardsNonCompact':
 			return {
-				className: 'multiDiffEditor-standard',
+				classNames: ['multiDiffEditor-standard'],
 				horizontalInsets: { left: 9, right: 9 },
 				headerHeight: 40,
 				contentBottomPadding: 0,
@@ -35,10 +35,18 @@ export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorV
 			};
 		case 'noCards':
 			return {
-				className: 'multiDiffEditor-compact',
+				classNames: ['multiDiffEditor-compact'],
 				horizontalInsets: { left: 0, right: 0 },
 				headerHeight: 32,
 				contentBottomPadding: 8,
+				headerClickToCollapse: true,
+			};
+		case 'cards':
+			return {
+				classNames: ['multiDiffEditor-compact', 'multiDiffEditor-card'],
+				horizontalInsets: { left: 9, right: 9 },
+				headerHeight: 40,
+				contentBottomPadding: 0,
 				headerClickToCollapse: true,
 			};
 	}

@@ -54,6 +54,8 @@ import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaul
 import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableWorkbenchMultiDiffEditorVariant } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -219,6 +221,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@ISessionChangesService private readonly sessionChangesService: ISessionChangesService,
 		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
 		@ILogService logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -267,15 +270,17 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// inline-view toggle actions.
 		const paneInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
 		this.widget = this._register(paneInstantiationService.createInstance(
 			MultiDiffEditorWidget,
 			this.bodyContainer,
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs),
 			{
-				variant: 'noCards',
+				variant: variant.get(),
 				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
 			},
 		));
+		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
 		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
 		this._register(autorun(reader => {
