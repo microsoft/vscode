@@ -37,9 +37,10 @@ interface IGitHubPRResponse {
 
 interface IGitHubReviewResponse {
 	readonly id: number;
+	readonly node_id: string;
 	readonly user: { readonly login: string; readonly avatar_url: string };
 	readonly state: string;
-	readonly submitted_at: string;
+	readonly submitted_at: string | null;
 }
 
 interface IGitHubReviewCommentResponse {
@@ -102,6 +103,14 @@ interface IGitHubGraphQLResolveReviewThreadResponse {
 	} | null;
 }
 
+interface IGitHubGraphQLAddReviewThreadResponse {
+	readonly addPullRequestReviewThread: {
+		readonly thread: {
+			readonly id: string;
+		} | null;
+	} | null;
+}
+
 //#endregion
 
 const GET_REVIEW_THREADS_QUERY = [
@@ -144,6 +153,16 @@ const RESOLVE_REVIEW_THREAD_MUTATION = [
 	'  resolveReviewThread(input: { threadId: $threadId }) {',
 	'    thread {',
 	'      isResolved',
+	'    }',
+	'  }',
+	'}',
+].join('\n');
+
+const ADD_REVIEW_THREAD_MUTATION = [
+	'mutation AddReviewThread($reviewId: ID!, $body: String!, $path: String!, $line: Int!) {',
+	'  addPullRequestReviewThread(input: { pullRequestReviewId: $reviewId, body: $body, path: $path, line: $line, side: RIGHT }) {',
+	'    thread {',
+	'      id',
 	'    }',
 	'  }',
 	'}',
@@ -223,6 +242,44 @@ export class GitHubPRFetcher {
 			throw new Error(`Failed to post review comment to ${owner}/${repo}#${prNumber}`);
 		}
 		return mapReviewComment(response.data);
+	}
+
+	async postPullRequestReviewComment(
+		owner: string,
+		repo: string,
+		prNumber: number,
+		body: string,
+		commitId: string,
+		path: string,
+		line: number,
+		pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>,
+	): Promise<void> {
+		if (pendingReview) {
+			const data = await this._apiClient.graphql<IGitHubGraphQLAddReviewThreadResponse>(
+				ADD_REVIEW_THREAD_MUTATION,
+				'githubApi.addPullRequestReviewThread',
+				{ reviewId: pendingReview.nodeId, body, path, line },
+			);
+			if (!data.addPullRequestReviewThread?.thread) {
+				throw new Error(`Failed to add review comment to pending review on ${owner}/${repo}#${prNumber}`);
+			}
+			return;
+		}
+
+		const response = await this._apiClient.request<IGitHubReviewResponse>(
+			'POST',
+			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`,
+			'githubApi.postPullRequestReviewComment',
+			{
+				data: {
+					commit_id: commitId,
+					comments: [{ body, path, line, side: 'RIGHT' }],
+				}
+			}
+		);
+		if (!response.data) {
+			throw new Error(`Failed to post review comment to ${owner}/${repo}#${prNumber}`);
+		}
 	}
 
 	async postIssueComment(
@@ -356,9 +413,10 @@ function mapPullRequest(data: IGitHubPRResponse): IGitHubPullRequest {
 function mapReview(data: IGitHubReviewResponse): IGitHubPullRequestReview {
 	return {
 		id: data.id,
+		nodeId: data.node_id,
 		author: mapUser(data.user),
 		state: data.state,
-		submittedAt: data.submitted_at,
+		submittedAt: data.submitted_at ?? undefined,
 	};
 }
 

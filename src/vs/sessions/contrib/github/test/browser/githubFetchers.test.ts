@@ -389,16 +389,77 @@ suite('GitHubPRFetcher', () => {
 		assert.deepStrictEqual(mockApi.graphqlCalls[0].variables, { threadId: 'thread-a' });
 	});
 
+	test('postPullRequestReviewComment sends a line comment against the head commit', async () => {
+		mockApi.setNextResponse({
+			id: 1,
+			node_id: 'PRR_review',
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'COMMENTED',
+			submitted_at: '2024-01-01T00:00:00Z',
+		});
+
+		await fetcher.postPullRequestReviewComment('owner', 'repo', 1, 'Please update this.', 'abc123', 'src/a.ts', 12);
+
+		assert.deepStrictEqual(mockApi.requestCalls, [{
+			method: 'POST',
+			path: '/repos/owner/repo/pulls/1/reviews',
+			body: {
+				commit_id: 'abc123',
+				comments: [{
+					body: 'Please update this.',
+					path: 'src/a.ts',
+					line: 12,
+					side: 'RIGHT',
+				}],
+			},
+		}]);
+	});
+
+	test('postPullRequestReviewComment adds to an existing pending review without submitting it', async () => {
+		mockApi.setNextResponse({
+			addPullRequestReviewThread: { thread: { id: 'thread-a' } },
+			id: 1,
+			node_id: 'PRR_review',
+			user: { login: 'reviewer', avatar_url: '' },
+			state: 'COMMENTED',
+			submitted_at: '2024-01-01T00:00:00Z',
+		});
+
+		await fetcher.postPullRequestReviewComment(
+			'owner',
+			'repo',
+			1,
+			'Please update this.',
+			'abc123',
+			'src/a.ts',
+			12,
+			{ id: 42, nodeId: 'PRR_pending' },
+		);
+
+		assert.deepStrictEqual({
+			graphql: mockApi.graphqlCalls.map(call => call.variables),
+			requests: mockApi.requestCalls,
+		}, {
+			graphql: [{
+				reviewId: 'PRR_pending',
+				body: 'Please update this.',
+				path: 'src/a.ts',
+				line: 12,
+			}],
+			requests: [],
+		});
+	});
+
 	test('getReviews maps API response', async () => {
 		mockApi.setNextResponse([
-			{ id: 1, user: { login: 'reviewer', avatar_url: '' }, state: 'APPROVED', submitted_at: '2024-01-01T00:00:00Z' },
-			{ id: 2, user: { login: 'other', avatar_url: '' }, state: 'CHANGES_REQUESTED', submitted_at: '2024-01-02T00:00:00Z' },
+			{ id: 1, node_id: 'PRR_1', user: { login: 'reviewer', avatar_url: '' }, state: 'APPROVED', submitted_at: '2024-01-01T00:00:00Z' },
+			{ id: 2, node_id: 'PRR_2', user: { login: 'other', avatar_url: '' }, state: 'CHANGES_REQUESTED', submitted_at: '2024-01-02T00:00:00Z' },
 		]);
 
 		const reviews = await fetcher.getReviews('owner', 'repo', 1);
 		assert.deepStrictEqual(reviews.data, [
-			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
-			{ id: 2, author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
+			{ id: 1, nodeId: 'PRR_1', author: { login: 'reviewer', avatarUrl: '' }, state: 'APPROVED', submittedAt: '2024-01-01T00:00:00Z' },
+			{ id: 2, nodeId: 'PRR_2', author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
 		]);
 		assert.strictEqual(mockApi.requestCalls.length, 1);
 		assert.strictEqual(mockApi.requestCalls[0].path, '/repos/owner/repo/pulls/1/reviews');
@@ -421,7 +482,7 @@ suite('GitHubPRFetcher', () => {
 	test('computeMergeability detects changes requested blocker', () => {
 		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: false, mergeable: true, mergeableState: 'clean' });
 		const reviews: IGitHubPullRequestReview[] = [
-			{ id: 1, author: { login: 'reviewer', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z' },
+			{ id: 1, nodeId: 'PRR_1', author: { login: 'reviewer', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z' },
 		];
 		const result = computeMergeability(pr, reviews);
 		assert.strictEqual(result.canMerge, false);
