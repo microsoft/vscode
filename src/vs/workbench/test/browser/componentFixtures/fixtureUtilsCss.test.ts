@@ -10,6 +10,7 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import '../../../../editor/browser/viewParts/currentLineHighlight/currentLineHighlight.js';
 import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 import type { IColorCustomizations } from '../../../services/themes/common/workbenchThemeService.js';
 import { getThemeStyleSheet } from './fixtureUtilsCss.js';
@@ -59,6 +60,40 @@ suite('Component fixture theme CSS', () => {
 			expected: { border: '0px none rgb(0, 0, 0)', background: 'rgb(253, 246, 227)' },
 		},
 	];
+
+	test('does not apply workbench backgrounds to nested editor theme classes', () => {
+		const originalStyleSheets = [...mainWindow.document.adoptedStyleSheets];
+		disposables.add(toDisposable(() => { mainWindow.document.adoptedStyleSheets = originalStyleSheets; }));
+		disposables.add(registerThemingParticipant((_theme, collector) => {
+			collector.addRule('.monaco-workbench { background-color: var(--vscode-editor-background); }');
+		}));
+		const host = mainWindow.document.body.appendChild($('div'));
+		disposables.add(toDisposable(() => host.remove()));
+
+		const actual = variants.map((variant, index) => {
+			const id = `${variant.selector} workbench-background-${index}`;
+			const theme = ColorThemeData.createLoadedEmptyTheme(id, id);
+			theme.setCustomColors({ 'editor.background': '#123456' });
+			mainWindow.document.adoptedStyleSheets = [
+				...mainWindow.document.adoptedStyleSheets,
+				getThemeStyleSheet(theme),
+			];
+			const root = host.appendChild($('.monaco-workbench'));
+			root.classList.add(...theme.classNames);
+			const editor = root.appendChild($('.monaco-editor'));
+			editor.classList.add(variant.selector);
+			const scrollable = editor.appendChild($('.monaco-scrollable-element'));
+			scrollable.classList.add(variant.selector);
+
+			return [root, editor, scrollable].map(element => mainWindow.getComputedStyle(element).backgroundColor);
+		});
+
+		assert.deepStrictEqual(actual, variants.map(() => [
+			'rgb(18, 52, 86)',
+			'rgba(0, 0, 0, 0)',
+			'rgba(0, 0, 0, 0)',
+		]));
+	});
 
 	for (const reverse of [false, true]) {
 		test(`isolates active-line styles in ${reverse ? 'reverse' : 'forward'} theme installation order`, () => {
