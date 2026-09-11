@@ -2134,7 +2134,7 @@ suite('ChatSubagentContentPart', () => {
 			const button = getCollapseButton(part);
 			assert.ok(button, 'Should have collapse button');
 			const iconElement = getCollapseButtonIcon(button);
-			assert.ok(iconElement?.classList.contains('codicon-check-compact'), 'Should have check icon after finalization');
+			assert.ok(iconElement?.classList.contains('codicon-check'), 'Should have check icon after finalization');
 		});
 	});
 
@@ -2237,7 +2237,7 @@ suite('ChatSubagentContentPart', () => {
 			const button = getCollapseButton(part);
 			assert.ok(button, 'Should have collapse button');
 			const loadingIcon = getCollapseButtonIcon(button);
-			assert.ok(loadingIcon?.classList.contains('codicon-circle-filled-compact'), 'Should have circle-filled icon while streaming');
+			assert.ok(loadingIcon?.classList.contains('codicon-circle-filled'), 'Should have circle-filled icon while streaming');
 		});
 	});
 

@@ -37,8 +37,8 @@
 			font-size: var(--vscode-chat-font-size-body-s);
 		}
 
-		.codicon {
-			font-size: var(--vscode-codiconFontSize-compact);
+		> .codicon:first-child {
+			font-size: var(--vscode-codiconFontSize);
 		}
 
 		.chat-thinking-title-detail-text {
@@ -111,7 +111,7 @@
 
 	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
 
-		.codicon.codicon-circle-filled-compact {
+		.codicon.codicon-circle-filled {
 			display: none;
 		}
 	}
@@ -183,7 +183,7 @@
 		margin-left: 5px;
 
 		.chat-tool-invocation-part {
-			padding: 4px 12px 4px 18px;
+			padding: 4px 12px 4px 24px;
 			position: relative;
 		}
 
@@ -241,7 +241,7 @@
 
 			.chat-used-context.chat-hook-outcome-blocked,
 			.chat-used-context.chat-hook-outcome-warning {
-				padding: 4px 12px 4px 20px;
+				padding: 4px 12px 4px 24px;
 				margin-bottom: 0;
 			}
 		}
@@ -320,7 +320,7 @@
 			&::before {
 				content: '';
 				position: absolute;
-				left: 10.5px;
+				left: 11.5px;
 				top: 0px;
 				bottom: 0px;
 				width: 1px;
@@ -344,12 +344,12 @@
 
 			> .chat-thinking-icon {
 				position: absolute;
-				left: 5px;
-				top: 9px;
-				width: 12px;
-				height: 12px;
-				font-size: var(--vscode-codiconFontSize-compact);
-				line-height: 12px;
+				left: var(--vscode-spacing-size40);
+				top: 7px;
+				width: var(--vscode-codiconFontSize);
+				height: var(--vscode-codiconFontSize);
+				font-size: var(--vscode-codiconFontSize);
+				line-height: var(--vscode-codiconFontSize);
 				text-align: center;
 				color: var(--vscode-descriptionForeground);
 			}
@@ -486,28 +486,28 @@
 		padding-left: 0px;
 
 		.chat-tool-invocation-part {
-			padding-left: 13px;
+			padding-left: var(--vscode-spacing-size200);
 		}
 
 		.chat-thinking-spinner-item {
-			padding-left: 19px;
+			padding-left: var(--vscode-spacing-size200);
 		}
 
 		.chat-used-context.chat-hook-outcome-blocked,
 		.chat-used-context.chat-hook-outcome-warning {
-			padding-left: 15px;
+			padding-left: var(--vscode-spacing-size200);
 		}
 
 		.chat-thinking-item.markdown-content {
-			padding-left: 19px;
+			padding-left: var(--vscode-spacing-size200);
 		}
 
 		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
-			padding-left: 19px;
+			padding-left: var(--vscode-spacing-size200);
 		}
 
 		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
-			padding-left: 19px;
+			padding-left: var(--vscode-spacing-size200);
 		}
 
 		/* chain of thought lines */
@@ -515,7 +515,7 @@
 		.chat-thinking-item.markdown-content,
 		.chat-thinking-spinner-item {
 			&::before {
-				left: 5.5px;
+				left: 7.5px;
 			}
 
 			> .chat-thinking-icon {

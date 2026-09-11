@@ -19,7 +19,7 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
-import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, createThinkingIcon, getToolInvocationIcon, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -193,6 +193,17 @@ suite('ChatThinkingContentPart', () => {
 			viewUnreviewedComments: Codicon.comment,
 			prefixedComment: Codicon.comment,
 		});
+	});
+
+	test('thinking rows use base codicon glyphs', () => {
+		assert.deepStrictEqual(
+			[Codicon.comment, Codicon.terminal, Codicon.check].map(icon => [...createThinkingIcon(icon).classList]),
+			[
+				['chat-thinking-icon', 'codicon', 'codicon-comment'],
+				['chat-thinking-icon', 'codicon', 'codicon-terminal'],
+				['chat-thinking-icon', 'codicon', 'codicon-check'],
+			]
+		);
 	});
 
 	suite('ThinkingDisplayMode.Collapsed', () => {
@@ -1932,7 +1943,7 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 
 			// The button should now show a check icon
-			const iconElement = part.domNode.querySelector('.codicon-check-compact');
+			const iconElement = part.domNode.querySelector('.codicon-check');
 			assert.ok(iconElement, 'Should have check icon after finalization');
 			assert.ok(part.domNode.classList.contains('chat-collapsible-content-animated'), 'Should enable content animation after finalization');
 		});
@@ -2216,7 +2227,7 @@ suite('ChatThinkingContentPart', () => {
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
 			// Should have circle-filled icon (not loading spinner) while streaming
-			const circleIcon = part.domNode.querySelector('.codicon-circle-filled-compact');
+			const circleIcon = part.domNode.querySelector('.codicon-circle-filled');
 			assert.ok(circleIcon, 'Should have circle-filled icon while streaming');
 		});
 

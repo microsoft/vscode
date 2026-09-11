@@ -24,7 +24,7 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { extractCodeblockUrisFromText } from '../../../common/widget/annotations.js';
 import { basename, getComparisonKey } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinkingStyleContentPart.js';
+import { ChatThinkingStyleContentPart, createThinkingIcon, setThinkingIcon } from './chatThinkingStyleContentPart.js';
 export { createThinkingIcon };
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { localize } from '../../../../../../nls.js';
@@ -40,7 +40,6 @@ import { ChatMessageRole, ILanguageModelsService } from '../../../common/languag
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { getCompactCodicon } from '../../chatIcons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
@@ -157,11 +156,6 @@ export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon
 
 	// default to generic tool icon
 	return Codicon.tools;
-}
-
-function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
-	iconElement.className = 'chat-thinking-icon';
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
@@ -667,9 +661,9 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	// @TODO: @justschen Convert to template for each setting?
 	protected override getThinkingIcon(_active: boolean, expanded: boolean): ThemeIcon {
 		if (this.streamingCompleted || this.element.isComplete) {
-			return Codicon.checkCompact;
+			return Codicon.check;
 		}
-		return !this.fixedScrollingMode && expanded ? Codicon.chevronDownCompact : Codicon.circleFilledCompact;
+		return !this.fixedScrollingMode && expanded ? Codicon.chevronDown : Codicon.circleFilled;
 	}
 
 	protected override initContent(): HTMLElement {
@@ -1473,7 +1467,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.checkCompact;
+			this._collapseButton.icon = Codicon.check;
 		}
 
 		// Update scroll dimensions now that streaming is complete
@@ -1899,7 +1893,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.flushPendingExternalResources();
 
 		if (this._collapseButton) {
-			this._collapseButton.icon = Codicon.checkCompact;
+			this._collapseButton.icon = Codicon.check;
 			this.setFinalizedTitle(finalLabel);
 		}
 

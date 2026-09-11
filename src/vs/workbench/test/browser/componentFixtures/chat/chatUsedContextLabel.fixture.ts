@@ -23,7 +23,7 @@ import { registerChatFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-function renderUsedContextLabel(context: ComponentFixtureContext, hovered: boolean): void {
+function renderUsedContextLabel(context: ComponentFixtureContext, hovered: boolean, expanded: boolean = false): void {
 	const { container, disposableStore } = context;
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -72,7 +72,11 @@ function renderUsedContextLabel(context: ComponentFixtureContext, hovered: boole
 	));
 	const diffEmitter = disposableStore.add(new Emitter<IChatContentPartDiffData>());
 	part.appendItem(
-		() => ({ domNode: dom.$('.fixture-edit-pill') }),
+		() => {
+			const item = dom.$('.fixture-edit-pill');
+			item.textContent = 'Edited chat.ts';
+			return { domNode: item };
+		},
 		'fixture-edits',
 		undefined,
 		undefined,
@@ -87,6 +91,17 @@ function renderUsedContextLabel(context: ComponentFixtureContext, hovered: boole
 			modifiedURI: URI.file('/snapshots/chat-after.ts'),
 		}],
 	});
+	if (expanded) {
+		const appendIconState = (label: string, toolId: string): void => {
+			part.appendItem(() => {
+				const item = dom.$('.chat-tool-invocation-part');
+				item.textContent = label;
+				return { domNode: item };
+			}, toolId);
+		};
+		appendIconState('The user wants to inspect the directory.', 'addComment');
+		appendIconState('Ran Get-ChildItem', 'runInTerminal');
+	}
 	part.finalizeTitleIfDefault();
 
 	container.classList.add('monaco-workbench', 'interactive-session');
@@ -96,6 +111,10 @@ function renderUsedContextLabel(context: ComponentFixtureContext, hovered: boole
 	const response = dom.append(container, dom.$('.interactive-response'));
 	const value = dom.append(response, dom.$('.value'));
 	value.appendChild(part.domNode);
+
+	if (expanded) {
+		(part.domNode.querySelector('.chat-used-context-label .monaco-button') as HTMLElement | null)?.click();
+	}
 
 	if (hovered) {
 		part.domNode.querySelector('.chat-thinking-title-diff')?.classList.add('hovered');
@@ -110,5 +129,10 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	DiffHovered: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderUsedContextLabel(context, true),
+	}),
+	ExpandedIconStates: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['An expanded completed thinking block shows crisp base-size check, edit, comment, and terminal icons. Each icon is centered on the connector line without increasing its row height or overlapping the row text.'],
+		render: context => renderUsedContextLabel(context, false, true),
 	}),
 });

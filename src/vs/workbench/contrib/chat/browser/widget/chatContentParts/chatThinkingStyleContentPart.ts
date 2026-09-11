@@ -7,7 +7,6 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { getCompactCodicon } from '../../chatIcons.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 // NOTE: the chrome's stylesheet is deliberately NOT imported here. It is owned by
 // `chatThinkingContentPart.ts`, and pulling it in from this base would hoist a
@@ -62,7 +61,7 @@ export abstract class ChatThinkingStyleContentPart extends ChatCollapsibleConten
 	 * shows a status dot while working; override to vary while working.
 	 */
 	protected getThinkingIcon(active: boolean, _expanded: boolean): ThemeIcon {
-		return active ? Codicon.circleFilledCompact : Codicon.checkCompact;
+		return active ? Codicon.circleFilled : Codicon.check;
 	}
 
 	/**
@@ -118,6 +117,12 @@ export abstract class ChatThinkingStyleContentPart extends ChatCollapsibleConten
 
 export function createThinkingIcon(icon: ThemeIcon): HTMLElement {
 	const iconElement = $('span.chat-thinking-icon');
-	iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
+	setThinkingIcon(iconElement, icon);
 	return iconElement;
+}
+
+/** Updates the glyph rendered by an existing thinking-row icon. */
+export function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
+	iconElement.className = 'chat-thinking-icon';
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 }
