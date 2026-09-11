@@ -584,16 +584,13 @@ export function getTerminalContent(content: ToolResultContent[] | undefined): Ex
 }
 
 /**
- * Resolves a raw per-turn model id (as it appears on `UsageInfo.model`) into
- * the chat layer's namespaced language-model id and a human-readable display
- * details. Both halves are independent: the id flows onto request history
- * items (so the input picker shows the model that ran), while the details
- * flow onto response history items (so the response footer shows the model
- * and any usage metadata).
+ * Resolves selected and actual model identifiers independently, along with response display details.
  */
 export interface TurnModelLookup {
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
+	/** Resolves the actual model's registered id when available, without falling back to the selected model. */
+	toActualModelId(rawModelId: string | undefined): string | undefined;
 	/** Returns the registered display name for a raw AHP model id. */
 	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Returns the human-readable response details, or undefined if unknown. */
@@ -956,16 +953,14 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
 /**
  * Converts completed turns from the protocol state into session history items.
  *
- * Per turn, prefers `turn.usage?.model` so each request/response pair shows
- * the model that actually ran, even if the user changed models mid-session.
- * The `lookup` callback is responsible for any session-level fallback (e.g.
- * `summary.model?.id` when usage hasn't reported a model yet).
+ * Requests preserve the selected model, while response details use the model that actually ran.
+ * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
 export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
-		const modelId = lookup?.toLanguageModelId(rawModelId);
+		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
 		const details = lookup?.toResponseDetails(rawModelId, turn.usage);
 
 		// Request
@@ -1008,6 +1003,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName);
 		if (usage) {
+			const actualModelId = lookup?.toActualModelId(rawModelId);
+			if (actualModelId) {
+				usage.actualModelId = actualModelId;
+			}
 			parts.push(usage);
 		}
 

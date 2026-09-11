@@ -9,16 +9,27 @@
 	background-color: transparent;
 }
 
-.part.sessionspart.has-chat-background > .sessions-chat-background {
+.sessions-chat-background,
+.sessions-chat-background-replica-viewport,
+.sessions-chat-background-replica {
 	position: absolute;
-	inset: 0;
 	z-index: 0;
 	overflow: hidden;
 	pointer-events: none;
 }
 
-.part.sessionspart > .sessions-chat-background[hidden] {
+.sessions-chat-background,
+.sessions-chat-background-replica-viewport {
+	inset: 0;
+}
+
+.sessions-chat-background[hidden],
+.sessions-chat-background-replica-viewport[hidden] {
 	display: none;
+}
+
+.sessions-chat-background-replica {
+	background-color: var(--session-view-background);
 }
 
 .sessions-chat-background > .sessions-chat-codicon-background {

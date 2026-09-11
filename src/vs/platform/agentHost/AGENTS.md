@@ -95,6 +95,10 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 ### Orchestrator layer
 
+Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
+
+The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits the existing `sessionArtifacts` database metadata write, then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed deletion leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
+
 **`AgentService` (`node/agentService.ts`):**
 - Resolves the `(session, chat)` → `(agent, session URI, chat URI)` mapping for orchestration.
 - Uses `IAgentHostProviderService` for provider ownership and session routing. Its `getProviderForSession` path falls back through the session URI's scheme when a restored session was not associated in this process lifetime.
@@ -109,6 +113,21 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 - Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
 - Owns the restore flow (`restoreSession`, `_restorePeerChats`).
+- Owns the automatic merged-pull-request session lifecycle through
+  `AgentHostSessionLifecycle`: the application-scoped policy is synchronized
+  into root config; candidates are filtered from the registry using only the
+  persisted archive/GitHub fields needed for cleanup; and every related pull
+  request is authoritatively refreshed before a candidate is restored. A
+  session is eligible only when no related pull request is open and at least
+  one related pull request is merged; closed-unmerged PRs do not block it.
+  Pull request state is refreshed again immediately before lifecycle side
+  effects so reopening a closed PR blocks the action. Eligible sessions are
+  archived through the normal `SessionIsArchivedChanged` action and side-effect
+  path, which removes the worktree when Git confirms that the branch tracks an
+  upstream with no unpushed or uncommitted work. Permanent deletion applies the
+  same safe cleanup to a retained worktree before deleting the session. Archive
+  and deletion thresholds accept any positive whole number of days; zero
+  disables the corresponding lifecycle.
 
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:
@@ -407,6 +426,18 @@ Codex supports multiple chats per session. Each conversation — the session's d
 
 Restoring or continuing a thread retains its saved model when available. When that model is absent from the catalog, restoration waits for queued model discovery and selects the first available model from the same native provider (whose declared default is ordered first), dropping the unavailable model's configuration. It never switches billing providers, even when another provider lists the same model name. If the saved provider has no available models, its saved selection remains intact so history stays readable; only a thread without a saved selection uses the global default. The restored metadata, runtime, and next send use the same selection, while historical turns retain their original model attribution. `thread/resume` must explicitly supply both the selected model and provider so the SDK does not choose its configured default model instead. Explicit model selections for creation and model changes still require a catalog entry and the corresponding provider authentication.
 
+Explicitly switching an existing chat's model provider reloads the same native thread on its next send. It must not create a replacement conversation or clear its turn-ID mappings. Unsubscribe before resuming so the app-server applies the new provider rather than rejoining the old runtime, and record the successfully resumed provider so a later switch back also reloads. Restoring a saved selection from another provider only marks this reload pending; metadata reads remain read-only.
+
+Native thread settings retain the last effective provider. Before resuming an OpenAI-backed thread through Copilot, the harness ensures the effective Codex user config has a portable `vscode-proxy` alias (`name = "OpenAI"`, `wire_api = "responses"`, `requires_openai_auth = true`). The app-server's config API targets its effective home, and version-checked writes are serialized with the existing user-config writes. The alias has no endpoint or credentials; VS Code supplies its loopback proxy settings only as process overrides, while a native client uses its own OpenAI authentication. Existing definitions are never overwritten, persistent conflicting settings fail before unsubscribe/resume, and concurrent edits are reread with bounded retries. Metadata/history reads do not install the alias or change thread settings. The configuration-file action honors the host's effective `CODEX_HOME`, including the forwarded Codex home setting.
+
+Threads with native history also opt into portable reasoning through a thread-local proxy header, never shared configuration. Cold restoration recovers that requirement from the rollout's original provider even after its selected provider becomes `vscode-proxy`. For those threads only, the proxy omits account-bound encrypted reasoning from requests and from SSE/JSON responses before the SDK can persist it. Visible reasoning summaries, messages, tool calls/results, and usage are preserved; ordinary Copilot-only traffic is unchanged. Existing rollout files are never rewritten. Reasoning ciphertext already persisted by an older client is not repaired by this normalization.
+
+Portable SSE responses emit a synthetic heartbeat only when an upstream chunk arrives at least 15 seconds after the last downstream write. Completed events are forwarded immediately and reset that interval, preventing heartbeat amplification on fragmented streams without masking an upstream stall.
+
+`agentHost.codexProviderSwitch` counts a provider handoff only after `turn/start` accepts a turn on the same thread. It reports bounded OpenAI/Copilot directions and a desktop-origin flag through the existing usage-telemetry service, without prompts, model names, paths, or conversation identifiers. Picker changes, metadata reads, setup-only resumes, failed sends, and switches reverted before a send do not count. Activity exclusively in other clients is not observed.
+
+For the same signed-in ChatGPT account, that event may include `chatgptWeeklyUsedPercentBucket`: the cached weekly-limit percentage sampled before the turn and rounded down to a 10-point bucket (100 only when exhausted). Only an explicit seven-day window, observed within five minutes and not past a known reset, qualifies. Missing, invalid, expired, or stale quota data is omitted rather than reported as zero. The sample is cleared on account changes; no email, plan, reset timestamp, or exact percentage is sent. Telemetry never adds quota requests or waits for them, and the existing usage-telemetry consent gate applies. The field supports correlation with quota pressure, not an inference of the user's reason for switching.
+
 When a restored Agent Host conversation's intended model is missing from the picker, the widget must not put the displayed fallback model or its configuration on the next request. Omitting that override lets the host resolve the conversation's selection within its native provider; an explicit model choice replaces the intended selection and is forwarded normally.
 
 Metadata and history reads use `thread/read` and `thread/turns/list` without resuming the thread or claiming its writer lock, so a thread still open in another Codex client remains readable. The first send resumes the backing thread, applies pending launch configuration, and replaces a never-persisted backing only when the SDK reports that its rollout is missing. Reads still retry when their app-server connection is replaced.
@@ -506,6 +537,26 @@ Membership changes re-enter the same seam: a `session/chatAdded` envelope fans e
 ### 8f. Session config (already centralized)
 
 Live provider runtimes that react to session config subscribe to `IAgentConfigurationService.onDidSessionConfigChange` with their explicit config resource. `AgentSideEffects` does not enumerate chats or fan config values through provider hooks.
+
+Copilot advertises the optional `sandboxEnabled` session property (`default`,
+`on`, or `off`). Omission and `default` follow the root sandbox settings;
+selections are saved in session-config metadata and restored across window reloads
+and agent-host restarts. The effective sandbox state is recomputed from the saved
+selection, current root settings, and the runtime's current managed policy.
+Chats and subagents share their configuration owner's selection. New sessions
+and forks do not copy it. Codex retains its native sandbox/permission preset;
+Claude does not advertise this unsupported control.
+
+Both the Copilot SDK sandbox and custom terminal sandbox read the same effective
+session configuration. The launcher subscribes to `onEvent` before create/resume
+to capture the runtime's authoritative managed-settings snapshot. Missing
+snapshots log an error and continue with the available session selection, root
+settings, and any known managed policy. Failed SDK sandbox updates fail closed. Runtime-owned sandbox floors
+are transient, cannot be set through client config, and permanently replace
+disallowed `off` selections with `default`; policy removal cannot revive them.
+Managed asks remain one-time-only. An ordinary sandbox escape's “Allow in this
+Session” changes the owner's sandbox selection, not global settings or tool
+allow lists.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed and registered by `createAgentServiceComposition`. Consumers resolve their service identifiers through constructor injection; `AgentService` neither owns nor exposes them.
 

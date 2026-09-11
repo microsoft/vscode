@@ -8,6 +8,7 @@ import { getWindow } from '../../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
+import { Color, RGBA } from '../../../../../../../../base/common/color.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
@@ -95,7 +96,10 @@ suite('ModelPickerAutoRow', () => {
 			--vscode-spacing-size80: 8px;
 			--vscode-spacing-size240: 24px;
 			--vscode-strokeThickness: 1px;
+			--vscode-cornerRadius-small: 4px;
+			--vscode-cornerRadius-medium: 6px;
 			--vscode-fontSize-label2: 11px;
+			--vscode-fontWeight-regular: 400;
 			--vscode-fontWeight-semiBold: 600;
 			--vscode-foreground: #ffffff;
 			--vscode-descriptionForeground: #cccccc;
@@ -179,7 +183,11 @@ suite('ModelPickerAutoRow', () => {
 				disabled: element.classList.contains('disabled'),
 				ariaDisabled: element.getAttribute('aria-disabled'),
 				visible: element.getBoundingClientRect().height > 0,
+				color: getWindow(element).getComputedStyle(element).color,
+				background: getWindow(element).getComputedStyle(element).backgroundColor,
+				weight: getWindow(element).getComputedStyle(element).fontWeight,
 			})),
+			selectionVisibility: getWindow(row.element).getComputedStyle(row.element.querySelector<HTMLElement>('.monaco-radio-selection')!).visibility,
 			description: description.textContent,
 			descriptionVisible: description.getBoundingClientRect().height > 0,
 			savedTier: configurationAccess.getModelConfiguration('copilot/auto')?.tier,
@@ -188,14 +196,46 @@ suite('ModelPickerAutoRow', () => {
 			toggle: 'false',
 			group: 'Optimize for',
 			tiers: [
-				{ text: 'Efficiency', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true },
-				{ text: 'Balance', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true },
-				{ text: 'Intelligence', checked: 'true', disabled: false, ariaDisabled: 'false', visible: true },
+				{ text: 'Efficiency', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true, color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
+				{ text: 'Balance', checked: 'false', disabled: false, ariaDisabled: 'false', visible: true, color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
+				{ text: 'Intelligence', checked: 'true', disabled: false, ariaDisabled: 'false', visible: true, color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', weight: '400' },
 			],
+			selectionVisibility: 'hidden',
 			description: 'Automatic model selection · Most capable models',
 			descriptionVisible: true,
 			savedTier: 'max',
 		});
+	});
+
+	test('Auto-off tiers meet normal-text contrast with Light+ theme defaults', () => {
+		const { row, tiers } = createRow(false, { autoModel: createAutoModel(true) });
+		row.element.style.setProperty('--vscode-foreground', '#616161');
+		row.element.style.setProperty('--vscode-descriptionForeground', '#717171');
+		row.element.style.setProperty('--vscode-menu-background', '#ffffff');
+		row.element.style.backgroundColor = 'var(--vscode-menu-background)';
+		const canvas = mainWindow.document.createElement('canvas');
+		canvas.width = canvas.height = 1;
+		const context = canvas.getContext('2d', { willReadFrequently: true });
+		assert.ok(context);
+		const background = Color.white;
+		const contrasts = tiers.map(tier => {
+			context.fillStyle = getWindow(row.element).getComputedStyle(row.element).backgroundColor;
+			context.fillRect(0, 0, 1, 1);
+			context.fillStyle = getWindow(tier).getComputedStyle(tier).color;
+			context.fillRect(0, 0, 1, 1);
+			const [red, green, blue] = context.getImageData(0, 0, 1, 1).data;
+			return background.getContrastRatio(new Color(new RGBA(red, green, blue)));
+		});
+
+		assert.deepStrictEqual({
+			passesAA: contrasts.map(contrast => contrast >= 4.5),
+			interactive: tiers.map(tier => tier.getAttribute('aria-disabled')),
+			selectedIndicator: getWindow(row.element).getComputedStyle(row.element.querySelector<HTMLElement>('.monaco-radio-selection')!).visibility,
+		}, {
+			passesAA: [true, true, true],
+			interactive: ['false', 'false', 'false'],
+			selectedIndicator: 'hidden',
+		}, `Tier contrast ratios: ${contrasts.join(', ')}`);
 	});
 
 	for (const [index, tier, description] of [
@@ -224,6 +264,7 @@ suite('ModelPickerAutoRow', () => {
 				description: result.description.textContent,
 				focused: mainWindow.document.activeElement === result.tiers[index],
 				previousConnected: previousButton.isConnected,
+				selectionVisibility: getWindow(result.row.element).getComputedStyle(result.row.element.querySelector<HTMLElement>('.monaco-radio-selection')!).visibility,
 			}, {
 				toggles: [true],
 				savedAtToggle: [tier],
@@ -233,6 +274,7 @@ suite('ModelPickerAutoRow', () => {
 				description: `Automatic model selection · ${description}`,
 				focused: true,
 				previousConnected: true,
+				selectionVisibility: 'visible',
 			});
 		});
 	}
@@ -311,7 +353,7 @@ suite('ModelPickerAutoRow', () => {
 		const inactive = readState();
 		const inactiveStyle = getWindow(result.tiers[2]).getComputedStyle(result.tiers[2]);
 		const selection = result.row.element.querySelector<HTMLElement>('.monaco-radio-selection')!;
-		const inactiveAppearance = { color: inactiveStyle.color, background: getWindow(selection).getComputedStyle(selection).backgroundColor, opacity: inactiveStyle.opacity };
+		const inactiveAppearance = { color: inactiveStyle.color, background: inactiveStyle.backgroundColor, selectionVisibility: getWindow(selection).getComputedStyle(selection).visibility, weight: inactiveStyle.fontWeight, opacity: inactiveStyle.opacity };
 		result.toggle.click();
 
 		assert.deepStrictEqual({
@@ -319,13 +361,15 @@ suite('ModelPickerAutoRow', () => {
 			inactive,
 			restored: readState(),
 			inactiveAppearance,
+			restoredHighlight: getWindow(selection).getComputedStyle(selection).visibility,
 			savedTier: result.configurationAccess.getModelConfiguration('copilot/auto')?.tier,
 			toggleFocused: mainWindow.document.activeElement === result.toggle,
 		}, {
 			toggles: [false, true],
 			inactive: initial,
 			restored: initial,
-			inactiveAppearance: { color: 'rgb(204, 204, 204)', background: 'rgb(32, 32, 32)', opacity: '1' },
+			inactiveAppearance: { color: 'rgb(204, 204, 204)', background: 'rgba(0, 0, 0, 0)', selectionVisibility: 'hidden', weight: '400', opacity: '1' },
+			restoredHighlight: 'visible',
 			savedTier: 'max',
 			toggleFocused: true,
 		});
