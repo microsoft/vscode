@@ -544,6 +544,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	}
 
 	private sessionFromAuthenticationResult(result: AuthenticationResult, scopes: readonly string[]): AuthenticationSession & { idToken: string } {
+		const expiresAfter = result.expiresOn ? result.expiresOn.getTime() - Date.now() : undefined;
 		return {
 			accessToken: result.accessToken,
 			idToken: result.idToken,
@@ -552,7 +553,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				id: result.account?.homeAccountId ?? result.uniqueId,
 				label: result.account?.username.toLowerCase() ?? 'Unknown',
 			},
-			scopes
+			scopes,
+			...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresAfter } : {})
 		};
 	}
 
