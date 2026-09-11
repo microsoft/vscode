@@ -573,6 +573,30 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 
+		const emptyGroupsContextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showEmptyGroups', sessionsControl.isShowEmptyGroups());
+		const emptyGroupsContextKeyInstance = emptyGroupsContextKey.bindTo(this.scopedContextKeyService);
+		this.filterContextKeys.set(emptyGroupsContextKey.key, { key: emptyGroupsContextKeyInstance, getDefault: () => true });
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.filterEmptyGroups',
+					title: localize('filterEmptyGroups', "Empty Groups"),
+					toggled: ContextKeyExpr.equals(emptyGroupsContextKey.key, true),
+					menu: [{
+						id: SessionsViewFilterOptionsSubMenu,
+						group: '3_props',
+						order: 2,
+					}]
+				});
+			}
+			override run() {
+				const show = sessionsControl.isShowEmptyGroups();
+				sessionsControl.setShowEmptyGroups(!show);
+				emptyGroupsContextKeyInstance.set(!show);
+			}
+		}));
+
 		// Reset filter action
 		const filterContextKeys = this.filterContextKeys;
 		const workspaceGroupCappedContextKey = this.workspaceGroupCappedContextKey;

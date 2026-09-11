@@ -43,7 +43,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } fro
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionRenderer, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionItemToolbarMenuId, SessionSectionRenderer, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, ISortChangeRecord } from './sessionsListTestUtils.js';
@@ -1157,6 +1157,49 @@ suite('Sessions - SessionsList', () => {
 				date: [
 					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, State: Completed, in monaco' },
 				],
+			});
+		});
+	});
+
+	suite('empty group filter', () => {
+		test('hides empty custom and default groups and persists the filter', () => {
+			const emptyGroup: ISessionGroup = { id: 'empty', name: 'Empty Group', createdAt: 2 };
+			const populatedGroup: ISessionGroup = { id: 'populated', name: 'Populated Group', createdAt: 1 };
+			const grouped = createTestSession('Grouped').session;
+			const harness = createListHarness(disposables, [grouped], {
+				groups: [emptyGroup, populatedGroup],
+				memberships: new Map([[grouped.sessionId, populatedGroup.id]]),
+			});
+			const quickChatProvider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true });
+			harness.instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override readonly onDidChangeProviders = Event.None;
+				override getProviders() { return [quickChatProvider]; }
+				override getProvider() { return undefined; }
+			});
+			void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, true);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const groupLabels = () => [...container.querySelectorAll<HTMLElement>('.session-section-label')].map(element => element.textContent);
+
+			const initiallyVisible = groupLabels();
+			list.setShowEmptyGroups(false);
+			const hidden = groupLabels();
+
+			assert.deepStrictEqual({
+				initiallyVisible,
+				hidden,
+				showEmptyGroups: list.isShowEmptyGroups(),
+				stored: harness.instantiationService.get(IStorageService).getBoolean('sessionsListControl.showEmptyGroups', StorageScope.PROFILE),
+			}, {
+				initiallyVisible: ['Chats', 'Empty Group', 'Populated Group'],
+				hidden: ['Populated Group'],
+				showEmptyGroups: false,
+				stored: false,
 			});
 		});
 	});
