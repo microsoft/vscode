@@ -2,13 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as l10n from '@vscode/l10n';
 import type { CancellationToken } from 'vscode';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isKimiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
-import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
+import { IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { getStatefulMarkerAndIndex } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { ChatEndpoint, normalizeKimiToolCallIds } from '../../../platform/endpoint/node/chatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -19,6 +20,7 @@ import { IChatWebSocketManager } from '../../../platform/networking/node/chatWeb
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { resolveBYOKThinkingOptions } from '../common/byokProvider';
 
 function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 	if (response.type === ChatFetchResponseType.Failed && response.streamError) {
@@ -128,6 +130,17 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		@IChatWebSocketManager chatWebSocketService: IChatWebSocketManager,
 		@ILogService protected logService: ILogService
 	) {
+		const supports = _modelMetadata.capabilities.supports;
+		const thinking = resolveBYOKThinkingOptions({ thinking: supports.thinking, adaptiveThinking: supports.adaptive_thinking, supportsReasoningEffort: supports.reasoning_effort }, _modelMetadata.id, {}).enableThinking;
+		if (thinking && _modelMetadata.supported_endpoints?.includes(ModelSupportedEndpoint.Messages)) {
+			_modelMetadata = {
+				..._modelMetadata,
+				capabilities: {
+					..._modelMetadata.capabilities,
+					supports: { ...supports, thinking: true, min_thinking_budget: supports.min_thinking_budget ?? 1024, max_thinking_budget: supports.max_thinking_budget ?? 32000 },
+				},
+			};
+		}
 		super(
 			_modelMetadata,
 			domainService,
@@ -265,6 +278,33 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	}
 
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
+		const supports = this.modelMetadata.capabilities.supports;
+		const thinkingCapabilities = { thinking: supports.thinking, adaptiveThinking: supports.adaptive_thinking, supportsReasoningEffort: supports.reasoning_effort, defaultReasoningEffort: this.modelMetadata.defaultReasoningEffort };
+		const modelCapabilities = resolveBYOKThinkingOptions(thinkingCapabilities, this.family, options.modelCapabilities ?? {}, this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride));
+		const knownThinking = supports.thinking !== false && (supports.thinking === true || supports.adaptive_thinking === true || !!supports.reasoning_effort?.some(effort => effort !== 'none'));
+		if (this.modelMetadata.thinkingToggle && (this.useResponsesApi || this.useMessagesApi)) {
+			throw new Error(l10n.t('Thinking toggle requires Chat Completions API.'));
+		}
+		if (knownThinking && modelCapabilities.enableThinking === false) {
+			const canDisable = this.modelMetadata.supportsThinkingDisable ?? (this.useMessagesApi || (supports.thinking === true && !!this.modelMetadata.thinkingToggle) || !!supports.reasoning_effort?.includes('none'));
+			if (!canDisable) {
+				throw new Error(l10n.t('This BYOK model does not support disabling thinking.'));
+			}
+		}
+		options = { ...options, modelCapabilities };
+		if (this.useMessagesApi && modelCapabilities.enableThinking) {
+			const maxTokens = options.postOptions.max_tokens ?? this.maxOutputTokens;
+			if (!this.supportsAdaptiveThinking) {
+				const min = this.minThinkingBudget ?? 1024;
+				const max = this.maxThinkingBudget ?? 32000;
+				const lower = Math.max(1024, min);
+				const upper = Math.min(max, maxTokens - 1);
+				if (![min, max, maxTokens].every(Number.isFinite) || min < 1024 || upper < lower) {
+					throw new Error(l10n.t('Insufficient output token budget for thinking.'));
+				}
+			}
+			options = { ...options, postOptions: { ...options.postOptions, max_tokens: maxTokens } };
+		}
 		if (this.useResponsesApi) {
 			// Handle Responses API: customize the body directly
 			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
@@ -287,6 +327,9 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		} else if (this.useMessagesApi) {
 			// Delegate to base ChatEndpoint for Messages API dispatch
 			const body = super.createRequestBody(options);
+			if (knownThinking && !modelCapabilities.enableThinking) {
+				body.thinking = { type: 'disabled' };
+			}
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);
 		} else {
@@ -331,15 +374,9 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	 * with diverging conventions (e.g. nested `reasoning.effort` on `/chat/completions`) can opt in deterministically.
 	 */
 	private _applyReasoningEffort(body: IEndpointBody, options: ICreateEndpointBodyOptions): void {
-		const supports = this.supportsReasoningEffort;
-		if (!supports?.length) {
-			return;
-		}
 		const format = this.modelMetadata.reasoningEffortFormat
 			?? (this.useResponsesApi ? 'responses' : this.useMessagesApi ? 'messages' : 'chat-completions');
-		const override = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
-		const requested = override || options.modelCapabilities?.reasoningEffort || body.reasoning?.effort || body.reasoning_effort || body.output_config?.effort;
-		const effort = requested && supports.includes(requested) ? requested : undefined;
+		const effort = options.modelCapabilities?.reasoningEffort;
 		// Scrub any pre-populated effort first so unsupported values (e.g. the hard-coded `medium` default
 		// from `createResponsesRequestBody`) cannot leak through, then write the resolved value into the
 		// expected shape.
@@ -352,6 +389,28 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			// Drop only the effort so other output_config fields (e.g. structured output format) survive
 			const { effort: _drop, ...rest } = body.output_config;
 			body.output_config = Object.keys(rest).length > 0 ? rest : undefined;
+		}
+		if (this.useResponsesApi) {
+			const summary = options.modelCapabilities?.enableThinking ? this.modelMetadata.reasoningSummary : false;
+			if (body.reasoning) {
+				delete body.reasoning.summary;
+			}
+			if (summary) {
+				body.reasoning = { ...body.reasoning, summary };
+			}
+			if (!options.modelCapabilities?.enableThinking) {
+				delete body.include;
+			}
+		}
+		if (this.useMessagesApi && !options.modelCapabilities?.enableThinking) {
+			return;
+		}
+		if (!this.useMessagesApi && !this.useResponsesApi && this.modelMetadata.capabilities.supports.thinking === true) {
+			if (this.modelMetadata.thinkingToggle === 'enable_thinking') {
+				body.enable_thinking = !!options.modelCapabilities?.enableThinking;
+			} else if (this.modelMetadata.thinkingToggle === 'chat_template_kwargs') {
+				body.chat_template_kwargs = { enable_thinking: !!options.modelCapabilities?.enableThinking };
+			}
 		}
 		if (effort) {
 			if (format === 'responses') {

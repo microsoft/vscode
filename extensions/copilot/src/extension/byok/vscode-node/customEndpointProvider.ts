@@ -114,6 +114,10 @@ interface _CustomEndpointModelConfig {
 export interface CustomEndpointModelConfig extends _CustomEndpointModelConfig {
 	id: string;
 }
+	defaultReasoningEffort?: string;
+	supportsThinkingDisable?: boolean;
+	reasoningSummary?: 'auto' | 'concise' | 'detailed' | false;
+	thinkingToggle?: 'enable_thinking' | 'chat_template_kwargs';
 
 export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMProvider<CustomEndpointModelProviderConfig> {
 
@@ -144,7 +148,10 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		if (Array.isArray(configuration?.models)) {
 			for (const modelConfig of configuration.models) {
 				models.push({
-					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, modelConfig),
+					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, {
+						...modelConfig,
+						supportsThinkingDisable: modelConfig.supportsThinkingDisable ?? ((modelConfig.apiType ?? configuration.apiType ?? inferApiTypeFromUrl(modelConfig.url)) === 'messages' || !!modelConfig.thinkingToggle || !!modelConfig.supportsReasoningEffort?.includes('none')),
+					}),
 					url: modelConfig.url
 				});
 			}
@@ -165,7 +172,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			vision: !!model.capabilities?.imageInput || false,
 			name: model.name,
 			url,
-			thinking: modelConfiguration?.thinking ?? false,
+			thinking: modelConfiguration?.thinking,
 			adaptiveThinking: modelConfiguration?.adaptiveThinking,
 			minThinkingBudget: modelConfiguration?.minThinkingBudget,
 			maxThinkingBudget: modelConfiguration?.maxThinkingBudget,
@@ -174,7 +181,11 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			modelOptions: modelConfiguration?.modelOptions,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
-			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
+			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat,
+			defaultReasoningEffort: modelConfiguration?.defaultReasoningEffort,
+			supportsThinkingDisable: modelConfiguration?.supportsThinkingDisable ?? (apiType === 'messages' || !!modelConfiguration?.thinkingToggle || !!modelConfiguration?.supportsReasoningEffort?.includes('none')),
+			reasoningSummary: modelConfiguration?.reasoningSummary,
+			thinkingToggle: modelConfiguration?.thinkingToggle,
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
 		const supportedEndpoints = apiTypeToSupportedEndpoints(apiType);

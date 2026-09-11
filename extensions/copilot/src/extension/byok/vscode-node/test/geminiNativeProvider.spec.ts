@@ -5,6 +5,9 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
+import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
+import { GoogleGenAI, type GenerateContentParameters, type Model } from '@google/genai';
+import { GeminiNativeBYOKLMProvider } from '../geminiNativeProvider';
 import { CopilotChatAttr, GenAiAttr, NoopOTelService, resolveOTelConfig } from '../../../../platform/otel/common/index';
 import type { IOTelService } from '../../../../platform/otel/common/otelService';
 import { CapturingOTelService } from '../../../../platform/otel/common/test/capturingOTelService';
@@ -16,7 +19,7 @@ import type { TelemetryDestination, TelemetryEventMeasurements, TelemetryEventPr
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import type { IBYOKStorageService } from '../byokStorageService';
 
-const mockHandleAPIKeyUpdate = vi.fn();
+const mockHandleAPIKeyUpdate = vi.hoisted(() => vi.fn());
 
 vi.mock('@google/genai', () => {
 	class MockGoogleGenAI {
@@ -115,6 +118,33 @@ function createRequestLogger(): IRequestLogger {
 }
 
 describe('GeminiNativeBYOKLMProvider', () => {
+	it('uses live thinking capability without inventing level or budget controls', async () => {
+		const mock = GoogleGenAI as unknown as { listModelsResult: AsyncIterable<Model>; generateContentParams: GenerateContentParameters[]; streamChunks: object[] };
+		mock.listModelsResult = (async function* () {
+			yield { name: 'models/discovered', displayName: 'Discovered', inputTokenLimit: 128000, outputTokenLimit: 4096, supportedActions: ['generateContent'], thinking: true };
+		})();
+		mock.generateContentParams = [];
+		mock.streamChunks = [{ candidates: [{ content: { parts: [{ text: 'visible thought', thought: true }, { text: 'answer' }] } }] }];
+		const provider = new GeminiNativeBYOKLMProvider(undefined, createStorageService(), new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1', sessionId: 'test' })), new DefaultsOnlyConfigurationService());
+		const token = new vscode.CancellationTokenSource();
+		try {
+			const [model] = await provider.provideLanguageModelChatInformation({ silent: true, configuration: { apiKey: 'fake' } }, token.token);
+			expect(model.id).toBe('discovered');
+			expect(model.maxInputTokens).toBe(128000);
+			const progress = new TestProgress();
+			const options: vscode.ProvideLanguageModelChatResponseOptions = { requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto };
+			const messages = [new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')];
+			await provider.provideLanguageModelChatResponse(model, messages, options, progress, token.token);
+			expect(mock.generateContentParams[0].config?.thinkingConfig).toEqual({ includeThoughts: true });
+			expect(progress.items.some(part => part instanceof vscode.LanguageModelThinkingPart && part.value.includes('visible thought'))).toBe(true);
+			expect(progress.items.some(part => part instanceof vscode.LanguageModelTextPart && part.value === 'answer')).toBe(true);
+			await expect(provider.provideLanguageModelChatResponse(model, messages, { ...options, modelConfiguration: { enableThinking: false } }, progress, token.token)).rejects.toThrow('This BYOK model does not support disabling thinking.');
+			expect(mock.generateContentParams).toHaveLength(1);
+		} finally {
+			token.dispose();
+		}
+	});
+
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
@@ -137,6 +167,7 @@ describe('GeminiNativeBYOKLMProvider', () => {
 			createRequestLogger(),
 			new NullTelemetryService(),
 			otel ?? new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			new DefaultsOnlyConfigurationService(),
 		);
 		const model = {
 			id: 'gemini-2.0-flash',
@@ -217,7 +248,7 @@ describe('GeminiNativeBYOKLMProvider', () => {
 		});
 
 		const telemetry = new RecordingTelemetryService();
-		const provider = new GeminiNativeBYOKLMProvider(undefined, createStorageService(), new TestLogService(), createRequestLogger(), telemetry, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })));
+		const provider = new GeminiNativeBYOKLMProvider(undefined, createStorageService(), new TestLogService(), createRequestLogger(), telemetry, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })), new DefaultsOnlyConfigurationService());
 		const model = {
 			id: 'gemini-2.0-flash',
 			name: 'Gemini 2.0 Flash',
@@ -285,6 +316,7 @@ describe('GeminiNativeBYOKLMProvider', () => {
 			createRequestLogger(),
 			new NullTelemetryService(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			new DefaultsOnlyConfigurationService(),
 		);
 		const tokenSource = new vscode.CancellationTokenSource();
 		try {
@@ -320,7 +352,7 @@ describe('GeminiNativeBYOKLMProvider', () => {
 	it.skip('throws a clear error when no API key is configured (no silent return)', async () => {
 		const { GeminiNativeBYOKLMProvider } = await import('../geminiNativeProvider');
 		const storage = createStorageService({ getAPIKey: vi.fn().mockResolvedValue(undefined) });
-		const provider = new GeminiNativeBYOKLMProvider(undefined, storage, new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })));
+		const provider = new GeminiNativeBYOKLMProvider(undefined, storage, new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })), new DefaultsOnlyConfigurationService());
 
 		const model: vscode.LanguageModelChatInformation = {
 			id: 'gemini-2.0-flash',
@@ -450,7 +482,7 @@ describe('GeminiNativeBYOKLMProvider', () => {
 
 		mockHandleAPIKeyUpdate.mockResolvedValue({ apiKey: undefined, deleted: false, cancelled: true });
 
-		const provider = new GeminiNativeBYOKLMProvider(undefined, storage, new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })));
+		const provider = new GeminiNativeBYOKLMProvider(undefined, storage, new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })), new DefaultsOnlyConfigurationService());
 		const tokenSource = new vscode.CancellationTokenSource();
 		const models = await provider.provideLanguageModelChatInformation({ silent: false }, tokenSource.token);
 
@@ -496,7 +528,7 @@ describe('GeminiNativeBYOKLMProvider', () => {
 			}
 		};
 
-		const provider = new GeminiNativeBYOKLMProvider(knownModels, storage, new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })));
+		const provider = new GeminiNativeBYOKLMProvider(knownModels, storage, new TestLogService(), createRequestLogger(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })), new DefaultsOnlyConfigurationService());
 		const tokenSource = new vscode.CancellationTokenSource();
 		const models = await provider.provideLanguageModelChatInformation({ silent: false }, tokenSource.token);
 

@@ -6,6 +6,56 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { OllamaLMProvider } from '../ollamaProvider';
+import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
+import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
+import { IFetcherService, Response } from '../../../../platform/networking/common/fetcherService';
+import type { IEndpointBody } from '../../../../platform/networking/common/networking';
+import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
+import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { ChatMLFetcherImpl } from '../../../prompt/node/chatMLFetcher';
+import { createExtensionUnitTestingServices } from '../../../test/node/services';
+
+it('discovers Ollama thinking and sends compatible effort controls through the real fetcher', async () => {
+	const store = new DisposableStore();
+	const services = store.add(createExtensionUnitTestingServices());
+	services.define(IChatMLFetcher, new SyncDescriptor(ChatMLFetcherImpl));
+	services.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
+	const accessor = store.add(services.createTestingAccessor());
+	const provider = accessor.get(IInstantiationService).createInstance(OllamaLMProvider, {
+		getAPIKey: async () => undefined, storeAPIKey: async () => {}, deleteAPIKey: async () => {},
+		getStoredModelConfigs: async () => ({}), saveModelConfig: async () => {}, removeModelConfig: async () => {},
+	});
+	const bodies: IEndpointBody[] = [];
+	const fetch = vi.spyOn(accessor.get(IFetcherService), 'fetch').mockImplementation(async (url, options) => {
+		const json = url === 'http://offline.test/api/version' ? { version: '0.6.4' }
+			: url === 'http://offline.test/api/tags' ? { models: [{ model: 'discovered' }] }
+				: url === 'http://offline.test/api/show' ? { capabilities: ['thinking', 'tools'], model_info: { 'general.architecture': 'test', 'test.context_length': 128000 } } : undefined;
+		if (json) {
+			return Response.fromText(200, 'OK', new Headers({ 'content-type': 'application/json' }), JSON.stringify(json), 'node-fetch');
+		}
+		expect(url).toBe('http://offline.test/v1/chat/completions');
+		bodies.push(options?.json as IEndpointBody);
+		return Response.fromText(200, 'OK', new Headers({ 'content-type': 'text/event-stream' }), 'data: {"choices":[{"index":0,"delta":{"reasoning_content":"thought","content":"answer"},"finish_reason":null}]}\n\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n', 'node-fetch');
+	});
+	const token = store.add(new vscode.CancellationTokenSource());
+	try {
+		const [model] = await provider.provideLanguageModelChatInformation({ silent: true, configuration: { url: 'http://offline.test' } }, token.token);
+		for (const modelConfiguration of [{}, { enableThinking: false }, { reasoningEffort: 'high' }]) {
+			const parts: vscode.LanguageModelResponsePart2[] = [];
+			await provider.provideLanguageModelChatResponse(model, [new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')], { requestInitiator: 'core', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto, modelConfiguration }, { report: part => parts.push(part) }, token.token);
+			expect(parts.some(part => part instanceof vscode.LanguageModelThinkingPart && part.value.includes('thought'))).toBe(true);
+			expect(parts.some(part => part instanceof vscode.LanguageModelTextPart && part.value === 'answer')).toBe(true);
+		}
+		expect(bodies.map(body => body.reasoning_effort)).toEqual(['medium', 'none', 'high']);
+		for (const body of bodies) {
+			expect(body).not.toHaveProperty('think');
+		}
+	} finally {
+		fetch.mockRestore();
+		store.dispose();
+	}
+});
 
 describe('OllamaLMProvider', () => {
 	it('returns successful models when one /api/show lookup fails', async () => {

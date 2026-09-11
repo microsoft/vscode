@@ -5,6 +5,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
+import type AnthropicSDK from '@anthropic-ai/sdk';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { IToolDeferralService } from '../../../../platform/networking/common/toolDeferralService';
 import { CopilotChatAttr, GenAiAttr, NoopOTelService, resolveOTelConfig } from '../../../../platform/otel/common/index';
@@ -27,23 +28,30 @@ type AnthropicStreamChunk =
 
 type MockAnthropicConstructor = {
 	streamChunks: AnthropicStreamChunk[];
+	modelList: unknown[];
+	params: AnthropicSDK.Beta.Messages.MessageCreateParamsStreaming[];
 };
 
 vi.mock('@anthropic-ai/sdk', () => {
 	class MockAnthropic {
 		public static streamChunks: AnthropicStreamChunk[] = [];
+		public static modelList: unknown[] = [];
+		public static params: AnthropicSDK.Beta.Messages.MessageCreateParamsStreaming[] = [];
 
 		public readonly baseURL = 'https://api.anthropic.com';
 		public readonly models = {
-			list: async () => ({ data: [] }),
+			list: async () => ({ data: MockAnthropic.modelList }),
 		};
 		public readonly beta = {
 			messages: {
-				create: async () => (async function* () {
-					for (const chunk of MockAnthropic.streamChunks) {
-						yield chunk;
-					}
-				})()
+				create: async (params: AnthropicSDK.Beta.Messages.MessageCreateParamsStreaming) => {
+					MockAnthropic.params.push(params);
+					return (async function* () {
+						for (const chunk of MockAnthropic.streamChunks) {
+							yield chunk;
+						}
+					})();
+				}
 			}
 		};
 
@@ -54,6 +62,37 @@ vi.mock('@anthropic-ai/sdk', () => {
 		default: MockAnthropic,
 	};
 });
+
+it.each([true, false])('discovers CDN-missing native thinking and honors disable (adaptive=%s)', async adaptive => {
+	const { AnthropicLMProvider } = await import('../anthropicProvider');
+	const mock = (await import('@anthropic-ai/sdk')).default as unknown as MockAnthropicConstructor;
+	mock.params = [];
+	mock.modelList = [{ id: 'discovered', display_name: 'Discovered', max_input_tokens: 128000, max_tokens: 4096, capabilities: {
+		thinking: { supported: true, types: { adaptive: { supported: adaptive }, enabled: { supported: !adaptive } } },
+		effort: { supported: true, low: { supported: true }, high: { supported: true } },
+	} }];
+	mock.streamChunks = [{ type: 'content_block_delta', delta: { type: 'text_delta', text: 'answer' } }];
+	const provider = new AnthropicLMProvider(undefined, createStorageService(), new TestLogService(), createRequestLogger(), new DefaultsOnlyConfigurationService(), new NullExperimentationService(), new NullTelemetryService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1', sessionId: 'test' })), { _serviceBrand: undefined, isNonDeferredTool: () => true });
+	const token = new vscode.CancellationTokenSource();
+	try {
+		const [model] = await provider.provideLanguageModelChatInformation({ silent: true, configuration: { apiKey: 'fake' } }, token.token);
+		expect(model.maxInputTokens).toBe(128000);
+		const progress = new TestProgress();
+		for (const enableThinking of [undefined, false]) {
+			await provider.provideLanguageModelChatResponse(model, [new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')], { requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto, modelConfiguration: { ...(enableThinking === false ? { enableThinking } : {}), reasoningEffort: 'low' } }, progress, token.token);
+		}
+		expect(mock.params[0].thinking).toEqual(adaptive ? { type: 'adaptive' } : { type: 'enabled', budget_tokens: 4095 });
+		expect(mock.params[0].output_config?.effort).toBe('low');
+		expect(mock.params[1].thinking).toEqual({ type: 'disabled' });
+		expect(mock.params[1].output_config).toBeUndefined();
+		expect(mock.params[1].betas ?? []).not.toContain('interleaved-thinking-2025-05-14');
+		expect(progress.items.filter(part => part instanceof vscode.LanguageModelTextPart).map(part => part.value)).toEqual(['answer', 'answer']);
+	} finally {
+		token.dispose();
+		mock.modelList = [];
+	}
+});
+
 
 type ProgressItem = vscode.LanguageModelResponsePart2;
 

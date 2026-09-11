@@ -69,6 +69,9 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 			ModelSupportedEndpoint.ChatCompletions,
 			ModelSupportedEndpoint.Responses
 		];
+		if (modelInfo.capabilities.supports.thinking && modelInfo.reasoningSummary === undefined) {
+			modelInfo.reasoningSummary = 'auto';
+		}
 		return modelInfo;
 	}
 }

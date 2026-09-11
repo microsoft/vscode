@@ -836,7 +836,8 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			conversationId: internalModelOptions?._conversationId,
 			telemetryProperties,
 			modelCapabilities: {
-				enableThinking: internalModelOptions?._enableThinking,
+				enableThinking: _options.modelConfiguration?.enableThinking === false || internalModelOptions?._enableThinking === false
+					? false : _options.modelConfiguration?.enableThinking === true || internalModelOptions?._enableThinking === true ? true : undefined,
 				reasoningEffort: typeof _options.modelConfiguration?.reasoningEffort === 'string' ? _options.modelConfiguration.reasoningEffort : undefined,
 			},
 		}, token);
@@ -908,12 +909,14 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
 			if (delta.thinking) {
 				if (isEncryptedThinkingDelta(delta.thinking)) {
-					if (options.includeEncryptedThinking) {
+					const text = delta.thinking.text ?? '';
+					if ((Array.isArray(text) ? text.some(part => part.length > 0) : text.length > 0) || options.includeEncryptedThinking) {
 						progress.report(new vscode.LanguageModelThinkingPart(
-							delta.thinking.text ?? '',
+							text,
 							delta.thinking.id,
-							{ encrypted_content: delta.thinking.encrypted },
+							options.includeEncryptedThinking ? { encrypted_content: delta.thinking.encrypted } : undefined,
 						));
+						thinkingActive = true;
 					}
 				} else {
 					const text = delta.thinking.text ?? '';

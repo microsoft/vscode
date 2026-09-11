@@ -118,7 +118,10 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 					maxOutputTokens: modelInfo.capabilities.limits?.max_output_tokens ?? 4096,
 					name: modelInfo.name,
 					toolCalling: !!modelInfo.capabilities.supports.tool_calls,
-					vision: !!modelInfo.capabilities.supports.vision
+					vision: !!modelInfo.capabilities.supports.vision,
+					thinking: modelInfo.capabilities.supports.thinking,
+					supportsReasoningEffort: modelInfo.capabilities.supports.reasoning_effort,
+					supportsThinkingDisable: modelInfo.supportsThinkingDisable,
 				};
 			}
 
@@ -155,7 +158,10 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 			maxOutputTokens: outputTokens,
 			maxInputTokens: contextWindow - outputTokens,
 			vision: modelInfo.capabilities.includes('vision'),
-			toolCalling: modelInfo.capabilities.includes('tools')
+			toolCalling: modelInfo.capabilities.includes('tools'),
+			thinking: modelInfo.capabilities.includes('thinking') ? true : undefined,
+			supportsReasoningEffort: modelInfo.capabilities.includes('thinking') ? ['low', 'medium', 'high', 'max', 'none'] : undefined,
+			supportsThinkingDisable: modelInfo.capabilities.includes('thinking') ? true : undefined,
 		};
 
 		return resolveModelInfo(modelId, this._name, this._knownModels, modelCapabilities);

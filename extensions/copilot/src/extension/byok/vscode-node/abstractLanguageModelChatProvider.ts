@@ -161,17 +161,18 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 			}
 
 			for (const model of models) {
-				let modelCapabilities = this._knownModels?.[model.id];
-				if (!modelCapabilities) {
-					modelCapabilities = this.resolveModelCapabilities(model);
-					if (!modelCapabilities) {
-						continue;
-					}
-					if (!this._knownModels) {
-						this._knownModels = {};
-					}
-					this._knownModels[model.id] = modelCapabilities;
+				const known = this._knownModels?.[model.id];
+				const live = this.resolveModelCapabilities(model);
+				if (!known && !live) {
+					continue;
 				}
+				const modelCapabilities: BYOKModelCapabilities = {
+					name: model.id, maxInputTokens: 100000, maxOutputTokens: 8192, toolCalling: false, vision: false,
+					...known,
+					...Object.fromEntries(Object.entries(live ?? {}).filter(([, value]) => value !== undefined)),
+				};
+				this._knownModels ??= {};
+				this._knownModels[model.id] = modelCapabilities;
 				modelList[model.id] = modelCapabilities;
 			}
 			return modelList;

@@ -5,7 +5,9 @@
 import type { Disposable, LanguageModelChatInformation, LanguageModelDataPart, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolResultPart } from 'vscode';
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
 import { EndpointEditToolName, IChatModelInformation, IChatModelRequestOptions, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
+import { IModelCapabilityOptions } from '../../../platform/networking/common/networking';
 import { TokenizerType } from '../../../util/common/tokenizer';
+import { pickDefaultReasoningEffort } from '../../conversation/common/languageModelAccess';
 
 export const enum BYOKAuthType {
 	/**
@@ -74,6 +76,9 @@ export interface BYOKModelCapabilities {
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
 	defaultReasoningEffort?: string;
+	supportsThinkingDisable?: boolean;
+	reasoningSummary?: 'auto' | 'concise' | 'detailed' | false;
+	thinkingToggle?: 'enable_thinking' | 'chat_template_kwargs';
 	/**
 	 * Override the body shape used to forward the reasoning effort to the model.
 	 * - `'chat-completions'`: top-level `reasoning_effort` (default for `/chat/completions`).
@@ -82,6 +87,24 @@ export interface BYOKModelCapabilities {
 	 * If unset the format is inferred from the API path the endpoint uses.
 	 */
 	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
+}
+
+/** Resolves BYOK request defaults without manufacturing model capabilities. */
+export function resolveBYOKThinkingOptions(capabilities: Pick<BYOKModelCapabilities, 'thinking' | 'adaptiveThinking' | 'supportsReasoningEffort' | 'defaultReasoningEffort'>, family: string, requested: IModelCapabilityOptions, effortOverride?: string | null): IModelCapabilityOptions {
+	const levels = capabilities.supportsReasoningEffort;
+	const supported = capabilities.thinking !== false && (capabilities.thinking === true || capabilities.adaptiveThinking === true || !!levels?.some(level => level !== 'none'));
+	const override = effortOverride && levels?.includes(effortOverride) ? effortOverride : undefined;
+	const effort = requested.reasoningEffort && levels?.includes(requested.reasoningEffort) ? requested.reasoningEffort : undefined;
+	const enableThinking = supported && requested.enableThinking !== false && effort !== 'none' && override !== 'none';
+	let reasoningEffort: string | undefined;
+	if (enableThinking) {
+		const defaultEffort = capabilities.defaultReasoningEffort;
+		reasoningEffort = override ?? effort ?? (defaultEffort && defaultEffort !== 'none' && levels?.includes(defaultEffort) ? defaultEffort : undefined)
+			?? pickDefaultReasoningEffort(levels?.filter(level => level !== 'none') ?? [], family);
+	} else if (supported && levels?.includes('none')) {
+		reasoningEffort = 'none';
+	}
+	return { ...requested, enableThinking, reasoningEffort };
 }
 
 export interface BYOKModelRegistry {
@@ -157,7 +180,7 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 				streaming: knownModelInfo?.streaming ?? true,
 				tool_calls: !!knownModelInfo?.toolCalling,
 				vision: !!knownModelInfo?.vision,
-				thinking: !!knownModelInfo?.thinking,
+				thinking: resolveBYOKThinkingOptions(knownModelInfo ?? {}, modelId, {}).enableThinking,
 				adaptive_thinking: !!knownModelInfo?.adaptiveThinking,
 				min_thinking_budget: knownModelInfo?.minThinkingBudget,
 				max_thinking_budget: knownModelInfo?.maxThinkingBudget,
@@ -176,7 +199,11 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		supported_endpoints: knownModelInfo?.supportedEndpoints,
 		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled,
 		modelOptions: knownModelInfo?.modelOptions,
-		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat
+		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat,
+		defaultReasoningEffort: knownModelInfo?.defaultReasoningEffort,
+		supportsThinkingDisable: knownModelInfo?.supportsThinkingDisable,
+		reasoningSummary: knownModelInfo?.reasoningSummary,
+		thinkingToggle: knownModelInfo?.thinkingToggle,
 	};
 	if (knownModelInfo?.requestHeaders && Object.keys(knownModelInfo.requestHeaders).length > 0) {
 		modelInfo.requestHeaders = { ...knownModelInfo.requestHeaders };

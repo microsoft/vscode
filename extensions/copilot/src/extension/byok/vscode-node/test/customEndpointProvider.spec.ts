@@ -5,7 +5,7 @@
 
 import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { IChatMLFetcher, type IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation, type ChatResponse, type ChatResponses } from '../../../../platform/chat/common/commonTypes';
@@ -15,6 +15,8 @@ import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platf
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/vscode-node/extChatEndpoint';
 import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
+import { IFetcherService, Response } from '../../../../platform/networking/common/fetcherService';
+import { ChatMLFetcherImpl } from '../../../prompt/node/chatMLFetcher';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { Event } from '../../../../util/vs/base/common/event';
@@ -115,6 +117,54 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	afterEach(() => {
 		disposables.clear();
 	});
+
+	it('serializes default-on, explicit-off, summary and custom toggles through the real fetcher', async () => {
+		const services = disposables.add(createExtensionUnitTestingServices());
+		services.define(IChatMLFetcher, new SyncDescriptor(ChatMLFetcherImpl));
+		services.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
+		const realAccessor = disposables.add(services.createTestingAccessor());
+		const provider = realAccessor.get(IInstantiationService).createInstance(CustomEndpointBYOKModelProvider, createStorageService());
+		const bodies: IEndpointBody[] = [];
+		const fetch = vi.spyOn(realAccessor.get(IFetcherService), 'fetch').mockImplementation(async (url, options) => {
+			if (!url.startsWith('https://offline.test/')) {
+				throw new Error('Unexpected test network URL');
+			}
+			bodies.push(options?.json as IEndpointBody);
+			const data = url.endsWith('/messages')
+				? [{ type: 'message_start', message: { id: 'msg_test', usage: { input_tokens: 1, output_tokens: 0 } } }, { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }, { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'answer' } }, { type: 'content_block_stop', index: 0 }, { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } }, { type: 'message_stop' }]
+				: url.endsWith('/responses')
+					? [{ type: 'response.output_text.delta', delta: 'answer', output_index: 0, content_index: 0 }, { type: 'response.completed', response: { id: 'resp_test', status: 'completed', output: [], usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } } }]
+					: [{ choices: [{ index: 0, delta: { content: 'answer', reasoning_content: 'visible thought' }, finish_reason: null }] }, { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }];
+			return Response.fromText(200, 'OK', new Headers({ 'content-type': 'text/event-stream' }), data.map(event => `data: ${JSON.stringify(event)}\n\n`).join('') + 'data: [DONE]\n\n', 'node-fetch');
+		});
+		const token = disposables.add(new vscode.CancellationTokenSource());
+		try {
+			for (const apiType of ['chat-completions', 'responses', 'messages'] as const) {
+				for (const toggle of apiType === 'chat-completions' ? ['enable_thinking', 'chat_template_kwargs'] as const : [undefined]) {
+					const [model] = await provider.provideLanguageModelChatInformation({ silent: true, configuration: { apiKey: 'fake', models: [{ id: 'declared', name: 'Declared', url: 'https://offline.test', apiType, maxInputTokens: 128000, maxOutputTokens: 4096, toolCalling: true, vision: false, thinking: true, supportsReasoningEffort: ['none', 'low', 'high'], defaultReasoningEffort: 'high', reasoningSummary: 'auto', thinkingToggle: toggle }] } }, token.token);
+					for (const enabled of [undefined, false]) {
+						const parts: vscode.LanguageModelResponsePart2[] = [];
+						await provider.provideLanguageModelChatResponse(model, [new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')], { requestInitiator: 'core', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto, modelConfiguration: { ...(enabled === false ? { enableThinking: false } : {}), reasoningEffort: 'low' } }, { report: part => parts.push(part) }, token.token);
+						const body = bodies.at(-1)!;
+						if (apiType === 'messages') {
+							expect(body.thinking).toEqual(enabled === false ? { type: 'disabled' } : { type: 'enabled', budget_tokens: 4095 });
+							expect(body.output_config?.effort).toBe(enabled === false ? undefined : 'low');
+						} else if (apiType === 'responses') {
+							expect(body.reasoning).toEqual(enabled === false ? { effort: 'none' } : { effort: 'low', summary: 'auto' });
+							expect(body.include).toEqual(enabled === false ? undefined : ['reasoning.encrypted_content']);
+						} else {
+							expect(body.reasoning_effort).toBe(enabled === false ? 'none' : 'low');
+							expect(toggle === 'enable_thinking' ? body.enable_thinking : body.chat_template_kwargs?.enable_thinking).toBe(enabled !== false);
+						}
+						expect(parts.some(part => part instanceof vscode.LanguageModelTextPart && part.value === 'answer')).toBe(true);
+					}
+				}
+			}
+		} finally {
+			fetch.mockRestore();
+		}
+	});
+
 
 	describe('resolveCustomEndpointUrl', () => {
 		it('appends /v1/chat/completions to bare base URL by default', () => {
@@ -355,8 +405,6 @@ describe('CustomEndpointBYOKModelProvider', () => {
 					id: configuredModel.id,
 					apiType: endpoint.apiType,
 					supportsAdaptiveThinking: endpoint.supportsAdaptiveThinking,
-					minThinkingBudget: endpoint.minThinkingBudget,
-					maxThinkingBudget: endpoint.maxThinkingBudget,
 					thinking: body.thinking,
 				};
 			}));
@@ -366,25 +414,19 @@ describe('CustomEndpointBYOKModelProvider', () => {
 					id: 'adaptive',
 					apiType: 'messages',
 					supportsAdaptiveThinking: true,
-					minThinkingBudget: undefined,
-					maxThinkingBudget: undefined,
 					thinking: { type: 'adaptive', display: 'summarized' },
 				},
 				{
 					id: 'budget',
 					apiType: 'messages',
 					supportsAdaptiveThinking: false,
-					minThinkingBudget: 1024,
-					maxThinkingBudget: 32000,
 					thinking: { type: 'enabled', budget_tokens: 16000 },
 				},
 				{
 					id: 'unspecified-mode',
 					apiType: 'messages',
 					supportsAdaptiveThinking: false,
-					minThinkingBudget: undefined,
-					maxThinkingBudget: undefined,
-					thinking: undefined,
+					thinking: { type: 'enabled', budget_tokens: 16000 },
 				},
 			]);
 		});
