@@ -86,9 +86,9 @@ class TestEditorGroupsService extends mock<IEditorGroupsService>() {
 		return this._partOptions;
 	}
 
-	setTabHeight(tabHeight: IEditorPartOptions['tabHeight']): void {
+	setPartOptions(options: Partial<IEditorPartOptions>): void {
 		const oldPartOptions = this._partOptions;
-		this._partOptions = { ...oldPartOptions, tabHeight };
+		this._partOptions = { ...oldPartOptions, ...options };
 		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions: this._partOptions });
 	}
 
@@ -278,7 +278,7 @@ suite('Sessions - ChatCompositeBar', () => {
 				tabsHeight: tabs && mainWindow.getComputedStyle(tabs).height,
 			};
 
-			editorGroupsService.setTabHeight('compact');
+			editorGroupsService.setPartOptions({ tabHeight: 'compact' });
 			const compactHeight = {
 				barHeight: mainWindow.getComputedStyle(bar.element).height,
 				tabsRowHeight: tabsRow && mainWindow.getComputedStyle(tabsRow).height,
@@ -297,6 +297,56 @@ suite('Sessions - ChatCompositeBar', () => {
 					tabsRowHeight: '28px',
 					tabsHeight: '28px',
 					hasCompactClass: true,
+				},
+			});
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('follows editor tab action settings', () => {
+		const { bar, container, editorGroupsService, tabs } = createHarness(disposables);
+		const closeableTab = tabs[1];
+		const actions = closeableTab.querySelector<HTMLElement>('.chat-composite-bar-tab-actions');
+		assert.ok(actions);
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const readState = () => ({
+				actionsLeft: bar.element.classList.contains('tab-actions-left'),
+				reservesSpace: bar.element.classList.contains('tab-actions-reserve-space'),
+				closeableTabMarked: closeableTab.classList.contains('has-tab-actions'),
+				actionPosition: mainWindow.getComputedStyle(actions).position,
+				actionOrder: mainWindow.getComputedStyle(actions).order,
+			});
+
+			const defaults = readState();
+			editorGroupsService.setPartOptions({ tabActionLocation: 'left', tabActionReserveSpace: false });
+			const overlay = readState();
+			editorGroupsService.setPartOptions({ tabActionReserveSpace: true });
+			const reservedLeft = readState();
+
+			assert.deepStrictEqual({ defaults, overlay, reservedLeft }, {
+				defaults: {
+					actionsLeft: false,
+					reservesSpace: true,
+					closeableTabMarked: true,
+					actionPosition: 'relative',
+					actionOrder: '0',
+				},
+				overlay: {
+					actionsLeft: true,
+					reservesSpace: false,
+					closeableTabMarked: true,
+					actionPosition: 'absolute',
+					actionOrder: '0',
+				},
+				reservedLeft: {
+					actionsLeft: true,
+					reservesSpace: true,
+					closeableTabMarked: true,
+					actionPosition: 'relative',
+					actionOrder: '-1',
 				},
 			});
 		} finally {

@@ -438,6 +438,14 @@
 	pointer-events: none;
 }
 
+.session-chat-tabs-bar.tab-actions-left .chat-composite-bar-tab-actions {
+	right: auto;
+	left: 0;
+	border-right: 0;
+	border-left: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
 .session-chat-tabs-bar .chat-composite-bar-tab-actions > .monaco-action-bar {
 	width: var(--vscode-spacing-size240);
 }
@@ -446,8 +454,8 @@
 	justify-content: center;
 }
 
-.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions::before,
-.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within::before {
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar:not(.tab-actions-reserve-space) .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions::before,
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar:not(.tab-actions-reserve-space) .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within::before {
 	content: '';
 	position: absolute;
 	top: 0;
@@ -459,6 +467,12 @@
 	background-clip: padding-box;
 	box-sizing: border-box;
 	pointer-events: none;
+}
+
+.monaco-workbench:not(:is(.hc-black, .hc-light)) .session-chat-tabs-bar.tab-actions-left .chat-composite-bar-tab > .chat-composite-bar-tab-actions::before {
+	right: auto;
+	left: 100%;
+	transform: scaleX(-1);
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab:hover > .chat-composite-bar-tab-actions,
@@ -522,6 +536,25 @@
 	opacity: 1;
 }
 
+.session-chat-tabs-bar.tab-actions-reserve-space .chat-composite-bar-tab.has-tab-actions > .chat-composite-bar-tab-actions {
+	position: relative;
+	inset: auto;
+	flex-shrink: 0;
+	pointer-events: auto;
+}
+
+.session-chat-tabs-bar.tab-actions-reserve-space.tab-actions-left .chat-composite-bar-tab.has-tab-actions > .chat-composite-bar-tab-actions {
+	order: -1;
+}
+
+.modern-ui-editor-tab-group.modern-ui-editor-tab-group-active .session-chat-tabs-bar.tab-actions-reserve-space .chat-composite-bar-tab.has-tab-actions > .chat-composite-bar-tab-actions .action-label {
+	opacity: 1;
+}
+
+.modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .session-chat-tabs-bar.tab-actions-reserve-space .chat-composite-bar-tab.has-tab-actions:not(:hover) > .chat-composite-bar-tab-actions .action-label:not(:focus) {
+	opacity: 0.5;
+}
+
 .session-chat-tabs-bar .chat-composite-bar-tab-actions .action-label.codicon {
 	box-sizing: content-box;
 	color: inherit;
@@ -556,4 +589,19 @@
 	border-block: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	border-right: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	box-sizing: border-box;
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar.tab-actions-left .chat-composite-bar-tab.active:hover > .chat-composite-bar-tab-actions {
+	border-right: 0;
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar.tab-actions-left .chat-composite-bar-tab:not(.active):hover > .chat-composite-bar-tab-actions {
+	border-right: 0;
+	border-left: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+}
+
+:is(.hc-black, .hc-light) .session-chat-tabs-bar.tab-actions-left .chat-composite-bar-tab > .chat-composite-bar-tab-actions:focus-within {
+	border-right: 0;
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }
