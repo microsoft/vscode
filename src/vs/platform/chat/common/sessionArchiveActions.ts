@@ -10,6 +10,7 @@ import { ICommandActionTitle } from '../../action/common/action.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 export const ChatSessionArchiveActionWordingSettingId = 'chat.experimental.sessionArchiveActionWording';
+export const SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING = 'sessions.archiveSessionConfetti';
 
 export const enum ChatSessionArchiveActionWording {
 	Archive = 'archive',

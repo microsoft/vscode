@@ -13,8 +13,9 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../browser/sessionActionViewItem.js';
+import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions } from '../../browser/sessionActionViewItem.js';
 
 suite('SessionActionViewItem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
