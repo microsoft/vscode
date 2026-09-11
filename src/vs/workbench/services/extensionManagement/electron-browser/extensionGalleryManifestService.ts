@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IHeaders } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -118,9 +119,23 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}));
 	}
 
+	// A sign-out or account change can arrive while a resolution is awaiting the manifest fetch;
+	// cancelling the previous run prevents a superseded fetch from publishing a stale status.
+	private readonly resolutionTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
+	private beginResolution(): CancellationToken {
+		this.resolutionTokenSource.value?.cancel();
+		const source = new CancellationTokenSource();
+		this.resolutionTokenSource.value = source;
+		return source.token;
+	}
+
 	private async handleMarketplaceAccountAccess(configuredServiceUrl: string): Promise<void> {
+		const token = this.beginResolution();
 		try {
 			const account = await this.galleryAccountService.getAccount();
+			if (token.isCancellationRequested) {
+				return;
+			}
 			if (!account) {
 				// A transient failure to resolve the account is not a sign-out - Unknown means we could
 				// not tell - so it must not retract a marketplace the user already has.
@@ -149,7 +164,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				case ExtensionGalleryAccountStatus.Eligible:
 					try {
 
-						const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+						const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, token);
+						if (token.isCancellationRequested) {
+							return;
+						}
 						this.update(manifest);
 						this.telemetryService.publicLog2<
 							{},
@@ -158,12 +176,18 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 								comment: 'Reports when a user successfully accesses a custom marketplace';
 							}>('galleryservice:custom:marketplace');
 					} catch (error) {
+						if (token.isCancellationRequested) {
+							return;
+						}
 						this.logService.error('[Marketplace] Error fetching manifest from custom marketplace', error);
 						this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 					}
 					return;
 			}
 		} catch (error) {
+			if (token.isCancellationRequested) {
+				return;
+			}
 			this.logService.error('[Marketplace] Error handling marketplace account access', error);
 			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
 		}
@@ -195,7 +219,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 	}
 
-	private async getExtensionGalleryManifestFromServiceUrl(url: string): Promise<IExtensionGalleryManifest> {
+	private async getExtensionGalleryManifestFromServiceUrl(url: string, token: CancellationToken): Promise<IExtensionGalleryManifest> {
 		const commonHeaders = await this.commonHeadersPromise;
 		const headers = {
 			...commonHeaders,
@@ -209,7 +233,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				url,
 				headers,
 				callSite: 'extensionGalleryManifestService.fetchManifest'
-			}, CancellationToken.None);
+			}, token);
 
 			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
 
