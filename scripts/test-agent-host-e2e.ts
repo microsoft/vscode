@@ -24,7 +24,7 @@ const incompatibleFlags = [
 interface ISuite {
 	readonly id: string;
 	readonly label: string;
-	readonly file: string;
+	readonly args: readonly string[];
 }
 
 interface IRunResult {
@@ -45,39 +45,58 @@ const suites: readonly ISuite[] = [
 	{
 		id: 'conformance',
 		label: 'Conformance',
-		file: 'src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts',
+		args: ['--run', 'src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts'],
 	},
 	{
 		id: 'claude',
 		label: 'Claude',
-		file: 'src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts',
+		args: ['--run', 'src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts'],
 	},
 	{
 		id: 'codex',
 		label: 'Codex',
-		file: 'src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts',
+		args: ['--run', 'src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts'],
 	},
 	{
 		id: 'copilot',
 		label: 'Copilot',
-		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+		args: ['--run', 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts'],
 	},
 ];
 
+const nodeIntegrationSuite: ISuite = {
+	id: 'node',
+	label: 'Node.js integration',
+	args: [
+		'--runGlob', '**/*.integrationTest.js',
+		'--excludeRunGlob', '**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js',
+	],
+};
+
 async function main(): Promise<void> {
 	validateEnvironment();
-	const { jobs, forwardedArgs } = parseArguments(process.argv.slice(2));
+	const { jobs, forwardedArgs, includeNodeTests } = parseArguments(process.argv.slice(2));
+	const skipAgentHostE2E = includeNodeTests && process.env['VSCODE_SKIP_AGENT_HOST_E2E'] === '1';
+	const selectedSuites = skipAgentHostE2E ? [] : [...suites];
+	if (includeNodeTests) {
+		selectedSuites.push(nodeIntegrationSuite);
+	}
+	if (skipAgentHostE2E) {
+		console.log('Skipping Agent Host E2E tests because no relevant files changed.');
+	}
+	const workerCount = Math.min(jobs, selectedSuites.length);
+	const runLabel = includeNodeTests ? 'Node.js integration' : 'Agent Host E2E';
 	prepareTestRuntime();
 
 	const startedAt = process.hrtime.bigint();
-	const surfaceOutputs = prepareSurfaceOutputs();
+	const surfaceOutputs = prepareSurfaceOutputs(selectedSuites);
 	const results: IRunResult[] = [];
 	let nextSuite = 0;
 
-	const workers = Array.from({ length: jobs }, async () => {
-		while (nextSuite < suites.length) {
+	const workers = Array.from({ length: workerCount }, async () => {
+		while (nextSuite < selectedSuites.length) {
 			const suiteIndex = nextSuite++;
-			const suite = suites[suiteIndex];
+			const suite = selectedSuites[suiteIndex];
 			results[suiteIndex] = await runSuite(suite, forwardedArgs, surfaceOutputs.get(suite.id));
 		}
 	});
@@ -89,12 +108,12 @@ async function main(): Promise<void> {
 	}
 
 	const durationSeconds = elapsedSeconds(startedAt);
-	console.log(`\nAgent Host E2E suites completed in ${durationSeconds.toFixed(1)}s (${jobs} parallel ${jobs === 1 ? 'worker' : 'workers'}).`);
+	console.log(`\n${runLabel} suites completed in ${durationSeconds.toFixed(1)}s (${workerCount} parallel ${workerCount === 1 ? 'worker' : 'workers'}).`);
 	for (const result of results) {
 		console.log(`  ${result.succeeded ? 'PASS' : 'FAIL'} ${result.suite.label}: ${result.durationSeconds.toFixed(1)}s`);
 	}
 	if (failures.length > 0) {
-		printFailureDetails(failures);
+		printFailureDetails(failures, runLabel);
 		process.exitCode = 1;
 	}
 }
@@ -106,9 +125,10 @@ function validateEnvironment(): void {
 	}
 }
 
-function parseArguments(args: readonly string[]): { jobs: number; forwardedArgs: readonly string[] } {
+function parseArguments(args: readonly string[]): { jobs: number; forwardedArgs: readonly string[]; includeNodeTests: boolean } {
 	const forwardedArgs: string[] = [];
 	let requestedJobs: string | undefined = process.env['AGENT_HOST_E2E_JOBS'];
+	let includeNodeTests = false;
 
 	for (let index = 0; index < args.length; index++) {
 		const argument = args[index];
@@ -119,6 +139,8 @@ function parseArguments(args: readonly string[]): { jobs: number; forwardedArgs:
 			}
 		} else if (argument.startsWith('--jobs=')) {
 			requestedJobs = argument.slice('--jobs='.length);
+		} else if (argument === '--include-node-tests') {
+			includeNodeTests = true;
 		} else {
 			forwardedArgs.push(argument);
 		}
@@ -135,7 +157,7 @@ function parseArguments(args: readonly string[]): { jobs: number; forwardedArgs:
 	if (!Number.isInteger(jobs) || jobs < 1) {
 		throw new Error(`Invalid Agent Host E2E worker count: ${requestedJobs}`);
 	}
-	return { jobs: Math.min(jobs, suites.length), forwardedArgs };
+	return { jobs: Math.min(jobs, suites.length), forwardedArgs, includeNodeTests };
 }
 
 function prepareTestRuntime(): void {
@@ -167,17 +189,25 @@ function runSync(command: string, args: readonly string[], environment: NodeJS.P
 }
 
 async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surfaceOutput: string | undefined): Promise<IRunResult> {
-	console.log(`Starting Agent Host E2E — ${suite.label}`);
+	const suiteLabel = suite === nodeIntegrationSuite ? suite.label : `Agent Host E2E — ${suite.label}`;
+	console.log(`Starting ${suiteLabel}`);
 	const startedAt = process.hrtime.bigint();
-	const environment = {
+	const environment: NodeJS.ProcessEnv = {
 		...process.env,
 		VSCODE_SKIP_PRELAUNCH: '1',
 		...(surfaceOutput ? { AGENT_HOST_PROTOCOL_SURFACE_OUT: surfaceOutput } : {}),
 	};
 	delete environment.ELECTRON_RUN_AS_NODE;
+	if (suite === nodeIntegrationSuite) {
+		delete environment.AGENT_HOST_RECORD_PROTOCOL_SURFACE;
+		delete environment.AGENT_HOST_PROTOCOL_SURFACE_OUT;
+	}
+	const script = suite === nodeIntegrationSuite
+		? join(repoRoot, 'scripts', process.platform === 'win32' ? 'test.bat' : 'test.sh')
+		: testScript;
 
 	return new Promise(resolveResult => {
-		const testArguments = ['--run', suite.file, ...suiteArguments(forwardedArgs, suite)];
+		const testArguments = [...suite.args, ...suiteArguments(forwardedArgs, suite)];
 		const child = process.platform === 'win32'
 			? spawn(join(process.env['SYSTEMROOT'] ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
 				'-NoLogo',
@@ -185,18 +215,18 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 				'-NonInteractive',
 				'-ExecutionPolicy', 'Bypass',
 				'-File', windowsTestWrapper,
-				testScript,
+				script,
 				...testArguments,
 			], {
 				cwd: repoRoot,
 				env: environment,
 				stdio: ['ignore', 'pipe', 'pipe'],
 			})
-			: spawn(testScript, testArguments, {
-			cwd: repoRoot,
-			env: environment,
-			stdio: ['ignore', 'pipe', 'pipe'],
-		});
+			: spawn(script, testArguments, {
+				cwd: repoRoot,
+				env: environment,
+				stdio: ['ignore', 'pipe', 'pipe'],
+			});
 		let output = '';
 		child.stdout.setEncoding('utf8');
 		child.stderr.setEncoding('utf8');
@@ -214,7 +244,7 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 		child.on('close', (code, signal) => {
 			const succeeded = code === 0;
 			const failure = succeeded ? undefined : signal ? `signal ${signal}` : `code ${code}`;
-			console.log(`\n===== Agent Host E2E — ${suite.label} =====`);
+			console.log(`\n===== ${suiteLabel} =====`);
 			process.stdout.write(output);
 			if (!output.endsWith('\n')) {
 				process.stdout.write('\n');
@@ -243,27 +273,28 @@ function extractFailureDetails(output: string): string | undefined {
 	return trimmed.length > 0 ? `${trimmed}\n` : undefined;
 }
 
-function printFailureDetails(failures: readonly IRunResult[]): void {
-	console.log('\nAgent Host E2E failure details:');
+function printFailureDetails(failures: readonly IRunResult[], runLabel: string): void {
+	console.log(`\n${runLabel} failure details:`);
 	for (const result of failures) {
-		console.log(`\n===== Agent Host E2E — ${result.suite.label} failure =====`);
+		const suiteLabel = result.suite === nodeIntegrationSuite ? result.suite.label : `Agent Host E2E — ${result.suite.label}`;
+		console.log(`\n===== ${suiteLabel} failure =====`);
 		if (result.failureDetails) {
 			process.stdout.write(result.failureDetails);
 		}
-		console.log(`Agent Host E2E — ${result.suite.label} failed with ${result.failure ?? 'an unknown error'}`);
+		console.log(`${suiteLabel} failed with ${result.failure ?? 'an unknown error'}`);
 	}
 }
 
 function suiteArguments(args: readonly string[], suite: ISuite): readonly string[] {
 	const result = [...args];
 	const tfsIndex = result.indexOf('--tfs');
-	if (tfsIndex >= 0 && result[tfsIndex + 1]) {
+	if (suite !== nodeIntegrationSuite && tfsIndex >= 0 && result[tfsIndex + 1]) {
 		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label}`;
 	}
 	return result;
 }
 
-function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
+function prepareSurfaceOutputs(selectedSuites: readonly ISuite[]): ReadonlyMap<string, string> {
 	if (process.env['AGENT_HOST_RECORD_PROTOCOL_SURFACE'] !== '1') {
 		return new Map();
 	}
@@ -273,7 +304,10 @@ function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
 	const extension = extname(combinedOutput);
 	const stem = basename(combinedOutput, extension);
 	const outputs = new Map<string, string>();
-	for (const suite of suites) {
+	for (const suite of selectedSuites) {
+		if (suite === nodeIntegrationSuite) {
+			continue;
+		}
 		const output = join(dirname(combinedOutput), `${stem}-${suite.id}${extension}`);
 		rmSync(output, { force: true });
 		outputs.set(suite.id, output);

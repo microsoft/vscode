@@ -205,6 +205,8 @@ The complete-suite runner starts one test process per entrypoint and runs up to 
 
 Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
 
+GitHub pull request Electron jobs also set `VSCODE_PARALLEL_NODE_INTEGRATION_TESTS=1`. For an unfiltered node.js run, the integration scripts invoke the runner with `--include-node-tests`, queuing the remaining node.js integration tests behind the four E2E entrypoints. That group starts in the first available worker slot without increasing the four-worker cap, excludes the E2E entrypoints to avoid duplicate execution, and retains the original integration-test report name. The runner waits for every group and propagates failures before extension host tests begin. When E2E tests are unaffected, only the remaining node.js group runs. Standalone E2E runs, file-filtered invocations, and callers without this opt-in retain their existing behavior.
+
 Provider availability:
 
 - **Copilot** (`copilotcli`) — always enabled (the CLI is a dev dependency).

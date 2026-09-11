@@ -227,6 +227,7 @@ jobs:
         shell: pwsh
         run: .\scripts\test-integration.bat --tfs "Integration Tests"
         env:
+          VSCODE_PARALLEL_NODE_INTEGRATION_TESTS: '1'
           VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
           VSCODE_SKIP_PRELAUNCH: '1'
 

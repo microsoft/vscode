@@ -128,6 +128,10 @@ if defined RUN_GLOB (
 	call .\scripts\test.bat %*
 ) else if defined RUN_FILE (
 	call .\scripts\test.bat %*
+) else if "%VSCODE_PARALLEL_NODE_INTEGRATION_TESTS%"=="1" (
+	call node .\scripts\test-agent-host-e2e.ts --include-node-tests %*
+	if errorlevel 1 goto :failed
+	set VSCODE_SKIP_PRELAUNCH=1
 ) else (
 	if "%VSCODE_SKIP_AGENT_HOST_E2E%"=="1" (
 		echo Skipping Agent Host E2E tests because no relevant files changed.
