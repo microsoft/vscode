@@ -841,7 +841,6 @@ export class TestPanelPart implements IPaneCompositePart {
 export class TestViewsService implements IViewsService {
 	declare readonly _serviceBrand: undefined;
 
-
 	onDidChangeViewContainerVisibility = new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>().event;
 	isViewContainerVisible(id: string): boolean { return true; }
 	isViewContainerActive(id: string): boolean { return true; }
@@ -860,8 +859,14 @@ export class TestViewsService implements IViewsService {
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
 	getActiveViewPaneContainerWithId(id: string) { return null; }
+
+	private focusedView: IViewDescriptor | null = null;
 	getFocusedViewName(): string { return ''; }
-	getFocusedView(): IViewDescriptor | null { return null; }
+	getFocusedView(): IViewDescriptor | null { return this.focusedView; }
+	setFocusedView(view: IViewDescriptor | null): void {
+		this.focusedView = view;
+		this.onDidChangeFocusedViewEmitter.fire();
+	}
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
