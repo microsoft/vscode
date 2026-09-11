@@ -384,6 +384,26 @@ export interface ICloneOptions {
 	readonly ref?: string;
 }
 
+// On Windows, augment git invocations with `-c core.longpaths=true` so that
+// commands such as `git status` and `git diff` do not silently drop entries
+// whose absolute paths exceed MAX_PATH (260 characters). The option is
+// idempotent, so it is skipped if the caller already supplied an explicit
+// `core.longpaths` configuration override.
+// See https://github.com/microsoft/vscode/issues/240770.
+function injectLongPathsOptionIfNeeded(args: string[]): string[] {
+	if (!isWindows) {
+		return args;
+	}
+
+	for (let i = 0; i + 1 < args.length; i++) {
+		if (args[i] === '-c' && args[i + 1].toLowerCase().startsWith('core.longpaths=')) {
+			return args;
+		}
+	}
+
+	return ['-c', 'core.longpaths=true', ...args];
+}
+
 export class Git {
 
 	readonly path: string;
@@ -693,6 +713,16 @@ export class Git {
 			LANG: 'en_US.UTF-8',
 			GIT_PAGER: 'cat'
 		});
+
+		// On Windows, git silently omits files whose absolute path exceeds
+		// MAX_PATH (260 characters) from commands like `status` and `diff` unless
+		// the `core.longpaths` config is enabled. This causes long-path files to
+		// be missing from the Source Control view even though they show up when
+		// running `git diff` in a shell that has the option set globally.
+		// Inject the option for every invocation so that the extension's behavior
+		// does not depend on the user's global git configuration.
+		// See https://github.com/microsoft/vscode/issues/240770.
+		args = injectLongPathsOptionIfNeeded(args);
 
 		const cwd = this.getCwd(options);
 		if (cwd) {
