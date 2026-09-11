@@ -76,9 +76,8 @@ function getLocation(session: ISession, labelService: ILabelService): ISessionSu
 }
 
 /**
- * Pull requests the session itself produced. Pull requests inherited from the
- * checkout it started from, or merely referenced by the agent, are left out —
- * they are not this session's work.
+ * Pull requests produced by or explicitly associated with the session.
+ * Excludes inherited checkout PRs and mere references when provider provenance is available.
  */
 function getPullRequests(session: ISession, openerService: IOpenerService): readonly ISessionSummaryHoverPullRequest[] | undefined {
 	const gitHubInfo = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
