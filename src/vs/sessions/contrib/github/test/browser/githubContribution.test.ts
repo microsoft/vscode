@@ -22,7 +22,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
-import { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
+import { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG } from '../../common/sessionLifecycleSettings.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from '../../browser/githubReferenceList.js';
 import { IGitHubService } from '../../browser/githubService.js';
@@ -222,7 +222,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 	test('tags only the two automatic cleanup settings for the settings query', () => {
 		assert.deepStrictEqual({ query: AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, settings: automaticCleanupSettings }, {
 			query: '@tag:agentSessionCleanup',
-			settings: [AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING],
+			settings: [AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING],
 		});
 	});
 

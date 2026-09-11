@@ -15,7 +15,7 @@ import { getGitHubPullRequestRefs, ISession } from '../../../services/sessions/c
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
-import { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
+import { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
 
@@ -25,7 +25,7 @@ import './issueActions.js';
 
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
-export { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING };
+export { AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING };
 
 /**
  * Resolved PR identity for a session's poller, or the specific stage at which
