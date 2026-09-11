@@ -9,12 +9,13 @@ import { createHash, randomUUID } from 'crypto';
 import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
-import { join } from '../../../base/common/path.js';
+import { join, posix } from '../../../base/common/path.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { vLiteral, vObj, vString } from '../../../base/common/validation.js';
+import { vArray, vLiteral, vObj, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -37,6 +38,7 @@ import {
 	ISshExec,
 	resolveRemotePlatform,
 	runAgentEndpoints,
+	shellEscape,
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
@@ -50,11 +52,23 @@ interface IDevContainerUpResult {
 	readonly remoteWorkspaceFolder: string;
 }
 
+interface IDevContainerMount {
+	readonly Type: string;
+	readonly Source: string;
+	readonly Destination: string;
+}
+
 const devContainerUpResultValidator = vObj({
 	outcome: vLiteral('success'),
 	containerId: vString(),
 	remoteWorkspaceFolder: vString(),
 });
+
+const devContainerMountsValidator = vArray(vObj({
+	Type: vString(),
+	Source: vString(),
+	Destination: vString(),
+}));
 
 /** Testable relay abstraction owned by the shared-process launcher. */
 export interface IDevContainerRelay extends IDisposable {
@@ -138,6 +152,15 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			}
 
 			const exec = this._createExec(config.connectionId, config.workspaceFolder, tokenSource.token);
+			const safeDirectoryStopWatch = StopWatch.create(false);
+			try {
+				await this._configureGitSafeDirectory(config.connectionId, upResult.containerId, upResult.remoteWorkspaceFolder, exec, tokenSource.token);
+				safeDirectoryStopWatch.stop();
+				this._logService.info(`${LOG_PREFIX} Git safe.directory configuration completed in ${safeDirectoryStopWatch.elapsed()}ms`);
+			} catch (error) {
+				safeDirectoryStopWatch.stop();
+				this._logService.warn(`${LOG_PREFIX} Failed to configure Git safe.directory after ${safeDirectoryStopWatch.elapsed()}ms`, error);
+			}
 			const [{ stdout: unameS }, { stdout: unameM }, { stdout: libc }] = await Promise.all([
 				exec('uname -s'),
 				exec('uname -m'),
@@ -214,6 +237,80 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 		}
 	}
 
+	private async _configureGitSafeDirectory(connectionId: string, containerId: string, remoteWorkspaceFolder: string, exec: ISshExec, token: CancellationToken): Promise<void> {
+		const rootResult = await exec(
+			`command -v git >/dev/null 2>&1 && ROOT_FOLDER="$(git -C ${shellEscape(remoteWorkspaceFolder)} rev-parse --show-toplevel)" && test "$(stat -c %u "$ROOT_FOLDER")" != "$(id -u)" && printf '%s' "$ROOT_FOLDER"`,
+			{ ignoreExitCode: true },
+		);
+		const rootFolder = rootResult.stdout.trim()
+			|| /dubious ownership in repository at '(?<root>.+)'/.exec(rootResult.stderr)?.groups?.root;
+		if (!rootFolder || !posix.isAbsolute(rootFolder)) {
+			return;
+		}
+
+		const mounts = await this._getContainerMounts(connectionId, containerId, token);
+		const mount = findContainingBindMount(mounts, rootFolder);
+		if (!mount) {
+			this._logService.trace(`${LOG_PREFIX} Git root '${rootFolder}' is not within a bind mount`);
+			return;
+		}
+
+		const relativePath = posix.relative(mount.Destination, rootFolder);
+		const hostRootFolder = join(mount.Source, relativePath);
+		if (!await this._isHostDirectoryOwnedByCurrentUser(hostRootFolder, token)) {
+			this._logService.trace(`${LOG_PREFIX} Git root '${hostRootFolder}' is not owned by the current host user`);
+			return;
+		}
+
+		const configured = await exec('git config --global --get-all safe.directory', { ignoreExitCode: true });
+		if (configured.stdout.split(/\r?\n/).includes(rootFolder)) {
+			return;
+		}
+		await exec(`git config --global --add safe.directory ${shellEscape(rootFolder)}`);
+		this._logService.info(`${LOG_PREFIX} Added Git root '${rootFolder}' to the Dev Container user's safe.directory list`);
+	}
+
+	protected async _getContainerMounts(connectionId: string, containerId: string, token: CancellationToken): Promise<readonly IDevContainerMount[]> {
+		const environment = await this._resolveShellEnvironment();
+		const result = await this._runLocalCommand(
+			'docker',
+			['inspect', '--format', '{{json .Mounts}}', containerId],
+			environment,
+			token,
+		);
+		if (result.code !== 0) {
+			throw new Error(localize('devContainerAgentHost.dockerInspectFailed', "Docker inspect failed (exit {0}): {1}", result.code, result.stderr));
+		}
+		const mounts = parseDevContainerMounts(result.stdout);
+		this._logService.trace(`${LOG_PREFIX} Inspected container mounts for ${connectionId}`);
+		return mounts;
+	}
+
+	protected async _isHostDirectoryOwnedByCurrentUser(path: string, token: CancellationToken): Promise<boolean> {
+		if (process.platform !== 'win32') {
+			const userId = process.getuid?.();
+			return userId !== undefined && (await stat(path)).uid === userId;
+		}
+
+		const result = await this._runLocalCommand(
+			'powershell',
+			[
+				'-NoProfile',
+				'-NonInteractive',
+				'-Command',
+				'(Get-Acl .).Owner; [System.Security.Principal.WindowsIdentity]::GetCurrent().Name',
+			],
+			await this._resolveShellEnvironment(),
+			token,
+			path,
+		);
+		if (result.code !== 0) {
+			throw new Error(localize('devContainerAgentHost.ownerLookupFailed', "Unable to check the owner of {0}: {1}", path, result.stderr));
+		}
+		const [owner, user] = result.stdout.trim().split(/\r?\n/);
+		return !!owner && owner === user;
+	}
+
 	protected _createExec(connectionId: string, workspaceFolder: string, token: CancellationToken): ISshExec {
 		return async (command, options) => {
 			const result = await this._runDevContainer(
@@ -226,6 +323,47 @@ export class DevContainerAgentHostMainService extends Disposable implements IDev
 			}
 			return result;
 		};
+	}
+
+	private _runLocalCommand(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, token: CancellationToken, cwd?: string): Promise<{ stdout: string; stderr: string; code: number }> {
+		return new Promise((resolve, reject) => {
+			if (token.isCancellationRequested) {
+				reject(new CancellationError());
+				return;
+			}
+			const child = spawn(command, args, {
+				cwd,
+				env: environment,
+				stdio: ['ignore', 'pipe', 'pipe'],
+				windowsHide: true,
+			});
+			let stdout = '';
+			let stderr = '';
+			let settled = false;
+			const finish = (error: Error | undefined, code: number | null) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				cancellationListener.dispose();
+				if (error) {
+					reject(error);
+				} else if (token.isCancellationRequested) {
+					reject(new CancellationError());
+				} else {
+					resolve({ stdout, stderr, code: code ?? -1 });
+				}
+			};
+			const cancellationListener = token.onCancellationRequested(() => {
+				if (!child.killed) {
+					child.kill();
+				}
+			});
+			child.stdout.on('data', data => stdout += data.toString());
+			child.stderr.on('data', data => stderr += data.toString());
+			child.once('error', error => finish(error, null));
+			child.once('close', code => finish(undefined, code));
+		});
 	}
 
 	protected async _createRelay(
@@ -546,4 +684,30 @@ export function parseDevContainerUpResult(output: string): IDevContainerUpResult
 		}
 	}
 	return undefined;
+}
+
+export function parseDevContainerMounts(output: string): readonly IDevContainerMount[] {
+	let value: unknown;
+	try {
+		value = JSON.parse(output);
+	} catch (error) {
+		throw new Error(localize('devContainerAgentHost.invalidMountJson', "Unable to parse Docker mount information: {0}", getErrorMessage(error)));
+	}
+	const { content, error } = devContainerMountsValidator.validate(value);
+	if (error) {
+		throw new Error(localize('devContainerAgentHost.invalidMounts', "Docker returned invalid mount information: {0}", error.message));
+	}
+	return content;
+}
+
+function findContainingBindMount(mounts: readonly IDevContainerMount[], path: string): IDevContainerMount | undefined {
+	let result: IDevContainerMount | undefined;
+	for (const mount of mounts) {
+		const relativePath = posix.relative(mount.Destination, path);
+		const containsPath = relativePath === '' || (!relativePath.startsWith(`..${posix.sep}`) && relativePath !== '..' && !posix.isAbsolute(relativePath));
+		if (mount.Type === 'bind' && containsPath && (!result || mount.Destination.length > result.Destination.length)) {
+			result = mount;
+		}
+	}
+	return result;
 }
