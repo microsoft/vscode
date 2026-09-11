@@ -60,6 +60,7 @@ import { IEditorResolverService } from '../../../services/editor/common/editorRe
 import { IHostService } from '../../../services/host/browser/host.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -175,6 +176,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(themeService);
@@ -390,6 +392,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Track the active editor and update context key that reflects
 		// the dirty state of this editor
 		this._register(this.onDidActiveEditorChange(() => observeActiveEditor()));
+
+		// Re-assert active editor context keys on trust change.
+		this._register(this.workspaceTrustService.onDidChangeTrust(() => observeActiveEditor()));
 
 		// Update context keys on startup
 		observeActiveEditor();
