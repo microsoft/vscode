@@ -190,7 +190,7 @@ export function renderModePickerPermissions(trigger: HTMLElement, permissions: I
 		summary.classList.add(style);
 	}
 	if (permissions.sandboxed) {
-		const shield = dom.append(trigger, renderIcon(Codicon.shield));
+		const shield = dom.append(trigger, renderIcon(Codicon.shieldCompact));
 		shield.classList.add('agent-host-mode-sandbox-icon');
 		shield.ariaHidden = 'true';
 	}

@@ -206,11 +206,13 @@ suite('AgentHostModePicker', () => {
 	test('new-chat controls keep the same padding and compact dimensions as in-session controls', () => {
 		const states = [];
 		for (const newChat of [false, true]) {
-			const { picker, config } = setup();
+			const { picker, config, configChanged } = setup();
 			config.values[SessionConfigKey.SandboxEnabled] = 'on';
+			configChanged.fire('test-session');
 			const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 			store.add({ dispose: () => workbench.remove() });
 			workbench.style.setProperty('--vscode-spacing-size20', '2px');
+			workbench.style.setProperty('--vscode-spacing-size40', '4px');
 			workbench.style.setProperty('--vscode-spacing-size60', '6px');
 			workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			const host = dom.append(workbench, dom.$(newChat ? '.new-chat-widget-container.revealed' : '.interactive-session'));
@@ -594,12 +596,14 @@ suite('AgentHostModePicker', () => {
 		assert.deepStrictEqual({
 			icons: trigger.querySelectorAll('.codicon').length,
 			shields: trigger.querySelectorAll('.agent-host-mode-sandbox-icon').length,
+			shieldClass: trigger.querySelector('.agent-host-mode-sandbox-icon')?.className,
 			aria: trigger.ariaLabel,
 			disabled: trigger.ariaDisabled,
 			menuOpen: actionWidget.isVisible,
 		}, {
 			icons: 2,
 			shields: 1,
+			shieldClass: 'codicon codicon-shield-compact agent-host-mode-sandbox-icon',
 			aria: 'Pick Mode and Permissions, Interactive, Manual permissions, terminal sandboxed',
 			disabled: 'true',
 			menuOpen: false,

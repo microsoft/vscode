@@ -50,8 +50,8 @@
 .action-widget .monaco-list-row.action.agent-host-mode-section,
 .action-widget .monaco-list-row.action.agent-host-mode-permissions {
 	gap: var(--vscode-spacing-size60);
-	padding-right: var(--vscode-spacing-size60);
-	color: var(--vscode-descriptionForeground) !important;
+	padding-right: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
 }
 
 .action-widget .monaco-list-row.action.agent-host-mode-section .title,
@@ -71,7 +71,7 @@
 	text-align: right;
 }
 
-.action-widget .monaco-list-row.action.agent-host-mode-permissions .action-list-item-toolbar {
+.action-widget .monaco-list-row.action.agent-host-mode-permissions.has-toolbar .action-list-item-toolbar {
 	display: flex;
 	visibility: visible;
 	order: 1;

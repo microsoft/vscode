@@ -311,8 +311,10 @@ suite('Combined mode and permissions picker', () => {
 		container.style.color = '#f0f0f0';
 		container.style.setProperty('--vscode-descriptionForeground', '#8c8c8c');
 		container.style.setProperty('--vscode-list-hoverBackground', '#234567');
+		container.style.setProperty('--vscode-spacing-size20', '2px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
 		container.style.setProperty('--vscode-spacing-size60', '6px');
+		container.style.setProperty('--vscode-spacing-size80', '8px');
 		const highlights = Array.from(popup.querySelectorAll('.monaco-list-row.action.focused'), row => ({
 			label: row.querySelector('.title')?.textContent,
 			background: dom.getWindow(row).getComputedStyle(row).backgroundColor,
@@ -373,7 +375,7 @@ suite('Combined mode and permissions picker', () => {
 				titleColumnAligned: true,
 				gearBeforeSummary: true,
 				gearSummaryGap: 4,
-				rightInset: 6,
+				rightInset: 8,
 			},
 			colors: {
 				modeHeader: 'rgb(140, 140, 140)',
@@ -384,6 +386,25 @@ suite('Combined mode and permissions picker', () => {
 			modeDisclosureIsChoice: false,
 			disclosureIsChoice: false,
 		});
+	});
+
+	test('focused section headers use the standard list hover foreground', () => {
+		const { container, service, modeHeader, permissionHeader } = setup(true);
+		container.style.setProperty('--vscode-descriptionForeground', '#8c8c8c');
+		container.style.setProperty('--vscode-list-hoverForeground', '#fedcba');
+		const colors = [];
+		for (const [id, header] of [['agentHostModePicker.mode', modeHeader], ['agentHostModePicker.permissions', permissionHeader]] as const) {
+			service.focusItemById(id);
+			colors.push({
+				label: header().querySelector('.title')?.textContent,
+				color: dom.getWindow(header()).getComputedStyle(header()).color,
+			});
+		}
+
+		assert.deepStrictEqual(colors, [
+			{ label: 'Agent mode', color: 'rgb(254, 220, 186)' },
+			{ label: 'Permissions', color: 'rgb(254, 220, 186)' },
+		]);
 	});
 
 	for (const contrastBorder of [undefined, '#ff00ff']) {
