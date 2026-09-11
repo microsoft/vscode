@@ -300,8 +300,7 @@ abstract class BaseSwitchWindow extends Action2 {
 				windowId: window.id,
 				label: window.title,
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
-				iconPath: window.iconPath ? { dark: window.iconPath } : undefined,
-				iconClasses: window.iconPath ? undefined : getIconClasses(modelService, languageService, resource, fileKind),
+				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
 				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};

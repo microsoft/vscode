@@ -64,7 +64,7 @@ import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerVal
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
-import { clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
@@ -4092,26 +4092,13 @@ export class CopilotAgentSession extends Disposable {
 		return this._computeSdkSandboxConfig() !== undefined;
 	}
 
-	/**
-	 * `true` when the AgentHost's own shell tools (wrapped by
-	 * {@link TerminalSandboxEngine}) replace the SDK's built-in shell. In that
-	 * mode the SDK sandbox config is unused, so we neither forward nor toggle it.
-	 */
+	/** Whether the Agent Host's own shell tools replace the SDK's built-in shell. */
 	private _isCustomTerminalToolEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 	}
 
-	/**
-	 * The SDK-shaped sandbox policy for this session, mirroring
-	 * {@link CopilotSessionLauncher}'s computation: `undefined` when the custom
-	 * terminal tool is enabled (the host's own terminal sandbox engine handles
-	 * containment) or when the host sandbox config evaluates to disabled
-	 * (including on Windows, where the sandbox is not supported).
-	 */
+	/** The effective SDK sandbox policy, or `undefined` when sandboxing is disabled. */
 	private _computeSdkSandboxConfig(): SandboxConfig | undefined {
-		if (this._isCustomTerminalToolEnabled()) {
-			return undefined;
-		}
 		const sandbox = {
 			...this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
 			...getSessionSandboxOverrides(this._configurationService, this._ownerSessionUri.toString()),
@@ -4215,14 +4202,16 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _syncPermissionModeAfterConfigChange(): Promise<void> {
-		if (!this.hasActiveTurn) {
-			return;
-		}
 		try {
-			await this.syncPermissionMode('config-change');
+			if (this.hasActiveTurn) {
+				await this.syncPermissionMode('config-change');
+			}
 			await this._applyEffectiveSandboxConfig(true);
 		} catch (error) {
-			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change; aborting active turn`);
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change${this.hasActiveTurn ? '; aborting active turn' : ''}`);
+			if (!this.hasActiveTurn) {
+				return;
+			}
 			try {
 				await this.abort();
 			} catch (abortError) {
@@ -4273,27 +4262,17 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Apply the SDK sandbox policy for the request that is about to be sent.
-	 *
-	 * Skips the SDK sandbox entirely when the custom terminal tool is enabled
-	 * (the host's own terminal sandbox engine handles containment and the SDK's
-	 * built-in shell is unused). Otherwise it always pushes the effective state.
+	 * Apply the SDK sandbox policy before a request or after configuration changes, including while idle.
 	 */
 	private async _applyEffectiveSandboxConfig(failOnError = true): Promise<void> {
 		return this._sandboxConfigSequencer.queue(() => this._updateEffectiveSandboxConfig(failOnError));
 	}
 
 	private async _updateEffectiveSandboxConfig(failOnError: boolean): Promise<void> {
-		if (this._isCustomTerminalToolEnabled()) {
-			return;
-		}
 		const base = this._computeSdkSandboxConfig();
 		const sandboxConfig: SandboxConfig = base ?? { enabled: false };
 		try {
-			const result = await this._wrapper.session.rpc.options.update({ sandboxConfig });
-			if (!result.success) {
-				throw new Error('Copilot SDK rejected sandbox config update');
-			}
+			await applySandboxConfig(this._wrapper.session, sandboxConfig, this.sessionId, this._logService);
 		} catch (err) {
 			if (failOnError) {
 				throw err;
