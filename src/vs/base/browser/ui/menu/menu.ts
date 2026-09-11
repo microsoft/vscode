@@ -821,7 +821,16 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			}
 		}));
 
-		this._register(this.parentData.parent.onScroll(() => {
+		this._register(this.parentData.parent.onScroll(e => {
+			// A menu emits scroll events even when it cannot scroll, because
+			// state changes are detected on the raw, unclamped scroll position.
+			// On touch, a drag inside the submenu also reaches the parent's
+			// gesture handling, so without this guard the first drag dismissed
+			// the submenu, and a drag is the only way a touch user can scroll.
+			// Dismiss only when the parent has actually moved.
+			if (!e.scrollTopChanged && !e.scrollLeftChanged) {
+				return;
+			}
 			if (this.parentData.submenu === this.mysubmenu) {
 				this.parentData.parent.focus(false);
 				this.cleanupExistingSubmenu(true);
