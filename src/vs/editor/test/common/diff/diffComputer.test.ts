@@ -1088,4 +1088,59 @@ suite('Editor Diff - DiffComputer', () => {
 		];
 		assertDiff(original, modified, expected, true, false, false);
 	});
+
+	test('issue #248612: Empty-to-empty diffs', () => {
+		const original = [
+			'!Equal and impossible',
+			'11                          6',
+			'0                           XXXXXX',
+			'',
+			'!Equal and impossible',
+			'11                          6',
+			'X                           XXXXXXX',
+			'',
+			'!Equal and impossible',
+			'11                          6',
+			'X                           XXX',
+			'',
+			'Equal and impossible',
+			'4                           5',
+			'XX                          0',
+		];
+		const modified = [
+			'!Equal and impossible',
+			'11                          6',
+			'0                           XXXXXX',
+			'',
+			'possible',
+			'11                          6',
+			'X                           XXXXXXX',
+			'',
+			'possible',
+			'11                          6',
+			'X                           XXX',
+			'',
+			'!Equal and impossible',
+			'11                          10',
+			'X                           XXX',
+			'',
+			'!Equal and impossible',
+			'11                          10',
+			'0                           0',
+			'',
+			'Equal and impossible',
+			'4                           5',
+			'XX                          0',
+		];
+		const expected = [
+			createLineChange(5, 5, 5, 5,
+				[createCharChange(5, 1, 5, 14, 5, 1, 5, 1)]
+			),
+			createLineChange(9, 9, 9, 9,
+				[createCharChange(9, 1, 9, 14, 9, 1, 9, 1)]
+			),
+			createLineChange(12, 0, 13, 20),
+		];
+		assertDiff(original, modified, expected, true, false, false);
+	});
 });
