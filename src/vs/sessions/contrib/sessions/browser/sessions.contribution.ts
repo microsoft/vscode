@@ -23,7 +23,7 @@ import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNR
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT } from './automationsNewBadge.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import './sessionDetailsAction.js';
-import { SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../../browser/sessionActionViewItem.js';
+import { SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
 
