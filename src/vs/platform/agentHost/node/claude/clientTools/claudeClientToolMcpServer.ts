@@ -29,7 +29,9 @@ const TOOL_USE_ID_META_KEY = 'claudecode/toolUseId';
  * which is expected to return a promise that settles when the workbench
  * echoes a completion (typically via a parked deferred owned by the
  * session). Keeping that plumbing behind a callback lets this factory
- * stay ignorant of how the host tracks in-flight tool calls.
+ * stay ignorant of how the host tracks in-flight tool calls. A rejected
+ * `awaitResult` (cancellation on rebind or dispose) is answered as an
+ * `isError` result; the handler never throws.
  *
  * Pure factory — no SDK loading, no I/O.
  */
@@ -53,7 +55,15 @@ export async function buildClientToolMcpServer(
 					isError: true,
 				};
 			}
-			return awaitResult(toolUseId);
+			try {
+				return await awaitResult(toolUseId);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					content: [{ type: 'text', text: `Client tool "${def.name}" failed: ${message}` }],
+					isError: true,
+				};
+			}
 		}
 	)));
 	return sdk.createSdkMcpServer({ name: CLAUDE_CLIENT_MCP_SERVER_NAME, tools });

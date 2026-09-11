@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../base/common/async.js';
-import { CancellationError } from '../../../base/common/errors.js';
 
 type MetadataArgument<TMeta> = [TMeta] extends [void] ? [metadata?: TMeta] : [metadata: TMeta];
 
@@ -50,10 +49,9 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 	 * path (e.g. an MCP handler invoked by the SDK whose completion
 	 * arrives via a workbench round-trip).
 	 *
-	 * If `key` is already registered (duplicate `tool_use_id` from the
-	 * SDK, retry, or logic bug), the previous deferred is rejected with
-	 * a {@link CancellationError} so its awaiter unwinds instead of
-	 * leaking forever.
+	 * If `key` is already parked (duplicate `tool_use_id` from the SDK,
+	 * a retry, or a logic bug), the existing deferred is shared so every
+	 * awaiter settles on the single {@link respond}.
 	 */
 	register(key: string, ...metadata: MetadataArgument<TMeta>): Promise<TResult> {
 		if (this._earlyResults.has(key)) {
@@ -63,7 +61,7 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 		}
 		const existing = this._entries.get(key);
 		if (existing && !existing.deferred.isSettled) {
-			existing.deferred.error(new CancellationError());
+			return existing.deferred.p;
 		}
 		const deferred = new DeferredPromise<TResult>();
 		this._entries.set(key, { deferred, metadata: metadata[0] as TMeta });
