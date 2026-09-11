@@ -44,7 +44,7 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { WORKBENCH_BACKGROUND } from '../../../common/theme.js';
 import { IKeybindingItemEntry, IKeybindingsEditorPane } from '../../../services/preferences/common/preferences.js';
 import { keybindingsRecordKeysIcon, keybindingsSortIcon, keybindingsAddIcon, preferencesClearInputIcon, keybindingsEditIcon } from './preferencesIcons.js';
-import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
+import { ITableRenderer, ITableSortState, ITableVirtualDelegate, SortOrder } from '../../../../base/browser/ui/table/table.js';
 import { KeybindingsEditorInput } from '../../../services/preferences/browser/keybindingsEditorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
@@ -112,6 +112,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 
 	private readonly sortByPrecedenceAction: Action;
 	private readonly recordKeysAction: Action;
+	private columnSortState: ITableSortState | undefined;
 
 	private ariaLabelElement!: HTMLElement;
 	readonly overflowWidgetsDomNode: HTMLElement;
@@ -535,6 +536,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 			}
 		)) as WorkbenchTable<IKeybindingItemEntry>;
 
+		this._register(this.keybindingsTable.onDidClickColumn(columnIndex => this.onColumnHeaderClick(columnIndex)));
 		this._register(this.keybindingsTable.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsTable.onDidChangeFocus(e => this.onFocusChange()));
 		this._register(this.keybindingsTable.onDidFocus(() => {
@@ -608,7 +610,21 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 	private renderKeybindingsEntries(reset: boolean, preserveFocus?: boolean): void {
 		if (this.keybindingsEditorModel) {
 			const filter = this.searchWidget.getValue();
-			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedenceAction.checked);
+			let keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedenceAction.checked);
+			if (this.columnSortState) {
+				const direction = this.columnSortState.sortOrder === SortOrder.Ascending ? 1 : -1;
+				const selector = KeybindingsEditor.getColumnSortValue(this.columnSortState.columnIndex);
+				if (selector) {
+					keybindingsEntries = keybindingsEntries.slice().sort((a, b) => {
+						const valA = selector(a);
+						const valB = selector(b);
+						if (valA && !valB) { return -1 * direction; }
+						if (!valA && valB) { return 1 * direction; }
+						if (!valA && !valB) { return 0; }
+						return valA.localeCompare(valB) * direction;
+					});
+				}
+			}
 			const ariaLabel = this.getAriaLabel(keybindingsEntries);
 			this.accessibilityService.alert(ariaLabel);
 			this.ariaLabelElement.textContent = ariaLabel;
@@ -719,6 +735,35 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 
 	toggleSortByPrecedence(): void {
 		this.sortByPrecedenceAction.checked = !this.sortByPrecedenceAction.checked;
+	}
+
+	private static readonly SORTABLE_COLUMNS = new Set([1, 2, 3, 4]); // Command, Keybinding, When, Source
+
+	private static getColumnSortValue(columnIndex: number): ((entry: IKeybindingItemEntry) => string) | undefined {
+		switch (columnIndex) {
+			case 1: return e => e.keybindingItem.commandLabel || e.keybindingItem.command;
+			case 2: return e => e.keybindingItem.keybinding?.getAriaLabel() ?? '';
+			case 3: return e => e.keybindingItem.when;
+			case 4: return e => isString(e.keybindingItem.source) ? e.keybindingItem.source : e.keybindingItem.source.displayName ?? e.keybindingItem.source.identifier.value;
+			default: return undefined;
+		}
+	}
+
+	private onColumnHeaderClick(columnIndex: number): void {
+		if (!KeybindingsEditor.SORTABLE_COLUMNS.has(columnIndex)) {
+			return;
+		}
+		if (this.columnSortState?.columnIndex === columnIndex) {
+			if (this.columnSortState.sortOrder === SortOrder.Ascending) {
+				this.columnSortState = { columnIndex, sortOrder: SortOrder.Descending };
+			} else {
+				this.columnSortState = undefined;
+			}
+		} else {
+			this.columnSortState = { columnIndex, sortOrder: SortOrder.Ascending };
+		}
+		this.keybindingsTable.setSortColumn(this.columnSortState);
+		this.renderKeybindingsEntries(false);
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IKeybindingItemEntry>): void {
