@@ -12,12 +12,13 @@ import type { IConfigurationService } from '../../../../../platform/configuratio
 import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, getCustomizationMigrationEnablementSetting, IMcpServerCustomizationMigrationFailure, isAgentFileMigrationCandidate, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
 	PromptFiles = 'promptFiles',
 	UserData = 'userData',
+	AgentFiles = 'agentFiles',
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
 }
@@ -61,6 +62,8 @@ export interface ICustomizationMigrationCategory {
 	readonly sourceTypes?: readonly PromptsType[];
 	/** Experimental setting gating this migration. Each category is enabled independently. */
 	readonly enablementSetting: ChatConfiguration;
+	/** Whether the migration updates source files without resolving destination folders. */
+	readonly migrateInPlace?: boolean;
 	/** Settings that must differ from their defaults for this migration to apply. */
 	readonly configurationSettingIds?: readonly string[];
 	readonly shortcutLabel: string;
@@ -420,6 +423,92 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	},
 };
 
+const agentFilesMigrationCategory: ICustomizationMigrationCategory = {
+	id: CustomizationMigrationCategoryId.AgentFiles,
+	migrationType: CustomizationMigrationType.AgentFiles,
+	sourceTypes: [PromptsType.agent],
+	enablementSetting: getCustomizationMigrationEnablementSetting(CustomizationMigrationType.AgentFiles),
+	migrateInPlace: true,
+	shortcutLabel: localize('agentFilesMigrationShortcutLabel', "Migrate Agent Files"),
+	shortcutTooltip: localize('agentFilesMigrationShortcutTooltip', "Update agent files for compatibility with the active harness"),
+	cardLabel: localize('agentFilesMigrationCardLabel', "Update Agent Files"),
+	cardActionLabel: localize('agentFilesMigrationCardAction', "Review..."),
+	cardActionAriaLabel: localize('agentFilesMigrationCardActionAriaLabel', "Review agent files with unsupported handoffs"),
+	pageTitle: localize('agentFilesMigrationPageTitle', "Update Agent Files"),
+	pageLinkLabel: localize('agentFilesMigrationLearnMore', "Learn more about custom agents"),
+	pageLinkUrl: CUSTOMIZATION_DOCUMENTATION_URL,
+	pageEmptyMessage: localize('agentFilesMigrationPageEmpty', "No agent files with unsupported handoffs are available to update."),
+	migrateButtonTooltip: localize('agentFilesMigrationButtonTooltip', "Update agent files for compatibility"),
+	backLabel: localize('agentFilesMigrationBackLabel', "Back to Agent Files Migration"),
+	noFilesMigratedMessage: localize('agentFilesMigrationNoFilesUpdated', "No agent files were updated."),
+
+	isCandidate: isAgentFileMigrationCandidate,
+	getCandidatePresentation: getFileCandidatePresentation,
+
+	group(customizations) {
+		return [
+			{
+				key: PromptsStorage.local,
+				label: localize('agentFilesMigrationWorkspaceGroup', "Workspace Agent Files"),
+				customizations: customizations.filter(customization => !isMcpServerCustomizationMigrationCandidate(customization) && isAgentFileMigrationCandidate(customization) && customization.storage === PromptsStorage.local),
+			},
+			{
+				key: PromptsStorage.user,
+				label: localize('agentFilesMigrationUserGroup', "User Agent Files"),
+				customizations: customizations.filter(customization => !isMcpServerCustomizationMigrationCandidate(customization) && isAgentFileMigrationCandidate(customization) && customization.storage === PromptsStorage.user),
+			},
+		].filter(group => group.customizations.length > 0);
+	},
+
+	getShortcutAriaLabel(count) {
+		return count === 1
+			? localize('agentFilesMigrationShortcutAriaLabelSingle', "Agent Files, 1 file needs an update")
+			: localize('agentFilesMigrationShortcutAriaLabelWithCount', "Agent Files, {0} files need updates", count);
+	},
+
+	getCardDescription(customizations, harnessLabel) {
+		return customizations.length === 1
+			? localize('agentFilesMigrationCardDescriptionSingle', "Found 1 agent file with a handoff that {0} ignores.", harnessLabel)
+			: localize('agentFilesMigrationCardDescription', "Found {0} agent files with handoffs that {1} ignores.", customizations.length, harnessLabel);
+	},
+
+	getPageDescription(customizations, harnessLabel) {
+		return customizations.length === 0
+			? localize('agentFilesMigrationPageDescriptionEmpty', "Select agent files to update for compatibility with the active harness.")
+			: localize('agentFilesMigrationPageDescription', "Found {0} agent files that use handoffs, which {1} ignores. Replace each handoff header with equivalent instructions in the agent body.", customizations.length, harnessLabel);
+	},
+
+	getBanner(_customizations, harnessLabel) {
+		return {
+			message: localize('agentFilesMigrationBanner', "The handoffs header is only supported by VS Code's local agent harness and is ignored by {0}. Updating preserves the intended handoff as instructions in the agent body.", harnessLabel),
+			consequence: localize('agentFilesMigrationBannerConsequence', "The agent files are updated in place."),
+		};
+	},
+
+	getConfirmation(customizations) {
+		return {
+			message: localize('agentFilesMigrationConfirmMessage', "Update agent files?"),
+			detail: customizations.length === 1
+				? localize('agentFilesMigrationConfirmDetailSingle', "This removes the unsupported handoffs header from 1 agent file and adds equivalent instructions to its body.")
+				: localize('agentFilesMigrationConfirmDetail', "This removes unsupported handoffs headers from {0} agent files and adds equivalent instructions to their bodies.", customizations.length),
+			primaryButton: localize('agentFilesMigrationConfirmButton', "Update"),
+		};
+	},
+
+	getMigratedMessage(migratedCount) {
+		return migratedCount === 1
+			? localize('agentFilesMigrationCompletedSingle', "Updated 1 agent file.")
+			: localize('agentFilesMigrationCompleted', "Updated {0} agent files.", migratedCount);
+	},
+
+	getFailedMessage(failedFileNames, hiddenFileCount) {
+		const failedCount = failedFileNames.length + hiddenFileCount;
+		return hiddenFileCount > 0
+			? localize('agentFilesMigrationFilesFailedWithRemainder', "Failed to update {0} agent files: {1}, and {2} more.", failedCount, failedFileNames.join(', '), hiddenFileCount)
+			: localize('agentFilesMigrationFilesFailed', "Failed to update {0} agent files: {1}.", failedCount, failedFileNames.join(', '));
+	},
+};
+
 const configuredLocationsMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.ConfiguredLocations,
 	migrationType: CustomizationMigrationType.ConfiguredLocations,
@@ -673,6 +762,7 @@ function formatSettingLinks(settingsLinks: readonly string[]): string {
 export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigrationCategory[] = [
 	promptFilesMigrationCategory,
 	userDataMigrationCategory,
+	agentFilesMigrationCategory,
 	configuredLocationsMigrationCategory,
 	mcpServersMigrationCategory,
 ];

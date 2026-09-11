@@ -28,6 +28,7 @@ import { IAgentHostCustomizationService } from '../../../browser/agentSessions/a
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationHintTarget, CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { IPromptPath, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -36,13 +37,25 @@ import { MockPromptsService } from '../../common/promptSyntax/service/mockPrompt
 class TestPromptsService extends MockPromptsService {
 	readonly requestedTypes: PromptsType[] = [];
 
-	constructor(private readonly files: readonly IPromptPath[]) {
+	constructor(private readonly files: readonly IPromptPath[], private readonly contents = new Map<string, string>()) {
 		super();
 	}
 
 	override async listPromptFiles(type: PromptsType): Promise<readonly IPromptPath[]> {
 		this.requestedTypes.push(type);
 		return this.files.filter(file => file.type === type);
+	}
+
+	override async parseNew(uri: URI) {
+		return new PromptFileParser().parse(uri, this.contents.get(uri.path) ?? '');
+	}
+}
+
+class TestLogService extends NullLogService {
+	readonly errors: (string | Error)[] = [];
+
+	override error(message: string | Error): void {
+		this.errors.push(message);
 	}
 }
 
@@ -161,6 +174,7 @@ class TestCustomizationHarnessService extends mock<ICustomizationHarnessService>
 const customizationMigrationTypes = [
 	CustomizationMigrationType.UserData,
 	CustomizationMigrationType.PromptFiles,
+	CustomizationMigrationType.AgentFiles,
 	CustomizationMigrationType.ConfiguredLocations,
 	CustomizationMigrationType.McpServers,
 ] as const;
@@ -232,7 +246,18 @@ suite('CustomizationMigrationService', () => {
 			{ uri: URI.file('/workspace/custom-skills/release/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.ConfigWorkspace },
 			{ uri: URI.file('/workspace/.github/skills/already-supported/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.ConfigWorkspace },
 			{ uri: URI.file('/home/test/custom-instructions/style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.ConfigPersonal },
-		]));
+		], new Map([
+			['/home/test/.copilot/agents/planner.agent.md', [
+				'---',
+				'name: planner',
+				'handoffs:',
+				'  - agent: implementer',
+				'    label: Implement',
+				'    prompt: Implement the plan',
+				'---',
+				'Plan the work.',
+			].join('\n')],
+		])));
 		const harnessService = new TestCustomizationHarnessService();
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
 			servers: [
@@ -370,6 +395,11 @@ suite('CustomizationMigrationService', () => {
 					],
 				},
 				{
+					type: 'agentFiles',
+					files: ['/home/test/.copilot/agents/planner.agent.md'],
+					candidates: ['/home/test/.copilot/agents/planner.agent.md'],
+				},
+				{
 					type: 'configuredLocations',
 					files: [
 						'/home/test/custom-agents/architect.agent.md',
@@ -397,6 +427,7 @@ suite('CustomizationMigrationService', () => {
 			localMigrations: [
 				{ type: 'userData', files: [], candidates: [] },
 				{ type: 'promptFiles', files: [], candidates: [] },
+				{ type: 'agentFiles', files: [], candidates: [] },
 				{ type: 'configuredLocations', files: [], candidates: [] },
 				{
 					type: 'mcpServers',
@@ -410,19 +441,20 @@ suite('CustomizationMigrationService', () => {
 				},
 			],
 			hint: {
-				message: 'Found 2 workspace and 3 user customizations that are present but not used by Copilot and could be migrated. Found 1 MCP server that is not fully supported by Copilot.',
+				message: 'Found 2 workspace and 3 user customizations that are present but not used by Copilot and could be migrated. Found 1 agent file with a handoff that Copilot ignores and could be updated. Found 1 MCP server that is not fully supported by Copilot.',
 				target: CustomizationMigrationHintTarget.FileMigrations,
 				counts: [
 					{ type: CustomizationMigrationType.UserData, count: 1 },
 					{ type: CustomizationMigrationType.PromptFiles, count: 2 },
+					{ type: CustomizationMigrationType.AgentFiles, count: 1 },
 					{ type: CustomizationMigrationType.ConfiguredLocations, count: 2 },
 					{ type: CustomizationMigrationType.McpServers, count: 1 },
 				],
 			},
 			localHint: undefined,
 			requestedTypes: [
-				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
-				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
+				PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.agent, PromptsType.agent, PromptsType.instructions, PromptsType.skill,
 			],
 			requestedSourceFolderTypes: [
 				PromptsType.agent, PromptsType.agent, PromptsType.agent, PromptsType.agent,
@@ -432,6 +464,50 @@ suite('CustomizationMigrationService', () => {
 			requestedSessionType: SessionType.AgentHostCopilot,
 			requestedRoots: ['/workspace'],
 			supportScopeDisposed: true,
+		});
+	});
+
+	test('skips agent files that fail to parse', async () => {
+		const validAgent = URI.file('/home/test/.copilot/agents/valid.agent.md');
+		const missingAgent = URI.file('/home/test/.copilot/agents/missing.agent.md');
+		const promptsService = store.add(new class extends TestPromptsService {
+			override async parseNew(uri: URI) {
+				if (isEqual(uri, missingAgent)) {
+					throw new Error('File not found');
+				}
+				return super.parseNew(uri);
+			}
+		}([
+			{ uri: validAgent, storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
+			{ uri: missingAgent, storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
+		], new Map([
+			[validAgent.path, [
+				'---',
+				'name: valid',
+				'handoffs:',
+				'  - agent: implementer',
+				'---',
+			].join('\n')],
+		])));
+		const harnessService = new TestCustomizationHarnessService();
+		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+			override acquireMcpServerSupportScope() { return undefined; }
+		}();
+		const agentHostCustomizationService = new class extends mock<IAgentHostCustomizationService>() {
+			override readonly onDidChangeCustomizations = Event.None;
+			override getClientWorkingDirectoryUris() { return []; }
+		}();
+		const logService = new TestLogService();
+		const service = store.add(new CustomizationMigrationService(promptsService, harnessService, activeClientService, agentHostCustomizationService, {} as IFileService, logService, store.add(createMigrationConfiguration())));
+
+		const migration = await service.computeMigration(harnessService.activeSessionResource.get(), CustomizationMigrationType.AgentFiles);
+
+		assert.deepStrictEqual({
+			files: migration.files.map(file => file.path),
+			errors: logService.errors.map(String),
+		}, {
+			files: [validAgent.path],
+			errors: [`[Customization Migration] Failed to parse agent file: ${missingAgent.toString()}`],
 		});
 	});
 
@@ -837,6 +913,7 @@ suite('CustomizationMigrationService', () => {
 		const configurationService = store.add(createMigrationConfiguration({
 			[CustomizationMigrationType.UserData]: false,
 			[CustomizationMigrationType.PromptFiles]: false,
+			[CustomizationMigrationType.AgentFiles]: false,
 			[CustomizationMigrationType.ConfiguredLocations]: false,
 			[CustomizationMigrationType.McpServers]: false,
 		}));
@@ -868,6 +945,7 @@ suite('CustomizationMigrationService', () => {
 			disabledMigrations: [
 				{ type: 'userData', candidates: 0, files: 0 },
 				{ type: 'promptFiles', candidates: 0, files: 0 },
+				{ type: 'agentFiles', candidates: 0, files: 0 },
 				{ type: 'configuredLocations', candidates: 0, files: 0 },
 				{ type: 'mcpServers', candidates: 0, servers: 0 },
 			],

@@ -17,10 +17,10 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationType, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
+import { createSkillFileUri, migrateAgentFileForAgentHost, migrateAgentFilesForAgentHost, migrateCustomizations, migratePromptFileToSkill, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 
 class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
@@ -56,13 +56,14 @@ suite('customizationMigration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('splits candidates into focused, non-overlapping categories', () => {
-		const customizations: IPromptPath[] = [
+		const customizations: MigratableConfiguration[] = [
 			{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.GitHubWorkspace },
 			{ uri: URI.file('/user-data/prompts/release.prompt.md'), storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.UserData },
-			{ uri: URI.file('/user-data/prompts/reviewer.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData },
+			{ uri: URI.file('/user-data/prompts/reviewer.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.UserData, hasLocalHandoffs: true },
 			{ uri: URI.file('/user-data/prompts/style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.UserData },
 			{ uri: URI.file('/home/test/.copilot/agents/planner.agent.md'), storage: PromptsStorage.user, type: PromptsType.agent, source: PromptFileSource.CopilotPersonal },
 			{ uri: URI.file('/workspace/.github/skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.GitHubWorkspace },
+			{ uri: URI.file('/workspace/.github/agents/handoff.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, source: PromptFileSource.GitHubWorkspace, hasLocalHandoffs: true },
 			{ uri: URI.file('/workspace/custom-agents/reviewer.agent.md'), storage: PromptsStorage.local, type: PromptsType.agent, source: PromptFileSource.ConfigWorkspace },
 			{ uri: URI.file('/home/test/custom-instructions/style.instructions.md'), storage: PromptsStorage.user, type: PromptsType.instructions, source: PromptFileSource.ConfigPersonal },
 			{ uri: URI.file('/workspace/custom-skills/deploy/SKILL.md'), storage: PromptsStorage.local, type: PromptsType.skill, source: PromptFileSource.ConfigWorkspace },
@@ -74,6 +75,7 @@ suite('customizationMigration', () => {
 		assert.deepStrictEqual({
 			promptFiles: candidatesFor(CustomizationMigrationCategoryId.PromptFiles),
 			userData: candidatesFor(CustomizationMigrationCategoryId.UserData),
+			agentFiles: candidatesFor(CustomizationMigrationCategoryId.AgentFiles),
 			configuredLocations: candidatesFor(CustomizationMigrationCategoryId.ConfiguredLocations),
 			sourceTypes: CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => [category.id, [...(category.sourceTypes ?? [])]]),
 		}, {
@@ -85,6 +87,9 @@ suite('customizationMigration', () => {
 				'/user-data/prompts/reviewer.agent.md',
 				'/user-data/prompts/style.instructions.md',
 			],
+			agentFiles: [
+				'/workspace/.github/agents/handoff.agent.md',
+			],
 			configuredLocations: [
 				'/workspace/custom-agents/reviewer.agent.md',
 				'/home/test/custom-instructions/style.instructions.md',
@@ -93,9 +98,83 @@ suite('customizationMigration', () => {
 			sourceTypes: [
 				[CustomizationMigrationCategoryId.PromptFiles, [PromptsType.prompt]],
 				[CustomizationMigrationCategoryId.UserData, [PromptsType.agent, PromptsType.instructions]],
+				[CustomizationMigrationCategoryId.AgentFiles, [PromptsType.agent]],
 				[CustomizationMigrationCategoryId.ConfiguredLocations, [PromptsType.agent, PromptsType.instructions, PromptsType.skill]],
 				[CustomizationMigrationCategoryId.McpServers, []],
 			],
+		});
+	});
+
+	test('replaces agent handoffs with body instructions and preserves model fallbacks', () => {
+		const agentFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/agents/coordinator.agent.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.agent,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const content = [
+			'---',
+			'name: coordinator',
+			'model: [claude-sonnet-4.5, gpt-5.1]',
+			'handoffs:',
+			'  - agent: implementer',
+			'    label: Implement the plan',
+			'    prompt: Implement the approved plan',
+			'  - agent: reviewer',
+			'    label: Review the implementation',
+			'    prompt: Review all changes',
+			'    send: true',
+			'    model: gpt-5.1',
+			'---',
+			'Coordinate the work.',
+		].join('\r\n');
+
+		assert.strictEqual(migrateAgentFileForAgentHost(agentFile, content), [
+			'---',
+			'name: coordinator',
+			'model: [claude-sonnet-4.5, gpt-5.1]',
+			'---',
+			'Coordinate the work.',
+			'',
+			'After completing the task, offer to hand off to the `implementer` agent for "Implement the plan" with the prompt "Implement the approved plan".',
+			'After completing the task, hand off to the `reviewer` agent for "Review the implementation" with the prompt "Review all changes" using the `gpt-5.1` model.',
+			'',
+		].join('\r\n'));
+	});
+
+	test('rejects malformed handoffs without changing the file', async () => {
+		const agentFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/agents/coordinator.agent.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.agent,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const content = [
+			'---',
+			'name: coordinator',
+			'handoffs:',
+			'  - agent: reviewer',
+			'    label: Review',
+			'---',
+			'Coordinate the work.',
+		].join('\n');
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		await fileService.writeFile(agentFile.uri, VSBuffer.fromString(content));
+
+		const result = await migrateAgentFilesForAgentHost([agentFile], fileService);
+
+		assert.deepStrictEqual({
+			result,
+			content: (await fileService.readFile(agentFile.uri)).value.toString(),
+		}, {
+			result: {
+				migratedCount: 0,
+				failedCustomizationFileNames: ['coordinator.agent.md'],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [],
+			},
+			content,
 		});
 	});
 
@@ -322,7 +401,7 @@ suite('customizationMigration', () => {
 		assert.ok(migrated.content.includes('argument-hint: diff'));
 	});
 
-	test('migrates mixed customizations and continues after per-file failures', async () => {
+	test('migrates mixed customizations, rewrites agent handoffs, and continues after per-file failures', async () => {
 		const customizations: IPromptPath[] = [
 			{
 				uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -367,7 +446,16 @@ suite('customizationMigration', () => {
 		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
 		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 		await fileService.writeFile(customizations[0].uri, VSBuffer.fromString(['---', 'name: "Review Prompt"', 'mode: code', '---', 'Review body'].join('\n')));
-		await fileService.writeFile(customizations[1].uri, VSBuffer.fromString('---\ndescription: Plan work\n---\nPlan.'));
+		await fileService.writeFile(customizations[1].uri, VSBuffer.fromString([
+			'---',
+			'description: Plan work',
+			'handoffs:',
+			'  - agent: implementer',
+			'    label: Implement',
+			'    prompt: Implement the plan',
+			'---',
+			'Plan.',
+		].join('\n')));
 		await fileService.writeFile(customizations[2].uri, VSBuffer.fromString('---\ndescription: Use tabs\n---\nUse tabs.'));
 		await fileService.writeFile(URI.joinPath(userAgentRoot.uri, 'planner.agent.md'), VSBuffer.fromString('existing'));
 
@@ -402,7 +490,15 @@ suite('customizationMigration', () => {
 				migratedSources: customizations.slice(0, 3).map(customization => ({ uri: customization.uri.path, storage: customization.storage })),
 			},
 			migratedSkillHasManualInvocation: true,
-			migratedAgentContent: '---\ndescription: Plan work\n---\nPlan.',
+			migratedAgentContent: [
+				'---',
+				'description: Plan work',
+				'---',
+				'Plan.',
+				'',
+				'After completing the task, offer to hand off to the `implementer` agent for "Implement" with the prompt "Implement the plan".',
+				'',
+			].join('\n'),
 			migratedInstructionsContent: '---\ndescription: Use tabs\n---\nUse tabs.',
 			originalsExist: [false, false, false],
 			migrationErrorCount: 1,

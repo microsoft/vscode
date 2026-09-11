@@ -108,7 +108,7 @@ import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js'
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
-import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsResult, migrateCustomizations } from './customizationMigration.js';
+import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsResult, migrateAgentFilesForAgentHost, migrateCustomizations } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, type ICustomizationMigrationBanner, type ICustomizationMigrationCandidatePresentation, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
@@ -126,6 +126,7 @@ const $ = DOM.$;
 const homepageMigrationCategories = [
 	CustomizationMigrationCategoryId.PromptFiles,
 	CustomizationMigrationCategoryId.UserData,
+	CustomizationMigrationCategoryId.AgentFiles,
 	CustomizationMigrationCategoryId.McpServers,
 ] as const;
 
@@ -1741,13 +1742,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			const files = customizations.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate));
 			const settingsToClear = this.getConfiguredLocationSettingsToClear(category, files);
-			const targetFolders = await this.resolveCustomizationMigrationTargetFolders(files, this.customizationMigrationTargetFoldersByType, sessionResource);
-			if (!targetFolders || !this.isCustomizationMigrationSessionActive(sessionResource)) {
+			const targetFolders = category.migrateInPlace
+				? undefined
+				: await this.resolveCustomizationMigrationTargetFolders(files, this.customizationMigrationTargetFoldersByType, sessionResource);
+			if ((!category.migrateInPlace && !targetFolders) || !this.isCustomizationMigrationSessionActive(sessionResource)) {
 				return;
 			}
-			const confirmation = category.getConfirmation(files, this.getActiveHarnessLabel(), this.getCustomizationMigrationDestinationLabel(
-				[...targetFolders.values()].flatMap(folders => [...folders.values()]),
-			));
+			const confirmation = category.getConfirmation(
+				files,
+				this.getActiveHarnessLabel(),
+				targetFolders ? this.getCustomizationMigrationDestinationLabel(
+					[...targetFolders.values()].flatMap(foldersByStorage => [...foldersByStorage.values()]),
+				) : undefined,
+			);
 			const confirmed = await this.dialogService.confirm({
 				type: 'question',
 				message: confirmation.message,
@@ -1760,7 +1767,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			const deleteOriginalFiles = confirmed.checkboxChecked !== false;
 			this.migrationResult = undefined;
-			const result = await this.runCustomizationMigration(files, targetFolders, deleteOriginalFiles);
+			const result = await this.runCustomizationMigration(category, files, targetFolders, deleteOriginalFiles);
 			for (const context of activityContexts) {
 				const items = result.migratedSources.flatMap((source, index) => {
 					const target = result.migratedCustomizations[index];
@@ -1769,7 +1776,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 						label: file.name ?? basename(source.uri),
 						sourceLabel: this.labelService.getUriLabel(source.uri),
 						targetLabel: this.labelService.getUriLabel(target.uri),
-						operation: file.type === PromptsType.prompt ? 'converted' as const : deleteOriginalFiles ? 'moved' as const : 'copied' as const,
+						operation: category.migrateInPlace ? 'updated' as const : file.type === PromptsType.prompt ? 'converted' as const : deleteOriginalFiles ? 'moved' as const : 'copied' as const,
 					}] : [];
 				});
 				this.recordMigrationActivity(category, context, items);
@@ -1791,7 +1798,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.notificationService.error(localize('customizationMigrationClearSettingsFailed', "Customizations were migrated, but the custom location settings could not be cleared: {0}", getErrorMessage(error)));
 				}
 			}
-			if (deleteOriginalFiles) {
+			if (deleteOriginalFiles || category.migrateInPlace) {
 				await this.refreshCustomizationMigrationInfo();
 			}
 			const unsupportedKeys = result.unsupportedHeaderKeys.join(', ');
@@ -1907,9 +1914,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private async runCustomizationMigration(customizations: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders, deleteOriginalFiles: boolean): Promise<IMigratedCustomizationsResult> {
+	private async runCustomizationMigration(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders | undefined, deleteOriginalFiles: boolean): Promise<IMigratedCustomizationsResult> {
 		this.customizationMigrationWritesInProgress = true;
 		try {
+			if (category.migrateInPlace) {
+				return await migrateAgentFilesForAgentHost(customizations, this.fileService, onUnexpectedError);
+			}
+			if (!targetFolders) {
+				throw new Error('Expected target folders for customization migration');
+			}
 			return await migrateCustomizations(
 				customizations,
 				targetFolders,

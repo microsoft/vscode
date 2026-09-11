@@ -9,6 +9,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { basename, dirname, getComparisonKey } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
@@ -90,6 +91,77 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 	};
 }
 
+export function migrateAgentFileForAgentHost(agentFile: MigratableConfiguration, content: string): string {
+	const parsed = new PromptFileParser().parse(agentFile.uri, content);
+	const handoffsAttribute = parsed.header?.getAttribute(PromptHeaderAttributes.handOffs);
+	if (!handoffsAttribute) {
+		return content;
+	}
+	if (handoffsAttribute.value.type !== 'sequence') {
+		throw new Error(localize('invalidAgentHandoffs', "The handoffs header in {0} must be an array.", basename(agentFile.uri)));
+	}
+
+	const handoffs = parsed.header?.handOffs ?? [];
+	if (handoffs.length !== handoffsAttribute.value.items.length) {
+		throw new Error(localize('invalidAgentHandoffEntry', "The handoffs header in {0} contains an invalid handoff.", basename(agentFile.uri)));
+	}
+
+	const linesWithEol = splitLinesIncludeSeparators(content);
+	linesWithEol.splice(
+		handoffsAttribute.range.startLineNumber - 1,
+		handoffsAttribute.range.endLineNumber - handoffsAttribute.range.startLineNumber + 1,
+	);
+	const contentWithoutHandoffs = linesWithEol.join('');
+	if (handoffs.length === 0) {
+		return contentWithoutHandoffs;
+	}
+
+	const eol = content.includes('\r\n') ? '\r\n' : '\n';
+	const separator = contentWithoutHandoffs.endsWith(`${eol}${eol}`)
+		? ''
+		: contentWithoutHandoffs.endsWith(eol) ? eol : `${eol}${eol}`;
+	const instructions = handoffs.map(handoff => {
+		const model = handoff.model
+			? localize('agentHandoffModelInstruction', " using the `{0}` model", handoff.model)
+			: '';
+		return handoff.send
+			? localize('automaticAgentHandoffInstruction', "After completing the task, hand off to the `{0}` agent for {1} with the prompt {2}{3}.", handoff.agent, JSON.stringify(handoff.label), JSON.stringify(handoff.prompt), model)
+			: localize('offeredAgentHandoffInstruction', "After completing the task, offer to hand off to the `{0}` agent for {1} with the prompt {2}{3}.", handoff.agent, JSON.stringify(handoff.label), JSON.stringify(handoff.prompt), model);
+	});
+	return `${contentWithoutHandoffs}${separator}${instructions.join(eol)}${eol}`;
+}
+
+export async function migrateAgentFilesForAgentHost(
+	customizations: readonly MigratableConfiguration[],
+	fileService: IFileService,
+	onMigrationError?: (error: Error) => void,
+): Promise<IMigratedCustomizationsResult> {
+	const failedCustomizationFileNames: string[] = [];
+	const migratedCustomizations: IMigratedCustomization[] = [];
+	const migratedSources: IMigratedCustomizationSource[] = [];
+
+	for (const customization of customizations) {
+		try {
+			const content = (await fileService.readFile(customization.uri)).value.toString();
+			const migratedContent = migrateAgentFileForAgentHost(customization, content);
+			await fileService.writeFile(customization.uri, VSBuffer.fromString(migratedContent));
+			migratedCustomizations.push({ uri: customization.uri, type: customization.type });
+			migratedSources.push({ uri: customization.uri, storage: customization.storage });
+		} catch (error) {
+			failedCustomizationFileNames.push(basename(customization.uri));
+			onMigrationError?.(error instanceof Error ? error : new Error(String(error)));
+		}
+	}
+
+	return {
+		migratedCount: migratedCustomizations.length,
+		failedCustomizationFileNames,
+		unsupportedHeaderKeys: [],
+		migratedCustomizations,
+		migratedSources,
+	};
+}
+
 function formatMigratedHeaderValue(value: string, sourceAttribute: IHeaderAttribute | undefined): string {
 	if (sourceAttribute?.value.type === 'scalar') {
 		switch (sourceAttribute.value.format) {
@@ -144,7 +216,9 @@ export async function migrateCustomizations(
 				}
 
 				let targetUri: URI;
-				let migratedContent = content;
+				let migratedContent = customization.type === PromptsType.agent
+					? migrateAgentFileForAgentHost(customization, content)
+					: content;
 				if (customization.type === PromptsType.prompt) {
 					const migratedPrompt = migratePromptFileToSkill(customization, content);
 					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);
