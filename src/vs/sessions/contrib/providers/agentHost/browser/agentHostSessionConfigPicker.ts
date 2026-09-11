@@ -352,6 +352,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	protected readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	private readonly _isolationCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
+	private readonly _hostMarker = this._register(new MutableDisposable());
 	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private readonly _repositoryConfigSequencer = new SequencerByKey<string>();
 	private _container: HTMLElement | undefined;
@@ -436,6 +437,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	render(container: HTMLElement): void {
 		this._isolationCheckbox.clear();
+		container.classList.add('sessions-chat-agent-host-config-host');
+		this._hostMarker.value = toDisposable(() => container.classList.remove('sessions-chat-agent-host-config-host'));
 		this._container = dom.append(container, dom.$('.sessions-chat-agent-host-config'));
 		this._renderConfigPickers();
 	}

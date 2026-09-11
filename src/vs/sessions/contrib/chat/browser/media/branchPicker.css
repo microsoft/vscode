@@ -21,7 +21,3 @@
 	min-width: 0;
 	user-select: none;
 }
-
-.monaco-workbench .sessions-chat-branch-picker-host[tabindex]:focus {
-	outline: none;
-}
