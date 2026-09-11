@@ -1594,7 +1594,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							// Enrich usage entries with the actual model so the
 							// context-usage widget resolves the right context window
 							// on reconnection (same enrichment as _observeTurn).
-							const actualModelId = this._toLanguageModelId(sessionResource, sessionState.activeTurn.usage?.model);
+							const actualModelId = lookup.toActualModelId(sessionState.activeTurn.usage?.model);
 							if (actualModelId) {
 								for (const p of initialProgress) {
 									if (p.kind === 'usage') {
@@ -3556,11 +3556,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// Carry through the actual model so the context-usage widget
 				// can look up context window metadata when the request-level
 				// model (e.g. "auto") doesn't expose one.
-				const actualModelId = this._toLanguageModelId(opts.sessionResource, rawUsage?.model);
+				const actualModelId = modelLookup.toActualModelId(rawUsage?.model);
 				if (actualModelId) {
 					usage.actualModelId = actualModelId;
 				}
 				if (lastUsage
+					&& lastUsage.actualModelId === usage.actualModelId
 					&& lastUsage.promptTokens === usage.promptTokens
 					&& lastUsage.completionTokens === usage.completionTokens
 					&& lastUsage.outputBuffer === usage.outputBuffer
@@ -6032,6 +6033,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
+			toActualModelId: rawModelId => lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId),
 			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name,
 			toResponseDetails: (rawModelId, usage) => {
 				const { billedId, resolved } = resolveBilledModel(rawModelId, usage);

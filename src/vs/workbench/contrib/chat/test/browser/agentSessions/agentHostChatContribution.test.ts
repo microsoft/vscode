@@ -5309,14 +5309,21 @@ suite('AgentHostChatContribution', () => {
 			]);
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
 
-			assert.strictEqual(result.details, 'Claude Sonnet 4.6 • 1 credit');
+			assert.deepStrictEqual({
+				details: result.details,
+				actualModels: collected.flat().filter(part => part.kind === 'usage').map(part => part.actualModelId),
+			}, {
+				details: 'Claude Sonnet 4.6 • 1 credit',
+				actualModels: [undefined, 'agent-host-copilot:claude-sonnet-4.6'],
+			});
 		}));
 
 		test('unregistered billed id shows model-id suffix (e.g. Auto billed as raptor-mini)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -8046,15 +8053,19 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(session.history.length, 0);
 		});
 
-		for (const [activeModel, hideAutoExplainability] of [['gpt-5', false], [undefined, false], ['gpt-5', true]] as const) {
+		for (const [activeModel, hideAutoExplainability] of [['gpt-5', false], [undefined, false], ['gpt-5', true], ['claude-sonnet-4-6', false]] as const) {
 			test(`restored Auto requests preserve selected and actual models (active: ${activeModel}, hidden: ${hideAutoExplainability})`, async () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
 					['agent-host-copilot:gpt-5', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5' })],
+					['agent-host-copilot:claude-sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' })],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, hideAutoExplainability });
 				const sessionUri = AgentSession.uri('copilot', 'sess-auto-survey');
-				const usage = { model: 'gpt-5', inputTokens: 100, outputTokens: 20, _meta: { autoModeResolved: { chosenModel: 'gpt-5' } } };
+				const rawModelId = activeModel ?? 'gpt-5';
+				const actualModelId = activeModel === 'claude-sonnet-4-6' ? 'agent-host-copilot:claude-sonnet-4.6' : 'agent-host-copilot:gpt-5';
+				const modelName = languageModels.get(actualModelId)?.name;
+				const usage = { model: rawModelId, inputTokens: 100, outputTokens: 20, _meta: { autoModeResolved: { chosenModel: rawModelId } } };
 				agentHostService.sessionStates.set(sessionUri.toString(), {
 					...createSessionState({
 						resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
@@ -8085,10 +8096,11 @@ suite('AgentHostChatContribution', () => {
 					? { type: item.type, modelId: item.modelId }
 					: { type: item.type, details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }), [
 					{ type: 'request', modelId: 'agent-host-copilot:auto' },
-					{ type: 'response', details: hideAutoExplainability ? 'Auto' : 'GPT-5', actualModelId: 'agent-host-copilot:gpt-5' },
+					{ type: 'response', details: hideAutoExplainability ? 'Auto' : modelName, actualModelId },
 					{ type: 'request', modelId: 'agent-host-copilot:auto' },
-					{ type: 'response', details: hideAutoExplainability || !activeModel ? 'Auto' : 'GPT-5', actualModelId: undefined },
+					{ type: 'response', details: hideAutoExplainability || !activeModel ? 'Auto' : modelName, actualModelId: undefined },
 				]);
+				assert.strictEqual(session.progressObs?.get().find(part => part.kind === 'usage')?.actualModelId, activeModel ? actualModelId : undefined);
 			});
 		}
 
