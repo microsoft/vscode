@@ -150,6 +150,10 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 			});
 		}
 
+		const addedNotification = context.client.waitForNotification(n =>
+			n.method === NotificationType.SessionAdded,
+			60_000,
+		);
 		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 		await context.client.call('createSession', {
 			channel: sessionUri, provider: config.provider, workingDirectories: [workingDirUri],
@@ -184,10 +188,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		dispatchTurn(context.client, sessionUri, 'turn-wt',
 			'What is your current working directory? Reply with just the absolute path and nothing else.', 2);
 
-		const addedNotif = await context.client.waitForNotification(n =>
-			n.method === NotificationType.SessionAdded,
-			60_000,
-		);
+		const addedNotif = await addedNotification;
 		const addedSummary = (addedNotif.params as SessionAddedParams).summary;
 
 		const addedWorkingDirectory = addedSummary.workingDirectories?.[0];

@@ -46,7 +46,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
 import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
-import { shouldWarnForSessionShutdown } from './chatLifecycle.js';
+import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, AgentsHandoffInputTipContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from './agentSessions/agentSessionsActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
@@ -165,6 +165,8 @@ class ChatLifecycleHandler extends Disposable {
 		@IExtensionService extensionService: IExtensionService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -182,15 +184,21 @@ class ChatLifecycleHandler extends Disposable {
 			return false; // AI features are disabled
 		}
 
+		if (shouldWarnForInFlightSessionShutdown(this.chatService.getPendingRequestSessionTypes(), reason)) {
+			return true;
+		}
+
 		return this.agentSessionsService.model.sessions.some(session => shouldWarnForSessionShutdown(session, reason));
 	}
 
-	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	private async shouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
 		if (this.environmentService.enableSmokeTestDriver) {
 			return false;
 		}
 
-		if (!this.hasSessionThatWillStop(reason)) {
+		const windowCount = reason === ShutdownReason.CLOSE ? await this.nativeHostService.getWindowCount() : 0;
+		const effectiveReason = getEffectiveSessionShutdownReason(reason, windowCount, isMacintosh);
+		if (!this.hasSessionThatWillStop(effectiveReason)) {
 			return false;
 		}
 
@@ -198,37 +206,8 @@ class ChatLifecycleHandler extends Disposable {
 			return false;
 		}
 
-		return this.doShouldVetoShutdown(reason);
-	}
-
-	private async doShouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
-
 		this.widgetService.revealWidget();
-
-		let message: string;
-		let detail: string;
-		switch (reason) {
-			case ShutdownReason.CLOSE:
-				message = localize('closeTheWindow.message', "A session is in progress. Are you sure you want to close the window?");
-				detail = localize('closeTheWindow.detail', "The session will stop if you close the window.");
-				break;
-			case ShutdownReason.LOAD:
-				message = localize('changeWorkspace.message', "A session is in progress. Are you sure you want to change the workspace?");
-				detail = localize('changeWorkspace.detail', "The session will stop if you change the workspace.");
-				break;
-			case ShutdownReason.RELOAD:
-				message = localize('reloadTheWindow.message', "A session is in progress. Are you sure you want to reload the window?");
-				detail = localize('reloadTheWindow.detail', "The session will stop if you reload the window.");
-				break;
-			default:
-				message = isMacintosh ? localize('quit.message', "A session is in progress. Are you sure you want to quit?") : localize('exit.message', "A session is in progress. Are you sure you want to exit?");
-				detail = isMacintosh ? localize('quit.detail', "The session will stop if you quit.") : localize('exit.detail', "The session will stop if you exit.");
-				break;
-		}
-
-		const result = await this.dialogService.confirm({ message, detail });
-
-		return !result.confirmed;
+		return !await confirmSessionShutdown(this.dialogService, effectiveReason);
 	}
 }
 

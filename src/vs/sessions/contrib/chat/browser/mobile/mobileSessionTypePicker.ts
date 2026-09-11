@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -12,6 +13,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getSessionTypeAvailability, getSessionTypeUnavailableLabel, SessionTypeAvailability } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -47,10 +49,11 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IChatInputNotificationService chatInputNotificationService: IChatInputNotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, contextKeyService);
+		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, chatInputNotificationService, contextKeyService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {
@@ -64,12 +67,12 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		super.render(container, options);
 	}
 
-	protected override _showPicker(): void {
-		if (!this._triggerElement) {
+	protected override _showPicker(anchor = this._triggerElement): void {
+		if (!anchor) {
 			return;
 		}
 		if (!isPhoneLayout(this.layoutService)) {
-			super._showPicker();
+			super._showPicker(anchor);
 			return;
 		}
 		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
@@ -112,20 +115,32 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		}
 
 		const trigger = this._triggerElement;
+		if (!trigger) {
+			return;
+		}
 		trigger.setAttribute('aria-expanded', 'true');
-		showMobilePickerSheet(
-			this.layoutService.mainContainer,
-			localize('mobileSessionTypePicker.title', "Session Type"),
-			sheetItems,
-		).then(id => {
+		void this._showMobilePicker(trigger, sheetItems);
+	}
+
+	private async _showMobilePicker(trigger: HTMLElement, sheetItems: readonly IMobilePickerSheetItem[]): Promise<void> {
+		try {
+			const id = await showMobilePickerSheet(
+				this.layoutService.mainContainer,
+				localize('mobileSessionTypePicker.title', "Session Type"),
+				sheetItems,
+			);
 			trigger.setAttribute('aria-expanded', 'false');
 			trigger.focus();
 			if (id !== undefined) {
 				const [providerId, sessionTypeId] = id.split('\u0000');
 				if (providerId && sessionTypeId) {
-					this._handleSelectedSessionType({ providerId, sessionTypeId });
+					await this._selectSessionType({ providerId, sessionTypeId });
 				}
 			}
-		});
+		} catch (error) {
+			trigger.setAttribute('aria-expanded', 'false');
+			trigger.focus();
+			onUnexpectedError(error);
+		}
 	}
 }

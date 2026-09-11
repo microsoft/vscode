@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../../base/browser/dom.js';
 import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IChatSpeechToTextService } from './chatSpeechToTextService.js';
-
-const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Radius of the progress ring in the 16×16 viewBox used for the toolbar icon. */
 const RING_RADIUS = 7;
@@ -30,19 +29,18 @@ export class DictationDownloadRing extends Disposable {
 	) {
 		super();
 
-		const ownerDocument = container.ownerDocument;
-		const svg = ownerDocument.createElementNS(SVG_NS, 'svg') as SVGSVGElement;
+		const svg = $.SVG<SVGSVGElement>('svg');
 		svg.classList.add('dictation-download-ring');
 		svg.setAttribute('viewBox', '0 0 16 16');
 		svg.setAttribute('aria-hidden', 'true');
 
-		const track = ownerDocument.createElementNS(SVG_NS, 'circle') as SVGCircleElement;
+		const track = $.SVG<SVGCircleElement>('circle');
 		track.classList.add('dictation-download-ring-track');
 		track.setAttribute('cx', '8');
 		track.setAttribute('cy', '8');
 		track.setAttribute('r', String(RING_RADIUS));
 
-		const progress = ownerDocument.createElementNS(SVG_NS, 'circle') as SVGCircleElement;
+		const progress = $.SVG<SVGCircleElement>('circle');
 		progress.classList.add('dictation-download-ring-progress');
 		progress.setAttribute('cx', '8');
 		progress.setAttribute('cy', '8');

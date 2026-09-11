@@ -21,8 +21,9 @@ import { createTextModel } from '../../../../../editor/test/common/testTextModel
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { PasteTextProvider } from '../../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
+import { PasteTextProvider, pastedTextArtifactDefaultMinLength } from '../../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { IChatRequestVariableEntry, isPastedTextArtifact } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -113,6 +114,9 @@ suite('NewChatInputPasteTarget', () => {
 					pasteTargetService,
 					new class extends mock<IModelService>() { },
 					new class extends mock<ILogService>() { },
+					new class extends mock<IConfigurationService>() {
+						override getValue<T>(): T { return pastedTextArtifactDefaultMinLength as T; }
+					},
 				);
 
 				const transfer = new VSDataTransfer();
@@ -167,7 +171,7 @@ suite('NewChatInputPasteTarget', () => {
 	}
 
 	test('keeps the attachment and its inline reference consistent across undo and redo', async () => {
-		const pastedText = 'x'.repeat(1200);
+		const pastedText = `${'x'.repeat(1200)}\n`.repeat(10);
 		const snapshots = await runPasteLifecycle(pastedText);
 
 		const attached = { attachments: ['Pasted text #1'], codeIsPreserved: true, sent: [{ name: 'Pasted text #1', text: '#attachment:Pasted text #1' }] };
@@ -188,7 +192,7 @@ suite('NewChatInputPasteTarget', () => {
 	});
 
 	test('removing the attachment takes its inline reference out of the input', async () => {
-		const pastedText = 'x'.repeat(1200);
+		const pastedText = `${'x'.repeat(1200)}\n`.repeat(10);
 		const snapshots = await runPasteLifecycle(pastedText, attachments => {
 			attachments.removeAttachment(attachments.attachments[0].id);
 		});

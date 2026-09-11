@@ -18,6 +18,8 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
@@ -82,9 +84,17 @@ suite('ClaudeFileEditObserver', () => {
 		const { observer, fileService, mapperState, arcReports } = createObserver(disposables);
 		await fileService.writeFile(URI.file('/work/a.txt'), VSBuffer.fromString('before'));
 
+		const clientContext = {
+			clientType: AgentHostClientType.EditorWindow,
+			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+			transportKind: AgentHostTransportKind.MessagePort,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			machineId: 'client-machine-id',
+			devDeviceId: 'client-dev-device-id',
+		};
 		observer.observeAssistant(assistantMessage([
 			{ type: 'tool_use', id: 'tu-1', name: 'Write', input: { file_path: '/work/a.txt', content: 'after' } },
-		]), 'plan');
+		]), 'plan', clientContext);
 
 		// Tool runs (we simulate it here): file content changes.
 		await fileService.writeFile(URI.file('/work/a.txt'), VSBuffer.fromString('after'));
@@ -97,9 +107,11 @@ suite('ClaudeFileEditObserver', () => {
 		assert.deepStrictEqual({
 			cachedType: cached?.type,
 			arcMode: arcReports[0]?.mode,
+			clientContext: arcReports[0]?.clientContext,
 		}, {
 			cachedType: ToolResultContentType.FileEdit,
 			arcMode: 'plan',
+			clientContext,
 		});
 	});
 

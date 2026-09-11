@@ -57,6 +57,8 @@ export interface IDialogOptions {
 	readonly checkboxChecked?: boolean;
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
 	readonly extraClasses?: string[];
+	/** Classes to add to the full-window modal blocker. */
+	readonly modalBlockExtraClasses?: string[];
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
 	readonly renderBody?: (container: HTMLElement) => void;
@@ -128,6 +130,9 @@ export class Dialog extends Disposable {
 
 		// Modal background blocker
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
+		if (options.modalBlockExtraClasses) {
+			this.modalElement.classList.add(...options.modalBlockExtraClasses);
+		}
 		this._register(addStandardDisposableListener(this.modalElement, EventType.CLICK, e => {
 			if (e.target === this.modalElement) {
 				this.element.focus(); // guide users back into the dialog if clicked elsewhere

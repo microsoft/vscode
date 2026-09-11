@@ -8,6 +8,8 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import {
 	IQuickInput,
@@ -143,7 +145,7 @@ suite('BrowserUrlBarWidget', () => {
 		setReplaced(active: boolean): void;
 	}
 
-	function makeHarness(): ITestHarness {
+	function makeHarness(readonly = false): ITestHarness {
 		const picker = new FakeQuickPick<IQuickPickItem>();
 		// Ensure the picker hides before the widget is disposed so the widget's
 		// per-picker DisposableStore (released in onDidHide) doesn't leak.
@@ -176,11 +178,13 @@ suite('BrowserUrlBarWidget', () => {
 		let ensureBrowserFocusCalls = 0;
 		const host: IBrowserUrlBarHost = {
 			get input() { return asInput(inputState); },
+			isReadonly: readonly,
 			ensureBrowserFocus() { ensureBrowserFocusCalls++; },
 		};
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IQuickInputService, quickInputService);
+		instantiationService.stub(IHoverService, NullHoverService);
 
 		const widget = store.add(instantiationService.createInstance(BrowserUrlBarWidget, host));
 		widget.mountContributions([]);
@@ -209,6 +213,30 @@ suite('BrowserUrlBarWidget', () => {
 		} as unknown as BrowserEditorContribution;
 		widget.mountContributions([contribution]);
 	}
+
+	test('readonly URL bar remains focusable without opening the picker', () => {
+		const harness = makeHarness(true);
+
+		harness.widget.openUrlPicker();
+		harness.display.dispatchEvent(new FocusEvent('focus', { relatedTarget: mainWindow.document.body }));
+		harness.display.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+		assert.deepStrictEqual({
+			activeElement: mainWindow.document.activeElement === harness.display,
+			contentEditable: harness.display.contentEditable,
+			ariaReadonly: harness.display.getAttribute('aria-readonly'),
+			ariaLabel: harness.display.getAttribute('aria-label'),
+			pickerVisible: harness.picker.visible,
+			navigated: harness.navigated
+		}, {
+			activeElement: true,
+			contentEditable: 'false',
+			ariaReadonly: 'true',
+			ariaLabel: 'Address. This address cannot be changed because the browser is locked to a file resource.',
+			pickerVisible: false,
+			navigated: []
+		});
+	});
 
 	function mountPickerActionProvider(widget: BrowserUrlBarWidget, provider: IBrowserUrlPickerActionProvider): void {
 		const contribution = {

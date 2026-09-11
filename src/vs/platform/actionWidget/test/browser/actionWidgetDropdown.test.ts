@@ -17,7 +17,8 @@ import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js'
 import { IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
 import { IActionWidgetService } from '../../browser/actionWidget.js';
 import { ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ActionWidgetDropdown, actionWidgetDropdownCloseAnimation, IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../browser/actionWidgetDropdown.js';
-import { MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
+import { ActionWidgetDropdownActionViewItem } from '../../../actions/browser/actionWidgetDropdownActionViewItem.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
 interface ICapturedAction {
@@ -32,6 +33,7 @@ interface ICapturedAction {
 class TestActionWidgetService extends mock<IActionWidgetService>() {
 	override readonly isVisible = false;
 	capturedActions: ICapturedAction[] = [];
+	capturedListOptions: IActionListOptions | undefined;
 	initialFocusItemId: string | undefined;
 
 	override hide(): void { }
@@ -47,6 +49,7 @@ class TestActionWidgetService extends mock<IActionWidgetService>() {
 		accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>,
 		listOptions?: IActionListOptions,
 	): void {
+		this.capturedListOptions = listOptions;
 		this.initialFocusItemId = listOptions?.initialFocusItemId;
 		this.capturedActions = items.flatMap(item => {
 			const action = item.item as (IActionWidgetDropdownAction | undefined);
@@ -59,6 +62,12 @@ class TestActionWidgetService extends mock<IActionWidgetService>() {
 				role: accessibilityProvider?.getRole?.(item),
 			}] : [];
 		});
+	}
+}
+
+class TestActionWidgetDropdownActionViewItem extends ActionWidgetDropdownActionViewItem {
+	refreshTooltip(): void {
+		this.updateTooltip();
 	}
 }
 
@@ -123,6 +132,69 @@ suite('ActionWidgetDropdown', () => {
 				{ id: 'checked', checked: true, checkedState: true, hideIcon: false, iconId: Codicon.check.id, role: 'menuitemcheckbox' },
 			],
 			initialFocusItemId: 'navigation',
+		});
+	});
+
+	test('re-evaluates the list options provider on each open', () => {
+		const actionWidgetService = new TestActionWidgetService();
+		const action1 = toAction({ id: 'a', label: 'A', run: () => { } });
+		let headerText = 'Initial';
+		const dropdown = disposables.add(new ActionWidgetDropdown(
+			mainWindow.document.createElement('div'),
+			{
+				label: 'Test',
+				actions: [action1],
+				listOptionsProvider: { getListOptions: () => ({ headerText }) },
+			},
+			actionWidgetService,
+			new MockKeybindingService(),
+			NullTelemetryService,
+		));
+
+		dropdown.show();
+		const firstHeaderText = actionWidgetService.capturedListOptions?.headerText;
+
+		headerText = 'Updated';
+		dropdown.show();
+		const secondHeaderText = actionWidgetService.capturedListOptions?.headerText;
+
+		assert.deepStrictEqual(
+			{ first: firstHeaderText, second: secondHeaderText },
+			{ first: 'Initial', second: 'Updated' }
+		);
+	});
+
+	test('preserves expanded state when refreshing the action view item tooltip', () => {
+		const action = toAction({ id: 'picker', label: 'Picker', tooltip: 'Initial tooltip', run: () => { } });
+		const actionViewItem = disposables.add(new TestActionWidgetDropdownActionViewItem(
+			action,
+			{ actions: [] },
+			new TestActionWidgetService(),
+			new MockKeybindingService(),
+			new MockContextKeyService(),
+			NullTelemetryService,
+		));
+		const container = mainWindow.document.createElement('div');
+		actionViewItem.render(container);
+		actionViewItem.show();
+		const label = container.querySelector<HTMLElement>('.action-label');
+		assert.ok(label);
+		const beforeRefresh = label.getAttribute('aria-expanded');
+		const ariaLabelBeforeRefresh = label.ariaLabel;
+
+		action.tooltip = 'Updated tooltip';
+		actionViewItem.refreshTooltip();
+
+		assert.deepStrictEqual({
+			beforeRefresh,
+			afterRefresh: label.getAttribute('aria-expanded'),
+			ariaLabelBeforeRefresh,
+			ariaLabelAfterRefresh: label.ariaLabel,
+		}, {
+			beforeRefresh: 'true',
+			afterRefresh: 'true',
+			ariaLabelBeforeRefresh: 'Initial tooltip - Picker',
+			ariaLabelAfterRefresh: 'Updated tooltip - Picker',
 		});
 	});
 });

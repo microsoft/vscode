@@ -9,6 +9,9 @@ import * as path from 'path';
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 
+/** Keeps build I/O comfortably below the Windows CRT's 8192 file-handle limit. */
+export const MAX_CONCURRENT_FILE_OPERATIONS = 256;
+
 const transformOptions: esbuild.TransformOptions = {
 	loader: 'ts',
 	format: 'esm',
@@ -47,6 +50,36 @@ export async function copyFile(srcPath: string, destPath: string): Promise<void>
 	await fs.promises.copyFile(srcPath, destPath);
 }
 
+export async function mapWithConcurrency<T, R>(items: readonly T[], concurrency: number, task: (item: T, index: number) => Promise<R>): Promise<R[]> {
+	if (!Number.isInteger(concurrency) || concurrency < 1) {
+		throw new RangeError('Concurrency must be a positive integer.');
+	}
+
+	const results = new Array<R>(items.length);
+	let nextIndex = 0;
+	let firstError: { value: unknown } | undefined;
+
+	async function worker(): Promise<void> {
+		while (!firstError && nextIndex < items.length) {
+			const index = nextIndex++;
+			try {
+				results[index] = await task(items[index], index);
+			} catch (error) {
+				firstError ??= { value: error };
+			}
+		}
+	}
+
+	const workerCount = Math.min(concurrency, items.length);
+	await Promise.all(Array.from({ length: workerCount }, worker));
+
+	if (firstError) {
+		throw firstError.value;
+	}
+
+	return results;
+}
+
 export async function applyIncrementalClientChanges(repoRoot: string, outDir: string, changedPaths: readonly string[]): Promise<void> {
 	const destinations = new Set<string>();
 	for (const changedPath of changedPaths) {
@@ -56,7 +89,7 @@ export async function applyIncrementalClientChanges(repoRoot: string, outDir: st
 		destinations.add(getOutputRelativePath(changedPath.slice('src/'.length)));
 	}
 
-	const operations = await Promise.all([...destinations].map(async destination => {
+	const operations = await mapWithConcurrency([...destinations], MAX_CONCURRENT_FILE_OPERATIONS, async destination => {
 		const destinationPath = path.join(repoRoot, outDir, destination);
 		const resourceSource = path.join(repoRoot, 'src', destination);
 
@@ -76,7 +109,7 @@ export async function applyIncrementalClientChanges(repoRoot: string, outDir: st
 		}
 
 		return { destinationPath, kind: 'remove' as const };
-	}));
+	});
 
 	for (const operation of operations) {
 		if (operation.kind === 'remove') {
@@ -89,13 +122,13 @@ export async function applyIncrementalClientChanges(repoRoot: string, outDir: st
 		}
 	}
 
-	await Promise.all(operations.map(async operation => {
+	await mapWithConcurrency(operations, MAX_CONCURRENT_FILE_OPERATIONS, async operation => {
 		if (operation.kind === 'copy') {
 			await copyFile(operation.sourcePath, operation.destinationPath);
 		} else if (operation.kind === 'transpile') {
 			await transpileFile(operation.sourcePath, operation.destinationPath);
 		}
-	}));
+	});
 }
 
 export function getOutputRelativePath(sourceRelativePath: string): string {

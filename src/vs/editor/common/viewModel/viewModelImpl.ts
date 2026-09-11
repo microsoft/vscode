@@ -103,6 +103,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 			const wrapOnEscapedLineFeeds = options.get(EditorOption.wrapOnEscapedLineFeeds);
+			const useTwoCellFullwidthCharacters = options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
@@ -115,7 +116,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				wrappingInfo.wrappingColumn,
 				wrappingIndent,
 				wordBreak,
-				wrapOnEscapedLineFeeds
+				wrapOnEscapedLineFeeds,
+				useTwoCellFullwidthCharacters
 			);
 		}
 
@@ -279,8 +281,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 		const wordBreak = options.get(EditorOption.wordBreak);
+		const useTwoCellFullwidthCharacters = options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
-		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent, wordBreak)) {
+		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent, wordBreak, useTwoCellFullwidthCharacters)) {
 			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));

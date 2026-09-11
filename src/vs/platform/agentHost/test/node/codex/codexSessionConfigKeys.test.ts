@@ -9,20 +9,30 @@ import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { CodexSessionConfigKey, collaborationModeKind, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowCodexPermissionsPreset, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode, presetForResolvedPermissions, resolveCodexPermissions, resolveCodexPermissionsPreset } from '../../../node/codex/codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowApprovalPolicy, narrowBoolean, narrowCodexPermissionsPreset, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowSandboxMode, narrowWebSearchMode, presetForResolvedPermissions, resolveCodexPermissions, resolveCodexPermissionsPreset } from '../../../node/codex/codexSessionConfigKeys.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
+import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
+import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
+import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
+import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
+import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	const instantiationService = new TestInstantiationService();
@@ -35,19 +45,36 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 		onDidRootConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
-	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
+	instantiationService.stub(IAgentSdkDownloader, new RecordingAgentSdkDownloader());
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
-	instantiationService.stub(IAgentHostStateManager, disposables.add(new AgentHostStateManager(logService)));
+	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
+	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
+	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
-	return disposables.add(instantiationService.createInstance(CodexAgent));
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
+	agent['_probeAccountAtStartup'] = async () => { };
+	return agent;
 }
 
 suite('codexSessionConfigKeys', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('selects provider-native autonomous session config and respects policy', () => {
+		assert.deepStrictEqual({
+			selected: getCodexAutonomousSessionConfig(false),
+			restricted: getCodexAutonomousSessionConfig(true),
+		}, {
+			selected: { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' },
+			restricted: undefined,
+		});
+	});
 
 	test('narrows valid values and rejects invalid values', () => {
 		assert.deepStrictEqual({
@@ -101,11 +128,11 @@ suite('codexSessionConfigKeys', () => {
 		});
 	});
 
-	test('resolveSessionConfig exposes a single permissions-preset chip', async () => {
+	test('resolveChatConfig exposes a single permissions-preset chip', async () => {
 		const agent = createAgent(disposables);
 
-		const defaulted = await agent.resolveSessionConfig({ config: {} });
-		const fullAccess = await agent.resolveSessionConfig({ config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' } });
+		const defaulted = await agent.resolveChatConfig({ config: {} });
+		const fullAccess = await agent.resolveChatConfig({ config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' } });
 
 		assert.deepStrictEqual({
 			// The visible schema is reduced to Mode + one permissions preset + Permissions.
@@ -125,6 +152,21 @@ suite('codexSessionConfigKeys', () => {
 			defaultedValues: { mode: 'interactive', preset: 'default' },
 			fullAccessPreset: 'full-access',
 		});
+	});
+
+	test('resolveChatConfig describes workspace-scoped default permissions', async () => {
+		const agent = createAgent(disposables);
+		const { schema } = await agent.resolveChatConfig({ config: {} });
+		const permissions = schema.properties[CodexSessionConfigKey.PermissionsPreset];
+
+		assert.deepStrictEqual(permissions.enum?.map((value, index) => ({
+			value,
+			description: permissions.enumDescriptions?.[index],
+		})), [
+			{ value: 'default', description: 'Codex can read and edit workspace files and run routine local commands under the platform sandbox. It asks before using the internet or requesting broader access.' },
+			{ value: 'auto-review', description: 'Same sandboxed access as Default, but approval requests are routed through the auto-reviewer instead of prompting you.' },
+			{ value: 'full-access', description: 'Codex can edit files outside the workspace and use the internet without asking. Use only when you want full machine access.' },
+		]);
 	});
 
 	test('inverts presets and migrates legacy axes without escalating', () => {
@@ -165,13 +207,13 @@ suite('codexSessionConfigKeys', () => {
 		});
 	});
 
-	test('resolveSessionConfig preserves legacy read-only permissions on restore', async () => {
+	test('resolveChatConfig preserves legacy read-only permissions on restore', async () => {
 		const agent = createAgent(disposables);
 		const legacyDefaults = { approvalPolicy: 'on-request' as const, sandboxMode: 'workspace-write' as const };
 
 		// A pre-preset session persisted only the individual axes (read-only)
 		// plus an unrelated non-permission setting.
-		const legacy = await agent.resolveSessionConfig({
+		const legacy = await agent.resolveChatConfig({
 			config: {
 				[CodexSessionConfigKey.SandboxMode]: 'read-only',
 				[CodexSessionConfigKey.ApprovalPolicy]: 'on-request',
@@ -179,7 +221,7 @@ suite('codexSessionConfigKeys', () => {
 			},
 		});
 		// A legacy session whose axes map exactly onto a preset is migrated to it.
-		const migratable = await agent.resolveSessionConfig({
+		const migratable = await agent.resolveChatConfig({
 			config: {
 				[CodexSessionConfigKey.SandboxMode]: 'danger-full-access',
 				[CodexSessionConfigKey.ApprovalPolicy]: 'never',

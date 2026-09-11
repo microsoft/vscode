@@ -41,7 +41,8 @@ use super::CommandContext;
 /// standalone-only restriction does not apply here.
 pub async fn agent_relay(ctx: CommandContext, args: AgentRelayArgs) -> Result<i32, AnyError> {
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
-	let endpoints = agent_discovery::discover_live_endpoints(&ctx, args.user_data_dir.as_deref());
+	let endpoints =
+		agent_discovery::discover_live_endpoints(&ctx, args.user_data_dir.as_deref()).await;
 
 	let target = select_target(&endpoints, &args.instance_id)?;
 

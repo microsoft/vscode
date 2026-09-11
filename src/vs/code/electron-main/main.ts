@@ -545,7 +545,7 @@ class CodeMain {
 	}
 
 	private async checkInnoSetupMutex(productService: IProductService, logService: ILogService): Promise<boolean> {
-		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate && isInnoSetupInstall())) {
+		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate && isInnoSetupInstall(productService.target))) {
 			return false;
 		}
 

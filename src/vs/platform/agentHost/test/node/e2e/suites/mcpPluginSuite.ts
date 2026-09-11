@@ -12,7 +12,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { McpServerStatus } from '../../../../common/state/protocol/state.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
@@ -180,7 +180,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			uri: pluginUri,
 			name: pluginName,
 			nonce: '1',
-			enabled: true,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 		};
 		context.client.dispatch({
 			channel: sessionUri,
@@ -270,26 +270,26 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 		context.client.dispatch({
 			channel: sessionUri,
 			clientSeq: 10,
-			action: { type: ActionType.SessionCustomizationToggled, id: plugin.id, enabled: false },
+			action: { type: ActionType.SessionCustomizationToggled, id: plugin.id, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
 		});
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'session/customizationToggled')
 			&& getActionEnvelope(n).channel === sessionUri,
 			30_000,
 		);
-		assert.strictEqual((await pluginState(sessionUri, pluginUri)).enabled, false);
+		assert.deepStrictEqual((await pluginState(sessionUri, pluginUri)).enablement, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
 
 		context.client.dispatch({
 			channel: sessionUri,
 			clientSeq: 11,
-			action: { type: ActionType.SessionCustomizationToggled, id: plugin.id, enabled: true },
+			action: { type: ActionType.SessionCustomizationToggled, id: plugin.id, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 		});
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'session/customizationToggled')
 			&& getActionEnvelope(n).channel === sessionUri,
 			30_000,
 		);
-		assert.strictEqual((await pluginState(sessionUri, pluginUri)).enabled, true);
+		assert.deepStrictEqual((await pluginState(sessionUri, pluginUri)).enablement, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
 	});
 
 	providerHostOnlyTest(context, 'removing the active client removes its plugin customization', async function () {
@@ -314,7 +314,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				throw new Error('Plugin customization has not been removed');
 			}
 		}, 100, 100);
-	}, config.provider !== 'codex');
+	});
 
 	const modelBackedEnabled = config.provider === 'copilotcli';
 	if (modelBackedEnabled) {

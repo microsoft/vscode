@@ -4,12 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IPromptChoice, IPromptOptions, Severity } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
@@ -17,7 +26,9 @@ import { GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.j
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
+import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
+import { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
+import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG } from '../../common/sessionLifecycleSettings.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from '../../browser/githubReferenceList.js';
 import { IGitHubService } from '../../browser/githubService.js';
 import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -26,10 +37,10 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 
 suite('GitHubReferenceList', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('updates rows in place so focus is preserved', () => {
-		const list = new GitHubReferenceList<IGitHubReferenceListEntry>([{
+		const list = disposables.add(new GitHubReferenceList<IGitHubReferenceListEntry>([{
 			number: 12345,
 			title: undefined,
 			icon: Codicon.gitPullRequest,
@@ -39,7 +50,7 @@ suite('GitHubReferenceList', () => {
 			title: 'Short number',
 			icon: Codicon.gitPullRequest,
 			ariaLabel: 'Pull Request #1: Short number',
-		}], () => { });
+		}], () => { }));
 		document.body.appendChild(list.element);
 
 		try {
@@ -75,9 +86,123 @@ suite('GitHubReferenceList', () => {
 			list.element.remove();
 		}
 	});
+
+	test('renders the entry actions in an action bar that does not select the row', () => {
+		const events: string[] = [];
+		const copyAction = (target: string) => toAction({
+			id: 'test.copyLink',
+			label: 'Copy Pull Request Link',
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => events.push(`copy:${target}`),
+		});
+		const list = disposables.add(new GitHubReferenceList<IGitHubReferenceListEntry>([{
+			number: 1,
+			title: 'Fix the thing',
+			icon: Codicon.gitPullRequest,
+			toolbarActions: [copyAction('first')],
+		}], () => events.push('select')));
+		document.body.appendChild(list.element);
+
+		try {
+			const actionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
+			actionLabel.focus();
+
+			// A state update keeps the focused action, but it runs against the latest entry.
+			list.update([{
+				number: 1,
+				title: 'Fix the thing',
+				icon: Codicon.gitPullRequestDraft,
+				toolbarActions: [copyAction('second')],
+			}]);
+			actionLabel.click();
+
+			assert.deepStrictEqual({
+				events,
+				sameAction: list.element.querySelector('.sessions-github-reference-list-entry-actions .action-label') === actionLabel,
+				focused: document.activeElement === actionLabel,
+				ariaLabel: actionLabel.getAttribute('aria-label'),
+				iconClasses: [...actionLabel.classList],
+			}, {
+				events: ['copy:second'],
+				sameAction: true,
+				focused: true,
+				ariaLabel: 'Copy Pull Request Link',
+				iconClasses: ['action-label', 'codicon', 'codicon-copy'],
+			});
+		} finally {
+			list.element.remove();
+		}
+	});
+
+	test('row action toolbar preserves tooltip/enablement/checked presentation', () => {
+		const events: string[] = [];
+		const copyAction = (target: string, enabled: boolean, checked: boolean, tooltip: string) => toAction({
+			id: 'test.copyLink',
+			label: 'Copy Pull Request Link',
+			tooltip,
+			enabled,
+			checked,
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => events.push(`copy:${target}`),
+		});
+		const list = disposables.add(new GitHubReferenceList<IGitHubReferenceListEntry>([{
+			number: 1,
+			title: 'Fix the thing',
+			icon: Codicon.gitPullRequest,
+			toolbarActions: [copyAction('first', false, false, 'Cannot copy')],
+		}], () => events.push('select')));
+		document.body.appendChild(list.element);
+
+		try {
+			const actionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
+			actionLabel.click();
+			const beforeUpdate = {
+				events: [...events],
+				ariaDisabled: actionLabel.getAttribute('aria-disabled'),
+				ariaLabel: actionLabel.getAttribute('aria-label'),
+				checkedClass: actionLabel.classList.contains('checked'),
+			};
+
+			list.update([{
+				number: 1,
+				title: 'Fix the thing',
+				icon: Codicon.gitPullRequest,
+				toolbarActions: [copyAction('second', true, true, 'Copy pull request URL')],
+			}]);
+
+			const updatedActionLabel = list.element.querySelector<HTMLElement>('.sessions-github-reference-list-entry-actions .action-label')!;
+			updatedActionLabel.click();
+			assert.deepStrictEqual({
+				beforeUpdate,
+				events,
+				ariaDisabled: updatedActionLabel.getAttribute('aria-disabled'),
+				ariaLabel: updatedActionLabel.getAttribute('aria-label'),
+				checkedClass: updatedActionLabel.classList.contains('checked'),
+			}, {
+				beforeUpdate: {
+					events: [],
+					ariaDisabled: 'true',
+					ariaLabel: 'Cannot copy',
+					checkedClass: false,
+				},
+				events: ['copy:second'],
+				ariaDisabled: null,
+				ariaLabel: 'Copy pull request URL',
+				checkedClass: true,
+			});
+		} finally {
+			list.element.remove();
+		}
+	});
 });
 
 suite('GitHubPullRequestPollingContribution', () => {
+
+	// Capture registrations before configuration registry tests clear the global registry.
+	const automaticCleanupSettings = Object.entries(Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties())
+		.filter(([, property]) => property.tags?.includes(AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG))
+		.map(([key]) => key)
+		.sort();
 
 	const store = new DisposableStore();
 	const logService = new NullLogService();
@@ -85,6 +210,10 @@ suite('GitHubPullRequestPollingContribution', () => {
 	let sessionsService: ISessionsService;
 	let gitHubService: TestGitHubService;
 	let activeSession: ISettableObservable<IActiveSession | undefined>;
+	let configurationService: RecordingConfigurationService;
+	let storageService: TestStorageService;
+	let notificationService: RecordingNotificationService;
+	let commandService: ICommandService;
 
 	setup(() => {
 		sessionsManagementService = new TestSessionsManagementService(store);
@@ -93,16 +222,34 @@ suite('GitHubPullRequestPollingContribution', () => {
 			override readonly activeSession = activeSession;
 		};
 		gitHubService = new TestGitHubService();
+		configurationService = new RecordingConfigurationService({
+			[AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING]: 0,
+			[AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING]: 0,
+		});
+		storageService = store.add(new TestStorageService());
+		notificationService = new RecordingNotificationService();
+		commandService = new class extends mock<ICommandService>() {
+			override executeCommand(): Promise<undefined> {
+				return Promise.resolve(undefined);
+			}
+		};
 	});
 
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('tags only the two automatic cleanup settings for the settings query', () => {
+		assert.deepStrictEqual({ query: AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, settings: automaticCleanupSettings }, {
+			query: '@tag:agentSessionCleanup',
+			settings: [AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING],
+		});
+	});
+
 	test('starts polling existing and added pull request sessions', () => {
 		const existingSession = sessionsManagementService.addSession('existing', makeGitHubInfo(1));
 
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService, logService));
+		store.add(createContribution());
 
 		const addedSession = sessionsManagementService.addSession('added', makeGitHubInfo(2));
 		sessionsManagementService.fireSessionsChanged({ added: [addedSession] });
@@ -114,9 +261,44 @@ suite('GitHubPullRequestPollingContribution', () => {
 		assert.strictEqual(existingSession.isArchived.get(), false);
 	});
 
+	test('polls every pull request associated with a session', () => {
+		const gitHubInfo = makeGitHubInfo(2);
+		const session = sessionsManagementService.addSession('session', {
+			...gitHubInfo,
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+
+		store.add(createContribution());
+
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+			'owner/repo/2': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+		});
+		assert.strictEqual(session.isArchived.get(), false);
+	});
+
+	test('rebinds polling when a session is replaced under the same session id', () => {
+		const provisionalSession = sessionsManagementService.addSession('session', makeGitHubInfo(1));
+		store.add(createContribution());
+
+		const committedSession = sessionsManagementService.addSession('session', makeGitHubInfo(2));
+		sessionsManagementService.fireSessionsChanged({ changed: [committedSession] });
+		sessionsManagementService.fireSessionsChanged({ removed: [provisionalSession] });
+
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
+			'owner/repo/2': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+		});
+	});
+
 	test('stops polling when a session is archived, then resumes when unarchived', () => {
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService, logService));
+		store.add(createContribution());
 
 		sessionsManagementService.setArchived(session, true);
 		sessionsManagementService.fireSessionsChanged({ changed: [session] });
@@ -135,7 +317,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 
 	test('does not poll archived sessions until they are unarchived', () => {
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1), true);
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService, logService));
+		store.add(createContribution());
 
 		assert.deepStrictEqual(gitHubService.snapshot(), {});
 
@@ -149,7 +331,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 
 	test('stops polling tracked pull requests when disposed', () => {
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		const contribution = store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService, logService));
+		const contribution = store.add(createContribution());
 
 		contribution.dispose();
 
@@ -161,7 +343,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 
 	test('polls CI checks and review threads once an open pull request resolves', () => {
 		sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService, logService));
+		store.add(createContribution());
 
 		// Until the PR details load, only the PR model is polled.
 		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), { ci: {}, reviewThreads: {} });
@@ -176,7 +358,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 
 	test('does not poll CI checks or review threads for draft pull requests', () => {
 		sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService, logService));
+		store.add(createContribution());
 
 		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: true, headSha: 'sha1' });
 
@@ -187,7 +369,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 		// Mirrors the agent-host provider, whose `gitHubInfo` initially has no PR
 		// number (it is resolved asynchronously via findPullRequestNumberByHeadBranch).
 		const session = sessionsManagementService.addSession('async', { owner: 'owner', repo: 'repo' });
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService, logService));
+		store.add(createContribution());
 
 		// No PR number yet → nothing is polled.
 		assert.deepStrictEqual(gitHubService.snapshot(), {});
@@ -202,7 +384,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 
 	test('stops polling a merged pull request unless it is the active session', () => {
 		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService, sessionsService, logService));
+		store.add(createContribution());
 
 		// Open PR → polling.
 		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: false, headSha: 'sha1' });
@@ -223,6 +405,75 @@ suite('GitHubPullRequestPollingContribution', () => {
 			'owner/repo/1': { startPollingCalls: 2, stopPollingCalls: 1, disposeCalls: 0 },
 		});
 	});
+
+	test('prompts once when disabled and an inactive merged-pull-request session is eligible', async () => {
+		const first = sessionsManagementService.addSession('first', makeGitHubInfo(1));
+		first.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
+		const second = sessionsManagementService.addSession('second', makeGitHubInfo(2));
+		second.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
+		store.add(createContribution());
+
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha1' });
+		gitHubService.setPullRequestDetails('owner', 'repo', 2, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha2' });
+
+		assert.deepStrictEqual({
+			promptCount: notificationService.prompts.length,
+			choiceLabels: notificationService.prompts[0]?.choices.map(choice => choice.label),
+		}, {
+			promptCount: 1,
+			choiceLabels: ['Turn On Session Cleanup', 'Open Settings'],
+		});
+
+		await notificationService.prompts[0]?.choices[0].run();
+		assert.deepStrictEqual(configurationService.updates, [
+			{ key: AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, value: 15 },
+			{ key: AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, value: 15 },
+		]);
+	});
+
+	test('does not prompt when either cleanup setting is enabled', async () => {
+		await configurationService.setUserConfiguration(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, 13);
+		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
+		session.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
+		store.add(createContribution());
+
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha1' });
+
+		assert.strictEqual(notificationService.prompts.length, 0);
+	});
+
+	test('does not prompt when only a non-designated pull request has merged', () => {
+		const gitHubInfo = makeGitHubInfo(1);
+		const session = sessionsManagementService.addSession('session', {
+			...gitHubInfo,
+			pullRequests: [1, 2].map(number => ({
+				owner: 'owner',
+				repo: 'repo',
+				number,
+				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+			})),
+		});
+		session.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
+		store.add(createContribution());
+
+		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: false, headSha: 'sha1' });
+		gitHubService.setPullRequestDetails('owner', 'repo', 2, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha2' });
+
+		assert.strictEqual(notificationService.prompts.length, 0);
+	});
+
+	function createContribution(): GitHubPullRequestPollingContribution {
+		return new GitHubPullRequestPollingContribution(
+			gitHubService,
+			sessionsManagementService,
+			sessionsService,
+			configurationService,
+			storageService,
+			notificationService,
+			commandService,
+			logService,
+		);
+	}
 });
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -231,14 +482,13 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	private readonly _sessions = new Map<string, ISession>();
 
 	override readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
-
 	constructor(disposables: DisposableStore) {
 		super();
 		this._onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
 		this.onDidChangeSessions = this._onDidChangeSessions.event;
 	}
 
-	addSession(id: string, gitHubInfo: IGitHubInfo | undefined, archived = false): ISession {
+	addSession(id: string, gitHubInfo: IGitHubInfo | undefined, archived = false): TestSession {
 		const session = new TestSession(id, gitHubInfo, archived);
 		this._sessions.set(session.sessionId, session);
 		return session;
@@ -271,6 +521,26 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 			removed: event?.removed ?? [],
 			changed: event?.changed ?? [],
 		});
+	}
+}
+
+class RecordingNotificationService extends TestNotificationService {
+
+	readonly prompts: { readonly severity: Severity; readonly message: string; readonly choices: readonly IPromptChoice[]; readonly options: IPromptOptions | undefined }[] = [];
+
+	override prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
+		this.prompts.push({ severity, message, choices, options });
+		return super.prompt(severity, message, choices, options);
+	}
+}
+
+class RecordingConfigurationService extends TestConfigurationService {
+
+	readonly updates: { readonly key: string; readonly value: unknown }[] = [];
+
+	override updateValue(key: string, value: unknown): Promise<void> {
+		this.updates.push({ key, value });
+		return this.setUserConfiguration(key, value);
 	}
 }
 
@@ -342,6 +612,7 @@ class TestSession implements ISession {
 			changes: this.changes,
 			checkpoints,
 			modelId: this.modelId,
+			modelSource: constObservable(undefined),
 			mode: this.mode,
 			isArchived: this.isArchived,
 			isRead: this.isRead,
