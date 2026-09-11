@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isMousePositionWithinElement, isTriggerModifierPressed, shouldShowHover } from '../../browser/hoverUtils.js';
+import { isMaybeChoosingColor, isMousePositionWithinElement, isTriggerModifierPressed, shouldShowHover } from '../../browser/hoverUtils.js';
 import { IEditorMouseEvent } from '../../../../browser/editorBrowser.js';
 
 suite('Hover Utils', () => {
@@ -219,6 +219,25 @@ suite('Hover Utils', () => {
 		test('returns false with metaKey pressed when multiCursorModifier is metaKey', () => {
 			const event = createModifierEvent(false, false, true);
 			assert.strictEqual(isTriggerModifierPressed('metaKey', event), false);
+		});
+	});
+
+	suite('isMaybeChoosingColor', () => {
+
+		test('returns true when color picker is visible and mouse is down', () => {
+			assert.strictEqual(isMaybeChoosingColor(true, true), true);
+		});
+
+		test('returns false when color picker is visible but mouse is not down', () => {
+			assert.strictEqual(isMaybeChoosingColor(true, false), false);
+		});
+
+		test('returns false when mouse is down but color picker is not visible', () => {
+			assert.strictEqual(isMaybeChoosingColor(false, true), false);
+		});
+
+		test('returns false when color picker is not visible and mouse is not down', () => {
+			assert.strictEqual(isMaybeChoosingColor(false, false), false);
 		});
 	});
 });
