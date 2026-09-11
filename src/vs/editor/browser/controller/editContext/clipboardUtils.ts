@@ -126,6 +126,15 @@ interface InMemoryClipboardMetadata {
 	data: ClipboardStoredMetadata;
 }
 
+/**
+ * Strip null characters from text before writing to the clipboard.
+ * The system clipboard on Windows uses null-terminated strings, which
+ * causes text to be truncated at the first null character (see #249508).
+ */
+function stripNullCharacters(text: string): string {
+	return text.replaceAll(String.fromCharCode(0), '');
+}
+
 const ClipboardEventUtils = {
 
 	getTextData(clipboardData: IReadableClipboardData | DataTransfer): [string, ClipboardStoredMetadata | null] {
@@ -151,7 +160,7 @@ const ClipboardEventUtils = {
 	},
 
 	setTextData(clipboardData: IWritableClipboardData, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
-		clipboardData.setData(Mimes.text, text);
+		clipboardData.setData(Mimes.text, stripNullCharacters(text));
 		if (typeof html === 'string') {
 			clipboardData.setData('text/html', html);
 		}
