@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
-import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENABLED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENABLED, AGENTS_VOICE_RECONNECTING } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 const VoiceModeButtonShown = ContextKeyExpr.notEquals('config.agents.voice.showButton', false);
@@ -19,7 +19,7 @@ const VisibleDictation = ContextKeyExpr.and(DictationConfigured, DictationButton
  * place when it would host at least two cells; otherwise the single standalone
  * control for the lone available mode is clearer:
  *   - both dictation and Voice Mode are enabled (dictation + voice-connect cells), or
- *   - Voice Mode is connected, so the voice-connection + listen/mute cells render.
+ *   - Voice Mode is connected or reconnecting, so its active controls remain visible.
  * In every other single-mode case the standalone controls (gated on the negation
  * below) take over.
  */
@@ -30,6 +30,7 @@ export const SegmentedVoiceInputModePillActive: ContextKeyExpression = ContextKe
 	ContextKeyExpr.or(
 		VisibleDictation,
 		AGENTS_VOICE_CONNECTED,
+		AGENTS_VOICE_RECONNECTING,
 	),
 )!;
 

@@ -25,7 +25,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../pla
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENTITLED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_RECONNECTING } from '../../../agentsVoice/common/agentsVoice.js';
 import { IMicCaptureService } from '../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../browser/voiceClient/voiceSessionController.js';
@@ -109,6 +109,7 @@ suite('VoiceInputModeService', () => {
 			'config.dictation.showButton': true,
 			'config.agents.voice.handsFree': true,
 			[AGENTS_VOICE_CONNECTED.key]: false,
+			[AGENTS_VOICE_RECONNECTING.key]: false,
 		};
 		const matches = (expression: ContextKeyExpression) => expression.evaluate({
 			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
@@ -122,6 +123,11 @@ suite('VoiceInputModeService', () => {
 		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), true);
 
 		values[AGENTS_VOICE_CONNECTED.key] = true;
+		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), true);
+		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), false);
+
+		values[AGENTS_VOICE_CONNECTED.key] = false;
+		values[AGENTS_VOICE_RECONNECTING.key] = true;
 		assert.strictEqual(matches(SegmentedVoiceInputModePillActive), true);
 		assert.strictEqual(matches(SegmentedVoiceInputModePillInactive), false);
 	});

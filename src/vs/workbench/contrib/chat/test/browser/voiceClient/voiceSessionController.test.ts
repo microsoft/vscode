@@ -310,6 +310,7 @@ class InternalTestChatEntitlementService extends MutableTestChatEntitlementServi
 class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 	readonly playedAudio: string[] = [];
 	stopCount = 0;
+	closeCount = 0;
 	private playing = false;
 	private readonly playbackStoppedEmitter = new Emitter<void>();
 
@@ -337,7 +338,9 @@ class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 		}
 	}
 	override getLastPlayedSamples(): Float32Array | null { return null; }
-	override closeContext(): void { }
+	override closeContext(): void {
+		this.closeCount++;
+	}
 	dispose(): void {
 		this.playbackStoppedEmitter.dispose();
 	}
@@ -6030,6 +6033,24 @@ suite('VoiceSessionController', () => {
 
 		assert.ok(!controller.statusText.get().startsWith('Reconnecting'), controller.statusText.get());
 		assert.strictEqual(controller.isReconnecting.get(), false);
+	});
+
+	test('transient reconnect preserves the gesture-unlocked playback context', () => {
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(new TestVoiceClientService(), ttsPlaybackService);
+		const onConnectionLost = Reflect.get(controller, '_onConnectionLost') as () => void;
+
+		onConnectionLost.call(controller);
+
+		assert.deepStrictEqual({
+			stopCount: ttsPlaybackService.stopCount,
+			closeCount: ttsPlaybackService.closeCount,
+			reconnecting: controller.isReconnecting.get(),
+		}, {
+			stopCount: 1,
+			closeCount: 0,
+			reconnecting: true,
+		});
 	});
 
 	test('does not offer an action when no configurable backend URL is available', () => {
