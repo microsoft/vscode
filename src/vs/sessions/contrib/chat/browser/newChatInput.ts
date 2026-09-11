@@ -523,7 +523,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			canSendRequest: IObservable<boolean>;
 			canSubmitWithoutSession?: IObservable<boolean>;
 			hasAdditionalSendContent?: IObservable<boolean>;
-			loading: IObservable<boolean>;
 			historyKey?: IObservable<string | undefined>;
 			minEditorHeight?: number;
 			placeholder?: string;
@@ -611,8 +610,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(autorun(reader => {
 			this._canSendRequest.read(reader);
 			this.options.hasAdditionalSendContent?.read(reader);
-			const isLoading = this.options.loading.read(reader);
-			this._setLoadingSpinnerVisible(isLoading);
 			this._updateSendButtonState();
 		}));
 	}
@@ -1254,7 +1251,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			// Hold Alt while clicking Send to start the session in the background.
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}
-		this._setLoadingSpinnerVisible(this.options.loading.get());
 		updateVoiceInputActionBorder();
 
 		this._primaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.primaryPicker', configContainer, {
