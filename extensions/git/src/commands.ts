@@ -4817,6 +4817,29 @@ export class CommandCenter {
 		};
 	}
 
+
+	@command('git.timeline.openDiffWithWorking', { repository: false })
+	async timelineOpenDiffWithWorking(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
+			return;
+		}
+
+		const basename = path.basename(uri.fsPath);
+		const title = l10n.t('{0} ({1}) ↔ {0} (Working Tree)', basename, item.shortRef);
+
+		await commands.executeCommand(
+			'vscode.diff',
+			toGitUri(uri, item.ref),
+			uri,
+			title,
+			{
+				preserveFocus: true,
+				preview: true,
+				viewColumn: ViewColumn.Active
+			} satisfies TextDocumentShowOptions,
+		);
+	}
+
 	@command('git.timeline.viewCommit', { repository: false })
 	async timelineViewCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
 		if (!GitTimelineItem.is(item)) {
