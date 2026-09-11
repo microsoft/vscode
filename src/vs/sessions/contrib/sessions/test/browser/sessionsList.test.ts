@@ -1202,6 +1202,34 @@ suite('Sessions - SessionsList', () => {
 				stored: false,
 			});
 		});
+
+		test('keeps an empty group visible while it is being renamed', () => {
+			const emptyGroup: ISessionGroup = { id: 'empty', name: 'Empty Group', createdAt: 1 };
+			const harness = createListHarness(disposables, [], { groups: [emptyGroup] });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.setShowEmptyGroups(false);
+
+			list.beginRenameGroup(emptyGroup.id);
+			const input = container.querySelector<HTMLInputElement>('.session-group-input input');
+			const renderedWhileEditing = !!container.querySelector('.session-group');
+			input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				renderedWhileEditing,
+				hasRenameInput: !!input,
+				renderedAfterEditing: !!container.querySelector('.session-group'),
+			}, {
+				renderedWhileEditing: true,
+				hasRenameInput: true,
+				renderedAfterEditing: false,
+			});
+		});
 	});
 
 	suite('dragging a grouped session out of its group', () => {
