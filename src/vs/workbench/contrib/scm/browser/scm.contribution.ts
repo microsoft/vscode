@@ -43,6 +43,8 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
 import { SCMInputContextKeys } from './scmInput.js';
 import product from '../../../../platform/product/common/product.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -102,6 +104,26 @@ viewsRegistry.registerViews([{
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
 	containerIcon: sourceControlViewIcon
 }], viewContainer);
+
+CommandsRegistry.registerCommand('_workbench.scm.revealHistoryItem', async (
+	accessor,
+	repositoryUri: URI,
+	historyItemId: string,
+): Promise<boolean> => {
+	if (!URI.isUri(repositoryUri) || typeof historyItemId !== 'string') {
+		return false;
+	}
+
+	const scmService = accessor.get(ISCMService);
+	const repository = [...scmService.repositories]
+		.find(candidate => candidate.provider.rootUri && isEqual(candidate.provider.rootUri, repositoryUri));
+	if (!repository) {
+		return false;
+	}
+
+	const view = await accessor.get(IViewsService).openView<SCMHistoryViewPane>(HISTORY_VIEW_PANE_ID, true);
+	return view?.revealHistoryItem(repository, historyItemId) ?? false;
+});
 
 viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
