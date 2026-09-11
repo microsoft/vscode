@@ -127,11 +127,6 @@
 	transform: none;
 }
 
-.monaco-editor .diff-hidden-lines-disclosure:not(.dragging) .top:hover,
-.monaco-editor .diff-hidden-lines-disclosure:not(.dragging) .bottom:hover {
-	background-color: transparent;
-}
-
 .monaco-editor .diff-hidden-lines-disclosure .center {
 	position: relative;
 	box-sizing: border-box;
