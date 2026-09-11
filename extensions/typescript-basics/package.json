@@ -73,7 +73,13 @@
           "keyword.operator.bitwise.shift",
           "meta.brace.angle",
           "punctuation.definition.tag",
-          "keyword.operator.assignment.compound.bitwise.ts"
+          "keyword.operator.assignment.compound.bitwise.ts",
+          "punctuation.definition.bracket.curly.begin.jsdoc",
+          "punctuation.definition.bracket.curly.end.jsdoc",
+          "punctuation.definition.bracket.angle.begin.jsdoc",
+          "punctuation.definition.bracket.angle.end.jsdoc",
+          "punctuation.definition.bracket.square.begin.jsdoc",
+          "punctuation.definition.bracket.square.end.jsdoc"
         ],
         "tokenTypes": {
           "punctuation.definition.template-expression": "other",
@@ -92,7 +98,13 @@
           "storage.type.function.arrow",
           "keyword.operator.bitwise.shift",
           "punctuation.definition.tag",
-          "keyword.operator.assignment.compound.bitwise.ts"
+          "keyword.operator.assignment.compound.bitwise.ts",
+          "punctuation.definition.bracket.curly.begin.jsdoc",
+          "punctuation.definition.bracket.curly.end.jsdoc",
+          "punctuation.definition.bracket.angle.begin.jsdoc",
+          "punctuation.definition.bracket.angle.end.jsdoc",
+          "punctuation.definition.bracket.square.begin.jsdoc",
+          "punctuation.definition.bracket.square.end.jsdoc"
         ],
         "embeddedLanguages": {
           "meta.tag.tsx": "jsx-tags",
