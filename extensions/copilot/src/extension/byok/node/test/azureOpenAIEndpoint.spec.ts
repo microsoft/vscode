@@ -57,6 +57,16 @@ describe('AzureOpenAIEndpoint', () => {
 		disposables.clear();
 	});
 
+	it('preserves Entra authentication when overriding the prompt budget', () => {
+		const endpoint = instaService.createInstance(AzureOpenAIEndpoint, modelMetadata, 'entra-token', 'https://example.openai.azure.com/v1/chat/completions');
+		const clone = endpoint.cloneWithTokenOverride(64000);
+		expect(clone.modelMaxPromptTokens).toBe(64000);
+		expect(endpoint.modelMaxPromptTokens).toBe(128000);
+		expect(clone.maxOutputTokens).toBe(endpoint.maxOutputTokens);
+		expect(clone.getExtraHeaders!()).toMatchObject({ Authorization: 'Bearer entra-token' });
+		expect(clone.getExtraHeaders!()).not.toHaveProperty('api-key');
+	});
+
 	describe('getExtraHeaders', () => {
 		it('should use Authorization header with Bearer token for Entra ID authentication', () => {
 			const entraToken = 'test-entra-token-abc123';

@@ -61,6 +61,17 @@ describe('OpenRouterEndpoint', () => {
 			};
 		});
 
+		it('preserves native Messages routing when overriding the prompt budget', () => {
+			anthropicMetadata.capabilities.limits!.max_prompt_tokens = 128000;
+			const endpoint = instaService.createInstance(OpenRouterEndpoint, anthropicMetadata, 'key', 'https://openrouter.ai/api/v1/messages');
+			const clone = endpoint.cloneWithTokenOverride(64000);
+			expect(clone.modelMaxPromptTokens).toBe(64000);
+			expect(endpoint.modelMaxPromptTokens).toBe(128000);
+			expect(clone.apiType).toBe('messages');
+			expect(clone.urlOrRequestMetadata).toBe(endpoint.urlOrRequestMetadata);
+			expect(clone.getExtraHeaders()).toEqual(endpoint.getExtraHeaders());
+		});
+
 		it('should use Messages API when supported_endpoints includes Messages', () => {
 			const endpoint = instaService.createInstance(OpenRouterEndpoint,
 				anthropicMetadata,

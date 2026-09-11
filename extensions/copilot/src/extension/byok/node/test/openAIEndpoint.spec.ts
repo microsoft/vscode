@@ -136,6 +136,38 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 		vi.restoreAllMocks();
 	});
 
+	it.each([
+		{ marker: 'opaque_id', zdr: false, incremental: false },
+		{ marker: 'resp_valid', zdr: false, incremental: true },
+		{ marker: 'resp_valid', zdr: true, incremental: false },
+	])('preserves history before selecting Responses state $marker with ZDR $zdr', ({ marker, zdr, incremental }) => {
+		const endpoint = instaService.createInstance(OpenAIEndpoint, {
+			...modelMetadata, zeroDataRetentionEnabled: zdr,
+		}, 'test-key', 'https://example.test/v1/responses');
+		const options = createTestOptions([
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first question' }] },
+			createStatefulMarkerMessage(modelMetadata.id, marker),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second question' }] },
+		]);
+		const before = structuredClone(options);
+		const body = endpoint.createRequestBody(options);
+		expect(body.previous_response_id).toBe(incremental ? marker : undefined);
+		expect(JSON.stringify(body.input).includes('first question')).toBe(!incremental);
+		expect(JSON.stringify(body.input)).toContain('second question');
+		expect(options).toEqual(before);
+	});
+
+	it('overrides only the cloned prompt budget, including larger temporary budgets', () => {
+		modelMetadata.capabilities.limits!.max_prompt_tokens = 128000;
+		const endpoint = instaService.createInstance(OpenAIEndpoint, modelMetadata, 'key', 'https://example.test/v1/responses');
+		const clone = endpoint.cloneWithTokenOverride(64000);
+		expect(clone.modelMaxPromptTokens).toBe(64000);
+		expect(endpoint.modelMaxPromptTokens).toBe(128000);
+		expect(clone.maxOutputTokens).toBe(endpoint.maxOutputTokens);
+		expect(clone.getExtraHeaders!()).toEqual(endpoint.getExtraHeaders());
+		expect(endpoint.cloneWithTokenOverride(256000).modelMaxPromptTokens).toBe(256000);
+	});
+
 	it.each(['fake-secret\u200bvalue', 'fake-secret\nvalue'])('rejects invalid credential headers without logging their values', invalidValue => {
 		const log = accessor.get(ILogService);
 		const warnings = vi.spyOn(log, 'warn');

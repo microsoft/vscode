@@ -161,6 +161,17 @@ export class OpenRouterEndpoint extends OpenAIEndpoint {
 		super(modelMetadata, apiKey, modelUrl, domainService, chatMLFetcher, tokenizerProvider, instantiationService, configurationService, expService, chatWebSocketService, logService);
 	}
 
+	override cloneWithTokenOverride(modelMaxPromptTokens: number): OpenRouterEndpoint {
+		const newModelInfo = {
+			...this.modelMetadata,
+			capabilities: {
+				...this.modelMetadata.capabilities,
+				limits: { ...this.modelMetadata.capabilities.limits, max_prompt_tokens: modelMaxPromptTokens },
+			},
+		};
+		return this.instantiationService.createInstance(OpenRouterEndpoint, newModelInfo, this._apiKey, this._modelUrl);
+	}
+
 	/**
 	 * Enable the Messages API path for Anthropic models. This bypasses the
 	 * experiment flag check in the base class because BYOK models are always

@@ -9,6 +9,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { isKimiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
+import { getStatefulMarkerAndIndex } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { ChatEndpoint, normalizeKimiToolCallIds } from '../../../platform/endpoint/node/chatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAiFunctionTool } from '../../../platform/networking/common/fetch';
@@ -269,7 +270,10 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
 			// When ZDR is on the server refuses to retain responses, so we must
 			// not chain via `previous_response_id` and must not ask it to `store`.
-			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr;
+			const marker = getStatefulMarkerAndIndex(this.model, options.messages);
+			if (options.ignoreStatefulMarker || zdr || (marker && !marker.statefulMarker.startsWith('resp_'))) {
+				options = { ...options, ignoreStatefulMarker: true };
+			}
 			const body = super.createRequestBody(options);
 			body.store = !zdr;
 			body.n = undefined;
@@ -277,10 +281,6 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			if (!this.modelMetadata.capabilities.supports.thinking) {
 				body.reasoning = undefined;
 				body.include = undefined;
-			}
-			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || zdr)) {
-				// Don't use a response ID from CAPI or when zero data retention is enabled
-				body.previous_response_id = undefined;
 			}
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);
@@ -421,7 +421,13 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	}
 
 	override cloneWithTokenOverride(modelMaxPromptTokens: number): IChatEndpoint {
-		const newModelInfo = { ...this.modelMetadata, maxInputTokens: modelMaxPromptTokens };
+		const newModelInfo = {
+			...this.modelMetadata,
+			capabilities: {
+				...this.modelMetadata.capabilities,
+				limits: { ...this.modelMetadata.capabilities.limits, max_prompt_tokens: modelMaxPromptTokens },
+			},
+		};
 		return this.instantiationService.createInstance(OpenAIEndpoint, newModelInfo, this._apiKey, this._modelUrl);
 	}
 

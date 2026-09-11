@@ -308,7 +308,13 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	 * Preserve Custom Endpoint request shaping when a context-size override clones the endpoint.
 	 */
 	override cloneWithTokenOverride(modelMaxPromptTokens: number): CustomEndpointOAIEndpoint {
-		const newModelInfo = { ...this.modelMetadata, maxInputTokens: modelMaxPromptTokens };
+		const newModelInfo = {
+			...this.modelMetadata,
+			capabilities: {
+				...this.modelMetadata.capabilities,
+				limits: { ...this.modelMetadata.capabilities.limits, max_prompt_tokens: modelMaxPromptTokens },
+			},
+		};
 		return this.instantiationService.createInstance(CustomEndpointOAIEndpoint, newModelInfo, this._apiKey, this._modelUrl);
 	}
 

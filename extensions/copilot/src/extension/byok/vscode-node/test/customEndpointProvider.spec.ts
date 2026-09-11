@@ -234,7 +234,12 @@ describe('CustomEndpointBYOKModelProvider', () => {
 		}
 
 		it('omits store after cloning a Custom Endpoint Responses endpoint when zeroDataRetentionEnabled is omitted', async () => {
-			const endpoint = (await createConfiguredResponsesEndpoint()).cloneWithTokenOverride(64000);
+			const original = await createConfiguredResponsesEndpoint();
+			const endpoint = original.cloneWithTokenOverride(64000);
+			expect(endpoint.modelMaxPromptTokens).toBe(64000);
+			expect(original.modelMaxPromptTokens).toBe(128000);
+			expect(endpoint.maxOutputTokens).toBe(original.maxOutputTokens);
+			expect(endpoint.getExtraHeaders!()).toEqual(original.getExtraHeaders!());
 			const body = createResponsesBody(endpoint);
 
 			expect({
