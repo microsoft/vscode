@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse, ParseError } from '../../../../../base/common/json.js';
 import { applyEdits, setProperty } from '../../../../../base/common/jsonEdit.js';
@@ -68,7 +70,10 @@ export class McpServerCustomizationMigrator {
 		private readonly logService: ILogService,
 	) { }
 
-	async createPlan(snapshot: IAgentHostMcpServerSupportSnapshot, roots: readonly URI[]): Promise<IMcpServerCustomizationMigrationPlan> {
+	async createPlan(snapshot: IAgentHostMcpServerSupportSnapshot, roots: readonly URI[], token = CancellationToken.None): Promise<IMcpServerCustomizationMigrationPlan> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const candidates: IMcpServerCustomizationMigrationCandidate[] = [];
 		const exclusions: IMcpServerCustomizationMigrationFailure[] = [];
 		const sourceServers = new ResourceMap<Promise<Record<string, unknown> | undefined>>();
@@ -100,7 +105,7 @@ export class McpServerCustomizationMigrator {
 
 			let sourceServersPromise = sourceServers.get(sourceUri);
 			if (!sourceServersPromise) {
-				sourceServersPromise = this.readMcpServers(sourceUri);
+				sourceServersPromise = this.readMcpServers(sourceUri, token);
 				sourceServers.set(sourceUri, sourceServersPromise);
 			}
 
@@ -108,9 +113,15 @@ export class McpServerCustomizationMigrator {
 			try {
 				servers = await sourceServersPromise;
 			} catch (error) {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				const migrationError = error instanceof McpServerMigrationError ? error : undefined;
 				excluded(migrationError?.reason ?? McpServerCustomizationMigrationFailureReason.SourceUnavailable, migrationError ?? toError(error));
 				continue;
+			}
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
 			}
 			if (!servers) {
 				excluded(McpServerCustomizationMigrationFailureReason.SourceUnavailable);
@@ -156,10 +167,10 @@ export class McpServerCustomizationMigrator {
 		return executeMigration(candidates, this.fileService, this.logService, options);
 	}
 
-	private async readMcpServers(resource: URI): Promise<Record<string, unknown> | undefined> {
+	private async readMcpServers(resource: URI, token: CancellationToken): Promise<Record<string, unknown> | undefined> {
 		let content: string;
 		try {
-			content = (await this.fileService.readFile(resource)).value.toString();
+			content = (await this.fileService.readFile(resource, undefined, token)).value.toString();
 		} catch (error) {
 			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
 				return undefined;

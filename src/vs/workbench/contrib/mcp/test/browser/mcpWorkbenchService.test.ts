@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -824,6 +824,32 @@ suite('McpWorkbenchService', () => {
 		}
 	});
 
+	test('notifies once for each runtime inventory or enablement change', async () => {
+		const local = createLocal('server');
+		const servers = observableValue<readonly IMcpServer[]>('servers', []);
+		const enablement = observableValue('enablement', ContributionEnablementState.EnabledProfile);
+		const runtime = upcastPartial<IMcpServer>({
+			definition: upcastPartial<McpServerDefinition>({ id: local.id }),
+			enablement,
+		});
+		const { service, galleryService } = await createFixture([local], McpAccessValue.All, undefined, servers);
+		await complete(await galleryService.nextRequest(), new Map([[local.name, notFound()]]));
+		const observed: (McpServerEnablementState | undefined)[] = [];
+		store.add(service.onChange(() => observed.push(service.local[0].runtimeStatus?.state)));
+
+		servers.set([runtime], undefined);
+		enablement.set(ContributionEnablementState.DisabledWorkspace, undefined);
+		enablement.set(ContributionEnablementState.EnabledProfile, undefined);
+		servers.set([], undefined);
+
+		assert.deepStrictEqual(observed, [
+			undefined,
+			McpServerEnablementState.DisabledWorkspace,
+			undefined,
+			McpServerEnablementState.Disabled,
+		]);
+	});
+
 	for (const duplicateNames of [false, true]) {
 		test(`installed discovery settles with ${duplicateNames ? 'duplicate' : 'distinct'} server names across workspace roots`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const workspaceA = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace-a/.vscode/mcp.json') };
@@ -856,8 +882,12 @@ suite('McpWorkbenchService', () => {
 				[workspaceA.name, notFound()],
 				[workspaceB.name, notFound()],
 			]));
+			let sourceReads = 0;
 			const discovery = store.add(new InstalledMcpServersDiscovery(service, registry, upcastPartial<ITextModelService>({
-				createModelReference: async () => { throw new Error('No editor model'); },
+				createModelReference: async () => {
+					sourceReads++;
+					throw new Error('No editor model');
+				},
 			}), logService));
 			const observed: string[][] = [];
 			store.add(autorun(reader => {
@@ -874,10 +904,12 @@ suite('McpWorkbenchService', () => {
 				assert.deepStrictEqual({
 					observed,
 					displayOrder: service.local.map(server => server.id),
+					sourceReads,
 					errors: logService.errors,
 				}, {
 					observed: [duplicateNames ? [workspaceB.id] : [workspaceA.id, workspaceB.id]],
 					displayOrder: [workspaceB.id, workspaceA.id],
+					sourceReads: duplicateNames ? 2 : 4,
 					errors: [],
 				});
 			} finally {
