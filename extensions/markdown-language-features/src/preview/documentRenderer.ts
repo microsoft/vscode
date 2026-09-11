@@ -279,7 +279,7 @@ export class MdDocumentRenderer {
 
 /** Length of the leading list marker (`- `, `1. `) that must stay intact for list parsing. */
 function getListMarkerPrefixLength(line: string): number {
-	const match = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+/.exec(line);
+	const match = /^[ \t]*(?:>[ \t]*)*(?:[-*+]|\d+[.)])(?:[ \t]+|$)/.exec(line);
 	return match ? match[0].length : 0;
 }
 
