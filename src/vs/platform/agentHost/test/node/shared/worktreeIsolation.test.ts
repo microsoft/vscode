@@ -375,7 +375,7 @@ suite('WorktreeIsolation', () => {
 			existsAfterUnarchive: true,
 			addExistingCalls: [{ worktree: created.worktree.toString(), branchName }],
 			removeCalls: [
-				{ worktree: created.worktree.toString(), force: false },
+				{ worktree: created.worktree.toString(), force: true },
 				{ worktree: created.worktree.toString(), force: true },
 			],
 		});
