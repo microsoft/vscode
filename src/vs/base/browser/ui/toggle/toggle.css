@@ -11,7 +11,7 @@
 	width: 20px;
 	height: 20px;
 	border-radius: 3px;
-	border: var(--vscode-strokeThickness) solid var(--monaco-custom-toggle-border-color, transparent);
+	border: var(--vscode-strokeThickness, 1px) solid var(--monaco-custom-toggle-border-color, transparent);
 	padding: 1px;
 	box-sizing:	border-box;
 	user-select: none;
@@ -27,7 +27,7 @@ div.monaco-custom-toggle:not(.monaco-checkbox):focus {
 }
 
 div.monaco-custom-toggle:not(.monaco-checkbox):focus-visible {
-	border: var(--vscode-strokeThickness) dashed var(--vscode-focusBorder);
+	border: var(--vscode-strokeThickness, 1px) dashed var(--vscode-focusBorder);
 }
 
 .monaco-custom-toggle.disabled {
