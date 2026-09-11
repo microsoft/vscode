@@ -175,6 +175,18 @@ export interface IGalleryExtensionProperties {
 	executesCode?: boolean;
 }
 
+/** Who made the blocking statement: the marketplace, or a policy scoped to this tenant. */
+export const enum ExtensionBlockingOrigin {
+	/** Also the degraded value for any origin this client does not recognize, being the more severe. */
+	Service = 'service',
+	Policy = 'policy',
+}
+
+/** Present only when the gallery reports an extension, or the version in hand, as blocked. */
+export interface IExtensionBlockingInfo {
+	readonly origin: ExtensionBlockingOrigin;
+}
+
 export interface IGalleryExtensionAsset {
 	uri: string;
 	fallbackUri: string;
@@ -238,6 +250,8 @@ export interface IGalleryExtension {
 	lastUpdated: number;
 	preview: boolean;
 	private: boolean;
+	/** Set when this extension, or the version in hand, must not be acquired or used. Absence means "not known to be blocked", not "known to be safe". */
+	blockingInfo?: IExtensionBlockingInfo;
 	hasPreReleaseVersion: boolean;
 	hasReleaseVersion: boolean;
 	isSigned: boolean;
