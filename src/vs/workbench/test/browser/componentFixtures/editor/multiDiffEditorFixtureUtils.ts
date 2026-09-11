@@ -123,14 +123,51 @@ export function createMultiDiffEditorFixtureServices(disposableStore: Disposable
 	});
 }
 
-export function createMultiDiffEditorFixtureWidget(instantiationService: IInstantiationService, container: HTMLElement, diffEditorOptions?: IDiffEditorOptions) {
+export function createMultiDiffEditorFixtureWidget(
+	instantiationService: IInstantiationService,
+	container: HTMLElement,
+	diffEditorOptions?: IDiffEditorOptions,
+) {
 	const uiFactory = instantiationService.createInstance(FixtureWorkbenchUIElementFactory);
 	return instantiationService.createInstance(
 		MultiDiffEditorWidget,
 		container,
 		uiFactory,
-		{ variant: MultiDiffEditorVariant.Compact, diffEditorOptions },
+		{
+			variant: MultiDiffEditorVariant.Compact,
+			diffEditorOptions,
+		},
 	);
+}
+
+export interface IMultiDiffEditorFixtureDocumentSide {
+	readonly uri: string;
+	readonly text?: string;
+}
+
+export function createMultiDiffEditorFixtureDocument(
+	instantiationService: TestInstantiationService,
+	textModels: DisposableStore,
+	sides: {
+		readonly original?: IMultiDiffEditorFixtureDocumentSide;
+		readonly modified?: IMultiDiffEditorFixtureDocumentSide;
+		readonly languageId?: string;
+	}
+): RefCounted<IDocumentDiffItem> {
+	const createSource = (side: IMultiDiffEditorFixtureDocumentSide | undefined): DiffItemSource | undefined => {
+		if (!side) {
+			return undefined;
+		}
+		const uri = URI.parse(side.uri);
+		const model = side.text === undefined
+			? undefined
+			: textModels.add(createTextModel(instantiationService, side.text, uri, sides.languageId ?? 'typescript'));
+		return new DiffItemSource(uri, model);
+	};
+	return RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+		original: createSource(sides.original),
+		modified: createSource(sides.modified),
+	}, { dispose() { } });
 }
 
 export function createMultiDiffEditorFixtureDocuments(instantiationService: TestInstantiationService, textModels: DisposableStore) {
