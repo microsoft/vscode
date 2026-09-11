@@ -52,7 +52,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			getSubscription: () => ({ object: subscription, dispose: () => { } }),
 		} as unknown as IAgentConnection;
 		let backend = URI.parse('agent-host:/provisional-a');
-		let provisionalRoots = [URI.file('/provisional')];
+		let provisionalRoots = [URI.parse('vscode-remote://dev-container+test/provisional')];
 		const provisionalChanged = store.add(new Emitter<URI>());
 		const provisionalService = {
 			onDidChange: provisionalChanged.event,
@@ -119,7 +119,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		const afterError = readRoots();
 		const changesAfterError = customizationChangeCount;
 		backend = URI.parse('agent-host:/provisional-b');
-		provisionalRoots = [URI.file('/replacement')];
+		provisionalRoots = [URI.parse('vscode-remote://dev-container+test/replacement')];
 		subscription.value = undefined;
 		subscription.verifiedValue = undefined;
 		provisionalChanged.fire(session);
@@ -134,12 +134,12 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			replacement,
 			folders: folders.map(folder => ({ source: folder.source, uri: folder.uri.toString() })),
 		}, {
-			provisional: { host: ['file:///provisional'], client: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/provisional' }] },
+			provisional: { host: ['vscode-remote://dev-container%2Btest/provisional'], client: [{ scheme: 'vscode-remote', authority: 'dev-container+test', path: '/provisional' }] },
 			verified: { host: ['file:///verified'], client: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/verified' }] },
 			optimistic: { host: ['file:///optimistic'], client: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/optimistic' }] },
 			afterError: { host: ['file:///verified'], client: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/verified' }] },
 			changesAfterError: 1,
-			replacement: { host: ['file:///replacement'], client: [{ scheme: 'vscode-agent-host', authority: 'remote-test', path: '/replacement' }] },
+			replacement: { host: ['vscode-remote://dev-container%2Btest/replacement'], client: [{ scheme: 'vscode-remote', authority: 'dev-container+test', path: '/replacement' }] },
 			folders: [{ source: 'local', uri: connection.resourceUris.fromAgentHost(URI.parse('file:///verified/.github/skills')).toString() }],
 		});
 	});

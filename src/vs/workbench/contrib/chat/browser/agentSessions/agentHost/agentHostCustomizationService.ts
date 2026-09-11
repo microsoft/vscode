@@ -156,6 +156,8 @@ export interface IAgentHostCustomizationTarget {
 	readonly workingDirectory?: string;
 	/** Host-side URI strings, also used in protocol enablement decisions. */
 	readonly workingDirectories?: readonly string[];
+	/** Client-space roots when they are known before authoritative session state arrives. */
+	readonly clientWorkingDirectories?: readonly URI[];
 	readonly rootConfig?: RootConfigState;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
@@ -225,6 +227,9 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		const target = this._resolveTarget(sessionResource);
 		if (!target) {
 			return [];
+		}
+		if (target.clientWorkingDirectories !== undefined) {
+			return target.clientWorkingDirectories;
 		}
 		return target.workingDirectories?.map(root => target.resourceUris.fromAgentHost(URI.parse(root))) ?? [];
 	}
@@ -539,9 +544,8 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const subscription = this._ensureSessionStateSubscription(sessionResource, target)?.sub;
 		const subscriptionValue = subscription?.value;
 		const sessionState = subscriptionValue && !(subscriptionValue instanceof Error) ? subscriptionValue : subscription?.verifiedValue;
-		const workingDirectories = sessionState
-			? sessionState.workingDirectories ?? []
-			: this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(root => root.toString()) ?? [];
+		const provisionalWorkingDirectories = sessionState ? undefined : this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource);
+		const workingDirectories = sessionState?.workingDirectories ?? provisionalWorkingDirectories?.map(root => root.toString()) ?? [];
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
 		return {
@@ -550,6 +554,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			folderPickerDecision: readSessionFolderPickerDecision(sessionState?._meta),
 			workingDirectory: workingDirectories[0],
 			workingDirectories,
+			clientWorkingDirectories: provisionalWorkingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),

@@ -15,18 +15,26 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService, IFileWriteOptions } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IOutputService } from '../../../../../services/output/common/output.js';
 import { CustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostCustomizationService, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationHintTarget, CustomizationMigrationType, getCustomizationMigrationEnablementSetting } from '../../../common/promptSyntax/service/customizationMigrationService.js';
@@ -1182,6 +1190,104 @@ suite('CustomizationMigrationService', () => {
 			candidates: [],
 			servers: [],
 			scopeDisposed: true,
+		});
+	});
+
+	test('computes MCP migration candidates from provisional remote workspace roots', async () => {
+		const remoteRoot = URI.parse('vscode-remote://dev-container+test/workspaces/project');
+		const sourceUri = URI.joinPath(remoteRoot, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(remoteRoot, '.mcp.json');
+		const fileService = store.add(new FileService(new NullLogService()));
+		const remoteProvider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.vscodeRemote, remoteProvider));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+		const snapshot = createWorkspaceMcpSupportSnapshot(remoteRoot);
+		const harnessService = new TestCustomizationHarnessService();
+		const session = harnessService.activeSessionResource.get();
+
+		const compute = async (resourceUris: IAgentHostResourceUriMapper) => {
+			let requestedRoots: readonly URI[] | undefined;
+			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+				override acquireMcpServerSupportScope(_sessionType: string, roots: readonly URI[] | undefined) {
+					requestedRoots = roots;
+					return {
+						support: constObservable(snapshot),
+						isResolved: constObservable(true),
+						whenResolved: () => Promise.resolve(),
+						dispose: () => { },
+					};
+				}
+				override isBundledMcpServer() {
+					return false;
+				}
+			}();
+			const subscription = {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: Event.None,
+				onDidError: Event.None,
+			} as unknown as IAgentSubscription<SessionState>;
+			const connection = {
+				onDidAction: Event.None,
+				rootState: { value: undefined },
+				resourceUris,
+				getSubscription: () => ({ object: subscription, dispose: () => { } }),
+			} as unknown as IAgentConnection;
+			const provisionalSessionService = {
+				onDidChange: Event.None,
+				get: () => URI.parse('copilot:/provisional'),
+				getProvisionalWorkingDirectories: () => [remoteRoot],
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService;
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+			instantiationService.stub(IOutputService, {
+				getChannel: () => undefined,
+				getChannelDescriptor: () => undefined,
+				showChannel: async () => { },
+			});
+			const agentHostCustomizationService = store.add(new WorkbenchAgentHostCustomizationService(
+				{ ambientConnection: connection } as IAgentHostConnectionsService,
+				provisionalSessionService,
+				instantiationService,
+				new NullLogService() as ILogService,
+				{ onDidDisposeSession: Event.None } as Partial<IChatService> as IChatService,
+				activeClientService,
+			));
+			const migrationService = store.add(new CustomizationMigrationService(
+				store.add(new TestPromptsService([])),
+				harnessService,
+				activeClientService,
+				agentHostCustomizationService,
+				fileService,
+				new NullLogService(),
+				store.add(createMigrationConfiguration()),
+			));
+
+			const migration = await migrationService.computeMigration(session, CustomizationMigrationType.McpServers);
+			return {
+				roots: requestedRoots?.map(root => root.toString()),
+				candidates: migration.candidates.map(candidate => ({
+					sourceUri: candidate.sourceUri.toString(),
+					targetUri: candidate.targetUri.toString(),
+				})),
+			};
+		};
+
+		const identityControl = await compute(identityAgentHostResourceUriMapper);
+		const remoteConnection = await compute(createAgentHostResourceUriMapper('remote-test'));
+
+		assert.deepStrictEqual({
+			identityControl,
+			remoteConnection,
+		}, {
+			identityControl: {
+				roots: [remoteRoot.toString()],
+				candidates: [{ sourceUri: sourceUri.toString(), targetUri: targetUri.toString() }],
+			},
+			remoteConnection: {
+				roots: [remoteRoot.toString()],
+				candidates: [{ sourceUri: sourceUri.toString(), targetUri: targetUri.toString() }],
+			},
 		});
 	});
 
