@@ -81,7 +81,7 @@ export interface IPermissionPickerDelegate {
 	 * Called after the user selects a level (and any required confirmation
 	 * dialog has been accepted).
 	 */
-	setPermissionLevel(level: ChatPermissionLevel): void;
+	setPermissionLevel(level: ChatPermissionLevel): void | Promise<void>;
 
 	/**
 	 * Optional hover content for delegates that need provider-specific copy.
@@ -481,7 +481,7 @@ export class PermissionPicker extends Disposable {
 
 		this._currentLevel = level;
 		this._updateTriggerLabel(this._triggerElement);
-		this._delegate.setPermissionLevel(level);
+		await this._delegate.setPermissionLevel(level);
 	}
 
 	private _updateTriggerLabel(trigger: HTMLElement | undefined): void {

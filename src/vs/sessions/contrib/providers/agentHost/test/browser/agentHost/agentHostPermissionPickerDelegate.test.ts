@@ -70,7 +70,7 @@ function makeWellKnownConfig(value: string | undefined, levels: readonly string[
 	} as ResolveSessionConfigResult;
 }
 
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'onDidChangeRootConfig' | 'getSessionConfig' | 'getRootConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'onDidChangeRootConfig' | 'getSessionConfig' | 'getRootConfig' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'isSessionConfigResolving'> {
 	readonly id: string = PROVIDER_ID;
 	private readonly _onDidChange = new Emitter<string>();
 	readonly onDidChangeSessionConfig: Event<string> = this._onDidChange.event;
@@ -81,6 +81,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	readonly sessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	rootConfig: RootConfigState | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
+	readonly trackedOperations: Array<[string, Promise<void>]> = [];
 	readonly resolving = observableValue<boolean>('resolving', false);
 
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
@@ -99,6 +100,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 			config.values[property] = value;
 			this.fireChange(sessionId);
 		}
+	}
+	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void {
+		this.trackedOperations.push([sessionId, operation]);
 	}
 	fireChange(sessionId: string = SESSION_ID): void {
 		this._onDidChange.fire(sessionId);
@@ -384,18 +388,24 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		assert.strictEqual(delegate.currentPermissionLevel.get(), ChatPermissionLevel.Default);
 	});
 
-	test('setPermissionLevel writes through to the active session\'s provider', () => {
+	test('setPermissionLevel writes through to the active session and tracks the first-send operation', async () => {
 		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
 
-		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
-		delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
-		delegate.setPermissionLevel(ChatPermissionLevel.Default);
+		await delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+		await delegate.setPermissionLevel(ChatPermissionLevel.Default);
 
-		assert.deepStrictEqual(provider.setCalls, [
-			[SESSION_ID, 'autoApprove', 'autoApprove'],
-			[SESSION_ID, 'autoApprove', 'assisted'],
-			[SESSION_ID, 'autoApprove', 'default'],
-		]);
+		assert.deepStrictEqual({
+			setCalls: provider.setCalls,
+			trackedSessions: provider.trackedOperations.map(([sessionId]) => sessionId),
+		}, {
+			setCalls: [
+				[SESSION_ID, 'autoApprove', 'autoApprove'],
+				[SESSION_ID, 'autoApprove', 'assisted'],
+				[SESSION_ID, 'autoApprove', 'default'],
+			],
+			trackedSessions: [SESSION_ID, SESSION_ID, SESSION_ID],
+		});
 	});
 
 	test('offers Manual permissions, Assisted permissions, and Allow all in order', () => {
@@ -435,11 +445,11 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		]);
 	});
 
-	test('hides and rejects Assisted permissions when the setting is disabled', () => {
+	test('hides and rejects Assisted permissions when the setting is disabled', async () => {
 		const { delegate, provider, setAssistedPermissionsEnabled } = setup(store, makeActiveSession(), 'default');
 		setAssistedPermissionsEnabled(false);
 
-		delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
 
 		assert.deepStrictEqual({
 			available: delegate.availableLevels,
@@ -453,20 +463,20 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		});
 	});
 
-	test('does not write a level omitted by the active schema', () => {
+	test('does not write a level omitted by the active schema', async () => {
 		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
 		provider.config = makeWellKnownConfig('default', ['default', 'autoApprove']);
 		provider.fireChange();
 
-		delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
 
 		assert.deepStrictEqual(provider.setCalls, []);
 	});
 
-	test('setPermissionLevel is a no-op when there is no active session', () => {
+	test('setPermissionLevel is a no-op when there is no active session', async () => {
 		const { delegate, provider } = setup(store, undefined);
 
-		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+		await delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
 
 		assert.deepStrictEqual(provider.setCalls, []);
 	});
