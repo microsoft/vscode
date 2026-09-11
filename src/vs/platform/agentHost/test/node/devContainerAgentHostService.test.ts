@@ -514,12 +514,12 @@ suite('Dev Container Agent Host Main Service', () => {
 			outsideMountHostDirectories: outsideMount.checkedHostDirectories,
 			outsideMountCommands: outsideMount.execCommands.filter(command => command.includes('safe.directory')),
 		}, {
-			configuredHostDirectories: ['/host/workspace/project'],
+			configuredHostDirectories: [join('/host/workspace', 'project')],
 			configuredCommands: [
 				'git config --global --get-all safe.directory',
 				'git config --global --add safe.directory \'/workspaces/project\'',
 			],
-			unownedHostDirectories: ['/host/workspace/project'],
+			unownedHostDirectories: [join('/host/workspace', 'project')],
 			unownedCommands: [],
 			outsideMountHostDirectories: [],
 			outsideMountCommands: [],
