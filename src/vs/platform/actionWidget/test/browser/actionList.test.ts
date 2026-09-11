@@ -1316,20 +1316,21 @@ suite('ActionListWidget', () => {
 		panel.getBoundingClientRect = () => new mainWindow.DOMRect(220, 260, 190, 200);
 		viewport.getBoundingClientRect = () => new mainWindow.DOMRect(220, 260, 190, 190);
 		Object.defineProperty(filter, 'offsetHeight', { configurable: true, value: 30 });
-		const actionLineHeight = parseFloat(submenuList.style.height);
 		mainWindow.dispatchEvent(new Event('resize'));
 
 		const top = parseFloat(panel.style.top);
+		const listHeight = parseFloat(submenuList.style.height);
+		const viewportHeight = parseFloat(viewport.style.height);
 		assert.deepStrictEqual({
-			top,
-			minimumPanelBottom: 260 + top + 10 + 30 + 24,
-			listHeight: submenuList.style.height,
-			viewportHeight: viewport.style.height,
+			hasVisibleRow: listHeight > 0,
+			topFitsOuterChromeFilterAndRow: top === 300 - 260 - 10 - 30 - listHeight - 8,
+			minimumPanelBottom: 260 + top + 10 + 30 + listHeight,
+			viewportContainsFilterAndRow: viewportHeight === 30 + listHeight,
 		}, {
-			top: 300 - 260 - 10 - 30 - actionLineHeight - 8,
+			hasVisibleRow: true,
+			topFitsOuterChromeFilterAndRow: true,
 			minimumPanelBottom: 292,
-			listHeight: `${actionLineHeight}px`,
-			viewportHeight: `${30 + actionLineHeight}px`,
+			viewportContainsFilterAndRow: true,
 		});
 	}));
 
