@@ -91,9 +91,15 @@ suite('terminalEnvironment', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz'), '\'/foo/bar\\\'baz\'');
 		});
 
-		test('should remove dangerous characters', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), '\'/foo/bar(echo evil)\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), '\'/foo/barwhoami\'');
+		test('should preserve special characters that are safe inside single quotes', () => {
+			// Characters like $, `, ~, !, #, ^, &, *, |, ;, <, > are all literal inside single quotes
+			// and must be preserved so that file names containing them are passed correctly.
+			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), '\'/foo/bar$(echo evil)\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), '\'/foo/bar`whoami`\'');
+			strictEqual(escapeNonWindowsPath('/foo/file~name', PosixShellType.Bash), '\'/foo/file~name\'');
+			strictEqual(escapeNonWindowsPath('/foo/file!name', PosixShellType.Bash), '\'/foo/file!name\'');
+			strictEqual(escapeNonWindowsPath('/foo/file#name', PosixShellType.Bash), '\'/foo/file#name\'');
+			strictEqual(escapeNonWindowsPath('/foo/file;name', PosixShellType.Bash), '\'/foo/file;name\'');
 		});
 	});
 });
