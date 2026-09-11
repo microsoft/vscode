@@ -266,13 +266,16 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, undefined);
 	});
 
-	test('requires confirmation for files that can register lifecycle hooks', async () => {
+	test('requires confirmation for files that can introduce executable side effects', async () => {
 		const files = [
 			join('.github', 'agents', 'dev-helper.md'),
 			join('.github', 'hooks', 'say-hi.json'),
+			join('.github', 'copilot', 'settings.json'),
+			join('.github', 'copilot', 'settings.local.json'),
 			join('.claude', 'agents', 'dev-helper.md'),
 			join('.claude', 'settings.json'),
 			join('.claude', 'settings.local.json'),
+			'.mcp.json',
 		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
 		for (const file of files) {

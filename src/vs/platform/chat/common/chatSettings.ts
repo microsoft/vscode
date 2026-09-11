@@ -32,9 +32,12 @@ export const ALWAYS_CHECKED_EDIT_PATTERNS: ChatEditAutoApprovePatterns = {
 	'**/.vscode/*.json': false,
 	'**/.github/agents/**': false,
 	'**/.github/hooks/**': false,
+	'**/.github/copilot/settings.json': false,
+	'**/.github/copilot/settings.local.json': false,
 	'**/.claude/agents/**': false,
 	'**/.claude/settings.json': false,
 	'**/.claude/settings.local.json': false,
+	'**/.mcp.json': false,
 };
 
 export const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: ChatEditAutoApprovePatterns = {

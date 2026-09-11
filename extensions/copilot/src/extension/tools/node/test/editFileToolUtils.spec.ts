@@ -970,46 +970,46 @@ describe('makeUriConfirmationChecker', async () => {
 
 		test('folder pattern marks JSON files inside as sensitive', async () => {
 			await configService.setNonExtensionConfig('chat.hookFilesLocations', {
-				'.github/hooks': true,
+				'custom-hooks': true,
 			});
 
 			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
 
-			const hookFile = URI.file('/workspace/.github/hooks/pre-commit.json');
+			const hookFile = URI.file('/workspace/custom-hooks/pre-commit.json');
 			expect(await checker(hookFile)).toBe(ConfirmationCheckResult.Sensitive);
 		});
 
 		test('folder pattern marks the folder itself as sensitive', async () => {
 			await configService.setNonExtensionConfig('chat.hookFilesLocations', {
-				'.github/hooks': true,
+				'custom-hooks': true,
 			});
 
 			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
 
-			const folderUri = URI.file('/workspace/.github/hooks');
+			const folderUri = URI.file('/workspace/custom-hooks');
 			expect(await checker(folderUri)).toBe(ConfirmationCheckResult.Sensitive);
 		});
 
 		test('folder pattern does not match non-JSON files', async () => {
 			await configService.setNonExtensionConfig('chat.hookFilesLocations', {
-				'.github/hooks': true,
+				'custom-hooks': true,
 			});
 
 			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
 
-			const txtFile = URI.file('/workspace/.github/hooks/readme.txt');
+			const txtFile = URI.file('/workspace/custom-hooks/readme.txt');
 			expect(await checker(txtFile)).toBe(ConfirmationCheckResult.NoConfirmation);
 		});
 
 		test('direct JSON file path marks only that file as sensitive', async () => {
 			await configService.setNonExtensionConfig('chat.hookFilesLocations', {
-				'.github/hooks/hook.json': true,
+				'custom-hooks/hook.json': true,
 			});
 
 			const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
 
-			const hookFile = URI.file('/workspace/.github/hooks/hook.json');
-			const otherFile = URI.file('/workspace/.github/hooks/other.json');
+			const hookFile = URI.file('/workspace/custom-hooks/hook.json');
+			const otherFile = URI.file('/workspace/custom-hooks/other.json');
 			expect(await checker(hookFile)).toBe(ConfirmationCheckResult.Sensitive);
 			expect(await checker(otherFile)).toBe(ConfirmationCheckResult.NoConfirmation);
 		});
@@ -1123,24 +1123,32 @@ describe('makeUriConfirmationChecker', async () => {
 	});
 });
 
-describe('agent definition files require confirmation', () => {
+describe('files with executable side effects require confirmation', () => {
 	let configService: InMemoryConfigurationService;
 	let workspaceService: TestWorkspaceService;
 	let customInstructionsService: MockCustomInstructionsService;
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		configService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
+		await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', {
+			'**/*': true,
+		});
 		workspaceService = new TestWorkspaceService([URI.file('/workspace')], []);
 		customInstructionsService = new MockCustomInstructionsService();
 	});
 
-	test('requires confirmation for files in agent folders', async () => {
+	test('requires confirmation regardless of configured auto-approval', async () => {
 		const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
 		const files = [
+			'/workspace/.vscode/settings.json',
 			'/workspace/.github/agents/dev-helper.md',
-			'/workspace/.github/agents/dev-helper.agent.md',
+			'/workspace/.github/hooks/say-hi.json',
+			'/workspace/.github/copilot/settings.json',
+			'/workspace/.github/copilot/settings.local.json',
 			'/workspace/.claude/agents/reviewer.md',
-			'/workspace/.github/agents/nested/deep.md',
+			'/workspace/.claude/settings.json',
+			'/workspace/.claude/settings.local.json',
+			'/workspace/.mcp.json',
 		];
 		for (const file of files) {
 			expect(await checker(URI.file(file))).toBe(ConfirmationCheckResult.Sensitive);
