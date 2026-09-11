@@ -3486,6 +3486,41 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const placement of ['source', 'closedSource', 'default'] as const) {
+		test(`opens a fork to the side with ${placement} placement without replacing its neighbors`, async () => {
+			const main = { ...stubChat, resource: URI.parse('test:///source/main') };
+			const peer = { ...stubChat, resource: URI.parse('test:///source/peer') };
+			const source = stubSession({ sessionId: 'source', providerId: 'test', chats: constObservable([main, peer]), mainChat: constObservable(main) });
+			const neighbor = stubSession({ sessionId: 'neighbor', providerId: 'test' });
+			const fork = stubSession({ sessionId: 'fork', providerId: 'test' });
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(source); }
+				override getSessions(): ISession[] { return [source, neighbor, fork]; }
+			};
+			const { view } = createSessionsManagementService(source, disposables, provider);
+			await view.openChat(source, peer.resource);
+			await view.openSessionToSide(neighbor);
+			if (placement === 'closedSource') {
+				view.closeSession(source);
+			}
+
+			await view.openSessionToSide(fork, {
+				source: 'fork',
+				referenceSessionId: placement === 'default' ? undefined : source.sessionId,
+			});
+
+			assert.deepStrictEqual({
+				visible: view.visibleSessions.get().map(session => session?.sessionId),
+				sourceChat: view.visibleSessions.get().find(session => session?.sessionId === source.sessionId)?.activeChat.get().resource.toString(),
+				active: view.activeSession.get()?.sessionId,
+			}, {
+				visible: placement === 'source' ? ['source', 'fork', 'neighbor'] : placement === 'closedSource' ? ['neighbor', 'fork'] : ['source', 'neighbor', 'fork'],
+				sourceChat: placement === 'closedSource' ? undefined : peer.resource.toString(),
+				active: 'fork',
+			});
+		});
+	}
+
 	test('replacing a session only swaps the active session when it matches `from`', async () => {
 		const a = stubSession({ sessionId: 'a', providerId: 'test' });
 		const b = stubSession({ sessionId: 'b', providerId: 'test' });
