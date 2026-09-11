@@ -214,13 +214,21 @@
 	border-radius: 3px;
 	cursor: pointer;
 
-	.monaco-keybinding-key {
+	.monaco-keybinding > .monaco-keybinding-key,
+	.monaco-keybinding > .monaco-keybinding-key:first-child,
+	.monaco-keybinding > .monaco-keybinding-key:last-child {
 		font-size: 13px;
 		opacity: 0.7;
 		padding: 0;
 		border: none;
 		margin: 0;
 		min-width: unset;
+	}
+
+	.monaco-keybinding > .monaco-keybinding-key-separator {
+		opacity: 0.7;
+		padding: 0;
+		margin: 0;
 	}
 
 	&.active {
