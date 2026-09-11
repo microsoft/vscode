@@ -214,6 +214,8 @@ interface IDraftState {
 	attachments: readonly IChatRequestVariableEntry[];
 }
 
+const INITIALIZATION_LOADING_DELAY_MS = 500;
+
 export function hasSendableNewChatContent(query: string, attachments: readonly IChatRequestVariableEntry[], hasAdditionalSendContent = false): boolean {
 	return !!query.trim() || attachments.some(isExplicitFileOrImageVariableEntry) || hasAdditionalSendContent;
 }
@@ -476,10 +478,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _promptOptionsSelected = false;
 
 	// Send button
+	private _sendButtonContainer: HTMLElement | undefined;
 	private _sendButton: Button | undefined;
 	private _sending = false;
 
 	// Loading state
+	private _initializationLoadingSpinner: HTMLElement | undefined;
+	private readonly _initializationLoadingDelayDisposable = this._register(new MutableDisposable());
 	private _loadingSpinner: HTMLElement | undefined;
 	private readonly _loadingDelayDisposable = this._register(new MutableDisposable());
 	private readonly _promptTypingAnimation = this._register(new MutableDisposable<IPromptTypingAnimation>());
@@ -610,8 +615,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(autorun(reader => {
 			this._canSendRequest.read(reader);
 			this.options.hasAdditionalSendContent?.read(reader);
-			const isLoading = this.options.loading.read(reader);
-			this._loadingSpinner?.classList.toggle('visible', isLoading);
 			this._updateSendButtonState();
 		}));
 	}
@@ -855,15 +858,41 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				const timer = setTimeout(() => {
 					this._loadingDelayDisposable.clear();
 					if (this._sending) {
-						this._loadingSpinner?.classList.add('visible');
+						this._setLoadingSpinnerVisible(true);
 					}
 				}, 500);
 				this._loadingDelayDisposable.value = toDisposable(() => clearTimeout(timer));
 			}
 		} else {
 			this._loadingDelayDisposable.clear();
-			this._loadingSpinner?.classList.remove('visible');
+			this._setLoadingSpinnerVisible(false);
 		}
+	}
+
+	private _updateInitializationLoadingState(loading: boolean): void {
+		if (!loading) {
+			this._initializationLoadingDelayDisposable.clear();
+			this._initializationLoadingSpinner?.classList.remove('visible');
+			return;
+		}
+		if (this._initializationLoadingSpinner?.classList.contains('visible') || this._initializationLoadingDelayDisposable.value) {
+			return;
+		}
+		const timer = setTimeout(() => {
+			this._initializationLoadingDelayDisposable.clear();
+			if (this.options.loading.get()) {
+				this._initializationLoadingSpinner?.classList.add('visible');
+			}
+		}, INITIALIZATION_LOADING_DELAY_MS);
+		this._initializationLoadingDelayDisposable.value = toDisposable(() => clearTimeout(timer));
+	}
+
+	private _setLoadingSpinnerVisible(visible: boolean): void {
+		if (visible && this._sendButton?.hasFocus()) {
+			this.focus();
+		}
+		this._loadingSpinner?.classList.toggle('visible', visible);
+		this._sendButtonContainer?.classList.toggle('loading', visible);
 	}
 
 	// --- Editor ---
@@ -1180,6 +1209,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
 		const configToolbar = this._register(createNewSessionConfigToolbar(configContainer, this._scopedInstantiationService, this._compactModelPicker));
 
+		this._initializationLoadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
+		const initializationLoadingIcon = dom.append(this._initializationLoadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
+		initializationLoadingIcon.setAttribute('aria-hidden', 'true');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._initializationLoadingSpinner, localize('initializing', "Initializing...")));
+		this._register(autorun(reader => this._updateInitializationLoadingState(this.options.loading.read(reader))));
+
 		// Dictation mic button. Shares the STT service, mic
 		// device, and gating (backend support + `dictation.enabled`)
 		// with the main chat input; inserts the transcript into this composer's
@@ -1228,15 +1263,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.logService.error('Failed to create new-session voice input mode pill:', error);
 		}
 
-		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
-		const loadingIcon = dom.append(this._loadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+		this._sendButtonContainer = this.options.renderSendButton !== false
+			? dom.append(toolbar, dom.$('.sessions-chat-send-button'))
+			: undefined;
+		this._loadingSpinner = dom.append(this._sendButtonContainer ?? toolbar, dom.$('.sessions-chat-loading-spinner'));
+		const loadingIcon = dom.append(this._loadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
 		loadingIcon.setAttribute('aria-hidden', 'true');
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
-		this._loadingSpinner.classList.toggle('visible', this.options.loading.get());
 
-		if (this.options.renderSendButton !== false) {
-			const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
-			const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
+		if (this._sendButtonContainer) {
+			const sendButton = this._sendButton = this._register(new Button(this._sendButtonContainer, {
 				secondary: true,
 				title: this.options.supportsBackground
 					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
