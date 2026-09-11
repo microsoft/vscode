@@ -28,6 +28,7 @@ suite('AgentPlugin enablement', () => {
 			agents: observableValue('testPluginAgents', []),
 			instructions: observableValue('testPluginInstructions', []),
 			mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			automations: observableValue('testPluginAutomations', []),
 			fromMarketplace,
 		};
 	}

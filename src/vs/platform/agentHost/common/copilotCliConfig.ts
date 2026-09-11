@@ -34,8 +34,8 @@ export const enum CopilotCliConfigKey {
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Enable concise reasoning summaries for supported models. Off by default. */
 	ReasoningSummary = 'reasoningSummary',
-	/** Let the Auto router score prior turns instead of the latest message alone. Off by default. */
-	MultiTurnContextRouting = 'multiTurnContextRouting',
+	/** Enable the experimental HydraFusion synthetic model. Off by default. */
+	HydraFusion = 'hydraFusion',
 	/** Offer the Auto model's "Optimize for" picker. Shares the Copilot extension's setting and experiment. */
 	AutoModeTiers = 'autoModeTiers',
 	/** Override Auto's "Optimize for" preference, even when the picker is disabled. */
@@ -69,7 +69,7 @@ export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot
 
 export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
 
-export const AgentHostMultiTurnContextRoutingEnabledSettingId = 'chat.agentHost.copilot.multiTurnContextRouting.enabled';
+export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
 
 export const CopilotAutoModeTiersEnabledSettingId = 'github.copilot.chat.autoMode.tiers.enabled';
 
@@ -205,10 +205,10 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.reasoningSummary.description', "When enabled, requests concise reasoning summaries for supported Copilot SDK sessions."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.MultiTurnContextRouting]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.HydraFusion]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.multiTurnContextRouting.title', "Auto Multi-Turn Context Routing"),
-		description: localize('agentHost.config.multiTurnContextRouting.description', "When enabled, Auto model selection sends prior user messages to the router so it scores the conversation so far instead of the latest message alone."),
+		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
+		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.AutoModeTiers]: schemaProperty<boolean>({

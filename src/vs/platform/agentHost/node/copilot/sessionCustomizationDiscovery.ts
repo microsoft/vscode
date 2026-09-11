@@ -220,13 +220,9 @@ function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolea
  * Workspace roots take precedence over user-home roots when the same URI is
  * discovered through multiple paths (de-duped by URI).
  *
- * `_workingDirectories` MUST be **non-empty** and **primary-first**: index 0 is
- * the primary root (the process cwd / worktree) and is used as the anchor for
- * sources the SDK does not attribute to a specific root (see {@link discoverRules})
- * and as the sole root for hooks (see {@link _hookWorkingDirectories}); indices
- * 1..N are the additional multi-root folders. The constructor asserts this so a
- * caller that passes an empty set fails fast with a clear error instead of a
- * confusing `undefined`-root crash deep inside discovery.
+ * `_workingDirectories` is primary-first when non-empty: index 0 is the primary
+ * root and indices 1..N are additional multi-root folders. An empty set performs
+ * user-home discovery only, which keeps workspace-less scratch content inert.
  */
 export class SessionCustomizationDiscovery extends Disposable {
 
@@ -245,12 +241,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		if (_workingDirectories.length === 0) {
-			// Dispose the base store before throwing so a rejected construction
-			// does not leak a tracked (never-disposed) disposable.
-			this.dispose();
-			throw new Error('SessionCustomizationDiscovery requires at least one working directory (index 0 = primary root).');
-		}
 		this._register({ dispose: () => this._disposeAllWatchers() });
 		this._register(this._fileService.onDidFilesChange(e => {
 			for (const watcher of this._watchers.values()) {
@@ -607,6 +597,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 			});
 			return sortedResult;
 		} catch (err) {
+			if (err instanceof CancellationError) {
+				throw err;
+			}
 			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}`);
 			return [];
 		}
@@ -649,7 +642,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				// Resolve the relative source against the workspace root the SDK attributed
 				// it to (`projectPath` disambiguates same-named files across multiple roots).
 				// Fall back to the primary root for sources without an attributed project.
-				const anchor = this._rootForProjectPath(instruction.projectPath) ?? this._workingDirectories[0];
+				const anchor = this._rootForProjectPath(instruction.projectPath) ?? this._workingDirectories[0] ?? this._userHome;
 				uri = joinPath(anchor, instruction.sourcePath);
 			}
 			const uriString = uri.toString();
