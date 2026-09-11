@@ -198,6 +198,13 @@ suite('Files - ExplorerView', () => {
 			await shown;
 		}
 
+		async function showKeyboardContextMenu(item: ExplorerItem): Promise<void> {
+			const event = new KeyboardEvent('keyup', { key: 'F10', shiftKey: true, bubbles: true });
+			// StandardKeyboardEvent reads the legacy keyCode, which some browsers ignore in KeyboardEventInit.
+			Object.defineProperty(event, 'keyCode', { get: () => 121 });
+			await showContextMenu(item, event);
+		}
+
 		function assertContext(expected: ExplorerItem[], clicked: ExplorerItem): void {
 			assert.deepStrictEqual({
 				selection: tree.getSelection().map(item => item.resource),
@@ -278,7 +285,7 @@ suite('Files - ExplorerView', () => {
 		test('selects the keyboard context-menu target without opening it', async () => {
 			tree.setSelection([first, second]);
 
-			await showContextMenu(target, new KeyboardEvent('keyup', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true }));
+			await showKeyboardContextMenu(target);
 
 			assertContext([target], target);
 		});
@@ -286,7 +293,7 @@ suite('Files - ExplorerView', () => {
 		test('preserves multi-selection for a keyboard context menu on a selected item', async () => {
 			tree.setSelection([first, second]);
 
-			await showContextMenu(first, new KeyboardEvent('keyup', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true }));
+			await showKeyboardContextMenu(first);
 
 			assertContext([first, second], first);
 		});
