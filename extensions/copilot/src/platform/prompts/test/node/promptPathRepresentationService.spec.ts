@@ -97,6 +97,11 @@ describe('PromptPathRepresentationService', () => {
 			expect(service.resolveFilePath('just some text')).toBeUndefined();
 		});
 
+		it('returns undefined for relative paths with dots and line numbers', () => {
+			expect(service.resolveFilePath('MyProject.Common/src/file.ts:10')).toBeUndefined();
+			expect(service.resolveFilePath('MyProject.Common:10')).toBeUndefined();
+		});
+
 		it('roundtrips posix file URIs through getFilePath and resolveFilePath', () => {
 			const original = URI.file('/home/user/project/file.ts');
 			const filepath = service.getFilePath(original);
