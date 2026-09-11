@@ -203,6 +203,21 @@ suite('WindowsFinder', () => {
 			// (rather than a full-path match) would incorrectly win here.
 			assert.strictEqual(await findWindowOnFile([otherLinkedWindow, linkedWindow], worktreeFile, localWorkspaceResolver), linkedWindow);
 		});
+
+		test('Linked worktree window wins when opened as part of a multi-root workspace', async () => {
+			const linkedWorkspace: IWorkspaceIdentifier = {
+				id: Date.now().toString(),
+				configPath: URI.file(join(testDir, 'linked.code-workspace'))
+			};
+			const linkedWorkspaceFolders = toWorkspaceFolders([{ path: linkedWorktreeFolder }, { path: join(fixturesFolder, 'vscode_folder') }], linkedWorkspace.configPath, extUriBiasedIgnorePathCase);
+			const linkedWorkspaceResolver = async (workspace: IWorkspaceIdentifier) => { return workspace === linkedWorkspace ? { id: linkedWorkspace.id, configPath: workspace.configPath, folders: linkedWorkspaceFolders } : undefined; };
+
+			const mainWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(mainWorktreeFolder) });
+			const multiRootWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 2, openedWorkspace: linkedWorkspace });
+
+			const worktreeFile = URI.file(join(mainWorktreeFolder, '.git', 'worktrees', 'linked', 'COMMIT_EDITMSG'));
+			assert.strictEqual(await findWindowOnFile([mainWindow, multiRootWindow], worktreeFile, linkedWorkspaceResolver), multiRootWindow);
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

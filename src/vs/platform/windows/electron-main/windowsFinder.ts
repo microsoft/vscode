@@ -18,6 +18,23 @@ import { IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWor
 // and `\` as path separators.
 const gitWorktreeFilePathRegex = /^(.*[\\/]\.git[\\/]worktrees[\\/][^\\/]+)[\\/]/;
 
+// Returns the folder(s) a window has open, for both single-folder windows and
+// (resolved) multi-root workspace windows. Returns an empty array when the
+// window has no folders opened, or its workspace could not be resolved.
+async function getOpenedFolderUris(window: ICodeWindow, localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => Promise<IResolvedWorkspace | undefined>): Promise<URI[]> {
+	const workspace = window.openedWorkspace;
+	if (isSingleFolderWorkspaceIdentifier(workspace)) {
+		return [workspace.uri];
+	}
+
+	if (isWorkspaceIdentifier(workspace)) {
+		const resolvedWorkspace = await localWorkspaceResolver(workspace);
+		return resolvedWorkspace ? resolvedWorkspace.folders.map(folder => folder.uri) : [];
+	}
+
+	return [];
+}
+
 /**
  * Git linked worktrees store their private per-worktree files (such as
  * `COMMIT_EDITMSG` or `rebase-merge/git-rebase-todo`) inside the *main*
@@ -28,12 +45,13 @@ const gitWorktreeFilePathRegex = /^(.*[\\/]\.git[\\/]worktrees[\\/][^\\/]+)[\\/]
  * actually belongs to.
  *
  * This detects that case and, if the linked worktree is open in one of the
- * candidate windows, returns that window instead. Returns `undefined` when
- * the path is not a git worktree metadata path, or when no candidate window
- * has the corresponding linked worktree open, so callers can fall back to
- * their normal matching logic.
+ * candidate windows (as a single-folder window or as one folder of a
+ * multi-root workspace window), returns that window instead. Returns
+ * `undefined` when the path is not a git worktree metadata path, or when no
+ * candidate window has the corresponding linked worktree open, so callers
+ * can fall back to their normal matching logic.
  */
-async function findWindowOnGitWorktreeFile(windows: ICodeWindow[], fileUri: URI): Promise<ICodeWindow | undefined> {
+async function findWindowOnGitWorktreeFile(windows: ICodeWindow[], fileUri: URI, localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => Promise<IResolvedWorkspace | undefined>): Promise<ICodeWindow | undefined> {
 	if (fileUri.scheme !== Schemas.file) {
 		return undefined;
 	}
@@ -51,32 +69,33 @@ async function findWindowOnGitWorktreeFile(windows: ICodeWindow[], fileUri: URI)
 	const worktreeGitDir = URI.file(worktreeMatch[1]);
 
 	for (const window of windows) {
-		const openedFolder = isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined;
-		if (!openedFolder || openedFolder.scheme !== Schemas.file) {
-			continue;
-		}
+		for (const openedFolder of await getOpenedFolderUris(window, localWorkspaceResolver)) {
+			if (openedFolder.scheme !== Schemas.file) {
+				continue;
+			}
 
-		// A linked worktree's working directory contains a plain-text `.git`
-		// *file* (not a directory) of the form `gitdir: /path/to/main/.git/worktrees/<name>`.
-		// Reading this will fail (and is safely skipped) for ordinary repositories,
-		// where `.git` is a directory, and for folders that are not a git repository at all.
-		let gitFileContents: string;
-		try {
-			gitFileContents = await fs.promises.readFile(URI.joinPath(openedFolder, '.git').fsPath, 'utf8');
-		} catch {
-			continue;
-		}
+			// A linked worktree's working directory contains a plain-text `.git`
+			// *file* (not a directory) of the form `gitdir: /path/to/main/.git/worktrees/<name>`.
+			// Reading this will fail (and is safely skipped) for ordinary repositories,
+			// where `.git` is a directory, and for folders that are not a git repository at all.
+			let gitFileContents: string;
+			try {
+				gitFileContents = await fs.promises.readFile(URI.joinPath(openedFolder, '.git').fsPath, 'utf8');
+			} catch {
+				continue;
+			}
 
-		const gitDirMatch = /^gitdir:\s*(.+)$/m.exec(gitFileContents);
-		if (!gitDirMatch) {
-			continue;
-		}
+			const gitDirMatch = /^gitdir:\s*(.+)$/m.exec(gitFileContents);
+			if (!gitDirMatch) {
+				continue;
+			}
 
-		// The pointer is usually absolute, but resolve it relative to the
-		// worktree's own folder in case it is ever written as a relative path.
-		const resolvedGitDir = URI.file(resolve(openedFolder.fsPath, gitDirMatch[1].trim()));
-		if (extUriBiasedIgnorePathCase.isEqual(resolvedGitDir, worktreeGitDir)) {
-			return window;
+			// The pointer is usually absolute, but resolve it relative to the
+			// worktree's own folder in case it is ever written as a relative path.
+			const resolvedGitDir = URI.file(resolve(openedFolder.fsPath, gitDirMatch[1].trim()));
+			if (extUriBiasedIgnorePathCase.isEqual(resolvedGitDir, worktreeGitDir)) {
+				return window;
+			}
 		}
 	}
 
@@ -88,7 +107,7 @@ export async function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, loc
 	// First, check whether the file is a git linked worktree's private metadata
 	// file and, if so, prefer the window that has that linked worktree open
 	// (see `findWindowOnGitWorktreeFile` for why this needs special handling)
-	const gitWorktreeWindow = await findWindowOnGitWorktreeFile(windows, fileUri);
+	const gitWorktreeWindow = await findWindowOnGitWorktreeFile(windows, fileUri, localWorkspaceResolver);
 	if (gitWorktreeWindow) {
 		return gitWorktreeWindow;
 	}
