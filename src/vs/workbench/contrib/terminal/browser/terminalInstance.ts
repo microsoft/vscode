@@ -1574,6 +1574,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case ProcessPropertyType.OverrideDimensions:
 					this.setOverrideDimensions(value as IProcessPropertyMap[ProcessPropertyType.OverrideDimensions], true);
 					break;
+				case ProcessPropertyType.IsExtensionOwnedTerminal:
+					this._setIsExtensionOwnedTerminal(value as IProcessPropertyMap[ProcessPropertyType.IsExtensionOwnedTerminal]);
+					break;
 				case ProcessPropertyType.ResolvedShellLaunchConfig:
 					this._setResolvedShellLaunchConfig(value as IProcessPropertyMap[ProcessPropertyType.ResolvedShellLaunchConfig]);
 					break;
@@ -2330,7 +2333,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.cwd = shellLaunchConfig.cwd;
 		this._shellLaunchConfig.executable = shellLaunchConfig.executable;
 		this._shellLaunchConfig.env = shellLaunchConfig.env;
-		this._shellLaunchConfig.isExtensionOwnedTerminal = shellLaunchConfig.isExtensionOwnedTerminal;
+	}
+
+	private _setIsExtensionOwnedTerminal(isExtensionOwnedTerminal: boolean | undefined): void {
+		this._shellLaunchConfig.isExtensionOwnedTerminal = isExtensionOwnedTerminal;
 		this.xterm?.setAllowUntrustedCwd(this._shouldAllowUntrustedCwd(this._shellLaunchConfig));
 	}
 

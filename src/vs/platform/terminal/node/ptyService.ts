@@ -872,7 +872,7 @@ export class PersistentTerminalProcess extends Disposable {
 			// causes conhost to hang when no response is received from the terminal (which wouldn't
 			// be attached yet). https://github.com/microsoft/terminal/issues/11213
 			if (this._wasRevived) {
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.ResolvedShellLaunchConfig, value: this.shellLaunchConfig });
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.IsExtensionOwnedTerminal, value: this.shellLaunchConfig.isExtensionOwnedTerminal });
 				this.triggerReplay();
 			} else {
 				this._onPersistentProcessReady.fire();
@@ -881,7 +881,7 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 
 		this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, windowsPty: this._terminalProcess.getWindowsPty() });
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ResolvedShellLaunchConfig, value: this.shellLaunchConfig });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.IsExtensionOwnedTerminal, value: this.shellLaunchConfig.isExtensionOwnedTerminal });
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
 		this.triggerReplay();

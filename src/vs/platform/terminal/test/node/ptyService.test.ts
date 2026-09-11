@@ -81,7 +81,7 @@ suite('PtyService', () => {
 		]);
 	});
 
-	test('should publish resolved shell launch config before replay', async () => {
+	test('should publish extension ownership before replay', async () => {
 		const store = testContext.add(new DisposableStore());
 		const logService = new NullLogService();
 		const productService = { _serviceBrand: undefined, ...product } satisfies IProductService;
@@ -126,8 +126,8 @@ suite('PtyService', () => {
 			try {
 				const replay = new Promise<void>(resolve => {
 					listenerStore.add(persistentProcess.onDidChangeProperty(e => {
-						if (e.type === ProcessPropertyType.ResolvedShellLaunchConfig) {
-							order.push('resolvedShellLaunchConfig');
+						if (e.type === ProcessPropertyType.IsExtensionOwnedTerminal) {
+							order.push('isExtensionOwnedTerminal');
 						}
 					}));
 					listenerStore.add(persistentProcess.onProcessReplay(() => {
@@ -136,9 +136,7 @@ suite('PtyService', () => {
 					}));
 				});
 				const result = await persistentProcess.start();
-				if (result) {
-					throw new Error(result.message);
-				}
+				deepStrictEqual(result, undefined);
 				await replay;
 				return order;
 			} finally {
@@ -148,16 +146,14 @@ suite('PtyService', () => {
 
 		const reattachedProcess = createPersistentProcess(1, false);
 		const launchResult = await reattachedProcess.start();
-		if (launchResult) {
-			throw new Error(launchResult.message);
-		}
+		deepStrictEqual(launchResult, undefined);
 
 		deepStrictEqual({
 			reattach: await getReplayOrder(reattachedProcess),
 			revive: await getReplayOrder(createPersistentProcess(2, true)),
 		}, {
-			reattach: ['resolvedShellLaunchConfig', 'replay'],
-			revive: ['resolvedShellLaunchConfig', 'replay'],
+			reattach: ['isExtensionOwnedTerminal', 'replay'],
+			revive: ['isExtensionOwnedTerminal', 'replay'],
 		});
 	});
 });

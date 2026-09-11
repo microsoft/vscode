@@ -73,7 +73,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 
 	constructor(
 		readonly shouldPersist: boolean,
-		private readonly _resolvedShellLaunchConfig?: IShellLaunchConfig
+		private readonly _isExtensionOwnedTerminal?: boolean
 	) {
 		super();
 	}
@@ -91,8 +91,8 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	onProcessTitleChanged = Event.None;
 	onProcessShellTypeChanged = Event.None;
 	async start(): Promise<undefined> {
-		if (this._resolvedShellLaunchConfig) {
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ResolvedShellLaunchConfig, value: this._resolvedShellLaunchConfig });
+		if (this._isExtensionOwnedTerminal !== undefined) {
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.IsExtensionOwnedTerminal, value: this._isExtensionOwnedTerminal });
 		}
 		return undefined;
 	}
@@ -111,7 +111,7 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
 	createProcessCount = 0;
-	attachResolvedShellLaunchConfig: IShellLaunchConfig | undefined;
+	attachIsExtensionOwnedTerminal: boolean | undefined;
 	private readonly _processCreatedPromise: Promise<void>;
 	private _resolveProcessCreated!: () => void;
 
@@ -150,11 +150,11 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 			getLatency: () => Promise.resolve([]),
 			attachToProcess: async () => {
 				this._resolveProcessCreated();
-				return this._register(new TestTerminalChildProcess(true, this.attachResolvedShellLaunchConfig));
+				return this._register(new TestTerminalChildProcess(true, this.attachIsExtensionOwnedTerminal));
 			},
 			attachToRevivedProcess: async () => {
 				this._resolveProcessCreated();
-				return this._register(new TestTerminalChildProcess(true, this.attachResolvedShellLaunchConfig));
+				return this._register(new TestTerminalChildProcess(true, this.attachIsExtensionOwnedTerminal));
 			}
 		} as unknown as ITerminalBackend;
 	}
@@ -277,7 +277,7 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should hydrate extension ownership for old terminal editor state', async () => {
 			const terminalInstanceService = store.add(new TestTerminalInstanceService());
-			terminalInstanceService.attachResolvedShellLaunchConfig = { isExtensionOwnedTerminal: true };
+			terminalInstanceService.attachIsExtensionOwnedTerminal = true;
 			const instance = await createTerminalInstance(terminalInstanceService, undefined, {
 				attachPersistentProcess: {
 					id: 1,

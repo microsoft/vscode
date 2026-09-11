@@ -590,7 +590,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						// present when emitted by a trusted shell integration script. CWD updates
 						// without a matching non-empty nonce are ignored to mitigate spoofing via
 						// arbitrary terminal output, unless an extension-owned terminal explicitly
-						// opts into retaining them as untrusted.
+						// opts into retaining them as untrusted. Manually integrated nested shells
+						// cannot inherit the nonce after it is removed from the environment, so their
+						// reports remain ignored rather than exposing the nonce to child processes.
 						const nonce = args[1];
 						if (this._nonce && nonce === this._nonce) {
 							this._updateCwd(value);

@@ -77,6 +77,9 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 			case ProcessPropertyType.OverrideDimensions:
 				this.emitOverrideDimensions(value as IProcessPropertyMap[ProcessPropertyType.OverrideDimensions]);
 				break;
+			case ProcessPropertyType.IsExtensionOwnedTerminal:
+				this._onDidChangeProperty.fire({ type, value: value as IProcessPropertyMap[ProcessPropertyType.IsExtensionOwnedTerminal] });
+				break;
 			case ProcessPropertyType.ResolvedShellLaunchConfig:
 				this.emitResolvedShellLaunchConfig(value as IProcessPropertyMap[ProcessPropertyType.ResolvedShellLaunchConfig]);
 				break;

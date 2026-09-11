@@ -262,6 +262,7 @@ export const enum ProcessPropertyType {
 	Title = 'title',
 	ShellType = 'shellType',
 	HasChildProcesses = 'hasChildProcesses',
+	IsExtensionOwnedTerminal = 'isExtensionOwnedTerminal',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
 	OverrideDimensions = 'overrideDimensions',
 	FailedShellIntegrationActivation = 'failedShellIntegrationActivation',
@@ -281,6 +282,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.Title]: string;
 	[ProcessPropertyType.ShellType]: TerminalShellType | undefined;
 	[ProcessPropertyType.HasChildProcesses]: boolean;
+	[ProcessPropertyType.IsExtensionOwnedTerminal]: boolean | undefined;
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig;
 	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 	[ProcessPropertyType.FailedShellIntegrationActivation]: boolean | undefined;

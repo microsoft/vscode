@@ -129,6 +129,8 @@ function Global:Prompt() {
 	$Result += "$([char]0x1b)]633;A`a"
 	# Current working directory
 	# OSC 633 ; <Property>=<Value> ; <Nonce> ST
+	# This is returned as prompt output, matching the nonce-bearing EnvJson report below. The
+	# Windows 10 workaround only applies to command-line reports written directly to Console.
 	$Result += if ($pwd.Provider.Name -eq 'FileSystem') { "$([char]0x1b)]633;P;Cwd=$(__VSCode-Escape-Value $pwd.ProviderPath);$($Global:__VSCodeState.Nonce)`a" }
 
 	# Send current environment variables as JSON
