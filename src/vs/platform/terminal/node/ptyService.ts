@@ -789,6 +789,7 @@ class PersistentTerminalProcess extends Disposable {
 			unicodeVersion,
 			reviveBuffer,
 			processLaunchOptions.options.shellIntegration.nonce,
+			!!this.shellLaunchConfig.isExtensionOwnedTerminal,
 			shouldPersistTerminal ? rawReviveBuffer : undefined,
 			this._logService
 		);
@@ -1030,7 +1031,7 @@ class MutationLogger<T> {
 	}
 }
 
-class XtermSerializer implements ITerminalSerializer {
+export class XtermSerializer implements ITerminalSerializer {
 	private readonly _xterm: XtermTerminal;
 	private readonly _shellIntegrationAddon: ShellIntegrationAddon;
 	private _unicodeAddon?: XtermUnicode11Addon;
@@ -1042,6 +1043,7 @@ class XtermSerializer implements ITerminalSerializer {
 		unicodeVersion: '6' | '11',
 		reviveBufferWithRestoreMessage: string | undefined,
 		shellIntegrationNonce: string,
+		allowUntrustedCwd: boolean,
 		private _rawReviveBuffer: string | undefined,
 		logService: ILogService
 	) {
@@ -1055,7 +1057,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, undefined, logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, undefined, logService, allowUntrustedCwd);
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 
@@ -1066,6 +1068,11 @@ class XtermSerializer implements ITerminalSerializer {
 
 	handleData(data: string): void {
 		this._xterm.write(data);
+	}
+
+	dispose(): void {
+		this._shellIntegrationAddon.dispose();
+		this._xterm.dispose();
 	}
 
 	handleResize(cols: number, rows: number): void {

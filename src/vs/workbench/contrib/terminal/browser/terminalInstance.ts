@@ -2330,6 +2330,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.cwd = shellLaunchConfig.cwd;
 		this._shellLaunchConfig.executable = shellLaunchConfig.executable;
 		this._shellLaunchConfig.env = shellLaunchConfig.env;
+		this._shellLaunchConfig.isExtensionOwnedTerminal = shellLaunchConfig.isExtensionOwnedTerminal;
+		this.xterm?.setAllowUntrustedCwd(this._shouldAllowUntrustedCwd(this._shellLaunchConfig));
 	}
 
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {

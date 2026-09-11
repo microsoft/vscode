@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
@@ -18,7 +18,7 @@ import { ResultKind } from '../../../../../platform/keybinding/common/keybinding
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, IProcessProperty, ITerminalChildProcess, ITerminalProfile, PosixShellType, ProcessPropertyType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -68,6 +68,9 @@ const terminalShellTypeContextKey = {
 class TestTerminalChildProcess extends Disposable implements ITerminalChildProcess {
 	id: number = 0;
 	get capabilities() { return []; }
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
+	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+
 	constructor(
 		readonly shouldPersist: boolean
 	) {
@@ -81,7 +84,6 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	readonly onProcessResolvedShellLaunchConfig?: Event<any> | undefined;
 	readonly onDidChangeHasChildProcesses?: Event<any> | undefined;
 
-	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
 	onProcessExit = Event.None;
 	onProcessReady = Event.None;
@@ -99,10 +101,15 @@ class TestTerminalChildProcess extends Disposable implements ITerminalChildProce
 	async getCwd(): Promise<string> { return ''; }
 	async processBinary(data: string): Promise<void> { }
 	refreshProperty(property: any): Promise<any> { return Promise.resolve(''); }
+
+	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ResolvedShellLaunchConfig, value: shellLaunchConfig });
+	}
 }
 
 class TestTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
 	createProcessCount = 0;
+	lastProcess: TestTerminalChildProcess | undefined;
 	private readonly _processCreatedPromise: Promise<void>;
 	private _resolveProcessCreated!: () => void;
 
@@ -136,11 +143,17 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 			) => {
 				this.createProcessCount++;
 				this._resolveProcessCreated();
-				return this._register(new TestTerminalChildProcess(shouldPersist));
+				return this.lastProcess = this._register(new TestTerminalChildProcess(shouldPersist));
 			},
 			getLatency: () => Promise.resolve([]),
-			attachToProcess: async () => this._register(new TestTerminalChildProcess(true)),
-			attachToRevivedProcess: async () => this._register(new TestTerminalChildProcess(true))
+			attachToProcess: async () => {
+				this._resolveProcessCreated();
+				return this.lastProcess = this._register(new TestTerminalChildProcess(true));
+			},
+			attachToRevivedProcess: async () => {
+				this._resolveProcessCreated();
+				return this.lastProcess = this._register(new TestTerminalChildProcess(true));
+			}
 		} as unknown as ITerminalBackend;
 	}
 }
@@ -258,6 +271,42 @@ suite('Workbench - TerminalInstance', () => {
 			const ordinary = await createTerminalInstance(undefined, undefined, { attachPersistentProcess: createAttachTarget() });
 			await writeP(ordinary.xterm!.raw, '\x1b]633;P;Cwd=/ordinary\x07');
 			strictEqual(ordinary.xterm?.shellIntegration.capabilities.has(TerminalCapability.CwdDetection), false);
+		});
+
+		test('should hydrate extension ownership for old terminal editor state', async () => {
+			const terminalInstanceService = store.add(new TestTerminalInstanceService());
+			const instance = await createTerminalInstance(terminalInstanceService, undefined, {
+				attachPersistentProcess: {
+					id: 1,
+					findRevivedId: true,
+					pid: 1,
+					title: 'test',
+					titleSource: TitleEventSource.Api,
+					cwd: '/workspace',
+					hasChildProcesses: false,
+					shellIntegrationNonce: 'test-nonce',
+				}
+			});
+			await terminalInstanceService.processCreatedPromise;
+
+			await writeP(instance.xterm!.raw, '\x1b]633;P;Cwd=/before-hydration\x07');
+			strictEqual(instance.xterm?.shellIntegration.capabilities.has(TerminalCapability.CwdDetection), false);
+
+			const attachedProcess = terminalInstanceService.lastProcess;
+			if (!attachedProcess) {
+				throw new Error('Expected attached terminal process');
+			}
+			attachedProcess.emitResolvedShellLaunchConfig({ isExtensionOwnedTerminal: true });
+			await writeP(instance.xterm!.raw, '\x1b]633;P;Cwd=/after-hydration\x07');
+			const cwdDetection = instance.xterm?.shellIntegration.capabilities.get(TerminalCapability.CwdDetection);
+			deepStrictEqual(
+				{
+					isExtensionOwnedTerminal: instance.shellLaunchConfig.isExtensionOwnedTerminal,
+					cwd: cwdDetection?.getCwd(),
+					isTrusted: cwdDetection?.isTrusted,
+				},
+				{ isExtensionOwnedTerminal: true, cwd: '/after-hydration', isTrusted: false }
+			);
 		});
 
 		test('should create an instance of TerminalInstance with env from default profile', async () => {

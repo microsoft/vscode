@@ -50,6 +50,24 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 	}
 }
 
+export function createRemoteShellLaunchConfigDto(shellLaunchConfig: IShellLaunchConfig): IShellLaunchConfigDto {
+	return {
+		name: shellLaunchConfig.name,
+		executable: shellLaunchConfig.executable,
+		args: shellLaunchConfig.args,
+		cwd: shellLaunchConfig.cwd,
+		env: shellLaunchConfig.env,
+		useShellEnvironment: shellLaunchConfig.useShellEnvironment,
+		reconnectionProperties: shellLaunchConfig.reconnectionProperties,
+		type: shellLaunchConfig.type,
+		isFeatureTerminal: shellLaunchConfig.isFeatureTerminal,
+		isExtensionOwnedTerminal: shellLaunchConfig.isExtensionOwnedTerminal,
+		forceShellIntegration: shellLaunchConfig.forceShellIntegration,
+		tabActions: shellLaunchConfig.tabActions,
+		shellIntegrationEnvironmentReporting: shellLaunchConfig.shellIntegrationEnvironmentReporting,
+	};
+}
+
 class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
 	private readonly _ptys: Map<number, RemotePty> = new Map();
 
@@ -181,20 +199,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			'terminal.integrated.detectLocale': terminalConfig.detectLocale
 		};
 
-		const shellLaunchConfigDto: IShellLaunchConfigDto = {
-			name: shellLaunchConfig.name,
-			executable: shellLaunchConfig.executable,
-			args: shellLaunchConfig.args,
-			cwd: shellLaunchConfig.cwd,
-			env: shellLaunchConfig.env,
-			useShellEnvironment: shellLaunchConfig.useShellEnvironment,
-			reconnectionProperties: shellLaunchConfig.reconnectionProperties,
-			type: shellLaunchConfig.type,
-			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal,
-			forceShellIntegration: shellLaunchConfig.forceShellIntegration,
-			tabActions: shellLaunchConfig.tabActions,
-			shellIntegrationEnvironmentReporting: shellLaunchConfig.shellIntegrationEnvironmentReporting,
-		};
+		const shellLaunchConfigDto = createRemoteShellLaunchConfigDto(shellLaunchConfig);
 		const activeWorkspaceRootUri = getWorkspaceForTerminal(shellLaunchConfig.cwd, this._workspaceContextService, this._historyService)?.uri;
 
 		const result = await this._remoteTerminalChannel.createProcess(

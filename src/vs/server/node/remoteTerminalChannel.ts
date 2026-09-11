@@ -15,7 +15,7 @@ import { IURITransformer } from '../../base/common/uriIpc.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { createRandomIPCHandle } from '../../base/parts/ipc/node/ipc.net.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
-import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
+import { IPtyHostService, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from '../../platform/terminal/common/terminalProcess.js';
 import { IWorkspaceFolder } from '../../platform/workspace/common/workspace.js';
 import { createURITransformer } from '../../base/common/uriTransformer.js';
@@ -85,6 +85,28 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 			},
 		}, undefined, Promise.resolve(os.homedir()), Promise.resolve(env));
 	}
+}
+
+export function reviveRemoteShellLaunchConfig(uriTransformer: IURITransformer, shellLaunchConfig: IShellLaunchConfigDto): IShellLaunchConfig {
+	return {
+		name: shellLaunchConfig.name,
+		executable: shellLaunchConfig.executable,
+		args: shellLaunchConfig.args,
+		cwd: (
+			typeof shellLaunchConfig.cwd === 'string' || typeof shellLaunchConfig.cwd === 'undefined'
+				? shellLaunchConfig.cwd
+				: URI.revive(uriTransformer.transformIncoming(shellLaunchConfig.cwd))
+		),
+		env: shellLaunchConfig.env,
+		useShellEnvironment: shellLaunchConfig.useShellEnvironment,
+		reconnectionProperties: shellLaunchConfig.reconnectionProperties,
+		type: shellLaunchConfig.type,
+		isFeatureTerminal: shellLaunchConfig.isFeatureTerminal,
+		isExtensionOwnedTerminal: shellLaunchConfig.isExtensionOwnedTerminal,
+		forceShellIntegration: shellLaunchConfig.forceShellIntegration,
+		tabActions: shellLaunchConfig.tabActions,
+		shellIntegrationEnvironmentReporting: shellLaunchConfig.shellIntegrationEnvironmentReporting,
+	};
 }
 
 export class RemoteTerminalChannel extends Disposable implements IServerChannel<RemoteAgentConnectionContext> {
@@ -191,24 +213,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 	}
 
 	private async _createProcess(uriTransformer: IURITransformer, args: ICreateTerminalProcessArguments): Promise<ICreateTerminalProcessResult> {
-		const shellLaunchConfig: IShellLaunchConfig = {
-			name: args.shellLaunchConfig.name,
-			executable: args.shellLaunchConfig.executable,
-			args: args.shellLaunchConfig.args,
-			cwd: (
-				typeof args.shellLaunchConfig.cwd === 'string' || typeof args.shellLaunchConfig.cwd === 'undefined'
-					? args.shellLaunchConfig.cwd
-					: URI.revive(uriTransformer.transformIncoming(args.shellLaunchConfig.cwd))
-			),
-			env: args.shellLaunchConfig.env,
-			useShellEnvironment: args.shellLaunchConfig.useShellEnvironment,
-			reconnectionProperties: args.shellLaunchConfig.reconnectionProperties,
-			type: args.shellLaunchConfig.type,
-			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal,
-			forceShellIntegration: args.shellLaunchConfig.forceShellIntegration,
-			tabActions: args.shellLaunchConfig.tabActions,
-			shellIntegrationEnvironmentReporting: args.shellLaunchConfig.shellIntegrationEnvironmentReporting,
-		};
+		const shellLaunchConfig = reviveRemoteShellLaunchConfig(uriTransformer, args.shellLaunchConfig);
 
 
 		const resolverEnv = { ...args.resolverEnv };
