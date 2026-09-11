@@ -71,8 +71,8 @@ suite('Component fixture theme CSS', () => {
 		const host = mainWindow.document.body.appendChild($('div'));
 		disposables.add(toDisposable(() => host.remove()));
 
-		const actual = variants.map((variant, index) => {
-			const id = `${variant.selector} workbench-background-${index}`;
+		const actual = variants.map(variant => {
+			const id = `${variant.id} workbench-background`;
 			const theme = ColorThemeData.createLoadedEmptyTheme(id, id);
 			theme.setCustomColors({ 'editor.background': '#123456' });
 			mainWindow.document.adoptedStyleSheets = [
@@ -82,9 +82,9 @@ suite('Component fixture theme CSS', () => {
 			const root = host.appendChild($('.monaco-workbench'));
 			root.classList.add(...theme.classNames);
 			const editor = root.appendChild($('.monaco-editor'));
-			editor.classList.add(variant.selector);
+			editor.classList.add(theme.classNames[0]);
 			const scrollable = editor.appendChild($('.monaco-scrollable-element'));
-			scrollable.classList.add(variant.selector);
+			scrollable.classList.add(theme.classNames[0]);
 
 			return [root, editor, scrollable].map(element => mainWindow.getComputedStyle(element).backgroundColor);
 		});

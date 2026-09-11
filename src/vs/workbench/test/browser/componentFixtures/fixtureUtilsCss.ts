@@ -217,7 +217,7 @@ export function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 	const css = generateColorThemeCSS(
 		theme,
 		scopeSelector,
-		[createScopedThemingParticipant(scopeSelector, '.monaco-workbench', themingParticipants)],
+		[createScopedThemingParticipant(themeScopeSelector, '.monaco-workbench', themingParticipants)],
 		mockEnvironmentService
 	);
 	sheet.replaceSync(css.code);
