@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -33,7 +32,6 @@ import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/b
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
 import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -97,8 +95,6 @@ export interface ISessionTypePickerOptions {
 	 * `false` cancels the selection without changing the current type.
 	 */
 	readonly prepareSessionTypeSelection?: (pick: IPickedSessionType) => Promise<boolean>;
-	/** Whether to render the Compare Agents mode toggle beside the picker. */
-	readonly showComparisonToggle?: boolean;
 }
 
 /**
@@ -141,8 +137,6 @@ export class SessionTypePicker extends Disposable {
 	 */
 	protected readonly _onDidChangeSelectedPick = this._register(new Emitter<IPreferredSessionType | undefined>());
 	readonly onDidChangeSelectedPick = this._onDidChangeSelectedPick.event;
-	private readonly _onDidChangeComparisonPicks = this._register(new Emitter<readonly IPickedSessionType[]>());
-	readonly onDidChangeComparisonPicks = this._onDidChangeComparisonPicks.event;
 	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 	readonly onDidChangeChatPetPlatform = this._onDidChangeChatPetPlatform.event;
 	private readonly _modelTargetChatSessionType = observableValue<string | undefined>(this, undefined);
@@ -150,9 +144,6 @@ export class SessionTypePicker extends Disposable {
 
 	/** Session types the active session's folder can be served by, across all providers. */
 	protected _folderSessionTypes: IProviderSessionType[] = [];
-	private _comparisonMode = false;
-	private _comparisonPicks: IPickedSessionType[] = [];
-	private _comparisonToggle: Button | undefined;
 
 	/** Folder that drives the available session types when set via {@link setFolderSource}; `undefined` keeps session-driven behavior. */
 	private _folderSource: IObservable<URI | undefined> | undefined;
@@ -213,16 +204,6 @@ export class SessionTypePicker extends Disposable {
 	 */
 	protected _recompute(): void {
 		this._folderSessionTypes = this._resolveFolderSessionTypes();
-		if (this._comparisonMode) {
-			const comparisonPicks = this._comparisonPicks.filter(pick => this._folderSessionTypes.some(candidate =>
-				candidate.providerId === pick.providerId
-				&& candidate.sessionType.id === pick.sessionTypeId
-				&& candidate.sessionType.supportsWorktreeConfiguration));
-			if (comparisonPicks.length !== this._comparisonPicks.length) {
-				this._comparisonPicks = comparisonPicks;
-				this._onDidChangeComparisonPicks.fire(this._comparisonPicks);
-			}
-		}
 		const previous = this._picked;
 		this._picked = this._computeCurrentPick();
 		const pick = this._picked;
@@ -419,31 +400,6 @@ export class SessionTypePicker extends Disposable {
 		return first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
 	}
 
-	setComparisonMode(enabled: boolean): void {
-		if (this._comparisonMode === enabled) {
-			return;
-		}
-		this._comparisonMode = enabled;
-		const pickedType = this._picked?.providerId
-			? this._folderSessionTypes.find(candidate =>
-				candidate.providerId === this._picked?.providerId && candidate.sessionType.id === this._picked.sessionTypeId)
-			: undefined;
-		this._comparisonPicks = enabled && this._picked?.providerId && pickedType?.sessionType.supportsWorktreeConfiguration
-			? [{ providerId: this._picked.providerId, sessionTypeId: this._picked.sessionTypeId }]
-			: [];
-		this._updateTriggerLabel();
-		this._updateComparisonToggle();
-		this._onDidChangeComparisonPicks.fire(this._comparisonPicks);
-	}
-
-	getComparisonPicks(): readonly IPickedSessionType[] {
-		return this._comparisonPicks;
-	}
-
-	isComparisonMode(): boolean {
-		return this._comparisonMode;
-	}
-
 	render(container: HTMLElement, options?: { className?: string }): void {
 		this._renderDisposables.clear();
 
@@ -455,21 +411,6 @@ export class SessionTypePicker extends Disposable {
 			}
 		}
 		this._renderDisposables.add({ dispose: () => slot.remove() });
-		if (this._options?.showComparisonToggle) {
-			this._comparisonToggle = this._renderDisposables.add(new Button(slot, {
-				...defaultButtonStyles,
-				secondary: true,
-				title: localize('sessionTypePicker.compareAgentsTooltip', "Run the same task with multiple agents and compare their results"),
-				ariaLabel: localize('sessionTypePicker.compareAgents', "Compare Agents"),
-			}));
-			this._comparisonToggle.label = localize('sessionTypePicker.compareAgents', "Compare Agents");
-			this._comparisonToggle.element.classList.add('sessions-chat-comparison-toggle');
-			this._renderDisposables.add(this._comparisonToggle.onDidClick(() => this.setComparisonMode(!this._comparisonMode)));
-			this._renderDisposables.add({
-				dispose: () => this._comparisonToggle = undefined,
-			});
-			this._updateComparisonToggle();
-		}
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
@@ -537,7 +478,7 @@ export class SessionTypePicker extends Disposable {
 		this._folderSessionTypes = folderTypes;
 		this._updateModelTargetChatSessionType();
 
-		if (!this._comparisonMode && folderTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
+		if (folderTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
 			return;
 		}
 
@@ -567,9 +508,6 @@ export class SessionTypePicker extends Disposable {
 		}
 		const hasDuplicateLabels = Array.from(labelCounts.values()).some(count => count > 1);
 		const showSectionHeaders = groups.size > 1 && hasDuplicateLabels;
-		const selectedModelId = this._session.get()?.modelId.get();
-		const workspaceUri = this._folderSource?.get() ?? this._session.get()?.workspace.get()?.folders[0]?.root;
-
 		const groupedItems: IActionListItem<ISessionTypePickerItem>[] = [];
 		for (const [groupTitle, types] of groups) {
 			if (showSectionHeaders) {
@@ -583,9 +521,7 @@ export class SessionTypePicker extends Disposable {
 				});
 			}
 			for (const { providerId, sessionType } of types) {
-				const isCurrent = this._comparisonMode
-					? this._comparisonPicks.some(pick => pick.providerId === providerId && pick.sessionTypeId === sessionType.id)
-					: this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
+				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
 				const modelTarget = sessionType.chatSessionType ?? sessionType.id;
 				const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
 				const availability = getSessionTypePickerAvailability(
@@ -595,11 +531,6 @@ export class SessionTypePicker extends Disposable {
 					hasAgentSdkSetupNotification(this.chatInputNotificationService, modelTarget),
 				);
 				const unavailable = availability !== SessionTypeAvailability.Available;
-				const worktreeUnavailable = this._comparisonMode && !sessionType.supportsWorktreeConfiguration;
-				const modelResolution = this._comparisonMode && selectedModelId && workspaceUri
-					? this.sessionsProvidersService.getProvider(providerId)?.getModelsSnapshotForCreation?.(workspaceUri, sessionType.id, selectedModelId).desiredModelResolution
-					: undefined;
-				const modelUnavailable = !!selectedModelId && modelResolution?.kind !== 'available';
 				const item: ISessionTypePickerItem = {
 					providerId,
 					sessionTypeId: sessionType.id,
@@ -610,19 +541,11 @@ export class SessionTypePicker extends Disposable {
 				groupedItems.push({
 					kind: ActionListItemKind.Action,
 					label: sessionType.label,
-					disabled: unavailable || worktreeUnavailable || modelUnavailable,
-					...(unavailable || worktreeUnavailable || modelUnavailable ? {
-						description: worktreeUnavailable
-							? localize('sessionTypePicker.comparisonRequiresWorktree', "Comparisons require worktree isolation")
-							: modelUnavailable
-								? localize('sessionTypePicker.comparisonModelUnavailable', "Selected model is not available")
-								: getSessionTypeUnavailableDescription(availability),
+					disabled: unavailable,
+					...(unavailable ? {
+						description: getSessionTypeUnavailableDescription(availability),
 						hover: {
-							content: worktreeUnavailable
-								? localize('sessionTypePicker.comparisonRequiresWorktreeHover', "This harness cannot run an isolated comparison attempt because it does not support worktree configuration.")
-								: modelUnavailable
-									? localize('sessionTypePicker.comparisonModelUnavailableHover', "This harness does not advertise the model currently selected for the comparison.")
-									: getSessionTypeUnavailableHover(availability),
+							content: getSessionTypeUnavailableHover(availability),
 						},
 					} : {}),
 					group: {
@@ -664,19 +587,6 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	protected async _selectSessionType(pick: IPickedSessionType): Promise<void> {
-		if (this._comparisonMode) {
-			const index = this._comparisonPicks.findIndex(candidate => pickEquals(candidate, pick));
-			this._comparisonPicks = index >= 0
-				? this._comparisonPicks.filter((_, candidateIndex) => candidateIndex !== index)
-				: [...this._comparisonPicks, pick];
-			if (this._comparisonPicks.length > 0) {
-				this._picked = this._comparisonPicks[0];
-				this._updateModelTargetChatSessionType();
-			}
-			this._updateTriggerLabel();
-			this._onDidChangeComparisonPicks.fire(this._comparisonPicks);
-			return;
-		}
 		const visiblePickChanged = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId;
 		if (this._options?.prepareSessionTypeSelection) {
 			if (!await this._options.prepareSessionTypeSelection(pick)) {
@@ -808,7 +718,7 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const disabled = !this._comparisonMode && this._folderSessionTypes.length === 1 && this._pickServedByFolder(this._picked);
+		const disabled = this._folderSessionTypes.length === 1 && this._pickServedByFolder(this._picked);
 		this._triggerElement.classList.remove('hidden');
 		this._triggerElement.parentElement?.classList.toggle('disabled', disabled);
 		this._triggerElement.tabIndex = disabled ? -1 : 0;
@@ -818,9 +728,7 @@ export class SessionTypePicker extends Disposable {
 			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)?.sessionType
 			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId)?.sessionType;
 		const modeIcon = currentType?.icon ?? Codicon.terminal;
-		const modeLabel = this._comparisonMode
-			? localize('sessionTypePicker.comparisonSelectionCount', "{0} Agents", this._comparisonPicks.length)
-			: currentType?.label ?? this._picked?.sessionTypeId ?? '';
+		const modeLabel = currentType?.label ?? this._picked?.sessionTypeId ?? '';
 
 		dom.append(this._triggerElement, renderIcon(modeIcon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
@@ -831,18 +739,8 @@ export class SessionTypePicker extends Disposable {
 			chevron.classList.add('sessions-chat-dropdown-chevron');
 		}
 
-		this._triggerElement.ariaLabel = this._comparisonMode
-			? localize('sessionTypePicker.comparisonTriggerAriaLabel', "Pick Agents to Compare, {0} selected", this._comparisonPicks.length)
-			: disabled
-				? localize('sessionTypePicker.disabledTriggerAriaLabel', "Session Type, {0}", modeLabel)
-				: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
-	}
-
-	private _updateComparisonToggle(): void {
-		if (!this._comparisonToggle) {
-			return;
-		}
-		this._comparisonToggle.checked = this._comparisonMode;
-		this._comparisonToggle.element.ariaPressed = String(this._comparisonMode);
+		this._triggerElement.ariaLabel = disabled
+			? localize('sessionTypePicker.disabledTriggerAriaLabel', "Session Type, {0}", modeLabel)
+			: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 }

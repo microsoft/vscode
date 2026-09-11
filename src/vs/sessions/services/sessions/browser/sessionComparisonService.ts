@@ -14,7 +14,6 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createSessionReferenceVariableEntry } from './sessionReference.js';
 import { SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
@@ -29,8 +28,6 @@ interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' 
 	readonly workspace: string;
 	readonly participants: readonly IStoredSessionComparisonParticipant[];
 }
-
-export const SESSION_COMPARISON_AUTO_SYNTHESIZE_SETTING = 'chat.agentSessions.alwaysAutoSynthesize';
 
 export class SessionComparisonService extends Disposable implements ISessionComparisonService {
 	declare readonly _serviceBrand: undefined;
@@ -47,7 +44,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		@ISessionGroupsService private readonly sessionGroupsService: ISessionGroupsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._comparisons.set(this._load(), undefined);
@@ -56,8 +52,11 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	}
 
 	async startComparison(options: IStartSessionComparisonOptions, token: CancellationToken = CancellationToken.None): Promise<ISessionComparison> {
-		if (options.harnesses.length < 2) {
-			throw new Error('A session comparison requires at least two harnesses.');
+		if (options.attempts.length < 2) {
+			throw new Error('A session comparison requires at least two attempts.');
+		}
+		if (new Set(options.attempts.map(attempt => attempt.id)).size !== options.attempts.length) {
+			throw new Error('Session comparison attempt identifiers must be unique.');
 		}
 
 		const id = generateUuid();
@@ -75,7 +74,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		};
 		this._addComparison(comparison);
 
-		const coordinatorHarness = options.harnesses[0];
+		const coordinatorHarness = options.attempts[0].harness;
 		let coordinator;
 		try {
 			coordinator = await this.sessionsManagementService.createAndSendNewChatRequest(options.workspace, {
@@ -108,20 +107,20 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			session: coordinator.resource,
 			chat: coordinator.mainChat.get().resource,
 		};
-		const attemptPromises = options.harnesses.map(async harness => {
-			const participantId = generateUuid();
+		const attemptPromises = options.attempts.map(async (attempt, index) => {
+			const harness = attempt.harness;
 			try {
 				const session = await this.sessionsManagementService.createAndSendNewChatRequest(options.workspace, {
 					query: options.prompt,
 					attachedContext: options.attachedContext ? [...options.attachedContext] : undefined,
-					title: localize('sessionComparison.attemptTitle', "{0} attempt", harness.label),
+					title: localize('sessionComparison.attemptTitle', "Attempt {0}: {1}", index + 1, harness.label),
 					background: true,
 				}, {
 					...this._createOptions(harness, options),
 					createdBySession,
 				}, token);
 				return {
-					id: participantId,
+					id: attempt.id,
 					role: SessionComparisonParticipantRole.Attempt,
 					harness,
 					sessionResource: session?.resource,
@@ -129,7 +128,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				} satisfies ISessionComparisonParticipant;
 			} catch (error) {
 				return {
-					id: participantId,
+					id: attempt.id,
 					role: SessionComparisonParticipantRole.Attempt,
 					harness,
 					launchError: isCancellationError(error)
@@ -177,9 +176,6 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			throw new Error('The comparison verdict contains an unknown attempt.');
 		}
 		this._replaceComparison({ ...comparison, verdict });
-		if (this.configurationService.getValue<boolean>(SESSION_COMPARISON_AUTO_SYNTHESIZE_SETTING)) {
-			void this.synthesize(comparisonId).catch(error => this.logService.error('[SessionComparisonService] Automatic synthesis failed.', error));
-		}
 	}
 
 	async synthesize(comparisonId: string): Promise<void> {
@@ -339,8 +335,8 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		const attempts = comparison.participants.filter(participant =>
 			participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource);
 		const attachedContext = attempts.map(participant =>
-			createSessionReferenceVariableEntry(participant.id, participant.harness.label, participant.sessionResource!));
-		const attemptMap = attempts.map(participant => `${participant.id}: ${participant.harness.label}`).join('\n');
+			createSessionReferenceVariableEntry(participant.id, attemptLabel(attempts, participant), participant.sessionResource!));
+		const attemptMap = attempts.map(participant => `${participant.id}: ${attemptLabel(attempts, participant)}`).join('\n');
 		const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
 			query: localize('sessionComparison.judgePrompt', "Judge the referenced implementation attempts for correctness, validation quality, maintainability, and fit to the original task. Inspect their code changes and session evidence. Then call #completeAttemptComparison exactly once with comparison ID {0} and these participant IDs:\n{1}", comparison.id, attemptMap),
 			attachedContext,
@@ -420,6 +416,14 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 function comparisonTitle(prompt: string): string {
 	const firstLine = prompt.trim().split(/\r?\n/, 1)[0];
 	return firstLine.length > 60 ? `${firstLine.slice(0, 57)}...` : firstLine;
+}
+
+function attemptLabel(attempts: readonly ISessionComparisonParticipant[], participant: ISessionComparisonParticipant): string {
+	const index = attempts.findIndex(attempt => attempt.id === participant.id);
+	const harness = participant.harness.modelLabel
+		? localize('sessionComparison.attemptHarnessAndModel', "{0} · {1}", participant.harness.label, participant.harness.modelLabel)
+		: participant.harness.label;
+	return localize('sessionComparison.numberedAttempt', "Attempt {0}: {1}", index + 1, harness);
 }
 
 registerSingleton(ISessionComparisonService, SessionComparisonService, InstantiationType.Delayed);

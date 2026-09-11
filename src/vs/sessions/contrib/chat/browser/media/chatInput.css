@@ -422,6 +422,27 @@
 	padding: 0 var(--vscode-spacing-size80);
 }
 
+.sessions-chat-comparison-picker {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.sessions-chat-comparison-summary {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sessions-chat-comparison-button {
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
 .sessions-chat-send-button .monaco-button.disabled {
 	cursor: default;
 }

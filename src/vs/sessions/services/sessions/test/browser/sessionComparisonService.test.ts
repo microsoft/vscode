@@ -13,7 +13,6 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatInteractivity, ISession, SessionStatus } from '../../common/session.js';
@@ -21,12 +20,12 @@ import { getSessionComparisonFileKey, ISessionComparisonVerdict, SessionComparis
 import { ICreateNewSessionOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { ISessionGroup, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
-import { SESSION_COMPARISON_AUTO_SYNTHESIZE_SETTING, SessionComparisonService } from '../../browser/sessionComparisonService.js';
+import { SessionComparisonService } from '../../browser/sessionComparisonService.js';
 
 suite('SessionComparisonService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createServices(configurationService = new TestConfigurationService(), storageService = disposables.add(new InMemoryStorageService())) {
+	function createServices(storageService = disposables.add(new InMemoryStorageService())) {
 		const sessionsManagementService = disposables.add(new TestSessionsManagementService());
 		const groupsService = new class extends mock<ISessionGroupsService>() {
 			override readonly onDidChange = Event.None;
@@ -39,7 +38,6 @@ suite('SessionComparisonService', () => {
 			groupsService,
 			storageService,
 			new NullLogService(),
-			configurationService,
 		));
 		return { service, sessionsManagementService, storageService };
 	}
@@ -95,6 +93,49 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('passes provider-local models to their harnesses', async () => {
+		const { service, sessionsManagementService } = createServices();
+		sessionsManagementService.enqueue(stubSession('coordinator'));
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueue(stubSession('attempt-two'));
+
+		await service.startComparison(startOptions());
+
+		assert.deepStrictEqual(sessionsManagementService.createCalls.map(call => ({
+			providerId: call.createOptions?.providerId,
+			sessionTypeId: call.createOptions?.sessionTypeId,
+			modelId: call.createOptions?.modelId,
+		})), [
+			{ providerId: 'provider-one', sessionTypeId: 'type-one', modelId: 'model-one' },
+			{ providerId: 'provider-one', sessionTypeId: 'type-one', modelId: 'model-one' },
+			{ providerId: 'provider-two', sessionTypeId: 'type-two', modelId: 'model-two' },
+		]);
+	});
+
+	test('preserves unique attempt identifiers for repeated harness and model configurations', async () => {
+		const { service, sessionsManagementService } = createServices();
+		sessionsManagementService.enqueue(stubSession('coordinator'));
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueue(stubSession('attempt-two'));
+		const harness = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'model' };
+
+		const comparison = await service.startComparison({
+			workspace: URI.file('/workspace'),
+			prompt: 'Implement the feature',
+			attempts: [
+				{ id: 'first-run', harness },
+				{ id: 'second-run', harness },
+			],
+		});
+
+		assert.deepStrictEqual(comparison.participants
+			.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt)
+			.map(participant => ({ id: participant.id, harness: participant.harness })), [
+				{ id: 'first-run', harness },
+				{ id: 'second-run', harness },
+			]);
+	});
+
 	test('restores persisted URI fields', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('sessions.comparisons', JSON.stringify([{
@@ -112,7 +153,7 @@ suite('SessionComparisonService', () => {
 			}],
 		}]), StorageScope.PROFILE, StorageTarget.MACHINE);
 
-		const { service } = createServices(new TestConfigurationService(), storageService);
+		const { service } = createServices(storageService);
 		const comparison = service.getComparison('comparison');
 		assert.deepStrictEqual({
 			workspace: comparison?.workspace.toString(),
@@ -123,10 +164,8 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
-	test('automatically synthesizes with the recommended harness', async () => {
-		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(SESSION_COMPARISON_AUTO_SYNTHESIZE_SETTING, true);
-		const { service, sessionsManagementService } = createServices(configurationService);
+	test('synthesizes only after an explicit request with the recommended harness', async () => {
+		const { service, sessionsManagementService } = createServices();
 		sessionsManagementService.enqueue(stubSession('coordinator'));
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
 		sessionsManagementService.enqueue(stubSession('attempt-two'));
@@ -135,17 +174,20 @@ suite('SessionComparisonService', () => {
 		const comparison = await service.startComparison(startOptions());
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
 		service.submitVerdict(comparison.id, verdict(attempts[1].id, attempts.map(attempt => attempt.id)));
-		await timeout(0);
+		assert.strictEqual(sessionsManagementService.createCalls.length, 3);
+		await service.synthesize(comparison.id);
 
 		const current = service.getComparison(comparison.id);
 		assert.deepStrictEqual({
 			synthesisResource: current?.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis)?.sessionResource?.toString(),
 			providerId: sessionsManagementService.createCalls[3].createOptions?.providerId,
 			sessionTypeId: sessionsManagementService.createCalls[3].createOptions?.sessionTypeId,
+			modelId: sessionsManagementService.createCalls[3].createOptions?.modelId,
 		}, {
 			synthesisResource: 'test:/synthesis',
 			providerId: 'provider-two',
 			sessionTypeId: 'type-two',
+			modelId: 'model-two',
 		});
 	});
 
@@ -291,9 +333,15 @@ function startOptions() {
 	return {
 		workspace: URI.file('/workspace'),
 		prompt: 'Implement the feature',
-		harnesses: [
-			{ providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'model-one' },
-			{ providerId: 'provider-two', sessionTypeId: 'type-two', label: 'Two', modelId: 'model-two' },
+		attempts: [
+			{
+				id: 'attempt-one',
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'model-one' },
+			},
+			{
+				id: 'attempt-two',
+				harness: { providerId: 'provider-two', sessionTypeId: 'type-two', label: 'Two', modelId: 'model-two' },
+			},
 		],
 	};
 }

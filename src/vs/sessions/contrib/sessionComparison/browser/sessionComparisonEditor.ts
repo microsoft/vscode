@@ -131,18 +131,21 @@ export class SessionComparisonEditor extends EditorPane {
 		const startStateElement = dom.append(content, dom.$(`p.session-comparison-start-state ${startState === 'different' ? 'session-comparison-error' : ''}`));
 		startStateElement.textContent = startingStateLabel(startState);
 		const grid = dom.append(content, dom.$('.session-comparison-attempts'));
-		for (const attempt of attempts) {
-			this._renderAttempt(grid, comparison, attempt);
+		for (const [index, attempt] of attempts.entries()) {
+			this._renderAttempt(grid, comparison, attempt, index);
 		}
 		this._renderChangeComparison(content, attempts);
 		this._renderJudge(content, comparison);
 		this._renderSynthesis(content, comparison);
 	}
 
-	private _renderAttempt(container: HTMLElement, comparison: ISessionComparison, participant: ISessionComparisonParticipant): void {
+	private _renderAttempt(container: HTMLElement, comparison: ISessionComparison, participant: ISessionComparisonParticipant, index: number): void {
 		const card = dom.append(container, dom.$('.session-comparison-attempt'));
 		const heading = dom.append(card, dom.$('h2.session-comparison-attempt-title'));
-		heading.textContent = participant.harness.label;
+		const harness = participant.harness.modelLabel
+			? localize('sessionComparisonEditor.harnessAndModel', "{0} · {1}", participant.harness.label, participant.harness.modelLabel)
+			: participant.harness.label;
+		heading.textContent = localize('sessionComparisonEditor.numberedAttempt', "Attempt {0}: {1}", index + 1, harness);
 
 		if (participant.launchError) {
 			dom.append(card, dom.$('p.session-comparison-error')).textContent =
@@ -180,7 +183,7 @@ export class SessionComparisonEditor extends EditorPane {
 			const actions = dom.append(card, dom.$('.session-comparison-actions'));
 			const useAttempt = this._contentStore.value?.add(new Button(actions, {
 				...defaultButtonStyles,
-				ariaLabel: localize('sessionComparisonEditor.useAttemptAriaLabel', "Use {0} attempt", participant.harness.label),
+				ariaLabel: localize('sessionComparisonEditor.useAttemptAriaLabel', "Use attempt {0}, {1}", index + 1, harness),
 			}));
 			if (useAttempt) {
 				useAttempt.label = comparison.selectedParticipantId === participant.id
@@ -241,8 +244,13 @@ export class SessionComparisonEditor extends EditorPane {
 				: localize('sessionComparisonEditor.statusUnknown', "Unknown");
 		} else {
 			const recommendation = comparison.participants.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
+			const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+			const recommendationIndex = recommendation ? attempts.findIndex(participant => participant.id === recommendation.id) : -1;
+			const recommendationLabel = recommendation
+				? localize('sessionComparisonEditor.numberedAttempt', "Attempt {0}: {1}", recommendationIndex + 1, recommendation.harness.label)
+				: localize('sessionComparisonEditor.unknown', "Unknown");
 			dom.append(section, dom.$('p.session-comparison-recommendation')).textContent =
-				localize('sessionComparisonEditor.recommendation', "Recommended: {0}", recommendation?.harness.label ?? localize('sessionComparisonEditor.unknown', "Unknown"));
+				localize('sessionComparisonEditor.recommendation', "Recommended: {0}", recommendationLabel);
 			dom.append(section, dom.$('p')).textContent = comparison.verdict.explanation;
 			if (comparison.verdict.conflicts.length > 0) {
 				dom.append(section, dom.$('h3')).textContent = localize('sessionComparisonEditor.conflicts', "Conflicts to Resolve");

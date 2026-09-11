@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -25,6 +25,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IWorkspacePickerNoWorkspaceOption } from '../../browser/sessionWorkspacePicker.js';
+import { ISessionComparisonAttemptConfiguration, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -141,6 +142,7 @@ interface ISessionCountHarness {
 interface ISendHarness {
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
+	readonly _comparisonAttempts: IObservable<readonly ISessionComparisonAttemptConfiguration[]>;
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
 		clearAttachedContext(): void;
@@ -148,17 +150,34 @@ interface ISendHarness {
 	};
 	readonly _isQuickChatComposer: IObservable<boolean>;
 	readonly agentFeedbackService: { removeFeedback(resource: URI, id: string): void };
-	readonly sessionsManagementService: { sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> };
+	readonly sessionsManagementService: {
+		sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void>;
+		getSessionTypesForFolder?(workspace: URI): readonly { readonly providerId: string; readonly sessionType: { readonly id: string; readonly label: string; readonly supportsWorktreeConfiguration?: boolean } }[];
+	};
+	readonly sessionsProvidersService?: {
+		getProvider(providerId: string): {
+			getModelsSnapshotForCreation(workspace: URI, sessionTypeId: string, desiredModelId?: string): {
+				readonly desiredModelResolution: { readonly kind: 'available'; readonly model: { readonly identifier: string; readonly metadata: { readonly name: string } } };
+			};
+		} | undefined;
+	};
+	readonly sessionComparisonService?: { startComparison(options: IStartSessionComparisonOptions): Promise<{ readonly id: string; readonly participants: readonly { readonly role: SessionComparisonParticipantRole; readonly sessionResource?: URI }[] }> };
+	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: { readonly source: 'chat' }): Promise<void> };
+	readonly commandService?: { executeCommand(commandId: string, ...args: unknown[]): Promise<unknown> };
+	readonly notificationService?: { error(error: unknown): void };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 	_getWorkspaceRoots(session: ISession): readonly URI[];
 }
 
 interface IRenderSessionTypePickerHarness {
+	readonly _comparisonButton: MutableDisposable<DisposableStore>;
+	readonly _comparisonAttempts: IObservable<readonly ISessionComparisonAttemptConfiguration[]>;
 	readonly _newChatInput: {
 		readonly sessionTypePicker: {
 			render(container: HTMLElement, options?: { className?: string }): void;
 		};
 	};
+	_configureComparison(): Promise<void>;
 }
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
@@ -235,11 +254,14 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('workspace row hosts the workspace picker before the multiple-harness and context pickers', () => {
+	test('workspace row hosts the workspace picker before the harness, comparison, and context pickers', () => {
 		const container = document.createElement('div');
 		const harnessLabels = ['Copilot', 'Claude'];
 		const workspaceTriggers: { readonly tooltip: string | undefined; readonly icon: string | undefined; readonly attachesContext: boolean | undefined }[] = [];
 		const harness: IRenderWorkspacePickerHarness = {
+			_comparisonButton: disposables.add(new MutableDisposable<DisposableStore>()),
+			_comparisonAttempts: constObservable([]),
+			_configureComparison: async () => { },
 			_workspacePickerVisibleKey: { set: () => { } },
 			_workspacePicker: {
 				renderCategoryTriggers: (target, triggers) => {
@@ -281,11 +303,41 @@ suite('NewChatWidget', () => {
 			[
 				{ label: 'Workspace', className: '' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
+				{ label: 'Compare Agents', className: 'sessions-chat-picker-slot sessions-chat-comparison-picker' },
 			],
 		);
 		assert.deepStrictEqual(workspaceTriggers, [
 			{ tooltip: 'Choose where the new session runs', icon: 'project', attachesContext: false },
 		]);
+	});
+
+	test('shows configured attempts as an isolated-worktree summary with an Edit action', () => {
+		const container = document.createElement('div');
+		const harness: IRenderSessionTypePickerHarness = {
+			_comparisonButton: disposables.add(new MutableDisposable<DisposableStore>()),
+			_comparisonAttempts: constObservable([
+				{ id: 'one', harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent' } },
+				{ id: 'two', harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent' } },
+			]),
+			_configureComparison: async () => { },
+			_newChatInput: {
+				sessionTypePicker: {
+					render: target => {
+						target.appendChild(document.createElement('a'));
+					},
+				},
+			},
+		};
+
+		renderSessionTypePicker.call(harness, container, false);
+
+		assert.deepStrictEqual({
+			summary: container.querySelector('.sessions-chat-comparison-summary')?.textContent,
+			edit: container.querySelector('.sessions-chat-comparison-button')?.textContent,
+		}, {
+			summary: '2 attempts · isolated worktrees',
+			edit: 'Edit',
+		});
 	});
 
 	test('restores workspace, harness, context DOM and tab order after quick chat', () => {
@@ -299,6 +351,9 @@ suite('NewChatWidget', () => {
 		}
 		let renderedPicker: HTMLElement | undefined;
 		const harness: IRenderSessionTypePickerHarness = {
+			_comparisonButton: disposables.add(new MutableDisposable<DisposableStore>()),
+			_comparisonAttempts: constObservable([]),
+			_configureComparison: async () => { },
 			_newChatInput: {
 				sessionTypePicker: {
 					render: (target, options) => {
@@ -327,8 +382,8 @@ suite('NewChatWidget', () => {
 			tabOrder: Array.from(workspaceRow.querySelectorAll<HTMLElement>('[tabindex="0"]'), element => element.textContent),
 			quickChatHeader: Array.from(quickChatHeader.children, element => element.textContent),
 		}, {
-			domOrder: ['Workspace', 'Copilot', 'Issue/PR'],
-			tabOrder: ['Workspace', 'Copilot', 'Issue/PR'],
+			domOrder: ['Workspace', 'Copilot', 'Compare Agents', 'Issue/PR'],
+			tabOrder: ['Workspace', 'Copilot', 'Compare Agents', 'Issue/PR'],
 			quickChatHeader: [],
 		});
 	});
@@ -872,6 +927,7 @@ suite('NewChatWidget', () => {
 				showPicker: () => { },
 			},
 			_isQuickChatComposer: constObservable(false),
+			_comparisonAttempts: constObservable([]),
 			agentFeedbackService: { removeFeedback: () => { } },
 			sessionsManagementService: {
 				sendNewChatRequest: async (_session, options) => {
@@ -922,6 +978,7 @@ suite('NewChatWidget', () => {
 				showPicker: () => pickerOpenCount++,
 			},
 			_isQuickChatComposer: constObservable(false),
+			_comparisonAttempts: constObservable([]),
 			agentFeedbackService: { removeFeedback: () => { } },
 			sessionsManagementService: {
 				sendNewChatRequest: async () => {
@@ -936,6 +993,106 @@ suite('NewChatWidget', () => {
 			result: false,
 			pickerOpenCount: 1,
 			sendCount: 0,
+		});
+	});
+
+	test('starts comparisons with uniquely identified repeated harness and model attempts', async () => {
+		const workspace = URI.file('/workspace');
+		const session = upcastPartial<ISession>({
+			workspace: constObservable({
+				uri: workspace,
+				label: 'workspace',
+				icon: Codicon.folder,
+				folders: [{
+					root: workspace,
+					workingDirectory: workspace,
+					name: 'workspace',
+					description: undefined,
+				}],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			}),
+		});
+		const configuredAttempts: readonly ISessionComparisonAttemptConfiguration[] = [
+			{
+				id: 'first-run',
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One' },
+			},
+			{
+				id: 'second-run',
+				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One' },
+			},
+		];
+		let comparisonOptions: IStartSessionComparisonOptions | undefined;
+		let openedCoordinator: URI | undefined;
+
+		const result = await send.call({
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_comparisonAttempts: constObservable(configuredAttempts),
+			_workspacePicker: {
+				selectedFolderUri: workspace,
+				clearAttachedContext: () => { },
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			sessionsManagementService: {
+				sendNewChatRequest: async () => { },
+				getSessionTypesForFolder: () => [{
+					providerId: 'provider-one',
+					sessionType: {
+						id: 'type-one',
+						label: 'One',
+						supportsWorktreeConfiguration: true,
+					},
+				}],
+			},
+			sessionsProvidersService: {
+				getProvider: providerId => ({
+					getModelsSnapshotForCreation: (_workspace, _sessionTypeId, desiredModelId) => ({
+						desiredModelResolution: {
+							kind: 'available',
+							model: {
+								identifier: desiredModelId ?? `${providerId}/default`,
+								metadata: { name: 'Model One' },
+							},
+						},
+					}),
+				}),
+			},
+			sessionComparisonService: {
+				startComparison: async options => {
+					comparisonOptions = options;
+					return {
+						id: 'comparison',
+						participants: [{
+							role: SessionComparisonParticipantRole.Coordinator,
+							sessionResource: URI.parse('test:/coordinator'),
+						}],
+					};
+				},
+			},
+			sessionsService: {
+				unsetNewSession: () => { },
+				openSession: async resource => {
+					openedCoordinator = resource;
+				},
+			},
+			commandService: { executeCommand: async () => undefined },
+			notificationService: { error: () => { } },
+			logService: { error: () => { } },
+			_getWorkspaceRoots: () => [workspace],
+		}, 'compare implementations');
+
+		assert.deepStrictEqual({
+			result,
+			attempts: comparisonOptions?.attempts,
+			openedCoordinator: openedCoordinator?.toString(),
+		}, {
+			result: true,
+			attempts: configuredAttempts,
+			openedCoordinator: 'test:/coordinator',
 		});
 	});
 

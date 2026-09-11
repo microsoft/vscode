@@ -82,6 +82,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly withRemoteWorkspace?: boolean;
 	readonly openWorkspacePicker?: boolean;
 	readonly openGitHubContextPicker?: boolean;
+	readonly openComparisonSetup?: boolean;
 	readonly withAttachedContext?: boolean;
 	readonly withControlPickers?: boolean;
 	readonly withAutoModel?: boolean;
@@ -167,6 +168,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withRemoteWorkspace = false,
 		openWorkspacePicker = false,
 		openGitHubContextPicker = false,
+		openComparisonSetup = false,
 		withAttachedContext = false,
 		withControlPickers = false,
 		withAutoModel = false,
@@ -220,6 +222,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onHide = Event.None;
 			}());
 			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+				override readonly activeContainer = container;
 				override readonly mainContainer = container;
 				override readonly mainContainerDimension = { width, height };
 				override getContainer() { return container; }
@@ -348,6 +351,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
+	if (openComparisonSetup) {
+		container.style.position = 'relative';
+		container.style.overflow = 'hidden';
+		container.style.transform = 'translate3d(0, 0, 0)';
+	}
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
 
@@ -377,10 +385,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	await nextFrame();
 	await nextFrame();
-	for (let attempt = 0; attempt < 30 && !view.element.querySelector('.sessions-chat-comparison-toggle'); attempt++) {
+	for (let attempt = 0; attempt < 30 && !view.element.querySelector('.sessions-chat-comparison-button'); attempt++) {
 		await nextFrame();
 	}
-	assert(!!view.element.querySelector('.sessions-chat-comparison-toggle'));
+	assert(!!view.element.querySelector('.sessions-chat-comparison-button'));
 	if (phoneLayout && withAttachedContext) {
 		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
 		assert(!!content);
@@ -422,6 +430,21 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		await nextFrame();
 		await nextFrame();
 		view.element.querySelector<HTMLElement>('[aria-label="Attach a GitHub issue or pull request to the new session"]')?.click();
+	} else if (openComparisonSetup) {
+		view.element.querySelector<HTMLElement>('.sessions-chat-comparison-button')?.click();
+		await nextFrame();
+		await nextFrame();
+		const addAttempt = () => [...container.querySelectorAll<HTMLElement>('.session-comparison-setup-dialog .monaco-button')]
+			.find(button => button.textContent === 'Add Attempt')
+			?.click();
+		addAttempt();
+		addAttempt();
+		await nextFrame();
+		await nextFrame();
+		const rows = container.querySelector<HTMLElement>('.session-comparison-setup-rows');
+		if (rows) {
+			rows.scrollTop = 0;
+		}
 	}
 
 	if (promptOptions) {
@@ -466,6 +489,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The new-session composer shows Copilot, microsoft/vscode, and Issue/PR pills. The microsoft/vscode workspace pill has the active treatment after opening the workspace picker. Pill and dropdown labels use the same body text size, and their leading icons use the same base icon size.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, openWorkspacePicker: true }),
+	}),
+	NewSessionComparisonSetup: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['A Compare Agents dialog shows shared repository, branch, prompt, context, and isolation once, followed by three independently configurable attempt rows. Each attempt has agent and model pickers plus Remove, and Add Attempt permits repeated combinations. A usage disclosure explains the additional coordinator and Judge sessions.'],
+		render: context => renderNewChatWidget(context, { height: 760, withWorkspace: true, withAutoModel: true, openComparisonSetup: true }),
 	}),
 	NewSessionGitHubContextPicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
@@ -572,12 +601,14 @@ function createFixtureSessionTypes(): readonly ISessionType[] {
 			label: 'Copilot',
 			icon: Codicon.terminal,
 			authRequirement: SessionTypeAuthRequirement.None,
+			supportsWorktreeConfiguration: true,
 		},
 		{
 			id: 'claude',
 			label: 'Claude',
 			icon: Codicon.sparkle,
 			authRequirement: SessionTypeAuthRequirement.None,
+			supportsWorktreeConfiguration: true,
 		},
 	];
 }
@@ -643,6 +674,10 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 				desiredModelResolution: { kind: 'notRequested' as const },
 				modelTarget: 'agent-host-copilotcli',
 			};
+		}
+
+		override getModelsSnapshotForCreation() {
+			return this.getModelsSnapshot();
 		}
 
 		override getModelPickerOptions() {
