@@ -263,6 +263,7 @@ class NullStorageService implements IStorageService {
 // as raw text (not parsed JSON) — this lets VS Code's JSONC parser handle
 // comments and trailing commas the way it does in the real product.
 /* eslint-disable local/code-import-patterns */
+import dark_2026 from '../../../../../../extensions/theme-defaults/themes/2026-dark.json' with { type: 'json' };
 import dark_modern from '../../../../../../extensions/theme-defaults/themes/dark_modern.json' with { type: 'json' };
 import dark_plus from '../../../../../../extensions/theme-defaults/themes/dark_plus.json' with { type: 'json' };
 import dark_vs from '../../../../../../extensions/theme-defaults/themes/dark_vs.json' with { type: 'json' };
@@ -287,6 +288,7 @@ const fileIconThemeResources = {
 const fileIconThemeResourceUrls = new Set(Object.values(fileIconThemeResources).map(resource => resource.toString(true)));
 
 const themeJsonModules: Record<string, string> = {
+	'/extensions/theme-defaults/themes/2026-dark.json': toThemeJsonText(dark_2026),
 	'/extensions/theme-defaults/themes/dark_modern.json': toThemeJsonText(dark_modern),
 	'/extensions/theme-defaults/themes/dark_plus.json': toThemeJsonText(dark_plus),
 	'/extensions/theme-defaults/themes/dark_vs.json': toThemeJsonText(dark_vs),
@@ -330,7 +332,7 @@ function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector): Colo
 	);
 }
 
-export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK);
+export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/2026-dark.json', ThemeTypeSelector.VS_DARK);
 export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
 const darkHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_black.json', ThemeTypeSelector.HC_BLACK);
 const lightHighContrastTheme = createBuiltInTheme('/extensions/theme-defaults/themes/hc_light.json', ThemeTypeSelector.HC_LIGHT);
