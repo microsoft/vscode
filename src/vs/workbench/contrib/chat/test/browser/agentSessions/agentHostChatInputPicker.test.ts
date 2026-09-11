@@ -214,6 +214,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			actionBar.style.setProperty('--vscode-spacing-size240', '24px');
 			actionBar.style.setProperty('--vscode-spacing-size120', '12px');
 			actionBar.style.setProperty('--vscode-spacing-size20', '2px');
+			actionBar.style.setProperty('--vscode-spacing-size40', '4px');
 			actionBar.style.setProperty('--vscode-spacing-size60', '6px');
 			actionBar.style.setProperty('--vscode-spacing-sizeNone', '0px');
 			actionBar.style.setProperty('--vscode-strokeThickness', '1px');
@@ -335,7 +336,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			icons: trigger.querySelectorAll('.codicon').length,
 			separatePicker: permissionContainer.style.display,
 			rows: actionWidget.items.map(item => item.kind === ActionListItemKind.Separator ? item.kind : item.label),
-			permissionLevels: actionWidget.items.filter(item => item.section && item.item && !item.isSectionToggle && !item.standaloneToggle).map(item => item.label),
+			permissionLevels: actionWidget.items.filter(item => item.section === 'agentHostModePicker.permissions' && item.item && !item.isSectionToggle && !item.standaloneToggle).map(item => item.label),
 			aria: trigger.ariaLabel,
 		}, {
 			mode: 'Interactive',
@@ -681,6 +682,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		container.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
 		container.style.setProperty('--vscode-spacing-size20', '2px');
+		container.style.setProperty('--vscode-spacing-size60', '6px');
 		widget.layout(widget.computeListHeight(), 260);
 		const states = [];
 		for (const [index, row] of Array.from(widget.domNode.querySelectorAll('.agent-host-mode-permissions')).entries()) {
@@ -691,6 +693,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			const triggerStyle = targetWindow.getComputedStyle(trigger.querySelector('.agent-host-mode-permission-summary')!);
 			const summaryStyle = targetWindow.getComputedStyle(row.querySelector('.description')!);
 			const gearStyle = targetWindow.getComputedStyle(row.querySelector('.action-list-item-toolbar')!);
+			const gearBounds = row.querySelector('.action-list-item-toolbar .action-label')!.getBoundingClientRect();
+			const summaryBounds = row.querySelector('.description')!.getBoundingClientRect();
 			const gearVisible = gearStyle.display !== 'none' && gearStyle.visibility === 'visible';
 			const chevron = row.querySelector(':scope > .codicon')!;
 			const chevronStyle = targetWindow.getComputedStyle(chevron);
@@ -704,12 +708,12 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				visibleAtRest,
 				visibleOnFocus: chevronStyle.visibility === 'visible',
 				compact: chevronStyle.fontSize === '12px' && chevron.classList.contains('codicon-chevron-down'),
-				gap: targetWindow.getComputedStyle(row).columnGap,
+				gearSummaryGap: summaryBounds.left - gearBounds.right,
 				gearPadding: targetWindow.getComputedStyle(row.querySelector('.action-list-item-toolbar .action-label')!).paddingLeft,
 			});
 		}
 		assert.deepStrictEqual(states, ['rgb(119, 119, 119)', 'rgb(170, 136, 0)', 'rgb(0, 102, 204)'].map(color => ({
-			color, matchesTrigger: true, gearVisible: true, visibleAtRest: true, visibleOnFocus: true, compact: true, gap: '4px', gearPadding: '2px',
+			color, matchesTrigger: true, gearVisible: true, visibleAtRest: true, visibleOnFocus: true, compact: true, gearSummaryGap: 4, gearPadding: '2px',
 		})));
 	});
 
