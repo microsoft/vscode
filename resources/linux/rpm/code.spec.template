@@ -49,9 +49,16 @@ cp usr/share/bash-completion/completions/%{name} %{buildroot}%{_datadir}/bash-co
 cp usr/share/zsh/site-functions/_%{name} %{buildroot}%{_datadir}/zsh/site-functions/_%{name}
 
 %post
-# Remove the legacy bin command if this is the stable build
-if [ "%{name}" = "code" ]; then
-	rm -f /usr/local/bin/code
+# Remove the legacy bin command if this is the stable build.
+# Only remove it when it is a symlink pointing at the location previously
+# installed by this package, so that user-managed files or symlinks at
+# /usr/local/bin/code (e.g. wrapper scripts) are preserved.
+# See https://github.com/microsoft/vscode/issues/236132
+if [ "%{name}" = "code" ] && [ -L /usr/local/bin/code ]; then
+	LEGACY_LINK_TARGET=$(readlink /usr/local/bin/code 2>/dev/null || true)
+	if [ "$LEGACY_LINK_TARGET" = "/usr/share/code/bin/code" ] || [ "$LEGACY_LINK_TARGET" = "%{_datadir}/%{name}/bin/%{name}" ]; then
+		rm -f /usr/local/bin/code
+	fi
 fi
 
 # Register yum repository
