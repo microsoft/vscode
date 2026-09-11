@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -20,7 +21,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
@@ -29,6 +30,7 @@ import { PluginFormat } from '../../../../../platform/agentPlugins/common/plugin
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
@@ -67,7 +69,6 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -672,8 +673,9 @@ function makeFixtureTool(id: string, displayName: string, description: string, s
 	};
 }
 
+const fixtureToolExtensionId = 'acme.agent-tools';
 const fixtureToolExtension = new class extends mock<IExtension>() {
-	override readonly identifier = { id: 'acme.agent-tools', uuid: undefined };
+	override readonly identifier = { id: fixtureToolExtensionId, uuid: undefined };
 	override readonly displayName = 'Acme Agent Tools';
 	override readonly publisherDisplayName = 'Acme';
 	override readonly description = 'Issue tracking and deployment tools for agents.';
@@ -701,17 +703,34 @@ const fixtureToolSets: readonly IToolSet[] = [
 		description: 'Acme Agent Tools',
 		detail: 'Tools contributed by the Acme extension.',
 		icon: Codicon.extensions,
-		source: { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') },
+		source: { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) },
 		getTools: () => [
-			makeFixtureTool('acme.issues', 'Find Issues', 'Find and summarize open issues.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
-			makeFixtureTool('acme.deploy', 'Create Deployment', 'Create a deployment for the current project.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') }),
+			makeFixtureTool('acme.issues', 'Find Issues', 'Find and summarize open issues.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) }),
+			makeFixtureTool('acme.deploy', 'Create Deployment', 'Create a deployment for the current project.', { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) }),
 		],
 	},
 ];
 
+const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8 }, (_, index) => {
+	const toolSetNumber = index + 1;
+	const source: ToolDataSource = { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier(fixtureToolExtensionId) };
+	return {
+		id: `acme-agent-tools-${toolSetNumber}`,
+		referenceName: `acme${toolSetNumber}`,
+		description: `Acme Tool Set ${toolSetNumber}`,
+		detail: `Extension tool set ${toolSetNumber}`,
+		icon: Codicon.extensions,
+		source,
+		getTools: () => [
+			makeFixtureTool(`acme.tool-${toolSetNumber}`, `Acme Tool ${toolSetNumber}`, `Tool from extension set ${toolSetNumber}`, source),
+		],
+	};
+});
+
 interface IRenderEditorOptions {
 	readonly sessionResource: URI;
 	readonly files?: readonly IFixtureFile[];
+	readonly toolSets?: readonly IToolSet[];
 	readonly configuration?: Record<string, unknown>;
 	readonly isSessionsWindow?: boolean;
 	readonly managementSections?: readonly AICustomizationManagementSection[];
@@ -720,8 +739,6 @@ interface IRenderEditorOptions {
 	readonly customizationSearchQuery?: string;
 	readonly mcpSearchQuery?: string;
 	readonly toolsSearchQuery?: string;
-	readonly migrationPartialSelection?: boolean;
-	readonly emptyMigrationUserSection?: boolean;
 	readonly emptyWorkspaceSection?: boolean;
 	readonly emptyUserSection?: boolean;
 	readonly emptyToolExtensions?: boolean;
@@ -737,7 +754,10 @@ interface IRenderEditorOptions {
 	readonly openFirstItem?: boolean;
 	readonly openItemLabel?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
+	readonly migrationDashboard?: boolean;
+	readonly migrationActivity?: boolean;
 	readonly migrationCategory?: CustomizationMigrationCategoryId;
+	readonly migrationPartialSelection?: boolean;
 }
 
 // ============================================================================
@@ -775,6 +795,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
+	const toolSets = options.toolSets ?? fixtureToolSets;
 	const selectedPromptType = options.selectedSection === AICustomizationManagementSection.Agents ? PromptsType.agent
 		: options.selectedSection === AICustomizationManagementSection.Skills ? PromptsType.skill
 			: options.selectedSection === AICustomizationManagementSection.Instructions ? PromptsType.instructions
@@ -784,7 +805,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const fixtureFiles = (options.files ?? allFiles)
 		.filter(file => !(file.type === selectedPromptType && options.emptyWorkspaceSection && file.storage === PromptsStorage.local))
 		.filter(file => !(file.type === selectedPromptType && options.emptyUserSection && file.storage === PromptsStorage.user))
-		.filter(file => !(options.emptyMigrationUserSection && file.type === PromptsType.prompt && file.storage === PromptsStorage.user))
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
@@ -822,6 +842,26 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			});
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
+			if (options.migrationActivity) {
+				const storageService = ctx.disposableStore.add(new InMemoryStorageService());
+				storageService.store('chat.customizationMigration.activity.profile.agent-host-copilotcli', {
+					skipped: false,
+					started: true,
+					activity: Array.from({ length: 4 }, (_, activityIndex) => ({
+						id: `activity-${activityIndex}`,
+						categoryLabel: 'Prompts to skills',
+						scopeLabel: 'Your profile',
+						storage: PromptsStorage.user,
+						items: Array.from({ length: 4 }, (_, itemIndex) => ({
+							label: `migrated-prompt-${activityIndex}-${itemIndex}`,
+							sourceLabel: `/user-data/prompts/migrated-prompt-${activityIndex}-${itemIndex}.prompt.md`,
+							targetLabel: `~/.copilot/skills/migrated-prompt-${activityIndex}-${itemIndex}/SKILL.md`,
+							operation: 'converted',
+						})),
+					})),
+				}, StorageScope.PROFILE, StorageTarget.MACHINE);
+				reg.defineInstance(IStorageService, storageService);
+			}
 			if (options.enableHovers) {
 				reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
 					override getContainer() { return ctx.container; }
@@ -841,6 +881,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			// Also enable customization migration so migration affordances render in
 			// screenshot fixtures that depend on agent-host harnesses.
 			reg.defineInstance(IConfigurationService, configurationService);
+			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
@@ -891,7 +932,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				harnessService,
 				new class extends mock<IAgentHostActiveClientService>() {
 					override acquireMcpServerSupportScope() {
-						if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers) {
+						if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers && !options.migrationDashboard) {
 							return undefined;
 						}
 						const support: IAgentHostMcpServerSupportSnapshot = {
@@ -937,7 +978,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					showGettingStartedBanner: true,
 				};
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
-				override readonly activeProjectLabel = observableValue('label', 'workspace');
+				override readonly activeProjectLabel = observableValue('label', options.migrationDashboard ? 'vscode' : 'workspace');
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override clearOverrideProjectRoot() { }
@@ -1003,6 +1044,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					promptFilesDidChangeEmitter.fire();
 					return createFixtureFileStat(resource, buffer.byteLength, false);
 				}
+				override async createFile(resource: URI, buffer: VSBuffer) {
+					return this.writeFile(resource, buffer);
+				}
 				override async del(resource: URI) {
 					fileContents.delete(resource);
 					const fileIndex = fixtureFiles.findIndex(file => file.uri.toString() === resource.toString());
@@ -1053,7 +1097,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { }());
 			reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
-				override readonly toolSets = constObservable(options.emptyToolExtensions ? fixtureToolSets.filter(toolSet => toolSet.source.type !== 'extension') : fixtureToolSets);
+				override readonly toolSets = constObservable(options.emptyToolExtensions
+					? toolSets.filter(toolSet => toolSet.source.type !== 'extension')
+					: toolSets);
 			}());
 			const fixtureToolState: IToolEnablementState = { toolSets: new Map(), tools: new Map() };
 			reg.defineInstance(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() {
@@ -1070,7 +1116,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override canExecuteOnSessionsWindow() { return true; }
 			}());
 			reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
-				override readonly isSessionsWindow = false;
+				override readonly isSessionsWindow = isSessionsWindow;
 			}());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
@@ -1220,6 +1266,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.revealLastItem();
 		// Allow the 500ms hide delay and 800ms fade transition to complete.
 		await new Promise(resolve => setTimeout(resolve, 1400));
+	}
+
+	if (options.migrationDashboard) {
+		editor.showCustomizationMigrationDashboard();
 	}
 
 	if (options.openFirstItem) {
@@ -1405,6 +1455,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 		override readonly agents = constObservable([
 			{ uri: URI.joinPath(uri, 'agents', `${contributionName}.agent.md`), name: `${name} assistant`, description: `An agent specialized for ${name}.` },
 		]);
+		override readonly automations = constObservable([]);
 		override readonly instructions = constObservable([
 			{ uri: URI.joinPath(uri, 'instructions', `${contributionName}.instructions.md`), name: `${name} instructions`, description: `Context rules for ${name}.` },
 		]);
@@ -2146,39 +2197,31 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	PromptMigration: defineComponentFixture({
+	MigrationDashboard: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+			migrationDashboard: true,
 		}),
 	}),
 
-	PromptMigrationNarrow: defineComponentFixture({
+	MigrationDashboardNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
+			migrationDashboard: true,
 			width: 550,
 			height: 500,
 		}),
 	}),
 
-	PromptMigrationPartialSelection: defineComponentFixture({
+	MigrationDashboardActivityScrollable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-			migrationPartialSelection: true,
-		}),
-	}),
-
-	PromptMigrationEmptyUser: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-			emptyMigrationUserSection: true,
+			migrationDashboard: true,
+			migrationActivity: true,
+			height: 500,
 		}),
 	}),
 
@@ -2196,11 +2239,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	ToolsTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['The narrow Agents-window Tools page shows Built-in Tools and an Extension Tools section with a count of eight.'],
 		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
+			sessionResource: agentHostCopilotSessionResource,
+			isSessionsWindow: true,
 			selectedSection: AICustomizationManagementSection.Tools,
-			availableHarnesses: [{ ...createVSCodeHarnessDescriptor(), hiddenSections: [] }],
+			toolSets: [...fixtureToolSets.filter(toolSet => toolSet.source.type !== 'extension'), ...overflowingExtensionToolSets],
 			managementSections: [
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Tools,
@@ -2235,6 +2280,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Tools,
 			],
 			emptyToolExtensions: true,
+		}),
+	}),
+
+	PromptMigration: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
 		}),
 	}),
 

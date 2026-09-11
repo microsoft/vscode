@@ -677,8 +677,8 @@ async function renderKeyboardFocus(context: ComponentFixtureContext, target: 're
 	if (!focusTarget) {
 		throw new Error(`Missing keyboard focus target: ${target}`);
 	}
-	focusTarget.focus();
-	if (focusTarget.ownerDocument.activeElement !== focusTarget) {
+	context.focus(focusTarget);
+	if (context.overrideFocus && focusTarget.ownerDocument.activeElement !== focusTarget) {
 		throw new Error(`Could not focus keyboard target: ${target}`);
 	}
 }

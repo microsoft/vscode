@@ -86,6 +86,10 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 		this.actionWidgetDropdown?.show();
 	}
 
+	hide(): void {
+		this.actionWidgetDropdown?.hide();
+	}
+
 	protected setDropdownEnabled(enabled: boolean): void {
 		this.actionWidgetDropdown?.setEnabled(enabled && this.action.enabled);
 	}

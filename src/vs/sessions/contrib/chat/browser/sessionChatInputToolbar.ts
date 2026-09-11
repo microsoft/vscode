@@ -31,7 +31,7 @@ import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getGitHubPullRequestRefs, IChat, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, type ISessionArtifact, type IGitHubIssueRef } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
@@ -123,6 +123,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			})],
 			...getChatPillResourceLocation(ref.uri, label),
 			ariaDescription: localize('sessionChatPills.pullRequestDescription', "{0}. {1}", stateDescription, ref.uri.toString(true)),
+			...(!pullRequest && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
 			...(pullRequest ? {
 				pillHover: {
 					element: () => createPullRequestHoverElement({
@@ -153,8 +154,9 @@ interface IResolvedSessionIssue {
 /** Builds Agents Window issue pill entries, enriching them when live details are available. */
 export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService): readonly IChatPillSection[] {
 	const entries = issues.map(({ ref, issue }) => {
-		const label = issue?.title
-			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, issue.title)
+		const title = issue?.title ?? ref.title;
+		const label = title
+			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, title)
 			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
 		return {
 			id: ref.uri.toString(),
@@ -168,6 +170,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				run: () => clipboardService.writeText(ref.uri.toString(true)),
 			})],
 			...getChatPillResourceLocation(ref.uri, label),
+			...(!issue && ref.title ? { tooltip: `${label}\n${ref.uri.toString(true)}` } : {}),
 			...(issue ? {
 				pillHover: {
 					element: () => createIssueHoverElement({
@@ -373,11 +376,14 @@ export class SessionChatInputToolbar extends Disposable {
 					if (!session || this._debugData.get()) {
 						return;
 					}
+					const isWorktree = session.workspace.get()?.folders[0]?.gitRepository?.workTreeUri !== undefined;
 					layoutService.revealEditorPartExplicitly();
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: SESSION_CHANGES_CHANGESET_ID
+							id: isWorktree
+								? BRANCH_CHANGES_CHANGESET_ID
+								: SESSION_CHANGES_CHANGESET_ID
 						}
 					});
 				},
