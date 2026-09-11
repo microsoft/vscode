@@ -56,10 +56,10 @@ export const RustCratesToLookFor = [
 	'azure_storage_sas'
 ];
 
-const dependencySectionPattern = /^(?:workspace\.)?(?:dependencies|dev-dependencies|build-dependencies)$/;
-const targetDependencySectionPattern = /^target\..+\.(?:dependencies|dev-dependencies|build-dependencies)$/;
-const dependencyTablePattern = /^(?:(?:workspace\.)?(?:dependencies|dev-dependencies|build-dependencies)|target\..+\.(?:dependencies|dev-dependencies|build-dependencies))\.(.+)$/;
-const dependencyPattern = /^("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[A-Za-z0-9_-]+)(?:\.([A-Za-z0-9_-]+))?\s*=\s*(.*)$/;
+const dependencySectionPattern = /^(?:workspace\s*\.\s*)?(?:dependencies|dev-dependencies|build-dependencies)$/;
+const targetDependencySectionPattern = /^target\s*\.\s*.+\s*\.\s*(?:dependencies|dev-dependencies|build-dependencies)$/;
+const dependencyTablePattern = /^(?:(?:workspace\s*\.\s*)?(?:dependencies|dev-dependencies|build-dependencies)|target\s*\.\s*.+\s*\.\s*(?:dependencies|dev-dependencies|build-dependencies))\s*\.\s*(.+)$/;
+const dependencyPattern = /^("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[A-Za-z0-9_-]+)\s*(?:\.\s*([A-Za-z0-9_-]+))?\s*=\s*(.*)$/;
 const packagePattern = /(?:^|[,{]\s*)package\s*=\s*["']([^"']+)["']/;
 
 export function getCargoDependencyNames(contents: string): string[] {
