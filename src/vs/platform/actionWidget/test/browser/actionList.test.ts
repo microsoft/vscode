@@ -321,7 +321,7 @@ suite('ActionListWidget', () => {
 		assert.notStrictEqual(panel.style.display, 'none');
 	}));
 
-	function createPersistentPreview(side: 'left' | 'right' = 'right') {
+	function createPersistentPreview(side: 'left' | 'right' = 'right', pointerIntentOnly = false) {
 		const selected: string[] = [];
 		const contents = ['first', 'second', 'third'].map(label => {
 			const content = document.createElement('div');
@@ -338,7 +338,12 @@ suite('ActionListWidget', () => {
 				action('plain'),
 			],
 			onSelect: item => selected.push(item.id),
-			listOptions: { showFilter: false, persistentHover: true, headerText: 'Cache hint' },
+			listOptions: {
+				showFilter: false,
+				persistentHover: !pointerIntentOnly,
+				submenuPointerIntent: pointerIntentOnly,
+				headerText: 'Cache hint',
+			},
 		});
 		const popup = document.createElement('div');
 		popup.className = 'action-widget';
@@ -1125,6 +1130,7 @@ suite('ActionListWidget', () => {
 			items: [{ ...action('model'), hover: { content: 'Model details', expandable: true, showIndicator: false } }],
 			listOptions: { showFilter: false, reserveSubmenuSpace: false },
 		});
+
 		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
 		const indicator = row.querySelector<HTMLElement>('.action-list-submenu-indicator')!;
 		const initial = {
@@ -1152,6 +1158,163 @@ suite('ActionListWidget', () => {
 			closed: { expanded: 'false', focusReturned: true },
 		});
 	});
+
+	test('nested submenu options enable filtering', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuActions: [
+					toAction({ id: 'alpha', label: 'A long remote host label', run: () => { } }),
+					toAction({ id: 'beta', label: 'Beta', run: () => { } }),
+				],
+				submenuOptions: {
+					showFilter: true,
+					filterPlaceholder: 'Search Remote',
+					filterAsCombobox: true,
+					minWidth: 180,
+					maxWidth: 180,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const parentRow = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector<HTMLElement>('.title')?.textContent === 'remote')!;
+		const filter = panel.querySelector<HTMLInputElement>('.action-list-filter-input')!;
+		const bubbledKeys: string[] = [];
+		disposables.add(addDisposableListener(widget.domNode, 'keydown', event => bubbledKeys.push(event.key)));
+		const longLabelTooltip = Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action'))
+			.find(row => row.querySelector<HTMLElement>('.title')?.textContent === 'A long remote host label')?.title;
+		[
+			{ key: 'r' },
+			{ key: 'P', ctrlKey: true },
+			{ key: 'F1', altKey: true },
+			{ key: ' ' },
+			{ key: 'Process' },
+		].forEach(init => filter.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ...init })));
+		filter.value = 'bet';
+		filter.dispatchEvent(new Event('input'));
+
+		assert.deepStrictEqual({
+			placeholder: filter.placeholder,
+			role: filter.getAttribute('role'),
+			width: panel.style.width,
+			alignment: {
+				panelStyle: panel.style.top,
+				expectedStyle: `${parentRow.getBoundingClientRect().top - widget.domNode.getBoundingClientRect().top}px`,
+			},
+			bubbledKeys,
+			listWidth: panel.querySelector<HTMLElement>('.actionList')?.style.width,
+			longLabelTooltip,
+			rows: Array.from(panel.querySelectorAll<HTMLElement>('.monaco-list-row.action')).map(row => row.querySelector<HTMLElement>('.title')?.textContent),
+		}, {
+			placeholder: 'Search Remote',
+			role: 'combobox',
+			width: '190px',
+			alignment: {
+				panelStyle: '0px',
+				expectedStyle: '0px',
+			},
+			bubbledKeys: ['P', 'F1', ' ', 'Process'],
+			listWidth: '180px',
+			longLabelTooltip: 'A long remote host label',
+			rows: ['Beta'],
+		});
+	});
+
+	test('a filtered submenu near the viewport bottom shifts enough to show one row', () => withWindowInnerHeight(300, () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuActions: Array.from({ length: 10 }, (_, index) =>
+					toAction({ id: `remote-${index}`, label: `Remote ${index}`, run: () => { } })),
+				submenuOptions: {
+					showFilter: true,
+					filterPlaceholder: 'Search Remote',
+					filterAsCombobox: true,
+					minWidth: 180,
+					maxWidth: 180,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
+		widget.domNode.getBoundingClientRect = () => new mainWindow.DOMRect(40, 260, 180, 24);
+		row.getBoundingClientRect = () => new mainWindow.DOMRect(40, 260, 180, 24);
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const viewport = panel.querySelector<HTMLElement>('.action-list-submenu-viewport')!;
+		const filter = panel.querySelector<HTMLElement>('.action-list-filter')!;
+		const submenuList = panel.querySelector<HTMLElement>('.actionList')!;
+		panel.getBoundingClientRect = () => new mainWindow.DOMRect(220, 260, 190, 200);
+		viewport.getBoundingClientRect = () => new mainWindow.DOMRect(220, 260, 190, 190);
+		Object.defineProperty(filter, 'offsetHeight', { configurable: true, value: 30 });
+		mainWindow.dispatchEvent(new Event('resize'));
+
+		const top = parseFloat(panel.style.top);
+		const listHeight = parseFloat(submenuList.style.height);
+		const viewportHeight = parseFloat(viewport.style.height);
+		assert.deepStrictEqual({
+			hasVisibleRow: listHeight > 0,
+			topFitsOuterChromeFilterAndRow: top === 300 - 260 - 10 - 30 - listHeight - 8,
+			minimumPanelBottom: 260 + top + 10 + 30 + listHeight,
+			viewportContainsFilterAndRow: viewportHeight === 30 + listHeight,
+		}, {
+			hasVisibleRow: true,
+			topFitsOuterChromeFilterAndRow: true,
+			minimumPanelBottom: 292,
+			viewportContainsFilterAndRow: true,
+		});
+	}));
+
+	test('a long filtered submenu scrolls its rows beneath the fixed filter', () => withWindowInnerHeight(300, () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('remote'),
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuActions: Array.from({ length: 30 }, (_, index) =>
+					toAction({ id: `remote-${index}`, label: `Remote ${index}`, run: () => { } })),
+				submenuOptions: {
+					showFilter: true,
+					filterPlaceholder: 'Search Remote',
+					filterAsCombobox: true,
+					minWidth: 180,
+					maxWidth: 180,
+				},
+			}],
+			listOptions: { showFilter: false },
+		});
+		const popup = document.createElement('div');
+		popup.className = 'action-widget';
+		popup.style.cssText = 'position: fixed; top: 100px; left: 40px; width: 200px; padding: 8px;';
+		document.body.appendChild(popup);
+		disposables.add({ dispose: () => popup.remove() });
+		popup.appendChild(widget.domNode);
+		widget.layout(24, 180);
+		widget.focus();
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+		const submenuList = panel.querySelector<HTMLElement>('.actionList')!;
+		const filter = panel.querySelector<HTMLElement>('.action-list-filter')!;
+		const scrollable = submenuList.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+
+		assert.deepStrictEqual({
+			filterOutsideList: !submenuList.contains(filter),
+			listIsConstrained: parseFloat(submenuList.style.height) < 30 * 24,
+			rowsAreScrollable: scrollable.scrollHeight > scrollable.clientHeight,
+		}, {
+			filterOutsideList: true,
+			listIsConstrained: true,
+			rowsAreScrollable: true,
+		});
+	}));
 
 	test('rebuilding the items in place re-measures only when the row count changed', () => {
 		const widget = createActionListWidget(disposables, { items: [action('one'), action('two')] });
@@ -1411,6 +1574,24 @@ suite('ActionListWidget', () => {
 		}));
 	}
 
+	test('submenu pointer intent does not apply persistent preview sizing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { panel, popup, hover } = createPersistentPreview('right', true);
+		const origin = hover(0);
+		const initialWidth = panel.getBoundingClientRect().width;
+		hover(1, origin.x + 60);
+		await timeout(100);
+		panel.dispatchEvent(new MouseEvent('mouseenter'));
+		await timeout(300);
+
+		assert.deepStrictEqual({
+			content: panel.textContent,
+			matchesParentWidth: initialWidth === popup.getBoundingClientRect().width,
+		}, {
+			content: 'Details for first',
+			matchesParentWidth: false,
+		});
+	}));
+
 	test('pointer travel grace is bounded across multiple crossed rows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { panel, hover } = createPersistentPreview();
 		const origin = hover(0);
@@ -1460,6 +1641,13 @@ suite('ActionListWidget', () => {
 			}, action('mode')],
 			listOptions: { showFilter: false },
 		});
+		const popup = document.createElement('div');
+		popup.className = 'action-widget';
+		popup.style.cssText = 'position: fixed; top: 100px; left: 40px; width: 200px; padding: 8px;';
+		document.body.appendChild(popup);
+		disposables.add({ dispose: () => popup.remove() });
+		popup.appendChild(widget.domNode);
+		widget.layout(200, 180);
 		widget.focus();
 		widget.focusNext();
 		const focusedElement = document.activeElement;
