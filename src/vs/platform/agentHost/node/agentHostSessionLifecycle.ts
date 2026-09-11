@@ -161,6 +161,9 @@ export class AgentHostSessionLifecycle extends Disposable {
 		}
 
 		if (candidate.action === 'archive') {
+			if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
+				return;
+			}
 			const finalArchiveAfterDays = this._settings.archiveAfterDays;
 			const finalPullRequestUrls = finalArchiveAfterDays > 0
 				? this._getArchiveCandidate(
@@ -169,9 +172,6 @@ export class AgentHostSessionLifecycle extends Disposable {
 				)
 				: undefined;
 			if (!samePullRequestUrls(finalPullRequestUrls, candidate.pullRequestUrls)) {
-				return;
-			}
-			if (!await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
 				return;
 			}
 			this._logService.info(`[AgentHostSessionLifecycle] Auto-archiving inactive merged-pull-request session: session=${sessionKey}, prs=${candidate.pullRequestUrls.join(',')}`);
@@ -199,10 +199,21 @@ export class AgentHostSessionLifecycle extends Disposable {
 							this._now() - finalDeleteAfterDays * DAY_MS,
 						)
 						: undefined;
+					if (this._settings.deleteAfterDays !== finalDeleteAfterDays
+						|| finalCandidate?.action !== 'delete'
+						|| !samePullRequestUrls(finalCandidate.pullRequestUrls, candidate.pullRequestUrls)
+						|| !await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls)) {
+						return false;
+					}
+					const latestSummary = this._stateManager.getSessionSummary(sessionKey);
 					return this._settings.deleteAfterDays === finalDeleteAfterDays
-						&& finalCandidate?.action === 'delete'
-						&& samePullRequestUrls(finalCandidate.pullRequestUrls, candidate.pullRequestUrls)
-						&& await this._arePullRequestsComplete(sessionKey, candidate.pullRequestUrls);
+						&& latestSummary !== undefined
+						&& isSessionStatusArchived(latestSummary.status)
+						&& !isSessionStatusActive(latestSummary.status)
+						&& samePullRequestUrls(
+							getSessionRelatedPullRequestUrls(readSessionGitHubState(latestSummary._meta)),
+							candidate.pullRequestUrls,
+						);
 				});
 				if (deleted) {
 					this._logService.info(`[AgentHostSessionLifecycle] Permanently deleted inactive archived merged-pull-request session: session=${sessionKey}, prs=${candidate.pullRequestUrls.join(',')}`);
