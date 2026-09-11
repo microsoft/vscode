@@ -701,7 +701,7 @@ suite('SessionChatInputToolbar', () => {
 		}, {
 			states: ['draft', 'closed', 'open', 'closed', 'merged', 'merged', 'open'],
 			descriptions: [
-				'draft. Checks running. https://github.com/microsoft/vscode/pull/1',
+				'draft. Checks pending. https://github.com/microsoft/vscode/pull/1',
 				'closed. https://github.com/microsoft/vscode/pull/1',
 				'failing checks. https://github.com/microsoft/vscode/pull/1',
 			],

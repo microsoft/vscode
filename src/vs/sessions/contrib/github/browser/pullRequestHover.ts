@@ -135,7 +135,7 @@ function getPullRequestChecksStatus(pullRequest: IGitHubPullRequest, ciStatus: G
 	}
 	switch (ciStatus) {
 		case GitHubCIOverallStatus.Pending:
-			return { kind: 'pending', label: localize('agentSessions.pullRequestHover.checksRunning', "Checks running"), icon: Codicon.syncCompact };
+			return { kind: 'pending', label: localize('agentSessions.pullRequestHover.checksPending', "Checks pending"), icon: Codicon.circleFilledCompact };
 		case GitHubCIOverallStatus.Failure:
 			return { kind: 'failure', label: localize('agentSessions.pullRequestHover.checksFailed', "Checks failed"), icon: Codicon.errorCompact };
 		case GitHubCIOverallStatus.Success:

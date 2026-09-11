@@ -105,7 +105,7 @@ suite('createPullRequestHover', () => {
 			draft: render(GitHubCIOverallStatus.Success, makePullRequest({ isDraft: true })),
 			merged: render(GitHubCIOverallStatus.Success, makePullRequest({ state: GitHubPullRequestState.Merged })),
 		}, {
-			pending: { text: 'Checks running', status: 'pending', icon: 'codicon codicon-sync-compact', iconAriaHidden: 'true' },
+			pending: { text: 'Checks pending', status: 'pending', icon: 'codicon codicon-circle-filled-compact', iconAriaHidden: 'true' },
 			success: { text: 'Checks passed', status: 'success', icon: 'codicon codicon-pass-filled-compact', iconAriaHidden: 'true' },
 			failure: { text: 'Checks failed', status: 'failure', icon: 'codicon codicon-error-compact', iconAriaHidden: 'true' },
 			neutral: { text: undefined, status: undefined, icon: undefined, iconAriaHidden: undefined },
