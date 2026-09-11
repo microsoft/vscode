@@ -581,12 +581,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'Cwd': {
-						// OSC 633 ; P ; Cwd=<value> ; <nonce> ST — the nonce is optional and only
-						// present when emitted by a trusted shell integration script. CWD updates
-						// without a matching nonce are treated as untrusted to mitigate spoofing
-						// via OSC sequences injected through arbitrary terminal output.
+						// OSC 633 ; P ; Cwd=<value> ; <nonce> ST
 						const nonce = args[1];
-						this._updateCwd(value, nonce !== undefined && nonce === this._nonce);
+						if (this._nonce && nonce === this._nonce) {
+							this._updateCwd(value);
+						}
 						return true;
 					}
 					case 'IsWindows': {

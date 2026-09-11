@@ -59,7 +59,6 @@ interface ITerminalData {
 	terminal: ITerminalInstance;
 	lastTask: string;
 	group?: string;
-	shellIntegrationNonce?: string;
 }
 
 interface IInstanceCount {
@@ -79,7 +78,6 @@ export interface IReconnectionTaskData {
 	id: string;
 	lastTask: string;
 	group?: string;
-	shellIntegrationNonce?: string;
 }
 
 const TaskTerminalType = 'Task';
@@ -179,13 +177,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private readonly _taskStartTimes = new Map<number, number>();
 	private readonly _capturedTaskVariables = new Map<string, string>();
 
-	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
+	taskShellIntegrationStartSequence(cwd: string | URI | undefined, shellIntegrationNonce: string): string {
 		return (
 			VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.HasRichCommandDetection}=True`) +
 			VSCodeSequence(VSCodeOscPt.PromptStart) +
 			VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) +
 			(cwd
-				? VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Cwd}=${typeof cwd === 'string' ? cwd : cwd.fsPath}`)
+				? VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Cwd}=${serializeVSCodeOscMessage(typeof cwd === 'string' ? cwd : cwd.fsPath)};${shellIntegrationNonce}`)
 				: ''
 			) +
 			VSCodeSequence(VSCodeOscPt.CommandStart)
@@ -199,6 +197,19 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			) +
 			VSCodeSequence(VSCodeOscPt.CommandExecuted)
 		);
+	}
+	prepareShellLaunchConfigForTerminalReuse(terminal: Pick<ITerminalInstance, 'shellIntegrationNonce'>, shellLaunchConfig: IShellLaunchConfig): void {
+		const reusedShellIntegrationNonce = terminal.shellIntegrationNonce;
+		const launchShellIntegrationNonce = shellLaunchConfig.shellIntegrationNonce;
+		if (!reusedShellIntegrationNonce || !launchShellIntegrationNonce) {
+			return;
+		}
+		if (Types.isString(shellLaunchConfig.initialText)) {
+			shellLaunchConfig.initialText = shellLaunchConfig.initialText.replaceAll(launchShellIntegrationNonce, reusedShellIntegrationNonce);
+		} else if (shellLaunchConfig.initialText) {
+			shellLaunchConfig.initialText.text = shellLaunchConfig.initialText.text.replaceAll(launchShellIntegrationNonce, reusedShellIntegrationNonce);
+		}
+		shellLaunchConfig.shellIntegrationNonce = reusedShellIntegrationNonce;
 	}
 
 	constructor(
@@ -1217,6 +1228,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			// This must be normalized to the OS
 			cwd = isUNC(cwd) ? cwd : resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
 		}
+		const shellIntegrationNonce = generateUuid();
 		if (isShellCommand) {
 			let os: Platform.OperatingSystem;
 			switch (platform) {
@@ -1246,6 +1258,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				env: { ...defaultProfile.env },
 				icon,
 				color: task.configurationProperties.icon?.color || undefined,
+				shellIntegrationNonce,
 				waitOnExit
 			};
 			let shellSpecified: boolean = false;
@@ -1323,29 +1336,28 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 			const combinedShellArgs = this._addAllArgument(toAdd, shellArgs);
 			combinedShellArgs.push(commandLine);
-			shellLaunchConfig.shellIntegrationNonce = generateUuid();
 			const commandLineInfo = {
 				commandLine,
-				nonce: shellLaunchConfig.shellIntegrationNonce
+				nonce: shellIntegrationNonce
 			};
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
 					const folder = cwd && typeof cwd === 'object' && Object.hasOwn(cwd, 'path') ? path.basename(cwd.path) : workspaceFolder.name;
-					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd, shellIntegrationNonce) + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
 
 					}, 'Executing task in folder {0}: {1}', folder, commandLine), { excludeLeadingNewLine: true }) + this.getTaskShellIntegrationOutputSequence(commandLineInfo);
 				} else {
-					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd, shellIntegrationNonce) + formatMessageForTerminal(nls.localize({
 						key: 'task.executing.shellIntegration',
 						comment: ['The task command line or label']
 					}, 'Executing task: {0}', commandLine), { excludeLeadingNewLine: true }) + this.getTaskShellIntegrationOutputSequence(commandLineInfo);
 				}
 			} else {
 				shellLaunchConfig.initialText = {
-					text: this.taskShellIntegrationStartSequence(cwd) + this.getTaskShellIntegrationOutputSequence(commandLineInfo),
+					text: this.taskShellIntegrationStartSequence(cwd, shellIntegrationNonce) + this.getTaskShellIntegrationOutputSequence(commandLineInfo),
 					trailingNewLine: false
 				};
 			}
@@ -1363,6 +1375,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				color: task.configurationProperties.icon?.color || undefined,
 				executable: executable,
 				args: args.map(a => Types.isString(a) ? a : a.value),
+				shellIntegrationNonce,
 				waitOnExit
 			};
 			if (task.command.presentation && task.command.presentation.echo) {
@@ -1376,19 +1389,19 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					return args.join(' ');
 				};
 				if (needsFolderQualification && workspaceFolder) {
-					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd, shellIntegrationNonce) + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
 					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + this.getTaskShellIntegrationOutputSequence(undefined);
 				} else {
-					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
+					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd, shellIntegrationNonce) + formatMessageForTerminal(nls.localize({
 						key: 'task.executing.shell-integration',
 						comment: ['The task command line or label']
 					}, 'Executing task: {0}', `${shellLaunchConfig.executable} ${getArgsToEcho(shellLaunchConfig.args)}`), { excludeLeadingNewLine: true }) + this.getTaskShellIntegrationOutputSequence(undefined);
 				}
 			} else {
 				shellLaunchConfig.initialText = {
-					text: this.taskShellIntegrationStartSequence(cwd) + this.getTaskShellIntegrationOutputSequence(undefined),
+					text: this.taskShellIntegrationStartSequence(cwd, shellIntegrationNonce) + this.getTaskShellIntegrationOutputSequence(undefined),
 					trailingNewLine: false
 				};
 			}
@@ -1484,7 +1497,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			for (const terminal of reconnectedInstances) {
 				const data = getReconnectionData(terminal) as IReconnectionTaskData | undefined;
 				if (data) {
-					const terminalData = { lastTask: data.lastTask, group: data.group, terminal, shellIntegrationNonce: data.shellIntegrationNonce };
+					const terminalData = { lastTask: data.lastTask, group: data.group, terminal };
 					this._terminals[terminal.instanceId] = terminalData;
 					const listener = terminal.onDisposed(() => {
 						this._deleteTaskAndTerminal(terminal, terminalData);
@@ -1593,13 +1606,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (task.configurationProperties.isBackground) {
 				launchConfigs.reconnectionProperties = { ownerId: TaskTerminalType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 			}
-			// HACK: Rewrite the nonce in initialText only for reused terminals, this ensures the
-			// command line sequence reports the correct nonce and becomes trusted as a result.
-			if (terminalToReuse.shellIntegrationNonce) {
-				if (Types.isString(launchConfigs.initialText) && launchConfigs.shellIntegrationNonce) {
-					launchConfigs.initialText = launchConfigs.initialText.replace(launchConfigs.shellIntegrationNonce, terminalToReuse.shellIntegrationNonce);
-				}
-			}
+			this.prepareShellLaunchConfigForTerminalReuse(terminalToReuse.terminal, launchConfigs);
 			await terminalToReuse.terminal.reuseTerminal(launchConfigs);
 
 			if (task.command.presentation && task.command.presentation.clear) {
@@ -1615,7 +1622,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			terminal.shellLaunchConfig.reconnectionProperties = { ownerId: TaskTerminalType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 		}
 		const terminalKey = terminal.instanceId.toString();
-		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce };
+		const terminalData = { terminal: terminal, lastTask: taskKey, group };
 		const onDisposedListener = terminal.onDisposed(() => {
 			this._deleteTaskAndTerminal(terminal, terminalData);
 			onDisposedListener.dispose();

@@ -126,15 +126,16 @@ function parseOsc633Payload(payload: string): Osc633Event | undefined {
 			return { type: Osc633EventType.CommandLine, commandLine, nonce };
 		}
 		case 'P': {
-			const deserialized = deserializeOscMessage(argsRaw);
-			const eqIdx = deserialized.indexOf('=');
+			const propertyEnd = argsRaw.indexOf(';');
+			const property = deserializeOscMessage(propertyEnd === -1 ? argsRaw : argsRaw.substring(0, propertyEnd));
+			const eqIdx = property.indexOf('=');
 			if (eqIdx === -1) {
 				return undefined;
 			}
 			return {
 				type: Osc633EventType.Property,
-				key: deserialized.substring(0, eqIdx),
-				value: deserialized.substring(eqIdx + 1),
+				key: property.substring(0, eqIdx),
+				value: property.substring(eqIdx + 1),
 			};
 		}
 		default:

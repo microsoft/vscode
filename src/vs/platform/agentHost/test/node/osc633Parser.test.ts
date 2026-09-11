@@ -130,6 +130,18 @@ suite('Osc633Parser', () => {
 		});
 	});
 
+	test('Property (P) Cwd ignores nonce and preserves escaped semicolons and backslashes', () => {
+		const result = parser.parse(osc633('P;Cwd=/workspace/semi\\x3bcolon\\\\folder;my-nonce'));
+		assert.deepStrictEqual(result, {
+			cleanedData: '',
+			events: [{
+				type: Osc633EventType.Property,
+				key: 'Cwd',
+				value: '/workspace/semi;colon\\folder',
+			}],
+		});
+	});
+
 	test('Property (P) without value is ignored', () => {
 		const result = parser.parse(osc633('P;NoEquals'));
 		assert.deepStrictEqual(result, {
