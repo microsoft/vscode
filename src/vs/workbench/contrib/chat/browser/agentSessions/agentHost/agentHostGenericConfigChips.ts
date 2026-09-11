@@ -6,21 +6,22 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import type { IChatWidget } from '../../chat.js';
-import { AgentHostChatInputPicker, isClaimedByDedicatedPicker } from './agentHostChatInputPicker.js';
+import { AgentHostChatInputPicker, isGenericConfigPickerProperty } from './agentHostChatInputPicker.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
 /**
  * Direct-render chip lane for agent-host session-config properties that are
@@ -39,14 +40,10 @@ export class AgentHostGenericConfigChips extends Disposable {
 	private readonly _chips = this._register(new DisposableMap<string>());
 	private readonly _chipElements = new Map<string, HTMLElement>();
 
-	/**
-	 * Subscription to the active session's backend state. Maintained for the
-	 * lifetime of any one (sessionResource, backendSession) pair; replaced
-	 * via {@link _reattach} when the active session changes.
-	 */
-	private readonly _subRef = this._register(new MutableDisposable<IDisposable & {
+	/** Subscription to the active session, replaced when its resource or owning connection changes. */
+	private readonly _subRef = this._register(new MutableDisposable<IDisposable & IAgentHostSessionResolution & {
 		readonly sub: IAgentSubscription<SessionState>;
-		readonly backendSession: URI;
+		readonly sessionResource: URI;
 	}>());
 
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
@@ -55,7 +52,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	constructor(
 		private readonly _widget: IChatWidget,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -63,6 +60,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	) {
 		super();
 		this._register(this._widget.onDidChangeViewModel(() => this._reattach()));
+		this._register(this._connectionsService.onDidChangeSessionResolution(() => this._reattach()));
 		this._register(this._provisional.onDidChange((sessionResource: URI) => {
 			const current = this._widget.viewModel?.sessionResource;
 			if (current && current.toString() === sessionResource.toString()) {
@@ -84,10 +82,9 @@ export class AgentHostGenericConfigChips extends Disposable {
 	private _reattach(): void {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
-		const backendSession = provisionalBackend
-			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
+		const resolution = sessionResource ? resolveAgentHostChatSession(sessionResource, provisionalBackend, this._connectionsService) : undefined;
 
-		if (!sessionResource || !backendSession) {
+		if (!sessionResource || !resolution) {
 			this._subRef.clear();
 			this._initialResolved = undefined;
 			this._cancelInitialResolve();
@@ -95,11 +92,12 @@ export class AgentHostGenericConfigChips extends Disposable {
 			return;
 		}
 
-		if (isUntitledChatSession(sessionResource) && !provisionalBackend) {
+		const localBackend = toAgentHostBackendSessionUri(sessionResource);
+		if (localBackend && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
 			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
 				this._initialResolved = undefined;
-				void this._refreshInitialResolved(sessionResource, backendSession);
+				void this._refreshInitialResolved(sessionResource, localBackend);
 			}
 			this._sync();
 			return;
@@ -107,12 +105,18 @@ export class AgentHostGenericConfigChips extends Disposable {
 
 		this._initialResolved = undefined;
 		this._cancelInitialResolve();
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostGenericConfigChips');
+		const current = this._subRef.value;
+		if (current && isEqual(current.sessionResource, sessionResource) && current.connection === resolution.connection && isEqual(current.backendSession, resolution.backendSession)) {
+			this._sync();
+			return;
+		}
+		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostGenericConfigChips');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => this._sync());
 		this._subRef.value = {
+			...resolution,
 			sub,
-			backendSession,
+			sessionResource,
 			dispose: () => { listener.dispose(); ref.dispose(); },
 		};
 		this._sync();
@@ -128,7 +132,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		const cts = new CancellationTokenSource();
 		this._initialResolveCts.value = cts;
 		try {
-			const result = await this._agentHostService.resolveSessionConfig({
+			const result = await this._connectionsService.ambientConnection.resolveSessionConfig({
 				provider: backendSession.scheme,
 				workingDirectory: this._readWorkingDirectory(),
 			});
@@ -176,10 +180,12 @@ export class AgentHostGenericConfigChips extends Disposable {
 			return;
 		}
 		const entries = this._readSchemaProperties();
+		const sessionResource = this._widget.viewModel?.sessionResource;
+		const isStartedSession = !!sessionResource && !(isUntitledChatSession(sessionResource) && toAgentHostBackendSessionUri(sessionResource));
 		const desired = new Set<string>();
 		if (entries) {
 			for (const [property, schema] of entries) {
-				if (isClaimedByDedicatedPicker(property, schema)) {
+				if (!isGenericConfigPickerProperty(property, schema, isStartedSession)) {
 					continue;
 				}
 				desired.add(property);
@@ -206,8 +212,6 @@ export class AgentHostGenericConfigChips extends Disposable {
 			// chips' container — required so the secondary-toolbar styling
 			// in `chat.css` (height, padding, chevron) applies here too.
 			const slot = dom.append(this._container, dom.$('.agent-host-generic-chip-slot.chat-input-picker-item'));
-			chip.render(slot);
-			this._chipElements.set(property, slot);
 			this._chips.set(property, {
 				dispose: () => {
 					chip.dispose();
@@ -215,6 +219,8 @@ export class AgentHostGenericConfigChips extends Disposable {
 					this._chipElements.delete(property);
 				},
 			});
+			this._chipElements.set(property, slot);
+			chip.render(slot);
 		}
 	}
 }

@@ -16,6 +16,8 @@ import { EventType as TouchEventType } from '../../../../../../base/browser/touc
 import { IAction } from '../../../../../../base/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -146,11 +148,19 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const settingsRequests: IOpenSettingsOptions[] = [];
 		const hoverTargets: HTMLElement[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IAgentHostService, {
-			dispatch: (_session, action) => {
+		const connection = new class extends mock<IAgentHostService>() {
+			override dispatch(_session: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
 				if (action.type === ActionType.SessionConfigChanged) {
 					dispatches.push(action);
 				}
+			}
+		}();
+		instantiationService.stub(IAgentHostConnectionsService, {
+			ambientConnection: connection,
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResource: sessionResource => {
+				const backendSession = toAgentHostBackendSessionUri(sessionResource);
+				return backendSession ? { connection, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
 			},
 		});
 		instantiationService.set(IActionWidgetService, actionWidget);
@@ -174,7 +184,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
-		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, getResolvedConfig: () => undefined, refreshResolvedConfig: async () => { } });
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => undefined, refreshResolvedConfig: async () => { } });
 		instantiationService.stub(IAgentHostEnablementService, { managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		const modePicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.Mode));
@@ -726,12 +736,20 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			override readonly onDidChangeViewModel = Event.None;
 			override viewModel: IChatViewModel | undefined;
 		}();
+		const connection = new class extends mock<IAgentHostService>() {
+			override dispatch(channel: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
+				writes.push({ channel, action });
+			}
+		}();
 		const picker = store.add(new AgentHostChatInputPicker(
 			widget,
 			SessionConfigKey.AutoApprove,
-			new class extends mock<IAgentHostService>() {
-				override dispatch(channel: string, action: Parameters<IAgentHostService['dispatch']>[1]): void {
-					writes.push({ channel, action });
+			new class extends mock<IAgentHostConnectionsService>() {
+				override readonly ambientConnection = connection;
+				override readonly onDidChangeSessionResolution = Event.None;
+				override resolveSessionResource(sessionResource: URI) {
+					const backendSession = toAgentHostBackendSessionUri(sessionResource);
+					return backendSession ? { connection, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
 				}
 			}(),
 			actionWidgetService,
@@ -741,6 +759,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			new class extends mock<IWorkspaceContextService>() { }(),
 			new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 				override readonly onDidChange = Event.None;
+				override get() { return undefined; }
 				override getResolvedConfig() { return undefined; }
 				override async refreshResolvedConfig(): Promise<void> { }
 			}(),

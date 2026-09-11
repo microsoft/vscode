@@ -12,6 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { getAgentHostCopilotSandboxSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -23,6 +24,7 @@ import { IContextViewService } from '../../../../../../platform/contextview/brow
 import { ContextViewService } from '../../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { AgentHostChatInputPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { toAgentHostBackendSessionUri } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -146,12 +148,13 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 	if (editor) {
 		const state = new class extends mock<SessionState>() {
 			override readonly config = config;
+			override readonly provider = 'copilotcli';
 		}();
 		const changed = disposableStore.add(new Emitter<SessionState>());
 		const subscriptions: { [K in StateComponents]?: IAgentSubscription<ComponentToState[K]> } = {
 			[StateComponents.Session]: { value: state, verifiedValue: state, onDidChange: changed.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
 		};
-		instantiationService.set(IAgentHostService, new class extends mock<IAgentHostService>() {
+		const connection = new class extends mock<IAgentHostService>() {
 			override getSubscription<T extends StateComponents>(kind: T): IReference<IAgentSubscription<ComponentToState[T]>> {
 				const subscription = subscriptions[kind];
 				if (!subscription) {
@@ -165,7 +168,15 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 					changed.fire(state);
 				}
 			}
-		}());
+		}();
+		instantiationService.stub(IAgentHostConnectionsService, {
+			ambientConnection: connection,
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResource: sessionResource => {
+				const backendSession = toAgentHostBackendSessionUri(sessionResource);
+				return backendSession ? { connection, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
+			},
+		});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => config, refreshResolvedConfig: async () => { } });
