@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -42,7 +43,7 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { McpServerEditorInput } from '../../browser/mcpServerEditorInput.js';
 import { McpWorkbenchService } from '../../browser/mcpWorkbenchService.js';
-import { IMcpServer, IMcpService, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerInstallState } from '../../common/mcpTypes.js';
+import { IMcpServer, IMcpService, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerEnablementState, McpServerInstallState, McpServerLaunch } from '../../common/mcpTypes.js';
 import { InstalledMcpServersDiscovery } from '../../common/discovery/installedMcpServersDiscovery.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpRegistry } from '../../common/mcpRegistry.js';
@@ -852,6 +853,9 @@ suite('McpWorkbenchService', () => {
 
 	for (const duplicateNames of [false, true]) {
 		test(`installed discovery settles with ${duplicateNames ? 'duplicate' : 'distinct'} server names across workspace roots`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Native WebCrypto completion is not controlled by the virtual clock.
+			const launchHash = sinon.stub(McpServerLaunch, 'hash').callsFake(async launch => JSON.stringify(launch));
+			store.add(toDisposable(() => launchHash.restore()));
 			const workspaceA = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace-a/.vscode/mcp.json') };
 			const secondName = duplicateNames ? 'same' : 'different';
 			const workspaceB = { ...createLocal(secondName, LocalMcpServerScope.Workspace), id: `mcp.config.ws1.${secondName}`, mcpResource: URI.file('/workspace-b/.vscode/mcp.json') };
