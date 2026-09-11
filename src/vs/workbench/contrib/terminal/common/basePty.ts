@@ -23,6 +23,7 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 		title: '',
 		shellType: undefined,
 		hasChildProcesses: true,
+		isExtensionOwnedTerminal: undefined,
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined,
 		failedShellIntegrationActivation: false,

@@ -93,6 +93,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		title: '',
 		shellType: undefined,
 		hasChildProcesses: true,
+		isExtensionOwnedTerminal: undefined,
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined,
 		failedShellIntegrationActivation: false,
