@@ -148,9 +148,18 @@ export class ChatMcpAppModel extends Disposable {
 			extension: undefined,
 		}));
 
-		// Mount the webview to the container
-		const targetWindow = dom.getWindow(this._container);
-		this._webview.mountTo(this._container, targetWindow);
+		// Mount the webview to the container. This is deferred by a microtask
+		// because the container is still detached when this model is created, so
+		// `getWindow` would resolve to the main window even when the chat is
+		// rendered in an auxiliary window. Callers attach the container
+		// synchronously in the same task, so a microtask is enough to see the
+		// window the webview actually ends up in.
+		queueMicrotask(() => {
+			if (this._disposeCts.token.isCancellationRequested) {
+				return;
+			}
+			this._webview.mountTo(this._container, dom.getWindow(this._container));
+		});
 
 		// Build host context observable
 		this.hostContext = this._mcpToolCallUI.hostContext.map((context, reader) => ({
