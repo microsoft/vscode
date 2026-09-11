@@ -2235,7 +2235,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('moves summary focus to the child when its startup removes the disclosure', async () => {
+	test('moves summary focus to a leading subagent when its startup removes the disclosure', async () => {
 		const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
 		const data: IChatSubagentToolInvocationData = {
 			kind: 'subagent', description: 'Review changes', hasStarted: true, isActive: false, isChatAvailable: true,
@@ -2263,10 +2263,14 @@ suite('ChatListRenderer', () => {
 		data.isActive = true;
 		invocation.notifyToolSpecificDataChanged();
 
+		const content = template.renderedContent ?? [];
+		const leadingPart = content[0];
 		assert.deepStrictEqual({
+			leadingReferences: leadingPart?.kind === 'references' ? leadingPart.references : undefined,
+			collapseEndIndex: getCompletedResponseCollapseEndIndex(content, content.length - 1),
 			disclosureRemoved: !template.completedResponseDisclosure,
 			childFocused: subagent.domNode.contains(mainWindow.document.activeElement),
-		}, { disclosureRemoved: true, childFocused: true });
+		}, { leadingReferences: [], collapseEndIndex: 1, disclosureRemoved: true, childFocused: true });
 		disposables.dispose();
 	});
 

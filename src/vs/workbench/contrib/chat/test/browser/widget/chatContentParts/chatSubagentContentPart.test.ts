@@ -23,7 +23,7 @@ import { ChatSubagentContentPart } from '../../../../browser/widget/chatContentP
 import { IChatHookPart, IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
-import { ChatResponseModelChangeReason } from '../../../../common/model/chatModel.js';
+import { ChatRequestModel, ChatResponseModelChangeReason } from '../../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -1005,6 +1005,66 @@ suite('ChatSubagentContentPart', () => {
 					progressed: { running: true, progress: 'Run the regression tests', clickable: true },
 					completed: { running: false, progress: '', clickable: true },
 					opened: [expectedOpened, expectedOpened],
+				});
+			});
+		}
+
+		for (const completedLaunch of [false, true]) {
+			test(`refreshes canonical model identity when the display name is unchanged (completedLaunch=${completedLaunch})`, async () => {
+				actionViewItemService.actionViewItemFactory = (action, options, service) =>
+					service.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);
+				const parentModelId = 'agent-host-copilotcli:provider-a/model';
+				const otherModelId = 'agent-host-copilotcli:provider-b/model';
+				const data: IChatSubagentToolInvocationData = {
+					kind: 'subagent', description: 'Review changes',
+					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+					hasStarted: true, isActive: true, isChatAvailable: true,
+					modelId: parentModelId, modelName: 'Shared display name',
+				};
+				const invocation = new ChatToolInvocation(
+					{ invocationMessage: 'Delegating review', toolSpecificData: data },
+					{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+					'tool-call', undefined, {},
+				);
+				if (completedLaunch) {
+					await invocation.didExecuteTool(undefined);
+				}
+				const context = createMockRenderContext(false, URI.parse('agent-host-copilotcli:/session'));
+				const part = createPart(invocation, {
+					...context,
+					element: upcastPartial<IChatResponseViewModel>({
+						...context.element,
+						setVote: () => { },
+						model: upcastPartial<IChatResponseViewModel['model']>({
+							onDidChange: Event.None,
+							request: upcastPartial<ChatRequestModel>({ modelId: parentModelId }),
+						}),
+					}),
+				});
+				const pill = part.domNode.querySelector('.chat-subagent-pill-widget');
+				assert.ok(pill);
+				const snapshot = () => ({
+					modelId: getOpenChatContext(part)?.modelId,
+					modelName: getOpenChatContext(part)?.modelName,
+					inlineModel: pill.querySelector('.chat-subagent-pill-model')?.textContent,
+				});
+				const initial = snapshot();
+				data.modelId = otherModelId;
+				invocation.notifyToolSpecificDataChanged();
+				const differentIdentity = snapshot();
+				data.modelId = parentModelId;
+				invocation.notifyToolSpecificDataChanged();
+
+				assert.deepStrictEqual({
+					initial,
+					differentIdentity,
+					matchingIdentity: snapshot(),
+					samePill: part.domNode.querySelector('.chat-subagent-pill-widget') === pill,
+				}, {
+					initial: { modelId: parentModelId, modelName: 'Shared display name', inlineModel: '' },
+					differentIdentity: { modelId: otherModelId, modelName: 'Shared display name', inlineModel: 'Shared display name' },
+					matchingIdentity: { modelId: parentModelId, modelName: 'Shared display name', inlineModel: '' },
+					samePill: true,
 				});
 			});
 		}
