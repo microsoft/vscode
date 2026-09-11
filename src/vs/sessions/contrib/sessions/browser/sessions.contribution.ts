@@ -4,16 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { localize, localize2 } from '../../../../nls.js';
-import * as dom from '../../../../base/browser/dom.js';
-import { triggerConfettiAnimation } from '../../../../base/browser/ui/animations/animations.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -29,7 +23,6 @@ import { SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNR
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT } from './automationsNewBadge.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import './sessionDetailsAction.js';
-import { IsDevelopmentContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { SESSIONS_ARCHIVE_SESSION_CONFETTI_SETTING } from '../../../browser/sessionActionViewItem.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
@@ -37,38 +30,6 @@ import { USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../c
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
 const SessionsContainerId = 'agentic.workbench.view.sessionsContainer';
-
-class TriggerConfettiAnimationAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'sessions.action.triggerConfettiAnimation',
-			title: localize2('sessions.action.triggerConfettiAnimation', "Trigger Confetti Animation"),
-			category: Categories.Developer,
-			f1: true,
-			precondition: IsDevelopmentContext,
-		});
-	}
-
-	override run(accessor: ServicesAccessor): void {
-		if (accessor.get(IAccessibilityService).isMotionReduced()) {
-			return;
-		}
-
-		const activeDocument = dom.getActiveDocument();
-		const anchor = dom.$('.animation-confetti-test-anchor');
-		anchor.style.position = 'fixed';
-		anchor.style.left = '50%';
-		anchor.style.top = '50%';
-		anchor.style.width = '1px';
-		anchor.style.height = '1px';
-		activeDocument.body.appendChild(anchor);
-		triggerConfettiAnimation(anchor);
-		anchor.remove();
-	}
-}
-
-registerAction2(TriggerConfettiAnimationAction);
 
 const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: SessionsContainerId,
