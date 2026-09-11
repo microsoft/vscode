@@ -1405,7 +1405,8 @@ suite('ClaudeAgent', () => {
 			provider: 'claude',
 			id: 'claude-sonnet-4-5-20250929',
 			name: 'Claude Sonnet 4.5',
-			supportsVision: false,
+			// Claiming the models lack vision made the workbench label received images unsupported.
+			supportsVision: true,
 			hasConfigSchema: true,
 			hasPolicyState: false,
 			hasMeta: false,
