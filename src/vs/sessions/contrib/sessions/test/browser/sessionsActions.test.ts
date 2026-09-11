@@ -402,6 +402,49 @@ suite('Sessions - Actions', () => {
 		}
 	}
 
+	test('New Session replaces a quick-chat draft only when the unified workspace picker is disabled', async () => {
+		const run = async (unifiedWorkspacePicker: boolean) => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const composerService = disposables.add(new NewSessionComposerService());
+			instantiationService.stub(INewSessionComposerService, composerService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
+			}));
+			const { session } = createTestSession('quick-chat-draft');
+			const activeSession = upcastPartial<IActiveSession>({
+				...session,
+				isCreated: constObservable(false),
+				isQuickChat: constObservable(true),
+			});
+			let unsetNewSessionCalls = 0;
+			let openNewSessionCalls = 0;
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(activeSession);
+				override unsetNewSession(): void {
+					unsetNewSessionCalls++;
+				}
+				override async openNewSession(): Promise<IOpenNewSessionResult> {
+					openNewSessionCalls++;
+					return { session: undefined, trustDeclined: false };
+				}
+			});
+			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+
+			const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+			assert.ok(command);
+			await command.handler(instantiationService);
+			return { navigationVersion: composerService.userNavigationVersion.get(), unsetNewSessionCalls, openNewSessionCalls };
+		};
+
+		assert.deepStrictEqual({
+			disabled: await run(false),
+			enabled: await run(true),
+		}, {
+			disabled: { navigationVersion: 1, unsetNewSessionCalls: 1, openNewSessionCalls: 0 },
+			enabled: { navigationVersion: 1, unsetNewSessionCalls: 0, openNewSessionCalls: 1 },
+		});
+	});
+
 	test('choosing a workspace section cancels older defaults before waiting for its composer', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const composerService = disposables.add(new NewSessionComposerService());
