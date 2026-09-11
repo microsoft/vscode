@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { autorun } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import '../../../../../editor/common/config/editorConfigurationSchema.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -46,6 +47,23 @@ suite('MultiDiffEditorConfiguration', () => {
 			experiment: { mode: 'auto' },
 		});
 		assert.strictEqual(defaultMultiDiffEditorExperimentalVariant, 'noCards');
+	});
+
+	test('registers original line number visibility as an inheritable setting', () => {
+		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+			.getConfigurationProperties()['diffEditor.hideOriginalLineNumbers'];
+
+		assert.deepStrictEqual({
+			type: property.type,
+			default: property.default,
+			scope: property.scope,
+			policy: property.policy,
+		}, {
+			type: ['boolean', 'null'],
+			default: null,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			policy: undefined,
+		});
 	});
 
 	test('maps setting values to compact variants', () => {

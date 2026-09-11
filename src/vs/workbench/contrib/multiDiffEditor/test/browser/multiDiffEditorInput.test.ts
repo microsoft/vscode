@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { observableValue, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,7 +14,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -102,6 +102,65 @@ suite('MultiDiffEditorInput', () => {
 
 		await assert.rejects(viewModelPromise, CancellationError);
 		assert.strictEqual(referenceDisposed, true);
+	});
+
+	test('preserves explicit original line number setting values and updates', async () => {
+		const originalUri = URI.parse('file:///original.ts');
+		const modifiedUri = URI.parse('file:///modified.ts');
+		const textModelService = new class extends mock<ITextModelService>() {
+			override createModelReference(): Promise<IReference<IResolvedTextEditorModel>> {
+				return Promise.reject(new TextFileOperationError('binary', TextFileOperationResult.FILE_IS_BINARY));
+			}
+		}();
+		const configurationChanged = disposables.add(new Emitter<ITextResourceConfigurationChangeEvent>());
+		let hideOriginalLineNumbers: boolean | null = null;
+		const textResourceConfigurationService = new class extends mock<ITextResourceConfigurationService>() {
+			override readonly onDidChangeConfiguration = configurationChanged.event;
+			override getValue<T>(): T {
+				return {
+					editor: {},
+					diffEditor: { hideOriginalLineNumbers },
+				} as T;
+			}
+		}();
+		const textFileService = new class extends mock<ITextFileService>() {
+			override readonly files = new class extends mock<ITextFileEditorModelManager>() {
+				override readonly onDidChangeDirty = Event.None;
+			}();
+		}();
+		const services = new ServiceCollection();
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const input = disposables.add(new MultiDiffEditorInput(
+			URI.parse('multi-diff-editor:test'),
+			'Test',
+			[new MultiDiffEditorItem(originalUri, modifiedUri, undefined)],
+			false,
+			textModelService,
+			textResourceConfigurationService,
+			instantiationService,
+			new class extends mock<IMultiDiffSourceResolverService>() { }(),
+			textFileService,
+		));
+		const viewModel = await input.getViewModel();
+		const documentItem = viewModel.items.get()[0].documentDiffItem;
+		const values = [documentItem.options?.hideOriginalLineNumbers];
+		disposables.add(documentItem.onOptionsDidChange!(() => values.push(documentItem.options?.hideOriginalLineNumbers)));
+
+		hideOriginalLineNumbers = false;
+		configurationChanged.fire({
+			affectsConfiguration: (_resource, section) => section === 'diffEditor',
+		});
+		hideOriginalLineNumbers = true;
+		configurationChanged.fire({
+			affectsConfiguration: (_resource, section) => section === 'diffEditor',
+		});
+		hideOriginalLineNumbers = null;
+		configurationChanged.fire({
+			affectsConfiguration: (_resource, section) => section === 'diffEditor',
+		});
+
+		assert.deepStrictEqual(values, [undefined, false, true, undefined]);
 	});
 
 	test('keeps binary resources in the multi diff model', async () => {

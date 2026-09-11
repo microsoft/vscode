@@ -367,10 +367,13 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 	private setItem(item: DocumentDiffItemViewModel | undefined, initialSize = 0): void {
 		this._verticalStateUpdate.clear();
 		const optionsOverride = this._optionsOverride;
+		const variantOptions = this._variantConfiguration.diffEditorOptions;
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
+				...variantOptions,
 				...options,
 				...optionsOverride?.get(),
+				hideOriginalLineNumbers: optionsOverride?.get()?.hideOriginalLineNumbers ?? options.hideOriginalLineNumbers ?? variantOptions?.hideOriginalLineNumbers ?? false,
 				scrollBeyondLastLine: false,
 				hideUnchangedRegions: {
 					enabled: true,

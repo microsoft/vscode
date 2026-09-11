@@ -21,6 +21,7 @@ export interface IMultiDiffEditorVariantConfiguration {
 	readonly headerHeight: number;
 	readonly contentBottomPadding: number;
 	readonly headerClickToCollapse: boolean;
+	readonly diffEditorOptions?: IDiffEditorOptions;
 }
 
 export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorVariant): IMultiDiffEditorVariantConfiguration {
@@ -40,6 +41,7 @@ export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorV
 				headerHeight: 32,
 				contentBottomPadding: 8,
 				headerClickToCollapse: true,
+				diffEditorOptions: { hideOriginalLineNumbers: true },
 			};
 		case 'cards':
 			return {
@@ -48,6 +50,7 @@ export function getMultiDiffEditorVariantConfiguration(variant: MultiDiffEditorV
 				headerHeight: 40,
 				contentBottomPadding: 0,
 				headerClickToCollapse: true,
+				diffEditorOptions: { hideOriginalLineNumbers: true },
 			};
 	}
 }
