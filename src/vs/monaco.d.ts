@@ -3797,6 +3797,11 @@ declare namespace monaco.editor {
 		 */
 		selectionHighlightMaxLength?: number;
 		/**
+		 * Match case when selecting or highlighting occurrences of selected text, independently of Find.
+		 * Defaults to false; an empty selection starts a whole-word, case-sensitive search.
+		 */
+		selectionMatchCase?: boolean;
+		/**
 		 * Enable semantic occurrences highlight.
 		 * Defaults to 'singleFile'.
 		 * 'off' disables occurrence highlighting
@@ -5216,57 +5221,58 @@ declare namespace monaco.editor {
 		selectionHighlight = 122,
 		selectionHighlightMaxLength = 123,
 		selectionHighlightMultiline = 124,
-		selectOnLineNumbers = 125,
-		showFoldingControls = 126,
-		showUnused = 127,
-		snippetSuggestions = 128,
-		smartSelect = 129,
-		smoothScrolling = 130,
-		stickyScroll = 131,
-		stickyTabStops = 132,
-		stopRenderingLineAfter = 133,
-		suggest = 134,
-		suggestFontSize = 135,
-		suggestLineHeight = 136,
-		suggestOnTriggerCharacters = 137,
-		suggestSelection = 138,
-		tabCompletion = 139,
-		tabIndex = 140,
-		trimWhitespaceOnDelete = 141,
-		unicodeHighlighting = 142,
-		unusualLineTerminators = 143,
-		useShadowDOM = 144,
-		useTabStops = 145,
-		wordBreak = 146,
-		wordSegmenterLocales = 147,
-		wordSeparators = 148,
-		wordWrap = 149,
-		wordWrapBreakAfterCharacters = 150,
-		wordWrapBreakBeforeCharacters = 151,
-		wordWrapColumn = 152,
-		wordWrapOverride1 = 153,
-		wordWrapOverride2 = 154,
-		wrappingIndent = 155,
-		wrappingStrategy = 156,
-		showDeprecated = 157,
-		inertialScroll = 158,
-		inlayHints = 159,
-		wrapOnEscapedLineFeeds = 160,
-		effectiveCursorStyle = 161,
-		editorClassName = 162,
-		pixelRatio = 163,
-		tabFocusMode = 164,
-		layoutInfo = 165,
-		wrappingInfo = 166,
-		defaultColorDecorators = 167,
-		colorDecoratorsActivatedOn = 168,
-		inlineCompletionsAccessibilityVerbose = 169,
-		effectiveEditContext = 170,
-		scrollOnMiddleClick = 171,
-		effectiveAllowVariableFonts = 172,
-		doubleClickSelectsBlock = 173,
-		fullwidthCharacterWidth = 174,
-		effectiveFullwidthCharacterWidth = 175
+		selectionMatchCase = 125,
+		selectOnLineNumbers = 126,
+		showFoldingControls = 127,
+		showUnused = 128,
+		snippetSuggestions = 129,
+		smartSelect = 130,
+		smoothScrolling = 131,
+		stickyScroll = 132,
+		stickyTabStops = 133,
+		stopRenderingLineAfter = 134,
+		suggest = 135,
+		suggestFontSize = 136,
+		suggestLineHeight = 137,
+		suggestOnTriggerCharacters = 138,
+		suggestSelection = 139,
+		tabCompletion = 140,
+		tabIndex = 141,
+		trimWhitespaceOnDelete = 142,
+		unicodeHighlighting = 143,
+		unusualLineTerminators = 144,
+		useShadowDOM = 145,
+		useTabStops = 146,
+		wordBreak = 147,
+		wordSegmenterLocales = 148,
+		wordSeparators = 149,
+		wordWrap = 150,
+		wordWrapBreakAfterCharacters = 151,
+		wordWrapBreakBeforeCharacters = 152,
+		wordWrapColumn = 153,
+		wordWrapOverride1 = 154,
+		wordWrapOverride2 = 155,
+		wrappingIndent = 156,
+		wrappingStrategy = 157,
+		showDeprecated = 158,
+		inertialScroll = 159,
+		inlayHints = 160,
+		wrapOnEscapedLineFeeds = 161,
+		effectiveCursorStyle = 162,
+		editorClassName = 163,
+		pixelRatio = 164,
+		tabFocusMode = 165,
+		layoutInfo = 166,
+		wrappingInfo = 167,
+		defaultColorDecorators = 168,
+		colorDecoratorsActivatedOn = 169,
+		inlineCompletionsAccessibilityVerbose = 170,
+		effectiveEditContext = 171,
+		scrollOnMiddleClick = 172,
+		effectiveAllowVariableFonts = 173,
+		doubleClickSelectsBlock = 174,
+		fullwidthCharacterWidth = 175,
+		effectiveFullwidthCharacterWidth = 176
 	}
 
 	export const EditorOptions: {
@@ -5401,6 +5407,7 @@ declare namespace monaco.editor {
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectionHighlightMaxLength: IEditorOption<EditorOption.selectionHighlightMaxLength, number>;
 		selectionHighlightMultiline: IEditorOption<EditorOption.selectionHighlightMultiline, boolean>;
+		selectionMatchCase: IEditorOption<EditorOption.selectionMatchCase, boolean>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'never' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;

@@ -112,6 +112,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 		const matchPosition = state.matchesPosition;
 
 		const content: string[] = [];
+		const selectionMatchCaseSetting = localize('settingSelectionMatchCase', "- `editor.selectionMatchCase`: Controls case sensitivity for selection commands and selection highlighting, independently of Find.");
 
 		if (isReplaceVisible) {
 			// ========== REPLACE MODE CONTENT ==========
@@ -206,6 +207,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 			content.push(localize('replace.settingOccurrences', "- `editor.occurrencesHighlight`: Highlights other occurrences of the current symbol."));
 			content.push(localize('replace.settingOccurrencesDelay', "- `editor.occurrencesHighlightDelay`: Controls how soon occurrences are highlighted."));
 			content.push(localize('replace.settingSelectionHighlight', "- `editor.selectionHighlight`: Highlights other matches of the current selection."));
+			content.push(selectionMatchCaseSetting);
 			content.push(localize('replace.settingSelectionMaxLength', "- `editor.selectionHighlightMaxLength`: Limits selection highlight length."));
 			content.push(localize('replace.settingSelectionMultiline', "- `editor.selectionHighlightMultiline`: Controls whether multi-line selections are highlighted."));
 
@@ -306,6 +308,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 			content.push(localize('find.settingOccurrences', "- `editor.occurrencesHighlight`: Highlights other occurrences of the current symbol."));
 			content.push(localize('find.settingOccurrencesDelay', "- `editor.occurrencesHighlightDelay`: Controls how soon occurrences are highlighted."));
 			content.push(localize('find.settingSelectionHighlight', "- `editor.selectionHighlight`: Highlights other matches of the current selection."));
+			content.push(selectionMatchCaseSetting);
 			content.push(localize('find.settingSelectionMaxLength', "- `editor.selectionHighlightMaxLength`: Limits selection highlight length."));
 			content.push(localize('find.settingSelectionMultiline', "- `editor.selectionHighlightMultiline`: Controls whether multi-line selections are highlighted."));
 

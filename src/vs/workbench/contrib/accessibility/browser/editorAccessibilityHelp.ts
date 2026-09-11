@@ -126,6 +126,7 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 			content.push(AccessibilityHelpNLS.tabFocusModeOffMsg);
 		}
 		content.push(AccessibilityHelpNLS.codeFolding);
+		content.push(AccessibilityHelpNLS.selectionOccurrences);
 		content.push(AccessibilityHelpNLS.intellisense);
 		content.push(AccessibilityHelpNLS.showOrFocusHover);
 		content.push(AccessibilityHelpNLS.goToSymbol);
