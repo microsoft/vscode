@@ -271,6 +271,7 @@ import dark_plus from '../../../../../../extensions/theme-defaults/themes/dark_p
 import dark_vs from '../../../../../../extensions/theme-defaults/themes/dark_vs.json' with { type: 'json' };
 import hc_black from '../../../../../../extensions/theme-defaults/themes/hc_black.json' with { type: 'json' };
 import hc_light from '../../../../../../extensions/theme-defaults/themes/hc_light.json' with { type: 'json' };
+import light_2026 from '../../../../../../extensions/theme-defaults/themes/2026-light.json' with { type: 'json' };
 import light_modern from '../../../../../../extensions/theme-defaults/themes/light_modern.json' with { type: 'json' };
 import light_plus from '../../../../../../extensions/theme-defaults/themes/light_plus.json' with { type: 'json' };
 import light_vs from '../../../../../../extensions/theme-defaults/themes/light_vs.json' with { type: 'json' };
@@ -291,6 +292,7 @@ const fileIconThemeResourceUrls = new Set(Object.values(fileIconThemeResources).
 
 const themeJsonModules: Record<string, string> = {
 	'/extensions/theme-defaults/themes/2026-dark.json': toThemeJsonText(dark_2026),
+	'/extensions/theme-defaults/themes/2026-light.json': toThemeJsonText(light_2026),
 	'/extensions/theme-defaults/themes/dark_modern.json': toThemeJsonText(dark_modern),
 	'/extensions/theme-defaults/themes/dark_plus.json': toThemeJsonText(dark_plus),
 	'/extensions/theme-defaults/themes/dark_vs.json': toThemeJsonText(dark_vs),
@@ -364,6 +366,7 @@ type ComponentFixtureThemeVariant = {
 const darkThemeVariant = { label: 'Dark', background: 'dark', theme: darkTheme } as const satisfies ComponentFixtureThemeVariant;
 const lightThemeVariant = { label: 'Light', background: 'light', theme: lightTheme } as const satisfies ComponentFixtureThemeVariant;
 const additionalThemeVariants = {
+	light2026: { label: 'Light2026', background: 'light', theme: createBuiltInTheme('/extensions/theme-defaults/themes/2026-light.json', ThemeTypeSelector.VS) },
 	darkHighContrast: { label: 'DarkHighContrast', background: 'dark', theme: darkHighContrastTheme },
 	lightHighContrast: { label: 'LightHighContrast', background: 'light', theme: lightHighContrastTheme },
 } as const satisfies Record<string, ComponentFixtureThemeVariant>;
