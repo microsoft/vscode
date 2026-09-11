@@ -8,7 +8,7 @@
  */
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, realpathSync, statSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -86,6 +86,10 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 		const sessionUri = await createRealSession(client, CODEX_CONFIG, 'codex-invalid-skills', createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(client, sessionUri, 'turn-invalid-skills', 'Reply exactly "READY".', 1);
 
+		const fileIdentity = (uri: string) => {
+			const stat = statSync(URI.parse(uri).fsPath);
+			return { device: stat.dev, inode: stat.ino };
+		};
 		await client.waitForNotification(n => {
 			if (!isActionNotification(n, ActionType.SessionCustomizationUpdated)) {
 				return false;
@@ -94,13 +98,13 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 			return channel === sessionUri
 				&& action.type === ActionType.SessionCustomizationUpdated
 				&& action.customization.type === CustomizationType.Directory
-				&& action.customization.children?.some(child => skillUris.includes(child.uri)) === true;
+				&& action.customization.children?.some(child => names.includes(child.name)) === true;
 		}, 30_000);
 		const result = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const containers = ((result.snapshot!.state as SessionState).customizations ?? [])
 			.filter((customization): customization is DirectoryCustomization =>
 				customization.type === CustomizationType.Directory
-				&& customization.children?.some(child => skillUris.includes(child.uri)) === true);
+				&& customization.children?.some(child => names.includes(child.name)) === true);
 
 		assert.deepStrictEqual(containers.map(container => ({
 			enabled: container.enabled,
@@ -109,14 +113,14 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 			children: container.children?.map(child => ({
 				type: child.type,
 				name: child.name,
-				uri: child.uri,
+				file: fileIdentity(child.uri),
 				enabled: child.type === CustomizationType.Skill ? child.enabled : undefined,
 			})),
 		})), [{
 			enabled: false,
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Error, message: 'missing field `description`' },
-			children: names.map((name, index) => ({ type: CustomizationType.Skill, name, uri: skillUris[index], enabled: false })),
+			children: names.map((name, index) => ({ type: CustomizationType.Skill, name, file: fileIdentity(skillUris[index]), enabled: false })),
 		}]);
 	});
 
