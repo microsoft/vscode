@@ -191,7 +191,7 @@ function getFileIconThemeStyleSheetCached(scopeSelector: string, styleSheetConte
 	return fileIconThemeStyleSheet;
 }
 
-function createScopedThemingParticipant(scopeRootSelector: string, participants: readonly IThemingParticipant[]): IThemingParticipant {
+function createScopedThemingParticipant(scopeSelector: string, scopeRootSelector: string, participants: readonly IThemingParticipant[]): IThemingParticipant {
 	return (theme, collector, environment) => {
 		const rules = new Set<string>();
 		const scopedCollector = { addRule: (rule: string) => rules.add(rule) };
@@ -199,7 +199,7 @@ function createScopedThemingParticipant(scopeRootSelector: string, participants:
 		const scopedRules = [...rules].map(rule => rule
 			.replace(/^(\s*):root(?=\s*\{)/, '$1:scope')
 			.replaceAll(scopeRootSelector, ':scope'));
-		collector.addRule(scopedRules.join('\n'));
+		collector.addRule(`@scope (${scopeSelector}) {\n${scopedRules.join('\n')}\n}`);
 	};
 }
 
@@ -209,18 +209,18 @@ export function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 		return cachedStyleSheet;
 	}
 
-	const scopeSelector = ':scope, .' + theme.classNames[0];
 	const themeScopeSelector = '.' + theme.classNames.join('.');
+	// Keep matching nested editor theme roots without increasing selector specificity.
+	const scopeSelector = `.${theme.classNames[0]}:where(${themeScopeSelector}, ${themeScopeSelector} *)`;
 	const themingParticipants = themingRegistry.getThemingParticipants();
 	const sheet = new CSSStyleSheet();
 	const css = generateColorThemeCSS(
 		theme,
 		scopeSelector,
-		[createScopedThemingParticipant('.monaco-workbench', themingParticipants)],
+		[createScopedThemingParticipant(scopeSelector, '.monaco-workbench', themingParticipants)],
 		mockEnvironmentService
 	);
-	// Preserve base-theme variable declarations on nested editors without leaking across fixtures.
-	sheet.replaceSync(`@scope (${themeScopeSelector}) {\n${css.code}\n}`);
+	sheet.replaceSync(css.code);
 
 	themeStyleSheetCache.set(theme, sheet);
 	return sheet;
