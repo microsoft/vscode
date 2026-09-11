@@ -2358,7 +2358,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const activeTabFill = activeTab?.firstElementChild;
 		const overflowEdge = this.connectedTabOverflowEdge;
 		if (activeTab && !activeTab.classList.contains('connected-tab-upper-row') && isHTMLElement(activeTabFill) && overflowEdge && !activeTabPositionStatic && this.parent.closest('.modern-ui.modern-ui-connected-editor-tabs')) {
-			const scrollLeft = tabsScrollbar.getScrollPosition().scrollLeft;
+			// DOM bounds reflect native scroll clamping before the custom scrollbar dimensions update.
+			const scrollLeft = tabsContainer.scrollLeft;
 			const tabsBounds = tabsContainer.getBoundingClientRect();
 			const fillBounds = activeTabFill.getBoundingClientRect();
 			const scrollableBounds = tabsScrollbar.getDomNode().getBoundingClientRect();

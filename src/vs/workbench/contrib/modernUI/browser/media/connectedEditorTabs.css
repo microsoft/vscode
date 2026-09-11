@@ -5,7 +5,7 @@
 
 /* The connected tab setting is scoped to Modern UI; other modern tabs retain their pills. */
 /* In HC the connected well owns the frame; retain the outer card's layout space, not its stroke. */
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor:not(.modal-editor-part) {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor.editor-tabs-multiple:not(.modal-editor-part) {
 	border-color: transparent !important;
 	--modern-ui-floating-card-stroke-color: transparent;
 }

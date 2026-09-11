@@ -516,6 +516,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	// Recreate the ancestor chain the tab-bar CSS is scoped to; the fixture container already
 	// carries `.monaco-workbench` + theme classes.
 	const editorPart = $('.part.editor');
+	editorPart.classList.toggle('editor-tabs-multiple', partOptions.showTabs === 'multiple');
 	const content = $('.content');
 	const groupContainer = $(isGroupActive ? '.editor-group-container.active' : '.editor-group-container');
 	const titleContainer = $('.title');

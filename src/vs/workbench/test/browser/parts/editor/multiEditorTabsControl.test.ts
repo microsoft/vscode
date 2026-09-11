@@ -291,6 +291,61 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('keeps replacement connected tabs visible after closing rightmost scrolled tabs', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.classList.add('hc-black');
+		root.style.setProperty('--vscode-focusBorder', '#ffaa00');
+		root.style.setProperty('--modern-ui-connected-tab-surface', '#333333');
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 160, tabSizingFixedMaxWidth: 160, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		for (let i = 2; i < 5; i++) {
+			const editor = disposables.add(new TestFileEditorInput(URI.file(`/path/file${i}.txt`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true, active: true });
+		}
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		await layoutConnectedGroup(group, 200);
+		const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+		const results = [];
+		for (let count = 5; count > 2; count--) {
+			tabs.classList.add('scroll');
+			tabs.scrollLeft = tabs.scrollWidth - tabs.clientWidth;
+			tabs.dispatchEvent(new UIEvent(EventType.SCROLL));
+			tabs.classList.remove('scroll');
+			const oldScrollLeft = tabs.scrollLeft;
+			const closedEditor = model.getEditorByIndex(count - 1)!;
+			model.closeEditor(closedEditor);
+			control.closeEditor(closedEditor);
+			const clampedBeforeLayout = tabs.scrollLeft < oldScrollLeft;
+			await layoutConnectedGroup(group, 200);
+			const activeTab = tabs.querySelector<HTMLElement>('.tab.active')!;
+			const fill = activeTab.querySelector<HTMLElement>('.tab-fill')!;
+			const fillStyle = mainWindow.getComputedStyle(fill);
+			const edge = activeTab.querySelector<HTMLElement>('.tab-connected-edge')!;
+			results.push({
+				clampedBeforeLayout,
+				activeIndex: model.indexOf(model.activeEditor!),
+				scrollLeft: tabs.scrollLeft,
+				fillLeft: fill.getBoundingClientRect().left - tabs.getBoundingClientRect().left + tabs.scrollLeft,
+				hidden: activeTab.classList.contains('connected-tab-hidden'),
+				fillDisplay: fillStyle.display,
+				outlineDisplay: mainWindow.getComputedStyle(edge).display,
+				outlineColor: fillStyle.borderTopColor,
+			});
+		}
+		assert.deepStrictEqual(results, [4, 3, 2].map(count => ({
+			clampedBeforeLayout: true,
+			activeIndex: count - 1,
+			scrollLeft: count * 160 - 200,
+			fillLeft: (count - 1) * 160,
+			hidden: false,
+			fillDisplay: 'block',
+			outlineDisplay: 'block',
+			outlineColor: 'rgb(255, 170, 0)',
+		})));
+	});
+
 	test('connected sticky offsets respect content minimums instead of the classic fixed width', async () => {
 		const group = connectedGroup();
 		const oldOptions = partOptions;

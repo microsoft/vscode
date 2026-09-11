@@ -1936,14 +1936,17 @@ suite('ModernUIContribution', () => {
 		]);
 	});
 
-	test('uses only the connected well frame in HC without changing the outer card geometry', () => {
+	test('preserves a single HC frame in every tab mode without changing the outer card geometry', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs floating-panels');
 		store.add(toDisposable(() => root.remove()));
-		root.style.cssText = '--vscode-editor-border: #123456; --vscode-editorGroup-border: #123456; --vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px;';
+		root.style.cssText = '--vscode-editor-border: #123456; --vscode-editorGroup-border: #123456; --vscode-focusBorder: #ffaa00; --vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px;';
 		const grid = appendElement(root, 'monaco-grid-view');
 		const editor = appendElement(grid, 'part editor floating-editor-outer-left floating-editor-outer-top');
 		editor.style.cssText = 'width: 500px; height: 350px;';
 		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title');
+		const body = appendElement(group, 'editor-container');
 		const geometry = () => [editor, content].map(element => {
 			const bounds = element.getBoundingClientRect();
 			return [bounds.x, bounds.y, bounds.width, bounds.height];
@@ -1956,17 +1959,25 @@ suite('ModernUIContribution', () => {
 				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
 				for (const compact of [false, true]) {
 					root.classList.toggle('modern-ui-compact', compact);
-					const style = getWindow(editor).getComputedStyle(editor);
-					const singleFrame = connected && theme.startsWith('hc-');
-					assert.deepStrictEqual({
-						geometry: geometry(),
-						border: [style.borderTopWidth, style.borderLeftWidth, style.borderColor],
-						compactStroke: compact ? style.getPropertyValue('--modern-ui-floating-card-stroke-color').trim() : undefined,
-					}, {
-						geometry: baseline,
-						border: ['1px', '1px', singleFrame || compact ? 'rgba(0, 0, 0, 0)' : 'rgb(18, 52, 86)'],
-						compactStroke: compact ? (singleFrame ? 'transparent' : '#123456') : undefined,
-					}, `${theme}, connected: ${connected}, compact: ${compact}`);
+					for (const showTabs of ['multiple', 'single', 'none', 'multiple']) {
+						editor.classList.toggle('editor-tabs-multiple', showTabs === 'multiple');
+						title.classList.toggle('tabs', showTabs === 'multiple');
+						const style = getWindow(editor).getComputedStyle(editor);
+						const wellFrame = getWindow(body).getComputedStyle(body, '::after');
+						const connectedFrame = connected && showTabs === 'multiple';
+						const singleFrame = connectedFrame && theme.startsWith('hc-');
+						assert.deepStrictEqual({
+							geometry: geometry(),
+							border: [style.borderTopWidth, style.borderLeftWidth, style.borderColor],
+							compactStroke: compact ? style.getPropertyValue('--modern-ui-floating-card-stroke-color').trim() : undefined,
+							wellFrame: [wellFrame.content, wellFrame.borderLeftWidth, singleFrame ? wellFrame.borderLeftColor : undefined],
+						}, {
+							geometry: baseline,
+							border: ['1px', '1px', singleFrame || compact ? 'rgba(0, 0, 0, 0)' : 'rgb(18, 52, 86)'],
+							compactStroke: compact ? (singleFrame ? 'transparent' : '#123456') : undefined,
+							wellFrame: [connectedFrame ? '""' : 'none', connectedFrame ? '1px' : '0px', singleFrame ? 'rgb(255, 170, 0)' : undefined],
+						}, `${theme}, connected: ${connected}, compact: ${compact}, showTabs: ${showTabs}`);
+					}
 				}
 			}
 		}
