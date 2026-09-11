@@ -191,26 +191,26 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		}, {
 			live: [{
 				type: SessionArtifactType.PullRequest,
-				label: '#123: Improve archive nudges',
+				label: 'Improve archive nudges',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/123',
 				isGitHub: true,
 			}, {
 				type: SessionArtifactType.PullRequest,
-				label: 'Pull Request #124',
+				label: '',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/124',
 				isGitHub: true,
 			}],
 			persisted: [{
 				type: SessionArtifactType.PullRequest,
-				label: '#123: Improve archive nudges',
+				label: 'Improve archive nudges',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/123',
 				isGitHub: true,
 			}, {
 				type: SessionArtifactType.PullRequest,
-				label: 'Pull Request #124',
+				label: '',
 				isArtifact: true,
 				link: 'https://github.com/microsoft/vscode/pull/124',
 				isGitHub: true,

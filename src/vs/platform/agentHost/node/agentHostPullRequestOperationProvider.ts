@@ -267,9 +267,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		});
 		await artifacts.mutate(collection => collection.addOrPromoteArtifact({
 			type: SessionArtifactType.PullRequest,
-			label: event.pullRequestTitle
-				? localize('agentHost.pullRequestArtifact.labelWithTitle', "#{0}: {1}", event.pullRequestNumber, event.pullRequestTitle)
-				: localize('agentHost.pullRequestArtifact.label', "Pull Request #{0}", event.pullRequestNumber),
+			label: event.pullRequestTitle ?? '',
 			isArtifact: true,
 			link: event.pullRequestUrl,
 		}, generateUuid));
