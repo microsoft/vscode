@@ -327,7 +327,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 				const env = getSanitizedEnvironment(process);
 				const basename = path.basename(exec).toLowerCase();
 				const args = basename === 'ghostty' && cwd ? [`--working-directory=${cwd}`] : [];
-				const child = spawner.spawn(exec, args, { cwd, env });
+				const child = spawner.spawn(exec, args, { cwd, env, shell: true });
 				child.on('error', e);
 				child.on('exit', () => c());
 			});
