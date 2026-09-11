@@ -1185,7 +1185,10 @@ export function getXtermScaledDimensions(w: Window, font: ITerminalFont, width: 
 	const cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 	const scaledHeightAvailable = height * w.devicePixelRatio;
-	const scaledCharHeight = Math.ceil(font.charHeight * w.devicePixelRatio);
+	// charHeight is xterm's device cell height divided by devicePixelRatio, so
+	// the product can sit a few ulps above a whole device pixel (22 / 1.2 * 1.2
+	// is 22.000000000000004); ceil must not turn that into an extra pixel per row.
+	const scaledCharHeight = Math.ceil(font.charHeight * w.devicePixelRatio - 1e-6);
 	const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
 	const rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
 
