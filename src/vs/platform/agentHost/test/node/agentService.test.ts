@@ -565,7 +565,7 @@ suite('AgentService (node dispatcher)', () => {
 			progressToken: 'codex',
 			progress: 50,
 			total: 100,
-			message: 'Downloading Codex agent',
+			message: 'Downloading Codex Agent',
 		}]);
 	});
 

@@ -1411,15 +1411,15 @@ suite('AgentHostChatContribution', () => {
 		test('editor window renders SDK download progress from root/progress notifications', () => {
 			const { agentHostService, openedTitles } = createWithProgressRecorder(false);
 
-			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' });
+			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' });
 
-			assert.deepStrictEqual(openedTitles, ['Downloading Claude agent']);
+			assert.deepStrictEqual(openedTitles, ['Downloading Claude Agent']);
 		});
 
 		test('sessions window does not render download progress via the chat contribution', () => {
 			const { agentHostService, openedTitles } = createWithProgressRecorder(true);
 
-			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' });
+			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' });
 
 			assert.strictEqual(openedTitles.length, 0);
 		});
