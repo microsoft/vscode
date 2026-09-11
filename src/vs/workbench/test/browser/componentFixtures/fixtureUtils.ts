@@ -1106,6 +1106,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			);
 			const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
 			const teardownDrainMs = options.virtualTime?.teardownDrainMs ?? 1100;
+			const maxTraceDepth = 10;
 
 			// Single async dispose orchestrates teardown order:
 			//   1. dispose user disposables (synchronous part)
@@ -1138,7 +1139,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 							await p.run({
 								until: untilTime(clock.now + teardownDrainMs),
 								maxEvents: 1000,
-								maxTraceDepth: 5,
+								maxTraceDepth,
 							});
 						} catch (e) {
 							console.error(`[ComponentFixture] error draining virtual time during teardown: ${e instanceof Error ? e.stack : e}`);
@@ -1221,7 +1222,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						? p.run({
 							until: untilTime(clock.now + (options.virtualTime?.durationMs ?? 1000)),
 							maxEvents: 200,
-							maxTraceDepth: 5,
+							maxTraceDepth,
 						})
 						: Promise.resolve();
 
