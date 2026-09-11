@@ -10,66 +10,23 @@ import * as ts from 'typescript';
 
 /**
  * Prefer dot notation for identifier properties, including TypeScript private members.
- * Allow bracket notation for dictionary receivers explicitly configured by their exact path.
+ * Allow bracket notation for environment-variable names accessed directly through process.env.
  */
 export default new class NoBracketNotationForIdentifiers implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		type: 'problem',
 		docs: {
-			description: 'Disallow bracket notation for identifier properties except on configured dictionary receivers'
+			description: 'Disallow bracket notation for identifier properties except on process.env'
 		},
 		messages: {
 			noBracketNotation: 'Use dot notation instead of bracket notation for property \'{{property}}\'.'
 		},
-		schema: [{
-			type: 'object',
-			properties: {
-				allow: {
-					type: 'array',
-					items: { type: 'string', minLength: 1 },
-					uniqueItems: true,
-					description: 'Exact receiver paths such as process.env or opts. Matches ignore optional chaining and TypeScript assertions, but do not infer aliases or match nested receivers.'
-				}
-			},
-			additionalProperties: false
-		}],
+		schema: [],
 		fixable: 'code'
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-
-		const options = context.options[0] as { allow?: string[] } | undefined;
-		const allowedReceivers = new Set(options?.allow);
-
-		function getReceiverPath(node: TSESTree.Node): string | undefined {
-			switch (node.type) {
-				case 'Identifier':
-					return node.name;
-				case 'ThisExpression':
-					return 'this';
-				case 'ChainExpression':
-				case 'TSAsExpression':
-				case 'TSTypeAssertion':
-				case 'TSNonNullExpression':
-				case 'TSSatisfiesExpression':
-					return getReceiverPath(node.expression);
-				case 'MemberExpression': {
-					const object = getReceiverPath(node.object);
-					const property = !node.computed && node.property.type === 'Identifier'
-						? node.property.name
-						: node.computed && node.property.type === 'Literal' && typeof node.property.value === 'string'
-							? node.property.value
-							: undefined;
-					if (object !== undefined && property !== undefined && property.length > 0 && !property.includes('.')) {
-						return `${object}.${property}`;
-					}
-					return undefined;
-				}
-				default:
-					return undefined;
-			}
-		}
 
 		/**
 		 * Check if a string is a valid JavaScript identifier
@@ -101,14 +58,14 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 					return;
 				}
 
-				const propertyName = memberExpr.property.value;
-
-				if (allowedReceivers.size > 0) {
-					const receiver = getReceiverPath(memberExpr.object);
-					if (receiver !== undefined && allowedReceivers.has(receiver)) {
-						return;
-					}
+				const receiver = memberExpr.object;
+				if (receiver.type === 'MemberExpression' && !receiver.computed
+					&& receiver.object.type === 'Identifier' && receiver.object.name === 'process'
+					&& receiver.property.type === 'Identifier' && receiver.property.name === 'env') {
+					return;
 				}
+
+				const propertyName = memberExpr.property.value;
 
 				// If it's a valid identifier, report it
 				if (isValidIdentifier(propertyName)) {
