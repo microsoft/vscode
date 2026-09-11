@@ -119,7 +119,7 @@ suite('SessionCustomizationDiscovery', () => {
 		]);
 	});
 
-	test('excludes plugin and built-in skills from directory customizations', async () => {
+	test('projects SDK-native plugin customizations as a plugin container', async () => {
 		const errors: string[] = [];
 		const logService = new class extends NullLogService {
 			override error(message: string | Error): void {
@@ -128,7 +128,11 @@ suite('SessionCustomizationDiscovery', () => {
 		}();
 		instantiationService.stub(ILogService, logService);
 
-		const pluginSkill = await seed('/home/.copilot/installed-plugins/example/skills/example/SKILL.md', '---\nname: example\n---\n');
+		const pluginRoot = '/home/.copilot/installed-plugins/example';
+		await seed(`${pluginRoot}/.plugin/plugin.json`, JSON.stringify({ name: 'example-plugin', version: '1.2.3' }));
+		const pluginAgent = await seed(`${pluginRoot}/agents/reviewer.agent.md`, '---\nname: reviewer\ndescription: Reviews changes\n---\n');
+		const pluginSkill = await seed(`${pluginRoot}/skills/example/SKILL.md`, '---\nname: example\ndescription: Example skill\n---\n');
+		const pluginRule = await seed(`${pluginRoot}/rules/example.instructions.md`, '---\nname: Example instruction\n---\n');
 		const builtinSkill = await seed('/runtime/skills/builtin/SKILL.md', '---\nname: builtin\n---\n');
 		const projectSkill = await seed('/workspace/.github/skills/project/SKILL.md', '---\nname: project\n---\n');
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
@@ -136,11 +140,15 @@ suite('SessionCustomizationDiscovery', () => {
 			rpc: {
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
-					discover: async () => ({ agents: [] }),
+					discover: async () => ({
+						agents: [{ id: 'reviewer', name: 'reviewer', description: 'Reviews changes', path: pluginAgent.path, source: 'plugin', userInvocable: true }],
+					}),
 				},
 				instructions: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
-					discover: async () => ({ sources: [] }),
+					discover: async () => ({
+						sources: [{ id: 'example-instruction', label: 'Example instruction', description: '', sourcePath: pluginRule.path, type: 'plugin', location: 'plugin' }],
+					}),
 				},
 				skills: {
 					getDiscoveryPaths: async () => ({ paths: [{ path: '/workspace/.github/skills' }] }),
@@ -160,16 +168,34 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.deepStrictEqual({
 			errors,
 			skillDirectories: customizations
-				.filter(customization => customization.contents === 'skill')
+				.filter(customization => customization.type === CustomizationType.Directory && customization.contents === 'skill')
 				.map(customization => ({
 					uri: customization.uri,
 					children: customization.children?.map(child => child.uri),
+				})),
+			plugins: customizations
+				.filter(customization => customization.type === CustomizationType.Plugin)
+				.map(customization => ({
+					uri: customization.uri,
+					name: customization.name,
+					version: customization.version,
+					children: customization.children?.map(child => ({ type: child.type, uri: child.uri })),
 				})),
 		}, {
 			errors: [],
 			skillDirectories: [{
 				uri: URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/skills' }).toString(),
 				children: [projectSkill.toString()],
+			}],
+			plugins: [{
+				uri: URI.from({ scheme: Schemas.inMemory, path: pluginRoot }).toString(),
+				name: 'example-plugin',
+				version: '1.2.3',
+				children: [
+					{ type: CustomizationType.Agent, uri: pluginAgent.toString() },
+					{ type: CustomizationType.Skill, uri: pluginSkill.toString() },
+					{ type: CustomizationType.Rule, uri: pluginRule.toString() },
+				],
 			}],
 		});
 	});
