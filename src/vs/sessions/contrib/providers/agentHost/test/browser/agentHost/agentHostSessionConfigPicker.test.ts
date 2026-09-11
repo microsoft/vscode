@@ -1302,5 +1302,4 @@ suite('Agent Host Session Config Picker', () => {
 			[],
 		);
 	});
-
 });
