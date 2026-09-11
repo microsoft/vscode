@@ -69,7 +69,7 @@ export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot
 
 export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
 
-export const AgentHostHydraFusionEnabledSettingId = 'chat.agentHost.copilot.hydraFusion.enabled';
+export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
 
 export const CopilotAutoModeTiersEnabledSettingId = 'github.copilot.chat.autoMode.tiers.enabled';
 
