@@ -64,6 +64,7 @@ import { IAgentConfigurationService } from '../../node/agentConfigurationService
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { GenerateImageToolReferenceName } from '../../common/imageGenerationConstants.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
@@ -11513,6 +11514,82 @@ Use the attached image as context.
 			assert.strictEqual(result.resultType, 'success');
 			// Text content should be extracted
 			assert.strictEqual(result.textResultForLlm, 'text part');
+		});
+
+		test('client image tool completions omit binary results from the SDK projection', async () => {
+			const imageSnapshot = {
+				tools: [{
+					name: GenerateImageToolReferenceName,
+					description: 'Generate image',
+					inputSchema: { type: 'object', properties: {} },
+				}],
+				plugins: [],
+				mcpServers: {},
+			} satisfies IActiveClientSnapshot;
+			const owners: Array<string | undefined> = [];
+			const sessionDatabase = new class extends TestSessionDatabase {
+				override async setMetadata(key: string, value: string, turnId?: string): Promise<void> {
+					if (key.startsWith('copilot.generatedImage.')) {
+						owners.push(turnId);
+					}
+					await super.setMetadata(key, value);
+				}
+			}();
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: imageSnapshot, sessionDatabase });
+			await session.send('Generate an image', undefined, 'image-turn');
+
+			const tools = runtime.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-generated-image');
+
+			session.handleClientToolCallComplete('tc-generated-image', {
+				success: false,
+				pastTenseMessage: 'Generated an image',
+				error: { message: 'The image was generated, but the file could not be saved.' },
+				content: [
+					{ type: ToolResultContentType.Text, text: 'Generated a 1024 x 1024 PNG image for: Draw a fox\nThe image was generated, but could not be saved to /workspace/fox.png.' },
+					{ type: ToolResultContentType.EmbeddedResource, data: 'base64image', contentType: 'image/png' },
+				],
+			});
+
+			assert.deepStrictEqual(await handlerPromise, {
+				textResultForLlm: 'Generated a 1024 x 1024 PNG image for: Draw a fox\nThe image was generated, but could not be saved to /workspace/fox.png.',
+				resultType: 'failure',
+				error: 'The image was generated, but the file could not be saved.',
+				binaryResultsForLlm: undefined,
+			});
+			assert.deepStrictEqual(sessionDatabase.setMetadataCalls.filter(call => call.key === 'copilot.generatedImage.tc-generated-image').map(call => JSON.parse(call.value)), [{
+				images: [{ type: ToolResultContentType.EmbeddedResource, contentType: 'image/png', data: 'base64image' }],
+				error: 'The image was generated, but the file could not be saved.',
+				turnOwned: true,
+			}]);
+			assert.deepStrictEqual(owners, ['image-turn']);
+		});
+
+		test('preserves the completed image result when only persistence fails', async () => {
+			const database = new class extends TestSessionDatabase {
+				override async setMetadata(): Promise<void> { throw new Error('disk full'); }
+			}();
+			const { session, runtime, signals } = await createAgentSession(disposables, {
+				sessionDatabase: database,
+				clientSnapshot: { tools: [{ name: GenerateImageToolReferenceName, description: 'Generate image' }], plugins: [], mcpServers: {} },
+			});
+			const promise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'image-persist-failure');
+			session.handleClientToolCallComplete('image-persist-failure', {
+				success: true, pastTenseMessage: 'Generated image',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'Generated image saved to /worktree/image.png' },
+					{ type: ToolResultContentType.EmbeddedResource, contentType: 'image/png', data: 'image-data' },
+				],
+			});
+			const result = await promise;
+			assert.deepStrictEqual({
+				resultType: result.resultType,
+				retainsPath: result.textResultForLlm.includes('/worktree/image.png'),
+				warnsAgainstRegenerating: result.error?.includes('do not generate another image'),
+				binaryResults: result.binaryResultsForLlm,
+				notifiesUser: signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart
+					&& signal.action.part.kind === ResponsePartKind.SystemNotification),
+			}, { resultType: 'failure', retainsPath: true, warnsAgainstRegenerating: true, binaryResults: undefined, notifiesUser: true });
 		});
 
 		test('handleClientToolCallComplete describes embedded-resource-only content', async () => {

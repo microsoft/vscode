@@ -244,6 +244,26 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('documents generated image preview and save affordances where image generation is available', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('generated image appears below a response'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Multiple generated images are grouped into one gallery'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('Save action'),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('generated image appears below a response'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('generated image appears below a response'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			quickChat: true,
+			editsView: false,
+			inlineChat: false,
+		});
+	});
+
 	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],

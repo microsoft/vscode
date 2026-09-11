@@ -1284,6 +1284,12 @@ export interface IChatSessionCreatedData {
  */
 export interface IChatGeneratedImageData {
 	readonly kind: 'generatedImage';
+	/** The non-secret connection approved for a pending generation; omitted from the completed result. */
+	readonly configuration?: {
+		readonly endpoint: string;
+		readonly deployment: string;
+	};
+	readonly outputUri?: string;
 }
 
 /**

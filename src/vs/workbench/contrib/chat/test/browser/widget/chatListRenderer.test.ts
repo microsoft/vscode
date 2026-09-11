@@ -18,6 +18,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { GenerateImageToolId } from '../../../../../../platform/agentHost/common/imageGenerationConstants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -41,7 +42,7 @@ import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTyp
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
-import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
+import { getGeneratedImageResultParts, getGeneratedImageResults } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
@@ -348,12 +349,14 @@ suite('ChatListRenderer', () => {
 
 			test('renders generated images as outcomes only after the response completes', () => {
 				assert.deepStrictEqual([
-					shouldRenderGeneratedImageResult('generatedImage', false),
-					shouldRenderGeneratedImageResult('generatedImage', true),
-					shouldRenderGeneratedImageResult('terminal', true),
+					shouldRenderGeneratedImageResult('generatedImage', false, true),
+					shouldRenderGeneratedImageResult('generatedImage', true, true),
+					shouldRenderGeneratedImageResult('terminal', true, true),
+					shouldRenderGeneratedImageResult('generatedImage', true, false),
 				], [
 					false,
 					true,
+					false,
 					false,
 				]);
 			});
@@ -406,7 +409,7 @@ suite('ChatListRenderer', () => {
 						output: [{ type: 'embed', value, mimeType: 'image/png' }],
 					},
 				});
-				const parts = getGeneratedImageResultPartsFromContent([
+				const { parts } = getGeneratedImageResults([
 					createImageTool('image-call-1', 'aW1hZ2Ux'),
 					createImageTool('image-call-2', 'aW1hZ2Uy'),
 				], sessionResource);
@@ -1654,9 +1657,10 @@ suite('ChatListRenderer', () => {
 		const createImageTool = (toolCallId: string) => new ChatToolInvocation({
 			invocationMessage: 'Generating image',
 			pastTenseMessage: 'Generated image',
+			toolSpecificData: { kind: 'generatedImage', configuration: { endpoint: 'https://images.example.test', deployment: 'images' } },
 		}, {
-			id: 'image_gen.imagegen',
-			displayName: 'Generate image',
+			id: GenerateImageToolId,
+			displayName: 'Generate Image',
 			modelDescription: 'Generate image',
 			source: ToolDataSource.Internal,
 		}, toolCallId, undefined, {}, {}, request.id);
@@ -1685,8 +1689,11 @@ suite('ChatListRenderer', () => {
 			await imageTool.didExecuteTool({
 				content: [],
 				toolSpecificData: { kind: 'generatedImage' },
+				toolResultError: index === 0 ? 'The image could not be saved to the project.' : undefined,
+				toolResultMessage: index === 0 ? 'The image could not be saved to the project.' : 'Generated image',
 				toolResultDetails: {
 					input: '{"prompt":"Draw a fox"}',
+					isError: index === 0,
 					output: [{ type: 'embed', value: `aW1hZ2U${index}`, mimeType: 'image/png' }],
 				},
 			});
@@ -1696,6 +1703,13 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 			}
 		}
+		const failedImageTool = createImageTool('image-call-failed');
+		model.acceptResponseProgress(request, failedImageTool);
+		await failedImageTool.didExecuteTool({
+			content: [{ kind: 'text', value: 'Image generation failed' }],
+			toolResultError: 'Image generation failed',
+			toolResultMessage: 'Image generation failed',
+		});
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\n') });
 		renderer.renderElement(node, 0, template);
 		request.response?.complete();
@@ -1709,6 +1723,8 @@ suite('ChatListRenderer', () => {
 			generatedImageInvocations: template.value.querySelectorAll('.generated-image-tool-invocation').length,
 			generatedImageHovers: generatedImageHoverContents.length,
 			generatedImageHoverPreviews: generatedImageHoverContents.reduce((count, content) => count + content.querySelectorAll('.chat-attached-context-image').length, 0),
+			saveFailureVisible: template.value.querySelector('.chat-generated-image-result')?.textContent?.replace(/\s+/g, ' ').includes('could not be saved'),
+			generationFailureVisible: template.value.textContent?.replace(/\s+/g, ' ').includes('Image generation failed'),
 		}, {
 			resourceGroups: 1,
 			largeOutcomes: 1,
@@ -1716,6 +1732,8 @@ suite('ChatListRenderer', () => {
 			generatedImageInvocations: 1,
 			generatedImageHovers: 2,
 			generatedImageHoverPreviews: 0,
+			saveFailureVisible: true,
+			generationFailureVisible: true,
 		});
 
 		disposables.dispose();

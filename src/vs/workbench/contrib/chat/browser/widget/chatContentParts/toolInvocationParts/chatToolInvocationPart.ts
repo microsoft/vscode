@@ -22,7 +22,7 @@ import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownPr
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatAutomationConfiguredResultSubPart } from './chatAutomationConfiguredResultSubPart.js';
-import { ChatGeneratedImageResultSubPart } from './chatGeneratedImageResultSubPart.js';
+import { ChatGeneratedImageResultSubPart, hasGeneratedImageResult } from './chatGeneratedImageResultSubPart.js';
 import { ChatSessionCreatedResultSubPart } from './chatSessionCreatedResultSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
 import { ChatSandboxPrerequisiteConfirmationSubPart } from './chatSandboxPrerequisiteConfirmationSubPart.js';
@@ -69,8 +69,8 @@ export function shouldRenderSessionCreatedResult(toolSpecificDataKind: string | 
 	return toolSpecificDataKind === 'sessionCreated' && isResponseComplete;
 }
 
-export function shouldRenderGeneratedImageResult(toolSpecificDataKind: string | undefined, isResponseComplete: boolean): boolean {
-	return toolSpecificDataKind === 'generatedImage' && isResponseComplete;
+export function shouldRenderGeneratedImageResult(toolSpecificDataKind: string | undefined, isResponseComplete: boolean, hasImages: boolean): boolean {
+	return toolSpecificDataKind === 'generatedImage' && isResponseComplete && hasImages;
 }
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
@@ -122,6 +122,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		this.renderedGeneratedImageResult = shouldRenderGeneratedImageResult(
 			toolInvocation.toolSpecificData?.kind,
 			isResponseVM(context.element) && context.element.isComplete,
+			hasGeneratedImageResult(toolInvocation),
 		);
 		this.domNode = dom.$('.chat-tool-invocation-part');
 		this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
@@ -300,7 +301,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		if (this.renderedGeneratedImageResult && this.toolInvocation.toolSpecificData?.kind === 'generatedImage') {
-			return this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, this.toolInvocation, this.context);
+			return this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, this.toolInvocation, this.context, this.renderer);
 		}
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'automationConfigured') {
@@ -409,7 +410,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return false;
 		}
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
-			&& this.renderedGeneratedImageResult !== shouldRenderGeneratedImageResult(other.toolSpecificData?.kind, isResponseVM(element) && element.isComplete)) {
+			&& this.renderedGeneratedImageResult !== shouldRenderGeneratedImageResult(other.toolSpecificData?.kind, isResponseVM(element) && element.isComplete, hasGeneratedImageResult(other))) {
 			return false;
 		}
 		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && this.toolInvocation.toolCallId === other.toolCallId;

@@ -2887,11 +2887,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let error: unknown;
 		try {
 			markInvocationStarted();
+			const workingDirectory = contextSessionResource
+				? this._config.resolveWorkingDirectory?.(contextSessionResource) ?? this._workingDirectoryResolver.resolve(contextSessionResource)
+				: undefined;
 			result = await this._toolsService.invokeTool({
 				callId: toolCall.toolCallId,
 				toolId: toolData.id,
 				parameters,
-				context: contextSessionResource ? { sessionResource: contextSessionResource } : undefined,
+				context: contextSessionResource ? { sessionResource: contextSessionResource, ...(workingDirectory ? { workingDirectory } : {}) } : undefined,
 				chatStreamToolCallId: toolCall.toolCallId,
 				preApproved: toolCall.status === ToolCallStatus.PendingConfirmation ? undefined : getClientToolPreApproval(toolCall),
 			}, async () => 0, token);

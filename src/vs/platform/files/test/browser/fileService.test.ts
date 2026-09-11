@@ -13,7 +13,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IStat, isFileSystemWatcher } from '../../common/files.js';
+import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileWriteOptions, IStat, isFileSystemWatcher } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
 import { NullFileSystemProvider } from '../common/nullFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -362,6 +362,82 @@ suite('File Service', () => {
 		}
 
 		assert.ok(e2);
+	});
+
+	test('createFile forwards no-clobber to unbuffered writes', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+
+		let receivedOptions: { create: boolean; overwrite: boolean; unlock: boolean; atomic: false | IFileAtomicOptions; append: boolean } | undefined;
+
+		const provider = new class extends NullFileSystemProvider {
+			override async stat(resource: URI): Promise<IStat> {
+				throw createFileSystemProviderError('missing', FileSystemProviderErrorCode.FileNotFound);
+			}
+
+			override async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+				receivedOptions = {
+					create: opts.create,
+					overwrite: opts.overwrite,
+					unlock: opts.unlock,
+					atomic: opts.atomic,
+					append: opts.append ?? false
+				};
+
+				throw createFileSystemProviderError('exists', FileSystemProviderErrorCode.FileExists);
+			}
+		};
+
+		disposables.add(service.registerProvider('test', provider));
+		provider.setCapabilities(FileSystemProviderCapabilities.FileReadWrite);
+
+		let error: unknown = undefined;
+		try {
+			await service.createFile(URI.parse('test://foo/bar'), VSBuffer.fromString('Hello World'));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.deepStrictEqual(receivedOptions, {
+			create: true,
+			overwrite: false,
+			unlock: false,
+			atomic: false,
+			append: false
+		});
+		assert.ok(error instanceof FileOperationError);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
+	});
+
+	test('createFile forwards no-clobber to buffered opens', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+
+		let receivedOptions: IFileOpenOptions | undefined;
+
+		const provider = new class extends NullFileSystemProvider {
+			override async stat(resource: URI): Promise<IStat> {
+				throw createFileSystemProviderError('missing', FileSystemProviderErrorCode.FileNotFound);
+			}
+
+			override async open(resource: URI, opts: IFileOpenOptions): Promise<number> {
+				receivedOptions = opts;
+
+				throw createFileSystemProviderError('exists', FileSystemProviderErrorCode.FileExists);
+			}
+		};
+
+		disposables.add(service.registerProvider('test', provider));
+		provider.setCapabilities(FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		let error: unknown = undefined;
+		try {
+			await service.createFile(URI.parse('test://foo/bar'), bufferToReadable(VSBuffer.fromString('Hello World')));
+		} catch (err) {
+			error = err;
+		}
+
+		assert.deepStrictEqual(receivedOptions, { create: true, overwrite: false, unlock: false, append: false });
+		assert.ok(error instanceof FileOperationError);
+		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 	});
 
 	test('enforced atomic read/write/delete', async () => {

@@ -22,6 +22,7 @@ import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { CodexImageGenerationToolName, isImageGenerationTool } from '../../../../../../platform/agentHost/common/imageGenerationConstants.js';
 import { SessionServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
@@ -58,8 +59,6 @@ export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
 
 const agentHostAskUserToolNames = new Set(['ask_user', 'AskUserQuestion', 'request_user_input']);
-const imageGenerationToolName = 'image_gen.imagegen';
-
 function isAgentHostAskUserTool(toolName: string): boolean {
 	return agentHostAskUserToolNames.has(toolName);
 }
@@ -1805,13 +1804,19 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 }
 
 function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData | undefined {
-	if (tc.status !== ToolCallStatus.Completed || !tc.success || tc.toolName !== imageGenerationToolName) {
+	if (tc.status !== ToolCallStatus.Completed || !isImageGenerationTool(tc.toolName)) {
 		return undefined;
 	}
 	const hasImage = tc.content?.some(block => block.type === ToolResultContentType.EmbeddedResource
 		&& block.contentType.startsWith('image/')
 		&& block.data.length > 0);
-	return hasImage ? { kind: 'generatedImage' } : undefined;
+	if (!hasImage) {
+		return undefined;
+	}
+	if (tc.toolName === CodexImageGenerationToolName && !tc.success) {
+		return undefined;
+	}
+	return { kind: 'generatedImage' };
 }
 
 function buildAutomationConfiguredToolData(tc: ToolCallState): IChatAutomationConfiguredData | undefined {
