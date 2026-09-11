@@ -35,10 +35,10 @@ suite('ShellIntegrationAddon', () => {
 	let shellIntegrationAddon: TestShellIntegrationAddon;
 	let capabilities: ITerminalCapabilityStore;
 
-	async function createShellIntegrationAddon(nonce: string): Promise<{ xterm: Terminal; addon: TestShellIntegrationAddon }> {
+	async function createShellIntegrationAddon(nonce: string, allowUntrustedCwd: boolean = false): Promise<{ xterm: Terminal; addon: TestShellIntegrationAddon }> {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		const xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30, logger: TestXtermLogger }));
-		const addon = store.add(new TestShellIntegrationAddon(nonce, true, undefined, undefined, new NullLogService()));
+		const addon = store.add(new TestShellIntegrationAddon(nonce, true, undefined, undefined, new NullLogService(), allowUntrustedCwd));
 		xterm.loadAddon(addon);
 		return { xterm, addon };
 	}
@@ -81,6 +81,20 @@ suite('ShellIntegrationAddon', () => {
 				{ cwd: cwdDetection?.getCwd(), isTrusted: cwdDetection?.isTrusted },
 				{ cwd: '/trusted', isTrusted: true }
 			);
+		});
+
+		test('should retain nonce-less cwd reports as untrusted when explicitly allowed', async () => {
+			const { xterm, addon } = await createShellIntegrationAddon(shellIntegrationNonce, true);
+			await writeP(xterm, '\x1b]633;P;Cwd=/custom-pty\x07');
+
+			const cwdDetection = addon.capabilities.get(TerminalCapability.CwdDetection);
+			deepStrictEqual(
+				{ cwd: cwdDetection?.getCwd(), isTrusted: cwdDetection?.isTrusted },
+				{ cwd: '/custom-pty', isTrusted: false }
+			);
+
+			await writeP(xterm, '\x1b]633;P;Cwd=/mismatched;invalid-nonce\x07');
+			strictEqual(cwdDetection?.getCwd(), '/custom-pty');
 		});
 
 		test('should deserialize semicolons and backslashes before updating cwd', async () => {

@@ -817,6 +817,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			xtermColorProvider: this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this._targetRef),
 			capabilities: this.capabilities,
 			shellIntegrationNonce: this._processManager.shellIntegrationNonce,
+			allowUntrustedCwd: !!(this.shellLaunchConfig.customPtyImplementation || this.shellLaunchConfig.isExtensionOwnedTerminal),
 			disableShellIntegrationReporting,
 		}, this.onDidExecuteText);
 		this.xterm = xterm;

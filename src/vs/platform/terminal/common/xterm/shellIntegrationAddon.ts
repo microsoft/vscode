@@ -350,7 +350,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		private readonly _disableTelemetry: boolean | undefined,
 		private _onDidExecuteText: Event<void> | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		private readonly _allowUntrustedCwd: boolean = false
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -583,11 +584,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					case 'Cwd': {
 						// OSC 633 ; P ; Cwd=<value> ; <nonce> ST — the nonce is optional and only
 						// present when emitted by a trusted shell integration script. CWD updates
-						// without a matching non-empty nonce are ignored to mitigate spoofing
-						// via OSC sequences injected through arbitrary terminal output.
+						// without a matching non-empty nonce are ignored to mitigate spoofing via
+						// arbitrary terminal output, unless an extension-owned terminal explicitly
+						// opts into retaining them as untrusted.
 						const nonce = args[1];
 						if (this._nonce && nonce === this._nonce) {
 							this._updateCwd(value);
+						} else if (this._allowUntrustedCwd && !nonce) {
+							this._updateCwd(value, false);
 						}
 						return true;
 					}

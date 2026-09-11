@@ -268,6 +268,7 @@ suite('platform - terminalEnvironment', async () => {
 			for (const [script, report] of reports) {
 				ok(readFileSync(join(shellIntegrationScriptRoot, script), 'utf8').includes(report), script);
 			}
+			ok(readFileSync(join(shellIntegrationScriptRoot, 'shellIntegration.fish'), 'utf8').includes('set -g __vsc_nonce $VSCODE_NONCE'));
 		});
 
 		suite('custom shell integration nonce', async () => {

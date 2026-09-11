@@ -16,6 +16,7 @@ import { IEditorOptions } from '../../../../../../editor/common/config/editorOpt
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
@@ -123,6 +124,27 @@ suite('XtermTerminal', () => {
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	test('should retain nonce-less CWD reports as untrusted when allowed', async () => {
+		const customXterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+			cols: 80,
+			rows: 30,
+			xtermColorProvider: { getBackgroundColor: () => undefined },
+			capabilities: store.add(new TerminalCapabilityStore()),
+			shellIntegrationNonce: 'test-nonce',
+			allowUntrustedCwd: true,
+			disableShellIntegrationReporting: true,
+			xtermAddonImporter: new TestXtermAddonImporter(),
+		}, undefined));
+
+		await new Promise<void>(resolve => customXterm.write('\x1b]633;P;Cwd=/custom-pty\x07', resolve));
+
+		const cwdDetection = customXterm.shellIntegration.capabilities.get(TerminalCapability.CwdDetection);
+		deepStrictEqual(
+			{ cwd: cwdDetection?.getCwd(), isTrusted: cwdDetection?.isTrusted },
+			{ cwd: '/custom-pty', isTrusted: false }
+		);
 	});
 
 	test('detached terminals do not register decoration shutdown listeners', () => {
