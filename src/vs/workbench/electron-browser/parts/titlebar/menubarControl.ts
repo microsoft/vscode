@@ -161,8 +161,9 @@ export class NativeMenubarControl extends MenubarControl {
 						menubarMenuItem.enabled = false;
 					}
 
-					if (!isMacintosh || !nonNativeMacMenuKeybindingBlocklist.has(menuItem.id)) {
-						keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
+					const keybinding = this.getMenubarKeybinding(menuItem.id);
+					if (!isMacintosh || !nonNativeMacMenuKeybindingBlocklist.has(menuItem.id) || keybinding?.isNative !== false) {
+						keybindings[menuItem.id] = keybinding;
 					}
 					menuToPopulate.items.push(menubarMenuItem);
 				}
