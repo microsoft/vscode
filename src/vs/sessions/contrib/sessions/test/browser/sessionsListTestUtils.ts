@@ -24,6 +24,7 @@ import { ISessionsListModelService, SessionSortMode } from '../../../../services
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -49,6 +50,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
 	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
 	renameError: Error | undefined;
+	renameChatError: Error | undefined;
 
 	constructor(sessions: ISession[]) {
 		super();
@@ -81,6 +83,9 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 
 	override async renameChat(session: ISession, chatResource: URI, title: string): Promise<void> {
 		this.renamedChats.push({ session, chatResource, title });
+		if (this.renameChatError) {
+			throw this.renameChatError;
+		}
 	}
 }
 
@@ -89,6 +94,7 @@ export interface ITestSession {
 	readonly capabilities: ISettableObservable<ISessionCapabilities, void>;
 	readonly status: ISettableObservable<SessionStatus, void>;
 	readonly isArchived: ISettableObservable<boolean, void>;
+	readonly isRead: ISettableObservable<boolean, void>;
 }
 
 export interface ITestSessionOptions {
@@ -96,6 +102,7 @@ export interface ITestSessionOptions {
 	readonly workspaceLabel?: string;
 	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
+	readonly isRead?: boolean;
 	readonly isQuickChat?: boolean;
 	readonly changesSummary?: ISessionChangesSummary;
 }
@@ -111,6 +118,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		override readonly status = status;
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
+	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
 	const session: ISession = {
@@ -139,14 +147,14 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		mode: constObservable(undefined),
 		loading: constObservable(false),
 		isArchived,
-		isRead: constObservable(true),
+		isRead,
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable<readonly IChat[]>([]),
 		mainChat: constObservable(mainChat),
 		capabilities,
 	};
-	return { session, capabilities, status, isArchived };
+	return { session, capabilities, status, isArchived, isRead };
 }
 
 export function createSession(title: string, resourceId: string = title): ITestSession {
@@ -158,7 +166,15 @@ export interface IListHarness {
 	readonly instantiationService: TestInstantiationService;
 	readonly managementService: TestSessionsManagementService;
 	readonly commandService: TestCommandService;
+	/** Manual sort-key changes applied through the sessions list model service. */
+	readonly sortChanges: ISortChangeRecord[];
 	createContainer(width?: number, height?: number): HTMLElement;
+}
+
+/** A recorded manual reorder applied through the sessions list model service. */
+export interface ISortChangeRecord {
+	readonly set: ReadonlyMap<string, number>;
+	readonly clear: readonly string[];
 }
 
 export interface IListHarnessOptions {
@@ -179,6 +195,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const groups = options.groups ?? [];
 	const memberships = options.memberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
+	const sortChanges: ISortChangeRecord[] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ICommandService, commandService);
@@ -192,6 +209,12 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override migrateLegacyReadState(): void { }
 		override getSortKey(session: ISession, mode: SessionSortMode): number {
 			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+		}
+		override getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
+			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+		}
+		override applySortChanges(_mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
+			sortChanges.push({ set: new Map(set), clear: [...clear] });
 		}
 		override getStatusIcon(status: SessionStatus, _isRead: boolean, _isArchived: boolean, completedStateIcon?: ThemeIcon) {
 			return status === SessionStatus.Error ? Codicon.error : completedStateIcon ?? Codicon.circleSmallFilled;
@@ -226,6 +249,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override getProviders() { return []; }
 		override getProvider() { return undefined; }
 	});
+	instantiationService.stub(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
+		override readonly hadPriorWindowOpen = true;
+		override readonly windowOpenCount = 2;
+	});
 	instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 		override readonly pendingResponseVersion = constObservable(0);
 		override hasPendingResponse() { return false; }
@@ -249,5 +276,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, createContainer };
+	return { store, instantiationService, managementService, commandService, sortChanges, createContainer };
 }

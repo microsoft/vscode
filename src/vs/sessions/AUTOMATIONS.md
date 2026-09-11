@@ -42,11 +42,24 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | Projection between AHP state and provider-neutral Automation objects | `AgentHostAutomationStore` |
 | Import of one provider's legacy definitions into its Agent Host | `AgentHostAutomationStore` |
 | Host-owned definitions, scheduling, execution, and run lifecycle | `AgentHostAutomationService` |
+| Portable Automation blueprint format and validation | Workbench Automation common code |
+| Plugin Automation blueprint discovery and enablement | `IAgentPluginService` |
+| Explicit blueprint review and materialization | Automations contributions and `IAutomationService` |
 | Card, dialog, and history presentation | Automations contributions |
 
 `ProviderAutomationService` is an aggregate and router, not a global execution authority. Each store remains responsible for the data it owns.
 
 ## Domain model
+
+### Shareable blueprint
+
+`IAutomationBlueprint` is a versioned, portable definition containing a stable contributor-scoped identifier, display metadata, prompt, and schedule. It is not an Automation execution authority and intentionally excludes the runtime Automation identifier, target provider, workspace URI, session template, enabled state, timestamps, and run history.
+
+Blueprint schedules are manual-only, a relative hourly cadence, or a five-field cron expression interpreted in the importing user's local time zone for daily and weekly schedules. Import rejects recurrence or time-zone semantics the current Automation editor cannot preserve rather than degrading them to a different schedule.
+
+Standalone `.automation.md` files and plugins use the same blueprint format. Plugin discovery exposes blueprints as inert template contributions and follows the plugin's effective enablement; discovering, installing, or updating a plugin must not create, enable, update, or delete a persisted Automation.
+
+A blueprint becomes an `IAutomationDescriptor` only after the user reviews it in the Automation dialog and the result flows through `IAutomationService`. File imports and plugin templates start disabled, and target and provider-owned session configuration are resolved locally during review. Export projects only portable state and therefore does not transfer execution authority or run history.
 
 ### Automation
 
@@ -56,7 +69,7 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 - editable name and prompt;
 - schedule;
 - execution target;
-- optional model, mode, and permission selection;
+- optional provider-owned session template;
 - enabled state;
 - runtime timestamps.
 
@@ -72,11 +85,29 @@ The same logical agent may be available from multiple providers. Consumers must 
 
 Workspace targets may omit `providerId` and `sessionTypeId`. Such definitions use global legacy routing and cannot migrate to a provider until their target identifies one. Quick-chat targets always identify both.
 
+### Session template
+
+`IAutomationSessionTemplate` is the canonical session configuration for new definitions. It contains an optional model, optional custom agent, and opaque provider-owned configuration. Shared Automation code preserves this data but does not interpret provider Mode or Approvals vocabularies.
+
+Target identity remains separate from the template. The target owns provider selection, workspace, isolation, and branch. The template owns model, custom agent, Mode, Approvals, and other provider-defined session configuration.
+
+Saved template values are preferences, not durable permission grants. The owning provider resolves them against its current model and agent availability, configuration schema, feature enablement, and managed policy whenever a draft or run session is created. Policy may change the effective value without rewriting the saved preference.
+
+Legacy `modelId`, `mode`, and `permissionLevel` fields remain decode and input aliases for older ledgers and callers. New dialog and AHP projections write the session template. Compatibility aliases are translated at the owning store or provider boundary and have no authority to replace an explicit template.
+
 ### Run
 
 `IAutomationRun` records one execution attempt. `pending` and `running` are non-terminal; `completed` and `failed` are terminal. A run may expose the created session resource once that session is committed.
 
 At most one non-terminal run may occupy an Automation's active-run slot within one authority.
+
+### Catalogue availability
+
+Every Automation store exposes whether its complete catalogue is `loading`, `ready`, `unavailable`, or in `error`. An empty catalogue is authoritative only in the `ready` state. `loading` is reserved for initial provider discovery and authoritative snapshots that are still in flight. `unavailable` means a known provider catalogue cannot currently be reached without treating that condition as storage or migration failure.
+
+Provider stores map their connection and persistence lifecycle into this provider-neutral state. Agent Host stores become ready when an authoritative catalogue snapshot and every source still participating in the projection are readable, independently of migration authority. Known disconnect, disabled capability, and unsupported capability are unavailable rather than perpetually loading.
+
+`ProviderAutomationService` keeps the initial aggregate loading until all AfterRestored workbench contributions have completed provider registration. A provider-less window then settles to its legacy-store state, so a legacy-only empty catalogue can be authoritative. After provider settlement, the aggregate reports `error` when any current store fails, otherwise `loading` while any store is loading, `unavailable` while any store is unavailable, and `ready` only when all current stores are ready.
 
 ## Multi-host routing
 
@@ -125,6 +156,8 @@ Before Agent Host authority is activated, the legacy store owns:
 - session creation through Sessions;
 - session-resource linkage;
 - terminal lifecycle updates.
+
+The browser runner passes the complete saved session template into provider draft creation. Providers explicitly advertise support for restoring and capturing this configuration; execution fails rather than silently using defaults when a canonical template reaches an unsupported provider. Deprecated flat aliases also flow through ordinary model, mode, and permission operations for older providers. Workspace isolation and branch remain target-owned and are configured separately.
 
 Renderer-window leader election prevents duplicate scheduled execution across windows.
 
@@ -311,12 +344,18 @@ Updates that do not change the target remain allowed while an active run delays 
 8. Migration and retargeting preserve concurrent edits through snapshot comparison.
 9. Mixed expected deferrals and real failures are reported as failures.
 10. Provider-specific state stays behind `ISessionsProviderAutomations`; UI and tools consume provider-neutral models.
+11. Same-target edits preserve unknown template values unless the user explicitly changes them.
+12. Retargeting does not carry a previous provider's template into the new authority.
+13. Runtime policy and provider schema are revalidated for every run without treating saved configuration as a grant.
+14. Consumers distinguish a confirmed empty catalogue from loading, unavailability, and failure through the provider-neutral catalogue state.
 
 ## Concrete behavior
 
 Focused tests own concrete migration, retry, repair, conflict, and execution behavior:
 
 - `contrib/automations/test/browser/automationService.test.ts`;
+- `contrib/automations/test/browser/automationRunner.test.ts`;
+- `contrib/automations/test/browser/automationTools.test.ts`;
 - `contrib/automations/test/browser/providerAutomationService.test.ts`;
 - `contrib/automations/test/browser/automationScheduler.test.ts`;
 - `contrib/providers/agentHost/test/browser/agentHostAutomationStore.test.ts`.

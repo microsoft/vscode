@@ -15,9 +15,10 @@ import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/c
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentLocation } from '../../../../contrib/chat/common/constants.js';
+import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { renderChatInput } from './renderChatInput.js';
+import { ChatInputFixtureOptions, renderChatInput } from './renderChatInput.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -117,8 +118,21 @@ const copilotHarnessSessionConfig: ResolveSessionConfigResult = {
 	},
 };
 
+const combinedPickerOptions: ChatInputFixtureOptions = {
+	agentHostSessionConfig: { ...copilotHarnessSessionConfig, values: { mode: 'autopilot', autoApprove: 'autoApprove' } },
+	combinedModePermissionsPicker: true,
+	models: sampleModels.map(model => ({ ...model, metadata: { ...model.metadata, targetChatSessionType: SessionType.AgentHostCopilot } })),
+};
+
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
+	RequestInProgress: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The running request shows a red Stop icon while the other chat input controls retain their normal appearance.'],
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { requestInProgress: true }),
+	}),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
 	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
 	CompactWithProviderIcon: defineComponentFixture({
@@ -130,6 +144,18 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The editor chat input renders the real Copilot Agent Host mode and permissions pickers in compact state. Each compact icon is centered with equal padding inside a 22-pixel square control.'],
 		render: context => renderChatInput(context, { agentHostSessionConfig: copilotHarnessSessionConfig, width: 500, resizeWidths: [180] }),
+	}),
+	CopilotHarnessCombinedPickers: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderChatInput(context, combinedPickerOptions),
+	}),
+	CopilotHarnessCombinedCompactPickers: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderChatInput(context, {
+			...combinedPickerOptions,
+			width: 500,
+			resizeWidths: [180],
+		}),
 	}),
 	WithArtifacts: defineComponentFixture({ render: context => renderChatInput(context, { artifacts: sampleArtifacts }) }),
 	// The notice/input seam, the subject of #330483. Driven through the real

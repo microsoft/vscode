@@ -41,6 +41,13 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(readToolCallMeta(toolCall(undefined)), {});
 		});
 
+		test('validates the sandbox bypass flag', () => {
+			assert.deepStrictEqual(
+				[true, false, 'true', 1, undefined].map(value => readToolCallMeta(toolCall({ 'agentHost.sandboxBypass': value }))),
+				[{ 'agentHost.sandboxBypass': true }, { 'agentHost.sandboxBypass': false }, {}, {}, {}],
+			);
+		});
+
 		test('reads valid keys and drops wrong-typed / unknown keys', () => {
 			const result = readToolCallMeta(toolCall({
 				toolKind: 'terminal',
@@ -83,6 +90,15 @@ suite('Agent host _meta readers', () => {
 			const wire = toToolCallMeta({ toolKind: 'search', language: undefined });
 			assert.deepStrictEqual(wire, { toolKind: 'search' });
 			assert.deepStrictEqual(readToolCallMeta(toolCall(wire)), { toolKind: 'search' });
+		});
+
+		test('reads a progress message and drops a non-string one', () => {
+			const wire = toToolCallMeta({ progressMessage: 'Searching' });
+			assert.deepStrictEqual({ wire, read: readToolCallMeta(toolCall(wire)), dropped: readToolCallMeta(toolCall({ progressMessage: 42 })) }, {
+				wire: { progressMessage: 'Searching' },
+				read: { progressMessage: 'Searching' },
+				dropped: {},
+			});
 		});
 	});
 

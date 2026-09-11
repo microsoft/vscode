@@ -26,7 +26,6 @@ import { AbstractEditorWithViewState } from '../../../../workbench/browser/parts
 import { ResourceLabel } from '../../../../workbench/browser/labels.js';
 import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
@@ -178,6 +177,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private viewModel: MultiDiffEditorViewModel | undefined;
 	private bodyContainer: HTMLElement | undefined;
 
+	override get scopedContextKeyService(): IContextKeyService | undefined {
+		return this.widget?.getContextKeyService();
+	}
+
 	private _singlePane = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
@@ -240,8 +243,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(root));
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
 			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
-		this._register(bindContextKey(ChatContextKeys.hasAgentSessionChanges, scopedContextKeyService, reader =>
-			this.changesViewService.activeSessionChangesObs.read(reader).length > 0));
+		this._register(bindContextKey(ActiveSessionContextKeys.HasSelectableChangesets, scopedContextKeyService, reader =>
+			this.changesViewService.activeSessionChangesetsObs.read(reader)?.some(changeset => changeset.isEnabled.read(reader)) ?? false));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._scopedInstantiationService = scopedInstantiationService;
@@ -274,9 +277,13 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
 			},
 		));
+		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
 		this._register(autorun(reader => {
-			this.widget?.setRenderSideBySide(this.diffEditorOptionsService.renderSideBySide.read(reader), { useInlineViewWhenSpaceIsLimited: true });
+			this.widget?.setDiffLayoutOptions(
+				this.diffEditorOptionsService.viewMode.read(reader),
+				this.diffEditorOptionsService.diffEditorWordWrap.read(reader),
+			);
 		}));
 	}
 
@@ -293,12 +300,20 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return this.widget!.getLayoutDebugState();
 	}
 
+	override getControl(): IDiffEditor | undefined {
+		return this.widget?.getActiveControl();
+	}
+
+	resetDiffEditorWidthBasedLayout(): void {
+		this.widget?.resetWidthBasedLayout();
+	}
+
 	/** Creates the classic (non-single-pane) internal header toolbars. */
 	private _buildHeaderToolbars(left: HTMLElement, right: HTMLElement, instantiationService: IInstantiationService): IDisposable {
 		const store = new DisposableStore();
 
-		// The Branch Changes picker + diff stats render as the leading header menu;
-		// their custom action view items resolve globally via IActionViewItemService.
+		// The consolidated changes picker renders as the leading header menu;
+		// its custom action view item resolves globally via IActionViewItemService.
 		store.add(instantiationService.createInstance(MenuWorkbenchToolBar, left, Menus.SessionsEditorHeaderPrimary, {
 			menuOptions: { shouldForwardArgs: true },
 		}));

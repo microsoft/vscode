@@ -248,17 +248,8 @@ export class Chat {
 	}
 
 	/**
-	 * Opens the model picker (in the panel chat input) and selects the model
-	 * whose displayed name contains `modelName`. Clicks the model-picker name
-	 * button to open the popup, waits for the matching row to appear (models may
-	 * still be registering), clicks it, then confirms the selection committed.
-	 *
-	 * The row click can occasionally fail to commit — e.g. absorbed by the
-	 * action-widget's animating `context-view-pointerBlock` overlay — silently
-	 * leaving the previous model (often "Auto") selected. That model advertises
-	 * no configurable options, so the config button never appears and a later
-	 * `openModelConfig` wedges. To absorb this, re-open the picker and retry until
-	 * the name button reflects the chosen model or `timeoutMs` elapses.
+	 * Selects the model whose displayed name contains `modelName` in the panel chat input.
+	 * Reopens the picker and retries until the selection is confirmed or `timeoutMs` elapses.
 	 */
 	async selectModel(modelName: string, timeoutMs: number = 60_000): Promise<void> {
 		const page = this.code.driver.currentPage;
@@ -276,9 +267,7 @@ export class Chat {
 				// "Other Models" section.
 				await page.keyboard.type(modelName);
 				await row.waitFor({ state: 'visible', timeout: 10_000 });
-				// `force` bypasses the transient `context-view-pointerBlock` overlay
-				// that intercepts pointer events while the action widget animates open.
-				await row.click({ force: true });
+				await row.click();
 				// Confirm the selection actually committed: the picker name button must
 				// now reflect the chosen model. (A non-committing click leaves the old
 				// model selected and the picker dismissed, so waiting only for the

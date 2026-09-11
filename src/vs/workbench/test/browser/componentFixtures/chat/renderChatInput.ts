@@ -14,6 +14,7 @@ import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/co
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
+import { CancelAction } from '../../../../contrib/chat/browser/actions/chatExecuteActions.js';
 import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getNewChatSessionResource } from '../../../../contrib/chat/common/model/chatUri.js';
@@ -98,6 +99,7 @@ export interface ChatInputFixtureOptions {
 	readonly isSessionsWindow?: boolean;
 	/** Seeds the input editor with this text. */
 	readonly value?: string;
+	readonly requestInProgress?: boolean;
 	/** Selects this range after seeding the text, to exercise selection rendering (e.g. reverse-rounded corners). */
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
 	/** Sets the fixture width, useful for exercising the compact picker layout. */
@@ -108,6 +110,8 @@ export interface ChatInputFixtureOptions {
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Renders the production Copilot Agent Host mode and permissions pickers. */
 	readonly agentHostSessionConfig?: ResolveSessionConfigResult;
+	/** Combines the Agent Host mode and permissions controls in the composer. */
+	readonly combinedModePermissionsPicker?: boolean;
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
 	readonly voiceControl?: VoiceControlState;
 	/**
@@ -118,11 +122,13 @@ export interface ChatInputFixtureOptions {
 	readonly notification?: IChatInputNotification;
 	/** Stands the pet on the input, wired the way `ChatWidget` wires it. */
 	readonly pet?: boolean;
+	/** Overrides the secondary picker labels for visual states such as Plan / Allow All. */
+	readonly secondaryPickerLabels?: readonly [target: string, permission: string];
 }
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, voiceControl, notification, pet = false } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 	const sessionResource = agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined;
@@ -182,6 +188,11 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		await configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 	}
 
+	if (combinedModePermissionsPicker) {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, true);
+	}
+
 	container.style.width = `${width}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('monaco-workbench');
@@ -204,9 +215,15 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		// real dictation / Voice Mode actions are contributed.
 		menuService.addItem(MenuId.ChatExecute, { command: { id: 'fixture.voiceControl', title: 'Voice', icon: voiceControlRenderings[voiceControl].icon }, group: 'navigation', order: 2 });
 	}
-	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact }, group: 'navigation', order: 4 });
-	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-	if (agentHostSessionConfig) {
+	const executeCommand = fixtureOptions.requestInProgress
+		? new CancelAction().desc
+		: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact };
+	menuService.addItem(MenuId.ChatExecute, { command: executeCommand, group: 'navigation', order: 4 });
+	const hasCustomSecondaryPickerLabels = fixtureOptions.secondaryPickerLabels !== undefined;
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: hasCustomSecondaryPickerLabels ? 'fixture.secondaryTarget' : 'workbench.action.chat.openSessionTargetPicker', title: secondaryPickerLabels[0] }, group: 'navigation', order: 0 });
+	if (hasCustomSecondaryPickerLabels) {
+		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'fixture.secondaryPermission', title: secondaryPickerLabels[1] }, group: 'navigation', order: 10 });
+	} else if (agentHostSessionConfig) {
 		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: OpenAgentHostModePickerAction.ID, title: 'Agent Mode' }, group: 'navigation', order: 0.7 });
 		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: OpenAgentHostAutoApprovePickerAction.ID, title: 'Auto-Approve' }, group: 'navigation', order: 0.8 });
 	} else {

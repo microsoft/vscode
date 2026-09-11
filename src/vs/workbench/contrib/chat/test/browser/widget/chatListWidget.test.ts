@@ -73,7 +73,6 @@ suite('ChatListWidget', () => {
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
-		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
 		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
 		configure?.(configurationService);
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -321,6 +320,37 @@ suite('ChatListWidget', () => {
 			overflows: true,
 			paddingAdded: 30,
 			atBottom: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('keeps request content tabbable when the transcript root is removed from the tab order', async () => {
+		const { disposables, model, container, widget } = createWidget({ tabIndex: -1 });
+		const text = 'question';
+		model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+
+		const transcriptRoot = container.querySelector<HTMLElement>('.monaco-list');
+		const requestContent = container.querySelector<HTMLElement>('.interactive-request .chat-markdown-part');
+		assert.ok(transcriptRoot);
+		assert.ok(requestContent);
+		widget.focus();
+
+		assert.deepStrictEqual({
+			transcriptTabIndex: transcriptRoot.tabIndex,
+			requestTabIndex: requestContent.tabIndex,
+			programmaticallyFocused: mainWindow.document.activeElement === transcriptRoot,
+		}, {
+			transcriptTabIndex: -1,
+			requestTabIndex: 0,
+			programmaticallyFocused: true,
 		});
 
 		disposables.dispose();

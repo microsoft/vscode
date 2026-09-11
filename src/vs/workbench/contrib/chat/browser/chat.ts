@@ -241,6 +241,8 @@ export interface IChatListItemRendererOptions {
 	readonly restorable?: boolean;
 	readonly supportsFork?: boolean;
 	readonly editable?: boolean;
+	/** Whether the chat is read-only, independently of whether request editing is enabled. */
+	readonly readOnly?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
@@ -325,6 +327,9 @@ export interface IChatWidgetViewOptions {
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+
+	/** Tab index for the transcript tree root. Use `-1` to exclude it from sequential keyboard navigation while preserving programmatic focus. */
+	transcriptTabIndex?: 0 | -1;
 
 	/** Whether this host supports the experimental session state indicator. Defaults to false. */
 	enableSessionStateIndicator?: boolean;
@@ -615,10 +620,7 @@ export interface IChatPasteTarget extends IChatAttachmentTarget {
 	addInlineAttachment(entry: IChatRequestVariableEntry, text: string, range: IRange): void;
 
 	/** Adds an inline reference that is not backed by an attachment, such as a symbol. */
-	addInlineReference(reference: IDynamicVariable, expectedText?: string, expectedRangeOffset?: number): void;
-
-	/** Removes a specific inline reference. */
-	removeInlineReference(reference: IDynamicVariable): void;
+	addInlineReference(reference: IDynamicVariable): void;
 
 	/** Whether pasting `text` over `range` would turn the input into a terminal command. */
 	isTerminalCommandPaste(text: string, range: IRange): boolean;

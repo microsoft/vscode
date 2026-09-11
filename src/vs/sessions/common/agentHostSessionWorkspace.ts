@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../base/common/codicons.js';
 import { match as matchGlob } from '../../base/common/glob.js';
-import { IObservable } from '../../base/common/observable.js';
+import { constObservable, IObservable } from '../../base/common/observable.js';
 import { extUri, basename } from '../../base/common/resources.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
@@ -134,7 +134,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 				workingDirectory: primary ?? project.uri,
 				name: project.displayName,
 				description: options.description,
-				gitRepository: { uri: project.uri, workTreeUri, gitHubInfo, ...gitFields },
+				gitRepository: { uri: project.uri, workTreeUri, isRepository: constObservable(true), gitHubInfo, ...gitFields },
 			}, ...additionalFolders],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 			isVirtualWorkspace: false,
@@ -159,7 +159,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 			workingDirectory: primary,
 			name: folderName,
 			description: options.description,
-			gitRepository: { uri: primary, workTreeUri: undefined, gitHubInfo, ...gitFields },
+			gitRepository: { uri: primary, workTreeUri: undefined, isRepository: constObservable(gitState !== undefined), gitHubInfo, ...gitFields },
 		}, ...additionalFolders],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 		isVirtualWorkspace: false,

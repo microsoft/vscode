@@ -303,7 +303,9 @@ export class FileService extends Disposable implements IFileService {
 			try {
 				return { stat: await this.doResolveFile(entry.resource, entry.options), success: true };
 			} catch (error) {
-				this.logService.trace(error);
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					this.logService.trace(error);
+				}
 
 				return { stat: undefined, success: false };
 			}

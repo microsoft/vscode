@@ -42,6 +42,8 @@ import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviou
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 
 const SESSION_RESOURCE = URI.parse('fixture-session://agents-diff');
 const MODIFIED_FIRST_RESOURCE = URI.file('/workspace/src/first.ts');
@@ -143,6 +145,7 @@ function createAgentFeedbackService(feedback: readonly IAgentFeedback[] = [], fe
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidRevealSessionComment = Event.None;
+		override isAgentHostSession(): boolean { return false; }
 		override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
 			return new Set();
 		}
@@ -244,6 +247,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
+			reg.defineInstance(ICodeReviewService, createMockCodeReviewService());
 			reg.defineInstance(IContextKeyService, createContextKeyService());
 			reg.define(IMenuService, FixtureAgentFeedbackMenuService);
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());

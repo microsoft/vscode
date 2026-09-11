@@ -154,15 +154,14 @@ export function getModelHoverContent(
 		container.appendChild(contextSection);
 	}
 
-	// Auto has no per-model pricing to show, but it does expose a routing tier,
+	// Auto has no per-model pricing to show, but it does expose an "Optimize for" preference,
 	// so the configurable section is not gated on `isAuto`.
 	if (model.metadata.configurationSchema?.properties) {
 		const configButtons: { group: string; label: string }[] = [];
 		const seenGroups = new Set<string>();
 		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {
 			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
-				// Auto's navigation option is its routing tier; the menu keeps the producer's "Optimize for…" title.
-				const label = isAuto && propSchema.group === MODEL_CONFIG_GROUP_EFFORT ? localize('models.routingProfile', "Routing Profile") : propSchema.title ?? propSchema.description;
+				const label = isAuto && propSchema.group === MODEL_CONFIG_GROUP_EFFORT ? localize('models.optimizeFor', "Optimize for") : propSchema.title ?? propSchema.description;
 				if (label) {
 					seenGroups.add(propSchema.group);
 					configButtons.push({ group: propSchema.group, label });
