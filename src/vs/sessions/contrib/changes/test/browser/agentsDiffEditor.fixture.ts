@@ -197,6 +197,8 @@ function createContextKeyService(): IContextKeyService {
 
 interface IAgentsDiffFixtureOptions {
 	readonly showSubmitOverlay?: boolean;
+	readonly showAllUnchangedRegions?: boolean;
+	readonly variant?: MultiDiffEditorVariant;
 }
 
 async function renderAgentsDiffEditor({ container, disposableStore, disposableStackStore, theme }: ComponentFixtureContext, options: IAgentsDiffFixtureOptions = {}): Promise<void> {
@@ -276,7 +278,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		editorInstance,
 		instantiationService.createInstance(AgentsDiffUIElementFactory),
 		{
-			variant: MultiDiffEditorVariant.Compact,
+			variant: options.variant ?? MultiDiffEditorVariant.Compact,
 			diffEditorOptions: {
 				hideOriginalLineNumbers: true,
 				folding: false,
@@ -308,6 +310,9 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 	const editor = widget.tryGetCodeEditor(MODIFIED_FIRST_RESOURCE)?.editor;
 	if (editor) {
 		disposableStackStore.add(widget.getScopedInstantiationService().createInstance(AgentFeedbackEditorInputContribution, editor));
+	}
+	if (options.showAllUnchangedRegions) {
+		widget.getActiveControl()?.showAllUnchangedRegions();
 	}
 	const lineNumber = editor?.getDomNode()?.querySelector<HTMLElement>('.line-numbers');
 	lineNumber?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: lineNumber.getBoundingClientRect().left + 1, clientY: lineNumber.getBoundingClientRect().top + 1 }));
@@ -351,6 +356,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 	CompactDiffWithFeedback: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: renderAgentsDiffEditor,
+	}),
+	CardDiffWithFeedback: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderAgentsDiffEditor(context, { variant: MultiDiffEditorVariant.Card }),
+	}),
+	CardDiffWithExpandedUnchangedRegions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderAgentsDiffEditor(context, { variant: MultiDiffEditorVariant.Card, showAllUnchangedRegions: true }),
 	}),
 	CompactDiffWithSubmitOverlay: defineComponentFixture({
 		labels: { kind: 'screenshot' },

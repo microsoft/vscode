@@ -137,6 +137,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 				() => this._outerEditorHeight + this._getModifiedEditorLineTop(anchorLineNumber),
 				update
 			),
+			useCardUnchangedRegionControl: this._variantConfiguration.useCardUnchangedRegionControl,
 		}));
 		this.isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
 		this.isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;

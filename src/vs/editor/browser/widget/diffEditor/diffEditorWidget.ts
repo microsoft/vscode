@@ -55,6 +55,7 @@ export interface IDiffCodeEditorWidgetOptions {
 	modifiedEditor?: ICodeEditorWidgetOptions;
 	runWithOriginalEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
 	runWithModifiedEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
+	useCardUnchangedRegionControl?: boolean;
 }
 
 export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
@@ -343,7 +344,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				readHotReloadableExport(HideUnchangedRegionsFeature, reader),
 				this._editors, this._diffModel, this._options,
 				codeEditorWidgetOptions.runWithOriginalEditorScrollAnchor,
-				codeEditorWidgetOptions.runWithModifiedEditorScrollAnchor
+				codeEditorWidgetOptions.runWithModifiedEditorScrollAnchor,
+				codeEditorWidgetOptions.useCardUnchangedRegionControl ?? false,
 			)
 		).recomputeInitiallyAndOnChange(this._store);
 

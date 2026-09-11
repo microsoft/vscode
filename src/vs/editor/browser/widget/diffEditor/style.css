@@ -97,6 +97,136 @@
 	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
+.monaco-editor .diff-hidden-lines .line-number-control {
+	display: none;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card {
+	display: grid;
+	grid-template-rows: var(--vscode-spacing-size80) var(--vscode-spacing-size240) var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size400);
+	transform: none;
+	font-size: var(--vscode-fontSize-label2);
+	line-height: var(--vscode-spacing-size160);
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .top,
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .bottom {
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size80);
+	border: 0;
+	transform: none;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card:not(.dragging) .top:hover,
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card:not(.dragging) .bottom:hover {
+	background-color: transparent;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center {
+	position: relative;
+	box-sizing: border-box;
+	width: calc(100% - var(--vscode-spacing-size200));
+	height: var(--vscode-spacing-size240);
+	margin: 0 var(--vscode-spacing-size100);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: transparent;
+	box-shadow: none;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center:hover,
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .center:focus-within {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.monaco-editor .diff-hidden-lines .card-toggle {
+	display: none;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .card-toggle[role='button'] {
+	display: block;
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .card-toggle:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .first,
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .content-row {
+	position: relative;
+	pointer-events: none;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .first {
+	z-index: 1;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .default-control {
+	display: none;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .line-number-control {
+	position: absolute;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	height: 100%;
+	transform: translateX(calc(-1 * var(--vscode-spacing-size100)));
+	color: inherit;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .line-left,
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .line-right {
+	min-width: var(--vscode-spacing-size120);
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-widget-border, var(--vscode-contrastBorder));
+	flex: 1;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .card-content {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	margin: 0 var(--vscode-spacing-size60);
+	color: inherit;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .card-content > * {
+	flex-shrink: 0;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .card-content > .breadcrumb-item:last-child {
+	flex-shrink: 1;
+	min-width: 0;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .card-content > .breadcrumb-item:last-child .breadcrumb-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .breadcrumb-item {
+	pointer-events: auto;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.multiDiffEditor-card .monaco-editor .diff-hidden-lines-card .breadcrumb-item:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .monaco-editor .diff-hidden-lines div.breadcrumb-item {
 	cursor: pointer;
 }

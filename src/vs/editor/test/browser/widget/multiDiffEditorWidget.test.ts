@@ -21,6 +21,7 @@ import { emptyProgressRunner, IEditorProgressService } from '../../../../platfor
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
+import { HideUnchangedRegionsFeature } from '../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
 import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../browser/widget/multiDiffEditor/model.js';
 import { getMultiDiffEditorVariantConfiguration, MultiDiffEditorVariant } from '../../../browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
@@ -29,6 +30,7 @@ import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEdi
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { SymbolKind } from '../../../common/languages.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../testCodeEditor.js';
@@ -36,31 +38,163 @@ import { createCodeEditorServices } from '../testCodeEditor.js';
 suite('MultiDiffEditorWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const resetBreadcrumbsSourceFactory = () => HideUnchangedRegionsFeature.setBreadcrumbsSourceFactory(() => ({
+		dispose() { },
+		getBreadcrumbItems: () => [],
+		getAt: () => [],
+	}));
 
 	teardown(() => {
 		sinon.restore();
+		resetBreadcrumbsSourceFactory();
 	});
 
 	test('uses closed variant configurations', () => {
 		assert.deepStrictEqual({
 			standard: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Standard),
 			compact: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Compact),
+			card: getMultiDiffEditorVariantConfiguration(MultiDiffEditorVariant.Card),
 		}, {
 			standard: {
-				className: 'multiDiffEditor-standard',
+				classNames: ['multiDiffEditor-standard'],
 				horizontalInsets: { left: 9, right: 9 },
 				headerHeight: 40,
 				contentBottomPadding: 0,
 				headerClickToCollapse: false,
+				useCardUnchangedRegionControl: false,
 			},
 			compact: {
-				className: 'multiDiffEditor-compact',
+				classNames: ['multiDiffEditor-compact'],
 				horizontalInsets: { left: 0, right: 0 },
 				headerHeight: 32,
 				contentBottomPadding: 8,
 				headerClickToCollapse: true,
+				useCardUnchangedRegionControl: false,
+			},
+			card: {
+				classNames: ['multiDiffEditor-compact', 'multiDiffEditor-card'],
+				horizontalInsets: { left: 9, right: 9 },
+				headerHeight: 40,
+				contentBottomPadding: 0,
+				headerClickToCollapse: true,
+				useCardUnchangedRegionControl: true,
 			},
 		});
+	});
+
+	test('card unchanged region control toggles while remaining visible', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const unchangedLines = Array.from({ length: 20 }, (_, index) => `const unchanged${index} = ${index};`).join('\n');
+		const originalUri = URI.parse('inmemory://original/card-control.js');
+		const modifiedUri = URI.parse('inmemory://modified/card-control.js');
+		const breadcrumb = { name: 'unchangedFunction', kind: SymbolKind.Function, startLineNumber: 10 };
+		HideUnchangedRegionsFeature.setBreadcrumbsSourceFactory(() => ({
+			dispose() { },
+			getBreadcrumbItems: () => [breadcrumb],
+			getAt: () => [breadcrumb],
+		}));
+		const original = disposables.add(instantiateTextModel(instantiationService, `const value = 1;\n${unchangedLines}`, undefined, undefined, originalUri));
+		const modified = disposables.add(instantiateTextModel(instantiationService, `const value = 2;\n${unchangedLines}`, undefined, undefined, modifiedUri));
+		const documentItem = RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(originalUri, original),
+			modified: new DiffItemSource(modifiedUri, modified),
+			options: { accessibilitySupport: 'off' },
+		}, { dispose() { } });
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: MultiDiffEditorVariant.Card },
+		);
+		widget.layout(new Dimension(800, 600));
+		const viewModel = widget.createViewModel({ documents: ValueWithChangeEvent.const([documentItem]) });
+
+		try {
+			await waitForState(viewModel.items, items => items.length === 1);
+			await waitForState(viewModel.items.get()[0].diffEditorViewModel.isDiffUpToDate, value => value);
+			widget.setViewModel(viewModel);
+			widget.reveal({ original: originalUri, modified: modifiedUri }, { highlight: false });
+			await waitForState(widget.getLayoutDebugState(), state => state.items[0]?.hasTemplate === true);
+			const editor = widget.getActiveControl()!;
+			const getControl = () => widget.getRootElement().querySelector<HTMLElement>('.diff-hidden-lines-card .card-toggle[role="button"]')!;
+			const getContent = () => getControl().parentElement!.querySelector<HTMLElement>('.card-content')!;
+			const breadcrumbControl = getContent().querySelector<HTMLElement>('.breadcrumb-item[role="button"]')!;
+			const textBeforeBreadcrumbNavigation = getContent().textContent;
+			breadcrumbControl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			const breadcrumbState = {
+				ariaLabel: breadcrumbControl.getAttribute('aria-label'),
+				tabIndex: breadcrumbControl.tabIndex,
+				isNestedInToggle: getControl().contains(breadcrumbControl),
+				remainingCollapsed: !editor.allUnchangedRegionsShown.get(),
+				changedVisibleRange: getContent().textContent !== textBeforeBreadcrumbNavigation,
+			};
+			getControl().click();
+			const expandedControl = getControl();
+			const expandedState = {
+				allUnchangedRegionsShown: editor.allUnchangedRegionsShown.get(),
+				isInWidget: widget.getRootElement().contains(expandedControl),
+				ariaExpanded: expandedControl.getAttribute('aria-expanded'),
+				text: getContent().textContent,
+			};
+			expandedControl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			const collapsedControl = getControl();
+			const collapsedState = {
+				allUnchangedRegionsShown: editor.allUnchangedRegionsShown.get(),
+				isInWidget: widget.getRootElement().contains(collapsedControl),
+				ariaExpanded: collapsedControl.getAttribute('aria-expanded'),
+				hasHiddenLinesLabel: getContent().textContent.includes('hidden lines'),
+			};
+			collapsedControl.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+
+			assert.deepStrictEqual({
+				breadcrumbState,
+				expandedState,
+				collapsedState,
+				expandedWithSpace: editor.allUnchangedRegionsShown.get(),
+			}, {
+				breadcrumbState: {
+					ariaLabel: 'Go to unchangedFunction',
+					tabIndex: 0,
+					isNestedInToggle: false,
+					remainingCollapsed: true,
+					changedVisibleRange: true,
+				},
+				expandedState: {
+					allUnchangedRegionsShown: true,
+					isInWidget: true,
+					ariaExpanded: 'true',
+					text: 'Collapse unchanged lines',
+				},
+				collapsedState: {
+					allUnchangedRegionsShown: false,
+					isInWidget: true,
+					ariaExpanded: 'false',
+					hasHiddenLinesLabel: true,
+				},
+				expandedWithSpace: true,
+			});
+		} finally {
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			documentItem.dispose();
+		}
 	});
 
 	test('models bottom padding as trailing scroll content', () => {

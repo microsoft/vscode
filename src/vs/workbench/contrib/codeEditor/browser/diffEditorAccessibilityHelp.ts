@@ -46,6 +46,7 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplementatio
 			localize('msg2', "View the next{0} or previous{1} diff in diff review mode, which is optimized for screen readers.", '<keybinding:' + AccessibleDiffViewerNext.id + '>', '<keybinding:' + AccessibleDiffViewerPrev.id + '>'),
 			switchSides,
 			diffView,
+			localize('msg7', "When a hidden unchanged-lines control is focused, press Enter or Space to expand or collapse it. Focused breadcrumbs within the control navigate to the named symbol."),
 			diffEditorActiveAnnouncement,
 			localize('msg4', "To control which accessibility signals should be played, the following settings can be configured: {0}.", keys.join(', ')),
 		];

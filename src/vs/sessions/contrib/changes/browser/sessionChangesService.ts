@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -17,7 +18,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../.
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { getSessionChangesFileCountLabel } from '../common/changes.js';
+import { getSessionChangesFileCountLabel, SESSIONS_CHANGES_CARD_VIEW_SETTING } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../common/sessionChangesService.js';
@@ -41,15 +42,19 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 
 	private _decoratedResource: URI | undefined;
 	private _decoratedChangeCount: number | undefined;
+	private readonly _useSessionChangesEditor: boolean;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IDecorationsService decorationsService: IDecorationsService,
 	) {
 		super();
+		this._useSessionChangesEditor = layoutService.isSinglePaneLayoutEnabled
+			|| configurationService.getValue<boolean>(SESSIONS_CHANGES_CARD_VIEW_SETTING);
 
 		this.activeSessionUncommittedChangesCountObs = derived(this, reader => {
 			if (changesViewService.activeSessionChangesetObs.read(reader)?.id !== UNCOMMITTED_CHANGES_CHANGESET_ID) {
@@ -59,7 +64,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			return changesViewService.activeSessionChangesObs.read(reader).length;
 		});
 
-		if (!layoutService.isSinglePaneLayoutEnabled) {
+		if (!this._useSessionChangesEditor) {
 			return;
 		}
 
@@ -135,7 +140,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		}
 		const multiDiffSource = this.getChangesEditorResource(sessionResource);
 
-		if (this.layoutService.isSinglePaneLayoutEnabled) {
+		if (this._useSessionChangesEditor) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);
 			const pane = await this.editorService.openEditor(input, { ...editorOptions, pinned: true }, group);
 			await this.expandRevealTarget(pane?.input, editorOptions);
