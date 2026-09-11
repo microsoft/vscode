@@ -14,7 +14,7 @@ import { ContentEncoding } from '../../../../common/state/protocol/common/comman
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ToolDefinition } from '../../../../common/state/sessionState.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import { createRealSession, dispatchTurn, driveTurnToCompletion, driveTurnWithModelToCompletion } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, dispatchTurn, driveTurnToCompletion, driveTurnWithModelToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { anthropicMessageToSse } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -44,12 +44,13 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 			'Run exactly `node warnings.ts` with your shell tool in synchronous mode. Do not run any other tools. Then reply exactly "DONE".',
 			'claude-sonnet-5', 1);
 
-		const body = context.observedModelRequestBodies.at(-1);
-		assert.ok(body, 'Expected a model request containing the native shell result');
-		const request: { messages: { content: string | { type: string; content?: string }[] }[] } = JSON.parse(body);
-		const compacted = request.messages.flatMap(message => typeof message.content === 'string' ? [] : message.content)
-			.find(block => block.type === 'tool_result' && block.content?.includes('Shell output was automatically compacted'))?.content;
-		assert.ok(compacted, `Expected lossy native-shell compaction in the tool result: ${body}`);
+		const compacted = context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallComplete))
+			.map(n => getActionEnvelope(n))
+			.filter(envelope => envelope.channel === buildDefaultChatUri(sessionUri))
+			.flatMap(({ action }) => action.type === ActionType.ChatToolCallComplete && action.turnId === 'turn-shell-compaction'
+				? [textFromContent(action.result.content ?? [])] : [])
+			.find(text => text.includes('Shell output was automatically compacted'));
+		assert.ok(compacted, 'Expected lossy native-shell compaction in the AHP tool result');
 		const originalPath = /Original at (?<path>.+?); only use if exact omitted lines are needed\./.exec(compacted)?.groups?.path;
 		assert.ok(originalPath, 'Compacted output must advertise its recoverable original');
 		const recovered = await context.client.call<ResourceReadResult>('resourceRead', {
@@ -61,6 +62,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 
 		assert.deepStrictEqual({
 			omitsRepeatedWarnings: compacted.includes('[node warnings: omitted 79 repeated warning line(s)]'),
+			modelReceivesCompaction: context.observedModelRequestBodies.some(body => body.includes('Shell output was automatically compacted')),
 			retainsFinalStatus: compacted.includes('FINAL_STATUS: SHELL_COMPACTION_OK'),
 			retainsExitCode: compacted.includes('completed with exit code 0'),
 			fitsOutputLimit: Buffer.byteLength(compacted) <= 8192,
@@ -69,6 +71,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 			followup: followup.responseText.trim(),
 		}, {
 			omitsRepeatedWarnings: true,
+			modelReceivesCompaction: true,
 			retainsFinalStatus: true,
 			retainsExitCode: true,
 			fitsOutputLimit: true,
