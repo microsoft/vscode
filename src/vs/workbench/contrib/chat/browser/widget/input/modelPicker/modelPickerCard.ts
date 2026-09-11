@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
@@ -49,9 +49,11 @@ export interface IModelCardOptions {
 	readonly pricingDisclosure?: IPricingDisclosure;
 	/** The faster twin of this model, when the provider offers one. */
 	readonly speedVariants?: IModelSpeedVariants;
-	/** Called with the twin the user picked, which becomes the selected model. */
-	readonly onSelectVariant?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
-	/** Called once the selection animation settles so the picker can close. */
+	/** Marks the start of a model-affecting interaction, before an asynchronous save. */
+	readonly onWillSelect?: () => void;
+	/** Selects the model for the latest saved configuration or speed choice. */
+	readonly onSelect?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
+	/** Called once the selection settles so the picker can refresh its rows. */
 	readonly onDidAccept?: () => void;
 }
 
@@ -67,6 +69,7 @@ export class ModelCard extends DisposableStore {
 	private readonly _contentDisposables = this.add(new DisposableStore());
 	private readonly _configurationChanges = new Sequencer();
 	private readonly _groupControls = new Map<string, Radio>();
+	private readonly _pricingDisclosureListener = this.add(new MutableDisposable());
 	private _configurationChangeVersion = 0;
 	private _headerActions: ActionBar | undefined;
 	/** The pricing disclosure's button, rebuilt with the rest of the card on each render. */
@@ -74,12 +77,26 @@ export class ModelCard extends DisposableStore {
 	private _pricingChevron: HTMLElement | undefined;
 	private _pricingBody: HTMLElement | undefined;
 
-	constructor(private readonly _options: IModelCardOptions) {
+	constructor(private _options: IModelCardOptions) {
 		super();
-		if (_options.pricingDisclosure) {
-			this.add(_options.pricingDisclosure.onDidChange(() => this._updatePricingDisclosure()));
-		}
+		this._pricingDisclosureListener.value = _options.pricingDisclosure?.onDidChange(() => this._updatePricingDisclosure());
 		this._render();
+	}
+
+	/** Refreshes model and pin state without replacing the card or moving keyboard focus. */
+	update(options: IModelCardOptions): void {
+		const disclosureChanged = options.pricingDisclosure !== this._options.pricingDisclosure;
+		const changed = options.model !== this._options.model || options.isPinned !== this._options.isPinned || disclosureChanged;
+		if (options.model.identifier !== this._options.model.identifier) {
+			this._configurationChangeVersion++;
+		}
+		this._options = options;
+		if (disclosureChanged) {
+			this._pricingDisclosureListener.value = options.pricingDisclosure?.onDidChange(() => this._updatePricingDisclosure());
+		}
+		if (changed) {
+			this._renderPreservingFocus();
+		}
 	}
 
 	private _configProperty(group: string): IModelConfigProperty | undefined {
@@ -87,9 +104,11 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private async _setValues(values: IStringDictionary<unknown>, focusedGroup?: string): Promise<void> {
+		const options = this._options;
 		const version = ++this._configurationChangeVersion;
+		options.onWillSelect?.();
 		for (const [group, control] of this._groupControls) {
-			const property = this._configProperty(group);
+			const property = getModelConfigProperty(options.model, options.configurationAccess, group);
 			if (property && Object.hasOwn(values, property.key)) {
 				control.setActiveItem(Math.max(0, property.schema.enum?.indexOf(values[property.key]) ?? -1));
 			}
@@ -97,36 +116,60 @@ export class ModelCard extends DisposableStore {
 		try {
 			const changes = await this._configurationChanges.queue(async () => {
 				const changes = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].flatMap(group => {
-					const property = this._configProperty(group);
+					const property = getModelConfigProperty(options.model, options.configurationAccess, group);
 					return property && Object.hasOwn(values, property.key) && property.value !== values[property.key]
 						? [{ group, key: property.key, fromValue: property.value, toValue: values[property.key] }]
 						: [];
 				});
-				await this._options.configurationAccess.setModelConfiguration(this._options.model.identifier, values);
+				await options.configurationAccess.setModelConfiguration(options.model.identifier, values);
 				return changes;
 			});
 			for (const change of changes) {
-				this._options.onDidChangeConfiguration?.(change.group, change.key, change.fromValue, change.toValue);
+				options.onDidChangeConfiguration?.(change.group, change.key, change.fromValue, change.toValue);
+			}
+			if (!this.isDisposed && version === this._configurationChangeVersion) {
+				options.onSelect?.(options.model);
 			}
 			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
 		} finally {
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
-				const hadFocus = this.element.contains(dom.getActiveElement());
-				this._render();
-				if (hadFocus) {
-					this._restoreFocus(focusedGroup);
-				}
+				this._renderPreservingFocus(focusedGroup);
 			}
 		}
 		if (!this.isDisposed && version === this._configurationChangeVersion) {
-			this._options.onDidAccept?.();
+			options.onDidAccept?.();
 		}
 	}
 
-	private _restoreFocus(group?: string): void {
+	private _renderPreservingFocus(fallbackGroup?: string): void {
+		const hadFocus = this.element.contains(dom.getActiveElement());
+		const focusedControl = [...this._groupControls].find(([, control]) => dom.isAncestorOfActiveElement(control.domNode));
+		const group = focusedControl?.[0] ?? fallbackGroup;
+		const optionIndex = focusedControl?.[1].optionElements.findIndex(element => dom.isActiveElement(element));
+		const actionId = this._headerActions?.viewItems.find((_, index) => this._headerActions?.isFocused(index))?.action.id;
+		const pricingFocused = this._pricingToggle && dom.isActiveElement(this._pricingToggle);
+		this._render();
+		if (!hadFocus) {
+			return;
+		}
+		const actionIndex = this._headerActions?.viewItems.findIndex(item => item.action.id === actionId) ?? -1;
+		if (pricingFocused) {
+			this._pricingToggle?.focus();
+		} else if (actionIndex >= 0) {
+			this._headerActions?.focus(actionIndex);
+		} else {
+			this._restoreFocus(group, optionIndex);
+		}
+	}
+
+	private _restoreFocus(group?: string, optionIndex?: number): void {
 		const control = group ? this._groupControls.get(group) : undefined;
 		if (control) {
-			control.focusActiveItem();
+			if (optionIndex !== undefined && control.optionElements[optionIndex]) {
+				control.focusItem(optionIndex);
+			} else {
+				control.focusActiveItem();
+			}
 		} else if (this._headerActions) {
 			this._headerActions.focus();
 		} else {
@@ -302,7 +345,7 @@ export class ModelCard extends DisposableStore {
 		const control = this._contentDisposables.add(new Radio({
 			ariaLabel: title,
 			className: 'segmented',
-			// Selecting closes the picker, so arrows must be able to travel past an option.
+			// Arrow keys move focus without changing the model's configuration.
 			arrowKeyBehavior: 'focus',
 			items: values.map((value, index) => ({
 				text: getModelConfigValueLabel(property.schema, value),
@@ -344,15 +387,18 @@ export class ModelCard extends DisposableStore {
 		this._contentDisposables.add(control.onDidSelect(index => {
 			this._selectVariant(choices[index].model, control).catch(onUnexpectedError);
 		}));
+		this._groupControls.set('speed', control);
 		section.appendChild(control.domNode);
 	}
 
 	private async _selectVariant(model: ILanguageModelChatMetadataAndIdentifier, control: Radio): Promise<void> {
+		const options = this._options;
 		const version = ++this._configurationChangeVersion;
-		this._options.onSelectVariant?.(model);
+		options.onWillSelect?.();
+		options.onSelect?.(model);
 		await control.whenSelectionAnimationSettles();
 		if (!this.isDisposed && version === this._configurationChangeVersion) {
-			this._options.onDidAccept?.();
+			options.onDidAccept?.();
 		}
 	}
 

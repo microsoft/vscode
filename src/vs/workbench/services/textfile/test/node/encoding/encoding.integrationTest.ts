@@ -17,7 +17,7 @@ suite('Encoding', function () {
 	});
 
 	test('resolve terminal encoding (environment)', async function () {
-		process.env.VSCODE_CLI_ENCODING = 'utf16le';
+		process.env['VSCODE_CLI_ENCODING'] = 'utf16le';
 
 		const enc = await terminalEncoding.resolveTerminalEncoding();
 		assert.ok(await encoding.encodingExists(enc));

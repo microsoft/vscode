@@ -10,6 +10,8 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IContextViewDelegate, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -279,6 +281,7 @@ interface IPickerFixtureOptions {
 	/** Opens the detail card for the model whose row label matches, as hovering the row would. */
 	readonly openCardFor?: string;
 	readonly pricingExpanded?: boolean;
+	readonly motionReduced?: boolean;
 	/** Providers with no models, which show a welcome body instead of a list. */
 	readonly providerPlaceholders?: readonly IModelPickerProviderPlaceholder[];
 	/** Starts on this destination, matched against the tab label. */
@@ -313,6 +316,12 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		colorTheme: context.theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
+			const motionReduced = options.motionReduced;
+			if (motionReduced !== undefined) {
+				registration.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return motionReduced; }
+				}());
+			}
 			registration.defineInstance(ILayoutService, upcastPartial<ILayoutService>({
 				getContainer: () => layoutContainer,
 				mainContainer: layoutContainer,
@@ -354,7 +363,7 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 	for (const [modelId, values] of Object.entries(options.configured ?? {})) {
 		void configurationAccess.setModelConfiguration(modelId, values);
 	}
-	const pickerContext: ITabbedModelPickerContext = {
+	let pickerContext: ITabbedModelPickerContext = {
 		models: options.models ?? ALL_MODELS,
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
 		recentModelIds: ['copilot/gpt-5-3-codex', 'copilot/gemini-3-5-flash'],
@@ -363,8 +372,13 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		configurationAccess,
 		isUBB: true,
 		showManageModels: true,
-		onSelect: () => { },
-		onTogglePin: () => { },
+		onSelect: model => { pickerContext = { ...pickerContext, selectedModelId: model.identifier }; },
+		onTogglePin: (id, pinned) => {
+			pickerContext = {
+				...pickerContext,
+				pinnedModelIds: pinned ? [...pickerContext.pinnedModelIds, id] : pickerContext.pinnedModelIds.filter(candidate => candidate !== id),
+			};
+		},
 		onManageModels: () => { },
 		onDidToggleOtherModels: () => { },
 		onConfigurationChanged: () => { },
@@ -516,6 +530,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		}),
 	}),
 	PickerWithManyProviders: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, {
 			models: [...ALL_MODELS, ...OPENAI_MODELS, ...ANTHROPIC_MODELS, ...GOOGLE_MODELS],
 			initialTabLabel: 'Ollama',
@@ -548,6 +563,19 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerBadges: defineComponentFixture({
 		render: context => renderPicker(context, { models: [AUTO_MODEL, ...COPILOT_NOTICE_MODELS], expandOther: true }),
 	}),
+	PickerScrollableBadges: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, {
+			models: [AUTO_MODEL, ...COPILOT_NOTICE_MODELS, ...DEMOTED_MODELS],
+			pinnedModelIds: ['copilot/gpt-5-5', 'copilot/gpt-5-1', 'copilot/gpt-4-turbo'],
+			configured: { 'copilot/gpt-5-5': { reasoningEffort: 'xhigh', contextSize: 1000000 } },
+			controlModels: {
+				...CONTROL_MODELS,
+				...Object.fromEntries(DEMOTED_MODELS.map(model => [model.metadata.id, { label: model.metadata.name, exists: true, demoted: true }])),
+			},
+			expandOther: true,
+		}),
+	}),
 	PickerConfiguredModels: defineComponentFixture({
 		render: context => renderPicker(context, {
 			models: COPILOT_ONLY_MODELS,
@@ -559,6 +587,15 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	PickerSearch: defineComponentFixture({ render: context => renderPicker(context, { search: true }) }),
 	PickerWithCard: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openCardFor: 'GPT-5.5' }) }),
+	PickerPinning: defineComponentFixture({
+		render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, openCardFor: 'GPT-5.5', motionReduced: false }),
+	}),
+	PickerPinningReducedMotion: defineComponentFixture({
+		render: context => {
+			context.container.classList.add('monaco-reduce-motion');
+			return renderPicker(context, { models: COPILOT_ONLY_MODELS, openCardFor: 'GPT-5.5', motionReduced: true });
+		},
+	}),
 	PickerConfiguredModelCard: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, {
@@ -606,13 +643,16 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	CardExtendedContext: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[0], true) }),
 	CardManyEffortValues: defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderCard(context, MANY_EFFORT_MODEL, false),
 	}),
 	CardWithoutConfiguration: defineComponentFixture({ render: context => renderCard(context, COPILOT_MODELS[2], false) }),
-	AutoRowOff: defineComponentFixture({ render: context => renderAutoRow(context, false) }),
+	AutoRowOff: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderAutoRow(context, false),
+	}),
 	AutoRowOn: defineComponentFixture({
-		additionalThemes: ['darkHighContrast'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderAutoRow(context, true),
 	}),
 });

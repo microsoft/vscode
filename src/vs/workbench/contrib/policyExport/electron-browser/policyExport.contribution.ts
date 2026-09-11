@@ -226,7 +226,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 		const root = this.nativeEnvironmentService.appRoot;
 
 		// 1. DISTRO_PRODUCT_JSON env var (for testing)
-		const envPath = process.env.DISTRO_PRODUCT_JSON;
+		const envPath = process.env['DISTRO_PRODUCT_JSON'];
 		if (envPath) {
 			this.log(`Reading distro product.json from DISTRO_PRODUCT_JSON=${envPath}`);
 			const content = (await this.fileService.readFile(URI.file(envPath))).value.toString();
@@ -246,7 +246,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 			);
 		}
 
-		const token = process.env.GITHUB_TOKEN;
+		const token = process.env['GITHUB_TOKEN'];
 		if (!token) {
 			throw new Error(
 				'GITHUB_TOKEN is required to fetch distro product.json. ' +

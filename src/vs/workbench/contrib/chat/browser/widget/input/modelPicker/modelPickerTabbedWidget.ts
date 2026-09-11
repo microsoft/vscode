@@ -6,7 +6,7 @@
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -22,8 +22,8 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModel
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { ModelPickerAutoRow } from './modelPickerAutoRow.js';
-import { IPricingDisclosure, ModelCard } from './modelPickerCard.js';
-import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
+import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
+import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge } from './modelPickerBadges.js';
 import { createModelAction, createUnavailableModelItem, getUnavailableReason } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider } from './modelPickerItems.js';
@@ -81,7 +81,7 @@ export class TabbedModelPicker extends Disposable {
 	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _widget: TabbedActionListWidget;
-	private readonly _cards = this._register(new DisposableStore());
+	private readonly _cards = this._register(new DisposableMap<string, ModelCard>());
 	private readonly _autoRow = this._register(new MutableDisposable<ModelPickerAutoRow>());
 	private readonly _onDidChangePricingDisclosure = this._register(new Emitter<void>());
 	/** Shared by every card, and remembered, so the breakdown is opened once rather than per model. */
@@ -98,7 +98,9 @@ export class TabbedModelPicker extends Disposable {
 	private _anchor: HTMLElement | undefined;
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
-	private _speedVariants: ReadonlyMap<string, IModelSpeedVariants> = new Map();
+	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
+	private readonly _preferredSpeedVariants = new Map<string, string>();
+	private _selectionVersion = 0;
 	/** The model to fall back to when Auto is switched off. */
 	private _lastExplicitModelId: string | undefined;
 
@@ -120,6 +122,7 @@ export class TabbedModelPicker extends Disposable {
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
 			this._searchVisible = false;
+			this._cards.clearAndDisposeAll();
 			this._onDidHide.fire();
 		}));
 	}
@@ -147,9 +150,9 @@ export class TabbedModelPicker extends Disposable {
 			return;
 		}
 
-		this._speedVariants = buildSpeedVariants(context.models);
-		const listModels = collapseSpeedVariants(context.models, this._speedVariants, context.selectedModelId);
-		const destinations = buildModelPickerDestinations(listModels, this._languageModelsService, context.providerPlaceholders);
+		this._speedVariants.clear();
+		this._cards.clearAndDisposeAll();
+		const destinations = this._buildDestinations(context);
 		if (!destinations.length) {
 			return;
 		}
@@ -177,23 +180,24 @@ export class TabbedModelPicker extends Disposable {
 			tabLabels: 'active',
 			filterInTabBar: true,
 			width: PICKER_WIDTH,
-			createActionList: activeTab => {
-				this._cards.clear();
+			createActionList: (activeTab, forSizing) => {
 				const current = this._context ?? context;
-				const destination = destinations.find(candidate => candidate.id === activeTab) ?? destinations[0];
+				const currentDestinations = this._buildDestinations(current);
+				const destination = currentDestinations.find(candidate => candidate.id === activeTab) ?? currentDestinations[0];
 				const sections = this._buildSections(destination, current);
 				// Search spans every destination at once, so each model names its provider.
-				const items = this._searchVisible
-					? destinations.flatMap(candidate => this._buildSearchItems(candidate, current))
+				const searching = this._searchVisible && !forSizing;
+				const items = searching
+					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
 					: this._buildItems(destination, sections, current);
 				return {
 					items,
 					listOptions: withChatInputPickerMotion({
 						className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 						persistentHover: true,
-						showFilter: this._searchVisible,
+						showFilter: searching,
 						filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
-						focusFilterOnOpen: this._searchVisible,
+						focusFilterOnOpen: searching,
 						initialFilterValue,
 						filterAsCombobox: true,
 						onType: text => {
@@ -237,6 +241,25 @@ export class TabbedModelPicker extends Disposable {
 			},
 			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible),
 		});
+		if (this._context?.selectedModelId) {
+			this._rememberSpeedVariant(this._context.selectedModelId);
+		}
+	}
+
+	private _buildDestinations(context: ITabbedModelPickerContext): IModelPickerDestination[] {
+		return buildModelPickerDestinations(context.models, this._languageModelsService, context.providerPlaceholders);
+	}
+
+	private _rememberSpeedVariant(modelIdentifier: string): void {
+		const pair = this._speedVariants.get(modelIdentifier);
+		if (pair) {
+			this._preferredSpeedVariants.set(pair.standard.identifier, modelIdentifier);
+		}
+	}
+
+	private _pinnedVariantIds(modelIdentifier: string, context: ITabbedModelPickerContext): string[] {
+		const pair = this._speedVariants.get(modelIdentifier);
+		return context.pinnedModelIds.filter(id => id === modelIdentifier || id === pair?.standard.identifier || id === pair?.fast.identifier);
 	}
 
 	private _isAutoSelected(context: ITabbedModelPickerContext): boolean {
@@ -250,12 +273,13 @@ export class TabbedModelPicker extends Disposable {
 
 	private _buildSections(destination: IModelPickerDestination, context: ITabbedModelPickerContext): IModelPickerSections {
 		const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
-		return buildModelPickerSections({
+		const sections = buildModelPickerSections({
 			models: destination.models,
 			selectedModelId: context.selectedModelId,
 			recentModelIds: context.recentModelIds,
 			pinnedModelIds: context.pinnedModelIds,
 			controlModels: context.controlModels,
+			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added
 			// gets a tab of its own, which is already the whole of what it offers.
 			showSuggested: isBuiltIn,
@@ -263,6 +287,10 @@ export class TabbedModelPicker extends Disposable {
 			showUnavailable: isBuiltIn && context.unavailableContext.show,
 			currentVSCodeVersion: context.unavailableContext.currentVSCodeVersion,
 		});
+		for (const [id, pair] of sections.speedVariants) {
+			this._speedVariants.set(id, pair);
+		}
+		return sections;
 	}
 
 	private _buildTabBarActions(context: ITabbedModelPickerContext): ITabBarAction[] {
@@ -344,7 +372,6 @@ export class TabbedModelPicker extends Disposable {
 					item: { id: 'otherModels', enabled: true, checked: false, class: undefined, tooltip: label, label, run: () => { } },
 					kind: ActionListItemKind.Action,
 					label,
-					badge: String(count),
 					ariaDescription: localize('chat.modelPicker.otherModelsCount', "{0} more models", count),
 					group: { title: '', icon: Codicon.chevronDown },
 					hideIcon: false,
@@ -364,9 +391,8 @@ export class TabbedModelPicker extends Disposable {
 	 * Every model in one destination as flat rows, for searching. Sections would only
 	 * get in the way of a result list, but each row still names its provider.
 	 */
-	private _buildSearchItems(destination: IModelPickerDestination, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
-		return destination.models
-			.slice()
+	private _buildSearchItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+		return [...sections.pinned, ...sections.suggested, ...sections.other]
 			.sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
 			.map(model => this._createModelItem(model, context, undefined, getModelProviderLabel(model, this._languageModelsService)));
 	}
@@ -377,45 +403,59 @@ export class TabbedModelPicker extends Disposable {
 		section?: string,
 		providerLabel?: string,
 	): IActionListItem<IActionWidgetDropdownAction> {
-		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, context.onSelect, section, true);
+		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, next => {
+			this._selectionVersion++;
+			const pair = this._speedVariants.get(next.identifier);
+			context.onSelect(pair
+				? getPreferredSpeedVariant(pair, this._context?.selectedModelId, this._preferredSpeedVariants.get(pair.standard.identifier))
+				: next);
+		}, section, true);
 		const badge = getModelBadge(model, { configurationAccess: context.configurationAccess, providerLabel });
 		// While Auto is choosing, a model's settings do not apply, so the card that edits
 		// them stays shut. The row is still selectable, which is what turns Auto off.
 		const autoEnabled = this._isAutoSelected(context);
-		// Build each card lazily and reuse it while browsing this list.
-		let card: ModelCard | undefined;
-		const createCard = () => (card ??= this._cards.add(new ModelCard({
+		let selectionVersion = this._selectionVersion;
+		const cardOptions: IModelCardOptions = {
 			model,
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
 			openerService: this._openerService,
-			isPinned: context.pinnedModelIds.includes(model.identifier),
+			isPinned: this._pinnedVariantIds(model.identifier, context).length > 0,
 			pricingDisclosure: this._pricingDisclosure,
 			speedVariants: this._speedVariants.get(model.identifier),
-			onSelectVariant: next => {
-				context.onSelect(next);
-				this._context = { ...(this._context ?? context), selectedModelId: next.identifier };
-			},
-			onDidAccept: () => this._widget.hide(),
-			onTogglePin: context.onTogglePin
-				? pinned => {
-					context.onTogglePin?.(model.identifier, pinned);
-					// Closes like every other action in the card, so the card is not left
-					// open over a list that has since reordered itself.
-					this._widget.hide();
+			onWillSelect: () => { selectionVersion = ++this._selectionVersion; },
+			onSelect: next => {
+				if (selectionVersion === this._selectionVersion && this._widget.isVisible && next.identifier !== (this._context ?? context).selectedModelId) {
+					this._rememberSpeedVariant(next.identifier);
+					context.onSelect(next);
+					this._context = { ...(this._context ?? context), selectedModelId: next.identifier };
+					this._lastExplicitModelId = next.identifier;
 				}
+			},
+			onDidAccept: () => {
+				this._widget.refreshActiveList({
+					focusItemId: selectionVersion === this._selectionVersion ? this._context?.selectedModelId : undefined,
+					preserveHover: true,
+				});
+			},
+			onTogglePin: context.onTogglePin
+				? pinned => this._togglePin(model.identifier, pinned)
 				: undefined,
 			onDidChangeConfiguration: (group, key, fromValue, toValue) => {
 				context.onConfigurationChanged(model, group, key, fromValue, toValue);
-				// Configuring a model is a choice of it: the settings only take effect on the
-				// model they belong to, so tuning one and leaving another selected would
-				// discard the change the user just made.
-				if (model.identifier !== (this._context ?? context).selectedModelId) {
-					context.onSelect(model);
-					this._context = { ...(this._context ?? context), selectedModelId: model.identifier };
-				}
 			},
-		}))).element;
+		};
+		const createCard = () => {
+			const key = this._speedVariants.get(model.identifier)?.standard.identifier ?? model.identifier;
+			let card = this._cards.get(key);
+			if (card) {
+				card.update(cardOptions);
+			} else {
+				card = new ModelCard(cardOptions);
+				this._cards.set(key, card);
+			}
+			return card.element;
+		};
 		return {
 			item: action,
 			kind: ActionListItemKind.Action,
@@ -430,6 +470,32 @@ export class TabbedModelPicker extends Disposable {
 			hover: autoEnabled ? undefined : { content: createCard, expandable: true, showIndicator: false, panelClassName: 'chat-model-card-panel', alignToParent: true, preserveVerticalPosition: true },
 			tooltip: action.tooltip,
 		};
+	}
+
+	private _togglePin(modelIdentifier: string, pinned: boolean): void {
+		const context = this._context;
+		if (!context?.onTogglePin) {
+			return;
+		}
+		const pinnedVariantIds = this._pinnedVariantIds(modelIdentifier, context);
+		if (pinned) {
+			context.onTogglePin(modelIdentifier, true);
+		} else {
+			for (const id of pinnedVariantIds) {
+				context.onTogglePin(id, false);
+			}
+		}
+		this._context = {
+			...context,
+			pinnedModelIds: pinned
+				? [...context.pinnedModelIds, modelIdentifier]
+				: context.pinnedModelIds.filter(id => !pinnedVariantIds.includes(id)),
+		};
+		this._widget.refreshActiveList({
+			focusItemId: modelIdentifier,
+			preserveHover: true,
+			animateItemMove: true,
+		});
 	}
 
 	private _renderAutoRow(container: HTMLElement, autoModel: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): IDisposable {
@@ -456,6 +522,7 @@ export class TabbedModelPicker extends Disposable {
 			this._autoRow.value?.render();
 			return;
 		}
+		this._selectionVersion++;
 		context.onSelect(next);
 		this._context = { ...context, selectedModelId: next.identifier };
 		// Updated in place rather than re-shown: rebuilding the popup would move focus

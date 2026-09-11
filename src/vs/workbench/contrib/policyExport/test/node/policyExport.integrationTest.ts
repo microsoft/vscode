@@ -15,7 +15,7 @@ suite('PolicyExport Integration Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('exported policy data matches checked-in file', async function () {
-		if (process.env.TF_BUILD) {
+		if (process.env['TF_BUILD']) {
 			this.skip();
 		}
 

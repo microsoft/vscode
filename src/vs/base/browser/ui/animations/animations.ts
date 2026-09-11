@@ -14,24 +14,18 @@ export const enum ClickAnimation {
 }
 
 const confettiColors = [
-	'#007acc',
-	'#005a9e',
-	'#0098ff',
-	'#4fc3f7',
-	'#64b5f6',
-	'#42a5f5',
+	'var(--vscode-charts-red)',
+	'var(--vscode-charts-orange)',
+	'var(--vscode-charts-yellow)',
+	'var(--vscode-charts-green)',
+	'var(--vscode-charts-blue)',
+	'var(--vscode-charts-purple)',
 ];
-
-let activeOverlay: HTMLElement | undefined;
 
 /**
  * Creates a fixed-positioned overlay centered on the given element.
  */
-function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number; cy: number } | undefined {
-	if (activeOverlay) {
-		return undefined;
-	}
-
+function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number; cy: number } {
 	const rect = element.getBoundingClientRect();
 	const ownerDocument = dom.getWindow(element).document;
 
@@ -44,9 +38,7 @@ function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number
 	overlay.style.pointerEvents = 'none';
 	overlay.style.overflow = 'visible';
 	overlay.style.zIndex = '10000';
-
-	ownerDocument.body.appendChild(overlay);
-	activeOverlay = overlay;
+	(element.closest('.monaco-workbench') ?? ownerDocument.body).appendChild(overlay);
 
 	return { overlay, cx: rect.width / 2, cy: rect.height / 2 };
 }
@@ -54,12 +46,9 @@ function createOverlay(element: HTMLElement): { overlay: HTMLElement; cx: number
 /**
  * Cleans up the overlay after specified period.
  */
-function cleanupOverlay(duration: number) {
-	setTimeout(() => {
-		if (activeOverlay) {
-			activeOverlay.remove();
-			activeOverlay = undefined;
-		}
+function cleanupOverlay(overlay: HTMLElement, duration: number) {
+	dom.getWindow(overlay).setTimeout(() => {
+		overlay.remove();
 	}, duration);
 }
 
@@ -107,17 +96,10 @@ export function bounceElement(element: HTMLElement, opts: { scale?: number[]; ro
 }
 
 /**
- * Confetti: small particles burst outward in a circle from the element center,
- * with an expanding ring.
+ * Confetti: colorful particles burst upward from the element center and fall.
  */
 export function triggerConfettiAnimation(element: HTMLElement) {
-	const result = createOverlay(element);
-	if (!result) {
-		return;
-	}
-
-	const { overlay, cx, cy } = result;
-	const rect = element.getBoundingClientRect();
+	const { overlay, cx, cy } = createOverlay(element);
 
 	// Element bounce
 	bounceElement(element, {
@@ -127,72 +109,50 @@ export function triggerConfettiAnimation(element: HTMLElement) {
 	});
 
 	// Confetti particles
-	const particleCount = 10;
+	const particleCount = 24;
 	for (let i = 0; i < particleCount; i++) {
-		const size = 3 + (i % 3) * 1.5;
-		const angle = (i * 36 * Math.PI) / 180;
-		const distance = 35;
-		const particleOpacity = 0.6 + (i % 4) * 0.1;
+		const width = 4 + (i % 3) * 1.5;
+		const height = 3 + ((i + 1) % 3);
+		const angle = (-160 + Math.random() * 140) * Math.PI / 180;
+		const distance = 30 + Math.random() * 30;
+		const peakX = Math.cos(angle) * distance;
+		const peakY = Math.sin(angle) * distance;
+		const endX = peakX * 1.4 + (Math.random() - 0.5) * 20;
+		const endY = 25 + Math.random() * 30;
+		const rotation = (Math.random() - 0.5) * 720;
 
-		const part = dom.$('.animation-particle');
+		const part = dom.$('.animation-particle.animation-confetti-particle');
 		part.style.position = 'absolute';
-		part.style.width = `${size}px`;
-		part.style.height = `${size}px`;
-		part.style.borderRadius = '50%';
+		part.style.width = `${width}px`;
+		part.style.height = `${height}px`;
+		part.style.borderRadius = i % 4 === 0 ? '50%' : '1px';
 		part.style.backgroundColor = confettiColors[i % confettiColors.length];
-		part.style.left = `${cx - size / 2}px`;
-		part.style.top = `${cy - size / 2}px`;
+		part.style.left = `${cx}px`;
+		part.style.top = `${cy}px`;
 		overlay.appendChild(part);
 
-		const tx = Math.cos(angle) * distance;
-		const ty = Math.sin(angle) * distance;
-
 		part.animate([
-			{ opacity: 0, transform: 'scale(0) translate(0, 0)' },
-			{ opacity: particleOpacity, transform: `scale(1) translate(${tx * 0.5}px, ${ty * 0.5}px)`, offset: 0.3 },
-			{ opacity: particleOpacity, transform: `scale(1) translate(${tx}px, ${ty}px)`, offset: 0.7 },
-			{ opacity: 0, transform: `scale(0) translate(${tx}px, ${ty}px)` },
+			{ opacity: 0, transform: 'translate(-50%, -50%) scale(0) rotate(0deg)' },
+			{ opacity: 1, transform: `translate(calc(-50% + ${peakX * 0.35}px), calc(-50% + ${peakY * 0.55}px)) scale(1) rotate(${rotation * 0.2}deg)`, offset: 0.15 },
+			{ opacity: 1, transform: `translate(calc(-50% + ${peakX}px), calc(-50% + ${peakY}px)) rotate(${rotation * 0.5}deg)`, offset: 0.45 },
+			{ opacity: 0.9, transform: `translate(calc(-50% + ${endX * 0.9}px), calc(-50% + ${endY * 0.35}px)) rotate(${rotation * 0.8}deg)`, offset: 0.75 },
+			{ opacity: 0, transform: `translate(calc(-50% + ${endX}px), calc(-50% + ${endY}px)) rotate(${rotation}deg)` },
 		], {
-			duration: 1100,
-			easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-			fill: 'forwards',
+			duration: 900 + Math.random() * 400,
+			delay: Math.random() * 100,
+			easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
+			fill: 'both',
 		});
 	}
 
-	// Expanding ring
-	const ring = dom.$('.animation-particle');
-	ring.style.position = 'absolute';
-	ring.style.left = '0';
-	ring.style.top = '0';
-	ring.style.width = `${rect.width}px`;
-	ring.style.height = `${rect.height}px`;
-	ring.style.borderRadius = '50%';
-	ring.style.border = '2px solid var(--vscode-focusBorder, #007acc)';
-	ring.style.boxSizing = 'border-box';
-	overlay.appendChild(ring);
-
-	ring.animate([
-		{ transform: 'scale(1)', opacity: 1 },
-		{ transform: 'scale(2)', opacity: 0 },
-	], {
-		duration: 800,
-		easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-		fill: 'forwards',
-	});
-
-	cleanupOverlay(2000);
+	cleanupOverlay(overlay, 2000);
 }
 
 /**
  * Floating Icons: small icons float upward from the element.
  */
 export function triggerFloatingIconsAnimation(element: HTMLElement, icon: ThemeIcon) {
-	const result = createOverlay(element);
-	if (!result) {
-		return;
-	}
-
-	const { overlay, cx, cy } = result;
+	const { overlay, cx, cy } = createOverlay(element);
 	const rect = element.getBoundingClientRect();
 
 	// Element bounce upward
@@ -254,19 +214,14 @@ export function triggerFloatingIconsAnimation(element: HTMLElement, icon: ThemeI
 		fill: 'forwards',
 	});
 
-	cleanupOverlay(2000);
+	cleanupOverlay(overlay, 2000);
 }
 
 /**
  * Pulse Wave: expanding rings and sparkle dots radiate from the element center.
  */
 export function triggerPulseWaveAnimation(element: HTMLElement) {
-	const result = createOverlay(element);
-	if (!result) {
-		return;
-	}
-
-	const { overlay, cx, cy } = result;
+	const { overlay, cx, cy } = createOverlay(element);
 	const rect = element.getBoundingClientRect();
 
 	// Element bounce with slight rotation
@@ -353,19 +308,14 @@ export function triggerPulseWaveAnimation(element: HTMLElement) {
 		fill: 'forwards',
 	});
 
-	cleanupOverlay(2000);
+	cleanupOverlay(overlay, 2000);
 }
 
 /**
  * Radiant Lines: lines and dots emanate outward from the element center.
  */
 export function triggerRadiantLinesAnimation(element: HTMLElement) {
-	const result = createOverlay(element);
-	if (!result) {
-		return;
-	}
-
-	const { overlay, cx, cy } = result;
+	const { overlay, cx, cy } = createOverlay(element);
 
 	// Element scale bounce
 	bounceElement(element, {
@@ -446,7 +396,7 @@ export function triggerRadiantLinesAnimation(element: HTMLElement) {
 		});
 	}
 
-	cleanupOverlay(2000);
+	cleanupOverlay(overlay, 2000);
 }
 
 /**

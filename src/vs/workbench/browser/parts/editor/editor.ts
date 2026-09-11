@@ -274,6 +274,9 @@ export interface IEditorGroupViewOptions {
 
 	/** Reserves the enabled group header for an editor even when its breadcrumbs and actions are empty. */
 	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
+
+	/** Uses the modern UI presentation for editor tabs. */
+	readonly useModernUITabs?: boolean;
 }
 
 export interface IEditorGroupMenuIds {
