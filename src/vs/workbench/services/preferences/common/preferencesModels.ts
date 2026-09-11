@@ -20,7 +20,7 @@ import { ConfigurationDefaultValueSource, ConfigurationScope, Extensions, IConfi
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
-import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from './preferences.js';
+import { IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from './preferences.js';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from '../../configuration/common/configuration.js';
 import { createValidator } from './preferencesValidation.js';
 import { isString } from '../../../../base/common/types.js';
@@ -104,20 +104,6 @@ abstract class AbstractSettingsModel extends EditorModel {
 
 		return undefined;
 	}
-
-	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> | null {
-		const metadata = Object.create(null);
-		let hasMetadata = false;
-		groups.forEach(g => {
-			if (g.result.metadata) {
-				metadata[g.id] = g.result.metadata;
-				hasMetadata = true;
-			}
-		});
-
-		return hasMetadata ? metadata : null;
-	}
-
 
 	protected get filterGroups(): ISettingsGroup[] {
 		return this.settingsGroups;
@@ -207,12 +193,10 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			};
 		}
 
-		const metadata = this.collectMetadata(resultGroups);
 		return {
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
-			matches,
-			metadata: metadata ?? undefined
+			matches
 		};
 	}
 }
@@ -756,6 +740,7 @@ export class DefaultSettings extends Disposable {
 			extensionInfo: isString(prop.source) ? undefined : prop.source,
 			deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 			deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
+			deprecationMessageSeverity: prop.deprecationMessageSeverity,
 			validator: createValidator(prop),
 			allKeysAreBoolean,
 			editPresentation: prop.editPresentation,
@@ -867,13 +852,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		const startLine = this.settingsGroups.at(-1)!.range.endLineNumber + 2;
 		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
 
-		const metadata = this.collectMetadata(resultGroups);
 		return resultGroups.length ?
 			{
 				allGroups: this.settingsGroups,
 				filteredGroups,
-				matches,
-				metadata: metadata ?? undefined
+				matches
 			} :
 			undefined;
 	}
@@ -967,6 +950,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			overrideOf: setting.overrideOf,
 			tags: setting.tags,
 			deprecationMessage: setting.deprecationMessage,
+			deprecationMessageIsMarkdown: setting.deprecationMessageIsMarkdown,
+			deprecationMessageSeverity: setting.deprecationMessageSeverity,
 			keyRange: nullRange,
 			valueRange: nullRange,
 			descriptionIsMarkdown: undefined,

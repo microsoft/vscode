@@ -51,6 +51,12 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsPromptAttachments?: boolean;
 	supportsHandOffs?: boolean;
 	supportsCheckpoints?: boolean;
+	/**
+	 * The prefix (e.g. `!`) that marks a message in this
+	 * session type as a terminal command rather than a message to the agent.
+	 * Undefined when the session type has no terminal command support.
+	 */
+	terminalCommandPrefix?: string;
 }
 
 export interface IChatAgentData {
@@ -149,6 +155,8 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
 	agentHostSessionConfig?: Record<string, unknown>;
+	/** Provider-specific request metadata, separate from the prompt. */
+	metadata?: Record<string, unknown>;
 	userSelectedModelId?: string;
 	modelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: UserSelectedTools;
@@ -169,6 +177,10 @@ export interface IChatAgentRequest {
 	 * Whether any hooks are enabled for this request.
 	 */
 	hasHooksEnabled?: boolean;
+	/**
+	 * Whether this request was submitted through Agents Voice Mode.
+	 */
+	isVoiceModeInput?: boolean;
 	/**
 	 * The permission level for tool auto-approval in this request.
 	 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
@@ -192,6 +204,8 @@ export interface IChatAgentRequest {
 	 * When true, this request was initiated by the system rather than the user.
 	 */
 	isSystemInitiated?: boolean;
+	/** Whether the request and response should be hidden from the transcript. */
+	hideFromTranscript?: boolean;
 }
 
 export interface IChatQuestion {

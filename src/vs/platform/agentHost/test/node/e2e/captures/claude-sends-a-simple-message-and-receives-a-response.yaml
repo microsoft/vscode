@@ -1,0 +1,12 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Say exactly "hello" and nothing else
+    response:
+      content: hello
+      stopReason: end_turn

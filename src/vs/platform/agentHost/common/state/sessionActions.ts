@@ -26,7 +26,6 @@ export {
 	type SessionDefaultChatChangedAction,
 	type ChatDeltaAction,
 	type ChatErrorAction,
-	type SessionModelChangedAction,
 	type SessionReadyAction,
 	type ChatReasoningAction,
 	type ChatResponsePartAction,
@@ -43,10 +42,12 @@ export {
 	type ChatTurnCompleteAction,
 	type ChatTurnStartedAction,
 	type ChatUsageAction,
-	type SessionAgentChangedAction,
 	type SessionServerToolsChangedAction,
-	type SessionActiveClientChangedAction,
-	type SessionActiveClientToolsChangedAction,
+	type SessionActiveClientSetAction,
+	type SessionActiveClientRemovedAction,
+	type SessionWorkingDirectorySetAction,
+	type SessionWorkingDirectoryRemovedAction,
+	type SessionWorkingDirectoryReplacedAction,
 	type SessionCustomizationsChangedAction,
 	type SessionCustomizationToggledAction,
 	type ChatPendingMessageSetAction,
@@ -62,6 +63,7 @@ export {
 	type ChangesetStatusChangedAction,
 	type ChangesetFileSetAction,
 	type ChangesetFileRemovedAction,
+	type ChangesetContentChangedAction,
 	type ChangesetOperationsChangedAction,
 	type ChangesetClearedAction,
 	type AnnotationsSetAction,
@@ -70,6 +72,15 @@ export {
 	type AnnotationsEntrySetAction,
 	type AnnotationsEntryRemovedAction,
 	type ResourceWatchChangedAction,
+	type AutomationCreateRequestedAction,
+	type AutomationUpdateRequestedAction,
+	type AutomationSetAction,
+	type AutomationRemovedAction,
+	type AutomationRunLifecycleChangedAction,
+	type AutomationRunSessionSetAction,
+	type AutomationRunSessionRemovedAction,
+	type AutomationRunPrimarySessionChangedAction,
+	type AutomationRunCancelRequestedAction,
 	type StateAction,
 } from './protocol/actions.js';
 
@@ -77,7 +88,7 @@ export {
 	AuthRequiredReason,
 	type SessionAddedParams,
 	type SessionRemovedParams,
-	type SessionSummaryChangedParams,
+	type ProgressParams,
 	type AuthRequiredParams,
 } from './protocol/notifications.js';
 
@@ -91,6 +102,7 @@ export const NotificationType = {
 	SessionAdded: 'root/sessionAdded',
 	SessionRemoved: 'root/sessionRemoved',
 	SessionSummaryChanged: 'root/sessionSummaryChanged',
+	Progress: 'root/progress',
 	AuthRequired: 'auth/required',
 } as const;
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
@@ -98,40 +110,52 @@ export type NotificationType = typeof NotificationType[keyof typeof Notification
 // ---- Local aliases for short names ------------------------------------------
 // Consumers use these shorter names; they're type-only aliases.
 
-import type {
-	RootAgentsChangedAction,
-	RootActiveSessionsChangedAction,
-	ChatDeltaAction,
-	SessionModelChangedAction,
-	SessionAgentChangedAction,
-	ChatReasoningAction,
-	ChatResponsePartAction,
-	ChatToolCallApprovedAction,
-	ChatToolCallCompleteAction,
-	ChatToolCallConfirmedAction,
-	ChatToolCallDeniedAction,
-	ChatToolCallDeltaAction,
-	ChatToolCallReadyAction,
-	ChatToolCallResultConfirmedAction,
-	ChatToolCallStartAction,
-	SessionTitleChangedAction,
-	ChatTurnCancelledAction,
-	ChatTurnCompleteAction,
-	ChatTurnStartedAction,
-	ChatErrorAction,
-	ChatUsageAction,
-	ChatToolCallContentChangedAction,
-	StateAction,
-	ChatPendingMessageSetAction,
-	ChatPendingMessageRemovedAction,
-	ChatQueuedMessagesReorderedAction,
-	SessionIsReadChangedAction,
-	SessionIsArchivedChangedAction,
-	RootConfigChangedAction,
+import {
+	ActionType,
+	type RootAgentsChangedAction,
+	type RootActiveSessionsChangedAction,
+	type ChatDeltaAction,
+	type ChatReasoningAction,
+	type ChatResponsePartAction,
+	type ChatToolCallApprovedAction,
+	type ChatToolCallCompleteAction,
+	type ChatToolCallConfirmedAction,
+	type ChatToolCallDeniedAction,
+	type ChatToolCallDeltaAction,
+	type ChatToolCallReadyAction,
+	type ChatToolCallResultConfirmedAction,
+	type ChatToolCallStartAction,
+	type SessionTitleChangedAction,
+	type ChatTurnCancelledAction,
+	type ChatTurnCompleteAction,
+	type ChatTurnStartedAction,
+	type ChatErrorAction,
+	type ChatUsageAction,
+	type ChatToolCallContentChangedAction,
+	type StateAction,
+	type ChatPendingMessageSetAction,
+	type ChatPendingMessageRemovedAction,
+	type ChatQueuedMessagesReorderedAction,
+	type SessionIsReadChangedAction,
+	type SessionIsArchivedChangedAction,
+	type SessionWorkingDirectorySetAction,
+	type SessionWorkingDirectoryRemovedAction,
+	type SessionWorkingDirectoryReplacedAction,
+	type RootConfigChangedAction,
 } from './protocol/actions.js';
 
-import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, AuthRequiredParams } from './protocol/notifications.js';
-import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ChatAction as IChatAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, ClientChatAction as IClientChatAction_, ServerChatAction as IServerChatAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_, AnnotationsAction as IAnnotationsAction_, ClientAnnotationsAction as IClientAnnotationsAction_ } from './protocol/action-origin.generated.js';
+import type { SessionSummary } from './protocol/state.js';
+import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams as ProtocolSessionSummaryChangedParams, ProgressParams, AuthRequiredParams } from './protocol/notifications.js';
+import type { RootAction as IRootAction_, SessionAction as ISessionAction_, ChatAction as IChatAction_, ClientSessionAction as IClientSessionAction_, ServerSessionAction as IServerSessionAction_, ClientChatAction as IClientChatAction_, ServerChatAction as IServerChatAction_, TerminalAction as ITerminalAction_, ClientTerminalAction as IClientTerminalAction_, ChangesetAction as IChangesetAction_, ClientChangesetAction as IClientChangesetAction_, AnnotationsAction as IAnnotationsAction_, ClientAnnotationsAction as IClientAnnotationsAction_, AutomationAction as IAutomationAction_, ClientAutomationAction as IClientAutomationAction_, AutomationRunAction as IAutomationRunAction_, ClientAutomationRunAction as IClientAutomationRunAction_ } from './protocol/action-origin.generated.js';
+
+export type SessionSummaryChanges = Omit<Partial<SessionSummary>, 'activity'> & {
+	/** `null` explicitly clears activity; omission leaves it unchanged. */
+	activity?: string | null;
+};
+
+export type SessionSummaryChangedParams = Omit<ProtocolSessionSummaryChangedParams, 'changes'> & {
+	readonly changes: SessionSummaryChanges;
+};
 
 /**
  * Discriminated union of all server→client protocol notifications other than
@@ -143,6 +167,7 @@ export type ProtocolNotification =
 	| ({ type: 'root/sessionAdded' } & SessionAddedParams)
 	| ({ type: 'root/sessionRemoved' } & SessionRemovedParams)
 	| ({ type: 'root/sessionSummaryChanged' } & SessionSummaryChangedParams)
+	| ({ type: 'root/progress' } & ProgressParams)
 	| ({ type: 'auth/required' } & AuthRequiredParams);
 
 export type RootAction = IRootAction_;
@@ -155,8 +180,13 @@ export type ServerChatAction = IServerChatAction_;
 export type TerminalAction = ITerminalAction_;
 export type ClientTerminalAction = IClientTerminalAction_;
 export type ChangesetAction = IChangesetAction_;
+export type ClientChangesetAction = IClientChangesetAction_;
 export type AnnotationsAction = IAnnotationsAction_;
 export type ClientAnnotationsAction = IClientAnnotationsAction_;
+export type AutomationAction = IAutomationAction_;
+export type ClientAutomationAction = IClientAutomationAction_;
+export type AutomationRunAction = IAutomationRunAction_;
+export type ClientAutomationRunAction = IClientAutomationRunAction_;
 
 // Root actions
 export type IAgentsChangedAction = RootAgentsChangedAction;
@@ -182,8 +212,6 @@ export type IUsageAction = ChatUsageAction;
 export type IReasoningAction = ChatReasoningAction;
 export type IErrorAction = ChatErrorAction;
 export type IToolCallContentChangedAction = ChatToolCallContentChangedAction;
-export type IModelChangedAction = SessionModelChangedAction;
-export type IAgentChangedAction = SessionAgentChangedAction;
 export type ICustomizationsChangedAction = import('./protocol/actions.js').SessionCustomizationsChangedAction;
 export type ICustomizationToggledAction = import('./protocol/actions.js').SessionCustomizationToggledAction;
 
@@ -192,6 +220,12 @@ export type IPendingMessageRemovedAction = ChatPendingMessageRemovedAction;
 export type IQueuedMessagesReorderedAction = ChatQueuedMessagesReorderedAction;
 export type IIsReadChangedAction = SessionIsReadChangedAction;
 export type IIsArchivedChangedAction = SessionIsArchivedChangedAction;
+
+/** Session-level working-directory mutations. */
+export type SessionWorkingDirectoryAction =
+	| SessionWorkingDirectorySetAction
+	| SessionWorkingDirectoryRemovedAction
+	| SessionWorkingDirectoryReplacedAction;
 
 // Notifications
 export type INotification = ProtocolNotification;
@@ -220,4 +254,22 @@ export function isChangesetAction(action: StateAction): action is ChangesetActio
 
 export function isAnnotationsAction(action: StateAction): action is AnnotationsAction {
 	return action.type.startsWith('annotations/');
+}
+
+export function isAutomationAction(action: StateAction): action is AutomationAction {
+	return action.type.startsWith('automation/');
+}
+
+export function isAutomationRunAction(action: StateAction): action is AutomationRunAction {
+	return action.type.startsWith('automationRun/');
+}
+
+/**
+ * Whether `action` only toggles durable session metadata (archived / read)
+ * rather than mutating the conversation. These carry no intent to open a
+ * session, so the host applies them without materializing it.
+ */
+export function isPassiveSessionMetadataAction(action: StateAction): action is SessionIsArchivedChangedAction | SessionIsReadChangedAction {
+	return action.type === ActionType.SessionIsArchivedChanged
+		|| action.type === ActionType.SessionIsReadChanged;
 }

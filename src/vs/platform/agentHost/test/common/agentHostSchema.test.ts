@@ -5,8 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createSchema, migrateLegacyAutopilotConfig, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 /**
@@ -28,6 +30,30 @@ function captureProtocolError(fn: () => void): ProtocolError {
 suite('agentHostSchema', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('active-agent title generation is an additive boolean root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostActiveAgentTitleGenerationConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, false);
+	});
+
+	test('Markdown plan rich links are an additive boolean root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostMarkdownPlanRichLinksEnabledConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, false);
+	});
+
+	test('GitHub MCP is an additive enabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostGitHubMcpServerEnabledConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, true);
+	});
+
+	test('automatic pull request attachment is an additive enabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostAutoAttachPullRequestsConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, true);
+	});
 
 	// ---- schemaProperty / individual validators ---------------------------
 
@@ -284,13 +310,29 @@ suite('agentHostSchema', () => {
 	suite('platformSessionSchema', () => {
 
 		test('validates the autoApprove levels', () => {
-			const levels: AutoApproveLevel[] = ['default', 'autoApprove'];
+			const levels: AutoApproveLevel[] = ['default', 'assisted', 'autoApprove'];
 			for (const level of levels) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, level), true, level);
 			}
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'assisted'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'bogus'), false);
+		});
+
+		test('exposes approval choices in picker order with current copy', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.AutoApprove];
+			assert.deepStrictEqual({
+				enum: property.enum,
+				enumLabels: property.enumLabels,
+				enumDescriptions: property.enumDescriptions,
+			}, {
+				enum: ['default', 'assisted', 'autoApprove'],
+				enumLabels: ['Manual permissions', 'Assisted permissions', 'Allow all'],
+				enumDescriptions: [
+					'Asks when approval settings don\'t apply',
+					'Evaluates risk before running tools',
+					'Runs tool calls without asking',
+				],
+			});
 		});
 
 		test('validates permissions shape', () => {
@@ -307,6 +349,40 @@ suite('agentHostSchema', () => {
 			}
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'shell'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 42), false);
+		});
+
+		test('validates the shellInitScripts shape', () => {
+			assert.deepStrictEqual([
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, []),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash', script: 'x' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'zsh', script: 'x' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash', script: 1 }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, 'nope'),
+			], [true, true, false, false, false, false]);
+		});
+
+		test('is marked read-only so it stays out of the session settings file', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.ShellInitScripts];
+			assert.deepStrictEqual({ readOnly: property.readOnly, type: property.type }, { readOnly: true, type: 'array' });
+		});
+
+		test('keeps a pushed shellInitScripts value and has no default of its own', () => {
+			const scripts = [{ shell: 'bash', script: 'x' }];
+			// Mirrors `resolveChatConfig`, which supplies defaults only for
+			// autoApprove and mode. An absent value must stay absent so it is
+			// distinguishable from an explicit empty array (clear).
+			const defaults: { [SessionConfigKey.AutoApprove]: AutoApproveLevel;[SessionConfigKey.Mode]: SessionMode;[SessionConfigKey.ShellInitScripts]?: readonly IShellInitScript[] } = {
+				[SessionConfigKey.AutoApprove]: 'default',
+				[SessionConfigKey.Mode]: 'interactive',
+			};
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitScripts]: scripts }, defaults), {
+				...defaults,
+				[SessionConfigKey.ShellInitScripts]: scripts,
+			});
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({}, defaults), defaults);
+			// An invalid pushed value must not survive into the resolved config.
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitScripts]: 'nope' }, defaults), defaults);
 		});
 	});
 
@@ -343,6 +419,58 @@ suite('agentHostSchema', () => {
 
 		test('handles undefined', () => {
 			assert.strictEqual(migrateLegacyAutopilotConfig(undefined), undefined);
+		});
+	});
+
+	// ---- terminal auto-approve rule forwarding -----------------------------
+
+	suite('normalizeAgentHostTerminalAutoApproveRulesConfig', () => {
+
+		test('keeps null entries and object rules', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: null,
+				python: true,
+				'/^npm run build$/': { approve: true, matchCommandLine: true },
+			}, inspectValue, false);
+
+			assert.deepStrictEqual(result, {
+				echo: null,
+				python: true,
+				'/^npm run build$/': { approve: true, matchCommandLine: true },
+			});
+		});
+
+		test('removes default-only entries when default rules are ignored', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
+				default: { value: { echo: true, ls: true, python: false } },
+				user: { value: { echo: null } },
+			};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: null,
+				ls: true,
+				python: true,
+			}, inspectValue, true);
+
+			assert.deepStrictEqual(result, {
+				echo: null,
+				python: true,
+			});
+		});
+
+		test('keeps entries that match defaults when they come from a non-default target', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
+				default: { value: { echo: true, ls: true } },
+				userValue: { ls: true },
+			};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: true,
+				ls: true,
+			}, inspectValue, true);
+
+			assert.deepStrictEqual(result, {
+				ls: true,
+			});
 		});
 	});
 });

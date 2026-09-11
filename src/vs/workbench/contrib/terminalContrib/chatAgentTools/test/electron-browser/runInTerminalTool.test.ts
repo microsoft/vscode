@@ -5,6 +5,7 @@
 
 import { ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -36,7 +37,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
@@ -46,7 +47,7 @@ import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultC
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
-import { createRunInTerminalToolData, RunInTerminalTool, shouldAutomaticallyRetryAllowNetworkInSandboxed, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
+import { createRunInTerminalToolData, outputLooksBubblewrapHostRestricted, RunInTerminalTool, shouldAutomaticallyRetryAllowNetworkInSandboxed, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -61,6 +62,7 @@ import { TerminalToolId } from '../../browser/tools/toolIds.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
+import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -69,6 +71,12 @@ class TestRunInTerminalTool extends RunInTerminalTool {
 	get sessionTerminalInstances() { return this._sessionTerminalInstances; }
 	get profileFetcher() { return this._profileFetcher; }
 	get commandLinePresenters(): ICommandLinePresenter[] { return (this as unknown as Record<string, ICommandLinePresenter[]>)['_commandLinePresenters']; }
+	getBubblewrapHostRestrictedResult(): IToolResult {
+		return (this as unknown as Record<string, () => IToolResult>)['_getBubblewrapHostRestrictedResult']();
+	}
+	disableProcessIdAssociation(): void {
+		(this as unknown as Record<string, () => Promise<void>>)['_setupProcessIdAssociation'] = async () => { };
+	}
 
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
@@ -93,6 +101,7 @@ suite('RunInTerminalTool', () => {
 	let createdTerminalInstance: ITerminalInstance;
 	let createTerminalCallCount: number;
 	let chatSessions: Map<string, ChatModel>;
+	let chatSessionContribution: ReturnType<IChatSessionsService['getChatSessionContribution']>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -111,6 +120,7 @@ suite('RunInTerminalTool', () => {
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+		setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, Object.freeze({ path: 'bash' }));
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
@@ -121,21 +131,50 @@ suite('RunInTerminalTool', () => {
 			failedCheck: undefined,
 		};
 
-		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined; getOutput(): string }>();
 		const onDisposedEmitter = new Emitter<ITerminalInstance>();
+		const onExitEmitter = new Emitter<number | undefined>();
 		const onDidAddCapabilityEmitter = new Emitter<{ id: TerminalCapability }>();
 		const onDidInputDataEmitter = new Emitter<string>();
+		const onDataEmitter = new Emitter<string>();
+		const marker = {
+			line: 0,
+			dispose: () => { },
+			onDispose: Event.None,
+		};
+		const xterm = {
+			getContentsAsText: () => '',
+			raw: {
+				onData: onDataEmitter.event,
+				registerMarker: () => marker,
+				buffer: {
+					active: {},
+					alternate: {},
+					onBufferChange: Event.None,
+				},
+			},
+		};
 		createTerminalCallCount = 0;
 		createdTerminalInstance = {
+			instanceId: 1,
+			processId: 1,
+			processReady: Promise.resolve(),
+			xtermReadyPromise: Promise.resolve(xterm),
+			onData: onDataEmitter.event,
+			onExit: onExitEmitter.event,
 			sendText: async (_text: string) => {
 				// Simulate successful command completion after sendText
-				queueMicrotask(() => commandFinishedEmitter.fire({ exitCode: 0 }));
+				queueMicrotask(() => {
+					onDataEmitter.fire('\x1b]633;C\x07\x1b]633;A\x07');
+					commandFinishedEmitter.fire({ exitCode: 0, getOutput: () => '' });
+				});
 			},
 			focus: () => { },
 			capabilities: {
 				get: (cap: TerminalCapability) => {
 					if (cap === TerminalCapability.CommandDetection) {
 						return {
+							commands: [],
 							onCommandFinished: commandFinishedEmitter.event,
 						};
 					}
@@ -145,12 +184,19 @@ suite('RunInTerminalTool', () => {
 			},
 			onDidInputData: onDidInputDataEmitter.event,
 			onDisposed: onDisposedEmitter.event,
+			dispose: () => {
+				onExitEmitter.fire(0);
+				onDisposedEmitter.fire(createdTerminalInstance);
+			},
+			getCwdResource: async () => undefined,
+			isDisposed: false,
 		} as unknown as ITerminalInstance;
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
 		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
 		capturedSteeringRequests = [];
 		chatSessions = new Map<string, ChatModel>();
+		chatSessionContribution = undefined;
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
@@ -180,12 +226,16 @@ suite('RunInTerminalTool', () => {
 				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
 			} as IAgentSessionsService['model']
 		});
+		instantiationService.stub(IChatSessionsService, {
+			getChatSessionContribution: () => chatSessionContribution,
+		});
 		instantiationService.stub(ITerminalService, {
 			createTerminal: async () => {
 				createTerminalCallCount++;
 				return createdTerminalInstance;
 			},
 			foregroundInstances: [],
+			createOnInstanceCapabilityEvent: () => ({ event: Event.None, dispose: () => { } }),
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 			onDidChangeInstances: Event.None,
 			revealTerminal: async () => { },
@@ -518,6 +568,7 @@ suite('RunInTerminalTool', () => {
 				sandboxConfigPath: '/tmp/sandbox.json',
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 				missingDependencies: ['bubblewrap'],
+				canInstallMissingDependencies: true,
 			};
 
 			const result = await executeToolTest({
@@ -534,7 +585,26 @@ suite('RunInTerminalTool', () => {
 			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
 		});
 
-		test('should show repair choices when bubblewrap is installed but unusable on Linux', async () => {
+		test('should request manual installation when no supported package manager is available', async () => {
+			sandboxEnabled = false;
+			sandboxPrereqResult = {
+				enabled: false,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+				missingDependencies: ['bubblewrap'],
+				canInstallMissingDependencies: false,
+			};
+
+			const prepared = await executeToolTest({ command: 'echo hello' });
+			const result = await invokeToolTest({ command: 'echo hello' });
+
+			strictEqual(prepared?.confirmationMessages?.customOptions, undefined);
+			ok((result.content[0] as { value?: string }).value?.includes('system package manager'));
+			strictEqual(createTerminalCallCount, 0);
+		});
+
+		test('should automatically schedule AppArmor remediation without a repair prompt', async () => {
+			setAutoApprove({ echo: true });
 			sandboxPrereqResult = {
 				enabled: true,
 				sandboxConfigPath: '/tmp/sandbox.json',
@@ -545,8 +615,7 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({ command: 'echo hello' });
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 
-			ok(result?.confirmationMessages, 'Expected confirmation messages for bubblewrap repair');
-			strictEqual(result?.confirmationMessages?.customOptions?.length, 2, 'Expected repair and cancel choices');
+			strictEqual(result?.confirmationMessages, undefined, 'Expected no repair confirmation');
 			strictEqual(terminalData?.sandboxRemediations?.length, 1, 'Expected one repair option in terminal invocation data');
 			strictEqual(terminalData?.missingSandboxDependencies, undefined, 'Should not classify unusable bubblewrap as missing');
 		});
@@ -568,6 +637,7 @@ suite('RunInTerminalTool', () => {
 					sandboxConfigPath: '/tmp/sandbox.json',
 					failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 					missingDependencies: ['bubblewrap'],
+					canInstallMissingDependencies: true,
 				};
 			};
 
@@ -576,6 +646,83 @@ suite('RunInTerminalTool', () => {
 			strictEqual(forceRefreshCalled, true, 'Expected dependency installation to force a new prerequisite check');
 			strictEqual(createTerminalCallCount, 1, 'Expected only the installation terminal, not original command execution');
 			ok((result.content[0] as { value?: string }).value?.includes('bubblewrap'), 'Expected result to identify the failed bubblewrap verification');
+		});
+
+		test('should suggest reloading and retrying if the issue persists after sandbox dependency installation', async () => {
+			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => forceRefresh
+				? {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: undefined,
+				}
+				: {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+					missingDependencies: ['bubblewrap', 'socat'],
+					canInstallMissingDependencies: true,
+				};
+
+			const result = await invokeToolTest({ command: 'echo hello' }, 'install');
+
+			strictEqual(createTerminalCallCount, 1, 'Expected only the installation terminal, not original command execution');
+			ok((result.content[0] as { value?: string }).value?.includes('If the issue persists, reload the window and try running the command again'), 'Expected conditional reload and retry guidance');
+		});
+
+		test('should automatically repair AppArmor, probe again, and execute', async () => {
+			runInTerminalTool.disableProcessIdAssociation();
+			let forceRefreshCalled = false;
+			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
+				forceRefreshCalled ||= forceRefresh === true;
+				return forceRefresh ? {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: undefined,
+				} : {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+					remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
+				};
+			};
+			let remediationCalled = false;
+			terminalSandboxService.runSandboxRemediation = async () => {
+				remediationCalled = true;
+				return { exitCode: 0 };
+			};
+
+			const result = await invokeToolTest({ command: 'echo hello' });
+			createdTerminalInstance.dispose();
+
+			strictEqual(remediationCalled, true);
+			strictEqual(forceRefreshCalled, true, 'Expected a probe after AppArmor remediation');
+			strictEqual(createTerminalCallCount, 1, 'Expected the original command to execute');
+			ok(result.content.length > 0);
+		});
+
+		test('should report sandboxing unsupported when bubblewrap repair execution fails or is indeterminate', async () => {
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+				remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
+			};
+
+			let previousMessage: string | undefined;
+			for (const exitCode of [1, undefined] as const) {
+				terminalSandboxService.runSandboxRemediation = async () => ({ exitCode });
+				const result = await invokeToolTest({ command: 'echo hello' });
+
+				strictEqual(createTerminalCallCount, 0, 'Expected the original command not to execute');
+				const message = (result.content[0] as { value?: string }).value ?? '';
+				ok(message.includes('Sandboxing is not supported in this environment'), 'Expected unsupported environment guidance after repair execution failure');
+				ok(message.includes('chat.agent.sandbox.enabled'), 'Expected guidance to identify the sandbox setting');
+				if (previousMessage !== undefined) {
+					strictEqual(message, previousMessage, 'Expected the same message irrespective of the remediation exit code');
+				}
+				previousMessage = message;
+				ok(typeof result.toolResultMessage !== 'string' && result.toolResultMessage?.value.includes('command:workbench.action.openSettings'), 'Expected a settings command link in the user-facing message');
+			}
 		});
 
 		test('should not execute when bubblewrap is unusable and no supported remediation is available', async () => {
@@ -798,6 +945,20 @@ suite('RunInTerminalTool', () => {
 			strictEqual(shouldAutomaticallyRetryUnsandboxed(baseRetryOptions), true);
 		});
 
+		test('should detect bubblewrap host restrictions across wrapped output lines', () => {
+			strictEqual(outputLooksBubblewrapHostRestricted('bwrap: No permissions to create new\nnamespace'), true);
+			strictEqual(outputLooksBubblewrapHostRestricted('bwrap: failed to bind mount'), false);
+		});
+
+		test('should direct the user to disable sandboxing when bubblewrap is restricted by the host', () => {
+			const result = runInTerminalTool.getBubblewrapHostRestrictedResult();
+			const message = (result.content[0] as { value?: string }).value;
+
+			ok(message?.includes(AgentSandboxSettingId.AgentSandboxEnabled));
+			ok(message?.includes('Sandboxing can be disabled by setting'));
+			strictEqual(result.toolResultMessage, message);
+		});
+
 		test('should not retry when unsandboxed commands are disabled', () => {
 			strictEqual(shouldAutomaticallyRetryUnsandboxed({
 				...baseRetryOptions,
@@ -1006,6 +1167,8 @@ suite('RunInTerminalTool', () => {
 			'git status',
 			'git log --oneline',
 			'git show HEAD',
+			'git show --format=%B HEAD',
+			'git show --output-format=text HEAD',
 			'git diff main',
 			'git grep "TODO"',
 
@@ -1022,7 +1185,7 @@ suite('RunInTerminalTool', () => {
 			'Join-Path C:\\Users test',
 			'Start-Sleep 2',
 
-			// PowerShell safe verbs (regex patterns)
+			// Explicit PowerShell cmdlets
 			'Select-Object Name',
 			'Measure-Object Length',
 			'Compare-Object $a $b',
@@ -1098,6 +1261,10 @@ suite('RunInTerminalTool', () => {
 			// git log file output
 			'git log --output=log.txt',
 
+			// git show file output
+			'git show --format=%B --output=message.txt HEAD',
+			'git show --output message.txt HEAD',
+
 			// Dangerous file operations
 			'rm README.md',
 			'rmdir folder',
@@ -1138,6 +1305,13 @@ suite('RunInTerminalTool', () => {
 			'eval "echo hello"',
 			'Invoke-Expression "Get-Date"',
 			'iex "Write-Host test"',
+
+			// Arbitrary PowerShell cmdlets must not be approved by verb alone
+			'Select-Custom',
+			'Measure-Command',
+			'Compare-Custom',
+			'Format-Hex',
+			'Sort-Custom',
 
 			// Commands with dangerous arguments
 			'column -c 10000 file.txt',
@@ -1246,7 +1420,7 @@ suite('RunInTerminalTool', () => {
 				requestAllowNetworkReason: 'Needs registry access while remaining sandboxed',
 			});
 
-			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			assertConfirmationRequired(result, 'Allow bash command to access the network?');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestAllowNetworkReason, 'Needs registry access while remaining sandboxed');
@@ -1277,7 +1451,7 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({ command: 'curl https://evil.com' });
 
-			assertConfirmationRequired(result, 'Allow the sandbox to run `bash` command with unrestricted network access.');
+			assertConfirmationRequired(result, 'Allow bash command to access the network?');
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.requestAllowNetwork, true);
 			strictEqual(terminalData.requestUnsandboxedExecution, false);
@@ -2594,9 +2768,9 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	test('should use the conversation model and preserve previous agent for background completion notifications', async () => {
-		const termId = 'test-completion-model-term';
-		const sessionResource = LocalChatSessionUri.forSession('test-completion-model-session');
+	async function sendBackgroundCompletionNotification(previousAgentId: string): Promise<IChatSendRequestOptions | undefined> {
+		const termId = `test-completion-model-term-${previousAgentId}`;
+		const sessionResource = LocalChatSessionUri.forSession(`test-completion-model-session-${previousAgentId}`);
 		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
 		const terminalDisposedEmitter = new Emitter<void>();
 		const inputDataEmitter = new Emitter<string>();
@@ -2611,8 +2785,15 @@ suite('RunInTerminalTool', () => {
 		} as unknown as ITerminalInstance;
 
 		const previousModelId = 'claude-opus-4-8';
-		const previousAgentId = 'local-agent';
-		const previousRequest = { modelId: previousModelId, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
+		const previousTools = { tool1: true };
+		const previousModeInfo: IChatRequestModeInfo = {
+			kind: ChatModeKind.Agent,
+			isBuiltin: true,
+			modeInstructions: undefined,
+			telemetryModeId: 'agent',
+			applyCodeBlockSuggestionId: undefined,
+		};
+		const previousRequest = { modelId: previousModelId, modeInfo: previousModeInfo, userSelectedTools: previousTools, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
 		const chatService = instantiationService.get(IChatService) as unknown as {
 			acquireExistingSession: () => NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
 		};
@@ -2640,8 +2821,23 @@ suite('RunInTerminalTool', () => {
 		commandFinishedEmitter.fire({ exitCode: 0 });
 
 		strictEqual(capturedSteeringRequests.length, 1, 'Expected a completion steering notification');
-		strictEqual(capturedSteeringRequests[0].options?.userSelectedModelId, previousModelId, 'Completion notification should use the conversation model');
-		strictEqual(capturedSteeringRequests[0].options?.agentIdSilent, previousAgentId, 'Completion notification should continue with the previous request agent');
+		return capturedSteeringRequests[0].options;
+	}
+
+	test('should preserve conversation context for background completion notifications', async () => {
+		const options = await sendBackgroundCompletionNotification('local-agent');
+
+		strictEqual(options?.userSelectedModelId, 'claude-opus-4-8', 'Completion notification should use the conversation model');
+		strictEqual(options?.agentIdSilent, 'local-agent', 'Completion notification should continue with the previous request agent');
+		strictEqual(options?.instructionContext?.modeKind, ChatModeKind.Agent, 'Completion notification should collect instructions for the previous mode');
+		strictEqual(options?.instructionContext?.enabledTools?.tool1, true, 'Completion notification should collect instructions for the previous tools');
+	});
+
+	test('should preserve contributed session auto-attach opt-out for background completion notifications', async () => {
+		chatSessionContribution = { autoAttachReferences: false } as ReturnType<IChatSessionsService['getChatSessionContribution']>;
+		const options = await sendBackgroundCompletionNotification('contributed-agent');
+
+		strictEqual(options?.instructionContext, undefined, 'Completion notification should not collect instructions for an opted-out contributed session');
 	});
 
 	test('should dedupe rapid repeated background input-needed notifications', () => {
@@ -3037,7 +3233,7 @@ suite('RunInTerminalTool', () => {
 		suite('getCopilotProfile', () => {
 			(isWindows ? test : test.skip)('should return custom profile when configured', async () => {
 				runInTerminalTool.setBackendOs(OperatingSystem.Windows);
-				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\powershell.exe', args: ['-NoProfile'] });
+				const customProfile = Object.freeze({ path: 'C:\\Windows\\System32\\cmd.exe', args: ['/V:ON'] });
 				setConfig(TerminalChatAgentToolsSettingId.TerminalProfileWindows, customProfile);
 
 				const result = await runInTerminalTool.profileFetcher.getCopilotProfile();
@@ -3194,6 +3390,55 @@ suite('RunInTerminalTool', () => {
 			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
 			assertConfirmationRequired(result);
 		});
+
+		test('should surface a sandbox-bypass title and reason when sandboxBypass is set, even with sandbox disabled', async () => {
+			sandboxEnabled = false;
+			setAutoApprove({});
+
+			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
+			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'cat ~/secret',
+					explanation: 'Read secret',
+					goal: 'Read secret',
+					mode: 'sync',
+					timeout: 30000,
+					sandboxBypass: true,
+					sandboxBypassReason: 'Needs access outside the workspace',
+				} as IRunInTerminalInputParams
+			} as IToolInvocationPreparationContext;
+
+			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result, 'Run in terminal outside the sandbox?');
+			const message = result!.confirmationMessages!.message;
+			const messageText = typeof message === 'string' ? message : message?.value ?? '';
+			ok(/outside the sandbox/i.test(messageText), `expected message to mention the sandbox, got: ${messageText}`);
+			ok(messageText.includes('Needs access outside the workspace'), `expected message to include the reason, got: ${messageText}`);
+		});
+
+		test('should force a sandbox-bypass confirmation even when the command would be auto-approved', async () => {
+			sandboxEnabled = false;
+			setAutoApprove({ cat: true });
+
+			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
+			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'cat ~/secret',
+					explanation: 'Read secret',
+					goal: 'Read secret',
+					mode: 'sync',
+					timeout: 30000,
+					sandboxBypass: true,
+				} as IRunInTerminalInputParams
+			} as IToolInvocationPreparationContext;
+
+			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result, 'Run in terminal outside the sandbox?');
+		});
 	});
 });
 
@@ -3203,12 +3448,14 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let registeredToolData: Map<string, IToolData>;
+	let pendingToolDataRegistration: DeferredPromise<void> | undefined;
 	let sandboxEnabled: boolean;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		registeredToolData = new Map();
+		pendingToolDataRegistration = undefined;
 		sandboxEnabled = false;
 
 		const logService = new NullLogService();
@@ -3283,6 +3530,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			onDidChangeTools: Event.None,
 			registerToolData(toolData: IToolData) {
 				registeredToolData.set(toolData.id, toolData);
+				pendingToolDataRegistration?.complete();
 				return toDisposable(() => registeredToolData.delete(toolData.id));
 			},
 			registerToolImplementation(id: string, tool: IToolImpl) {
@@ -3316,16 +3564,23 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		});
 	});
 
-	async function flushAsync(): Promise<void> {
-		// Multiple microtask cycles to let async _registerRunInTerminalTool complete
-		for (let i = 0; i < 10; i++) {
-			await new Promise<void>(resolve => setTimeout(resolve, 0));
+	async function waitForToolDataRegistration(trigger: () => void): Promise<void> {
+		const registration = new DeferredPromise<void>();
+		pendingToolDataRegistration = registration;
+		try {
+			trigger();
+			await registration.p;
+		} finally {
+			pendingToolDataRegistration = undefined;
 		}
 	}
 
 	async function createContribution(): Promise<ChatAgentToolsContribution> {
-		const contribution = store.add(instantiationService.createInstance(ChatAgentToolsContribution));
-		await flushAsync();
+		let contribution: ChatAgentToolsContribution | undefined;
+		await waitForToolDataRegistration(() => {
+			contribution = store.add(instantiationService.createInstance(ChatAgentToolsContribution));
+		});
+		ok(contribution);
 		return contribution;
 	}
 
@@ -3342,18 +3597,17 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
 		ok(!propertiesBefore?.['requestUnsandboxedExecution'], 'Expected no requestUnsandboxedExecution before enabling sandbox');
 
-		// Enable sandbox and fire config change
-		sandboxEnabled = true;
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
-			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			// Enable sandbox and fire config change
+			sandboxEnabled = true;
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		// Wait for async registration
-		await flushAsync();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3370,15 +3624,15 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const propertiesBefore = toolDataBefore.inputSchema?.properties as Record<string, object> | undefined;
 		ok(propertiesBefore?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution before disabling unsandboxed commands');
 
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
-			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		await flushAsync();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered');
@@ -3393,16 +3647,15 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const toolDataBefore = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataBefore, 'Expected run_in_terminal tool to be registered');
 
-		// Fire network config change
-		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === AgentNetworkDomainSettingId.AllowedNetworkDomains,
-			affectedKeys: new Set([AgentNetworkDomainSettingId.AllowedNetworkDomains]),
-			source: ConfigurationTarget.USER,
-			change: null!,
+		await waitForToolDataRegistration(() => {
+			// Fire network config change
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: (key: string) => key === AgentNetworkDomainSettingId.AllowedNetworkDomains,
+				affectedKeys: new Set([AgentNetworkDomainSettingId.AllowedNetworkDomains]),
+				source: ConfigurationTarget.USER,
+				change: null!,
+			});
 		});
-
-		// Wait for async registration
-		await flushAsync();
 
 		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
 		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered after network setting change');

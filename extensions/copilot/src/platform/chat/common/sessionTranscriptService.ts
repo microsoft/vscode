@@ -251,7 +251,7 @@ export interface ISessionTranscriptService {
 
 	/**
 	 * Check whether a URI is under the transcripts storage directory.
-	 * Used by {@link assertFileOkForTool} to allowlist tool reads.
+	 * Used by file access checks to allowlist tool reads.
 	 */
 	isTranscriptUri(uri: URI): boolean;
 }

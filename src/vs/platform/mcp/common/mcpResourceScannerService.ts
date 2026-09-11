@@ -8,17 +8,21 @@ import { Queue } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { parse, ParseError } from '../../../base/common/json.js';
+import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
+import { applyEdits, setProperty } from '../../../base/common/jsonEdit.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { ConfigurationTarget, ConfigurationTargetToString } from '../../configuration/common/configuration.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IInstallableMcpServer } from './mcpManagement.js';
 import { ICommonMcpServerConfiguration, IMcpSandboxConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
+import { getWorkspaceRootMcpConfigurationError, McpResourceFormat, parseWorkspaceRootMcpConfiguration } from './mcpWorkspaceConfiguration.js';
 
 interface IScannedMcpServers {
 	servers?: IStringDictionary<Mutable<IMcpServerConfiguration>>;
@@ -45,10 +49,10 @@ export type McpResourceTarget = ConfigurationTarget.USER | ConfigurationTarget.W
 export const IMcpResourceScannerService = createDecorator<IMcpResourceScannerService>('IMcpResourceScannerService');
 export interface IMcpResourceScannerService {
 	readonly _serviceBrand: undefined;
-	scanMcpServers(mcpResource: URI, target?: McpResourceTarget): Promise<IScannedMcpServers>;
-	addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
-	updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget): Promise<void>;
-	removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
+	scanMcpServers(mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<IScannedMcpServers>;
+	addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
+	updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
+	removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
 }
 
 export class McpResourceScannerService extends Disposable implements IMcpResourceScannerService {
@@ -63,11 +67,32 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		super();
 	}
 
-	async scanMcpServers(mcpResource: URI, target?: McpResourceTarget): Promise<IScannedMcpServers> {
+	async scanMcpServers(mcpResource: URI, target?: McpResourceTarget, format = McpResourceFormat.Vscode): Promise<IScannedMcpServers> {
+		if (format === McpResourceFormat.WorkspaceRoot) {
+			return this.withWorkspaceRootMcpServers(mcpResource);
+		}
 		return this.withProfileMcpServers(mcpResource, target);
 	}
 
-	async addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget): Promise<void> {
+	async addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget, format = McpResourceFormat.Vscode): Promise<void> {
+		if (format === McpResourceFormat.WorkspaceRoot) {
+			for (const server of servers) {
+				const error = getWorkspaceRootMcpConfigurationError(server);
+				if (error) {
+					throw new Error(error);
+				}
+			}
+			await this.withWorkspaceRootMcpServers(mcpResource, (content, wrapped) => {
+				for (const { name, config } of servers) {
+					if (!wrapped && name === 'mcpServers') {
+						throw new Error(localize('reservedWorkspaceRootMcpServerName', "To add a server named 'mcpServers', first wrap the existing servers in an 'mcpServers' object in .mcp.json."));
+					}
+					content = this.editWorkspaceRootMcpServer(content, wrapped, name, config);
+				}
+				return content;
+			});
+			return;
+		}
 		await this.withProfileMcpServers(mcpResource, target, scannedMcpServers => {
 			let updatedInputs = scannedMcpServers.inputs ?? [];
 			const existingServers = scannedMcpServers.servers ?? {};
@@ -83,11 +108,23 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		});
 	}
 
-	async updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget): Promise<void> {
+	async updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget, format = McpResourceFormat.Vscode): Promise<void> {
+		if (format === McpResourceFormat.WorkspaceRoot) {
+			throw new Error(localize('unsupportedWorkspaceRootMcpSandbox', "Sandbox configuration is not supported in .mcp.json. Use .vscode/mcp.json instead."));
+		}
 		await this.withProfileMcpServers(mcpResource, target, updateFn);
 	}
 
-	async removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget): Promise<void> {
+	async removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget, format = McpResourceFormat.Vscode): Promise<void> {
+		if (format === McpResourceFormat.WorkspaceRoot) {
+			await this.withWorkspaceRootMcpServers(mcpResource, (content, wrapped) => {
+				for (const name of serverNames) {
+					content = this.editWorkspaceRootMcpServer(content, wrapped, name, undefined);
+				}
+				return content;
+			});
+			return;
+		}
 		await this.withProfileMcpServers(mcpResource, target, scannedMcpServers => {
 			for (const serverName of serverNames) {
 				if (scannedMcpServers.servers?.[serverName]) {
@@ -96,6 +133,44 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 			}
 			return scannedMcpServers;
 		});
+	}
+
+	private withWorkspaceRootMcpServers(mcpResource: URI, update?: (content: string, wrapped: boolean) => string): Promise<IScannedMcpServers> {
+		return this.getResourceAccessQueue(this.uriIdentityService.asCanonicalUri(mcpResource)).queue(async () => {
+			let file: IFileContent | undefined;
+			try {
+				file = await this.fileService.readFile(mcpResource);
+			} catch (error) {
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					throw error;
+				}
+			}
+			const content = file?.value.toString() ?? '{\n\t"mcpServers": {}\n}\n';
+			const parsed = parseWorkspaceRootMcpConfiguration(content);
+			const updated = update?.(content, parsed.wrapped) ?? content;
+			if (updated !== content) {
+				if (file) {
+					const current = await this.fileService.readFile(mcpResource);
+					if (current.value.toString() !== content) {
+						throw new FileOperationError(localize('workspaceRootMcpConfigurationChanged', "The .mcp.json file changed while updating MCP servers. Please try again."), FileOperationResult.FILE_MODIFIED_SINCE);
+					}
+					await this.fileService.writeFile(mcpResource, VSBuffer.fromString(updated), { etag: current.etag, mtime: current.mtime });
+				} else {
+					await this.fileService.createFile(mcpResource, VSBuffer.fromString(updated), { overwrite: false });
+				}
+			}
+			return { servers: parseWorkspaceRootMcpConfiguration(updated).servers };
+		});
+	}
+
+	private editWorkspaceRootMcpServer(content: string, wrapped: boolean, name: string, config: IMcpServerConfiguration | undefined): string {
+		const indentation = /^(?<indentation>[ \t]+)"/m.exec(content)?.groups?.indentation;
+		const insertSpaces = indentation !== undefined && !indentation.includes('\t');
+		return applyEdits(content, setProperty(content, wrapped ? ['mcpServers', name] : [name], config, {
+			insertSpaces,
+			tabSize: insertSpaces ? indentation.length : 1,
+			eol: content.includes('\r\n') ? '\r\n' : '\n',
+		}));
 	}
 
 	private async withProfileMcpServers(mcpResource: URI, target?: McpResourceTarget, updateFn?: (data: IScannedMcpServers) => IScannedMcpServers): Promise<IScannedMcpServers> {
@@ -108,7 +183,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 					const errors: ParseError[] = [];
 					const result = parse(content.value.toString(), errors, { allowTrailingComma: true, allowEmptyContent: true }) || {};
 					if (errors.length > 0) {
-						throw new Error('Failed to parse scanned MCP servers: ' + errors.join(', '));
+						throw new Error('Failed to parse scanned MCP servers: ' + errors.map(e => `[${e.offset}, ${e.length}] ${getParseErrorMessage(e.error)}`).join(', '));
 					}
 
 					if (target === ConfigurationTarget.USER) {
@@ -164,7 +239,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 			const errors: ParseError[] = [];
 			scannedWorkspaceMcpServers = parse(content.value.toString(), errors, { allowTrailingComma: true, allowEmptyContent: true }) as IScannedWorkspaceMcpServers;
 			if (errors.length > 0) {
-				throw new Error('Failed to parse scanned MCP servers: ' + errors.join(', '));
+				throw new Error('Failed to parse scanned MCP servers: ' + errors.map(e => `[${e.offset}, ${e.length}] ${getParseErrorMessage(e.error)}`).join(', '));
 			}
 		} catch (error) {
 			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {

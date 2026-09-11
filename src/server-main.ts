@@ -5,6 +5,7 @@
 
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
@@ -166,7 +167,11 @@ function sanitizeStringArg(val: unknown): string | undefined {
  * `Unknown reconnection token` reconnection failures). The handlers tell apart a
  * self-exit (`beforeExit`), an external kill (`signal`) and a crash
  * (`uncaughtExceptionMonitor`). Gated behind the `VSCODE_SERVER_EXIT_DIAGNOSTICS`
- * env var (set by the smoke tests) so it adds no product noise.
+ * env var (set by the smoke tests) so it adds no product noise. Lines are
+ * appended synchronously to a `server-exit-diagnostics.log` file in the server's
+ * `--logsPath` directory (falling back to `os.tmpdir()` when `--logsPath` is not
+ * provided) so they survive process teardown (an async stdio write from an
+ * `exit` handler does not).
  */
 function installServerProcessExitDiagnostics(): void {
 	if (!process.env['VSCODE_SERVER_EXIT_DIAGNOSTICS']) {
@@ -174,14 +179,55 @@ function installServerProcessExitDiagnostics(): void {
 	}
 
 	const startTime = Date.now();
+
+	// Append diagnostics synchronously to a file rather than relying on
+	// `console.error`: a process `exit` handler cannot flush an async pipe write
+	// (the server's stdio is piped through the test resolver, and on Windows
+	// additionally through a `cmd.exe`/batch wrapper) before the process dies,
+	// so the exit-time lines we care about most were being dropped. A synchronous
+	// `fs.appendFileSync` survives teardown. We target the server's `--logsPath`
+	// directory because it is captured as a smoke test artifact.
+	const logsPath = sanitizeStringArg(parsedArgs['logsPath']) || os.tmpdir();
+	const diagnosticsFile = path.join(logsPath, 'server-exit-diagnostics.log');
+	try {
+		fs.mkdirSync(logsPath, { recursive: true });
+	} catch {
+		// best effort: the directory is normally created by the server already
+	}
+
+	// The file write is authoritative: it is synchronous (so it survives process
+	// teardown) and goes to a captured smoke artifact. We additionally mirror to
+	// stderr for live visibility in the test resolver's output channel, but that
+	// mirror is dangerous precisely because these diagnostics fire when the
+	// server's stdio pipe is dying: a write to a broken pipe throws `EPIPE`
+	// synchronously and/or emits an async `error` event, either of which Node
+	// promotes to an uncaught exception — which re-enters the
+	// `uncaughtExceptionMonitor` handler below and loops (one CI run produced a
+	// 386MB log this way). We therefore make the mirror best-effort and latch it
+	// off after the first failure, and attach an `error` handler so async pipe
+	// errors are swallowed rather than crashing the process.
+	let mirrorToStderr = true;
+	try {
+		process.stderr.on('error', () => { mirrorToStderr = false; });
+	} catch {
+		mirrorToStderr = false;
+	}
+
 	const log = (message: string) => {
-		// Use `console.error` so the line survives even if stdout is in a
-		// broken-pipe state. The test resolver forwards the server's stdio into
-		// its own output channel, so this ends up in the captured smoke logs.
+		const line = `[server-exit-diagnostics][${new Date().toISOString()}][pid:${process.pid}][+${Date.now() - startTime}ms] ${message}`;
 		try {
-			console.error(`[server-exit-diagnostics][${new Date().toISOString()}][pid:${process.pid}][+${Date.now() - startTime}ms] ${message}`);
+			fs.appendFileSync(diagnosticsFile, `${line}\n`);
 		} catch {
 			// ignore logging failures while the process is tearing down
+		}
+		if (mirrorToStderr) {
+			try {
+				process.stderr.write(`${line}\n`);
+			} catch {
+				// Broken pipe during teardown: stop mirroring so we can never
+				// throw (and thus loop) on subsequent diagnostics.
+				mirrorToStderr = false;
+			}
 		}
 	};
 
@@ -204,8 +250,21 @@ function installServerProcessExitDiagnostics(): void {
 	// `uncaughtExceptionMonitor` is observational: it runs before the process
 	// crashes but does NOT prevent the default crash, so the real failure mode
 	// is preserved. It also fires for unhandled rejections that get promoted to
-	// uncaught exceptions by Node's default policy.
-	process.on('uncaughtExceptionMonitor', (err, origin) => log(`'uncaughtExceptionMonitor' (origin: ${origin}): ${err?.stack || err}`));
+	// uncaught exceptions by Node's default policy. Guard against re-entrancy:
+	// if logging an exception were to itself throw (and get promoted to another
+	// uncaught exception), we must not recurse into this handler forever.
+	let handlingUncaughtException = false;
+	process.on('uncaughtExceptionMonitor', (err, origin) => {
+		if (handlingUncaughtException) {
+			return;
+		}
+		handlingUncaughtException = true;
+		try {
+			log(`'uncaughtExceptionMonitor' (origin: ${origin}): ${err?.stack || err}`);
+		} finally {
+			handlingUncaughtException = false;
+		}
+	});
 
 	const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGHUP', 'SIGBREAK', 'SIGQUIT'];
 	for (const signal of signals) {

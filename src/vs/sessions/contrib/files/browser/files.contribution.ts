@@ -6,10 +6,9 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -17,11 +16,10 @@ import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensi
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { IsSessionsWindowContext, WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
+import { WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { ActiveSessionHasGitRepositoryContext, ActiveSessionHasGitSyncActionRunningContext, IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 
 export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
@@ -37,7 +35,7 @@ const filesViewContainer = viewContainerRegistry.registerViewContainer({
 	order: 11,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [SESSIONS_FILES_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: SESSIONS_FILES_CONTAINER_ID,
-	hideIfEmpty: false,
+	hideIfEmpty: true,
 	openCommandActionDescriptor: {
 		id: SESSIONS_FILES_CONTAINER_ID,
 		title: localize2('explore', "Explorer"),
@@ -48,7 +46,7 @@ const filesViewContainer = viewContainerRegistry.registerViewContainer({
 	windowEnablement: WindowEnablement.Sessions,
 }, ViewContainerLocation.AuxiliaryBar, { isDefault: true });
 
-class RegisterFilesViewContribution implements IWorkbenchContribution {
+export class RegisterFilesViewContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.registerFilesView';
 
@@ -63,7 +61,7 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerView),
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsPhoneLayoutContext.negate()),
+			when: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
 			windowEnablement: WindowEnablement.Sessions,
 		}], filesViewContainer);
 
@@ -75,55 +73,19 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerEmptyView),
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(WorkspaceFolderCountContext.isEqualTo('0'), IsPhoneLayoutContext.negate()),
+			when: ContextKeyExpr.and(
+				IsPhoneLayoutContext.negate(),
+				ContextKeyExpr.or(
+					ContextKeyExpr.and(WorkspaceFolderCountContext.isEqualTo('0'), SessionHasWorkspaceContext),
+					ContextKeyExpr.and(SinglePaneLayoutEnabledContext, IsQuickChatSessionContext),
+				),
+			),
 			windowEnablement: WindowEnablement.Sessions,
 		}], filesViewContainer);
 	}
 }
 
 registerWorkbenchContribution2(RegisterFilesViewContribution.ID, RegisterFilesViewContribution, WorkbenchPhase.BlockStartup);
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.files.action.syncChanges',
-			title: localize2('syncChanges', "Sync Changes"),
-			icon: Codicon.sync,
-			precondition: ActiveSessionHasGitSyncActionRunningContext.negate(),
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsNewChatSessionContext,
-					ActiveSessionHasGitRepositoryContext,
-					ContextKeyExpr.equals('view', SESSIONS_FILES_VIEW_ID),
-				)
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const commandService = accessor.get(ICommandService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const contextService = accessor.get(IWorkspaceContextService);
-
-		const workspaceFolder = contextService.getWorkspace().folders[0];
-		if (!workspaceFolder) {
-			return;
-		}
-
-		const isSyncActionRunning = ActiveSessionHasGitSyncActionRunningContext.bindTo(contextKeyService);
-		isSyncActionRunning.set(true);
-
-		try {
-			await commandService.executeCommand('git.sync', workspaceFolder.uri);
-		} finally {
-			isSyncActionRunning.set(false);
-		}
-	}
-});
 
 registerAction2(class extends Action2 {
 	constructor() {

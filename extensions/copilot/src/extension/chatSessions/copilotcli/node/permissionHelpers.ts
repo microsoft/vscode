@@ -28,6 +28,8 @@ type CoreTerminalConfirmationToolParams = {
 		message: string;
 		command: string | undefined;
 		isBackground: boolean;
+		sandboxBypass?: boolean;
+		sandboxBypassReason?: string;
 	};
 };
 
@@ -217,12 +219,21 @@ export function buildShellConfirmationParams(
 	const userFriendlyCommand = fullCommandText ? getCdPresentationOverrides(fullCommandText, isPowershell, workingDirectory)?.commandLine : undefined;
 	const command = userFriendlyCommand ?? fullCommandText;
 
+	// When the model opted this command out of the sandbox, surface that to the
+	// user so the confirmation makes the elevation of privilege clear (the
+	// terminal confirmation tool renders its own title, so the note must be
+	// passed as a dedicated flag rather than baked into the message).
+	const sandboxBypass = permissionRequest.requestSandboxBypass === true;
+	const sandboxBypassReason = sandboxBypass ? permissionRequest.requestSandboxBypassReason : undefined;
+
 	return {
 		tool: ToolName.CoreTerminalConfirmationTool,
 		input: {
 			message: permissionRequest.intention || command || codeBlock(permissionRequest),
 			command,
-			isBackground: false
+			isBackground: false,
+			...(sandboxBypass ? { sandboxBypass: true } : {}),
+			...(sandboxBypassReason ? { sandboxBypassReason } : {}),
 		}
 	};
 }

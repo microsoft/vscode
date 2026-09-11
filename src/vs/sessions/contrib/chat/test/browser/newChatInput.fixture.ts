@@ -12,12 +12,26 @@ import { ISearchService } from '../../../../../workbench/services/search/common/
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
+import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
+import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
+import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
+import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { IChatInputNotification, ChatInputNotificationSeverity } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { configureChatPetFixtureFileRoot, FixtureChatPetService, assertChatPetInScreenshot } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
 
 // The new-session input box styling lives in these stylesheets; `style.css`
 // provides the `--vscode-agentsChatInput-*` theme variables and the
@@ -30,7 +44,28 @@ import '../../../../browser/media/style.css';
 interface NewChatInputFixtureOptions {
 	readonly value?: string;
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+	/** Docks the sub-session tip above the composer. */
+	readonly subSessionTip?: boolean;
+	/** Docks a notification above the input, through the real notification service. */
+	readonly notification?: IChatInputNotification;
+	/** Docks a getting-started tip in the composer's own notice slot. */
+	readonly gettingStartedTip?: boolean;
+	/** Stands the pet on the composer. */
+	readonly pet?: boolean;
 }
+
+/** Tall enough for the composer, its notices, and the pet standing on top. */
+const PET_FIXTURE_HEIGHT = 400;
+
+const petPlatformNotification: IChatInputNotification = {
+	id: 'fixture.petPlatform',
+	severity: ChatInputNotificationSeverity.Info,
+	message: 'Choose how you want to use Copilot.',
+	description: 'Sign in to use GitHub Copilot models, or add a model with your own API key.',
+	actions: [],
+	dismissible: false,
+	autoDismissOnMessage: false,
+};
 
 /**
  * Renders the real {@link NewChatInputWidget} inside the production DOM ancestry
@@ -40,12 +75,21 @@ interface NewChatInputFixtureOptions {
  */
 async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptions: NewChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { value, selection } = fixtureOptions;
+	const { value, selection, subSessionTip, notification, gettingStartedTip, pet } = fixtureOptions;
+
+	// Sprite sheets are resolved against the file root.
+	if (pet) {
+		configureChatPetFixtureFileRoot(disposableStore);
+	}
+	const chatPetService = pet ? disposableStore.add(new FixtureChatPetService({ enabled: true })) : undefined;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
-			registerChatFixtureServices(reg);
+			registerChatFixtureServices(reg, { notification });
+			if (chatPetService) {
+				reg.defineInstance(IChatPetService, chatPetService);
+			}
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
 				override readonly onShow = Event.None;
 				override readonly onHide = Event.None;
@@ -70,30 +114,103 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 			reg.defineInstance(IPromptsService, new class extends mock<IPromptsService>() {
 				override readonly onDidChangeSlashCommands = Event.None;
 			}());
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly onDidChangeSlashCommands = Event.None;
+				override async getSlashCommands() { return []; }
+			}());
+			reg.defineInstance(INewChatVoiceTargetService, disposableStore.add(new NewChatVoiceTargetService(
+				new class extends mock<ISessionsService>() {
+					override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+				}(),
+				new class extends mock<IChatWidgetService>() {
+					override readonly onDidChangeFocusedSession = Event.None;
+				}(),
+			)));
+			reg.defineInstance(IVoiceInputModeService, new class extends mock<IVoiceInputModeService>() {
+				override readonly selectedMode = observableValue<VoiceInputMode>('selectedMode', 'voice');
+				override readonly voiceAvailable = observableValue<boolean>('voiceAvailable', false);
+				override readonly dictationAvailable = observableValue<boolean>('dictationAvailable', false);
+				override readonly handsFree = observableValue<boolean>('handsFree', true);
+				override readonly simulatedVoiceState = observableValue<undefined>('simulatedVoiceState', undefined);
+				override readonly simulatedHandsFree = observableValue<undefined>('simulatedHandsFree', undefined);
+				override readonly simulatedVersion = observableValue<undefined>('simulatedVersion', undefined);
+				override readonly simulatedHover = observableValue<boolean>('simulatedHover', false);
+			}());
+			reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
+				override readonly isConnected = observableValue<boolean>('isConnected', false);
+				override readonly isConnecting = observableValue<boolean>('isConnecting', false);
+				override readonly voiceState = observableValue<'idle' | 'listening' | 'processing' | 'speaking' | 'error'>('voiceState', 'idle');
+				override readonly targetSession = observableValue<URI | undefined>('targetSession', undefined);
+				override readonly hasDraftTarget = observableValue<boolean>('hasDraftTarget', false);
+				override readonly transcriptTurns = observableValue<never[]>('transcriptTurns', []);
+			}());
+			reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {
+				override readonly analyserNode = undefined;
+			}());
+			reg.defineInstance(IMicCaptureService, new class extends mock<IMicCaptureService>() {
+				override readonly analyserNode = undefined;
+			}());
+			reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+				override readonly onDidChangeState = Event.None;
+				override readonly onDidChangePreparingModel = Event.None;
+				override readonly onDidChangeDownloadingModel = Event.None;
+				override readonly state = ChatSpeechToTextState.Idle;
+				override readonly isConfigured = false;
+				override readonly isPreparingModel = false;
+				override readonly isDownloadingModel = false;
+			}());
 		},
 	});
 
 	container.style.width = '600px';
-	container.style.height = '160px';
+	container.style.height = pet ? `${PET_FIXTURE_HEIGHT}px` : '160px';
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 
 	// `.new-chat-in-session` scopes the layout overrides and
 	// `.new-chat-widget-container.revealed` flips `.new-chat-input-container`
-	// from `display: none` to visible.
+	// from `display: none` to visible. The content element is the outer chat
+	// input stack, as it is in `NewChatInSessionWidget`.
 	const root = dom.append(container, dom.$('.new-chat-in-session.sessions-chat-widget'));
 	const widgetContainer = dom.append(root, dom.$('.new-chat-widget-container.revealed'));
-	const content = dom.append(widgetContainer, dom.$('.new-chat-widget-content'));
+	const content = dom.append(widgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
 	const session = observableValue<IActiveSession | undefined>('session', undefined);
 	const widget = disposableStore.add(instantiationService.createInstance(NewChatInputWidget, {
 		session,
 		getContextFolderUri: () => undefined,
-		sendRequest: async () => { },
+		sendRequest: async () => true,
 		canSendRequest: observableValue('canSendRequest', true),
 		loading: observableValue('loading', false),
 	}));
 
 	widget.render(content, container);
+
+	// Fills the composer's own tip slot, which production drives from ChatInputTipPresenter.
+	const tipSlot = widget.gettingStartedTipContainerElement;
+	if (gettingStartedTip && tipSlot) {
+		const tip = disposableStore.add(new ChatInputNoticeWidget({
+			container: tipSlot,
+			variant: ChatInputNoticeVariant.Tip,
+			ariaLabel: 'Getting started tip',
+		}));
+		dom.append(tip.domNode, dom.$('span')).textContent =
+			'Tip: Configure default permissions to start new sessions in Bypass Approvals or Autopilot mode.';
+		setChatInputStackSlot(tipSlot, ChatInputStackSlot.Docked);
+	}
+
+	// The sub-session tip, which `NewChatInSessionWidget` docks in the composer's host slot.
+	const hostSlot = widget.hostNoticeContainerElement;
+	if (subSessionTip && hostSlot) {
+		hostSlot.classList.add('sub-session-tip-container');
+		const tip = disposableStore.add(new ChatInputNoticeWidget({
+			container: hostSlot,
+			variant: ChatInputNoticeVariant.Tip,
+			ariaLabel: 'Sub-session tip',
+		}));
+		dom.append(tip.domNode, dom.$('span.sub-session-tip-text')).textContent =
+			'Start a parallel conversation to build on all the changes made in this session.';
+		setChatInputStackSlot(hostSlot, ChatInputStackSlot.Docked);
+	}
 
 	// The widget lays out its editor on the input container's `animationend`; in the
 	// fixture there is no animation, so seed the value and lay out explicitly.
@@ -109,6 +226,10 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 		}
 	}
 	await new Promise(r => setTimeout(r, 50));
+
+	if (pet) {
+		assertChatPetInScreenshot(container);
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
@@ -128,4 +249,24 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 	SlashCommand: defineComponentFixture({ render: context => renderNewChatInput(context, { value: '/models' }) }),
 	// A `#file:` reference is highlighted via `.sessions-variable-reference`.
 	VariableReference: defineComponentFixture({ render: context => renderNewChatInput(context, { value: 'Explain #file:src/app.ts to me' }) }),
+	// The sub-session tip docked above the composer: a notice in the outer stack
+	// squaring the input inside the composer's own nested stack.
+	WithSubSessionTip: defineComponentFixture({
+		render: context => renderNewChatInput(context, { value: 'What are you building?', subSessionTip: true })
+	}),
+
+	// Where the pet lands, for each notice that can dock above the input (#332570).
+	WithPet: defineComponentFixture({
+		render: context => renderNewChatInput(context, { pet: true }),
+	}),
+	WithPetAndNotification: defineComponentFixture({
+		render: context => renderNewChatInput(context, { notification: petPlatformNotification, pet: true }),
+	}),
+	WithPetAndGettingStartedTip: defineComponentFixture({
+		render: context => renderNewChatInput(context, { gettingStartedTip: true, pet: true }),
+	}),
+	// The sub-session tip, docked from the composer's host slot.
+	WithPetAndSubSessionTip: defineComponentFixture({
+		render: context => renderNewChatInput(context, { subSessionTip: true, pet: true }),
+	}),
 });

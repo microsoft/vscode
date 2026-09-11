@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
-import { FileAccess } from '../../../../base/common/network.js';
-import { dirname } from '../../../../base/common/path.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { basename, dirname } from '../../../../base/common/path.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createHash } from 'crypto';
@@ -15,7 +15,10 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ISandboxHelperService, type ISandboxDependencyStatus, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
+import { getSessionSandboxOverrides } from '../sessionSandbox.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
@@ -23,23 +26,33 @@ const SANDBOX_TEMP_DIR_NAME = 'tmp';
 /**
  * Host adapter that bridges agent-host environment data into the shared
  * {@link TerminalSandboxEngine}. One instance per session, wired up via
- * {@link createAgentHostSandboxEngine}.
+ * {@link AgentHostSandboxEngine}.
  */
-class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
-	readonly onDidChangeRoots = Event.None;
+class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandboxEngineHost {
+	private readonly _onDidChangeRoots = this._register(new Emitter<void>());
+	readonly onDidChangeRoots = this._onDidChangeRoots.event;
 	readonly onDidChangeSandboxSettings: Event<void>;
 	private readonly _sandboxHelper: ISandboxHelperService;
 
 	constructor(
 		private readonly _sessionId: string,
-		private readonly _workingDirectory: URI | undefined,
+		private _workingDirectory: URI | undefined,
 		private readonly _environmentService: INativeEnvironmentService,
 		private readonly _productService: IProductService,
 		private readonly _agentConfigurationService: IAgentConfigurationService,
 		sandboxHelper: ISandboxHelperService,
 	) {
+		super();
 		this._sandboxHelper = sandboxHelper;
-		this.onDidChangeSandboxSettings = this._agentConfigurationService.onDidRootConfigChange;
+		this.onDidChangeSandboxSettings = Event.any(
+			this._agentConfigurationService.onDidRootConfigChange,
+			Event.map(Event.filter(this._agentConfigurationService.onDidSessionConfigChange, event => event.session === resolveAgentHostSession(URI.parse(this._sessionId)).toString()), () => undefined),
+		);
+	}
+
+	setWorkingDirectory(workingDirectory: URI): void {
+		this._workingDirectory = workingDirectory;
+		this._onDidChangeRoots.fire();
 	}
 
 	async getOS(): Promise<OperatingSystem> {
@@ -47,9 +60,11 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 	}
 
 	async getRuntimeInfo(): Promise<ITerminalSandboxRuntimeInfo> {
-		const appRoot = dirname(FileAccess.asFileUri('').path);
+		const nodeModulesUri = getAppNodeModulesUri();
+		const appRoot = dirname(nodeModulesUri.fsPath);
 		const runAsNode = !!process.versions['electron'];
-		return { appRoot, execPath: process.execPath, runAsNode };
+		const nativeModulesDir = basename(nodeModulesUri.fsPath);
+		return { appRoot, execPath: process.execPath, runAsNode, nativeModulesDir };
 	}
 
 	async getUserHome(): Promise<URI | undefined> {
@@ -103,34 +118,41 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 		// The agent host stores sandbox settings nested under a single
 		// top-level `sandbox` object with prefix-free sub-keys (e.g.
 		// `sandbox.enabled` rather than `chat.agent.sandbox.enabled`). Map
-		// from the engine's modern setting ID into that sub-key namespace;
-		// unknown IDs (which include all deprecated keys — handled host-side
-		// by the workbench client) resolve to undefined.
+		// from the engine's setting ID into that sub-key namespace.
 		const innerKey = sandboxSettingIdToAgentHostKey[settingId];
 		if (innerKey === undefined) {
 			return undefined;
 		}
-		const sandbox = this._agentConfigurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
+		const sandbox = {
+			...this._agentConfigurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
+			...getSessionSandboxOverrides(this._agentConfigurationService, this._sessionId),
+		};
 		return sandbox?.[innerKey] as T | undefined;
 	}
 }
 
-/**
- * Construct a per-session {@link TerminalSandboxEngine} for the agent host.
- * The returned engine is registered with the caller's instantiation service
- * but the caller is responsible for disposing it (typically by registering it
- * alongside the per-session {@link ShellManager}).
- */
-export function createAgentHostSandboxEngine(
-	instantiationService: IInstantiationService,
-	environmentService: IEnvironmentService,
-	productService: IProductService,
-	agentConfigurationService: IAgentConfigurationService,
-	sandboxHelper: ISandboxHelperService,
-	sessionId: string,
-	workingDirectory: URI | undefined,
-): TerminalSandboxEngine {
-	const host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sandboxHelper);
-	return instantiationService.createInstance(TerminalSandboxEngine, host);
-}
+/** Owns the terminal sandbox engine and its mutable Agent Host adapter. */
+export class AgentHostSandboxEngine extends Disposable {
+	readonly engine: TerminalSandboxEngine;
+	private readonly _host: AgentHostTerminalSandboxHost;
 
+	constructor(
+		sessionId: string,
+		workingDirectory: URI | undefined,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IProductService productService: IProductService,
+		@IAgentConfigurationService agentConfigurationService: IAgentConfigurationService,
+		@ISandboxHelperService sandboxHelper: ISandboxHelperService,
+	) {
+		super();
+		this._host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sandboxHelper);
+		this.engine = instantiationService.createInstance(TerminalSandboxEngine, this._host);
+		this._register(this.engine);
+		this._register(this._host);
+	}
+
+	setWorkingDirectory(workingDirectory: URI): void {
+		this._host.setWorkingDirectory(workingDirectory);
+	}
+}

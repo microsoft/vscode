@@ -20,8 +20,20 @@ The sessions process is a portable, standalone server that multiple clients can 
 
 See the agent host protocol documentation for more details.
 
+## Service Construction
+
+Read `src/vs/platform/agentHost/node/serviceBootstrapping.md` before adding or moving a node Agent Host service. It is the canonical guide for service placement, static constructor arguments, activation, test overrides, and disposal ownership.
+
+## Protocol Metadata
+
+Put new readers for namespaced protocol `_meta` slots under `common/meta`. Readers must validate every value they return and expose typed data; callers should pass the parent protocol object rather than inspecting `_meta` fields directly. Existing unnamespaced and legacy readers live elsewhere and should be migrated separately when touched. Use type guards for dynamic properties; do not bypass type narrowing or lint rules with `Reflect.get`.
+
 ## End to End Testing
 
 You can run `node ./scripts/code-agent-host.js` to start an agent host. If you pass `--enable-mock-agent`, then the `ScriptedMockAgent` will be used.
 
 By default this will listen on `ws://127.0.0.1:8081`. You can then use the `ahp-websocket` client, when available, to connect to and communicate with it.
+
+## Learnings
+
+- Provider-owned session configuration inheritance must be selected by the owning `IAgent`; `AgentService` only orchestrates transfer and must not encode provider-specific configuration keys.

@@ -134,18 +134,13 @@ Reviewers will always flag hardcoded colors, shadows, sizes that should use them
 | `border: 1px solid …` (width) | `var(--vscode-strokeThickness)` for the 1px width |
 | `border-radius: 6px` | `var(--vscode-cornerRadius-medium)` (radius ramp) |
 | `padding: 8px 12px` (off-scale) | spacing ramp (`--vscode-spacing-size*`) |
-| `font-size: 14px` (arbitrary) | size ramp (`--vscode-bodyFontSize`, agents `--vscode-agents-fontSize-*`) |
-| `font-weight: 500` | agents `--vscode-agents-fontWeight-semiBold` (no 500) |
+| `font-size: 14px` (arbitrary) | size ramp (`--vscode-fontSize-*`) |
+| `font-weight: 500` | `--vscode-fontWeight-semiBold` (no 500) |
 | codicon `font-size: 14px` | `--vscode-codiconFontSize` (16) / `-compact` (12) |
 
 **Rule:** If a value relates to color, shadow, or border — it must come from a CSS variable or registered color token. The only exception is `0` (zero) values and purely structural measurements like `100%`.
 
-**Size, spacing, radius, font and stroke** values have their own design-system
-**size** tokens (and decision logic — snap maps, the pill→`circle` rule, and the
-compact-glyph convention). Those live in the **ux-css-layout** skill (§10
-Design-System Size Tokens) and the auto-injected
-`.github/instructions/design-tokens.instructions.md`. Reach for those when a flag
-is about *how big / how round / how bold* something is rather than *what color*.
+**Size, spacing, radius, font and stroke** values have their own design-system **size** tokens (and decision logic — snap maps, the pill→`circle` rule, and the compact-glyph convention). Those live in the **ux-css-layout** skill (§10 Design-System Size Tokens) and the auto-injected `.github/instructions/design-tokens.instructions.md`. Reach for those when a flag is about *how big / how round / how bold* something is rather than *what color*.
 
 
 ---

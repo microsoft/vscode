@@ -12,10 +12,8 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { ISessionsService } from './sessionsService.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
-	Read = 'read',
 	Sort = 'sort',
 }
 
@@ -31,30 +29,33 @@ export interface ISessionListModelChangeEvent {
 }
 
 /**
- * Service that manages UI-only state for sessions: pinned and read.
+ * Service that manages UI-only state for sessions: pinned and manual sort order.
  *
  * This state is purely local (persisted in storage) and not synced to providers.
  * Extracted from SessionsList so it can be consumed by any component (title bar,
  * views, actions) without going through the view.
+ *
+ * Note: read/unread state is **not** managed here — it is owned by the sessions
+ * provider and surfaced via {@link ISession.isRead}. Marking happens through
+ * {@link ISessionsManagementService}.
  */
 export interface ISessionsListModelService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when a session's pinned or read state changes. */
+	/** Fires when a session's pinned or sort state changes. */
 	readonly onDidChange: Event<ISessionListModelChangeEvent>;
 
 	// -- Pinning --
 
 	pinSession(session: ISession): void;
 	unpinSession(session: ISession): void;
+	unpinSessions(sessions: ISession[]): void;
 	isSessionPinned(session: ISession): boolean;
 
-	// -- Read/Unread --
+	// -- Legacy read-state migration --
 
-	markRead(session: ISession): void;
-	markUnread(session: ISession): void;
-	isSessionRead(session: ISession): boolean;
-	markAllRead(sessions: ISession[]): void;
+	/** One-time, per-session migration of the legacy read set into provider-owned read state. */
+	migrateLegacyReadState(session: ISession): void;
 
 	// -- Manual sort order --
 
@@ -102,64 +103,65 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
-	private static readonly READ_SESSIONS_KEY = 'sessionsListControl.readSessions';
 	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
-
-	/**
-	 * Sessions created on or after this date start as unread by default.
-	 * Sessions created before this date are treated as read even if absent from
-	 * the read set, preserving the behaviour that existed before the unread
-	 * indicator was introduced.
-	 */
+	private static readonly UPDATED_DEFAULT_PLACEMENTS_KEY = 'sessionsListControl.updatedDefaultPlacements';
+	private static readonly LEGACY_READ_SESSIONS_KEY = 'sessionsListControl.readSessions';
+	private static readonly READ_MIGRATION_DONE_KEY = 'sessionsListControl.readMigrationDone';
 	private static readonly UNREAD_DEFAULT_CUTOFF = new Date('2026-05-12T00:00:00.000Z');
 
 	private readonly _onDidChange = this._register(new Emitter<ISessionListModelChangeEvent>());
 	readonly onDidChange: Event<ISessionListModelChangeEvent> = this._onDidChange.event;
 
 	private readonly _pinnedSessionIds: Set<string>;
-	private readonly _readSessionIds: Set<string>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
-	private readonly _lastKnownStatus = new Map<string, SessionStatus>();
+	private readonly _updatedDefaultPlacements: Map<string, number | null>;
+	private readonly _legacyReadSessionIds: Set<string> | undefined;
+	private readonly _migratedReadSessionIds: Set<string>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
 
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
-		this._readSessionIds = this.loadSet(SessionsListModelService.READ_SESSIONS_KEY);
 		this._sortOverrides = this.loadSortOverrides();
+		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
+		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
+		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
+		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
 
-		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
-			for (const session of e.removed) {
-				this.deleteSession(session);
-			}
+		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.updateDefaultPlacement(this.sessionsManagementService.getSessions())));
+		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
 
-			// When a session completes a turn in the background (transitions
-			// from InProgress to a terminal status) mark it as unread so the
-			// sessions list shows the indicator.
-			const activeSessionId = this.sessionsService.activeSession.get()?.sessionId;
-			for (const session of e.changed) {
-				const previous = this._lastKnownStatus.get(session.sessionId);
-				const current = session.status.get();
-				this._lastKnownStatus.set(session.sessionId, current);
-
-				if (
-					previous === SessionStatus.InProgress &&
-					current !== SessionStatus.InProgress &&
-					current !== SessionStatus.Untitled &&
-					session.sessionId !== activeSessionId
-				) {
-					this.markUnread(session);
-				}
-			}
-
-			for (const session of e.added) {
-				this._lastKnownStatus.set(session.sessionId, session.status.get());
-			}
+		// Only a definitive deletion discards pin and sort state. A session
+		// merely dropping out of the provider's list is an eviction (e.g. an
+		// agent that cannot answer `listSessions` yet reports no sessions), and
+		// discarding state there would permanently unpin sessions that come
+		// back on the next refresh.
+		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
+			this.deleteSession(session);
 		}));
+	}
+
+	// -- Legacy read-state migration --
+
+	// TODO@sandy081 Remove after 2026-10-14. Additive only: never marks unread
+	// (the provider already defaults to unread); the one-shot guard stops a later
+	// legitimate unread from being re-flipped to read on refresh.
+	migrateLegacyReadState(session: ISession): void {
+		const sessionId = session.sessionId;
+		if (this._migratedReadSessionIds.has(sessionId)) {
+			return;
+		}
+		const wasRead = (this._legacyReadSessionIds?.has(sessionId) ?? false)
+			|| session.updatedAt.get() < SessionsListModelService.UNREAD_DEFAULT_CUTOFF;
+		if (!wasRead) {
+			return;
+		}
+		this.sessionsManagementService.markRead(session);
+		this._migratedReadSessionIds.add(sessionId);
+		this.saveSet(SessionsListModelService.READ_MIGRATION_DONE_KEY, this._migratedReadSessionIds);
 	}
 
 	// -- Pinning --
@@ -182,57 +184,102 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
 	}
 
-	isSessionPinned(session: ISession): boolean {
-		return this._pinnedSessionIds.has(session.sessionId);
-	}
-
-	// -- Read/Unread --
-
-	markRead(session: ISession): void {
-		if (this._readSessionIds.has(session.sessionId)) {
-			return;
-		}
-		this._readSessionIds.add(session.sessionId);
-		this.saveSet(SessionsListModelService.READ_SESSIONS_KEY, this._readSessionIds);
-		this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Read }] });
-	}
-
-	markUnread(session: ISession): void {
-		if (!this._readSessionIds.has(session.sessionId)) {
-			return;
-		}
-		this._readSessionIds.delete(session.sessionId);
-		this.saveSet(SessionsListModelService.READ_SESSIONS_KEY, this._readSessionIds);
-		this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Read }] });
-	}
-
-	isSessionRead(session: ISession): boolean {
-		if (this._readSessionIds.has(session.sessionId)) {
-			return true;
-		}
-		// Sessions last updated before the cutoff date pre-date the unread
-		// indicator feature and are treated as read to avoid a flood of unread
-		// badges on upgrade. Once a session receives new activity (its updatedAt
-		// advances past the cutoff) it becomes unread again so the indicator
-		// works correctly.
-		return session.updatedAt.get() < SessionsListModelService.UNREAD_DEFAULT_CUTOFF;
-	}
-
-	markAllRead(sessions: ISession[]): void {
+	unpinSessions(sessions: ISession[]): void {
 		const changed: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
 		for (const session of sessions) {
-			if (!this._readSessionIds.has(session.sessionId)) {
-				this._readSessionIds.add(session.sessionId);
-				changed.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Read });
+			if (this._pinnedSessionIds.delete(session.sessionId)) {
+				changed.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
 			}
 		}
 		if (changed.length > 0) {
-			this.saveSet(SessionsListModelService.READ_SESSIONS_KEY, this._readSessionIds);
+			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 			this._onDidChange.fire({ changes: changed });
 		}
 	}
 
+	isSessionPinned(session: ISession): boolean {
+		return this._pinnedSessionIds.has(session.sessionId);
+	}
+
 	// -- Manual sort order --
+
+	/** Fills missing sort overrides so created sessions start beside their creator; existing overrides remain authoritative. */
+	private updateDefaultPlacement(sessionsToCheck: readonly ISession[]): void {
+		const sessions = this.sessionsManagementService.getSessions();
+		const changedSessionIds = new Set<string>();
+		let sortChanged = this.expireUpdatedDefaultPlacements(sessionsToCheck, changedSessionIds);
+		for (const mode of ['created', 'updated'] as const) {
+			for (const session of sessionsToCheck) {
+				if (this.ensureCreatorAdjacentSortOverride(session, mode, sessions, new Set(), changedSessionIds)) {
+					sortChanged = true;
+				}
+			}
+		}
+		if (sortChanged) {
+			this.saveSortOverrides();
+			this.saveUpdatedDefaultPlacements();
+		}
+		if (changedSessionIds.size > 0) {
+			this._onDidChange.fire({
+				changes: [...changedSessionIds].map(sessionId => ({ sessionId, kind: SessionListModelChangeKind.Sort })),
+			});
+		}
+	}
+
+	private ensureCreatorAdjacentSortOverride(session: ISession, mode: SessionSortMode, sessions: readonly ISession[], visiting: Set<string>, changedSessionIds: Set<string>): boolean {
+		if (this._sortOverrides[mode].has(session.sessionId) || (mode === 'updated' && this._updatedDefaultPlacements.has(session.sessionId))) {
+			return false;
+		}
+		const creatorResource = session.createdBySession?.get()?.session;
+		if (!creatorResource) {
+			return false;
+		}
+		const creator = this.sessionsManagementService.getSession(creatorResource);
+		if (!creator || visiting.has(session.sessionId)) {
+			return false;
+		}
+		visiting.add(session.sessionId);
+		this.ensureCreatorAdjacentSortOverride(creator, mode, sessions, visiting, changedSessionIds);
+		visiting.delete(session.sessionId);
+		if (creator.createdBySession?.get() && !this._sortOverrides[mode].has(creator.sessionId)) {
+			return false;
+		}
+
+		const creatorKey = this.getSortKey(creator, mode);
+		const sorted = sessions
+			.filter(candidate => candidate.sessionId !== session.sessionId)
+			.sort((a, b) => this.getSortKey(b, mode) - this.getSortKey(a, mode));
+		const creatorIndex = sorted.findIndex(candidate => candidate.sessionId === creator.sessionId);
+		if (creatorIndex < 0) {
+			return false;
+		}
+		const below = sorted[creatorIndex + 1];
+		const belowKey = below ? this.getSortKey(below, mode) : undefined;
+		const createdSessionKey = belowKey !== undefined && creatorKey > belowKey
+			? (creatorKey + belowKey) / 2
+			: creatorKey - 60_000;
+		this._sortOverrides[mode].set(session.sessionId, createdSessionKey);
+		if (mode === 'updated') {
+			this._updatedDefaultPlacements.set(session.sessionId, this.getNaturalSortKey(session, mode));
+		}
+		changedSessionIds.add(session.sessionId);
+		return true;
+	}
+
+	private expireUpdatedDefaultPlacements(sessionsToCheck: readonly ISession[], changedSessionIds: Set<string>): boolean {
+		let changed = false;
+		for (const session of sessionsToCheck) {
+			const naturalKeyAtPlacement = this._updatedDefaultPlacements.get(session.sessionId);
+			if (naturalKeyAtPlacement === undefined || naturalKeyAtPlacement === null || naturalKeyAtPlacement === this.getNaturalSortKey(session, 'updated')) {
+				continue;
+			}
+			this._sortOverrides.updated.delete(session.sessionId);
+			this._updatedDefaultPlacements.set(session.sessionId, null);
+			changedSessionIds.add(session.sessionId);
+			changed = true;
+		}
+		return changed;
+	}
 
 	getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
 		return mode === 'updated' ? session.updatedAt.get().getTime() : session.createdAt.getTime();
@@ -250,12 +297,26 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	applySortChanges(mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
 		const map = this._sortOverrides[mode];
 		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
+		let updatedDefaultPlacementChanged = false;
 		for (const sessionId of clear) {
-			if (map.delete(sessionId)) {
+			if (mode === 'updated' && this._updatedDefaultPlacements.delete(sessionId)) {
+				updatedDefaultPlacementChanged = true;
+			}
+			const session = this.sessionsManagementService.getSessions().find(session => session.sessionId === sessionId);
+			if (session?.createdBySession?.get()) {
+				const naturalKey = this.getNaturalSortKey(session, mode);
+				if (map.get(sessionId) !== naturalKey) {
+					map.set(sessionId, naturalKey);
+					changes.push({ sessionId, kind: SessionListModelChangeKind.Sort });
+				}
+			} else if (map.delete(sessionId)) {
 				changes.push({ sessionId, kind: SessionListModelChangeKind.Sort });
 			}
 		}
 		for (const [sessionId, value] of set) {
+			if (mode === 'updated' && this._updatedDefaultPlacements.delete(sessionId)) {
+				updatedDefaultPlacementChanged = true;
+			}
 			if (map.get(sessionId) !== value) {
 				map.set(sessionId, value);
 				changes.push({ sessionId, kind: SessionListModelChangeKind.Sort });
@@ -264,6 +325,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		if (changes.length > 0) {
 			this.saveSortOverrides();
 			this._onDidChange.fire({ changes });
+		}
+		if (updatedDefaultPlacementChanged) {
+			this.saveUpdatedDefaultPlacements();
 		}
 	}
 
@@ -281,11 +345,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				if (isArchived) {
 					return { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 				}
-				if (completedStateIcon) {
-					return completedStateIcon;
-				}
 				if (!isRead) {
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
+				}
+				if (completedStateIcon) {
+					return completedStateIcon;
 				}
 				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
@@ -294,15 +358,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Cleanup --
 
 	private deleteSession(session: ISession): void {
-		this._lastKnownStatus.delete(session.sessionId);
 		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
 		if (this._pinnedSessionIds.delete(session.sessionId)) {
 			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
-		}
-		if (this._readSessionIds.delete(session.sessionId)) {
-			this.saveSet(SessionsListModelService.READ_SESSIONS_KEY, this._readSessionIds);
-			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Read });
 		}
 		let sortChanged = false;
 		if (this._sortOverrides.created.delete(session.sessionId)) {
@@ -310,6 +369,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}
 		if (this._sortOverrides.updated.delete(session.sessionId)) {
 			sortChanged = true;
+		}
+		if (this._updatedDefaultPlacements.delete(session.sessionId)) {
+			this.saveUpdatedDefaultPlacements();
 		}
 		if (sortChanged) {
 			this.saveSortOverrides();
@@ -378,6 +440,38 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			updated: Object.fromEntries(this._sortOverrides.updated),
 		};
 		this.storageService.store(SessionsListModelService.SORT_OVERRIDES_KEY, JSON.stringify(serialized), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private loadUpdatedDefaultPlacements(): Map<string, number | null> {
+		const result = new Map<string, number | null>();
+		const raw = this.storageService.get(SessionsListModelService.UPDATED_DEFAULT_PLACEMENTS_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return result;
+		}
+		try {
+			const parsed = JSON.parse(raw) as Record<string, number | null>;
+			for (const [sessionId, value] of Object.entries(parsed)) {
+				if (typeof value === 'number' || value === null) {
+					result.set(sessionId, value);
+				}
+			}
+		} catch {
+			// ignore corrupt data
+		}
+		return result;
+	}
+
+	private saveUpdatedDefaultPlacements(): void {
+		if (this._updatedDefaultPlacements.size === 0) {
+			this.storageService.remove(SessionsListModelService.UPDATED_DEFAULT_PLACEMENTS_KEY, StorageScope.PROFILE);
+			return;
+		}
+		this.storageService.store(
+			SessionsListModelService.UPDATED_DEFAULT_PLACEMENTS_KEY,
+			JSON.stringify(Object.fromEntries(this._updatedDefaultPlacements)),
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
 	}
 }
 

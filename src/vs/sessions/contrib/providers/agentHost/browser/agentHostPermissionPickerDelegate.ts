@@ -3,11 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
-import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { createAgentHostSandboxToggle } from '../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
+import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, getAgentHostCopilotSandboxSettingId, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { getAgentHostOperatingSystem } from '../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
+import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
@@ -15,31 +25,18 @@ import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../com
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
+import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
+import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { isWellKnownAutoApproveSchema, isWellKnownModeSchema, shouldCombineModeAndPermissions } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 
-const REQUIRED_AUTO_APPROVE_VALUE = 'default';
-const REQUIRED_MODE_VALUE = 'interactive';
 const REQUIRED_PERMISSION_MODE_VALUE = 'default';
+const REQUIRED_CODEX_APPROVALS_VALUE = 'default';
 
-/**
- * Returns `true` when an `autoApprove` session-config property uses the
- * shape the unified permission picker expects: a string enum that is a
- * subset of `default | autoApprove | autopilot` and contains at least
- * `default`.
- *
- * Callers use this to decide whether to render the unified
- * {@link PermissionPicker} (with its built-in warning dialogs, autopilot
- * gating, and policy enforcement) or fall back to the generic per-property
- * picker.
- */
-export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema): boolean {
-	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
-		return false;
-	}
-	if (!schema.enum.includes(REQUIRED_AUTO_APPROVE_VALUE)) {
-		return false;
-	}
-	return schema.enum.every(value => KNOWN_AUTO_APPROVE_VALUES.has(value));
-}
+export { isWellKnownAutoApproveSchema, isWellKnownModeSchema };
 
 /**
  * {@link IPermissionPickerDelegate} backed by the active session's AHP
@@ -61,27 +58,85 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	/** Fires every time any agent-host provider's session config changes. */
 	private readonly _configChangedSignal = observableSignal('agentHostPermissionPicker.configChanged');
 	private readonly _providerSubscriptions = this._register(new DisposableMap<string>());
+	private _sandboxConnection: IAgentConnection | undefined;
+	private readonly _hostOperatingSystem = observableValue<OperatingSystem | undefined>(this, undefined);
+	private _hostOperatingSystemRequest: Promise<void> | undefined;
 
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
-
-	/**
-	 * Agent-host sessions expose Autopilot on the orthogonal `mode` axis, so
-	 * the permissions picker offers `Default` / `Bypass` here.
-	 */
-	readonly availableLevels: readonly ChatPermissionLevel[] = [
-		ChatPermissionLevel.Default,
-		ChatPermissionLevel.AutoApprove,
+	readonly isModePickerCombined: IObservable<boolean>;
+	readonly isResolving: IObservable<boolean>;
+	readonly managedSandboxEnforced: IObservable<boolean>;
+	readonly managedSandboxAllowsBypass: IObservable<boolean>;
+	readonly sandboxEnabled: IObservable<boolean | undefined>;
+	readonly sandboxToggleSettingId: IObservable<string | undefined>;
+	readonly sandboxToggleConfigurationKeys = [
+		AgentHostCustomTerminalToolEnabledSettingId,
+		AgentHostSdkSandboxEnabledSettingId,
+		AgentHostSdkSandboxWindowsEnabledSettingId,
+		AgentSandboxSettingId.AgentSandboxEnabled,
+		AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 	];
+
+	readonly getSandboxToggleProvider = (): string | undefined => this._session.get()?.sessionType;
+
+	readonly isSandboxToggleApplicable = (): boolean => {
+		const session = this._session.get();
+		return session?.sessionType === CopilotCLISessionType.id
+			&& !!this._getProvider(session.providerId)?.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.SandboxEnabled];
+	};
+
+	readonly getSandboxToggleSettingId = (): string | undefined => this.sandboxToggleSettingId.get();
+
+	get availableLevels(): readonly ChatPermissionLevel[] {
+		const session = this._session.get();
+		if (!session) {
+			return [ChatPermissionLevel.Default];
+		}
+		const provider = this._getProvider(session.providerId);
+		const schema = provider?.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.AutoApprove];
+		const values = schema?.type === 'string' && Array.isArray(schema.enum) ? schema.enum : [];
+		const assistedPermissionsEnabled = isAssistedPermissionsEnabled(this._configurationService);
+		return [
+			ChatPermissionLevel.Default,
+			ChatPermissionLevel.Assisted,
+			ChatPermissionLevel.AutoApprove,
+		].filter(level => values.includes(level) && isPermissionLevelVisible(level, assistedPermissionsEnabled));
+	}
 
 	/** Agent-host sessions seed their default approval level from this setting. */
 	readonly defaultSettingKey = ChatConfiguration.DefaultConfiguration;
 
+	getPermissionLevelMeta(level: ChatPermissionLevel, meta: IPermissionLevelMeta): IPermissionLevelMeta {
+		switch (level) {
+			case ChatPermissionLevel.Default:
+				return {
+					...meta,
+					label: localize('agentHostPermissionPicker.manual.label', "Manual permissions"),
+					detail: localize('agentHostPermissionPicker.askWhenNeeded.detail', "Asks when approval settings don't apply"),
+					icon: Codicon.key,
+				};
+			case ChatPermissionLevel.Assisted:
+				return { ...meta, detail: localize('agentHostPermissionPicker.approveWhenSafe.detail', "Evaluates risk before running tools") };
+			case ChatPermissionLevel.AutoApprove:
+				return { ...meta, detail: localize('agentHostPermissionPicker.allowAll.detail', "Runs tool calls without asking") };
+			case ChatPermissionLevel.Autopilot:
+				return meta;
+		}
+	}
+
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IChatPhoneInputPresenter phoneInputPresenter: IChatPhoneInputPresenter,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this.managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced;
+		this.managedSandboxAllowsBypass = agentHostEnablementService.managedSandboxAllowsBypass;
 
 		this._watchProviders(this._sessionsProvidersService.getProviders());
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
@@ -91,12 +146,112 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			this._watchProviders(e.added);
 			this._configChangedSignal.trigger(undefined);
 		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker)) {
+				this._configChangedSignal.trigger(undefined);
+			}
+		}));
 
 		this.currentPermissionLevel = derived(this, reader => this._readLevel(reader));
-		this.isApplicable = derived(this, reader => this._readIsWellKnown(reader));
+		this.sandboxEnabled = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			const value = session && this._getProvider(session.providerId)?.getSessionConfig(session.sessionId)?.values[SessionConfigKey.SandboxEnabled];
+			return value === 'on' ? true : value === 'off' ? false : undefined;
+		});
+		this.sandboxToggleSettingId = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			this._session.read(reader);
+			const os = this._hostOperatingSystem.read(reader);
+			return this.isSandboxToggleApplicable() && os !== undefined ? getAgentHostCopilotSandboxSettingId(os === OperatingSystem.Windows) : undefined;
+		});
+		this.isModePickerCombined = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			const config = session ? this._getProvider(session.providerId)?.getSessionConfig(session.sessionId) : undefined;
+			return !phoneInputPresenter.enabled.read(reader) && shouldCombineModeAndPermissions(
+				this._configurationService.getValue<boolean>(ChatConfiguration.ExperimentalModePermissionsPicker) === true,
+				session?.sessionType === CopilotCLISessionType.id,
+				config?.schema.properties[SessionConfigKey.Mode],
+				config?.schema.properties[SessionConfigKey.AutoApprove],
+			);
+		});
+		this.isApplicable = derived(this, reader => this._readIsWellKnown(reader) && !this.isModePickerCombined.read(reader));
+		this.isResolving = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			if (!session) {
+				return false;
+			}
+			const provider = this._getProvider(session.providerId);
+			return provider?.isSessionConfigResolving(session.sessionId).read(reader) ?? false;
+		});
+		this._register(this._connectionsService.onDidChangeSessionResolution(async () => {
+			const connection = this._sandboxConnection;
+			const request = this._hostOperatingSystemRequest;
+			// Recovery can be reported before an interrupted diagnostics request settles.
+			await request;
+			if (!this._store.isDisposed && connection && request && this._sandboxConnection === connection && this._hostOperatingSystemRequest === request && this._hostOperatingSystem.get() === undefined) {
+				this._hostOperatingSystemRequest = this._resolveHostOperatingSystem(connection);
+			}
+		}));
+		const connectionsChanged = observableSignalFromEvent(this, this._connectionsService.onDidChangeSessionResolution);
+		this._register(autorun(reader => {
+			connectionsChanged.read(reader);
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			const connection = session && this.isSandboxToggleApplicable() ? this._connectionsService.resolveSessionResource(session.resource)?.connection : undefined;
+			if (connection === this._sandboxConnection) {
+				return;
+			}
+			this._sandboxConnection = connection;
+			this._hostOperatingSystem.set(undefined, undefined);
+			this._hostOperatingSystemRequest = connection ? this._resolveHostOperatingSystem(connection) : undefined;
+		}));
 	}
 
-	setPermissionLevel(level: ChatPermissionLevel): void {
+	private async _resolveHostOperatingSystem(connection: IAgentConnection): Promise<void> {
+		try {
+			const os = await getAgentHostOperatingSystem(connection);
+			if (!this._store.isDisposed && this._sandboxConnection === connection) {
+				this._hostOperatingSystem.set(os, undefined);
+			}
+		} catch (error) {
+			this._logService.error('Failed to resolve agent host OS for the sandbox picker', error);
+		}
+	}
+
+	getSandboxToggle() {
+		if (!this.isSandboxToggleApplicable() || this.getSandboxToggleSettingId() === undefined) {
+			return undefined;
+		}
+		return createAgentHostSandboxToggle(() => {
+			const settingId = this.getSandboxToggleSettingId();
+			return {
+				provider: this.getSandboxToggleProvider(),
+				sessionEnabled: this.sandboxEnabled.get(),
+				globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
+				managedEnabled: this.managedSandboxEnforced.get(),
+				allowsBypass: this.managedSandboxAllowsBypass.get(),
+			};
+		}, enabled => this.setSandboxEnabled(enabled));
+	}
+
+	setSandboxEnabled(enabled: boolean): void {
+		const session = this._session.get();
+		const provider = session && this._getProvider(session.providerId);
+		if (!session || !provider || !this.isSandboxToggleApplicable()) {
+			throw new Error('Sandbox configuration is unavailable for this session');
+		}
+		const operation = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, enabled ? 'on' : 'off');
+		provider.trackSessionConfigOperation(session.sessionId, operation);
+		void operation.catch(onUnexpectedError);
+	}
+
+	async setPermissionLevel(level: ChatPermissionLevel): Promise<void> {
+		if (!isPermissionLevelVisible(level, isAssistedPermissionsEnabled(this._configurationService))) {
+			return;
+		}
 		const session = this._session.get();
 		if (!session) {
 			return;
@@ -110,8 +265,12 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (provider.isSessionConfigResolving(session.sessionId).get()) {
 			return;
 		}
-		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level)
-			.catch(() => { /* best-effort */ });
+		if (!this.availableLevels.includes(level)) {
+			return;
+		}
+		const operation = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level);
+		provider.trackSessionConfigOperation(session.sessionId, operation);
+		await operation.catch(onUnexpectedError);
 	}
 
 	getPermissionLevelHover(level: ChatPermissionLevel, _meta: IPermissionLevelMeta): string {
@@ -120,6 +279,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 				return localize('agentHostPermissionPicker.defaultApprovalsHover', "Copilot asks before running tools unless your configured settings allow the tool.");
 			case ChatPermissionLevel.AutoApprove:
 				return localize('agentHostPermissionPicker.autoApproveHover', "Copilot runs all tools without asking for approval.");
+			case ChatPermissionLevel.Assisted:
+				return localize('agentHostPermissionPicker.assistedHover', "An LLM judge evaluates each tool call. Tools it doesn't approve require your approval.");
 			case ChatPermissionLevel.Autopilot:
 				return localize('agentHostPermissionPicker.autopilotApprovalsHover', "Copilot runs tools without asking for approval and continues until the task is done.");
 		}
@@ -170,30 +331,17 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			if (!isAgentHostProvider(provider) || this._providerSubscriptions.has(provider.id)) {
 				continue;
 			}
-			this._providerSubscriptions.set(provider.id, provider.onDidChangeSessionConfig(() => {
+			const subscriptions = new DisposableStore();
+			subscriptions.add(provider.onDidChangeSessionConfig(() => {
 				this._configChangedSignal.trigger(undefined);
 			}));
+			this._providerSubscriptions.set(provider.id, subscriptions);
 		}
 	}
 }
 
-/**
- * Returns `true` when a `mode` session-config property uses the shape the
- * dedicated agent-host mode picker expects: a string enum that contains
- * at least `interactive`.
- *
- * Callers use this to decide whether to render the dedicated mode picker
- * (with mode-specific icons and behavior) or fall back to the generic
- * per-property picker.
- */
-export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): boolean {
-	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
-		return false;
-	}
-	if (!schema.enum.includes(REQUIRED_MODE_VALUE)) {
-		return false;
-	}
-	return true;
+export function isWellKnownModeValue(schema: SessionConfigPropertySchema, value: string): boolean {
+	return isWellKnownModeSchema(schema) && schema.enum!.some(candidate => String(candidate) === value);
 }
 
 /**
@@ -208,4 +356,23 @@ export function isWellKnownClaudePermissionModeSchema(schema: SessionConfigPrope
 		return false;
 	}
 	return schema.enum.every(value => narrowClaudePermissionMode(value) !== undefined);
+}
+
+/**
+ * Returns `true` when a `codex.permissionsPreset` session-config property uses
+ * the Codex permissions-preset value set and includes `default`.
+ *
+ * Codex collapses its three security axes (sandbox × approval policy ×
+ * approvals reviewer) into a single user-facing preset; this guard lets the
+ * dedicated {@link AgentHostCodexApprovalsPicker} claim the property while the
+ * generic per-property picker stands down.
+ */
+export function isWellKnownCodexApprovalsSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes(REQUIRED_CODEX_APPROVALS_VALUE)) {
+		return false;
+	}
+	return schema.enum.every(value => narrowCodexPermissionsPreset(value) !== undefined);
 }

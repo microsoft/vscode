@@ -150,6 +150,10 @@ import { registerServices as registerCommonServices } from '../vscode/services';
 import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode-node/promptsServiceImpl';
 import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
 import { AutomaticInstructionsCollector, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { GrepResultService, IGrepResultService } from '../../tools/node/grepResultService';
+import { IRegionContextProviderService } from '../../../platform/languageContextProvider/common/regionContextProvider';
+import { ContainerContextProviderService } from '../../typescriptContext/vscode-node/regionContextProvider';
+
 
 // ###########################################################################################
 // ###                                                                                     ###
@@ -167,6 +171,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IAutomodeService, new SyncDescriptor(AutomodeService));
 	builder.define(IConversationStore, new SyncDescriptor(ConversationStore));
 	builder.define(IDiffService, new DiffServiceImpl());
+	builder.define(IGrepResultService, new SyncDescriptor(GrepResultService));
+	builder.define(IRegionContextProviderService, new SyncDescriptor(ContainerContextProviderService));
 	builder.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [true]));
 	builder.define(IToolsService, new SyncDescriptor(ToolsService));
 	builder.define(IToolDeferralService, new ToolDeferralService());
@@ -289,6 +295,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 
 	// OTel service — resolve config from env + settings, create appropriate impl
 	const otelSettings = workspace.getConfiguration('github.copilot.chat.otel');
+	const policyValue = <T>(key: string): T | undefined => (otelSettings.inspect<T>(key) as { policyValue?: T } | undefined)?.policyValue;
 	const otelConfig = resolveOTelConfig({
 		env: process.env,
 		settingEnabled: otelSettings.get<boolean>('enabled'),
@@ -298,6 +305,19 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		settingMaxAttributeSizeChars: otelSettings.get<number>('maxAttributeSizeChars'),
 		settingOutfile: otelSettings.get<string>('outfile') || undefined,
 		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
+		settingProtocol: otelSettings.get<string>('protocol') || undefined,
+		policyEnabled: policyValue<boolean>('enabled'),
+		policyExporterType: policyValue<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
+		policyOtlpEndpoint: policyValue<string>('otlpEndpoint'),
+		policyCaptureContent: policyValue<boolean>('captureContent'),
+		policyOutfile: policyValue<string>('outfile'),
+		policyProtocol: policyValue<string>('protocol'),
+		settingServiceName: otelSettings.get<string>('serviceName') || undefined,
+		policyServiceName: policyValue<string>('serviceName'),
+		settingResourceAttributes: otelSettings.get<Record<string, string>>('resourceAttributes'),
+		policyResourceAttributes: policyValue<Record<string, string>>('resourceAttributes'),
+		settingHeaders: otelSettings.get<Record<string, string>>('headers'),
+		policyHeaders: policyValue<Record<string, string>>('headers'),
 		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
 		sessionId: env.sessionId,
 	});

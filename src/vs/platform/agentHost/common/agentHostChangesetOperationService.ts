@@ -12,6 +12,39 @@ import type { ChangesetOperation, ISessionGitHubState, ISessionGitState, URI } f
 
 export const IAgentHostChangesetOperationService = createDecorator<IAgentHostChangesetOperationService>('agentHostChangesetOperationService');
 
+export const AGENT_HOST_MERGE_CHANGESET_OPERATION_ID = 'merge';
+export const AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID = 'checkout';
+export const AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID = 'commit';
+export const AGENT_HOST_SYNC_CHANGESET_OPERATION_ID = 'sync';
+
+/**
+ * Changeset operations advertised for a branch that already has a pull
+ * request. Declared here rather than next to their handler so the client can
+ * recognise them without reaching into the host-only implementation.
+ */
+export const AgentHostPullRequestOperationId = {
+	MarkReady: 'pr-mark-ready',
+	MarkReadyWithAgentMerge: 'pr-mark-ready-with-agent-merge',
+	Merge: 'pr-merge',
+	EnableAutoMerge: 'pr-enable-auto-merge',
+	DisableAutoMerge: 'pr-disable-auto-merge',
+} as const;
+
+export const AGENT_HOST_PULL_REQUEST_OPERATION_IDS: ReadonlySet<string> = new Set(Object.values(AgentHostPullRequestOperationId));
+
+/**
+ * The subset that hands the merge off to GitHub's own auto-merge. Agent Merge
+ * covers the same intent and replaces them on the changes button bar, which
+ * drops them from the button and its dropdown.
+ *
+ * They stay advertised rather than being withdrawn, because the Agent Merge
+ * menu keys off them to know it should stand in.
+ */
+export const AGENT_HOST_AUTO_MERGE_OPERATION_IDS: ReadonlySet<string> = new Set([
+	AgentHostPullRequestOperationId.EnableAutoMerge,
+	AgentHostPullRequestOperationId.DisableAutoMerge,
+]);
+
 /**
  * Server-side handler for a changeset operation advertised via
  * `changeset/operationsChanged`.
@@ -110,11 +143,17 @@ export interface IAgentHostChangesetOperationService extends IDisposable {
 	 */
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable;
 	/**
-	 * Recomputes and publishes operations for the changesets for a given
-	 * session. If `gitState` is not provided, the current git state will
-	 * be used.
+	 * Recomputes operations using the provided or current Git state.
+	 * Without Git state, clears cached operations but defers initial publication.
 	 */
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void;
+
+	/**
+	 * Returns the operations that should be advertised for the given changeset, or
+	 * `undefined` when no operations are available.
+	 */
+	getOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] | undefined;
+
 	/**
 	 * Invokes an advertised operation after validating the changeset, operation id,
 	 * and requested target scope.

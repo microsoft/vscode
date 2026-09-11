@@ -38,6 +38,8 @@ const VSC_MODEL_HASHES_D = [
 	'e82ff0e2d4e4bae1f012dc599d520f8d61becfc4762f3717577b270be199db92',
 ];
 
+const VSC_MODEL_HASHES_E: string[] = [];
+
 
 // subset to allow replace string instead of apply patch.
 const VSC_MODEL_HASHES_EDIT_TOOL_SET = [
@@ -67,12 +69,15 @@ const HIDDEN_MODEL_J_HASHES: string[] = [
 
 const HIDDEN_MODEL_K_HASH = 'a62e299160a1075d9973c28a7aa77f446c21c09887c7aa65c11022918cf83eda';
 
-const HIDDEN_FAMILY_H_HASHES: string[] = [
-	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
+const HIDDEN_MODEL_N_HASHES: string[] = [
+	'a5665bddcc9b4005649f48ba7925b9437ccb321f5b670f026ed5a349c7561499',
+	'257c934076307881132be702a901618969591f0e11e1df51b22b1d4010f0a0d0',
+	'41418a61d982be103ecc30f2e00ca90bb4c4d1b2e107b9bca93f52ea0d10c6b3',
+	'576a599a64cb3dde05f18ebb3e26e3d5bcbf4b108ff92da24f5229188fa0972a'
 ];
 
-const HIDDEN_FAMILY_M_HASHES: string[] = [
-	'0902565c0c0fe145633a1f246ae551acc0f621249ef050428eba357fbd4655ee',
+const HIDDEN_FAMILY_H_HASHES: string[] = [
+	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
 ];
 
 /**
@@ -144,26 +149,48 @@ export function isHiddenModelK(model: LanguageModelChat | IChatEndpoint) {
 }
 
 
+export function isHiddenModelN(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
+	return HIDDEN_MODEL_N_HASHES.includes(hash);
+}
+
+function matchesGptModelFamily(family: string, prefix: string): boolean {
+	return family === prefix || family.startsWith(`${prefix}-`);
+}
+
 export function isGpt54(model: LanguageModelChat | IChatEndpoint | string) {
 	const h = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	const family = typeof model === 'string' ? model : model.family;
-	return family.startsWith('gpt-5.4') || HIDDEN_MODEL_J_HASHES.includes(h);
+	return matchesGptModelFamily(family, 'gpt-5.4') || HIDDEN_MODEL_J_HASHES.includes(h);
 }
 
 export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	const h = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	const family = typeof model === 'string' ? model : model.family;
-	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
+	return matchesGptModelFamily(family, 'gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
 }
 
-export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
-	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
-	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);
+export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
+	const family = typeof model === 'string' ? model : model.family;
+	return matchesGptModelFamily(family, 'gpt-5.6');
 }
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
-	return family.startsWith('gpt-5.3-codex');
+	return matchesGptModelFamily(family, 'gpt-5.3-codex');
+}
+
+export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const matches = (value: string): boolean => {
+		const normalized = value.toLowerCase();
+		return normalized.includes('kimi-k2.6') || normalized.includes('kimi-k2.7-code') || normalized.includes('kimi-k3');
+	};
+
+	if (typeof model === 'string') {
+		return matches(model);
+	}
+
+	return matches(model.family) || matches(getModelId(model));
 }
 
 export function isVSCModelA(model: LanguageModelChat | IChatEndpoint) {
@@ -195,6 +222,13 @@ export function isVSCModelD(model: LanguageModelChat | IChatEndpoint) {
 	const ID_hash = getCachedSha256Hash(getModelId(model));
 	const family_hash = getCachedSha256Hash(model.family);
 	return VSC_MODEL_HASHES_D.includes(ID_hash) || VSC_MODEL_HASHES_D.includes(family_hash);
+}
+
+export function isVSCModelE(model: LanguageModelChat | IChatEndpoint) {
+	const modelId = getModelId(model);
+	const ID_hash = getCachedSha256Hash(modelId);
+	const family_hash = getCachedSha256Hash(model.family);
+	return model.name.startsWith('vscModelE') || model.family.startsWith('vscModelE') || modelId.startsWith('vscModelE') || VSC_MODEL_HASHES_E.includes(ID_hash) || VSC_MODEL_HASHES_E.includes(family_hash);
 }
 
 export function isGpt52CodexFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
@@ -240,7 +274,8 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
 		|| isHiddenModelB(model)
-		|| isHiddenModelM(model);
+		|| isGpt56(model)
+		|| isHiddenModelN(model);
 }
 
 /**
@@ -254,21 +289,22 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
 		|| isHiddenModelB(model)
-		|| isHiddenModelM(model);
+		|| isGpt56(model)
+		|| isHiddenModelN(model);
 }
 
 /**
  * Model supports replace_string_in_file as an edit tool.
  */
 export function modelSupportsReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isGeminiFamily(model) || isXAiFamily(model) || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
  * Model supports multi_replace_string_in_file as an edit tool.
  */
 export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isAnthropicFamily(model) || isXAiFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -276,7 +312,7 @@ export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChat
  * without needing insert_edit_into_file.
  */
 export function modelCanUseReplaceStringExclusively(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || model.family.includes('grok-code') || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isAnthropicFamily(model) || isXAiFamily(model) || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -305,7 +341,16 @@ export function modelCanUseImageURL(model: LanguageModelChat | IChatEndpoint): b
  * The model supports native PDF document processing via document content parts.
  */
 export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isHiddenModelM(model);
+	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isGpt56(model) || isHiddenModelN(model);
+}
+
+/**
+ * The model supports explicit prompt cache breakpoints via the OpenAI
+ * Responses API (`prompt_cache_breakpoint`). Scoped to OpenAI (GPT) models
+ * only, since this is an OpenAI-specific Responses API feature.
+ */
+export function modelSupportCacheBreakPoints(model: LanguageModelChat | IChatEndpoint): boolean {
+	return isGpt56(model) || isHiddenModelN(model);
 }
 
 /**
@@ -317,7 +362,7 @@ export function modelCanUseApplyPatchExclusively(model: LanguageModelChat | ICha
 	if (isVSCModelReplaceStringSet(model)) {
 		return false;
 	}
-	return isGpt5PlusFamily(model) || isVSCModelA(model) || isVSCModelB(model);
+	return isGpt5PlusFamily(model) || isHiddenModelN(model) || isVSCModelA(model) || isVSCModelB(model);
 }
 
 /**
@@ -333,7 +378,7 @@ export function modelNeedsStrongReplaceStringHint(model: LanguageModelChat | ICh
  * Model can take the simple, modern apply_patch instructions.
  */
 export function modelSupportsSimplifiedApplyPatchInstructions(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGpt5PlusFamily(model) || isVSCModelA(model) || isVSCModelB(model);
+	return isGpt5PlusFamily(model) || isHiddenModelN(model) || isVSCModelA(model) || isVSCModelB(model);
 }
 
 export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boolean {
@@ -347,6 +392,10 @@ export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint | string
 
 export function isMinimaxFamily(model: LanguageModelChat | IChatEndpoint): boolean {
 	return model.family.toLowerCase().includes('minimax');
+}
+
+export function isXAiFamily(model: LanguageModelChat | IChatEndpoint): boolean {
+	return model.family.startsWith('grok');
 }
 
 export function isGpt5PlusFamily(model: LanguageModelChat | IChatEndpoint | string | undefined): boolean {
@@ -392,7 +441,7 @@ export function isGptFamily(model: LanguageModelChat | IChatEndpoint | string | 
 }
 
 /**
- * Any GPT-5.1+ model
+ * GPT-5.1 and its suffixed variants, not later minor versions.
  */
 export function isGpt51Family(model: LanguageModelChat | IChatEndpoint | string | undefined): boolean {
 	if (!model) {
@@ -400,26 +449,34 @@ export function isGpt51Family(model: LanguageModelChat | IChatEndpoint | string 
 	}
 
 	const family = typeof model === 'string' ? model : model.family;
-	return !!family.startsWith('gpt-5.1');
+	return matchesGptModelFamily(family, 'gpt-5.1');
+}
+
+/**
+ * Identifies OpenAI models for prompt routing, not API or tool capabilities.
+ * OpenAI-compatible transports alone do not identify the model's provider.
+ */
+export function isOpenAIModel(model: Pick<IChatEndpoint, 'family' | 'modelProvider'>): boolean {
+	const family = model.family.toLowerCase();
+	return isGptFamily(family) || family === 'openai' || model.modelProvider.toLowerCase() === 'openai';
 }
 
 /**
  * This takes a sync shortcut and should only be called when a model hash would have already been computed while rendering the prompt.
  */
-export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium' | 'high' | undefined {
-	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini') {
+export function getVerbosityForModelSync(model: IChatEndpoint, responsesApiVerbosityEnabled?: boolean): 'low' | 'medium' | 'high' | undefined {
+	if (model.family === 'gpt-5.1' || model.family === 'gpt-5-mini' || ((isGpt56(model) || isHiddenModelN(model)) && responsesApiVerbosityEnabled)) {
 		return 'low';
 	}
-
 	return undefined;
 }
 
 /**
  * Tool search is supported by:
- * - Current-generation Claude models (4.5 and newer), so new and future Claude
- *   models are picked up automatically. Haiku (no tool search support) and the
- *   pre-4.5 generations are denied explicitly.
- * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
+ * - Current-generation Claude models (4.5 and newer, including Haiku 4.5), so
+ *   new and future Claude models are picked up automatically. The pre-4.5
+ *   generations are denied explicitly.
+ * - OpenAI gpt-5.4, gpt-5.5, gpt-5.6, and hidden model N (via Responses API client-side tool search)
  *
  * Accepts either an id string, a {@link LanguageModelChat}, or an
  * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
@@ -429,17 +486,14 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const id = typeof model === 'string' ? model : getModelId(model);
 	const family = typeof model === 'string' ? model : model.family;
+	const isGpt56OrHiddenModelN = isGpt56(model) || isHiddenModelN(model);
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
 		// OpenAI models with client-side tool search.
-		if (n === 'gpt-5-4' || n === 'gpt-5-5') {
+		if (n === 'gpt-5-4' || n === 'gpt-5-5' || isGpt56OrHiddenModelN) {
 			return true;
 		}
 		if (!n.startsWith('claude')) {
-			return false;
-		}
-		// Haiku has no tool search support — deny it explicitly.
-		if (n.startsWith('claude-haiku')) {
 			return false;
 		}
 		// Pre-4.5 Claude generations are unsupported; everything newer
@@ -450,12 +504,11 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 			n.startsWith('claude-1') ||
 			n.startsWith('claude-2') ||
 			n.startsWith('claude-3') ||
-			n.startsWith('claude-instant') ||
 			n === 'claude-sonnet-4' || n.startsWith('claude-sonnet-4-2') ||
 			n === 'claude-opus-4' || n.startsWith('claude-opus-4-1') || n.startsWith('claude-opus-4-2');
 		return !isPre45;
 	};
-	return matches(id) || matches(family) || isHiddenModelM(family);
+	return matches(id) || matches(family);
 }
 
 /**

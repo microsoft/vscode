@@ -10,7 +10,7 @@ import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toCommandCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
-import { extractLeadingSlashToken } from './agentHostSlashCompletion.js';
+import { extractLeadingSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
 /** The generic, agent-agnostic `/rename` slash command name. */
 export const RENAME_SLASH_COMMAND = 'rename';
@@ -62,7 +62,7 @@ export class AgentHostRenameCompletionProvider implements IAgentHostCompletionIt
 		}
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
-		if (typed.length > 0 && !RENAME_SLASH_COMMAND.startsWith(typed)) {
+		if (!matchesSlashCompletion(typed, RENAME_SLASH_COMMAND)) {
 			return [];
 		}
 		return [{

@@ -7,9 +7,8 @@ import { derived, IObservable, observableValue, ISettableObservable } from '../.
 import { relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
@@ -20,6 +19,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -35,6 +35,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+	readonly activeProjectLabel: IObservable<string | undefined>;
 	readonly hasOverrideProjectRoot: IObservable<boolean>;
 
 	/**
@@ -47,11 +48,11 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		this._overrideRoot = observableValue(this, undefined);
 
@@ -67,6 +68,15 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return undefined;
 			}
 			return root;
+		});
+
+		this.activeProjectLabel = derived(reader => {
+			const override = this._overrideRoot.read(reader);
+			if (override) {
+				return this.labelService.getUriBasenameLabel(override);
+			}
+			const session = this.sessionsService.activeSession.read(reader);
+			return session?.workspace.read(reader)?.folders[0]?.name;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -97,18 +107,16 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	}
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
-		AICustomizationManagementSection.Agents,
+		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
+		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Hooks,
-		AICustomizationManagementSection.McpServers,
-		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.Automations,
+		AICustomizationManagementSection.HarnessSettings,
 	];
-
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		return this.harnessService.getStorageSourceFilter(type);
-	}
 
 	readonly isSessionsWindow = true;
 
@@ -268,11 +276,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	}
 
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
-		const allCommands = await this.promptsService.getPromptSlashCommands(token);
-		return allCommands.filter(cmd => {
-			const filter = this.getStorageSourceFilter(cmd.type);
-			return applyStorageSourceFilter([cmd], filter).length > 0;
-		});
+		return await this.promptsService.getPromptSlashCommands(token);
 	}
 
 	private static readonly _skillUIIntegrations: ReadonlyMap<string, string> = new Map([
@@ -280,8 +284,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		['fix-ci', localize('skillUI.fixCi', "Used by the Fix Checks button in the Changes toolbar")],
 		['code-review', localize('skillUI.codeReview', "Used by the Run Code Review button in the Changes view")],
 		['generate-run-commands', localize('skillUI.generateRunCommands', "Used by the Run button in the title bar")],
-		['create-pr', localize('skillUI.createPr', "Used by the Create Pull Request button in the Changes toolbar")],
-		['create-draft-pr', localize('skillUI.createDraftPr', "Used by the Create Draft Pull Request button in the Changes toolbar")],
+		['create-pr', localize('skillUI.createPr', "Used by the Create PR button in the Changes toolbar")],
+		['create-draft-pr', localize('skillUI.createDraftPr', "Used by the Create Draft PR button in the Changes toolbar")],
 		['update-pr', localize('skillUI.updatePr', "Used by the Update Pull Request button in the Changes toolbar")],
 		['merge-changes', localize('skillUI.mergeChanges', "Used by the Merge button in the Changes toolbar")],
 		['commit', localize('skillUI.commit', "Used by the Commit button in the Changes toolbar")],

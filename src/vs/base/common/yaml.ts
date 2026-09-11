@@ -65,8 +65,12 @@ export class MarkdownNode {
 			const property = this.header.properties.find(p => p.key.value === name);
 			if (property && property.value.type === 'sequence') {
 				return property.value.items.filter(item => item.type === 'scalar').map(item => item.value);
-			} else if (property && property.value.type === 'scalar' && property.value.format === 'none') {
-				return parseCommaSeparatedList(property.value.value, 0).map(item => item.value);
+			} else if (property && property.value.type === 'scalar') {
+				if (property.value.format === 'none') {
+					return parseCommaSeparatedList(property.value.value, 0).map(item => item.value);
+				} else {
+					return [property.value.value];
+				}
 			}
 		}
 		return undefined;

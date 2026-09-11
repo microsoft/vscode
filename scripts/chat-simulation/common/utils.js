@@ -217,12 +217,23 @@ function buildEnv(mockServer, { isDevBuild = true } = {}) {
  * @param {string} logsDir
  * @returns {string[]}
  */
-function buildArgs(userDataDir, extDir, logsDir, { isDevBuild = true, extHostInspectPort = 0, traceFile = '', appRoot = ROOT } = {}) {
+function buildArgs(userDataDir, extDir, logsDir, { isDevBuild = true, extHostInspectPort = 0, traceFile = '', appRoot = ROOT, gcObjectStats = false } = {}) {
 	// Chromium switches must come BEFORE the app path (ROOT) — Chromium
 	// only processes switches that precede the first non-switch argument.
 	const chromiumFlags = [];
 	if (traceFile) {
-		chromiumFlags.push(`--enable-tracing=v8.gc,disabled-by-default-v8.gc,disabled-by-default-v8.gc_stats,devtools.timeline,blink.user_timing`);
+		// IMPORTANT: `disabled-by-default-v8.gc_stats` is intentionally OFF by
+		// default. It makes V8 run GC_OBJECT_DUMP_STATISTICS (a full per-type
+		// heap object dump) on every major GC, inflating a ~15ms GC pause to
+		// ~550ms. When such a GC lands in the measured request window it
+		// corrupts timeToFirstToken (bimodal ~250ms vs ~900ms). `v8.gc` +
+		// `disabled-by-default-v8.gc` still provide the GC events we count.
+		// Opt in via `--gc-object-stats` only for deliberate GC deep-dives
+		// (never for timing runs), accepting that timings become unreliable.
+		const gcCategories = gcObjectStats
+			? 'v8.gc,disabled-by-default-v8.gc,disabled-by-default-v8.gc_stats'
+			: 'v8.gc,disabled-by-default-v8.gc';
+		chromiumFlags.push(`--enable-tracing=${gcCategories},devtools.timeline,blink.user_timing`);
 		chromiumFlags.push(`--trace-startup-file=${traceFile}`);
 		chromiumFlags.push(`--enable-tracing-format=json`);
 	}

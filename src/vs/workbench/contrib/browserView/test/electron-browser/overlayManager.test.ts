@@ -62,6 +62,29 @@ suite('BrowserOverlayManager', () => {
 		assert.deepStrictEqual(overlays, []);
 	});
 
+	test('detects an overlay beneath detached webview content', () => {
+		const browserContainer = addElement('browser-container', {
+			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'
+		});
+		const contextView = addElement('context-view', {
+			position: 'fixed', left: '0px', top: '0px', width: '200px', height: '200px'
+		});
+		addElement('overlay-anchor', {
+			position: 'absolute', left: '0px', top: '0px', width: '200px', height: '200px'
+		}, contextView);
+
+		const overlayContent = addElement('webview-overlay-content', {
+			position: 'fixed', left: '0px', top: '0px', width: '200px', height: '200px', zIndex: '1'
+		});
+		addElement('webview', {
+			width: '100%', height: '100%'
+		}, overlayContent);
+
+		const overlays = manager.getOverlappingOverlays(browserContainer);
+
+		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Unknown]);
+	});
+
 	// Regression test for #321088: a context menu (e.g. the "Add Models"
 	// dropdown) renders a full-screen `.context-view-block` inside `.context-view`
 	// that stacks above an already-open modal. The block isn't a tracked overlay
@@ -89,27 +112,6 @@ suite('BrowserOverlayManager', () => {
 		const overlays = manager.getOverlappingOverlays(browserContainer);
 
 		// The transparent block is skipped, so the modal beneath it is topmost.
-		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Dialog]);
-	});
-
-	test('detects obscuring when a context-view pointer block covers the browser on top of a modal', () => {
-		const browserContainer = addElement('browser-container', {
-			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'
-		});
-
-		addElement('monaco-modal-editor-block', {
-			position: 'fixed', left: '0px', top: '0px', width: '400px', height: '400px', zIndex: '2540'
-		});
-
-		const contextView = addElement('context-view', {
-			position: 'fixed', left: '320px', top: '320px', width: '60px', height: '60px', zIndex: '2575'
-		});
-		addElement('context-view-pointerBlock', {
-			position: 'fixed', left: '0px', top: '0px', width: '400px', height: '400px', zIndex: '2'
-		}, contextView);
-
-		const overlays = manager.getOverlappingOverlays(browserContainer);
-
 		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Dialog]);
 	});
 

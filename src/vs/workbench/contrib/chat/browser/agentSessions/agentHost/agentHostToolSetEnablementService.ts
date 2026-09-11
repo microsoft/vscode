@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { parseRemoteAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -16,6 +17,13 @@ export const IAgentHostToolSetEnablementService = createDecorator<IAgentHostTool
  * only target for the Chat Customizations → Tools section today.
  */
 export const AGENT_HOST_COPILOT_CLI_SESSION_TYPE = 'agent-host-copilotcli';
+
+/**
+ * Whether a session type runs the Copilot CLI harness, locally or on a remote agent host.
+ */
+export function isCopilotCliSessionType(sessionType: string): boolean {
+	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || parseRemoteAgentHostHarness(sessionType) === 'copilotcli';
+}
 
 /**
  * Tool / tool-set enablement state. Both maps are keyed by id and store only deviations from the
@@ -61,18 +69,18 @@ export interface ICountableToolSet {
 
 /** Counts the enabled tools across the non-deprecated tool sets surfaced in Chat Customizations → Tools. */
 export function countEnabledCustomizationTools(toolSets: Iterable<ICountableToolSet>, state: IToolEnablementState, reader?: IReader): number {
-	let count = 0;
+	const enabled = new Set<string>();
 	for (const ts of toolSets) {
 		if (ts.deprecated) {
 			continue;
 		}
 		for (const tool of ts.getTools(reader)) {
 			if (isToolEnabledInSet(state, ts.id, tool.id)) {
-				count++;
+				enabled.add(tool.id);
 			}
 		}
 	}
-	return count;
+	return enabled.size;
 }
 
 /**

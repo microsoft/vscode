@@ -331,6 +331,11 @@ declare module 'vscode' {
 		 */
 		result?: string;
 
+		/**
+		 * The display name of the model used by the subagent.
+		 */
+		modelName?: string;
+
 		constructor(description?: string, agentName?: string, prompt?: string, result?: string);
 	}
 
@@ -442,6 +447,7 @@ declare module 'vscode' {
 		ChatResponseThinkingProgressPart: ChatResponseThinkingProgressPart;
 		ChatResponseExternalEditPart: ChatResponseExternalEditPart;
 		ChatResponseQuestionCarouselPart: ChatResponseQuestionCarouselPart;
+		ChatResponseAutoModeResolutionPart: ChatResponseAutoModeResolutionPart;
 	}
 
 	export type ExtendedChatResponsePart = ExtendedChatResponseParts[keyof ExtendedChatResponseParts];
@@ -564,6 +570,17 @@ declare module 'vscode' {
 		readonly description: string;
 		readonly author: string;
 		constructor(uriOrCommand: Uri | Command, title: string, description: string, author: string, linkTag: string);
+	}
+
+	/**
+	 * Explains what the "Auto" model routed a turn to, as a single status line.
+	 * Push a part without a model for the in-flight state, then a resolved one.
+	 * Auto may route several times in a turn; each route gets its own row.
+	 */
+	export class ChatResponseAutoModeResolutionPart {
+		/** The model the router picked, or `undefined` while routing is in flight. */
+		resolvedModel: { id: string; name: string } | undefined;
+		constructor(resolvedModel?: { id: string; name: string });
 	}
 
 	export interface ChatResponseStream {

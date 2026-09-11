@@ -11,15 +11,54 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
+import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
+import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
+import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
-import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
+import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
-import { ActionType } from '../common/state/sessionActions.js';
-import { parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
+import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import type { ISessionSandboxPolicy } from './sessionSandbox.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
+
+/**
+ * @deprecated Use {@link getEffectiveWorkingDirectories} instead, which preserves every root instead of collapsing to the primary.
+ */
+export function getEffectiveWorkingDirectory(stateManager: AgentHostStateManager, session: ProtocolURI): string | undefined {
+	const own = stateManager.getSessionState(session)?.workingDirectories?.[0];
+	if (own !== undefined) {
+		return own;
+	}
+	const parentInfo = parseSubagentSessionUri(session);
+	if (parentInfo) {
+		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories?.[0];
+	}
+	return undefined;
+}
+
+export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): string[] | undefined {
+	const own = stateManager.getSessionState(session)?.workingDirectories;
+	if (own !== undefined) {
+		return own;
+	}
+	const parentInfo = parseSubagentSessionUri(session);
+	if (parentInfo) {
+		return stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectories;
+	}
+	return undefined;
+}
+
+export interface IAgentSessionConfigurationChangeEvent {
+	readonly session: ProtocolURI;
+	readonly config: Record<string, unknown>;
+	readonly origin: ActionOrigin | undefined;
+}
 
 /**
  * Cohesive read/write surface for agent-host configuration.
@@ -45,6 +84,9 @@ export interface IAgentConfigurationService {
 	 */
 	readonly onDidRootConfigChange: Event<void>;
 
+	/** Fires whenever a session configuration change is processed. */
+	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent>;
+
 	/**
 	 * Returns the effective value of `key` for `session`, walking the
 	 * `session → parent session → host` chain and returning the first
@@ -59,13 +101,8 @@ export interface IAgentConfigurationService {
 		key: K,
 	): SchemaValue<D[K]> | undefined;
 
-	/**
-	 * Returns the effective working directory for a session, falling back
-	 * to the parent (subagent) session's working directory when the
-	 * session itself does not have one set. The host layer does not carry
-	 * a working directory.
-	 */
-	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined;
+	/** Returns all effective session roots, including inherited parent-session roots. */
+	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined;
 
 	/**
 	 * Merges a partial config patch into a session's values via a
@@ -74,6 +111,10 @@ export interface IAgentConfigurationService {
 	 * the state manager's reducer.
 	 */
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void;
+
+	/** Runtime-owned sandbox floor; never accepted from client configuration. */
+	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined;
+	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
 
 	/**
 	 * Returns the merged config values currently stored on `session`.
@@ -111,19 +152,28 @@ export interface IAgentConfigurationService {
 	 * Resolves once any in-flight root-config write has settled.
 	 */
 	whenIdle(): Promise<void>;
+
+	registerProviderConfiguration?(registration: IAgentCustomizationSettingsRegistration): void;
+	getRootConfigValues?(): Readonly<Record<string, unknown>>;
+	publishRootTransientValues?(patch: Readonly<Record<string, unknown>>): void;
 }
 
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
 	private _rootConfigWrite = Promise.resolve();
+	private readonly _rootTransientValueKeys = new Set<string>();
+	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
+	private readonly _onDidSessionConfigChange = this._register(new Emitter<IAgentSessionConfigurationChangeEvent>());
+	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
 		private readonly _rootConfigResource?: URI,
+		providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
 	) {
 		super();
 		// Merge our customization schema/values into the existing root config
@@ -132,17 +182,33 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const existing = this._stateManager.rootState.config;
 		const ownSchema = agentHostCustomizationConfigSchema.toProtocol();
 		const sandboxSchema = sandboxConfigSchema.toProtocol();
+		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
+		const agentMergeSchema = agentMergeRootConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
+		for (const registration of providerConfigurations) {
+			this.registerProviderConfiguration(registration);
+		}
+		this._register(this._stateManager.onDidRemoveSession(session => this._sessionSandboxPolicies.delete(session)));
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
 				this._onDidRootConfigChange.fire();
+			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
+				const policy = this.getSessionSandboxPolicy(envelope.channel);
+				if (envelope.action.config[SessionConfigKey.SandboxEnabled] === 'off' && policy?.enabled && !policy.allowBypass) {
+					this.updateSessionConfig(envelope.channel, { [SessionConfigKey.SandboxEnabled]: 'default' });
+				}
+				this._onDidSessionConfigChange.fire({
+					session: envelope.channel,
+					config: envelope.action.config,
+					origin: envelope.origin,
+				});
 			}
 		}));
 	}
@@ -168,16 +234,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return undefined;
 	}
 
-	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined {
-		const own = this._stateManager.getSessionState(session)?.summary.workingDirectory;
-		if (own !== undefined) {
-			return own;
-		}
-		const parentInfo = parseSubagentSessionUri(session);
-		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.summary.workingDirectory;
-		}
-		return undefined;
+	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined {
+		return getEffectiveWorkingDirectories(this._stateManager, session);
 	}
 
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void {
@@ -187,7 +245,23 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		});
 	}
 
+	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined {
+		const owner = resolveAgentHostSession(URI.parse(session)).toString();
+		return this._sessionSandboxPolicies.get(owner);
+	}
+
+	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void {
+		this._sessionSandboxPolicies.set(session, policy);
+		if (policy.enabled && !policy.allowBypass && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off') {
+			this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: 'default' });
+		}
+		this._onDidSessionConfigChange.fire({ session, config: { [SessionConfigKey.SandboxEnabled]: this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] }, origin: undefined });
+	}
+
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
+		if (isAhpChatChannel(session)) {
+			throw new Error(`Expected a session URI, received chat channel ${session}`);
+		}
 		return this._stateManager.getSessionState(session)?.config?.values;
 	}
 
@@ -224,7 +298,13 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			return;
 		}
 
-		const values = this._stateManager.rootState.config?.values ?? { [AgentHostConfigKey.Customizations]: [] };
+		const values = { ...(this._stateManager.rootState.config?.values ?? { [AgentHostConfigKey.Customizations]: [] }) };
+		for (const key of this._rootTransientValueKeys) {
+			delete values[key];
+		}
+		for (const key of getProviderBackedRootConfigKeys(this._stateManager.rootState)) {
+			delete values[key];
+		}
 		const content = JSON.stringify(values, undefined, '\t');
 		const resource = this._rootConfigResource;
 
@@ -243,6 +323,41 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	async whenIdle(): Promise<void> {
 		await this._rootConfigWrite;
+	}
+
+	registerProviderConfiguration(registration: IAgentCustomizationSettingsRegistration): void {
+		const config = this._stateManager.rootState.config;
+		if (!config) {
+			return;
+		}
+		Object.assign(config.schema.properties, registration.properties);
+		for (const [key, property] of Object.entries(registration.properties)) {
+			if (config.values[key] === undefined && property.default !== undefined) {
+				config.values[key] = property.default;
+			}
+		}
+		const registrations = getAgentCustomizationSettingsEntries(this._stateManager.rootState).filter(entry => entry.provider !== registration.provider);
+		this._stateManager.rootState._meta = withAgentCustomizationSettings(this._stateManager.rootState, [...registrations, {
+			provider: registration.provider,
+			title: registration.title,
+			description: registration.description,
+			settings: registration.settings,
+			configurationFile: registration.configurationFile,
+		}]);
+	}
+
+	getRootConfigValues(): Readonly<Record<string, unknown>> {
+		return this._stateManager.rootState.config?.values ?? {};
+	}
+
+	publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {
+		for (const key of Object.keys(patch)) {
+			this._rootTransientValueKeys.add(key);
+		}
+		this._stateManager.dispatchServerAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { ...patch },
+		});
 	}
 
 	/**
@@ -278,8 +393,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
 			return {
+				...this._loadPersistedPlatformRootConfig(parsed),
 				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
+				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
+				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
+				...agentHostProxyConfigSchema.validateOrDefault(parsed, {}),
 			};
 		} catch (err) {
 			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;
@@ -288,5 +407,22 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			}
 			return { ...defaults };
 		}
+	}
+
+	/**
+	 * Restores the platform-owned half of the persisted bag. The host reads
+	 * some of these before any client connects (`showExternalSessions`, the
+	 * migrate-legacy gate, provider enablement), so without this a restart
+	 * runs its first pass against the schema default.
+	 */
+	private _loadPersistedPlatformRootConfig(parsed: Record<string, unknown>): Record<string, unknown> {
+		const values: Record<string, unknown> = { ...platformRootSchema.validateOrDefault(parsed, {}) };
+		// Approval and policy values are a snapshot of one client's settings and
+		// are re-pushed on every connect, so restoring them could re-grant an
+		// approval that was tightened while the host was stopped.
+		for (const key of clientOwnedApprovalRootConfigKeys) {
+			delete values[key];
+		}
+		return values;
 	}
 }

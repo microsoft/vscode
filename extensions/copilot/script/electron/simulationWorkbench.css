@@ -193,6 +193,11 @@
 	box-shadow: 0 0 0 2pt #0000004b;
 }
 
+/* Only the focused adhoc editor should show a text caret. */
+.adhoc-request-editor .monaco-editor:not(.focused) .cursors-layer .cursor {
+	display: none !important;
+}
+
 .file-editor-draggable-border {
 	height: 5px;
 	width: 95%;

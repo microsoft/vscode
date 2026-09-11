@@ -13,6 +13,11 @@
 	z-index: 2600;
 }
 
+/* Expanded pickers and mobile sheets remain above the spotlight blocker. */
+.spotlight-overlay.target-overlay-visible {
+	z-index: 1999;
+}
+
 /* Full-screen click blocker. Transparent; swallows interaction outside the hole. */
 .spotlight-blocker {
 	position: fixed;
@@ -130,7 +135,13 @@
 
 .spotlight-callout-actions {
 	display: flex;
+	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size80);
+}
+
+.spotlight-callout-actions .monaco-button {
+	width: fit-content;
+	white-space: nowrap;
 }
 
 /* Respect reduced-motion: drop the animated hole transition. */

@@ -3,17 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { PermissionMode, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { AgentSignal } from '../../common/agentService.js';
+import { AgentSignal } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+
+interface IClaudeSdkMessageContext {
+	readonly turnDuration?: number;
+	readonly mode?: PermissionMode;
+	readonly clientContext?: IAgentHostClientTelemetryContext;
+}
 
 /**
  * Per-message router. Awaits file-edit observation for `type: 'user'`
@@ -36,30 +43,31 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	private readonly _editObserver: ClaudeFileEditObserver;
 	private readonly _mapperState = new ClaudeMapperState();
 
-	private _clientId: string | undefined;
+	private _clientToolOwner: ((toolName: string) => string | undefined) | undefined;
 
 	constructor(
-		private readonly _sessionUri: URI,
+		private readonly _chatChannelUri: URI,
+		resource: URI,
 		dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
-		clientId: string | undefined = undefined,
+		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._clientId = clientId;
+		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, _sessionUri.toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, resource.toString(), dbRef),
 		);
 	}
 
-	setClientId(clientId: string | undefined): void {
-		this._clientId = clientId;
+	setClientToolOwner(clientToolOwner: ((toolName: string) => string | undefined) | undefined): void {
+		this._clientToolOwner = clientToolOwner;
 	}
 
-	async handle(message: SDKMessage, turnId: string | undefined): Promise<void> {
+	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
 		if (message.type === 'assistant') {
-			this._editObserver.observeAssistant(message);
+			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext);
 		} else if (message.type === 'user' && turnId !== undefined) {
 			await this._editObserver.observeUser(message, turnId, this._mapperState);
 		}
@@ -69,12 +77,13 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		try {
 			const signals = mapSDKMessageToAgentSignals(
 				message,
-				this._sessionUri,
+				this._chatChannelUri,
 				turnId,
 				this._mapperState,
 				this._logService,
 				this._subagents,
-				this._clientId,
+				this._clientToolOwner,
+				context?.turnDuration,
 			);
 			for (const signal of signals) {
 				this._onDidProduceSignal.fire(signal);
