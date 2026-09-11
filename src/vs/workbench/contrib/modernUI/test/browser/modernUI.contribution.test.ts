@@ -1951,32 +1951,35 @@ suite('ModernUIContribution', () => {
 			const bounds = element.getBoundingClientRect();
 			return [bounds.x, bounds.y, bounds.width, bounds.height];
 		});
-		const baseline = geometry();
-		for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
-			root.classList.remove('vs-dark', 'vs', 'hc-black', 'hc-light');
-			root.classList.add(theme);
-			for (const connected of [false, true]) {
-				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
-				for (const compact of [false, true]) {
-					root.classList.toggle('modern-ui-compact', compact);
-					for (const showTabs of ['multiple', 'single', 'none', 'multiple']) {
-						editor.classList.toggle('editor-tabs-multiple', showTabs === 'multiple');
-						title.classList.toggle('tabs', showTabs === 'multiple');
-						const style = getWindow(editor).getComputedStyle(editor);
-						const wellFrame = getWindow(body).getComputedStyle(body, '::after');
-						const connectedFrame = connected && showTabs === 'multiple';
-						const singleFrame = connectedFrame && theme.startsWith('hc-');
-						assert.deepStrictEqual({
-							geometry: geometry(),
-							border: [style.borderTopWidth, style.borderLeftWidth, style.borderColor],
-							compactStroke: compact ? style.getPropertyValue('--modern-ui-floating-card-stroke-color').trim() : undefined,
-							wellFrame: [wellFrame.content, wellFrame.borderLeftWidth, singleFrame ? wellFrame.borderLeftColor : undefined],
-						}, {
-							geometry: baseline,
-							border: ['1px', '1px', singleFrame || compact ? 'rgba(0, 0, 0, 0)' : 'rgb(18, 52, 86)'],
-							compactStroke: compact ? (singleFrame ? 'transparent' : '#123456') : undefined,
-							wellFrame: [connectedFrame ? '""' : 'none', connectedFrame ? '1px' : '0px', singleFrame ? 'rgb(255, 170, 0)' : undefined],
-						}, `${theme}, connected: ${connected}, compact: ${compact}, showTabs: ${showTabs}`);
+		for (const floating of [false, true]) {
+			root.classList.toggle('floating-panels', floating);
+			const baseline = geometry();
+			for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+				root.classList.remove('vs-dark', 'vs', 'hc-black', 'hc-light');
+				root.classList.add(theme);
+				for (const connected of [false, true]) {
+					root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+					for (const compact of [false, true]) {
+						root.classList.toggle('modern-ui-compact', compact);
+						for (const showTabs of ['multiple', 'single', 'none', 'multiple']) {
+							editor.classList.toggle('editor-tabs-multiple', showTabs === 'multiple');
+							title.classList.toggle('tabs', showTabs === 'multiple');
+							const style = getWindow(editor).getComputedStyle(editor);
+							const wellFrame = getWindow(body).getComputedStyle(body, '::after');
+							const connectedFrame = connected && showTabs === 'multiple';
+							const singleFrame = connectedFrame && theme.startsWith('hc-');
+							assert.deepStrictEqual({
+								geometry: geometry(),
+								border: [style.borderTopWidth, style.borderLeftWidth, style.borderColor],
+								compactStroke: floating && compact ? style.getPropertyValue('--modern-ui-floating-card-stroke-color').trim() : undefined,
+								wellFrame: [wellFrame.content, wellFrame.borderLeftWidth, singleFrame ? wellFrame.borderLeftColor : undefined],
+							}, {
+								geometry: baseline,
+								border: ['1px', '1px', singleFrame || (floating && compact) ? 'rgba(0, 0, 0, 0)' : 'rgb(18, 52, 86)'],
+								compactStroke: floating && compact ? (singleFrame ? 'transparent' : '#123456') : undefined,
+								wellFrame: [connectedFrame ? '""' : 'none', connectedFrame ? '1px' : '0px', singleFrame ? 'rgb(255, 170, 0)' : undefined],
+							}, `${theme}, floating: ${floating}, connected: ${connected}, compact: ${compact}, showTabs: ${showTabs}`);
+						}
 					}
 				}
 			}
