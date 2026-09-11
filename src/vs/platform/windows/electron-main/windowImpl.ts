@@ -1178,7 +1178,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		if (!e || e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.noProxy')) {
 			const inspect = this.configurationService.inspect<string>('http.proxy');
 			let newHttpProxy = (inspect.userLocalValue || '').trim()
-				|| (process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY || '').trim() // Not standardized.
+				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
 				|| undefined;
 
 			if (newHttpProxy?.indexOf('@') !== -1) {
@@ -1194,7 +1194,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			const newNoProxy = (this.configurationService.getValue<string[]>('http.noProxy') || []).map((item) => item.trim()).join(',')
-				|| (process.env.no_proxy || process.env.NO_PROXY || '').trim() || undefined; // Not standardized.
+				|| (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
 			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 				this.currentHttpProxy = newHttpProxy;
 				this.currentNoProxy = newNoProxy;
@@ -1323,9 +1323,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// If named pipe was instantiated for the crashpad_handler process, reuse the same
 		// pipe for new app instances connecting to the original app instance.
 		// Ref: https://github.com/microsoft/vscode/issues/115874
-		if (process.env.CHROME_CRASHPAD_PIPE_NAME) {
+		if (process.env['CHROME_CRASHPAD_PIPE_NAME']) {
 			Object.assign(configuration.userEnv, {
-				CHROME_CRASHPAD_PIPE_NAME: process.env.CHROME_CRASHPAD_PIPE_NAME
+				CHROME_CRASHPAD_PIPE_NAME: process.env['CHROME_CRASHPAD_PIPE_NAME']
 			});
 		}
 

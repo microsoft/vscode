@@ -39,12 +39,12 @@ globalThis._VSCODE_FILE_ROOT = import.meta.dirname;
 // `node_modules` — exactly as it would without the archive. Only when the
 // default resolution finds nothing do we consult the archive.
 function enableASARSupport(): void {
-	if (!process.env.ELECTRON_RUN_AS_NODE && !process.versions.electron) {
+	if (!process.env['ELECTRON_RUN_AS_NODE'] && !process.versions.electron) {
 		return; // only on Electron / Electron-as-node
 	}
 
 	let trace: ((message: string) => void) | undefined;
-	const traceSink = process.env.VSCODE_ASAR_TRACE || undefined;
+	const traceSink = process.env['VSCODE_ASAR_TRACE'] || undefined;
 	if (traceSink) {
 		// Known truthy values trace to stderr; any other value is a file path.
 		const prefix = '[asar-resolve] ';
@@ -92,7 +92,7 @@ function enableASARSupport(): void {
 	};
 
 	const appRoot = dirname(import.meta.dirname);
-	const resourcesPath = process.env.VSCODE_DEV ? undefined : normalizeDriveLetter(appRoot);
+	const resourcesPath = process.env['VSCODE_DEV'] ? undefined : normalizeDriveLetter(appRoot);
 	// Root require.resolve() inside the archive; the leading './' below avoids a node_modules walk.
 	const asarRequire = resourcesPath ? createRequire(join(appRoot, 'node_modules.asar', 'x.js')) : undefined;
 	trace?.(`tracing enabled (node ${process.versions.node}); resourcesPath=${resourcesPath}`);
@@ -230,9 +230,9 @@ async function doSetupNLS(): Promise<INLSConfiguration | undefined> {
 	let nlsConfig: INLSConfiguration | undefined = undefined;
 
 	let messagesFile: string | undefined;
-	if (process.env.VSCODE_NLS_CONFIG) {
+	if (process.env['VSCODE_NLS_CONFIG']) {
 		try {
-			nlsConfig = JSON.parse(process.env.VSCODE_NLS_CONFIG);
+			nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
 			if (nlsConfig?.languagePack?.messagesFile) {
 				messagesFile = nlsConfig.languagePack.messagesFile;
 			} else if (nlsConfig?.defaultMessagesFile) {
@@ -246,7 +246,7 @@ async function doSetupNLS(): Promise<INLSConfiguration | undefined> {
 	}
 
 	if (
-		process.env.VSCODE_DEV ||	// no NLS support in dev mode
+		process.env['VSCODE_DEV'] ||	// no NLS support in dev mode
 		!messagesFile					// no NLS messages file
 	) {
 		return undefined;

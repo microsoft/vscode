@@ -38,7 +38,7 @@ const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
 const agentHostBridgeConnectionToken = process.env[agentHostBridgeConnectionTokenEnvironmentVariable];
 delete process.env[agentHostBridgeConnectionTokenEnvironmentVariable];
 
-const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env.VSCODE_AGENT_FOLDER || join(os.homedir(), product.serverDataFolderName || '.vscode-remote');
+const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), product.serverDataFolderName || '.vscode-remote');
 const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
 const APP_SETTINGS_HOME = join(USER_DATA_PATH, 'User');
 const GLOBAL_STORAGE_HOME = join(APP_SETTINGS_HOME, 'globalStorage');

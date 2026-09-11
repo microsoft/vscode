@@ -174,7 +174,7 @@ function sanitizeStringArg(val: unknown): string | undefined {
  * `exit` handler does not).
  */
 function installServerProcessExitDiagnostics(): void {
-	if (!process.env.VSCODE_SERVER_EXIT_DIAGNOSTICS) {
+	if (!process.env['VSCODE_SERVER_EXIT_DIAGNOSTICS']) {
 		return;
 	}
 
@@ -350,21 +350,21 @@ async function findFreePort(host: string | undefined, start: number, end: number
 async function loadCode(nlsConfiguration: INLSConfiguration) {
 
 	// required for `bootstrap-esm` to pick up NLS messages
-	process.env.VSCODE_NLS_CONFIG = JSON.stringify(nlsConfiguration);
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration);
 
 	// See https://github.com/microsoft/vscode-remote-release/issues/6543
 	// We would normally install a SIGPIPE listener in bootstrap-node.js
 	// But in certain situations, the console itself can be in a broken pipe state
 	// so logging SIGPIPE to the console will cause an infinite async loop
-	process.env.VSCODE_HANDLES_SIGPIPE = 'true';
+	process.env['VSCODE_HANDLES_SIGPIPE'] = 'true';
 
-	if (process.env.VSCODE_DEV) {
+	if (process.env['VSCODE_DEV']) {
 		// When running out of sources, we need to load node modules from remote/node_modules,
 		// which are compiled against nodejs, not electron
-		process.env.VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH = process.env.VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH || path.join(import.meta.dirname, '..', 'remote', 'node_modules');
-		devInjectNodeModuleLookupPath(process.env.VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH);
+		process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(import.meta.dirname, '..', 'remote', 'node_modules');
+		devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 	} else {
-		delete process.env.VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH;
+		delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 	}
 
 	// Remove global paths from the node module lookup (node.js only)

@@ -8,7 +8,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotAutoModeTiersEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotAutoModeTiersEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSubagentModelGuidanceEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
@@ -62,6 +62,11 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				key: CopilotCliConfigKey.ReasoningSummary,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostReasoningSummaryEnabledSettingId),
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostReasoningSummaryEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.HydraFusion,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostHydraFusionEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.AutoModeTiers,

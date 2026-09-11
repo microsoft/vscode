@@ -17,7 +17,6 @@ src/vs/platform/agentHost/**/*Automation* @ulugbekna
 src/vs/platform/agentHost/**/*automation* @ulugbekna
 src/vs/platform/agentHost/common/state/protocol/channels-automation-run/** @ulugbekna
 src/vs/platform/agentHost/common/state/protocol/channels-automation/** @ulugbekna
-src/vs/platform/agentHost/node/agentService.ts @ulugbekna
 src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
@@ -59,22 +58,6 @@ src/vs/workbench/contrib/preferences/** @rzhao271
 
 # Sessions Contributions
 src/vs/sessions/contrib/browserView/** @kycutler @jruales
-src/vs/sessions/**/*Automation* @ulugbekna
-src/vs/sessions/**/*automation* @ulugbekna
-src/vs/sessions/AUTOMATIONS.md @ulugbekna
-src/vs/sessions/contrib/automations/** @ulugbekna
-src/vs/sessions/contrib/chat/browser/sessionModelSelection.ts @ulugbekna
-src/vs/sessions/contrib/chat/browser/sessionWorkspacePicker.ts @ulugbekna
-src/vs/sessions/contrib/chat/test/browser/sessionModelSelection.test.ts @ulugbekna
-src/vs/sessions/contrib/chat/test/browser/sessionWorkspacePicker.test.ts @ulugbekna
-src/vs/sessions/contrib/providers/agentHost/browser/baseAgentHostSessionsProvider.ts @ulugbekna
-src/vs/sessions/contrib/providers/agentHost/browser/localAgentHostSessionsProvider.ts @ulugbekna
-src/vs/sessions/contrib/providers/agentHost/test/browser/localAgentHostSessionsProvider.test.ts @ulugbekna
-src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsProvider.ts @ulugbekna
-src/vs/sessions/contrib/providers/copilotChatSessions/test/browser/copilotChatSessionsProvider.test.ts @ulugbekna
-src/vs/sessions/contrib/sessions/browser/views/sessionsList.ts @ulugbekna
-src/vs/sessions/contrib/sessions/test/browser/sessionsList.test.ts @ulugbekna
-src/vs/sessions/services/sessions/common/sessionsProvider.ts @ulugbekna
 
 # Build
 build/azure-pipelines/** @lszomoru

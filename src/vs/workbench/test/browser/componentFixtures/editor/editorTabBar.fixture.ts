@@ -357,6 +357,9 @@ export interface IEditorTabBarFixtureOptions {
 	readonly active?: boolean;
 	readonly dropTargetBetweenTabs?: boolean;
 	readonly showHeader?: boolean;
+	readonly useModernUITabs?: boolean;
+	readonly reserveHeaderSpace?: boolean;
+	readonly headerWidth?: number;
 	readonly headerMenuIds?: IEditorGroupMenuIds;
 	readonly colorCustomizations?: Readonly<Record<string, string>>;
 	readonly forcedHoverTab?: number;
@@ -536,14 +539,15 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		model,
 		options.headerMenuIds,
 		options.showHeader ?? false,
-		undefined,
+		options.reserveHeaderSpace ? () => true : undefined,
+		options.useModernUITabs ?? false,
 	));
 
 	const layout = () => {
 		titleControl.layout({
 			container: new Dimension(width, titleControl.getHeight().total),
 			available: new Dimension(width, 200),
-		});
+		}, options.headerWidth);
 	};
 	groupView.relayoutFn = layout;
 
@@ -558,7 +562,10 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 		tabs[options.forcedHoverTab]?.classList.add('fixture-hover');
 	}
 	if (options.focusedTabAction !== undefined) {
-		tabs[options.focusedTabAction]?.querySelector<HTMLElement>('.tab-actions .action-label')?.focus();
+		const action = tabs[options.focusedTabAction]?.querySelector<HTMLElement>('.tab-actions .action-label');
+		if (action) {
+			ctx.focus(action);
+		}
 	}
 	layout();
 }
@@ -573,7 +580,8 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 		Default: defineComponentFixture({ render: render(modernUI, {}), additionalThemes }),
 
 		// showTabs
-		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }) }),
+		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }), additionalThemes }),
+		ShowTabsSingleCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single', tabHeight: 'compact' }, breadcrumbs: {} }), additionalThemes }),
 		ShowTabsNone: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'none' } }) }),
 
 		// pinnedTabsOnSeparateRow

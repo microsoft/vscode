@@ -70,7 +70,7 @@ export async function main(argv: string[]): Promise<void> {
 			return new Promise((resolve, reject) => {
 				let tunnelProcess: ChildProcess;
 				const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
-				if (process.env.VSCODE_DEV) {
+				if (process.env['VSCODE_DEV']) {
 					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio, env });
 				} else {
 					const appPath = process.platform === 'darwin'
@@ -132,7 +132,7 @@ export async function main(argv: string[]): Promise<void> {
 		// built, because our location on disk is different if built.
 
 		let cliProcessMain: string;
-		if (process.env.VSCODE_DEV) {
+		if (process.env['VSCODE_DEV']) {
 			cliProcessMain = './cliProcessMain.js';
 		} else {
 			cliProcessMain = './vs/code/node/cliProcessMain.js';
@@ -421,7 +421,7 @@ export async function main(argv: string[]): Promise<void> {
 								}
 								let suffix = '';
 								const result = await session.stop();
-								if (!process.env.VSCODE_DEV) {
+								if (!process.env['VSCODE_DEV']) {
 									// when running from a not-development-build we remove
 									// absolute filenames because we don't want to reveal anything
 									// about users. We also append the `.txt` suffix to make it

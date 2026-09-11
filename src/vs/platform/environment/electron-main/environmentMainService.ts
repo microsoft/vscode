@@ -58,7 +58,7 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get disableUpdates(): boolean { return !!this.args['disable-updates']; }
 
 	@memoize
-	get isPortable(): boolean { return !!process.env.VSCODE_PORTABLE; }
+	get isPortable(): boolean { return !!process.env['VSCODE_PORTABLE']; }
 
 	@memoize
 	get crossOriginIsolated(): boolean { return !!this.args['enable-coi']; }
@@ -67,7 +67,7 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get enableRDPDisplayTracking(): boolean { return !!this.args['enable-rdp-display-tracking']; }
 
 	@memoize
-	get codeCachePath(): string | undefined { return process.env.VSCODE_CODE_CACHE_PATH || undefined; }
+	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
 
 	@memoize
 	get useCodeCache(): boolean { return !!this.codeCachePath; }

@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { activeContrastBorder, badgeBackground, badgeForeground, chartsGreen, chartsYellow, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, errorForeground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { editorFindMatchHighlight } from '../../../../../platform/theme/common/colors/editorColors.js';
 import { buttonBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { darken, lighten } from '../../../../../platform/theme/common/colorUtils.js';
@@ -37,6 +37,24 @@ export const chatStatusBackground = registerColor(
 	'chat.statusBackground',
 	{ dark: transparent(foreground, 0.08), light: transparent(foreground, 0.08), hcDark: Color.black, hcLight: Color.white },
 	localize('chat.statusBackground', 'The background color of status elements in chat.')
+);
+
+export const chatSessionInProgressBorder = registerColor(
+	'chat.sessionStateIndicator.inProgressBorder',
+	{ dark: chartsYellow, light: chartsYellow, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.sessionStateIndicator.inProgressBorder', "Border color of a Chat Editor with a request in progress.")
+);
+
+export const chatSessionUnvisitedBorder = registerColor(
+	'chat.sessionStateIndicator.unvisitedBorder',
+	{ dark: chartsGreen, light: chartsGreen, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.sessionStateIndicator.unvisitedBorder', "Border color of a Chat Editor with an unvisited completion.")
+);
+
+export const chatSessionNeedsInputBorder = registerColor(
+	'chat.sessionStateIndicator.needsInputBorder',
+	{ dark: errorForeground, light: errorForeground, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
+	localize('chat.sessionStateIndicator.needsInputBorder', "Border color of a Chat Editor that needs user input.")
 );
 
 export const chatSlashCommandBackground = registerColor(

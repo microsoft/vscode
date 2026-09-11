@@ -6,7 +6,7 @@
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { isWindows } from '../../../../base/common/platform.js';
 
-export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false): Record<string, string | undefined> {
+export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, hydraFusionEnabled = false): Record<string, string | undefined> {
 	const normalizedOmittedKeys = new Set(omittedKeys.map(key => isWindows ? key.toLowerCase() : key));
 	const env: Record<string, string | undefined> = {};
 	for (const [key, value] of Object.entries(environment)) {
@@ -33,5 +33,7 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env[AiAgentEnvVar] = AiAgentEnvValue;
 	env['AUTO_APPROVAL'] = 'true';
 	env['ANTHROPIC_ADVISOR'] = String(claudeAdvisorEnabled);
+	env['HYDRAFUSION'] = String(hydraFusionEnabled);
+	env['HYDRAFUSION_ROLLOUT'] = String(hydraFusionEnabled);
 	return env;
 }

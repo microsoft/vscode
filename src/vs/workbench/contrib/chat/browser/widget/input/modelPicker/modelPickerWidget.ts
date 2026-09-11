@@ -543,9 +543,6 @@ export class ModelPickerWidget extends Disposable {
 			} else {
 				this._languageModelsService.unpinModel(modelIdentifier);
 			}
-			// Re-show the picker to reflect the updated pin state
-			this._actionWidgetService.hide();
-			this.show(anchorElement);
 		};
 
 		const onLinkClick = (uri: URI) => {
@@ -613,7 +610,11 @@ export class ModelPickerWidget extends Disposable {
 			},
 			actions: {
 				onSelect,
-				onTogglePin,
+				onTogglePin: (modelIdentifier, pinned) => {
+					onTogglePin(modelIdentifier, pinned);
+					this._actionWidgetService.hide();
+					this.show(anchorElement);
+				},
 				onConfigure,
 				onRequestTrust: () => { void this._requestWorkspaceTrust(); },
 				onRequestSetup: () => { this._requestSetup(); },

@@ -84,11 +84,11 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 	}
 };
 
-const cliPipe = process.env.VSCODE_IPC_HOOK_CLI as string;
-const cliCommand = process.env.VSCODE_CLIENT_COMMAND as string;
-const cliCommandCwd = process.env.VSCODE_CLIENT_COMMAND_CWD as string;
-const cliRemoteAuthority = process.env.VSCODE_CLI_AUTHORITY as string;
-const cliStdInFilePath = process.env.VSCODE_STDIN_FILE_PATH as string;
+const cliPipe = process.env['VSCODE_IPC_HOOK_CLI'] as string;
+const cliCommand = process.env['VSCODE_CLIENT_COMMAND'] as string;
+const cliCommandCwd = process.env['VSCODE_CLIENT_COMMAND_CWD'] as string;
+const cliRemoteAuthority = process.env['VSCODE_CLI_AUTHORITY'] as string;
+const cliStdInFilePath = process.env['VSCODE_STDIN_FILE_PATH'] as string;
 
 export async function main(desc: ProductDescription, args: string[]): Promise<void> {
 	if (!cliPipe && !cliCommand) {
@@ -380,7 +380,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 }
 
 function runningInWSL2(): boolean {
-	if (!!process.env.WSL_DISTRO_NAME) {
+	if (!!process.env['WSL_DISTRO_NAME']) {
 		try {
 			return cp.execSync('uname -r', { encoding: 'utf8' }).includes('-microsoft-');
 		} catch (_e) {

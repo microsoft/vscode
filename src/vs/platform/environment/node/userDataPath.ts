@@ -16,7 +16,7 @@ import { NativeParsedArgs } from '../common/argv.js';
 // eslint-disable-next-line local/code-import-patterns
 import { resolve, isAbsolute, join } from 'path';
 
-const cwd = process.env.VSCODE_CWD || process.cwd();
+const cwd = process.env['VSCODE_CWD'] || process.cwd();
 
 /**
  * Returns the user data path to use with some rules:
@@ -44,18 +44,18 @@ export function getUserDataPath(cliArgs: NativeParsedArgs, productName: string):
 function doGetUserDataPath(cliArgs: NativeParsedArgs, productName: string): string {
 
 	// 0. Running out of sources has a fixed productName
-	if (process.env.VSCODE_DEV) {
+	if (process.env['VSCODE_DEV']) {
 		productName = 'code-oss-dev';
 	}
 
 	// 1. Support portable mode
-	const portablePath = process.env.VSCODE_PORTABLE;
+	const portablePath = process.env['VSCODE_PORTABLE'];
 	if (portablePath) {
 		return join(portablePath, 'user-data');
 	}
 
 	// 2. Support global VSCODE_APPDATA environment variable
-	const appDataPath = process.env.VSCODE_APPDATA;
+	const appDataPath = process.env['VSCODE_APPDATA'];
 	if (appDataPath) {
 		return join(appDataPath, productName);
 	}
@@ -82,9 +82,9 @@ export function getDefaultUserDataPath(productName: string): string {
 	// 4. Otherwise check per platform
 	switch (process.platform) {
 		case 'win32':
-			appDataPath = process.env.APPDATA;
+			appDataPath = process.env['APPDATA'];
 			if (!appDataPath) {
-				const userProfile = process.env.USERPROFILE;
+				const userProfile = process.env['USERPROFILE'];
 				if (typeof userProfile !== 'string') {
 					throw new Error('Windows: Unexpected undefined %USERPROFILE% environment variable');
 				}
@@ -96,7 +96,7 @@ export function getDefaultUserDataPath(productName: string): string {
 			appDataPath = join(homedir(), 'Library', 'Application Support');
 			break;
 		case 'linux':
-			appDataPath = process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
+			appDataPath = process.env['XDG_CONFIG_HOME'] || join(homedir(), '.config');
 			break;
 		default:
 			throw new Error('Platform not supported');

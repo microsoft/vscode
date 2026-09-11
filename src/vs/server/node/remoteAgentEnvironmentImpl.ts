@@ -105,7 +105,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		if (process.platform === 'linux') {
 			const glibcVersion = (process as ProcessWithGlibc).glibcVersion;
 			const minorVersion = glibcVersion ? parseInt(glibcVersion.split('.')[1]) : 28;
-			isUnsupportedGlibc = (minorVersion <= 27) || !!process.env.VSCODE_SERVER_CUSTOM_GLIBC_LINKER;
+			isUnsupportedGlibc = (minorVersion <= 27) || !!process.env['VSCODE_SERVER_CUSTOM_GLIBC_LINKER'];
 		}
 		this._logService.trace(`[reconnection-grace-time] Server sending grace time to client: ${this._environmentService.reconnectionGraceTime}ms (${Math.floor(this._environmentService.reconnectionGraceTime / 1000)}s)`);
 		return {

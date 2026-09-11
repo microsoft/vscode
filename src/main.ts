@@ -209,8 +209,8 @@ async function onReady() {
  * Main startup routine
  */
 async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration): Promise<void> {
-	process.env.VSCODE_NLS_CONFIG = JSON.stringify(nlsConfig);
-	process.env.VSCODE_CODE_CACHE_PATH = codeCachePath || '';
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	// Bootstrap ESM
 	await bootstrapESM();
@@ -442,13 +442,13 @@ function createDefaultArgvConfigSync(argvConfigPath: string): void {
 }
 
 function getArgvConfigPath(): string {
-	const vscodePortable = process.env.VSCODE_PORTABLE;
+	const vscodePortable = process.env['VSCODE_PORTABLE'];
 	if (vscodePortable) {
 		return path.join(vscodePortable, 'argv.json');
 	}
 
 	let dataFolderName = product.dataFolderName;
-	if (process.env.VSCODE_DEV) {
+	if (process.env['VSCODE_DEV']) {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
@@ -536,10 +536,10 @@ function configureCrashReporter(): void {
 	// Start crash reporter for all processes
 	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
 	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
-	const uploadToServer = Boolean(!process.env.VSCODE_DEV && submitURL && !crashReporterDirectory);
+	const uploadToServer = Boolean(!process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory);
 	crashReporter.start({
 		companyName,
-		productName: process.env.VSCODE_DEV ? `${productName} Dev` : productName,
+		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
 		uploadToServer,
 		compress: true,
@@ -625,7 +625,7 @@ function getCodeCachePath(): string | undefined {
 	}
 
 	// running out of sources
-	if (process.env.VSCODE_DEV) {
+	if (process.env['VSCODE_DEV']) {
 		return undefined;
 	}
 

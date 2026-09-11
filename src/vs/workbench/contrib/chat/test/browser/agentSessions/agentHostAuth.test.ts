@@ -46,7 +46,7 @@ function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'
 
 function createMockAuthService(overrides: {
 	getOrActivateProviderIdForServer?: (serverUri: URI, resourceUri: URI) => Promise<string | undefined>;
-	getSessions?: (providerId: string, scopes: string[] | undefined, options: any, activate: boolean) => Promise<readonly { scopes: string[]; accessToken: string; expiresIn?: number }[]>;
+	getSessions?: (providerId: string, scopes: string[] | undefined, options: any, activate: boolean) => Promise<readonly { scopes: string[]; accessToken: string; expiresAfter?: number }[]>;
 	createSession?: (providerId: string, scopes: string[], options: any) => Promise<{ accessToken: string }>;
 	createDynamicAuthenticationProvider?: (...args: Parameters<IAuthenticationService['createDynamicAuthenticationProvider']>) => Promise<{ readonly id: string } | undefined>;
 	getProvider?: IAuthenticationService['getProvider'];
@@ -1137,7 +1137,7 @@ suite('authenticateProtectedResources', () => {
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
 			getSessions: (_providerId, scopes) => {
 				if (scopes) {
-					return Promise.resolve([{ scopes: ['read'], accessToken: 'cached-token', expiresIn: 3600 }]);
+					return Promise.resolve([{ scopes: ['read'], accessToken: 'cached-token', expiresAfter: 3_600_000 }]);
 				}
 
 				return Promise.resolve([]);
@@ -1169,7 +1169,7 @@ suite('authenticateProtectedResources', () => {
 	test('forwards a token without a malformed session expiry', async () => {
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
-			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{ scopes: ['read'], accessToken: 'cached-token', expiresIn: 0 }] : []),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{ scopes: ['read'], accessToken: 'cached-token', expiresAfter: 0 }] : []),
 		});
 		const requests: { resource: string; scopes?: readonly string[]; token: string; expiresIn?: number }[] = [];
 		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];

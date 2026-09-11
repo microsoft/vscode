@@ -12,15 +12,15 @@ import { product } from './bootstrap-meta.js';
 
 // NLS
 const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: import.meta.dirname });
-process.env.VSCODE_NLS_CONFIG = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
+process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
 
-if (process.env.VSCODE_DEV) {
+if (process.env['VSCODE_DEV']) {
 	// When running out of sources, we need to load node modules from remote/node_modules,
 	// which are compiled against nodejs, not electron
-	process.env.VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH = process.env.VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH || join(import.meta.dirname, '..', 'remote', 'node_modules');
-	devInjectNodeModuleLookupPath(process.env.VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH);
+	process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || join(import.meta.dirname, '..', 'remote', 'node_modules');
+	devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 } else {
-	delete process.env.VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH;
+	delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 }
 
 // Bootstrap ESM

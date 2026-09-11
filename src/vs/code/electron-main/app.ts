@@ -1178,7 +1178,7 @@ export class CodeApplication extends Disposable {
 
 			case 'linux':
 				if (isLinuxSnap) {
-					services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env.SNAP, process.env.SNAP_REVISION]));
+					services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env['SNAP'], process.env['SNAP_REVISION']]));
 				} else {
 					services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
 				}
@@ -1789,7 +1789,7 @@ export class CodeApplication extends Disposable {
 
 	private async installMutex(): Promise<void> {
 		const win32MutexName = this.productService.win32MutexName;
-		if (isWindows && win32MutexName && isInnoSetupInstall()) {
+		if (isWindows && win32MutexName && isInnoSetupInstall(this.productService.target)) {
 			try {
 				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);

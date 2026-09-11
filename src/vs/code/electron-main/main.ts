@@ -246,7 +246,7 @@ class CodeMain {
 		// File-based managed settings
 		let fileManagedSettingsPath: string | undefined;
 		if (isWindows) {
-			const programFiles = process.env.ProgramFiles;
+			const programFiles = process.env['ProgramFiles'];
 			if (programFiles) {
 				fileManagedSettingsPath = join(programFiles, MANAGED_SETTINGS_WINDOWS_DIR, MANAGED_SETTINGS_FILE_NAME);
 			}
@@ -474,7 +474,7 @@ class CodeMain {
 
 		// Set the VSCODE_PID variable here when we are sure we are the first
 		// instance to startup. Otherwise we would wrongly overwrite the PID
-		process.env.VSCODE_PID = String(process.pid);
+		process.env['VSCODE_PID'] = String(process.pid);
 
 		return mainProcessNodeIpcServer;
 	}
@@ -545,7 +545,7 @@ class CodeMain {
 	}
 
 	private async checkInnoSetupMutex(productService: IProductService, logService: ILogService): Promise<boolean> {
-		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate && isInnoSetupInstall())) {
+		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate && isInnoSetupInstall(productService.target))) {
 			return false;
 		}
 

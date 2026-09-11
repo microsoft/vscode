@@ -100,10 +100,10 @@ export async function getResolvedShellEnv(configurationService: IConfigurationSe
 }
 
 async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
-	const runAsNode = process.env.ELECTRON_RUN_AS_NODE;
+	const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 	logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
 
-	const noAttach = process.env.ELECTRON_NO_ATTACH_CONSOLE;
+	const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
 	logService.trace('getUnixShellEnvironment#noAttach', noAttach);
 
 	const mark = generateUuid().replace(/-/g, '').substr(0, 12);

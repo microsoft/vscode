@@ -14,7 +14,7 @@ import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d }
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../../nls.js';
-import { SpotlightPlacement } from './spotlightTypes.js';
+import { SpotlightPlacement, SpotlightTargetClickBehavior } from './spotlightTypes.js';
 import { OnboardingDismissReason } from '../../common/onboardingScenario.js';
 import '../media/spotlight.css';
 
@@ -35,9 +35,11 @@ type PointerSide = 'top' | 'right' | 'bottom' | 'left';
 export interface ISpotlightContent {
 	readonly title: string;
 	readonly description: string | IMarkdownString;
+	/** Localized primary button label, replacing the default Next or Done. */
+	readonly nextButtonLabel?: string;
 	/** Zero-based index of the current step. */
 	readonly stepIndex: number;
-	/** Total number of steps in the tour. */
+	/** Total number of steps in the tour. Progress is displayed only for multi-step tours. */
 	readonly stepCount: number;
 	/** Whether a "Back" action should be offered. */
 	readonly canGoBack: boolean;
@@ -52,12 +54,8 @@ export interface ISpotlightShowOptions {
 	readonly padding?: number;
 	readonly hideNext?: boolean;
 	readonly targetOverlayVisible?: boolean;
-	/**
-	 * When set, the step advances (fires `onDidClickNext`) when the user clicks
-	 * the spotlighted target itself. The "Next" button is hidden and the target
-	 * is kept interactive so the user can press it to continue.
-	 */
-	readonly advanceOnTargetClick?: boolean;
+	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
+	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
 }
 
 /**
@@ -199,18 +197,35 @@ export class SpotlightOverlay extends Disposable {
 			this._scheduledLayout = undefined;
 		}));
 
-		// When the step advances by pressing the target, hide the Next button and
-		// advance on a click of the (interactive) target instead. The target is
-		// kept keyboard-reachable: it joins the focus trap (see `_collectFocusable`)
-		// and we route Tab/Esc from it through the same handler, so keyboard-only
-		// users can focus the spotlighted control and activate it to advance.
 		const advanceOnTargetClick = !!options.advanceOnTargetClick;
-		const hideNext = advanceOnTargetClick || !!options.hideNext;
+		const advanceOnly = options.advanceOnTargetClick === 'advanceOnly';
+		const hideNext = options.hideNext ?? advanceOnTargetClick;
 		this._nextButton.element.style.display = hideNext ? 'none' : '';
 		if (advanceOnTargetClick) {
-			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, () => this._onDidClickNext.fire('target')));
+			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, event => {
+				if (advanceOnly) {
+					event.preventDefault();
+					event.stopImmediatePropagation();
+				}
+				this._onDidClickNext.fire('target');
+			}, advanceOnly));
 		}
-		if (options.allowTargetInteraction || advanceOnTargetClick || options.hideNext) {
+		if (advanceOnly) {
+			const onTargetKey = (event: KeyboardEvent) => {
+				const key = new StandardKeyboardEvent(event);
+				if (key.equals(KeyCode.Enter) || key.equals(KeyCode.Space)) {
+					event.preventDefault();
+					event.stopImmediatePropagation();
+					if (event.type === EventType.KEY_UP) {
+						this._onDidClickNext.fire('target');
+					}
+				} else if (event.type === EventType.KEY_DOWN) {
+					this._onKeyDown(event);
+				}
+			};
+			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, onTargetKey, true));
+			this._stepListeners.add(addDisposableListener(target, EventType.KEY_UP, onTargetKey, true));
+		} else if (options.allowTargetInteraction || advanceOnTargetClick || options.hideNext) {
 			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 		}
 
@@ -379,13 +394,15 @@ export class SpotlightOverlay extends Disposable {
 			this._description.textContent = content.description;
 		}
 
-		this._counter.textContent = localize('spotlight.counter', "{0} of {1}", content.stepIndex + 1, content.stepCount);
+		this._counter.textContent = content.stepCount > 1
+			? localize('spotlight.counter', "{0} of {1}", content.stepIndex + 1, content.stepCount)
+			: '';
 
 		this._skipButton.element.style.display = content.isLastStep ? 'none' : '';
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
-		this._nextButton.label = content.isLastStep
+		this._nextButton.label = content.nextButtonLabel ?? (content.isLastStep
 			? localize('spotlight.done', "Done")
-			: localize('spotlight.next', "Next");
+			: localize('spotlight.next', "Next"));
 	}
 
 	private _onKeyDown(e: KeyboardEvent): void {

@@ -205,8 +205,8 @@ const { createPackage, uncache } = nodeRequire('asar') as {
 			ELECTRON_RUN_AS_NODE: '1',
 			VSCODE_ASAR_TRACE: packagedTracePath
 		};
-		delete env['NODE_OPTIONS'];
-		delete env['VSCODE_DEV'];
+		delete env.NODE_OPTIONS;
+		delete env.VSCODE_DEV;
 
 		const { stdout } = await execFileAsync(process.execPath, [
 			'--import',
@@ -234,8 +234,8 @@ const { createPackage, uncache } = nodeRequire('asar') as {
 			ELECTRON_RUN_AS_NODE: '1',
 			VSCODE_ASAR_TRACE: packagedCollisionTracePath
 		};
-		delete env['NODE_OPTIONS'];
-		delete env['VSCODE_DEV'];
+		delete env.NODE_OPTIONS;
+		delete env.VSCODE_DEV;
 
 		const { stdout } = await execFileAsync(process.execPath, [
 			'--import',

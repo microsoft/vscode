@@ -8,7 +8,7 @@ import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.j
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -21,7 +21,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, AutoModeTiersExperimentName, CopilotAutoModeTierOverrideSettingId, CopilotAutoModeTiersEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostReasoningSummaryEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, AutoModeTiersExperimentName, CopilotAutoModeTierOverrideSettingId, CopilotAutoModeTiersEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotSubagentModelGuidanceEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -53,7 +53,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
-import { McpCollisionBehavior, allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection } from '../../mcp/common/mcpConfiguration.js';
+import { McpCollisionBehavior, allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection, mcpWorkspaceRootConfig } from '../../mcp/common/mcpConfiguration.js';
 import { autoApprovePolicyValue } from '../common/agentHostConfigPolicy.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
@@ -65,6 +65,7 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
 import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, CustomizationMigrationHintMode, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import './agentSessionsConfiguration.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
@@ -79,7 +80,7 @@ import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/cha
 import { PromptsConfig, isTildePath } from '../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, CLAUDE_AGENTS_SOURCE_FOLDER, COPILOT_USER_AGENTS_SOURCE_FOLDER, DEFAULT_HOOK_FILE_PATHS, DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS, DEFAULT_SKILL_SOURCE_FOLDERS, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, SKILL_FILENAME } from '../common/promptSyntax/config/promptFileLocations.js';
 import { HOOK_SCHEMA_URI, hookFileSchema } from '../common/promptSyntax/hookSchema.js';
-import { AGENT_DOCUMENTATION_URL, AgentHostAgentDebugLogEnabledSettingId, AgentHostAgentDebugLogMaxEventsSettingId, HOOK_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, PromptFileSource, PromptsType, SKILL_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
+import { AgentHostAgentDebugLogEnabledSettingId, AgentHostAgentDebugLogMaxEventsSettingId, getDocumentationUrl, PromptFileSource, PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { ICustomizationMigrationService } from '../common/promptSyntax/service/customizationMigrationService.js';
 import { CustomizationMigrationService } from './aiCustomization/customizationMigrationServiceImpl.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -134,8 +135,9 @@ import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSumma
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { PromptLanguageFeaturesProvider } from './promptSyntax/promptFileContributions.js';
-import { ChatSpeechToTextService, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, DICTATION_MAI_MODEL_ID, DictationSettingId, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
 import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
+import './telemetry/chatEditorTopologyTelemetry.js';
 import './telemetry/chatModelCountTelemetry.js';
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ClientToolSetsContribution } from './tools/clientToolSetsContribution.js';
@@ -297,6 +299,12 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[ChatConfiguration.ExperimentalModePermissionsPicker]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimentalModePermissionsPicker', "Shows mode and permissions in a combined picker with expandable permission choices for Copilot Agent Host sessions."),
+			default: product.quality !== 'stable',
+			tags: ['experimental'],
+		},
 		'chat.fontSize': {
 			type: 'number',
 			description: nls.localize('chat.fontSize', "Controls the font size in pixels in chat messages."),
@@ -311,7 +319,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'dictation.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('dictation.enabled', "Enables dictation across the product (chat input, editor, and terminal). When enabled on a supported platform, a microphone button appears in the chat input and the dictation shortcut becomes available; the on-device transcription model is downloaded on first use and runs locally."),
+			markdownDescription: nls.localize('dictation.enabled', "Enables dictation across the product (chat input, editor, and terminal). When enabled, a microphone button appears in the chat input and the dictation shortcut becomes available. Desktop uses the selected transcription model; web uses cloud transcription."),
 			default: true,
 			tags: ['experimental'],
 			policy: {
@@ -330,7 +338,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: [
 				DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
-				'mai',
+				DICTATION_MAI_MODEL_ID,
 			],
 			enumItemLabels: [
 				nls.localize('dictation.model.nemotronMultilingual.label', "Nemotron 3.5 ASR (Multilingual) — On-Device"),
@@ -340,8 +348,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('dictation.model.nemotronMultilingual', "NVIDIA Nemotron 3.5 multilingual streaming RNN-T, run on-device through Microsoft Foundry Local. Works offline; no audio leaves the device. Automatic language selection follows the Voice Mode language setting; when that setting is Automatic, dictation uses the configured display language when supported, then the system or browser locale, with model detection as a fallback. Downloaded on first use and cached on disk."),
 				nls.localize('dictation.model.mai', "Cloud transcription through the same Microsoft AI voice service used by Voice Mode. Requires a network connection and GitHub sign-in; audio is streamed to the service."),
 			],
-			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service."),
-			default: DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
+			markdownDescription: nls.localize('dictation.model', "The model used for dictation. On-device models download on first use and run locally through Microsoft Foundry Local; the cloud option streams audio to the Microsoft AI voice service. On the web, user and default on-device selections use cloud transcription because local transcription is unsupported. If policy requires on-device transcription, dictation is unavailable on the web."),
+			default: isWeb ? DICTATION_MAI_MODEL_ID : DEFAULT_LOCAL_TRANSCRIPTION_MODEL,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			policy: {
@@ -483,14 +491,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
-		},
-		[ChatConfiguration.CustomizationEntryPoints]: {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			scope: ConfigurationScope.APPLICATION,
-			description: nls.localize('chat.agentSessions.customizationEntryPoints', "Controls whether customization entry points appear in the new-session composer and active session headers instead of the Agents Window sidebar."),
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.SaveBeforeSend]: {
 			type: 'boolean',
@@ -724,7 +724,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.PermissionsSandboxToggleEnabled]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows a \"Sandboxing for terminal\" toggle. Local sessions show it on the Default permissions option; Copilot Agent Host sessions show it as a separate setting that applies to every permission mode. For Copilot SDK sessions using the built-in shell tool, the toggle reflects and updates `#chat.agentHost.sdkSandbox.enabled#` or `#chat.agentHost.sdkSandbox.enabledWindows#`."),
+			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows a \"Sandboxing for terminal\" toggle. Local sessions show it on the Default permissions option. Copilot Agent Host sessions show it as a session-specific setting that applies to every permission mode; changing it saves the choice only for that session. New Copilot Agent Host sessions initially follow `#chat.agentHost.sdkSandbox.enabled#` or `#chat.agentHost.sdkSandbox.enabledWindows#` when using the SDK's built-in shell tool, and `#chat.agent.sandbox.enabled#` or `#chat.agent.sandbox.enabledWindows#` when using the Agent Host terminal tool."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -997,7 +997,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.experimental.sessionArchiveActionWording.archive', "Use Archive, Archive All, Unarchive, and Unarchive All."),
 				nls.localize('chat.experimental.sessionArchiveActionWording.done', "Use Mark as Done, Mark All as Done, Restore, and Restore All."),
 			],
-			default: 'archive',
+			default: 'done',
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			description: nls.localize('chat.experimental.sessionArchiveActionWording', "Controls the wording and icons used by actions that archive and unarchive chat sessions, as well as the label of the archived sessions section."),
@@ -1018,7 +1018,7 @@ configurationRegistry.registerConfiguration({
 		[CodexPreferAgentHostEditorSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.editor.codex.preferAgentHost', "When enabled, Codex sessions opened from the regular workbench (sidebar chat) run inside the agent host process using the Codex App Server instead of the OpenAI extension. Only one Codex implementation surfaces per window. Requires `#chat.agentHost.codexAgent.enabled#`."),
-			default: false,
+			default: product.quality !== 'stable',
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
@@ -1040,7 +1040,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.SessionStateIndicatorEnabled]: {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions."),
+			markdownDescription: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions that are in progress, need input, or have an unvisited completion. Customize the borders with `chat.sessionStateIndicator.inProgressBorder`, `chat.sessionStateIndicator.needsInputBorder`, and `chat.sessionStateIndicator.unvisitedBorder` in `#workbench.colorCustomizations#`."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
@@ -1697,6 +1697,14 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
 		},
+		[AgentHostHydraFusionEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
+			default: false,
+			experiment: { mode: 'startup' },
+			scope: ConfigurationScope.APPLICATION_MACHINE,
+			tags: ['preview', 'experimental', 'advanced'],
+		},
 		[CopilotAutoModeTiersEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.autoModeTiers', "Show the Auto model's \"Optimize for\" picker with Efficiency, Balance, and Intelligence options in Copilot Chat and Copilot SDK sessions. When disabled, the service chooses how to route unless an override is configured."),
@@ -1905,6 +1913,13 @@ configurationRegistry.registerConfiguration({
 			default: Object.fromEntries(allDiscoverySources.map(k => [k, false])),
 			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers from configuration from various other applications."),
 		},
+		[mcpWorkspaceRootConfig]: {
+			type: 'boolean',
+			default: product.quality === 'insider',
+			scope: ConfigurationScope.WINDOW,
+			tags: ['experimental'],
+			markdownDescription: nls.localize('mcp.workspaceRootConfig.enabled', "Offer the workspace root `.mcp.json` file when adding MCP servers manually. When `.vscode/mcp.json` exists, choose which file to add to. Marketplace installations continue to use `.vscode/mcp.json`. Existing `.mcp.json` files can be opened and read independently of this setting."),
+		},
 		[mcpGalleryServiceEnablementConfig]: {
 			type: 'boolean',
 			default: false,
@@ -1942,7 +1957,7 @@ configurationRegistry.registerConfiguration({
 				'chat.instructions.config.locations.description',
 				"Specify location(s) of instructions files (`*{0}`) that can be attached in Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nThis setting is only used by the Local agent harness.",
 				INSTRUCTION_FILE_EXTENSION,
-				INSTRUCTIONS_DOCUMENTATION_URL,
+				getDocumentationUrl(PromptsType.instructions),
 			),
 			default: {
 				...DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
@@ -1976,7 +1991,7 @@ configurationRegistry.registerConfiguration({
 				'chat.reusablePrompts.config.locations.description',
 				"Specify location(s) of reusable prompt files (`*{0}`) that can be run in Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nThis setting is only used by the Local agent harness.",
 				PROMPT_FILE_EXTENSION,
-				PROMPT_DOCUMENTATION_URL,
+				getDocumentationUrl(PromptsType.prompt),
 			),
 			default: {
 				[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
@@ -2011,7 +2026,7 @@ configurationRegistry.registerConfiguration({
 				'chat.mode.config.locations.description',
 				"Specify location(s) of custom chat mode files (`*{0}`). [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nThis setting is only used by the Local agent harness.",
 				LEGACY_MODE_FILE_EXTENSION,
-				AGENT_DOCUMENTATION_URL,
+				getDocumentationUrl(PromptsType.agent),
 			),
 			default: {
 				[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
@@ -2042,7 +2057,7 @@ configurationRegistry.registerConfiguration({
 				'chat.agents.config.locations.description',
 				"Specify location(s) of custom agent files (`*{0}`). [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nThis setting is only used by the Local agent harness.",
 				AGENT_FILE_EXTENSION,
-				AGENT_DOCUMENTATION_URL,
+				getDocumentationUrl(PromptsType.agent),
 			),
 			default: {
 				[AGENTS_SOURCE_FOLDER]: true,
@@ -2152,7 +2167,7 @@ configurationRegistry.registerConfiguration({
 				'chat.agentSkillsLocations.description',
 				"Specify location(s) of agent skills (`{0}`) that can be used in Chat Sessions. [Learn More]({1}).\n\nEach path should contain skill subfolders with SKILL.md files (e.g., add `my-skills` if you have `my-skills/skillA/SKILL.md`). Relative paths are resolved from the root folder(s) of your workspace.\n\nThis setting is only used by the Local agent harness.",
 				SKILL_FILENAME,
-				SKILL_DOCUMENTATION_URL,
+				getDocumentationUrl(PromptsType.skill),
 			),
 			default: {
 				...DEFAULT_SKILL_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
@@ -2184,7 +2199,7 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize(
 				'chat.hookFilesLocations.description',
 				"Specify paths to hook configuration files that define custom shell commands to execute at strategic points in an agent's workflow. [Learn More]({0}).\n\nRelative paths are resolved from the root folder(s) of your workspace. Supports Copilot hooks (`*.json`) and Claude Code hooks (`settings.json`, `settings.local.json`).\n\nThis setting is only used by the Local agent harness.",
-				HOOK_DOCUMENTATION_URL,
+				getDocumentationUrl(PromptsType.hook),
 			),
 			default: {
 				...DEFAULT_HOOK_FILE_PATHS.map((f) => ({ [f.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),

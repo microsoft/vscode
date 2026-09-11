@@ -157,7 +157,7 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 
 		// Reply with manually supplied credentials. Fail if they are wrong.
 		const newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
-			|| (process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY || '').trim()
+			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim()
 			|| undefined;
 
 		if (newHttpProxy?.indexOf('@') !== -1) {

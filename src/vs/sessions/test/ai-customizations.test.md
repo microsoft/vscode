@@ -205,3 +205,27 @@ This tests the transition from the empty state to having an active workspace sel
 - Hook events are derived from `COPILOT_CLI_HOOK_TYPE_MAP` — adding new events to the schema auto-includes them in the skeleton
 - Only `"bash"` is used (not `"command"`) to match the Copilot CLI schema
 - The `"version": 1` field is required by the CLI for format detection
+
+---
+
+### Scenario 6: Unified migration checklist
+
+#### Preconditions
+
+- An active agent-host session with one workspace folder
+- Prompt, user-data, and MCP migration settings enabled
+- Migratable prompts in both profile and workspace, profile agents/instructions, and a supported workspace MCP server
+
+#### Actions and expected results
+
+1. Open **Migrations**. There is one sidebar entry, not separate entries for individual migration types.
+2. Check the profile and workspace groups. Prompts to skills appears first with a high-risk label; User Data and MCP Servers appear only where eligible candidates exist.
+3. Select **Review** for profile prompts, then workspace prompts. Each opens the existing prompt migration page with only the selected location's files. User Data and MCP Servers likewise reuse their existing pages.
+4. Cancel or return without migrating. No files change and all candidates remain on the checklist.
+5. Skip the workspace. Its rows are hidden and its items are excluded from the sidebar count, but **Include Workspace** remains reachable. Including it restores the rows without changing files.
+6. Change profile destinations. The picker offers only profile file destinations; workspace destinations stay unchanged. MCP destinations remain fixed at the workspace root `.mcp.json`.
+7. Complete a migration, then return to Migrations. Expand its activity entry and verify the source and actual destination paths. Only successful writes appear, including when another item fails.
+8. Close and reopen the editor and restart VS Code. Activity remains local to the profile and initiating workspace. Switching workspaces does not show another workspace's activity.
+9. Dismiss an activity entry. Its record disappears; migrated files remain untouched.
+10. Navigate with Tab and Shift+Tab, expand activity with Enter or Space, and open Accessibility Help and Accessible View. Focus returns to the invoking control on dismissal.
+11. Verify dark, light, high-contrast, and narrow layouts. No Chat Participants, agent verification, issue creation, or optional multi-root controls are present.

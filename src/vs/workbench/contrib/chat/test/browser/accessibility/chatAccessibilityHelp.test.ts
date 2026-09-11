@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
@@ -19,8 +20,9 @@ suite('Chat Accessibility Help', () => {
 			details: help.includes('selected model\'s details open beside the list'),
 			immediatePreview: help.includes('updates the details immediately without selecting a model'),
 			inactivePreferences: help.includes('Efficiency, Balance, and Intelligence remain visible while Auto is off'),
+			mutedPreferences: help.includes('They look muted while off but remain interactive'),
 			activation: help.includes('Enter or Space to choose a preference and turn Auto on'),
-		}, { details: true, immediatePreview: true, inactivePreferences: true, activation: true });
+		}, { details: true, immediatePreview: true, inactivePreferences: true, mutedPreferences: true, activation: true });
 	});
 
 	test('documents keyboard search in the model picker', () => {
@@ -33,13 +35,15 @@ suite('Chat Accessibility Help', () => {
 		}, { typing: true, navigation: true, selection: true, editing: true });
 	});
 
-	test('documents restoring model defaults without changing pinning or requiring another dismissal', () => {
+	test('documents stationary model configuration and pinning with explicit dismissal', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			discovery: help.includes('Reset to Default appears beside Pin Model when thinking effort or context has been changed'),
 			reset: help.includes('restores both settings to the model\'s defaults without changing its pinned state'),
-			dismissal: help.includes('resetting the settings selects that model and closes the picker'),
-		}, { discovery: true, reset: true, dismissal: true });
+			staysOpen: help.includes('resetting the settings selects that model and keeps its details open'),
+			pinning: help.includes('Pinning or unpinning moves the model in the list without moving its details or keyboard focus'),
+			dismissal: help.includes('Escape again to close the picker'),
+		}, { discovery: true, reset: true, staysOpen: true, pinning: true, dismissal: true });
 	});
 
 	test('documents stable pricing expansion and keyboard scrolling', () => {
@@ -59,15 +63,27 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			shown: shown.includes('An archive suggestion appears'),
 			hidden: hidden.includes('An archive suggestion appears'),
-			keyboard: shown.includes('Tab or Shift+Tab to reach Archive or Dismiss Archive Suggestion, then press Enter or Space'),
+			keyboard: shown.includes('Tab or Shift+Tab to reach Archive, Configure Automatic Cleanup, or Dismiss Archive Suggestion, then press Enter or Space'),
+			cleanupSettings: shown.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions'),
+			disclosure: shown.includes('What Does "Archive" Do? is collapsed by default'),
+			disclosureKeyboard: shown.includes('Enter or Space to expand or collapse it'),
 			focus: shown.includes('Escape while it is focused, returns to the chat input'),
-			recovery: shown.includes('session-list filter to find the session and unarchive it at any time'),
-			worktree: shown.includes('archiving cleans up the worktree and unarchiving recreates it'),
+			focusRemainingTasks: shown.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			retained: shown.includes('The session is not deleted'),
+			agentRecovery: shown.includes('Ask your agent to find it'),
+			recovery: shown.includes('"Archived" section of the sessions list. You can unarchive it anytime'),
+			worktree: shown.includes('worktree created for the session, if any, will be deleted. You can recreate it by unarchiving the session'),
 		}, {
 			shown: true,
 			hidden: false,
 			keyboard: true,
+			cleanupSettings: true,
+			disclosure: true,
+			disclosureKeyboard: true,
 			focus: true,
+			focusRemainingTasks: true,
+			retained: true,
+			agentRecovery: true,
 			recovery: true,
 			worktree: true,
 		});
@@ -80,6 +96,21 @@ suite('Chat Accessibility Help', () => {
 			settingOverride: help.includes('regardless of your thinking-style setting'),
 			keyboardExpansion: help.includes('Focus a thinking header and press Enter or Space to expand or collapse its details'),
 		}, { readOnlyPreview: true, settingOverride: true, keyboardExpansion: true });
+	});
+
+	test('uses the configured Mark as Done wording for nudge help', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, true, ChatSessionArchiveActionWording.MarkAsDone);
+		assert.deepStrictEqual({
+			keyboard: help.includes('Tab or Shift+Tab to reach Mark as Done, Configure Automatic Cleanup, or Dismiss Mark as Done Suggestion'),
+			cleanupSettings: help.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions'),
+			disclosure: help.includes('What Does "Mark as Done" Do? is collapsed by default'),
+			focusRemainingTasks: help.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			retained: help.includes('The session is not deleted'),
+			agentRecovery: help.includes('Ask your agent to find it'),
+			recovery: help.includes('"Done" section of the sessions list. You can restore it anytime'),
+			worktree: help.includes('worktree created for the session, if any, will be deleted. You can recreate it by restoring the session'),
+			archiveDisclosure: help.includes('What Does "Archive" Do?'),
+		}, { keyboard: true, cleanupSettings: true, disclosure: true, focusRemainingTasks: true, retained: true, agentRecovery: true, recovery: true, worktree: true, archiveDisclosure: false });
 	});
 
 	test('only describes inline attachment references when supported', () => {

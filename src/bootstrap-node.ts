@@ -20,7 +20,7 @@ if (process.platform === 'linux') {
 // increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 Error.stackTraceLimit = 100;
 
-if (!process.env.VSCODE_HANDLES_SIGPIPE) {
+if (!process.env['VSCODE_HANDLES_SIGPIPE']) {
 	// Workaround for Electron not installing a handler to ignore SIGPIPE
 	// (https://github.com/electron/electron/issues/13254)
 	let didLogAboutSIGPIPE = false;
@@ -45,8 +45,8 @@ function setupCurrentWorkingDirectory(): void {
 		// for consistent lookups, but make sure to only
 		// do this once unless defined already from e.g.
 		// a parent process.
-		if (typeof process.env.VSCODE_CWD !== 'string') {
-			process.env.VSCODE_CWD = process.cwd();
+		if (typeof process.env['VSCODE_CWD'] !== 'string') {
+			process.env['VSCODE_CWD'] = process.cwd();
 		}
 
 		// Windows: always set application folder as current working dir
@@ -77,11 +77,11 @@ setupCurrentWorkingDirectory();
  * `ELECTRON_RUN_AS_NODE` forks), never when running out of sources.
  */
 function enableASARSupport(): void {
-	if (!process.env.ELECTRON_RUN_AS_NODE && !process.versions.electron) {
+	if (!process.env['ELECTRON_RUN_AS_NODE'] && !process.versions.electron) {
 		return; // only on Electron / Electron-as-node
 	}
 
-	if (process.env.VSCODE_DEV) {
+	if (process.env['VSCODE_DEV']) {
 		return; // no ASAR when running out of sources
 	}
 
@@ -132,7 +132,7 @@ enableASARSupport();
  * Note: only applies when running out of sources.
  */
 export function devInjectNodeModuleLookupPath(injectPath: string): void {
-	if (!process.env.VSCODE_DEV) {
+	if (!process.env['VSCODE_DEV']) {
 		return; // only applies running out of sources
 	}
 
@@ -206,7 +206,7 @@ export function configurePortable(product: Partial<IProductConfiguration>): { po
 	const appRoot = path.dirname(import.meta.dirname);
 
 	function getApplicationPath(): string {
-		if (process.env.VSCODE_DEV) {
+		if (process.env['VSCODE_DEV']) {
 			return appRoot;
 		}
 
@@ -223,8 +223,8 @@ export function configurePortable(product: Partial<IProductConfiguration>): { po
 	}
 
 	function getPortableDataPath(): string {
-		if (process.env.VSCODE_PORTABLE) {
-			return process.env.VSCODE_PORTABLE;
+		if (process.env['VSCODE_PORTABLE']) {
+			return process.env['VSCODE_PORTABLE'];
 		}
 
 		if (process.platform === 'win32' || process.platform === 'linux') {
@@ -241,17 +241,17 @@ export function configurePortable(product: Partial<IProductConfiguration>): { po
 	const isTempPortable = isPortable && fs.existsSync(portableTempPath);
 
 	if (isPortable) {
-		process.env.VSCODE_PORTABLE = portableDataPath;
+		process.env['VSCODE_PORTABLE'] = portableDataPath;
 	} else {
-		delete process.env.VSCODE_PORTABLE;
+		delete process.env['VSCODE_PORTABLE'];
 	}
 
 	if (isTempPortable) {
 		if (process.platform === 'win32') {
-			process.env.TMP = portableTempPath;
-			process.env.TEMP = portableTempPath;
+			process.env['TMP'] = portableTempPath;
+			process.env['TEMP'] = portableTempPath;
 		} else {
-			process.env.TMPDIR = portableTempPath;
+			process.env['TMPDIR'] = portableTempPath;
 		}
 	}
 

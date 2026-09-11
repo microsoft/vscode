@@ -1,0 +1,194 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-host-mode-permission-summary {
+	min-width: 0;
+	margin-left: var(--vscode-spacing-size60);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	transform: translateY(1px);
+}
+
+.agent-host-mode-permission-summary,
+.action-widget .monaco-list .monaco-list-row.agent-host-mode-section .description,
+.action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions .description {
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.85;
+}
+
+.agent-host-mode-permission-summary.warning,
+.action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions.warning .description {
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
+.agent-host-mode-permission-summary.info,
+.action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions.info .description {
+	color: var(--vscode-problemsInfoIcon-foreground);
+}
+
+.hc-black .agent-host-mode-permission-summary,
+.hc-light .agent-host-mode-permission-summary,
+.hc-black .action-widget .monaco-list .monaco-list-row.agent-host-mode-section .description,
+.hc-light .action-widget .monaco-list .monaco-list-row.agent-host-mode-section .description,
+.hc-black .action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions .description,
+.hc-light .action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions .description {
+	opacity: 1;
+}
+
+.agent-host-mode-sandbox-icon {
+	margin-left: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+}
+
+.compact-picker .agent-host-mode-permission-summary,
+.compact-picker .agent-host-mode-sandbox-icon {
+	display: none;
+}
+
+.action-widget .monaco-list-row.action.agent-host-mode-section,
+.action-widget .monaco-list-row.action.agent-host-mode-permissions {
+	gap: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size120);
+	color: var(--vscode-descriptionForeground);
+}
+
+.action-widget .monaco-list-row.action.agent-host-mode-section .title,
+.action-widget .monaco-list-row.action.agent-host-mode-permissions .title {
+	flex: 1 1 auto;
+}
+
+.action-widget .monaco-list .monaco-list-row.agent-host-mode-section .description,
+.action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions .description {
+	order: 2;
+	flex: 0 1 auto;
+	min-width: 0;
+	margin-left: calc(-1 * var(--vscode-spacing-size20));
+	margin-right: var(--vscode-spacing-size80);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	text-align: right;
+}
+
+.action-widget .monaco-list-row.action.agent-host-mode-permissions.has-toolbar .action-list-item-toolbar {
+	display: flex;
+	visibility: visible;
+	order: 1;
+	margin-right: 0;
+	color: inherit;
+}
+
+.action-widget .monaco-list-row.action.agent-host-mode-permissions .action-list-item-toolbar .action-label {
+	padding: var(--vscode-spacing-size20);
+	color: inherit;
+}
+
+.sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger,
+.agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger {
+	display: flex;
+	height: var(--chat-input-control-height);
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	overflow: visible;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+}
+
+.agent-host-mode-permissions-trigger .agent-host-mode-picker-button {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size40);
+	color: inherit;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+}
+
+.agent-host-mode-permissions-trigger .agent-host-permissions-button {
+	position: relative;
+	margin-left: var(--vscode-spacing-size20);
+}
+
+.agent-host-mode-permissions-trigger .agent-host-permissions-button::before {
+	position: absolute;
+	left: calc(-1 * var(--vscode-spacing-size20) / 2);
+	top: 50%;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size120);
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+	content: "";
+	transform: translate(-50%, -50%);
+	z-index: 1;
+	pointer-events: none;
+}
+
+.action-label.agent-host-mode-permissions-trigger .agent-host-mode-picker-button > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+.sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger:hover,
+.agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger:hover,
+.sessions-chat-picker-slot .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'],
+.agent-host-chat-input-picker-slot .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-host-mode-permissions-trigger .agent-host-mode-picker-button:not([aria-disabled='true']):hover,
+.agent-host-mode-permissions-trigger .agent-host-mode-picker-button[aria-expanded='true'] {
+	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item .action-label.agent-host-mode-permissions-trigger:hover:not(.disabled) {
+	outline: none;
+}
+
+.agent-host-mode-picker-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-host-mode-permissions-trigger .agent-host-mode-picker-button:focus:not(:focus-visible) {
+	outline: 0;
+}
+
+.agent-host-permissions-button .agent-host-mode-permission-summary {
+	margin-left: 0;
+}
+
+.compact-picker .agent-host-mode-permissions-trigger .agent-host-permissions-button {
+	display: none;
+}
+
+.compact-picker .agent-host-mode-permissions-trigger .agent-host-mode-button {
+	width: var(--chat-input-control-height);
+	padding: 0;
+	justify-content: center;
+}
+
+.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown.agent-host-mode-permissions-popup {
+	animation-name: agent-host-mode-permissions-open;
+	will-change: opacity;
+}
+
+.modern-ui.monaco-enable-motion .action-widget.action-widget-dropdown.agent-host-mode-permissions-popup.action-widget-dropdown-closing {
+	animation-name: agent-host-mode-permissions-close;
+}
+
+@keyframes agent-host-mode-permissions-open {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes agent-host-mode-permissions-close {
+	from { opacity: var(--action-widget-close-start-opacity, 1); }
+	to { opacity: 0; }
+}

@@ -56,9 +56,9 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-// Maximize/restore renders first in the editor-title layout cluster.
+// Maximize/restore renders before Toggle Details in the editor-title layout cluster.
 // Hide/Show Editor remain registered but are hidden from the menu.
-const singlePaneLayoutMaximizeOrder = 10;
+const singlePaneLayoutMaximizeOrder = 9;
 const singlePaneLayoutHideEditorOrder = 20;
 
 // Keybinding scope for the single-pane maximize/restore toggle: active in the
