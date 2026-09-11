@@ -43,6 +43,14 @@ function developerInputText(body: unknown): string {
 		: '';
 }
 
+function quotePosixShellArgument(value: string): string {
+	return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function quotePowerShellArgument(value: string): string {
+	return `'${value.replace(/'/g, `''`)}'`;
+}
+
 async function waitForValue<T>(probe: () => Promise<T | undefined>, timeout: number, timeoutMessage: () => string): Promise<T> {
 	const deadline = Date.now() + timeout;
 	while (Date.now() < deadline) {
@@ -367,24 +375,21 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			tempDirs.push(workspaceDir);
 			const hooksDir = join(workspaceDir, '.codex');
 			const markerFile = join(workspaceDir, 'hook-marker.txt');
-			const hookScript = join(workspaceDir, 'write-hook-marker.cjs');
 			await mkdir(hooksDir, { recursive: true });
-			await Promise.all([
-				writeFile(hookScript, `require('fs').writeFileSync(${JSON.stringify(markerFile)}, ${JSON.stringify(HOOK_MARKER)});\n`),
-				writeFile(join(hooksDir, 'hooks.json'), JSON.stringify({
-					description: 'Agent Host thread-scoped hook trust integration test.',
-					hooks: {
-						SessionStart: [{
-							hooks: [{
-								type: 'command',
-								command: `${JSON.stringify(process.execPath)} ${JSON.stringify(hookScript)}`,
-								statusMessage: 'Running workspace hook integration test',
-								timeout: 5,
-							}],
+			await writeFile(join(hooksDir, 'hooks.json'), JSON.stringify({
+				description: 'Agent Host thread-scoped hook trust integration test.',
+				hooks: {
+					SessionStart: [{
+						hooks: [{
+							type: 'command',
+							command: `printf %s ${quotePosixShellArgument(HOOK_MARKER)} > ${quotePosixShellArgument(markerFile)}`,
+							commandWindows: `Set-Content -LiteralPath ${quotePowerShellArgument(markerFile)} -Value ${quotePowerShellArgument(HOOK_MARKER)} -NoNewline`,
+							statusMessage: 'Running workspace hook integration test',
+							timeout: 5,
 						}],
-					},
-				})),
-			]);
+					}],
+				},
+			}));
 
 			const clientId = 'codex-workspace-hook-client';
 			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
