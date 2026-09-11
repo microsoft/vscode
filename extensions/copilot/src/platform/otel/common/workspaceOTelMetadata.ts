@@ -5,13 +5,28 @@
 
 import { URI } from '../../../util/vs/base/common/uri';
 import { isEqualOrParent, relativePath } from '../../../util/vs/base/common/resources';
-import { getOrderedRepoInfosFromContext, type IGitService, normalizeFetchUrl, type RepoContext } from '../../git/common/gitService';
+import { getGithubRepoIdFromFetchUrl, getOrderedRemoteUrlsFromContext, getOrderedRepoInfosFromContext, type IGitService, normalizeFetchUrl, parseRemoteUrl, type RepoContext } from '../../git/common/gitService';
 import { CopilotChatAttr, GitHubCopilotAttr } from './genAiAttributes';
 
 export interface WorkspaceOTelMetadata {
 	readonly headBranchName?: string;
 	readonly headCommitHash?: string;
+	/**
+	 * Normalized remote fetch URL for OTel attributes, reported for any host so that a
+	 * repository is never silently dropped. Exported only to the user-configured OTel
+	 * pipeline.
+	 */
 	readonly remoteUrl?: string;
+	/**
+	 * Normalized remote fetch URL restricted to remotes that resolve to a repo id
+	 * (github.com, `*.ghe.com`, Azure DevOps) — the set that was reportable before
+	 * host-agnostic reporting was introduced.
+	 *
+	 * Consumers that forward the remote to a channel other than the user's own OTel
+	 * exporter (GitHub telemetry events) must use this field, so that broadening OTel
+	 * coverage does not silently widen what those channels collect.
+	 */
+	readonly recognizedRemoteUrl?: string;
 	readonly fileRelativePath?: string;
 }
 
@@ -31,11 +46,8 @@ export function resolveWorkspaceOTelMetadata(
 }
 
 function buildWorkspaceMetadata(repoContext: RepoContext, fileUri?: URI): WorkspaceOTelMetadata {
-	let remoteUrl: string | undefined;
-	const repoInfo = Array.from(getOrderedRepoInfosFromContext(repoContext))[0];
-	if (repoInfo?.fetchUrl) {
-		remoteUrl = normalizeFetchUrl(repoInfo.fetchUrl);
-	}
+	const recognizedRemoteUrl = pickRecognizedRemoteUrl(repoContext);
+	const remoteUrl = recognizedRemoteUrl ?? pickFallbackRemoteUrl(repoContext);
 
 	let fileRelativePath: string | undefined;
 	if (fileUri && isEqualOrParent(fileUri, repoContext.rootUri)) {
@@ -46,8 +58,65 @@ function buildWorkspaceMetadata(repoContext: RepoContext, fileUri?: URI): Worksp
 		headBranchName: repoContext.headBranchName,
 		headCommitHash: repoContext.headCommitHash,
 		remoteUrl,
+		recognizedRemoteUrl,
 		fileRelativePath,
 	};
+}
+
+/**
+ * Picks the normalized remote fetch URL of the highest-priority remote that resolves to a
+ * repo id (github.com, `*.ghe.com`, Azure DevOps).
+ *
+ * This is the set of remotes that was reportable before host-agnostic reporting existed, so
+ * preferring it keeps every repository that already reported a URL reporting the same one.
+ */
+function pickRecognizedRemoteUrl(repoContext: RepoContext): string | undefined {
+	const resolved = Array.from(getOrderedRepoInfosFromContext(repoContext))[0];
+	return resolved?.fetchUrl ? normalizeFetchUrl(resolved.fetchUrl) : undefined;
+}
+
+/**
+ * Picks the normalized remote fetch URL of the highest-priority remote on any host, used
+ * only when no remote resolves to a repo id. The branch and commit attributes are read
+ * straight off the repo context with no host check, so the repository must not be silently
+ * dropped for self-hosted GitHub Enterprise Server on a custom domain, GitLab, Bitbucket
+ * Server, or a plain git server.
+ *
+ * Remotes are walked in the same priority order as {@link pickRecognizedRemoteUrl} (a lone
+ * remote first, then the upstream remote, then `origin`, then the rest).
+ *
+ * Local remotes are excluded so a user's filesystem layout is never reported: `parseRemoteUrl`
+ * admits only ssh, https, and http, which rejects `file://` and bare paths, and loopback
+ * hosts are rejected on top of that because scp-style syntax can smuggle a local path through
+ * an accepted scheme (`git@localhost:/Users/alice/dev/repo.git`).
+ */
+function pickFallbackRemoteUrl(repoContext: RepoContext): string | undefined {
+	for (const remoteUrl of getOrderedRemoteUrlsFromContext(repoContext)) {
+		// `getOrderedRemoteUrlsFromContext` types its result as `Iterable<string>` but reads
+		// from `remoteFetchUrls: Array<string | undefined>`, so guard against empty entries.
+		if (!remoteUrl) {
+			continue;
+		}
+		const parsed = parseRemoteUrl(remoteUrl);
+		if (!parsed || isLoopbackHost(parsed.rawHost)) {
+			continue;
+		}
+		return normalizeFetchUrl(remoteUrl);
+	}
+	return undefined;
+}
+
+/**
+ * Whether a host refers to the local machine. `parseRemoteUrl` has already lowercased the
+ * host and stripped any port.
+ */
+function isLoopbackHost(rawHost: string): boolean {
+	const host = rawHost.replace(/^\[|\]$/g, '');
+	return host === 'localhost'
+		|| host.endsWith('.localhost')
+		|| host === '::1'
+		|| host === '0.0.0.0'
+		|| /^127(?:\.\d{1,3}){3}$/.test(host);
 }
 
 /**
@@ -85,12 +154,15 @@ export function workspaceMetadataToOTelAttributes(
 }
 
 /**
- * Extract the `owner` segment from a normalized GitHub remote URL.
- * Returns undefined for non-GitHub hosts or malformed inputs.
+ * Extract the `owner` segment from a remote URL that resolves to a GitHub repository.
+ *
+ * Unlike the remote URL itself, this stays scoped to hosts recognized as GitHub: github.com,
+ * `*.ghe.com`, and ssh host aliases that normalize to either (for example `alias-github.com`
+ * or `github.com-alias`). Returns undefined for every other host, which notably includes
+ * self-hosted GitHub Enterprise Server on a custom domain: telling that apart from an
+ * arbitrary git server needs the configured `github-enterprise.uri`, which this module has
+ * no access to.
  */
 function extractGitHubOrg(remoteUrl: string): string | undefined {
-	// Match `(https://|git@)<host>[:/]<owner>/<repo>` — normalizeFetchUrl already
-	// strips credentials and `.git` suffixes.
-	const m = remoteUrl.match(/github\.com[/:]([^/]+)\/[^/]+\/?$/i);
-	return m?.[1];
+	return getGithubRepoIdFromFetchUrl(remoteUrl)?.org;
 }

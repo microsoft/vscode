@@ -577,7 +577,9 @@ function reportInlineEditSurvivalEvent(res: EditSurvivalResult, sharedProps: Tel
 		...sharedProps,
 		headBranchName: res.workspace?.headBranchName,
 		headCommitHash: res.workspace?.headCommitHash,
-		remoteUrl: res.workspace?.remoteUrl,
+		// Restricted to recognized hosts: this channel is not the user's own OTel exporter,
+		// so it must keep collecting exactly the remotes it collected before.
+		remoteUrl: res.workspace?.recognizedRemoteUrl,
 		fileRelativePath: res.workspace?.fileRelativePath,
 	}, {
 		...sharedMeasures,

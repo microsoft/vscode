@@ -179,7 +179,9 @@ export class MultiFileEditInternalTelemetryService extends Disposable implements
 				messageId: edit.chatRequestId,
 				headBranchName: workspace.headBranchName,
 				headCommitHash: workspace.headCommitHash,
-				remoteUrl: workspace.remoteUrl,
+				// Restricted to recognized hosts: this channel is not the user's own OTel
+				// exporter, so it must keep collecting exactly the remotes it collected before.
+				remoteUrl: workspace.recognizedRemoteUrl,
 				fileRelativePath: workspace.fileRelativePath,
 			}).then(gitHubEnhancedTelemetryProperties => this.telemetryService.sendEnhancedGHTelemetryEvent('fastApply/editOutcome', gitHubEnhancedTelemetryProperties)).catch(() => { /* best-effort telemetry */ });
 			this.logService.debug(`Sent telemetry for ${uri.toString()} with request ID ${edit.chatRequestId}, SD request ID ${edit.speculationRequestId}, and outcome ${outcome}`);
