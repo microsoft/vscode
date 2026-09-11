@@ -86,6 +86,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private _activeSessionId: string | undefined;
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
 	private readonly _standaloneTerminalIds = new Set<number>();
+	private readonly _pendingBeforeTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
 	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
 	private readonly _sessionTerminalGenerations = new Map<string, number>();
@@ -206,6 +207,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._register(this._terminalService.onDidDisposeInstance(instance => {
 			this._removeTerminalFromTrackedSessions(instance.instanceId);
 			this._standaloneTerminalIds.delete(instance.instanceId);
+			this._pendingBeforeTerminalIds.delete(instance.instanceId);
 		}));
 
 		// Hide restored terminals from a previous window session that don't
@@ -657,7 +659,22 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		for (const instance of toHide) {
 			const group = this._terminalGroupService.getGroupForInstance(instance);
 			const index = group ? group.terminalInstances.indexOf(instance) : -1;
-			instance.shellLaunchConfig.parentTerminalId = index > 0 ? group!.terminalInstances[index - 1].instanceId : undefined;
+			if (index > 0) {
+				instance.shellLaunchConfig.parentTerminalId = group!.terminalInstances[index - 1].instanceId;
+				this._pendingBeforeTerminalIds.delete(instance.instanceId);
+			} else if (index === 0 && group && group.terminalInstances.length > 1) {
+				const survivingSibling = group.terminalInstances.find((inst, i) => i > 0 && !toHide.includes(inst));
+				if (survivingSibling) {
+					instance.shellLaunchConfig.parentTerminalId = survivingSibling.instanceId;
+					this._pendingBeforeTerminalIds.add(instance.instanceId);
+				} else {
+					instance.shellLaunchConfig.parentTerminalId = undefined;
+					this._pendingBeforeTerminalIds.delete(instance.instanceId);
+				}
+			} else {
+				instance.shellLaunchConfig.parentTerminalId = undefined;
+				this._pendingBeforeTerminalIds.delete(instance.instanceId);
+			}
 		}
 
 		// Sort toShow so parent terminals are restored before child/split terminals
@@ -686,6 +703,14 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			const availableInstance = this._getAvailableTerminal(instance, 'show background terminal');
 			if (availableInstance) {
 				await this._terminalService.showBackgroundTerminal(availableInstance, true);
+				if (this._pendingBeforeTerminalIds.has(availableInstance.instanceId)) {
+					this._pendingBeforeTerminalIds.delete(availableInstance.instanceId);
+					const parentId = availableInstance.shellLaunchConfig.parentTerminalId;
+					const parentTerminal = parentId !== undefined ? this._terminalService.getInstanceFromId(parentId) : undefined;
+					if (parentTerminal) {
+						this._terminalGroupService.moveInstance(availableInstance, parentTerminal, 'before');
+					}
+				}
 			}
 		}
 		for (const instance of toHide) {
