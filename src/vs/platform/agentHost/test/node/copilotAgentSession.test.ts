@@ -6716,20 +6716,60 @@ Use the attached image as context.
 				}
 
 				assert.deepStrictEqual({
-					originalCorrelations: [originalTurn.sdkTurnIds.size, originalTurn.interactionIds.size],
+					originalCorrelations: [originalTurn.sdkTurnIds.size, originalTurn.interactionIds.size, originalTurn.activeSdkTurnId],
 					modelCallTurnIds: signals.filter(signal => signal.kind === 'model_call_finished').map(signal => signal.turnId),
 					completedTurns: telemetryService.events.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => {
 						const data = event.data as { turnId: string; timeToFirstEdit?: number };
 						return { turnId: data.turnId, timeToFirstEdit: data.timeToFirstEdit };
 					}),
 				}, {
-					originalCorrelations: [0, 0],
+					originalCorrelations: [0, 0, undefined],
 					modelCallTurnIds: expectedDropped ? [] : [steeringTurnId],
 					completedTurns: [
 						{ turnId: 'turn-original', timeToFirstEdit: undefined },
 						{ turnId: steeringTurnId, timeToFirstEdit: expectedDropped ? undefined : 250 },
 					],
 				});
+			});
+		}
+
+		for (const ending of ['complete', 'abort', 'fail', 'discard', 'replace'] as const) {
+			test(`does not carry an old SDK turn into steering after ${ending}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('old-turn');
+				mockSession.fire('assistant.turn_start', { turnId: 'old-sdk-turn', interactionId: 'old-interaction' });
+				switch (ending) {
+					case 'complete':
+						mockSession.fire('session.idle', {});
+						break;
+					case 'abort':
+						mockSession.fire('session.idle', { aborted: true });
+						break;
+					case 'fail':
+						session.failActiveTurn({ errorType: 'test', message: 'failure' });
+						break;
+					case 'discard':
+						session.discardActiveTurn();
+						break;
+					case 'replace':
+						break;
+				}
+				session.resetTurnState('new-turn');
+				await session.sendSteering({ id: 'steer', message: { text: 'follow up', origin: { kind: MessageKind.User } } });
+				mockSession.fire('user.message', { content: 'follow up', interactionId: 'steering-interaction' });
+				mockSession.fireRaw({
+					type: 'model.call_finished',
+					ephemeral: true,
+					id: 'late-old-call',
+					data: {
+						turnId: 'old-sdk-turn',
+						dispatchDurationMs: 250,
+						outcome: 'success',
+						containsBuiltInFileEditRequest: true,
+						editClassifierVersion: 1,
+					},
+				});
+				assert.deepStrictEqual(signals.filter(signal => signal.kind === 'model_call_finished'), []);
 			});
 		}
 
@@ -7634,7 +7674,7 @@ Use the attached image as context.
 		for (const ending of ['complete', 'abort', 'fail', 'discard', 'replace', 'dispose'] as const) {
 			test(`releases model-call correlations when a host turn ends via ${ending}`, async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
-				const counts: { sdkTurnIds: number; interactionIds: number }[] = [];
+				const counts: { sdkTurnIds: number; interactionIds: number; activeSdkTurnId: string | undefined }[] = [];
 				const iterations = ending === 'dispose' ? 1 : 25;
 				for (let i = 0; i < iterations; i++) {
 					session.resetTurnState(`host-turn-${i}`);
@@ -7642,7 +7682,7 @@ Use the attached image as context.
 					mockSession.fire('assistant.turn_start', { turnId: `sdk-turn-${i}-next`, interactionId: `interaction-${i}` });
 					const turn = session['_currentTurn'].value;
 					assert.ok(turn);
-					assert.deepStrictEqual([turn.sdkTurnIds.size, turn.interactionIds.size], [2, 1]);
+					assert.deepStrictEqual([turn.sdkTurnIds.size, turn.interactionIds.size, turn.activeSdkTurnId], [2, 1, `sdk-turn-${i}-next`]);
 
 					switch (ending) {
 						case 'complete':
@@ -7665,7 +7705,7 @@ Use the attached image as context.
 							break;
 					}
 
-					counts.push({ sdkTurnIds: turn.sdkTurnIds.size, interactionIds: turn.interactionIds.size });
+					counts.push({ sdkTurnIds: turn.sdkTurnIds.size, interactionIds: turn.interactionIds.size, activeSdkTurnId: turn.activeSdkTurnId });
 					if (ending !== 'dispose') {
 						session.resetTurnState('replacement');
 						mockSession.fire('assistant.turn_start', { turnId: `sdk-turn-${i}-next`, interactionId: 'replacement-interaction' });
@@ -7691,7 +7731,7 @@ Use the attached image as context.
 					counts,
 					modelCalls: signals.filter(signal => signal.kind === 'model_call_finished'),
 				}, {
-					counts: Array.from({ length: iterations }, () => ({ sdkTurnIds: 0, interactionIds: 0 })),
+					counts: Array.from({ length: iterations }, () => ({ sdkTurnIds: 0, interactionIds: 0, activeSdkTurnId: undefined })),
 					modelCalls: [],
 				});
 			});

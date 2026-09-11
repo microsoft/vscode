@@ -708,6 +708,7 @@ class CopilotTurn extends Disposable {
 	/** Root SDK correlations are valid only while their owning protocol turn is active. */
 	readonly sdkTurnIds = new Set<string>();
 	readonly interactionIds = new Set<string>();
+	activeSdkTurnId: string | undefined;
 	toolCallRounds = 0;
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
@@ -788,6 +789,7 @@ class CopilotTurn extends Disposable {
 	override dispose(): void {
 		this.sdkTurnIds.clear();
 		this.interactionIds.clear();
+		this.activeSdkTurnId = undefined;
 		if (!this._eventId.isSettled) {
 			this._eventId.error(new Error(`Turn ${this.id} was disposed before its SDK event id was recorded`));
 		}
@@ -834,7 +836,6 @@ export class CopilotAgentSession extends Disposable {
 	 * the same id, so mappings live until session teardown.
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
-	private _activeRootSdkTurnId: string | undefined;
 	private readonly _rootTurnIdBySubagentToolCallId = new Map<string, string>();
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
@@ -1399,6 +1400,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Carries the active SDK turn association forward so subsequent events can target the steering turn.
 	 */
 	private _beginSteeringTurn(steering: PendingMessage): void {
+		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
 		this._completeActiveTurn();
 		const newTurnId = generateUuid();
 		this._emitAction({
@@ -1421,8 +1423,9 @@ export class CopilotAgentSession extends Disposable {
 			turn.messageCharLen = steering.message.text.length;
 			turn.markRunning();
 		}
-		if (this._activeRootSdkTurnId && turn) {
-			turn.sdkTurnIds.add(this._activeRootSdkTurnId);
+		if (activeSdkTurnId && turn) {
+			turn.activeSdkTurnId = activeSdkTurnId;
+			turn.sdkTurnIds.add(activeSdkTurnId);
 		}
 	}
 
@@ -6712,8 +6715,8 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId) {
-				this._activeRootSdkTurnId = e.data.turnId;
 				if (this._currentTurn.value) {
+					this._currentTurn.value.activeSdkTurnId = e.data.turnId;
 					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
 					if (e.data.interactionId) {
 						this._currentTurn.value.interactionIds.add(e.data.interactionId);
@@ -6759,8 +6762,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onTurnEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Turn ended: ${e.data.turnId}`);
-			if (!e.agentId && this._activeRootSdkTurnId === e.data.turnId) {
-				this._activeRootSdkTurnId = undefined;
+			const turn = this._currentTurn.value;
+			if (!e.agentId && turn?.activeSdkTurnId === e.data.turnId) {
+				turn.activeSdkTurnId = undefined;
 			}
 		}));
 
