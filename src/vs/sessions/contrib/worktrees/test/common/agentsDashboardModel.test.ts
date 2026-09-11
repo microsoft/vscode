@@ -134,13 +134,14 @@ suite('AgentsDashboardModel', () => {
 	});
 
 	test('buildSessionRows exposes dashboard-only session metrics', () => {
+		const worktreePath = URI.file('/repo.worktrees/x');
 		const session = stubSession({
 			sessionId: 'metrics',
 			title: 'Metrics',
 			updatedAt: new Date('2024-01-02T00:00:00.000Z'),
 			workspaceLabel: 'vscode',
-			workspaceUri: URI.file('/repo.worktrees/x'),
-			workTreeUri: URI.file('/repo.worktrees/x'),
+			workspaceUri: worktreePath,
+			workTreeUri: worktreePath,
 			pullRequestState: 'merged',
 			modelId: 'claude-sonnet',
 			changedFileCount: 7,
@@ -158,7 +159,7 @@ suite('AgentsDashboardModel', () => {
 			credits: row.credits,
 		}, {
 			archived: false,
-			workingDirectories: [{ path: '/repo.worktrees/x', isWorktree: true }],
+			workingDirectories: [{ path: worktreePath.fsPath, isWorktree: true }],
 			chatCount: 1,
 			worktreeSizeBytes: 4096,
 			credits: 1.5,

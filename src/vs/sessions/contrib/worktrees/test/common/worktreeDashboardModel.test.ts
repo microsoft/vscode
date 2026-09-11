@@ -90,8 +90,8 @@ suite('WorktreeDashboardModel', () => {
 
 	function snapshot(entries: ReturnType<typeof correlateWorktrees>) {
 		return entries.map(entry => ({
-			repositoryRoot: entry.repositoryRoot.fsPath,
-			worktreePath: entry.worktreePath.fsPath,
+			repositoryRoot: entry.repositoryRoot.path,
+			worktreePath: entry.worktreePath.path,
 			name: entry.name,
 			branchName: entry.branchName,
 			status: entry.status,
