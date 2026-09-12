@@ -247,6 +247,15 @@ export class NotebookCellListView<T> extends ListView<T> {
 		return this.rangeMap as NotebookCellsLayout;
 	}
 
+	override splice(start: number, deleteCount: number, elements: readonly T[] = []): T[] {
+		this._renderingStack++;
+		try {
+			return super.splice(start, deleteCount, elements);
+		} finally {
+			this._renderingStack--;
+		}
+	}
+
 	protected override render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM?: boolean): void {
 		this._renderingStack++;
 		super.render(previousRenderRange, renderTop, renderHeight, renderLeft, scrollWidth, updateItemsInDOM);
