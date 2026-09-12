@@ -5,12 +5,40 @@
 
 import * as assert from 'assert';
 import 'mocha';
+import type MarkdownIt from 'markdown-it';
 import * as vscode from 'vscode';
 import { InMemoryDocument } from '../client/inMemoryDocument';
+import { ITextDocument } from '../types/textDocument';
 import { createNewMarkdownEngine } from './engine';
 
 
 const testFileName = vscode.Uri.file('test.md');
+
+class MutableDocument implements ITextDocument {
+
+	#contents: string;
+
+	constructor(
+		readonly uri: vscode.Uri,
+		contents: string,
+		public version: number = 0,
+	) {
+		this.#contents = contents;
+	}
+
+	public update(contents: string): void {
+		this.#contents = contents;
+		this.version++;
+	}
+
+	public getText(): string {
+		return this.#contents;
+	}
+
+	public positionAt(offset: number): vscode.Position {
+		return new vscode.Position(0, offset);
+	}
+}
 
 suite('markdown.engine', () => {
 	suite('rendering', () => {
@@ -27,6 +55,71 @@ suite('markdown.engine', () => {
 		test('Renders a string', async () => {
 			const engine = createNewMarkdownEngine();
 			assert.strictEqual((await engine.render(input)).html, output);
+		});
+	});
+
+	suite('token caching', () => {
+		const settingName = 'preview.typographer';
+		const input = '"Hello..." -- it\'s 50 (c)';
+
+		let originalValue: boolean | undefined;
+
+		suiteSetup(() => {
+			originalValue = vscode.workspace.getConfiguration('markdown').inspect<boolean>(settingName)?.globalValue;
+		});
+
+		suiteTeardown(async () => {
+			await vscode.workspace.getConfiguration('markdown').update(settingName, originalValue, vscode.ConfigurationTarget.Global);
+		});
+
+		async function setTypographer(enabled: boolean) {
+			await vscode.workspace.getConfiguration('markdown').update(settingName, enabled, vscode.ConfigurationTarget.Global);
+		}
+
+		test('Reuses cached tokens for the same document instance and version', async () => {
+			let parseCount = 0;
+			const engine = createNewMarkdownEngine(new Map([
+				['parse-counter', Promise.resolve((md: MarkdownIt) => {
+					md.core.ruler.push('parse-counter', () => {
+						parseCount++;
+					});
+					return md;
+				})],
+			]));
+			const document = new InMemoryDocument(testFileName, '# cached', 1);
+
+			await engine.render(document);
+			await engine.render(document);
+
+			assert.strictEqual(parseCount, 1);
+		});
+
+		test('Invalidates cached tokens when a document version changes', async () => {
+			const engine = createNewMarkdownEngine();
+			const document = new MutableDocument(testFileName, '# first', 1);
+			await engine.render(document);
+
+			document.update('# second');
+
+			assert.strictEqual(
+				(await engine.render(document)).html,
+				'<h1 data-line="0" class="code-line" dir="auto" id="second">second</h1>\n'
+			);
+		});
+
+		test('Invalidates cached tokens when typographer changes', async () => {
+			await setTypographer(false);
+
+			const engine = createNewMarkdownEngine();
+			const document = new InMemoryDocument(testFileName, input);
+			await engine.render(document);
+
+			await setTypographer(true);
+
+			assert.strictEqual(
+				(await engine.render(document)).html,
+				'<p data-line="0" class="code-line" dir="auto">“Hello…” – it’s 50 ©</p>\n'
+			);
 		});
 	});
 
