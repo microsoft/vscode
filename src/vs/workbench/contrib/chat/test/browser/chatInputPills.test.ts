@@ -137,6 +137,34 @@ suite('StandardChatInputPillSources', () => {
 		});
 	});
 
+	test('offers single PR removal directly for mouse and keyboard but not on the toolbar background', async () => {
+		let removed = 0;
+		const entry: IChatPullRequestPillEntry = {
+			...pullRequestEntry('#1', 'open'),
+			removeAction: toAction({ id: 'remove-pr', label: 'Remove Pull Request Artifact from Session', run: () => { removed++; } }),
+		};
+		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [entry] }]), createPullRequestVisibility());
+		const pills = createPills({ pullRequests: data });
+		const target = pills.inputPills.getPillElements()[0];
+		const mouseMenu = pills.openContextMenu(target);
+		const keyboardMenu = pills.openContextMenu(target, true);
+		const backgroundMenu = pills.openContextMenu(pills.inputPills.element);
+		await mouseMenu[0].run();
+		await keyboardMenu[0].run();
+
+		assert.deepStrictEqual({
+			mouse: mouseMenu.slice(0, 4).map(action => action.label),
+			keyboard: keyboardMenu.slice(0, 4).map(action => action.label),
+			backgroundRemoval: backgroundMenu.some(action => action.id === 'remove-pr'),
+			removed,
+		}, {
+			mouse: ['Remove Pull Request Artifact from Session', '', 'Hide Pull Requests', 'Pull Requests Options'],
+			keyboard: ['Remove Pull Request Artifact from Session', '', 'Hide Pull Requests', 'Pull Requests Options'],
+			backgroundRemoval: false,
+			removed: 2,
+		});
+	});
+
 	test('lets other pills contribute options without changing the visibility menu', async () => {
 		let invoked = false;
 		const pills = createPills({

@@ -310,6 +310,27 @@ suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('routes artifact removal to the owning provider and propagates errors', async () => {
+		const session = stubSession({
+			sessionId: 'session', providerId: 'test',
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true }),
+		});
+		const calls: string[][] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async removeSessionArtifact(sessionId: string, artifactId: string): Promise<void> {
+				calls.push([sessionId, artifactId]);
+				if (artifactId === 'failure') {
+					throw new Error('Removal failed');
+				}
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		await service.removeSessionArtifact(session, 'artifact');
+		await assert.rejects(() => service.removeSessionArtifact(session, 'failure'), /Removal failed/);
+		await assert.rejects(() => service.removeSessionArtifact(stubSession({ sessionId: 'unsupported', providerId: 'test' }), 'artifact'), /not supported/);
+		assert.deepStrictEqual(calls, [['session', 'artifact'], ['session', 'failure']]);
+	});
+
 	test('cancelCurrentRequest loads the chat model then cancels the main chat request', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test' });
 		const { service, chatService } = createSessionsManagementService(session, disposables);
@@ -522,6 +543,34 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get(), undefined);
 	});
 
+	test('openNewSession with toSide places an empty composer beside the active quick-chat draft', async () => {
+		const quickChat = stubSession({
+			sessionId: 'quick-chat',
+			providerId: 'test',
+			isQuickChat: constObservable(true),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createQuickChat(): ISession { return quickChat; }
+		}(quickChat);
+		const { service, view } = createSessionsManagementService(quickChat, disposables, provider);
+
+		view.openQuickChat();
+		const result = await view.openNewSession({ toSide: true });
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(session => session?.sessionId ?? null),
+			active: view.activeSession.get(),
+			preservedDraft: service.newSession.get()?.sessionId,
+			result: result.session,
+		}, {
+			visible: ['quick-chat', null],
+			active: undefined,
+			preservedDraft: 'quick-chat',
+			result: undefined,
+		});
+	});
+
 	test('openNewSession without toSide still replaces the active session', async () => {
 		const session = stubSession({ sessionId: 'active', providerId: 'test' });
 		const { view } = createSessionsManagementService(session, disposables);
@@ -704,6 +753,58 @@ suite('SessionsManagementService', () => {
 			afterOpenNewSession: undefined,
 			afterOpenNewSessionWithoutActiveSession: undefined,
 			afterOpenSession: undefined,
+		});
+	});
+
+	test('publishes navigation requests even when the empty composer is already active', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const { view } = createSessionsManagementService(session, disposables);
+		const request = disposables.add(new CancellationTokenSource());
+		const tokens: CancellationToken[] = [];
+		disposables.add(autorun(reader => {
+			const navigation = view.navigationRequest.read(reader);
+			if (navigation) {
+				tokens.push(navigation.token);
+			}
+		}));
+
+		await view.openNewSession(undefined, request.token);
+		await view.openNewSession();
+		await view.openNewSession();
+
+		assert.deepStrictEqual({ tokens, activeSession: view.activeSession.get() }, {
+			tokens: [request.token, CancellationToken.None, CancellationToken.None],
+			activeSession: undefined,
+		});
+	});
+
+	test('creating a composer draft preserves navigation while an explicit opening replaces it', async () => {
+		const folderUri = URI.file('/test/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: folderUri, label: 'workspace', icon: Codicon.vm,
+			folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+			requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+		};
+		const session = stubSession({
+			sessionId: 'draft', providerId: 'test', workspace: constObservable(workspace), status: constObservable(SessionStatus.Untitled),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+		}(session);
+		const { view } = createSessionsManagementService(session, disposables, provider);
+		await view.openNewSession();
+		const initialNavigation = view.navigationRequest.get();
+
+		await view.openNewSession({ folderUri, preserveNavigation: true });
+		const draftCreation = {
+			sessionId: view.activeSession.get()?.sessionId,
+			preservedNavigation: view.navigationRequest.get() === initialNavigation,
+		};
+		await view.openNewSession();
+
+		assert.deepStrictEqual({ draftCreation, explicitNavigation: view.navigationRequest.get() !== initialNavigation }, {
+			draftCreation: { sessionId: 'draft', preservedNavigation: true },
+			explicitNavigation: true,
 		});
 	});
 
@@ -3413,6 +3514,41 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const placement of ['source', 'closedSource', 'default'] as const) {
+		test(`opens a fork to the side with ${placement} placement without replacing its neighbors`, async () => {
+			const main = { ...stubChat, resource: URI.parse('test:///source/main') };
+			const peer = { ...stubChat, resource: URI.parse('test:///source/peer') };
+			const source = stubSession({ sessionId: 'source', providerId: 'test', chats: constObservable([main, peer]), mainChat: constObservable(main) });
+			const neighbor = stubSession({ sessionId: 'neighbor', providerId: 'test' });
+			const fork = stubSession({ sessionId: 'fork', providerId: 'test' });
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(source); }
+				override getSessions(): ISession[] { return [source, neighbor, fork]; }
+			};
+			const { view } = createSessionsManagementService(source, disposables, provider);
+			await view.openChat(source, peer.resource);
+			await view.openSessionToSide(neighbor);
+			if (placement === 'closedSource') {
+				view.closeSession(source);
+			}
+
+			await view.openSessionToSide(fork, {
+				source: 'fork',
+				referenceSessionId: placement === 'default' ? undefined : source.sessionId,
+			});
+
+			assert.deepStrictEqual({
+				visible: view.visibleSessions.get().map(session => session?.sessionId),
+				sourceChat: view.visibleSessions.get().find(session => session?.sessionId === source.sessionId)?.activeChat.get().resource.toString(),
+				active: view.activeSession.get()?.sessionId,
+			}, {
+				visible: placement === 'source' ? ['source', 'fork', 'neighbor'] : placement === 'closedSource' ? ['neighbor', 'fork'] : ['source', 'neighbor', 'fork'],
+				sourceChat: placement === 'closedSource' ? undefined : peer.resource.toString(),
+				active: 'fork',
+			});
+		});
+	}
+
 	test('replacing a session only swaps the active session when it matches `from`', async () => {
 		const a = stubSession({ sessionId: 'a', providerId: 'test' });
 		const b = stubSession({ sessionId: 'b', providerId: 'test' });
@@ -3701,6 +3837,51 @@ suite('SessionsManagementService', () => {
 		const closedTitles = (view: SessionsService) =>
 			(view.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get());
 
+		test('the active side chat is restored after switching sessions', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('sideA', SessionStatus.Completed, ChatOriginKind.SideChat)]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sessionA.chats.get()[1].resource);
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource, { restoreOnlySideOrToolChat: true });
+
+			assert.strictEqual(view.activeSession.get()?.activeChat.get().title.get(), 'sideA');
+		});
+
+		test('the active subagent chat is restored after switching sessions', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('subagentA', SessionStatus.Completed, ChatOriginKind.Tool)]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sessionA.chats.get()[1].resource);
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource, { restoreOnlySideOrToolChat: true });
+
+			assert.deepStrictEqual({
+				activeChat: view.activeSession.get()?.activeChat.get().title.get(),
+				visibleTabs: view.activeSession.get()?.visibleChatTabs.get().map(chat => chat.title.get()),
+			}, {
+				activeChat: 'subagentA',
+				visibleTabs: ['mainA', 'subagentA'],
+			});
+		});
+
+		test('a session-list open selects the main chat instead of a regular peer chat', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('peerA')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, sessionA.chats.get()[1].resource);
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource, { restoreOnlySideOrToolChat: true });
+
+			assert.strictEqual(view.activeSession.get()?.activeChat.get().title.get(), 'mainA');
+		});
+
 		test('a chat closed in one session stays closed after switching away and back', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
 			const sessionB = multiChatSession('B', [chat('mainB')]);
@@ -3890,6 +4071,112 @@ suite('SessionsManagementService', () => {
 			await second.restoreVisibleSessions();
 			await second.openSession(sessionB.resource);
 			assert.deepStrictEqual((second.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get()), ['b2']);
+		});
+
+		test('restores an active subagent tab when it appears after the session', async () => {
+			const main = chat('main');
+			const subagent = chat('subagent', SessionStatus.Completed, ChatOriginKind.Tool);
+			const storage = disposables.add(new InMemoryStorageService());
+			const makeView = (session: ISession) => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+				instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([new TestSessionsProvider(session)]));
+				instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+				instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+				instantiationService.stub(IProgressService, new TestProgressService());
+				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+					override readonly onDidSubmitRequest = Event.None;
+				});
+				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				return createView(instantiationService, service, disposables);
+			};
+
+			const firstSession = stubSession({
+				sessionId: 'subagent-restart',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable([main, subagent]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const first = makeView(firstSession);
+			await first.openSession(firstSession.resource);
+			await first.openChat(firstSession, subagent.resource);
+			await storage.flush();
+			first.dispose();
+
+			const chats = observableValue<readonly IChat[]>('delayedSubagentChats', [main]);
+			const restoredSession = stubSession({
+				...firstSession,
+				chats,
+				mainChat: constObservable(main),
+			});
+			const second = makeView(restoredSession);
+			await second.restoreVisibleSessions();
+			const beforeDiscovery = second.activeSession.get()?.visibleChatTabs.get().map(c => c.title.get());
+
+			chats.set([main, subagent], undefined);
+
+			assert.deepStrictEqual({
+				beforeDiscovery,
+				afterDiscovery: second.activeSession.get()?.visibleChatTabs.get().map(c => c.title.get()),
+				activeChat: second.activeSession.get()?.activeChat.get().title.get(),
+			}, {
+				beforeDiscovery: ['main'],
+				afterDiscovery: ['main', 'subagent'],
+				activeChat: 'subagent',
+			});
+		});
+
+		test('restores an inactive subagent without changing ordinary side chat behavior', async () => {
+			const main = chat('main');
+			const side = chat('side', SessionStatus.Completed, ChatOriginKind.SideChat);
+			const subagent = chat('subagent', SessionStatus.Completed, ChatOriginKind.Tool);
+			const session = stubSession({
+				sessionId: 'inactive-subagent-restart',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable([main, side, subagent]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const storage = disposables.add(new InMemoryStorageService());
+			const provider = new TestSessionsProvider(session);
+			const makeView = () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+				instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+				instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+				instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+				instantiationService.stub(IProgressService, new TestProgressService());
+				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+					override readonly onDidSubmitRequest = Event.None;
+				});
+				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				return createView(instantiationService, service, disposables);
+			};
+
+			const first = makeView();
+			await first.openSession(session.resource);
+			await first.openChat(session, subagent.resource);
+			await first.openChat(session, main.resource);
+			await storage.flush();
+			first.dispose();
+
+			const second = makeView();
+			await second.restoreVisibleSessions();
+
+			assert.deepStrictEqual({
+				tabs: second.activeSession.get()?.visibleChatTabs.get().map(c => c.title.get()),
+				activeChat: second.activeSession.get()?.activeChat.get().title.get(),
+			}, {
+				tabs: ['main', 'side', 'subagent'],
+				activeChat: 'main',
+			});
 		});
 
 		test('restores the active chat when it appears after the session', async () => {

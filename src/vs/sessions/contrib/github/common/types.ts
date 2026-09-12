@@ -43,6 +43,7 @@ export interface IGitHubChangedFile {
 	readonly status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
 	readonly additions: number;
 	readonly deletions: number;
+	readonly patch?: string;
 }
 
 //#endregion
@@ -73,6 +74,7 @@ export interface IGitHubPullRequest {
 	readonly createdAt: string;
 	readonly updatedAt: string;
 	readonly mergedAt: string | undefined;
+	readonly closedAt?: string;
 	readonly mergeable: boolean | undefined;
 	readonly mergeableState: string;
 }
@@ -146,9 +148,10 @@ export interface IGitHubPullRequestMergeability {
 
 export interface IGitHubPullRequestReview {
 	readonly id: number;
+	readonly nodeId: string;
 	readonly author: IGitHubUser;
 	readonly state: string;
-	readonly submittedAt: string;
+	readonly submittedAt: string | undefined;
 }
 
 /** Coarse pull request state, recoverable from the icon carried on session GitHub info. */

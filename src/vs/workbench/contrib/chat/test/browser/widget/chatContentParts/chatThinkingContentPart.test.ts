@@ -388,6 +388,38 @@ suite('ChatThinkingContentPart', () => {
 		});
 	});
 
+	suite('Read-only chats', () => {
+		for (const configuredMode of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.CollapsedPreview, ThinkingDisplayMode.FixedScrolling]) {
+			test(`uses collapsed preview instead of ${configuredMode} without changing the setting`, () => {
+				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, configuredMode);
+				const states = [false, true].map(isComplete => {
+					const part = store.add(instantiationService.createInstance(
+						ChatThinkingContentPart,
+						createThinkingPart('**Reviewing changes**\nChecking the implementation'),
+						{ ...createMockRenderContext(isComplete), readOnly: true },
+						mockMarkdownRenderer,
+						isComplete,
+					));
+					return {
+						collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+						fixedScrolling: part.domNode.classList.contains('chat-thinking-fixed-mode'),
+					};
+				});
+
+				assert.deepStrictEqual({
+					states,
+					configuredMode: mockConfigurationService.getValue(ChatConfiguration.ThinkingStyle),
+				}, {
+					states: [
+						{ collapsed: false, fixedScrolling: false },
+						{ collapsed: true, fixedScrolling: false },
+					],
+					configuredMode,
+				});
+			});
+		}
+	});
+
 	suite('ThinkingDisplayMode.CollapsedPreview', () => {
 		setup(() => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.CollapsedPreview);

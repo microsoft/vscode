@@ -295,10 +295,10 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			undefined,
 			[],
 			{
-				getAriaLabel: item => item.label ?? '',
+				getAriaLabel: item => [item.item?.ariaLabel ?? item.label, item.ariaDescription].filter(Boolean).join(', '),
 				getWidgetAriaLabel: () => this._pillOptions.title,
 			},
-			{ minWidth: 240, maxWidth: 460, widgetClassName: 'show-file-icons' },
+			{ minWidth: 240, maxWidth: 460, widgetClassName: 'show-file-icons chat-pill-dropdown' },
 		);
 	}
 
@@ -313,6 +313,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				items.push({
 					kind: ActionListItemKind.Action,
 					label: entry.label,
+					...(entry.badge ? { badge: entry.badge } : {}),
+					...(entry.className ? { className: entry.className } : {}),
 					group: { title: '', ...(entry.icon ? { icon: entry.icon } : {}) },
 					...(entry.resource ? { iconClasses: getIconClasses(this._modelService, this._languageService, entry.resource, FileKind.FILE) } : {}),
 					...(entry.toolbarActions?.length ? { toolbarActions: [...entry.toolbarActions] } : {}),

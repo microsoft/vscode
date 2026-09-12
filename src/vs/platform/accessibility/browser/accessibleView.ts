@@ -20,6 +20,7 @@ export const enum AccessibleViewProviderId {
 	DiffEditor = 'diffEditor',
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
+	CustomizationMigrations = 'customizationMigrations',
 	ChatTerminalOutput = 'chatTerminalOutput',
 	ChatThinking = 'chatThinking',
 	InlineChat = 'inlineChat',

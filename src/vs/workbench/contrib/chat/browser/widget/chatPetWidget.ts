@@ -106,6 +106,7 @@ const MOUSE_BOUNCE_HORIZONTAL_RETENTION = 0.65;
 const MOUSE_BOUNCE_HORIZONTAL_TRANSFER = 0.35;
 const MOUSE_BOUNCE_EDGE_KICK = 320;
 const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
+const CHAT_PET_DISPLAY_SIZE = 48;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
@@ -516,8 +517,8 @@ export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boole
 	return 'idle';
 }
 
-export function shouldReserveChatPetSpace(enabled: boolean, visible: boolean): boolean {
-	return enabled && visible;
+export function getChatPetListPadding(enabled: boolean, visible: boolean, scale: number): number {
+	return enabled && visible ? CHAT_PET_DISPLAY_SIZE * scale : 0;
 }
 
 export function isChatPetVisible(enabled: boolean, windowActive = true): boolean {
@@ -3265,7 +3266,7 @@ export class ChatPetWidget extends Disposable {
 	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void, state?: ChatPetState): void {
 		const { frameDurations } = source;
 		const { image, canvas } = sprite;
-		const displaySize = sprite === this._speechBubble ? 72 : sprite === this._respawnEffect ? this._getDisplaySize() : 48;
+		const displaySize = sprite === this._speechBubble ? 72 : sprite === this._respawnEffect ? this._getDisplaySize() : CHAT_PET_DISPLAY_SIZE;
 		const frameHeight = source.frameHeight ?? CHAT_PET_SOURCE_SIZE;
 		const displayScale = displaySize / CHAT_PET_SOURCE_SIZE;
 		const displayWidth = source.frameWidth * displayScale;
@@ -3386,7 +3387,7 @@ export class ChatPetWidget extends Disposable {
 		const dimensions = this._eyeAccessoryDimensions;
 		if (!dimensions || dimensions.frameWidth !== source.frameWidth || dimensions.frameHeight !== frameHeight) {
 			this._eyeAccessoryDimensions = { frameWidth: source.frameWidth, frameHeight };
-			const displayScale = 48 / CHAT_PET_SOURCE_SIZE;
+			const displayScale = CHAT_PET_DISPLAY_SIZE / CHAT_PET_SOURCE_SIZE;
 			this._eyeAccessory.width = source.frameWidth;
 			this._eyeAccessory.height = frameHeight;
 			this._eyeAccessoryContainer.style.width = `${source.frameWidth * displayScale}px`;

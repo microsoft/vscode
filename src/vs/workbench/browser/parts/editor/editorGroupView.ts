@@ -226,7 +226,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
-			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true));
+			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true));
 
 			// Editor container
 			this.editorContainer = $('.editor-container');
@@ -2233,18 +2233,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.lastLayout = { width, height, top, left };
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
-		// Keep title content full-width while the editor pane follows the content inset.
+		const contentWidth = Math.max(0, width - this._contentRightInset);
+
+		// Keep tabs full-width while the header and editor pane follow the content inset.
 		const titleControlSize = this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		});
+		}, contentWidth);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;
 
 		// The editor pane is inset on the right by `_contentRightInset` so a docked
 		// panel can sit beside it under the full-width title (0 = fill the group).
-		const contentWidth = Math.max(0, width - this._contentRightInset);
 		const editorHeight = Math.max(0, height - titleControlSize.height);
 		this.editorContainer.style.width = `${contentWidth}px`;
 		this.editorContainer.style.height = `${editorHeight}px`;
@@ -2252,7 +2253,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	/**
-	 * Sets the right inset reserved beside the breadcrumbs and editor pane while tabs remain full-width.
+	 * Sets the right inset reserved beside the editor header and pane while tabs remain full-width.
 	 * `0` restores the default full-width content.
 	 */
 	setContentRightInset(inset: number): void {
