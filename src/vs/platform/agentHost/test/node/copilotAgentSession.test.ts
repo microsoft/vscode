@@ -18,6 +18,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -4262,6 +4263,7 @@ suite('CopilotAgentSession', () => {
 			agentDisplayName: 'Explore',
 			agentDescription: 'Explore tests',
 		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+		mockSession.fire('user.message', { content: 'Initial request' }, { agentId: 'agent-1', id: 'child-user-1' });
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 5,
@@ -4282,6 +4284,7 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.background_tasks_changed', {});
 		await timeout(0);
 
+		mockSession.fire('user.message', { content: 'Follow-up' }, { agentId: 'agent-1', id: 'child-user-2' });
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 6,
@@ -4309,6 +4312,7 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('subagent.started', {
 			toolCallId: 'child-tool', agentName: 'explore', agentDisplayName: 'Explore',
 		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'child' });
+		mockSession.fire('user.message', { content: 'Initial request' }, { agentId: 'child', id: 'child-user-1' });
 		const data = { model: 'gpt-5.5', inputTokens: 5 } as SessionEventPayload<'assistant.usage'>['data'];
 		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
 		const first = session.getTurnTokenUsage('child-turn-1', 'child-tool');
@@ -4320,6 +4324,7 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.background_tasks_changed', {});
 		await timeout(0);
 		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
+		mockSession.fire('user.message', { content: 'Follow-up' }, { agentId: 'child', id: 'child-user-2' });
 		mockSession.fire('assistant.usage', { ...data, inputTokens: 7 }, { agentId: 'child', id: 'child-usage-2' });
 		const resumed = session.getTurnTokenUsage('child-turn-2', 'child-tool');
 		assert.deepStrictEqual([
@@ -7775,6 +7780,7 @@ Use the attached image as context.
 				agentDisplayName: 'Helper',
 				agentDescription: 'Helps',
 			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'initial-interaction' }, { agentId: 'agent-1', id: 'initial-turn-start' });
 			mockSession.backgroundTasks = [{
 				type: 'agent',
 				id: 'agent-1',
@@ -7789,14 +7795,15 @@ Use the attached image as context.
 			mockSession.fire('session.background_tasks_changed', {});
 			await timeout(0);
 
-			mockSession.fire('assistant.turn_start', { turnId: 'sdk-subagent-turn' }, { agentId: 'agent-1' });
+			mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'followup-interaction' }, { agentId: 'agent-1', id: 'followup-turn-start' });
 			mockSession.fireRaw({
 				type: 'model.call_finished',
 				ephemeral: true,
 				id: 'subagent-model-call',
 				agentId: 'agent-1',
 				data: {
-					turnId: 'sdk-subagent-turn',
+					turnId: '0',
+					interactionId: 'followup-interaction',
 					dispatchDurationMs: 125,
 					outcome: 'error',
 					editClassifierVersion: 1,
@@ -10205,6 +10212,549 @@ Use the attached image as context.
 			]);
 		});
 
+		test('keeps one child turn for every completion ordering', async function () {
+			this.timeout(30_000);
+			const events = ['message', 'stop', 'completed', 'idle', 'usage', 'tool'] as const;
+			const orders = events.reduce<Array<Array<typeof events[number]>>>((orders, event) =>
+				orders.flatMap(order => Array.from({ length: order.length + 1 }, (_, index) =>
+					[...order.slice(0, index), event, ...order.slice(index)])), [[]]);
+			const iterationDisposables = disposables.add(new DisposableStore());
+
+			for (const order of orders) {
+				try {
+					const { session, mockSession, signals } = await createAgentSession(iterationDisposables);
+					session.resetTurnState('parent-turn');
+					const child = { agentId: 'child' };
+					mockSession.fire('subagent.started', {
+						toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+					}, { ...child, id: 'child-started' });
+					mockSession.fire('user.message', {
+						content: 'Help', interactionId: 'child-interaction',
+					}, { ...child, id: 'child-user' });
+					mockSession.fire('assistant.turn_start', {
+						turnId: '0', interactionId: 'child-interaction',
+					}, { ...child, id: 'child-turn-start' });
+					mockSession.fire('assistant.message_delta', {
+						messageId: 'child-message', deltaContent: 'CHILD_DONE',
+					}, { ...child, id: 'child-delta' });
+					mockSession.backgroundTasks = [{
+						type: 'agent', id: 'child', toolCallId: 'child-task', description: 'Helps',
+						status: 'idle', agentType: 'helper', prompt: 'Help', startedAt: new Date(0).toISOString(),
+						idleSince: new Date(1).toISOString(),
+					}];
+					const reconcile = async () => {
+						mockSession.fire('session.background_tasks_changed', {});
+						await timeout(0);
+					};
+					const fire: Record<typeof events[number], () => void | Promise<void>> = {
+						message: () => mockSession.fire('assistant.message', {
+							messageId: 'child-message', content: 'CHILD_DONE', interactionId: 'child-interaction',
+						}, { ...child, id: 'child-final' }),
+						stop: () => mockSession.fire('hook.end', {
+							hookInvocationId: 'child-stop', hookType: 'subagentStop', success: true,
+						}, { ...child, id: 'child-hook-end' }),
+						completed: () => mockSession.fire('subagent.completed', {
+							toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper',
+							durationMs: 1, totalTokens: 2, totalToolCalls: 1,
+						}, { ...child, id: 'child-completed' }),
+						idle: reconcile,
+						usage: () => mockSession.fire('assistant.usage', {
+							model: 'gpt-5.5', inputTokens: 1, outputTokens: 1,
+						}, { ...child, id: 'child-usage' }),
+						tool: () => {
+							mockSession.fire('tool.execution_start', {
+								toolCallId: 'child-tool', toolName: 'view', arguments: { path: 'test.txt' },
+							}, { ...child, id: 'child-tool-start' });
+							mockSession.fire('tool.execution_complete', {
+								toolCallId: 'child-tool', success: true, result: { content: 'done' },
+							}, { ...child, id: 'child-tool-complete' });
+						},
+					};
+					for (const event of order) {
+						await fire[event]();
+					}
+					await reconcile();
+					const lifecycle = signals.flatMap(signal => {
+						switch (signal.kind) {
+							case 'subagent_started':
+							case 'subagent_resumed':
+							case 'subagent_completed':
+								return [{ kind: signal.kind, toolCallId: signal.toolCallId }];
+							default:
+								return [];
+						}
+					});
+					assert.deepStrictEqual({
+						lifecycle,
+						response: signals.flatMap(signal => signal.kind === 'action'
+							&& signal.parentToolCallId === 'child-task'
+							&& signal.action.type === ActionType.ChatResponsePart
+							&& signal.action.part.kind === ResponsePartKind.Markdown ? [signal.action.part.content] : []),
+					}, {
+						lifecycle: [
+							{ kind: 'subagent_started', toolCallId: 'child-task' },
+							{ kind: 'subagent_completed', toolCallId: 'child-task' },
+						],
+						response: ['CHILD_DONE'],
+					}, order.join(' -> '));
+				} finally {
+					iterationDisposables.clear();
+				}
+			}
+		});
+
+		for (const { prefix, parentCompletes, completedTask, toolRound, messageFirst } of [
+			{ prefix: '', parentCompletes: false, completedTask: false, toolRound: false, messageFirst: false },
+			{ prefix: 'CHILD_', parentCompletes: false, completedTask: false, toolRound: false, messageFirst: false },
+			{ prefix: 'CHILD_DONE', parentCompletes: false, completedTask: false, toolRound: false, messageFirst: false },
+			{ prefix: '', parentCompletes: true, completedTask: false, toolRound: false, messageFirst: false },
+			{ prefix: 'CHILD_', parentCompletes: true, completedTask: false, toolRound: false, messageFirst: false },
+			{ prefix: '', parentCompletes: false, completedTask: true, toolRound: false, messageFirst: false },
+			{ prefix: 'CHILD_', parentCompletes: false, completedTask: false, toolRound: true, messageFirst: false },
+			{ prefix: '', parentCompletes: false, completedTask: false, toolRound: false, messageFirst: true },
+			{ prefix: 'CHILD_', parentCompletes: false, completedTask: false, toolRound: false, messageFirst: true },
+		]) {
+			test(`preserves authoritative final child text (prefix=${prefix.length}, parentComplete=${parentCompletes}, completedTask=${completedTask}, toolRound=${toolRound}, messageFirst=${messageFirst})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('parent-turn');
+				const child = { agentId: 'child' };
+				mockSession.fire('subagent.started', {
+					toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+				}, child);
+				mockSession.fire('user.message', {
+					content: 'Help', interactionId: 'child-interaction',
+				}, { ...child, id: 'child-user' });
+				mockSession.fire('assistant.turn_start', {
+					turnId: '0', interactionId: 'child-interaction',
+				}, { ...child, id: 'child-turn-start' });
+				if (prefix) {
+					mockSession.fire('assistant.message_delta', {
+						messageId: 'child-message', deltaContent: prefix,
+					}, { ...child, id: 'child-delta' });
+				}
+				if (toolRound) {
+					mockSession.fire('tool.execution_start', {
+						toolCallId: 'child-tool', toolName: 'view', arguments: { path: 'test.txt' },
+					}, child);
+					mockSession.fire('tool.execution_complete', {
+						toolCallId: 'child-tool', success: true, result: { content: 'done' },
+					}, child);
+				}
+				const finalMessage = () => mockSession.fire('assistant.message', {
+					messageId: 'child-message', content: 'CHILD_DONE', interactionId: 'child-interaction',
+				}, { ...child, id: 'child-final' });
+				if (messageFirst) {
+					finalMessage();
+				}
+				if (parentCompletes) {
+					mockSession.fire('session.idle', {});
+				}
+				mockSession.backgroundTasks = [{
+					type: 'agent', id: 'child', toolCallId: 'child-task', description: 'Helps',
+					status: completedTask ? 'completed' : 'idle', agentType: 'helper', prompt: 'Help', startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(),
+					...(completedTask ? { result: 'CHILD_DONE' } : { latestResponse: messageFirst ? 'OLDER_RESPONSE' : 'CHILD_DONE' }),
+				}];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+				finalMessage();
+
+				const materializedText = toolRound ? 'CHILD_DONE' : 'CHILD_DONE'.slice(prefix.length);
+				assert.deepStrictEqual(signals.flatMap(signal => {
+					if (signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed' || signal.kind === 'subagent_completed') {
+						return [signal.kind];
+					}
+					if (signal.kind === 'action'
+						&& signal.parentToolCallId === 'child-task'
+						&& signal.action.type === ActionType.ChatDelta) {
+						return [signal.action.content];
+					}
+					if (signal.kind === 'action'
+						&& signal.parentToolCallId === 'child-task'
+						&& signal.action.type === ActionType.ChatResponsePart
+						&& signal.action.part.kind === ResponsePartKind.Markdown) {
+						return [signal.action.part.content];
+					}
+					return [];
+				}), ['subagent_started', ...(prefix ? [prefix] : []), ...(materializedText ? [materializedText] : []), 'subagent_completed']);
+			});
+		}
+
+		for (const disposeDuringPublication of [false, true]) {
+			test(`does not complete stale child state during final-text publication (dispose=${disposeDuringPublication})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('parent-turn');
+				const child = { agentId: 'child' };
+				mockSession.fire('subagent.started', {
+					toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+				}, child);
+				mockSession.fire('user.message', { content: 'Help' }, { ...child, id: 'child-user' });
+				disposables.add(session['_onDidSessionProgress'].event(signal => {
+					if (signal.kind !== 'action'
+						|| signal.action.type !== ActionType.ChatResponsePart
+						|| signal.action.part.kind !== ResponsePartKind.Markdown
+						|| signal.action.part.content !== 'CHILD_DONE') {
+						return;
+					}
+					if (disposeDuringPublication) {
+						session.dispose();
+					} else {
+						session['_completeSubagentTurn']('child', 'child-task', 'CHILD_DONE');
+						mockSession.fire('user.message', { content: 'Follow-up' }, { ...child, id: 'followup-user' });
+					}
+				}));
+				mockSession.backgroundTasks = [{
+					type: 'agent', id: 'child', toolCallId: 'child-task', description: 'Helps',
+					status: 'idle', agentType: 'helper', prompt: 'Help', startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(), latestResponse: 'CHILD_DONE',
+				}];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					lifecycle: signals.filter(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed' || signal.kind === 'subagent_completed')
+						.map(signal => signal.kind),
+					active: session['_subagentExecutionsByAgentId'].has('child') && session['_activeSubagentAgentIds'].has('child'),
+					generation: session['_subagentExecutionsByAgentId'].get('child')?.generation,
+				}, disposeDuringPublication ? {
+					lifecycle: ['subagent_started'],
+					active: false,
+					generation: undefined,
+				} : {
+					lifecycle: ['subagent_started', 'subagent_completed', 'subagent_resumed'],
+					active: true,
+					generation: 1,
+				});
+			});
+		}
+
+		for (const boundary of ['user.message', 'assistant.turn_start'] as const) {
+			test(`retains a child ${boundary} boundary received before subagent discovery`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('parent-turn');
+				const child = { agentId: 'child' };
+				if (boundary === 'user.message') {
+					mockSession.fire('user.message', { content: 'Help' }, { ...child, id: 'initial-user' });
+				} else {
+					mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'initial-interaction' }, { ...child, id: 'initial-turn-start' });
+				}
+				mockSession.fire('subagent.started', {
+					toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+				}, child);
+				mockSession.backgroundTasks = [{
+					type: 'agent', id: 'child', toolCallId: 'child-task', description: 'Helps',
+					status: 'idle', agentType: 'helper', prompt: 'Help', startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(),
+				}];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+				mockSession.fire('user.message', { content: 'Follow-up' }, { ...child, id: 'followup-user' });
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed' || signal.kind === 'subagent_completed')
+					.map(signal => signal.kind), ['subagent_started', 'subagent_completed', 'subagent_resumed', 'subagent_completed']);
+			});
+
+			test(`does not reopen the initial child execution for a delayed ${boundary}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('parent-turn');
+				const child = { agentId: 'child' };
+				const started = { toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' };
+				mockSession.fire('subagent.started', started, { ...child, id: 'child-started' });
+				mockSession.backgroundTasks = [{
+					type: 'agent', id: 'child', toolCallId: 'child-task', description: 'Helps',
+					status: 'idle', agentType: 'helper', prompt: 'Help', startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(),
+				}];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+				if (boundary === 'user.message') {
+					mockSession.fire('user.message', { content: 'Help' }, { ...child, id: 'initial-user' });
+				} else {
+					mockSession.fire('assistant.turn_start', { turnId: '0', interactionId: 'initial-interaction' }, { ...child, id: 'initial-turn-start' });
+				}
+				mockSession.fire('subagent.started', started, { ...child, id: 'child-started' });
+				mockSession.fire('assistant.turn_start', { turnId: '1' }, { ...child, id: 'uncorrelated-loop-start' });
+				mockSession.fire('user.message', { content: 'Follow-up' }, { ...child, id: 'followup-user' });
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed' || signal.kind === 'subagent_completed')
+					.map(signal => signal.kind), ['subagent_started', 'subagent_completed', 'subagent_resumed', 'subagent_completed']);
+			});
+
+			test(`resumes second and third child executions on distinct ${boundary} boundaries`, async () => {
+				const logService = new CapturingLogService();
+				const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+				const child = { agentId: 'child' };
+				session.resetTurnState('parent-turn');
+				mockSession.fire('subagent.started', {
+					toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+				}, { ...child, id: 'child-started' });
+
+				for (let generation = 1; generation <= 3; generation++) {
+					const userMessage = {
+						content: `Request ${generation}`, source: 'agent-parent',
+						messageId: `user-${generation}`, interactionId: `interaction-${generation}`,
+					};
+					const turnStart = { turnId: '0', interactionId: `interaction-${generation}` };
+					if (generation === 1 || boundary === 'user.message') {
+						mockSession.fire('user.message', userMessage, { ...child, id: `user-event-${generation}` });
+					}
+					mockSession.fire('assistant.turn_start', turnStart, { ...child, id: `turn-start-${generation}` });
+					mockSession.fire('assistant.message_delta', {
+						messageId: `message-${generation}`, deltaContent: `CHILD_${generation}`,
+					}, { ...child, id: `delta-${generation}` });
+					mockSession.fire('assistant.message', {
+						messageId: `message-${generation}`, apiCallId: `call-${generation}`,
+						interactionId: `interaction-${generation}`, content: `CHILD_${generation}`,
+					}, { ...child, id: `final-${generation}` });
+					mockSession.fire('tool.execution_start', {
+						toolCallId: `tool-${generation}`, toolName: 'view', arguments: { path: 'test.txt' },
+					}, { ...child, id: `tool-start-${generation}` });
+					mockSession.fire('tool.execution_complete', {
+						toolCallId: `tool-${generation}`, success: true, result: { content: 'done' },
+					}, { ...child, id: `tool-complete-${generation}` });
+					if (generation > 1) {
+						mockSession.fire('assistant.message_delta', {
+							messageId: `message-${generation - 1}`, deltaContent: 'STALE',
+						}, { ...child, id: `late-delta-${generation}` });
+						mockSession.fire('assistant.tool_call_delta', {
+							toolCallId: `tool-${generation - 1}`, toolName: 'view', inputDelta: '{}',
+						}, { ...child, id: `late-tool-${generation}` });
+						mockSession.fire('assistant.usage', {
+							apiCallId: `call-${generation - 1}`, model: 'gpt-5.5', inputTokens: 99,
+						}, { ...child, id: `late-usage-${generation}` });
+					}
+					mockSession.backgroundTasks = [{
+						type: 'agent', id: 'child', toolCallId: 'child-task', description: 'Helps',
+						status: 'idle', agentType: 'helper', prompt: userMessage.content,
+						startedAt: new Date(0).toISOString(), idleSince: new Date(generation).toISOString(),
+					}];
+					mockSession.fire('session.background_tasks_changed', {});
+					await timeout(0);
+					if (generation === 1 || boundary === 'user.message') {
+						mockSession.fire('user.message', userMessage, { ...child, id: `duplicate-user-${generation}` });
+					}
+					mockSession.fire('assistant.turn_start', turnStart, { ...child, id: `duplicate-start-${generation}` });
+					mockSession.fire('assistant.turn_start', {
+						turnId: '1', interactionId: `interaction-${generation}`,
+					}, { ...child, id: `late-loop-start-${generation}` });
+					mockSession.fire('user.message', {
+						content: 'Injected skill instructions', source: 'skill-helper',
+					}, { ...child, id: `skill-message-${generation}` });
+					mockSession.fire('assistant.reasoning_delta', {
+						reasoningId: `reasoning-${generation}`, deltaContent: 'Late reasoning',
+					}, { ...child, id: `late-reasoning-${generation}` });
+					mockSession.fire('skill.invoked', {
+						name: 'helper', path: '/skills/helper/SKILL.md', content: 'Help',
+					}, { ...child, id: `late-skill-${generation}` });
+					mockSession.fire('session.compaction_complete', {
+						success: true,
+					}, { ...child, id: `late-compaction-${generation}` });
+					mockSession.fireRaw({
+						type: 'model.call_finished', id: `late-model-call-${generation}`, ...child,
+						data: { ...turnStart, dispatchDurationMs: 1, outcome: 'success', editClassifierVersion: 1 },
+					});
+					mockSession.fire('session.background_tasks_changed', {});
+					await timeout(0);
+				}
+
+				assert.deepStrictEqual({
+					lifecycle: signals.filter(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed' || signal.kind === 'subagent_completed')
+						.map(signal => signal.kind),
+					prompts: signals.filter(signal => signal.kind === 'subagent_resumed').map(signal => signal.message?.text),
+					markdown: signals.flatMap(signal => signal.kind === 'action'
+						&& signal.parentToolCallId === 'child-task'
+						&& signal.action.type === ActionType.ChatResponsePart
+						&& signal.action.part.kind === ResponsePartKind.Markdown ? [signal.action.part.content] : []),
+					lateDeltas: signals.filter(signal => isAction(signal, ActionType.ChatDelta)).length,
+					droppedEventsLogged: logService.traces.some(entry => entry.message.includes('child')),
+				}, {
+					lifecycle: ['subagent_started', 'subagent_completed', 'subagent_resumed', 'subagent_completed', 'subagent_resumed', 'subagent_completed'],
+					prompts: boundary === 'user.message' ? ['Request 2', 'Request 3'] : [undefined, undefined],
+					markdown: ['CHILD_1', 'CHILD_2', 'CHILD_3'],
+					lateDeltas: 0,
+					droppedEventsLogged: true,
+				});
+			});
+		}
+
+		test('does not route a scheduled tool display into a newer child execution', async () => {
+			await runWithFakedTimers({}, async () => {
+				const testDisposables = disposables.add(new DisposableStore());
+				try {
+					const { session, mockSession, signals } = await createAgentSession(testDisposables);
+					session.resetTurnState('parent-turn');
+					const child = { agentId: 'child' };
+					mockSession.fire('subagent.started', {
+						toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+					}, child);
+					mockSession.fire('user.message', { content: 'Initial request' }, { ...child, id: 'user-1' });
+					const streamTool = (toolCallId: string) => {
+						mockSession.fire('assistant.tool_call_delta', {
+							toolCallId, toolName: 'view', inputDelta: '{"path":"test',
+						}, child);
+						mockSession.fire('assistant.tool_call_delta', {
+							toolCallId, inputDelta: '.txt"}',
+						}, child);
+					};
+					streamTool('old-tool');
+					mockSession.backgroundTasks = [{
+						type: 'agent', id: 'child', toolCallId: 'child-task', description: 'Helps',
+						status: 'idle', agentType: 'helper', prompt: 'Help', startedAt: new Date(0).toISOString(),
+						idleSince: new Date(1).toISOString(),
+					}];
+					mockSession.fire('session.background_tasks_changed', {});
+					await timeout(0);
+					mockSession.fire('user.message', { content: 'Follow-up' }, { ...child, id: 'user-2' });
+					streamTool('new-tool');
+					const beforeScheduledDisplay = signals.length;
+					await timeout(STREAMING_TOOL_DISPLAY_INTERVAL_MS);
+
+					assert.deepStrictEqual(signals.slice(beforeScheduledDisplay).flatMap(signal =>
+						isAction(signal, ActionType.ChatToolCallDelta) ? [(signal.action as ChatToolCallDeltaAction).toolCallId] : []), ['new-tool']);
+				} finally {
+					testDisposables.clear();
+				}
+			});
+		});
+
+		test('retains child identity tombstones without retaining streaming event ids and clears them on disposal', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			session.resetTurnState('parent-turn');
+			const child = { agentId: 'child' };
+			mockSession.fire('subagent.started', {
+				toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+			}, child);
+			mockSession.fire('user.message', {
+				content: 'Help', messageId: 'user-message', interactionId: 'interaction',
+			}, { ...child, id: 'user-event' });
+			for (let index = 0; index < 1_000; index++) {
+				mockSession.fire('assistant.message_delta', {
+					messageId: 'child-message', deltaContent: '.',
+				}, { ...child, id: `delta-${index}` });
+			}
+			mockSession.backgroundTasks = [{
+				type: 'agent', id: 'child', toolCallId: 'child-task', description: 'Helps',
+				status: 'idle', agentType: 'helper', prompt: 'Help', startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const identities = [...session['_subagentExecutionsByAgentId'].get('child')!.identities.keys()].sort();
+			const renderedMessages = session['_subagentExecutionsByAgentId'].get('child')!.renderedMessageIds.size;
+			const retainedText = session['_subagentExecutionsByAgentId'].get('child')?.lastMarkdownPart;
+			session.dispose();
+
+			assert.deepStrictEqual({
+				identities,
+				renderedMessages,
+				retainedText,
+				afterDisposal: session['_subagentExecutionsByAgentId'].size,
+			}, {
+				identities: ['interactionId:interaction', 'messageId:child-message', 'messageId:user-message', 'user.message:user-message'],
+				renderedMessages: 0,
+				retainedText: undefined,
+				afterDisposal: 0,
+			});
+		});
+
+		test('retains only stable identities across active, completed, and resumed child event bursts', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('parent-turn');
+			const child = { agentId: 'child' };
+			mockSession.fire('subagent.started', {
+				toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps',
+			}, child);
+			const firstMessage = { content: 'Help', messageId: 'user-0', interactionId: 'interaction-0', source: 'agent-parent' };
+			const firstStart = { turnId: '0', interactionId: 'interaction-0' };
+			for (let index = 0; index < 1_000; index++) {
+				mockSession.fire('user.message', firstMessage, { ...child, id: `user-echo-${index}` });
+				mockSession.fire('assistant.turn_start', firstStart, { ...child, id: `provider-echo-${index}` });
+				mockSession.fire('assistant.message_delta', {
+					messageId: 'response-0', deltaContent: '.',
+				}, { ...child, id: `delta-${index}` });
+			}
+			mockSession.fire('assistant.message', {
+				messageId: 'response-0', apiCallId: 'call-0', interactionId: 'interaction-0', content: '.'.repeat(1_000),
+			}, child);
+			const afterActiveBurst = session['_subagentExecutionsByAgentId'].get('child')!.identities.size;
+			const complete = async () => {
+				mockSession.backgroundTasks = [{
+					type: 'agent', id: 'child', toolCallId: 'child-task', description: 'Helps',
+					status: 'idle', agentType: 'helper', prompt: 'Help', startedAt: new Date(0).toISOString(),
+					idleSince: new Date(1).toISOString(),
+				}];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+			};
+			await complete();
+
+			const oldEvents = (index: number) => {
+				mockSession.fire('user.message', firstMessage, { ...child, id: `late-user-${index}` });
+				mockSession.fire('assistant.turn_start', firstStart, { ...child, id: `late-start-${index}` });
+				mockSession.fire('assistant.message_delta', {
+					messageId: 'response-0', deltaContent: 'STALE',
+				}, { ...child, id: `late-delta-${index}` });
+				mockSession.fire('assistant.message', {
+					messageId: 'response-0', apiCallId: 'call-0', interactionId: 'interaction-0', content: 'STALE',
+				}, { ...child, id: `late-final-${index}` });
+				mockSession.fire('assistant.usage', {
+					apiCallId: 'call-0', model: 'gpt-5.5', inputTokens: 1,
+				}, { ...child, id: `late-usage-${index}` });
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'tool-0', toolName: 'view', arguments: { path: 'test.txt' },
+				}, { ...child, id: `late-tool-${index}` });
+				mockSession.fire('assistant.reasoning_delta', {
+					reasoningId: 'reasoning-0', deltaContent: 'STALE',
+				}, { ...child, id: `late-reasoning-${index}` });
+				mockSession.fire('subagent.completed', {
+					toolCallId: 'child-task', agentName: 'helper', agentDisplayName: 'Helper',
+					durationMs: 1, totalTokens: 1, totalToolCalls: 1,
+				}, { ...child, id: `late-completion-${index}` });
+				mockSession.fire('hook.end', {
+					hookInvocationId: 'child-stop', hookType: 'subagentStop', success: true,
+				}, { ...child, id: `late-stop-${index}` });
+			};
+			for (let index = 0; index < 1_000; index++) {
+				oldEvents(index);
+			}
+			const afterCompletedBurst = session['_subagentExecutionsByAgentId'].get('child')!.identities.size;
+			mockSession.fire('user.message', {
+				content: 'Follow-up', messageId: 'user-1', interactionId: 'interaction-1', source: 'agent-parent',
+			}, { ...child, id: 'followup-user' });
+			mockSession.fire('assistant.message', {
+				messageId: 'response-1', apiCallId: 'call-1', interactionId: 'interaction-1', content: 'FOLLOWUP_DONE',
+			}, child);
+			const beforeStaleBurst = signals.length;
+			for (let index = 0; index < 1_000; index++) {
+				oldEvents(index);
+			}
+			const staleActions = signals.slice(beforeStaleBurst).filter(signal => signal.kind === 'action' && signal.parentToolCallId === 'child-task').length;
+			const afterResumedBurst = session['_subagentExecutionsByAgentId'].get('child')!.identities.size;
+			await complete();
+			session.dispose();
+
+			assert.deepStrictEqual({
+				afterActiveBurst,
+				afterCompletedBurst,
+				afterResumedBurst,
+				staleActions,
+				lifecycle: signals.filter(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed' || signal.kind === 'subagent_completed')
+					.map(signal => signal.kind),
+				disposedIdentities: session['_subagentExecutionsByAgentId'].size,
+			}, {
+				afterActiveBurst: 5,
+				afterCompletedBurst: 7,
+				afterResumedBurst: 12,
+				staleActions: 0,
+				lifecycle: ['subagent_started', 'subagent_completed', 'subagent_resumed', 'subagent_completed'],
+				disposedIdentities: 0,
+			});
+		});
+
 		test('completes a resumed subagent when its background task becomes idle', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-parent');
@@ -10215,6 +10765,7 @@ Use the attached image as context.
 				agentDisplayName: 'Explore',
 				agentDescription: 'Explore tests',
 			}, { agentId: 'agent-1' });
+			mockSession.fire('user.message', { content: 'Initial request' }, { agentId: 'agent-1', id: 'initial-user' });
 			const completion = {
 				toolCallId: 'tc-subagent',
 				agentName: 'explore',
@@ -10334,6 +10885,7 @@ Use the attached image as context.
 				agentDisplayName: 'Explore',
 				agentDescription: 'Explore tests',
 			}, { agentId: 'agent-1' });
+			mockSession.fire('user.message', { content: 'First turn' }, { agentId: 'agent-1', id: 'initial-user' });
 
 			const task = {
 				type: 'agent' as const,
@@ -11617,6 +12169,7 @@ Use the attached image as context.
 				agentDisplayName: 'Helper',
 				agentDescription: 'Helps',
 			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-client-tool' });
+			mockSession.fire('user.message', { content: 'Initial request' }, { agentId: 'agent-client-tool', id: 'child-user-1' });
 
 			mockSession.backgroundTasks = [{
 				type: 'agent',
@@ -11632,6 +12185,7 @@ Use the attached image as context.
 			mockSession.fire('session.background_tasks_changed', {});
 			await timeout(0);
 
+			mockSession.fire('user.message', { content: 'Use the client tool' }, { agentId: 'agent-client-tool', id: 'child-user-2' });
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-sub-client',
 				toolName: 'my_tool',

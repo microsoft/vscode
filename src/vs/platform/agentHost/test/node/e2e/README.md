@@ -521,6 +521,14 @@ Normalization missed something (e.g. a path that `ls` line-wrapped, or a new sec
 
 Subagent flows are the most SDK-version-sensitive: the parent's and child's `/v1/messages` calls share one by-endpoint sequence, so once the recorded responses are from an older SDK they can drive the current SDK to diverge (an unrecorded call, or the subagent never reaching its tool call). **Re-record** the provider's subagent fixtures (`AGENT_HOST_REPLAY_RECORD=1 …`). The flow itself is deterministic, so a fresh recording replays reliably.
 
+### A custom subagent has an extra completed turn
+
+An extra completed child turn with the correct response text is a lifecycle failure, not evidence that the capture needs another model response. Copilot task-status reconciliation ends a child execution; late message, tool, and usage events must not reopen it. A retained child starts another execution only at a distinct user-message or provider interaction boundary. Agent-loop `turnId` values are not execution identities and can restart at zero.
+
+The `CopilotAgentSession` unit tests permute completion and late-event ordering and exercise second and third child executions. They also cover an unstreamed or partially streamed final reply overtaken by authoritative task completion: the task's `latestResponse` (or completed `result`) is published before completion, without duplicating already-streamed text or moving it before an earlier tool round. Replay the three custom-agent scenarios and `retained background subagent completes repeated follow-up turns` without changing their child-turn assertions or snapshots.
+
+Stable execution/content identities currently live until provider-session disposal, rather than being retained per streaming delta. Their growth is proportional to distinct retained identities, not fixed-bounded. Rendering markers are cleared on child completion; the latest streamed text is cleared at tool-round and child-completion boundaries. Identity pruning remains provisional: evicting old boundary identities without an authoritative retirement/replay boundary could reintroduce phantom turns. Duplicate/stale events for a closed execution must not be attributed to a successor. Recovering genuinely unseen final text through task-result materialization requires that text to be present in the authoritative snapshot; this does not establish lossless handling of every late-final case.
+
 ### Everything suddenly reaches "real CAPI" / 401s locally
 
 You're accidentally in record mode (`AGENT_HOST_REPLAY_RECORD` set) without a token, or an env override isn't pointing at the proxy. Unset the var to replay.
