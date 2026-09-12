@@ -5,7 +5,9 @@
 
 import '../colorPicker.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Color } from '../../../../../base/common/color.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ColorPickerModel } from '../colorPickerModel.js';
 import { localize } from '../../../../../nls.js';
@@ -36,8 +38,14 @@ export class ColorPickerHeader extends Disposable {
 		this._pickedColorPresentation = dom.append(this._pickedColorNode, document.createElement('span'));
 		this._pickedColorPresentation.classList.add('picked-color-presentation');
 
+		// Make focusable for keyboard navigation
+		this._domNode.tabIndex = 0;
+
+		// ARIA attributes for accessibility
+		this._domNode.setAttribute('role', 'button');
 		const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
-		this._pickedColorNode.setAttribute('title', tooltip);
+		this._domNode.setAttribute('title', tooltip);
+		this._domNode.setAttribute('aria-label', tooltip);
 
 		this._originalColorNode = dom.append(this._domNode, $('.original-color'));
 		this._originalColorNode.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
@@ -47,11 +55,9 @@ export class ColorPickerHeader extends Disposable {
 			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
 		}));
 
-		this._register(dom.addDisposableListener(this._pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
-		this._register(dom.addDisposableListener(this._originalColorNode, dom.EventType.CLICK, () => {
-			this.model.color = this.model.originalColor;
-			this.model.flushColor();
-		}));
+		this._register(dom.addDisposableListener(this._pickedColorNode, dom.EventType.CLICK, () => this._onPickedColorClick()));
+		this._register(dom.addDisposableListener(this._domNode, dom.EventType.KEY_DOWN, e => this._onHeaderKeyDown(e)));
+		this._register(dom.addDisposableListener(this._originalColorNode, dom.EventType.CLICK, () => this._onOriginalColorClick()));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this._register(model.onDidChangePresentation(this.onDidChangePresentation, this));
 		this._pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
@@ -80,6 +86,23 @@ export class ColorPickerHeader extends Disposable {
 
 	public get originalColorNode(): HTMLElement {
 		return this._originalColorNode;
+	}
+
+	private _onPickedColorClick(): void {
+		this.model.selectNextColorPresentation();
+	}
+
+	private _onHeaderKeyDown(e: KeyboardEvent): void {
+		const event = new StandardKeyboardEvent(e);
+		if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+			this.model.selectNextColorPresentation();
+			event.preventDefault();
+		}
+	}
+
+	private _onOriginalColorClick(): void {
+		this.model.color = this.model.originalColor;
+		this.model.flushColor();
 	}
 
 	private onDidChangeColor(color: Color): void {
