@@ -14,13 +14,19 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export interface IFeedbackInputWidgetAction {
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly keybindingLabel: string;
 	readonly menuKeybinding?: ResolvedKeybinding;
+}
+
+export interface IFeedbackInputWidgetAdditionalAction {
+	readonly id: string;
+	readonly label: string;
+	readonly run: () => void | Promise<void>;
 }
 
 interface IFeedbackInputWidgetBaseOptions {
@@ -64,6 +70,8 @@ export class FeedbackInputWidget extends Disposable {
 	private readonly _actionBar: ActionBar;
 	private readonly _primaryAction: Action;
 	private readonly _secondaryAction: Action | undefined;
+	private readonly _additionalActionsStore = this._register(new DisposableStore());
+	private _additionalActions: readonly Action[] = [];
 	private _isShowingSecondary = false;
 	private _busy = false;
 	private readonly _hasExplicitAriaLabel: boolean;
@@ -135,12 +143,17 @@ export class FeedbackInputWidget extends Disposable {
 				action,
 				{
 					...options,
-					menuActionsOrProvider: [this._primaryAction, secondaryAction],
+					menuActionsOrProvider: {
+						getActions: () => [this._primaryAction, secondaryAction, ...this._additionalActions],
+					},
 					keybindingProvider: menuAction => {
 						if (menuAction === this._primaryAction) {
 							return _options.primaryAction.menuKeybinding;
 						}
-						return _options.secondaryAction?.menuKeybinding;
+						if (menuAction === secondaryAction) {
+							return _options.secondaryAction?.menuKeybinding;
+						}
+						return undefined;
 					},
 				},
 				contextMenuProvider
@@ -213,6 +226,21 @@ export class FeedbackInputWidget extends Disposable {
 		if (this._secondaryAction) {
 			this._secondaryAction.enabled = hasText;
 		}
+		for (const action of this._additionalActions) {
+			action.enabled = hasText;
+		}
+	}
+
+	setAdditionalActions(actions: readonly IFeedbackInputWidgetAdditionalAction[]): void {
+		this._additionalActionsStore.clear();
+		this._additionalActions = actions.map(action => this._additionalActionsStore.add(new Action(
+			action.id,
+			action.label,
+			undefined,
+			false,
+			action.run,
+		)));
+		this.updateActionEnabled();
 	}
 
 	setActionLabels(primaryLabel: string, secondaryLabel?: string): void {
