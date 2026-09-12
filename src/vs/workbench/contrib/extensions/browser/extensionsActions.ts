@@ -13,7 +13,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionInstallStage, IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { areSameExtensions, getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -722,6 +722,27 @@ export class InstallingLabelAction extends ExtensionAction {
 
 	update(): void {
 		this.class = `${InstallingLabelAction.CLASS}${this.extension && this.extension.state === ExtensionState.Installing ? '' : ' hide'}`;
+		const progress = this.extension?.installProgress;
+		if (!progress) {
+			this.label = InstallingLabelAction.LABEL;
+			return;
+		}
+		switch (progress.stage) {
+			case ExtensionInstallStage.Downloading:
+				this.label = progress.totalBytes && progress.downloadedBytes !== undefined
+					? localize('downloadingExtensionWithProgress', "Downloading {0}%", Math.min(100, Math.floor(progress.downloadedBytes / progress.totalBytes * 100)))
+					: localize('downloadingExtension', "Downloading");
+				break;
+			case ExtensionInstallStage.Verifying:
+				this.label = localize('verifyingExtension', "Verifying");
+				break;
+			case ExtensionInstallStage.Extracting:
+				this.label = localize('extractingExtension', "Extracting");
+				break;
+			case ExtensionInstallStage.Installing:
+				this.label = InstallingLabelAction.LABEL;
+				break;
+		}
 	}
 }
 
