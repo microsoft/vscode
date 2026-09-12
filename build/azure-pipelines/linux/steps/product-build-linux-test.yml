@@ -109,6 +109,25 @@ steps:
       timeoutInMinutes: 20
 
   - script: |
+      echo "Disk usage before cleanup:"
+      df -h /
+      sudo rm -rf \
+        /usr/share/dotnet \
+        /usr/share/swift \
+        /usr/local/lib/android \
+        /opt/ghc \
+        /opt/hostedtoolcache/CodeQL \
+        /opt/hostedtoolcache/PyPy \
+        /opt/hostedtoolcache/Ruby \
+        /opt/hostedtoolcache/go
+      sudo docker system prune -af || true
+      echo "Disk usage after cleanup:"
+      df -h /
+    displayName: Free disk space
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - script: |
       set -e
       df -h
       # Break down what is occupying the small OS root disk (`/`). The `-x` flag
