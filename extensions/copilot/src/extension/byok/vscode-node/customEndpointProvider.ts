@@ -22,7 +22,15 @@ import { IBYOKStorageService } from './byokStorageService';
 
 export type CustomEndpointApiType = 'chat-completions' | 'responses' | 'messages';
 
-export function resolveCustomEndpointUrl(modelId: string, url: string, apiType?: CustomEndpointApiType): string {
+export function resolveCustomEndpointUrl(modelId: string, url: string | undefined, apiType?: CustomEndpointApiType): string {
+	if (!url || typeof url !== 'string' || !url.trim()) {
+		throw new Error(`Custom endpoint model '${modelId}' is missing required 'models[].url'. Please configure a valid http(s) URL in chatLanguageModels.json (e.g., "url": "http://localhost:20128/v1/chat/completions"). Received: '${url}'`);
+	}
+	url = url.trim();
+	if (!url.startsWith('http://') && !url.startsWith('https://')) {
+		throw new Error(`Custom endpoint URL must start with http:// or https://. Got: '${url}' for model '${modelId}'`);
+	}
+
 	// The fully resolved url was already passed in
 	if (hasExplicitApiPath(url)) {
 		return url;
@@ -55,11 +63,17 @@ function apiTypeToPath(apiType: CustomEndpointApiType | undefined): string {
 	}
 }
 
-export function hasExplicitApiPath(url: string): boolean {
+export function hasExplicitApiPath(url: string | undefined): boolean {
+	if (!url || typeof url !== 'string') {
+		return false;
+	}
 	return url.includes('/responses') || url.includes('/chat/completions') || url.includes('/messages');
 }
 
-function inferApiTypeFromUrl(url: string): CustomEndpointApiType {
+function inferApiTypeFromUrl(url: string | undefined): CustomEndpointApiType {
+	if (!url || typeof url !== 'string') {
+		return 'chat-completions';
+	}
 	if (url.includes('/messages')) {
 		return 'messages';
 	}
@@ -155,7 +169,12 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<OpenAIEndpoint> {
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
 		const apiTypeOverride = modelConfiguration?.apiType ?? model.configuration?.apiType;
-		const url = resolveCustomEndpointUrl(model.id, model.url, apiTypeOverride);
+		// Prefer per-model URL, fallback to model.url (which comes from getAllModels), then group-level url
+		const rawUrl = modelConfiguration?.url ?? model.url ?? model.configuration?.url;
+		if (!rawUrl || !rawUrl.trim()) {
+			throw new Error(`Custom endpoint model '${model.id}' has empty 'models[].url'. The Custom Endpoint wizard should save the endpoint to models[].url (e.g., "url": "http://localhost:20128/v1/chat/completions") and use a human-readable provider name for the group 'name'. Please fix chatLanguageModels.json. See https://github.com/microsoft/vscode/issues/333701`);
+		}
+		const url = resolveCustomEndpointUrl(model.id, rawUrl, apiTypeOverride);
 		const apiType: CustomEndpointApiType = apiTypeOverride ?? inferApiTypeFromUrl(url);
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
