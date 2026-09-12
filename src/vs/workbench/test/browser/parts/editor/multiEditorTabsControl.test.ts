@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { $, Dimension, EventType, ModifierKeyEmitter, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -15,7 +17,7 @@ import { TreeViewsDnDService } from '../../../../../editor/common/services/treeV
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
-import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions } from '../../../../common/editor.js';
+import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -30,9 +32,15 @@ suite('MultiEditorTabsControl', () => {
 
 	let container: HTMLElement;
 	let hostService: TestHostService;
-	let control: MultiEditorTabsControl;
+	let control: TestMultiEditorTabsControl;
 	let partOptions: IEditorPartOptions;
 	let model: EditorGroupModel;
+
+	class TestMultiEditorTabsControl extends MultiEditorTabsControl {
+		getHoverTitleForTest(editor: EditorInput): string | IManagedHoverTooltipMarkdownString {
+			return this.getHoverTitle(editor);
+		}
+	}
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -94,7 +102,7 @@ suite('MultiEditorTabsControl', () => {
 		container = $('.title.tabs');
 		mainWindow.document.body.appendChild(container);
 
-		control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
+		control = disposables.add(instantiationService.createInstance(TestMultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, undefined, false, false));
 		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 	});
 
@@ -1067,6 +1075,68 @@ suite('MultiEditorTabsControl', () => {
 			['closeOthers', 'close'],
 			['close', 'close']
 		]);
+	});
+
+	function openHoverTestEditor(pinned: boolean): EditorInput {
+		const editor = disposables.add(new class extends TestFileEditorInput {
+			override getName(): string { return 'file.txt'; }
+			override getTitle(verbosity?: Verbosity): string {
+				switch (verbosity) {
+					case Verbosity.SHORT: return 'file.txt';
+					case Verbosity.MEDIUM: return 'folder/file.txt';
+					default: return '/workspace/folder/file.txt';
+				}
+			}
+		}(URI.file('/workspace/folder/file.txt'), 'testEditorInput'));
+
+		model.openEditor(editor, { pinned });
+
+		return editor;
+	}
+
+	test('Tab hover shows the absolute path by default (#163166)', () => {
+		const editor = openHoverTestEditor(true);
+
+		assert.strictEqual(control.getHoverTitleForTest(editor), '/workspace/folder/file.txt');
+	});
+
+	test('Tab hover can be reduced to the file name (#163166)', () => {
+		const editor = openHoverTestEditor(true);
+		partOptions.tabHoverInformation = 'short';
+
+		assert.strictEqual(control.getHoverTitleForTest(editor), 'file.txt');
+	});
+
+	/** Asserts the hover rendered as markdown and returns its raw markdown text. */
+	function markdownTextOf(hover: string | IManagedHoverTooltipMarkdownString): string {
+		assert.strictEqual(typeof hover, 'object', `expected a markdown hover, got ${JSON.stringify(hover)}`);
+
+		const { markdown } = hover as IManagedHoverTooltipMarkdownString;
+		assert.ok(markdown instanceof MarkdownString, 'expected the hover markdown to be a MarkdownString');
+
+		return markdown.value;
+	}
+
+	test('Tab hover can show the file name and the path on separate lines (#163166)', () => {
+		const editor = openHoverTestEditor(true);
+		partOptions.tabHoverInformation = 'detail';
+
+		const hover = control.getHoverTitleForTest(editor);
+
+		assert.strictEqual(markdownTextOf(hover), 'file.txt\n\n/workspace/folder/file.txt');
+		assert.strictEqual((hover as IManagedHoverTooltipMarkdownString).markdownNotSupportedFallback, 'file.txt\n/workspace/folder/file.txt');
+	});
+
+	test('Preview tabs keep the preview decoration for every hover format (#163166)', () => {
+		const editor = openHoverTestEditor(false);
+		partOptions.tabHoverInformation = 'short';
+
+		const hover = control.getHoverTitleForTest(editor);
+		const markdown = markdownTextOf(hover);
+
+		assert.ok(markdown.startsWith('file.txt'), markdown);
+		assert.ok(markdown.includes('(_preview_'), markdown);
+		assert.strictEqual((hover as IManagedHoverTooltipMarkdownString).markdownNotSupportedFallback, 'file.txt (preview)');
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
