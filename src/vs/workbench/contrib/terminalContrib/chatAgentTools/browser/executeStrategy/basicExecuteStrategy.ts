@@ -105,7 +105,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// up front and resolve immediately with the captured exit code.
 			if (this._instance.isDisposed) {
 				this._log('Terminal already disposed at strategy entry');
-				throw new Error('The terminal was closed');
+				throw new CancellationError();
 			}
 			if (this._instance.exitCode !== undefined) {
 				this._log(`Terminal pty already exited at strategy entry (code=${this._instance.exitCode})`);
@@ -227,7 +227,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			this._log('Waiting for done event');
 			const onDoneResult = await Promise.race([onDone, alternateBufferPromise.then(() => ({ type: 'alternateBuffer' } as const))]);
 			if (onDoneResult && onDoneResult.type === 'disposal') {
-				throw new Error('The terminal was closed');
+				throw new CancellationError();
 			}
 			if (onDoneResult && onDoneResult.type === 'alternateBuffer') {
 				this._log('Detected alternate buffer entry, skipping output capture');
