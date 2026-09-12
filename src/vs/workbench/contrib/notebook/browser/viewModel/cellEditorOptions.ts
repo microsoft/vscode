@@ -27,6 +27,7 @@ export class BaseCellEditorOptions extends Disposable implements IBaseCellEditor
 		lineDecorationsWidth: 0,
 		folding: true,
 		fixedOverflowWidgets: true,
+		useShadowDOM: false,
 		minimap: { enabled: false },
 		renderValidationDecorations: 'on',
 		lineNumbersMinChars: 3
