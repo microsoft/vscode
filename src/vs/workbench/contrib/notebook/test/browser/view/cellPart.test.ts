@@ -168,6 +168,7 @@ suite('CellPart', () => {
 				getAbsoluteBottomOfElement: () =>
 					s.elementTop + s.outputContainerOffset,
 				getHeightOfElement: () => s.elementHeight,
+				getViewModel: () => ({ getCellIndex: () => 0 }),
 				notebookOptions: {
 					getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
 				},
@@ -368,6 +369,7 @@ suite('CellPart', () => {
 				getAbsoluteTopOfElement: () => ELEMENT_TOP,
 				getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
 				getHeightOfElement: () => ELEMENT_HEIGHT,
+				getViewModel: () => ({ getCellIndex: () => 0 }),
 				notebookOptions: {
 					getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
 				},
@@ -459,6 +461,7 @@ suite('CellPart', () => {
 			getAbsoluteTopOfElement: () => ELEMENT_TOP,
 			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
 			getHeightOfElement: () => ELEMENT_HEIGHT,
+			getViewModel: () => ({ getCellIndex: () => 0 }),
 			notebookOptions: {
 				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
 			},
@@ -554,6 +557,7 @@ suite('CellPart', () => {
 			getAbsoluteTopOfElement: () => ELEMENT_TOP,
 			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
 			getHeightOfElement: () => ELEMENT_HEIGHT,
+			getViewModel: () => ({ getCellIndex: () => 0 }),
 			notebookOptions: {
 				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
 			},
@@ -658,6 +662,7 @@ suite('CellPart', () => {
 			getAbsoluteTopOfElement: () => ELEMENT_TOP,
 			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
 			getHeightOfElement: () => ELEMENT_HEIGHT,
+			getViewModel: () => ({ getCellIndex: () => 0 }),
 			notebookOptions: {
 				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
 			},
@@ -768,6 +773,7 @@ suite('CellPart', () => {
 			getAbsoluteTopOfElement: () => ELEMENT_TOP,
 			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
 			getHeightOfElement: () => ELEMENT_HEIGHT,
+			getViewModel: () => ({ getCellIndex: () => 0 }),
 			notebookOptions: {
 				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
 			},
@@ -871,6 +877,7 @@ suite('CellPart', () => {
 			getAbsoluteTopOfElement: () => ELEMENT_TOP,
 			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
 			getHeightOfElement: () => ELEMENT_HEIGHT,
+			getViewModel: () => ({ getCellIndex: () => 0 }),
 			notebookOptions: {
 				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
 			},
@@ -921,6 +928,7 @@ suite('CellPart', () => {
 			getAbsoluteTopOfElement: () => ELEMENT_TOP,
 			getAbsoluteBottomOfElement: () => ELEMENT_TOP + OUTPUT_CONTAINER_OFFSET,
 			getHeightOfElement: () => ELEMENT_HEIGHT,
+			getViewModel: () => ({ getCellIndex: () => 0 }),
 			notebookOptions: {
 				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
 			},
@@ -941,5 +949,84 @@ suite('CellPart', () => {
 			37,
 			'Init layout for a short cell should use the cell\'s initial height, not the pooled editor\'s stale content height'
 		);
+	});
+
+	test('skips relayout for a stale cell during re-entrant scroll (#328987)', () => {
+		/**
+		 * Regression guard for https://github.com/microsoft/vscode/issues/328987.
+		 *
+		 * A scroll-driven relayout can be delivered re-entrantly while the notebook list is
+		 * mutating, at which point the cell is no longer resolvable in the view model and any
+		 * absolute-position lookup throws `Invalid index -1`. The guard must short-circuit before
+		 * reaching those lookups. Every absolute-position method throws if invoked, so the test
+		 * only passes when the relayout returns early.
+		 */
+		const EDITOR_HEIGHT = 200;
+
+		const stubEditor = {
+			_lastScrollTopSet: -1,
+			getLayoutInfo: () => ({ width: 600, height: EDITOR_HEIGHT }),
+			getContentHeight: () => EDITOR_HEIGHT,
+			layout: () => {
+				throw new Error('layout should not be called for a stale cell');
+			},
+			setScrollTop: () => {
+				throw new Error('setScrollTop should not be called for a stale cell');
+			},
+			hasModel: () => true,
+		};
+		const editorPart = { style: { top: '' } };
+		const template: Partial<CodeCellRenderTemplate> = {
+			editor: stubEditor as unknown as ICodeEditor,
+			editorPart: editorPart as unknown as HTMLElement,
+		};
+		const viewCell: Partial<CodeCellViewModel> = {
+			isInputCollapsed: false,
+			layoutInfo: {
+				statusBarHeight: 22,
+				topMargin: 6,
+				outlineWidth: 1,
+				editorHeight: EDITOR_HEIGHT,
+				outputContainerOffset: 300,
+			} as unknown as CodeCellLayoutInfo,
+		};
+		const notebookEditor = {
+			scrollTop: 0,
+			get scrollBottom() {
+				return 1000;
+			},
+			setScrollTop: () => { /* no-op */ },
+			getLayoutInfo: () => ({
+				fontInfo: { lineHeight: 21 },
+				height: 1000,
+				stickyHeight: 0,
+			}),
+			// The cell is absent from the current view model (identity lookup returns -1).
+			getViewModel: () => ({ getCellIndex: () => -1 }),
+			getAbsoluteTopOfElement: () => {
+				throw new Error('Invalid index -1');
+			},
+			getAbsoluteBottomOfElement: () => {
+				throw new Error('Invalid index -1');
+			},
+			getHeightOfElement: () => {
+				throw new Error('Invalid index -1');
+			},
+			notebookOptions: {
+				getLayoutConfiguration: () => ({ editorTopPadding: 6 }),
+			},
+		};
+
+		const layout = new CodeCellLayout(
+			true,
+			notebookEditor as unknown as IActiveNotebookEditorDelegate,
+			viewCell as CodeCellViewModel,
+			template as CodeCellRenderTemplate,
+			{ debug: () => { } },
+			{ width: 600, height: EDITOR_HEIGHT }
+		);
+
+		layout.layoutEditor('nbDidScroll');
+		assert.strictEqual(editorPart.style.top, '', 'Stale-cell relayout must not compute a top');
 	});
 });
