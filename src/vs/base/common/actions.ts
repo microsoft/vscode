@@ -17,6 +17,9 @@ export type WorkbenchActionExecutedClassification = {
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the component the action was run from.' };
 	detail?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Optional details about how the action was run, e.g which keybinding was used.' };
+	selectedCommandPaletteIndex?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The 0-based index of the item selected from the Command Palette. Only set when from is quick open.' };
+	selectedCommandPaletteSection?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The section the item was selected from in the Command Palette. One of: recently used, commonly used, similar commands, other commands. Only set when from is quick open.' };
+	selectedCommandPaletteIndexInSection?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The 0-based index of the item within its section in the Command Palette. Only set when from is quick open.' };
 	owner: 'isidorn';
 	comment: 'Provides insight into actions that are executed within the workbench.';
 };
@@ -25,6 +28,9 @@ export type WorkbenchActionExecutedEvent = {
 	id: string;
 	from: string;
 	detail?: string;
+	selectedCommandPaletteIndex?: number;
+	selectedCommandPaletteSection?: string;
+	selectedCommandPaletteIndexInSection?: number;
 };
 
 export interface IAction {
