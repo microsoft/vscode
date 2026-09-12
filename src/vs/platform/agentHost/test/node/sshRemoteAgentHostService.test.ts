@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as cp from 'child_process';
+import { EventEmitter as NodeEventEmitter } from 'events';
 import * as os from 'os';
+import { PassThrough } from 'stream';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
@@ -15,7 +18,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
+import { isSSHHostKeyDeniedError, SSHAuthMethod, SSHHostKeyDeniedError, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 
@@ -250,6 +253,8 @@ function makeConfig(overrides?: Partial<ISSHAgentHostConfig>): ISSHAgentHostConf
 class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainService {
 
 	readonly mockClients: MockSSHClient[] = [];
+	lastConnectConfig: ISSHAgentHostConfig | undefined;
+	resolvedConfigOverrides: Partial<ISSHResolvedConfig> = {};
 
 	/**
 	 * Responses that `_connectSSH`'s MockSSHClient hands out for its exec
@@ -295,8 +300,9 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	private readonly _relayResults: Array<{ send: (data: string) => void; close: () => void }> = [];
 
 	protected override async _connectSSH(
-		_config: ISSHAgentHostConfig,
+		config: ISSHAgentHostConfig,
 	) {
+		this.lastConnectConfig = config;
 		const client = new MockSSHClient(this.execResponses);
 		this.mockClients.push(client);
 		return client as never;
@@ -357,6 +363,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			userKnownHostsFiles: [],
 			globalKnownHostsFiles: [],
 			strictHostKeyChecking: undefined,
+			...this.resolvedConfigOverrides,
 		};
 	}
 
@@ -449,6 +456,348 @@ class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainServic
 		return this._connectSSH(config, 'ssh:test-host');
 	}
 }
+
+class ProxyMockSSHClient extends NodeEventEmitter {
+	connectConfig: ConnectConfig | undefined;
+	connectError: Error | undefined;
+	autoReady = true;
+
+	connect(config: ConnectConfig): void {
+		this.connectConfig = config;
+		if (this.connectError) {
+			throw this.connectError;
+		}
+		config.sock?.on('error', error => this.emit('error', error));
+		if (this.autoReady) {
+			queueMicrotask(() => this.emit('ready'));
+		}
+	}
+
+	end(): void {
+		this.emit('close');
+	}
+}
+
+class ProxyConnectTestService extends SSHRemoteAgentHostMainService {
+	readonly client = new ProxyMockSSHClient();
+	readonly spawned = new DeferredPromise<void>();
+	readonly spawnCalls: Array<{ command: string; args: readonly string[] }> = [];
+	readonly killedPids: number[] = [];
+	spawnError: Error | undefined;
+	clientCreated = false;
+	readonly child = Object.assign(new NodeEventEmitter(), {
+		pid: 1234,
+		exitCode: null,
+		signalCode: null,
+		stdin: new PassThrough(),
+		stdout: new PassThrough(),
+		stderr: new PassThrough(),
+		kill: () => true,
+	}) as unknown as cp.ChildProcessWithoutNullStreams;
+
+	override async resolveSSHConfig(): Promise<never> {
+		throw new Error('unexpected config resolution');
+	}
+
+	protected override async _createSSHClient() {
+		this.clientCreated = true;
+		return this.client as never;
+	}
+
+	protected override async _buildAuthAttempts(): Promise<SSHAuthAttempt[]> {
+		return [];
+	}
+
+	protected override _spawnProxyProcess(command: string, args: readonly string[]): cp.ChildProcessWithoutNullStreams {
+		assert.strictEqual(this.clientCreated, true);
+		this.spawnCalls.push({ command, args });
+		queueMicrotask(() => {
+			if (this.spawnError) {
+				this.child.emit('error', this.spawnError);
+			} else {
+				this.child.emit('spawn');
+				this.spawned.complete();
+			}
+		});
+		return this.child;
+	}
+
+	protected override _killProxyProcess(pid: number): Promise<void> {
+		this.killedPids.push(pid);
+		return Promise.resolve();
+	}
+
+	connectSSHForTest(config: ISSHAgentHostConfig) {
+		return this._connectSSH(config, 'ssh:test-host');
+	}
+
+	/**
+	 * Build the transport on its own, without the surrounding connect flow, so
+	 * the helper's stdio lifetime can be driven directly.
+	 */
+	createProxyTransportForTest(config: ISSHAgentHostConfig) {
+		this.clientCreated = true;
+		return this._createProxyTransport(config);
+	}
+}
+
+suite('SSHRemoteAgentHostMainService - proxy transport', () => {
+	const disposables = new DisposableStore();
+
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('leaves direct SSH connections unchanged', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+
+		await service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias' }));
+
+		assert.strictEqual(service.spawnCalls.length, 0);
+		assert.strictEqual(service.client.connectConfig?.sock, undefined);
+	});
+
+	test('parses supported single-hop ProxyJump forms and attaches the ssh2 socket', async () => {
+		const cases: Array<[string, readonly string[]]> = [
+			['jumpserver', ['-o', 'BatchMode=yes', '-W', '[2001:db8::1]:2200', '--', 'jumpserver']],
+			['alice@jumpserver', ['-o', 'BatchMode=yes', '-W', '[2001:db8::1]:2200', '--', 'alice@jumpserver']],
+			['jumpserver:2222', ['-o', 'BatchMode=yes', '-p', '2222', '-W', '[2001:db8::1]:2200', '--', 'jumpserver']],
+			['alice@realm@jumpserver:2222', ['-o', 'BatchMode=yes', '-p', '2222', '-W', '[2001:db8::1]:2200', '--', 'alice@realm@jumpserver']],
+			// Destination is bare while `-W` stays bracketed: `getaddrinfo` rejects `[...]` for a numeric IPv6 host.
+			['[2001:db8::2]', ['-o', 'BatchMode=yes', '-W', '[2001:db8::1]:2200', '--', '2001:db8::2']],
+			['alice@realm@[2001:db8::2]:2222', ['-o', 'BatchMode=yes', '-p', '2222', '-W', '[2001:db8::1]:2200', '--', 'alice@realm@2001:db8::2']],
+			// `ssh -G` normalizes these away, but accept them directly too.
+			['ssh://jumpserver', ['-o', 'BatchMode=yes', '-W', '[2001:db8::1]:2200', '--', 'jumpserver']],
+			['ssh://jumpserver:2222', ['-o', 'BatchMode=yes', '-p', '2222', '-W', '[2001:db8::1]:2200', '--', 'jumpserver']],
+			['ssh://alice@jumpserver', ['-o', 'BatchMode=yes', '-W', '[2001:db8::1]:2200', '--', 'alice@jumpserver']],
+			['ssh://alice@jumpserver:2222', ['-o', 'BatchMode=yes', '-p', '2222', '-W', '[2001:db8::1]:2200', '--', 'alice@jumpserver']],
+			['ssh://[2001:db8::2]:2222', ['-o', 'BatchMode=yes', '-p', '2222', '-W', '[2001:db8::1]:2200', '--', '2001:db8::2']],
+			['ssh://alice@[2001:db8::2]:2222', ['-o', 'BatchMode=yes', '-p', '2222', '-W', '[2001:db8::1]:2200', '--', 'alice@2001:db8::2']],
+		];
+		for (const [proxyJump, args] of cases) {
+			const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+			await service.connectSSHForTest(makeConfig({ host: '2001:db8::1', port: 2200, sshConfigHost: 'target-alias', proxyJump }));
+			assert.deepStrictEqual(service.spawnCalls, [{ command: 'ssh', args }]);
+			assert.ok(service.client.connectConfig?.sock);
+			service.client.end();
+			assert.deepStrictEqual(service.killedPids, [1234]);
+		}
+	});
+
+	test('passes an option-like destination after the argument terminator', async () => {
+		for (const proxyJump of ['-V', '-oProxyCommand=calc.exe', '--help']) {
+			const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+			await service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump }));
+			const args = service.spawnCalls[0].args;
+			assert.deepStrictEqual(args.slice(-2), ['--', proxyJump]);
+			assert.strictEqual(args.indexOf('--'), args.length - 2);
+			service.client.end();
+		}
+	});
+
+	test('expands ProxyJump percent tokens before parsing', async () => {
+		// `ssh -G` reports ProxyJump with its tokens unexpanded, so without this
+		// the helper is asked for a host literally named `%n-bastion`.
+		const cases: Array<[string, readonly string[]]> = [
+			['%n-bastion', ['-o', 'BatchMode=yes', '-W', '10.0.0.1:22', '--', 'target-alias-bastion']],
+			['bastion-%h', ['-o', 'BatchMode=yes', '-W', '10.0.0.1:22', '--', 'bastion-10.0.0.1']],
+			['%r@bastion', ['-o', 'BatchMode=yes', '-W', '10.0.0.1:22', '--', 'testuser@bastion']],
+			['bastion:%p', ['-o', 'BatchMode=yes', '-p', '22', '-W', '10.0.0.1:22', '--', 'bastion']],
+			['100%%-bastion', ['-o', 'BatchMode=yes', '-W', '10.0.0.1:22', '--', '100%-bastion']],
+		];
+		for (const [proxyJump, args] of cases) {
+			const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+			await service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump }));
+			assert.deepStrictEqual(service.spawnCalls, [{ command: 'ssh', args }], proxyJump);
+			service.client.end();
+		}
+	});
+
+	test('expands a token holding an IPv6 address without losing the jump port', async () => {
+		// Expanding before splitting would turn `%h:24321` into `::1:24321`,
+		// which then looks like a host with two colons and is rejected.
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		await service.connectSSHForTest(makeConfig({ host: '::1', port: 2200, sshConfigHost: 'target-alias', proxyJump: '%h:24321' }));
+		assert.deepStrictEqual(service.spawnCalls, [{
+			command: 'ssh',
+			args: ['-o', 'BatchMode=yes', '-p', '24321', '-W', '[::1]:2200', '--', '::1'],
+		}]);
+		service.client.end();
+	});
+
+	test('rejects malformed ProxyJump values', async () => {
+		for (const proxyJump of ['jump-one,jump-two', '[2001:db8::2', '[jump[inner]', '[]', '2001:db8::2', '@jump', 'jump:', 'jump:0', 'jump:65536']) {
+			const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+			await assert.rejects(service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump })));
+		}
+	});
+
+	test('rejects pre-spawn errors and synchronous SSH connect failures', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		service.spawnError = new Error('spawn failed');
+		await assert.rejects(service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' })), /spawn failed/);
+
+		const connectFailure = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		connectFailure.client.connectError = new Error('connect failed');
+		await assert.rejects(connectFailure.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' })), /connect failed/);
+		assert.deepStrictEqual(connectFailure.killedPids, [1234]);
+	});
+
+	test('allows a clean proxy exit without reporting an error', async () => {
+		const clean = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		const transport = await clean.createProxyTransportForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		assert.ok(transport);
+		let socketError: Error | undefined;
+		transport.socket.on('error', (err: Error) => { socketError = err; });
+
+		Object.assign(clean.child, { exitCode: 0 });
+		clean.child.emit('exit', 0, null);
+		// Before the stdout EOF, which disposes the transport and makes the
+		// `close` handler a no-op — the clean-exit branch would never run.
+		clean.child.emit('close', 0, null);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(socketError, undefined);
+		assert.strictEqual(transport.socket.destroyed, false);
+		transport.dispose();
+	});
+
+	test('surfaces the proxy helper stderr when ssh2 fails before the helper exits', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		service.client.autoReady = false;
+		const connecting = service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		await service.spawned.p;
+		(service.child.stderr as PassThrough).write('ssh: Could not resolve hostname jumpserver: No such host is known.\n');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		// ssh2 sees the stdout EOF first and fails with its own generic message.
+		service.client.emit('error', new Error('Connection lost before handshake'));
+
+		await assert.rejects(connecting, /Could not resolve hostname jumpserver/);
+	});
+
+	test('keeps the tail of the proxy helper stderr, not the head', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		service.client.autoReady = false;
+		const connecting = service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		await service.spawned.p;
+		(service.child.stderr as PassThrough).write('b'.repeat(8192) + '\nPermission denied (publickey).\n');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		service.client.emit('error', new Error('Connection lost before handshake'));
+
+		await assert.rejects(connecting, /Permission denied \(publickey\)/);
+	});
+
+	test('surfaces the proxy helper stderr in the failure', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		service.client.autoReady = false;
+		const connecting = service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		await service.spawned.p;
+		(service.child.stderr as PassThrough).write('ssh: Could not resolve hostname jumpserver: No such host is known.\n');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		Object.assign(service.child, { exitCode: 255 });
+		service.child.emit('close', 255, null);
+
+		await assert.rejects(connecting, /Could not resolve hostname jumpserver/);
+	});
+
+	test('waits for the helper stdio to close before reading its stderr', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		service.client.autoReady = false;
+		const connecting = service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		await service.spawned.p;
+		Object.assign(service.child, { exitCode: 255 });
+		// `exit` fires as soon as the process ends, which can be before stderr
+		// has drained. Reading it there would drop the diagnostic entirely.
+		service.child.emit('exit', 255, null);
+		(service.child.stderr as PassThrough).write('Permission denied (publickey).\n');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		service.child.emit('close', 255, null);
+
+		await assert.rejects(connecting, /Permission denied \(publickey\)/);
+	});
+
+	test('surfaces the helper diagnostic once when the child-exit error drives the rejection', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		service.client.autoReady = false;
+		const connecting = service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		await service.spawned.p;
+		Object.assign(service.child, { exitCode: 255 });
+		(service.child.stderr as PassThrough).write('Permission denied (publickey).\n');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		service.child.emit('close', 255, null);
+
+		const error = await connecting.then(() => undefined, (err: Error) => err);
+		assert.ok(error);
+		// The child-exit error carries code and signal only; `rejectConnect`
+		// attaches the bounded stderr tail. Embedding it in both repeats the
+		// OpenSSH diagnostic in the message the user sees.
+		const occurrences = error.message.split('Permission denied (publickey).').length - 1;
+		assert.strictEqual(occurrences, 1, `helper diagnostic repeated: ${error.message}`);
+	});
+
+	test('waits for the helper stdio to close before its stderr is considered complete', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		const transport = await service.createProxyTransportForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		assert.ok(transport);
+
+		let settled = false;
+		const waiting = transport.whenStderrSettled().then(() => { settled = true; });
+		await new Promise(resolve => setTimeout(resolve, 10));
+		// ssh2 rejects on the stdout EOF well before this point, so a caller
+		// reading stderr right then would see nothing.
+		assert.strictEqual(settled, false);
+		assert.strictEqual(transport.stderr(), '');
+
+		(service.child.stderr as PassThrough).write('Permission denied (publickey).\n');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		service.child.emit('close', 255, null);
+		await waiting;
+
+		assert.strictEqual(settled, true);
+		assert.match(transport.stderr(), /Permission denied \(publickey\)/);
+		transport.dispose();
+	});
+
+	test('stops waiting for stderr when the helper never closes', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		const transport = await service.createProxyTransportForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		assert.ok(transport);
+
+		// Bounded: a helper that never closes must not stall the failure the
+		// user is already waiting on.
+		await transport.whenStderrSettled();
+		transport.dispose();
+	});
+
+	test('keeps the original error type when annotating it with proxy stderr', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		service.client.autoReady = false;
+		const connecting = service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		await service.spawned.p;
+		(service.child.stderr as PassThrough).write('Warning: Permanently added jumpserver to known hosts.\n');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		service.client.emit('error', new SSHHostKeyDeniedError('target-alias'));
+
+		// The renderer suppresses retries and duplicate failure UI by matching
+		// `error.name`, so the annotation must not replace the instance.
+		await assert.rejects(connecting, error => {
+			assert.ok(isSSHHostKeyDeniedError(error), `lost the host-key error type: ${(error as Error).name}`);
+			assert.match((error as Error).message, /Permanently added jumpserver/);
+			return true;
+		});
+	});
+
+	test('rejects a nonzero proxy exit before SSH is ready', async () => {
+		const service = disposables.add(new ProxyConnectTestService(new NullLogService(), { _serviceBrand: undefined, quality, dataFolderName } as IProductService, NullTelemetryService));
+		service.client.autoReady = false;
+		const connecting = service.connectSSHForTest(makeConfig({ sshConfigHost: 'target-alias', proxyJump: 'jumpserver' }));
+		await service.spawned.p;
+		Object.assign(service.child, { exitCode: 23 });
+		service.child.emit('close', 23, null);
+
+		await assert.rejects(connecting, /code 23/);
+		assert.deepStrictEqual([service.child.stdin.destroyed, service.child.stdout.destroyed, service.child.stderr.destroyed], [true, true, true]);
+	});
+});
 
 suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
@@ -770,6 +1119,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const editor = makeEndpoint({ type: 'editor', pid: 300, instanceId: 'editor-1', endpoint: { type: 'socket', path: '/tmp/agent.sock' } });
 		const standalone = makeEndpoint({ type: 'standalone', pid: 400, instanceId: 'inst-c' });
 		service.execResponses = discoveryResponses([editor, standalone]);
+		service.resolvedConfigOverrides = { proxyJump: 'jumpserver' };
 
 		const events: ISSHEndpointSelectionRequest[] = [];
 		disposables.add(service.onDidRequestEndpointSelection(r => events.push(r)));
@@ -781,6 +1131,8 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(result.instanceId, 'inst-c');
 		assert.strictEqual(result.lifecycle, 'external');
 		assert.strictEqual(service.startCalled, 0);
+		assert.strictEqual(service.lastConnectConfig?.proxyJump, 'jumpserver');
+		assert.strictEqual(result.config.proxyJump, 'jumpserver');
 	});
 
 	test('cold-start reconnect() via userInitiated=true param still prompts when an editor entry exists', async () => {

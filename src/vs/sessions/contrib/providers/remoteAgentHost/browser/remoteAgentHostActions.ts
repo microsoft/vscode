@@ -368,6 +368,27 @@ async function promptToConnectViaSSH(
 	);
 }
 
+/** Map a resolved SSH config onto the connect config for a configured host. */
+export function buildConfiguredSSHHostConfig(
+	resolvedConfig: ISSHResolvedConfig,
+	hostAlias: string,
+	username: string,
+): ISSHAgentHostConfig {
+	return {
+		host: resolvedConfig.hostname,
+		port: resolvedConfig.port !== 22 ? resolvedConfig.port : undefined,
+		username,
+		authMethod: SSHAuthMethod.Agent,
+		// The main process de-duplicates against its default-key scan.
+		privateKeyPath: resolvedConfig.identityFile[0],
+		identityAgent: resolvedConfig.identityAgent,
+		agentForward: resolvedConfig.forwardAgent || undefined,
+		proxyJump: resolvedConfig.proxyJump,
+		name: hostAlias,
+		sshConfigHost: hostAlias,
+	};
+}
+
 async function connectToConfiguredSSHHost(
 	accessor: ServicesAccessor,
 	hostAlias: string,
@@ -395,17 +416,7 @@ async function connectToConfiguredSSHHost(
 	const defaultKeyPath = resolvedConfig.identityFile[0];
 
 	if (username) {
-		const config: ISSHAgentHostConfig = {
-			host,
-			port,
-			username,
-			authMethod: SSHAuthMethod.Agent,
-			privateKeyPath: defaultKeyPath,
-			identityAgent: resolvedConfig.identityAgent,
-			agentForward: resolvedConfig.forwardAgent || undefined,
-			name: suggestedName,
-			sshConfigHost: hostAlias,
-		};
+		const config = buildConfiguredSSHHostConfig(resolvedConfig, hostAlias, username);
 		const connection = await instantiationService.invokeFunction(accessor =>
 			connectWithProgress(accessor, config, suggestedName)
 		);
