@@ -16,6 +16,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { isDefined, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { DefaultEndOfLine, EndOfLinePreference, ITextModel, ValidAnnotatedEditOperation } from '../../../../../editor/common/model.js';
@@ -723,9 +724,29 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	private _applyTextEditsToContent(content: string, edits: readonly TextEdit[]): string {
 		const { textBuffer, disposable } = createTextBuffer(content, DefaultEndOfLine.LF);
 		try {
-			textBuffer.applyEdits(edits.map(edit =>
-				new ValidAnnotatedEditOperation(null, Range.lift(edit.range), edit.text, false, false, false)
-			), false, false);
+			// Recorded edit ranges are computed against the operation's own snapshot, which can
+			// diverge from the `content` reconstructed during replay. Clamp each range to the
+			// buffer bounds so the (already-validated) operation stays in range, mirroring the
+			// validation TextModel.applyEdits did before this path used a raw text buffer.
+			// Otherwise an out-of-bounds delete walks past the piece tree end and throws.
+			const lineCount = textBuffer.getLineCount();
+			const clampPosition = (lineNumber: number, column: number): Position => {
+				if (lineNumber < 1) {
+					return new Position(1, 1);
+				}
+				if (lineNumber > lineCount) {
+					return new Position(lineCount, textBuffer.getLineMaxColumn(lineCount));
+				}
+				const maxColumn = textBuffer.getLineMaxColumn(lineNumber);
+				return new Position(lineNumber, Math.min(Math.max(column, 1), maxColumn));
+			};
+			textBuffer.applyEdits(edits.map(edit => {
+				const range = Range.fromPositions(
+					clampPosition(edit.range.startLineNumber, edit.range.startColumn),
+					clampPosition(edit.range.endLineNumber, edit.range.endColumn)
+				);
+				return new ValidAnnotatedEditOperation(null, range, edit.text, false, false, false);
+			}), false, false);
 			const fullRange = textBuffer.getRangeAt(0, textBuffer.getLength());
 			return textBuffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
 		} finally {
