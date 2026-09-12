@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, append, clearNode } from '../../../../base/browser/dom.js';
+import { $, Dimension, append, clearNode, getTotalHeight } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { ISelectOptionItem, SelectBox, SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -21,7 +24,7 @@ import { getContextMenuActions } from '../../../../platform/actions/browser/menu
 import { Action2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -31,6 +34,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
@@ -39,13 +43,38 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { LocalWebWorkerRunningLocation } from '../../../services/extensions/common/extensionRunningLocation.js';
+import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
+import { ExtensionRunningLocation, LocalWebWorkerRunningLocation } from '../../../services/extensions/common/extensionRunningLocation.js';
 import { IExtensionHostProfile, IExtensionService, IExtensionsStatus } from '../../../services/extensions/common/extensions.js';
 import { IExtension, IExtensionsWorkbenchService } from '../common/extensions.js';
 import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
 import { errorIcon, warningIcon } from './extensionsIcons.js';
 import { ExtensionIconWidget } from './extensionsWidgets.js';
 import './media/runtimeExtensionsEditor.css';
+
+const HOST_FILTER_ALL = 'all';
+const HOST_FILTER_LOCAL = 'local';
+const HOST_FILTER_REMOTE = 'remote';
+
+function getHostFilterKey(runningLocation: ExtensionRunningLocation): string {
+	return runningLocation.asString();
+}
+
+function getHostFilterLabel(runningLocation: ExtensionRunningLocation, remoteHostLabel: string | undefined): string {
+	if (runningLocation.kind === ExtensionHostKind.Remote) {
+		return remoteHostLabel
+			? nls.localize('runtimeExtensions.host.remoteNamed', "Remote ({0})", remoteHostLabel)
+			: nls.localize('runtimeExtensions.host.remote', "Remote");
+	}
+	if (runningLocation instanceof LocalWebWorkerRunningLocation) {
+		return runningLocation.affinity === 0
+			? nls.localize('runtimeExtensions.host.webWorker', "Web Worker")
+			: nls.localize('runtimeExtensions.host.webWorkerN', "Web Worker {0}", runningLocation.affinity + 1);
+	}
+	return runningLocation.affinity === 0
+		? nls.localize('runtimeExtensions.host.localProcess', "Local Process")
+		: nls.localize('runtimeExtensions.host.localProcessN', "Local Process {0}", runningLocation.affinity + 1);
+}
 
 interface IExtensionProfileInformation {
 	/**
@@ -75,7 +104,15 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
 	private _list: WorkbenchList<IRuntimeExtension> | null;
+	private _listContainer: HTMLElement | null;
+	private _header: HTMLElement | null;
+	private _searchInput: InputBox | null;
+	private _hostSelectBox: SelectBox | null;
+	private _hostFilterOptionKeys: string[];
+	private _allElements: IRuntimeExtension[] | null;
 	private _elements: IRuntimeExtension[] | null;
+	private _searchValue: string;
+	private _hostFilter: string;
 	private _updateSoon: RunOnceScheduler;
 
 	constructor(
@@ -87,6 +124,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -99,7 +137,15 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		super(AbstractRuntimeExtensionsEditor.ID, group, telemetryService, themeService, storageService);
 
 		this._list = null;
+		this._listContainer = null;
+		this._header = null;
+		this._searchInput = null;
+		this._hostSelectBox = null;
+		this._hostFilterOptionKeys = [HOST_FILTER_ALL];
+		this._allElements = null;
 		this._elements = null;
+		this._searchValue = '';
+		this._hostFilter = HOST_FILTER_ALL;
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
 
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
@@ -108,8 +154,102 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	}
 
 	protected async _updateExtensions(): Promise<void> {
-		this._elements = await this._resolveExtensions();
+		this._allElements = await this._resolveExtensions();
+		this._updateHostFilterOptions();
+		this._applyFilters();
+	}
+
+	private _getRemoteHostLabel(): string | undefined {
+		return this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority)
+			|| this._environmentService.remoteAuthority
+			|| undefined;
+	}
+
+	private _updateHostFilterOptions(): void {
+		if (!this._hostSelectBox) {
+			return;
+		}
+
+		const remoteHostLabel = this._getRemoteHostLabel();
+		const hostLocations = new Map<string, ExtensionRunningLocation>();
+		for (const element of this._allElements ?? []) {
+			const runningLocation = element.status.runningLocation;
+			if (runningLocation) {
+				hostLocations.set(getHostFilterKey(runningLocation), runningLocation);
+			}
+		}
+
+		const options: ISelectOptionItem[] = [
+			{ text: nls.localize('runtimeExtensions.hostFilter.all', "All Extension Hosts") },
+			{ text: nls.localize('runtimeExtensions.hostFilter.local', "Local") },
+			{ text: nls.localize('runtimeExtensions.hostFilter.remote', "Remote") },
+		];
+		const keys = [HOST_FILTER_ALL, HOST_FILTER_LOCAL, HOST_FILTER_REMOTE];
+
+		const perHostEntries = [...hostLocations.entries()].sort((a, b) => {
+			return getHostFilterLabel(a[1], remoteHostLabel).localeCompare(getHostFilterLabel(b[1], remoteHostLabel));
+		});
+		if (perHostEntries.length > 0) {
+			options.push(SeparatorSelectOption);
+			keys.push(''); // separator placeholder; not selectable
+			for (const [key, location] of perHostEntries) {
+				options.push({ text: getHostFilterLabel(location, remoteHostLabel) });
+				keys.push(key);
+			}
+		}
+
+		this._hostFilterOptionKeys = keys;
+		let selectedIndex = keys.indexOf(this._hostFilter);
+		if (selectedIndex < 0 || !keys[selectedIndex]) {
+			this._hostFilter = HOST_FILTER_ALL;
+			selectedIndex = 0;
+		}
+		this._hostSelectBox.setOptions(options, selectedIndex);
+	}
+
+	private _matchesSearch(element: IRuntimeExtension, query: string): boolean {
+		if (!query) {
+			return true;
+		}
+		const displayName = element.marketplaceInfo?.displayName ?? element.description.displayName ?? '';
+		const identifier = element.description.identifier.value;
+		return displayName.toLowerCase().includes(query)
+			|| identifier.toLowerCase().includes(query)
+			|| element.description.name.toLowerCase().includes(query);
+	}
+
+	private _matchesHostFilter(element: IRuntimeExtension): boolean {
+		if (this._hostFilter === HOST_FILTER_ALL) {
+			return true;
+		}
+		const runningLocation = element.status.runningLocation;
+		if (!runningLocation) {
+			return false;
+		}
+		if (this._hostFilter === HOST_FILTER_LOCAL) {
+			return runningLocation.kind === ExtensionHostKind.LocalProcess
+				|| runningLocation.kind === ExtensionHostKind.LocalWebWorker;
+		}
+		if (this._hostFilter === HOST_FILTER_REMOTE) {
+			return runningLocation.kind === ExtensionHostKind.Remote;
+		}
+		return getHostFilterKey(runningLocation) === this._hostFilter;
+	}
+
+	private _applyFilters(announce = false): void {
+		const query = this._searchValue.trim().toLowerCase();
+		const total = this._allElements?.length ?? 0;
+		this._elements = (this._allElements ?? []).filter(element =>
+			this._matchesSearch(element, query) && this._matchesHostFilter(element)
+		);
 		this._list?.splice(0, this._list.length, this._elements);
+
+		if (announce) {
+			const filtered = this._elements.length;
+			aria.status(filtered === total
+				? nls.localize('runtimeExtensions.filterResultAll', "{0} running extensions", filtered)
+				: nls.localize('runtimeExtensions.filterResult', "Showing {0} of {1} running extensions", filtered, total));
+		}
 	}
 
 	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
@@ -207,6 +347,41 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 		parent.classList.add('runtime-extensions-editor');
+
+		this._header = append(parent, $('.runtime-extensions-header'));
+		const searchContainer = append(this._header, $('.runtime-extensions-search-container'));
+		const searchPlaceholder = nls.localize('runtimeExtensions.searchPlaceholder', "Search Running Extensions");
+		this._searchInput = this._register(new InputBox(searchContainer, this._contextViewService, {
+			placeholder: searchPlaceholder,
+			ariaLabel: searchPlaceholder,
+			inputBoxStyles: defaultInputBoxStyles,
+		}));
+		this._register(this._searchInput.onDidChange(value => {
+			this._searchValue = value;
+			this._applyFilters(true);
+		}));
+
+		const hostFilterContainer = append(this._header, $('.runtime-extensions-host-filter-container'));
+		const hostFilterAriaLabel = nls.localize('runtimeExtensions.hostFilter.ariaLabel', "Filter by Extension Host");
+		this._hostSelectBox = this._register(new SelectBox(
+			[{ text: nls.localize('runtimeExtensions.hostFilter.all', "All Extension Hosts") }],
+			0,
+			this._contextViewService,
+			defaultSelectBoxStyles,
+			{ ariaLabel: hostFilterAriaLabel, useCustomDrawn: true }
+		));
+		this._hostSelectBox.render(hostFilterContainer);
+		this._register(this._hostSelectBox.onDidSelect(e => {
+			const key = this._hostFilterOptionKeys[e.index];
+			if (!key) {
+				return;
+			}
+			this._hostFilter = key;
+			this._applyFilters(true);
+		}));
+		this._updateHostFilterOptions();
+
+		this._listContainer = append(parent, $('.runtime-extensions-list'));
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
@@ -445,7 +620,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 		this._list = this._register(this._instantiationService.createInstance(WorkbenchList<IRuntimeExtension>,
 			'RuntimeExtensions',
-			parent, delegate, [renderer], {
+			this._listContainer, delegate, [renderer], {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
@@ -504,7 +679,17 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	}
 
 	public layout(dimension: Dimension): void {
-		this._list?.layout(dimension.height);
+		const headerHeight = this._header ? getTotalHeight(this._header) : 0;
+		const listHeight = Math.max(0, dimension.height - headerHeight);
+		if (this._listContainer) {
+			this._listContainer.style.height = `${listHeight}px`;
+		}
+		this._list?.layout(listHeight, dimension.width);
+	}
+
+	override focus(): void {
+		super.focus();
+		this._searchInput?.focus();
 	}
 
 	protected abstract _getProfileInfo(): IExtensionHostProfile | null;
