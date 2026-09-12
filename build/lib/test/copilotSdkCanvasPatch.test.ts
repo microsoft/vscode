@@ -466,6 +466,30 @@ suite('Copilot SDK canvas dependency patch', () => {
 		});
 	});
 
+	for (const autocrlf of ['true', 'input', 'false']) {
+		test(`preserves exact package bytes with Git core.autocrlf=${autocrlf} and core.eol=crlf`, t => {
+			const data = fixture(t);
+			const helper = pathToFileURL(path.resolve(import.meta.dirname, '../../npm/copilotSdkCanvasPatch.ts')).href;
+			const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
+				import { ensureCopilotSdkCanvasPatch } from ${JSON.stringify(helper)};
+				ensureCopilotSdkCanvasPatch(${JSON.stringify(data.root)});
+			`], {
+				cwd: data.root,
+				env: {
+					...process.env,
+					GIT_CONFIG_COUNT: '2',
+					GIT_CONFIG_KEY_0: 'core.autocrlf',
+					GIT_CONFIG_VALUE_0: autocrlf,
+					GIT_CONFIG_KEY_1: 'core.eol',
+					GIT_CONFIG_VALUE_1: 'crlf',
+				},
+				encoding: 'utf8',
+			});
+			assert.strictEqual(result.status, 0, result.stdout + result.stderr);
+			assert.deepStrictEqual(data.packages.map(directory => readFiles(directory, after)), [after, after]);
+		});
+	}
+
 	test('ignores an inherited Git context and an enclosing repository', t => {
 		const data = fixture(t);
 		const initialized = spawnSync('git', ['init', '--quiet', '--initial-branch=ulugbekna/sdk-patch-fixture', data.root], { encoding: 'utf8' });

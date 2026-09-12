@@ -1,7 +1,7 @@
 # Copilot SDK canvas backport
 
 VS Code still depends on the published `@github/copilot-sdk@1.0.13`. The adjacent
-generated B2 delta supplies the public Node SDK launch-provider, turnless
+generated B3 delta supplies the public Node SDK launch-provider, turnless
 retention, and initial script-classification bindings needed by the opt-in canvas integration. It is a local
 source-backed backport, not a new published SDK or CLI version.
 
@@ -27,6 +27,8 @@ The backport adds connection-owned launch-provider attachment, strict v1
 negotiation, cancellation-safe callbacks and global/scoped retention. B2 also
 forwards the canonical optional `enableScriptSafety` field in the initial
 create and resume requests, before newly loaded extension work can begin.
+B3 preserves those bindings and adds idempotent cleanup after startup failure,
+without changing the public API or declarations.
 It does not transplant the newer SDK's unrelated APIs or dependency changes.
 
 The unmodified release source reproduces all 52 published `dist` files.
@@ -90,9 +92,12 @@ dependencies are preserved separately without following their links.
 
 Each replacement is prepared in a sibling staging directory. The copied
 before-image, complete after-image and original package are checked before
-replacement. A failed replacement restores the original; a failed restoration
-reports and preserves its backup. Cleanup failures are errors, not successful
-installation. Replacement is per package, not a transaction across all trees.
+replacement. Git line-ending conversion is disabled for the patch subprocess
+so Windows Git settings cannot rewrite the approved package bytes. The user's
+Git configuration is not changed. A failed replacement restores the original;
+a failed restoration reports and preserves its backup. Cleanup failures are
+errors, not successful installation. Replacement is per package, not a
+transaction across all trees.
 A later repair can finish a mixed complete-before/complete-after installation.
 
 The checked-in payload applies to the complete published package, not an older

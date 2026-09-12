@@ -153,7 +153,7 @@ function gitApply(directory: string, args: readonly string[], patch: Buffer): st
 		delete env[name];
 	}
 	env.GIT_CEILING_DIRECTORIES = path.dirname(directory);
-	const result = spawnSync('git', ['apply', ...args, '--whitespace=nowarn', '-'], {
+	const result = spawnSync('git', ['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'apply', ...args, '--whitespace=nowarn', '-'], {
 		cwd: directory,
 		env,
 		input: patch,
