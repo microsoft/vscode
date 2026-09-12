@@ -6,6 +6,8 @@
 .monaco-workbench .outline-pane {
 	display: flex;
 	flex-direction: column;
+	position: relative;
+	overflow: hidden;
 }
 
 .monaco-workbench .outline-pane .outline-progress {
