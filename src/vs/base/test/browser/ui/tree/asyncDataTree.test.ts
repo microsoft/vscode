@@ -656,6 +656,64 @@ suite('AsyncDataTree', function () {
 		assert(!tree.isCollapsed(a), 'a is expanded');
 	});
 
+	test('issue #331811 - node removed by parallel refresh should not render', async () => {
+		const container = document.createElement('div');
+
+		const calls = new Map<string, Function[]>();
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			getChildren(element: Element): Promise<Element[]> {
+				return new Promise(c => {
+					const pending = calls.get(element.id) ?? [];
+					pending.push(() => c(element.children || []));
+					calls.set(element.id, pending);
+				});
+			}
+		};
+		const resolve = (id: string) => calls.get(id)!.pop()!();
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{
+					id: 'aa', children: [{ id: 'aaa' }]
+				}]
+			}]
+		});
+		const a = model.get('a');
+		const aa = model.get('aa');
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		const pSetInput = tree.setInput(model.root);
+		resolve('root');
+		await pSetInput;
+
+		const pExpandA = tree.expand(a);
+		resolve('a');
+		await pExpandA;
+
+		// Start a refresh of `aa`; its getChildren is now pending.
+		const pRefreshAA = tree.updateChildren(aa, true);
+
+		// While `aa` is mid-refresh, an ancestor refresh removes `aa` from the
+		// inner tree (a's children become empty).
+		a.children = [];
+		const pRefreshA = tree.updateChildren(a, true);
+		resolve('a');
+		await pRefreshA;
+
+		// Resolving `aa`'s getChildren must not crash with
+		// `Unknown compressed tree node` since `aa` was spliced out.
+		resolve('aa');
+		await pRefreshAA;
+
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a']);
+	});
+
 	test('issue #199441', async () => {
 		const container = document.createElement('div');
 
