@@ -2732,7 +2732,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		};
 	}
 
-	async createMarkupPreview(cell: MarkupCellViewModel) {
+	/**
+	 * @param forceRerender re-render the markup preview even when its content and metadata are
+	 * unchanged (e.g. after the cell is re-rendered/executed) so that resources such as <img>
+	 * tags are re-fetched. See #151151.
+	 */
+	async createMarkupPreview(cell: MarkupCellViewModel, forceRerender = false) {
 		if (!this._webview) {
 			return;
 		}
@@ -2769,7 +2774,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			offset: cellTop + top,
 			visible: true,
 			metadata: cell.metadata,
-		});
+		}, forceRerender);
 	}
 
 	private cellIsHidden(cell: ICellViewModel): boolean {
