@@ -193,9 +193,9 @@
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.9.8",
+    "@vscode/extension-telemetry": "^0.9.9",
     "request-light": "^0.8.0",
-    "vscode-languageclient": "^10.0.0-next.22"
+    "vscode-languageclient": "^10.1.1"
   },
   "devDependencies": {
     "@types/node": "24.x"
