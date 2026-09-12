@@ -521,6 +521,12 @@ function mapResult(
 }
 
 /**
+ * Prefix of the internal diagnostic the SDK prepends to a result's `errors`,
+ * e.g. `[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null`.
+ */
+const INTERRUPT_DIAGNOSTIC_PREFIX = '[ede_diagnostic]';
+
+/**
  * Extracts the error text from an SDK result message for the error subtypes
  * the proxy can relay. Mirrors the Copilot Chat extension's
  * `getResultErrorText`.
@@ -530,7 +536,9 @@ function getResultErrorText(message: Extract<SDKMessage, { type: 'result' }>): s
 		return message.is_error ? message.result : undefined;
 	}
 	if (message.subtype === 'error_during_execution') {
-		return message.errors?.join('\n');
+		// The SDK prepends a diagnostic to `errors`; on its own it is not a failure.
+		const errors = message.errors?.filter(error => !error.startsWith(INTERRUPT_DIAGNOSTIC_PREFIX));
+		return errors?.length ? errors.join('\n') : undefined;
 	}
 	return undefined;
 }

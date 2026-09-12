@@ -145,6 +145,41 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.ok(!error.message.includes(PROXY_ERROR_PREFIX), 'proxy marker should be stripped from the human-readable message');
 	});
 
+	test('an interrupted turn emits no ChatError (its errors hold only the SDK diagnostic)', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			makeResultError(SESSION_ID, ['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null']),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+			undefined,
+			123,
+		);
+
+		assert.strictEqual(signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError), undefined);
+	});
+
+	test('a real execution error still emits a ChatError when the SDK diagnostic precedes it', () => {
+		const signals = mapSDKMessageToAgentSignals(
+			makeResultError(SESSION_ID, [
+				'[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null',
+				'CAPI request failed: 500 Internal Server Error',
+			]),
+			SESSION,
+			TURN_ID,
+			new ClaudeMapperState(),
+			new NullLogService(),
+			r(),
+			undefined,
+			123,
+		);
+
+		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
+		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
+		assert.strictEqual(errorSignal.action.error.message, 'CAPI request failed: 500 Internal Server Error');
+	});
+
 	test('successful result is_error with a proxy marker emits a ChatError carrying _meta', () => {
 		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded' } } });
 		const result = makeResultSuccess(SESSION_ID);
