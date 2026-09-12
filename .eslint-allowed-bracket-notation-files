@@ -476,30 +476,6 @@ src/vs/platform/webContentExtractor/test/electron-main/webPageLoader.test.ts
 src/vs/workbench/contrib/remote/browser/remoteStartEntry.ts
 src/vs/workbench/contrib/remoteTunnel/test/electron-browser/remoteTunnel.contribution.test.ts
 
-# Language feature extensions (22 files)
-extensions/css-language-features/client/src/node/cssClientMain.ts
-extensions/css-language-features/server/src/cssServer.ts
-extensions/css-language-features/server/src/node/cssServerNodeMain.ts
-extensions/emmet/src/abbreviationActions.ts
-extensions/emmet/src/defaultCompletionProvider.ts
-extensions/emmet/src/splitJoinTag.ts
-extensions/emmet/src/util.ts
-extensions/html-language-features/client/src/autoInsertion.ts
-extensions/html-language-features/client/src/node/htmlClientMain.ts
-extensions/html-language-features/server/src/modes/languageModes.ts
-extensions/html-language-features/server/src/node/htmlServerNodeMain.ts
-extensions/json-language-features/client/src/node/jsonClientMain.ts
-extensions/json-language-features/server/src/node/jsonServerNodeMain.ts
-extensions/markdown-language-features/src/extension.ts
-extensions/markdown-language-features/src/languageFeatures/copyFiles/copyFiles.ts
-extensions/markdown-language-features/src/languageFeatures/copyFiles/snippets.ts
-extensions/markdown-language-features/src/markdownEngine.ts
-extensions/merge-conflict/src/mergeDecorator.ts
-extensions/typescript-language-features/src/logging/telemetry.ts
-extensions/typescript-language-features/src/tsServer/serverProcess.electron.ts
-extensions/typescript-language-features/src/typescriptServiceClient.ts
-extensions/typescript-language-features/src/utils/platform.ts
-
 # Git extension (6 files)
 extensions/git/src/askpass-main.ts
 extensions/git/src/askpassManager.ts
