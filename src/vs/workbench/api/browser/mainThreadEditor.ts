@@ -538,15 +538,23 @@ export class MainThreadTextEditor {
 
 		this._codeEditor.focus();
 
-		// make modifications as snippet edit
-		const edits: ISnippetEdit[] = ranges.map(range => ({ range: Range.lift(range), template }));
-		snippetController.apply(edits, {
+		const insertOptions = {
 			overwriteBefore: 0, overwriteAfter: 0,
 			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
 			adjustWhitespace: !opts.keepWhitespace,
 			clipboardText
-		});
+		};
 
+		if (ranges.length > 0) {
+			const selections = ranges.map(r => {
+				const range = Range.lift(r);
+				return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+			});
+			this._codeEditor.setSelections(selections);
+		}
+
+		// Route through the string-based `insert` API so an active snippet session can merge (nest) the new snippet.
+		snippetController.insert(template, insertOptions);
 		return true;
 	}
 }
