@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { screen, WebContentsView, webContents } from 'electron';
+import electron, { type WebContentsView } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -132,7 +132,7 @@ export class BrowserView extends Disposable {
 		private readonly _createChildView: (owner: IBrowserViewOwner, url: string, electronOptions: Electron.WebContentsViewConstructorOptions | undefined, editorOptions: IBrowserViewEditorOpenOptions) => BrowserView,
 		openContextMenu: (view: BrowserView, params: Electron.ContextMenuParams) => void,
 		options: Electron.WebContentsViewConstructorOptions | undefined,
-		createWebContentsView: (options: Electron.WebContentsViewConstructorOptions) => WebContentsView = options => new WebContentsView(options),
+		createWebContentsView: (options: Electron.WebContentsViewConstructorOptions) => WebContentsView = options => new electron.WebContentsView(options),
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
 		@ILogService private readonly logService: ILogService,
@@ -925,7 +925,7 @@ export class BrowserView extends Disposable {
 		// while the page is paused at a breakpoint. Fall back to the primary display if no host
 		// window can be resolved (e.g. during teardown).
 		const hostWindow = this._hostWindow;
-		const display = hostWindow ? screen.getDisplayMatching(hostWindow.getBounds()) : screen.getPrimaryDisplay();
+		const display = hostWindow ? electron.screen.getDisplayMatching(hostWindow.getBounds()) : electron.screen.getPrimaryDisplay();
 		const devicePixelRatio = display.scaleFactor;
 		const maxClipDimension = BrowserView.MAX_FULL_PAGE_SCREENSHOT_DIMENSION / Math.max(devicePixelRatio, 1);
 		const scale = Math.min(1, maxClipDimension / Math.max(clipWidth, clipHeight));
@@ -1121,7 +1121,7 @@ export class BrowserView extends Disposable {
 			return undefined;
 		}
 
-		const contents = webContents.fromId(windowId);
+		const contents = electron.webContents.fromId(windowId);
 		if (!contents) {
 			return undefined;
 		}
