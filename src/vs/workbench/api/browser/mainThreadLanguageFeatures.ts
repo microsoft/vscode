@@ -202,7 +202,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			},
 			resolveCodeLens: async (model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
 				const result = await this._proxy.$resolveCodeLens(handle, codeLens, token);
-				if (!result || token.isCancellationRequested) {
+				if (!result || token.isCancellationRequested || model.isDisposed()) {
 					return undefined;
 				}
 
