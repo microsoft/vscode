@@ -96,6 +96,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onAgentHostStart = this._onAgentHostStart.event;
 	private readonly _onAgentHostExit = new Emitter<number>();
 	override readonly onAgentHostExit = this._onAgentHostExit.event;
+	private readonly _onWillReinitialize = new Emitter<void>();
+	override readonly onWillReinitialize = this._onWillReinitialize.event;
+	private readonly _onDidReinitialize = new Emitter<void>();
+	override readonly onDidReinitialize = this._onDidReinitialize.event;
 	override readonly initializeResult = observableValue<InitializeResult>(this, {
 		protocolVersion: '1',
 		serverSeq: 0,
@@ -394,6 +398,14 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onAgentHostStart.fire();
 	}
 
+	fireWillReinitializeAgentHost(): void {
+		this._onWillReinitialize.fire();
+	}
+
+	fireDidReinitializeAgentHost(): void {
+		this._onDidReinitialize.fire();
+	}
+
 	fireAgentHostExit(): void {
 		this._onAgentHostExit.fire(0);
 	}
@@ -419,6 +431,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onDidRootStateError.dispose();
 		this._onAgentHostStart.dispose();
 		this._onAgentHostExit.dispose();
+		this._onWillReinitialize.dispose();
+		this._onDidReinitialize.dispose();
 		for (const emitter of this._sessionStateEmitters.values()) {
 			emitter.dispose();
 		}
@@ -7185,6 +7199,78 @@ suite('LocalAgentHostSessionsProvider', () => {
 			createdSessions: 1,
 			resolveRequests: 1,
 			config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+		});
+	});
+
+	test('new session recreates its provisional backend after an agent host restart', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const backendUri = AgentSession.uri(provider.sessionTypes[0].id, session.resource.path.substring(1));
+		const backendKey = backendUri.toString();
+
+		const recreated = new DeferredPromise<void>();
+		agentHost.onCreateSession = () => recreated.complete();
+		agentHost.fireAgentHostExit();
+		agentHost.fireWillReinitializeAgentHost();
+		agentHost.fireAgentHostStart();
+		agentHost.fireDidReinitializeAgentHost();
+		await recreated.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			wireOps: agentHost.wireOps.filter(op => op.endsWith(backendKey)),
+			unsubscribes: agentHost.sessionUnsubscribeCounts.get(backendKey),
+			disposedSessions: agentHost.disposedSessions.map(uri => uri.toString()),
+			sessionId: session.sessionId,
+		}, {
+			wireOps: [
+				`createSession:${backendKey}`,
+				`subscribe:${backendKey}`,
+				`createSession:${backendKey}`,
+				`subscribe:${backendKey}`,
+			],
+			unsubscribes: 1,
+			disposedSessions: [],
+			sessionId: session.sessionId,
+		});
+	});
+
+	test('new session ignores an in-flight eager create from before an agent host restart', async () => {
+		const firstCreateStarted = new DeferredPromise<void>();
+		const releaseFirstCreate = new DeferredPromise<void>();
+		agentHost.onCreateSession = async () => {
+			await firstCreateStarted.complete();
+			await releaseFirstCreate.p;
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const backendUri = AgentSession.uri(provider.sessionTypes[0].id, session.resource.path.substring(1));
+		const backendKey = backendUri.toString();
+		await firstCreateStarted.p;
+
+		const recreated = new DeferredPromise<void>();
+		agentHost.onCreateSession = () => recreated.complete();
+		agentHost.fireAgentHostExit();
+		agentHost.fireWillReinitializeAgentHost();
+		agentHost.fireAgentHostStart();
+		agentHost.fireDidReinitializeAgentHost();
+		await recreated.p;
+		releaseFirstCreate.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			wireOps: agentHost.wireOps.filter(op => op.endsWith(backendKey)),
+			unsubscribes: agentHost.sessionUnsubscribeCounts.get(backendKey) ?? 0,
+			disposedSessions: agentHost.disposedSessions.map(uri => uri.toString()),
+		}, {
+			wireOps: [
+				`createSession:${backendKey}`,
+				`createSession:${backendKey}`,
+				`subscribe:${backendKey}`,
+			],
+			unsubscribes: 0,
+			disposedSessions: [],
 		});
 	});
 

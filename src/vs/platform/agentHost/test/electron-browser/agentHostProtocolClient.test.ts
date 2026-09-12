@@ -9,7 +9,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -2826,6 +2826,10 @@ suite('AgentHostProtocolClient', () => {
 			transports[0].connectDeferred.error(new NonReconnectableTransportError('terminal failure'));
 			await assert.rejects(connectPromise, /terminal failure/);
 
+			const reinitializeLifecycle: string[] = [];
+			const reinitializeListeners = new DisposableStore();
+			reinitializeListeners.add(client.onWillReinitialize(() => reinitializeLifecycle.push('willReinitialize')));
+			reinitializeListeners.add(client.onDidReinitialize(() => reinitializeLifecycle.push('didReinitialize')));
 			assert.strictEqual(client.reconnectFromClosed(), true);
 			const reconnectTransport = await waitForTransport(transports, 1);
 			reconnectTransport.connectDeferred.complete();
@@ -2848,10 +2852,13 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				transportCount: transports.length,
+				reinitializeLifecycle,
 			}, {
 				state: AgentHostClientState.Connected,
 				transportCount: 2,
+				reinitializeLifecycle: ['willReinitialize', 'didReinitialize'],
 			});
+			reinitializeListeners.dispose();
 		});
 
 		test('reuses clientId across transport reconnects', async function () {
@@ -2884,6 +2891,62 @@ suite('AgentHostProtocolClient', () => {
 				assert.deepStrictEqual(findRootConfigValue(reconnectTransport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: true, trustedUris: [] });
 				client.dispose();
 			});
+		});
+
+		test('fresh initialize omits a synchronously released draft subscription and preserves a real session subscription', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+			const draftUri = URI.parse('claude:/draft-session');
+			const realUri = URI.parse('claude:/real-session');
+			const draftRef = client.getSubscription(StateComponents.Session, draftUri, 'draft');
+			const draftSubscribe = await waitForRequestAt(transports[0], 'subscribe', 0);
+			transports[0].fireMessage({
+				jsonrpc: '2.0',
+				id: draftSubscribe.id,
+				result: { snapshot: { resource: draftUri.toString(), state: { lifecycle: 'creating' }, fromSeq: 5 } },
+			});
+			const realRef = client.getSubscription(StateComponents.Session, realUri, 'real');
+			const realSubscribe = await waitForRequestAt(transports[0], 'subscribe', 1);
+			transports[0].fireMessage({
+				jsonrpc: '2.0',
+				id: realSubscribe.id,
+				result: { snapshot: { resource: realUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 5 } },
+			});
+			const releaseDraft = client.onWillReinitialize(() => draftRef.dispose());
+
+			try {
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const reconnectTransport = await waitForTransport(transports, 1);
+				reconnectTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0',
+					id: reconnect.id,
+					error: { code: AhpErrorCodes.NotFound, message: 'client not found' },
+				});
+				const initialize = await waitForRequest(reconnectTransport, 'initialize');
+				const params = initialize.params as { initialSubscriptions: string[] };
+
+				assert.deepStrictEqual(params.initialSubscriptions, [ROOT_STATE_URI, realUri.toString()]);
+
+				reconnectTransport.fireMessage({
+					jsonrpc: '2.0',
+					id: initialize.id,
+					result: {
+						protocolVersion: PROTOCOL_VERSION,
+						serverSeq: 5,
+						snapshots: [{ resource: realUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 5 }],
+					},
+				});
+				await waitForConnectedWithin(client);
+			} finally {
+				releaseDraft.dispose();
+				realRef.dispose();
+				client.dispose();
+			}
 		});
 
 		test('retries with a fresh initialize when the factory transport closes during initial connect', async function () {

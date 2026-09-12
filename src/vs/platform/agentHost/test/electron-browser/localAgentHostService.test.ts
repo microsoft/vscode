@@ -86,6 +86,53 @@ suite('registerAgentHostClientChannels', () => {
 		} as unknown as IInstantiationService;
 	}
 
+	function createServiceHarness(): {
+		readonly service: LocalAgentHostServiceClient;
+		readonly notifications: CapturingNotificationService;
+		readonly onDidChangeConnectionState: Emitter<AgentHostClientState>;
+		readonly onDidFatalClose: Emitter<ProtocolError>;
+		readonly onWillReinitialize: Emitter<void>;
+		readonly onDidReinitialize: Emitter<void>;
+	} {
+		const notifications = new CapturingNotificationService();
+		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
+		const onDidFatalClose = disposables.add(new Emitter<ProtocolError>());
+		const onWillReinitialize = disposables.add(new Emitter<void>());
+		const onDidReinitialize = disposables.add(new Emitter<void>());
+		const protocolClient = {
+			clientId: 'test-client',
+			connect: () => Promise.resolve(),
+			onDidChangeConnectionState: onDidChangeConnectionState.event,
+			onDidFatalClose: onDidFatalClose.event,
+			onWillReinitialize: onWillReinitialize.event,
+			onDidReinitialize: onDidReinitialize.event,
+			initializeResult: constObservable(undefined),
+			rootState: {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: Event.None,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			},
+			dispose: () => { },
+		};
+		const startupTelemetry = {
+			protocolConnected: () => { },
+			connectionFailed: () => { },
+			dispose: () => { },
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(INotificationService, notifications);
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostStartupTelemetry, startupTelemetry);
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));
+		return { service, notifications, onDidChangeConnectionState, onDidFatalClose, onWillReinitialize, onDidReinitialize };
+	}
+
 	test('registers both channels when the BYOK handler is available', () => {
 		const { server, registered } = fakeChannelServer();
 		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService());
@@ -115,38 +162,7 @@ suite('registerAgentHostClientChannels', () => {
 	});
 
 	test('surfaces fatal startup only before the initial connection', () => {
-		const notifications = new CapturingNotificationService();
-		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
-		const onDidFatalClose = disposables.add(new Emitter<ProtocolError>());
-		const protocolClient = {
-			clientId: 'test-client',
-			connect: () => Promise.resolve(),
-			onDidChangeConnectionState: onDidChangeConnectionState.event,
-			onDidFatalClose: onDidFatalClose.event,
-			initializeResult: constObservable(undefined),
-			rootState: {
-				value: undefined,
-				verifiedValue: undefined,
-				onDidChange: Event.None,
-				onWillApplyAction: Event.None,
-				onDidApplyAction: Event.None,
-			},
-			dispose: () => { },
-		};
-		const startupTelemetry = {
-			protocolConnected: () => { },
-			connectionFailed: () => { },
-			dispose: () => { },
-		};
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
-		instantiationService.stub(INotificationService, notifications);
-		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
-		instantiationService.stubInstance(AgentHostStartupTelemetry, startupTelemetry);
-		instantiationService.set(IInstantiationService, instantiationService);
-		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo));
+		const { service, notifications, onDidChangeConnectionState, onDidFatalClose } = createServiceHarness();
 		service.startAgentHost();
 
 		onDidFatalClose.fire(new ProtocolError(-32000, 'fatal before connect'));
@@ -156,6 +172,23 @@ suite('registerAgentHostClientChannels', () => {
 		assert.deepStrictEqual(notifications.errors, [
 			'The Agent Host failed to start. Restart the application to try again. See the logs for details.',
 		]);
+	});
+
+	test('forwards local reinitialization lifecycle events', () => {
+		const { service, onDidChangeConnectionState, onWillReinitialize, onDidReinitialize } = createServiceHarness();
+		const events: string[] = [];
+		disposables.add(service.onWillReinitialize(() => events.push('willReinitialize')));
+		disposables.add(service.onAgentHostExit(() => events.push('exit')));
+		disposables.add(service.onAgentHostStart(() => events.push('start')));
+		disposables.add(service.onDidReinitialize(() => events.push('didReinitialize')));
+		service.startAgentHost();
+
+		onDidChangeConnectionState.fire(AgentHostClientState.Reconnecting);
+		onWillReinitialize.fire();
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		onDidReinitialize.fire();
+
+		assert.deepStrictEqual(events, ['exit', 'willReinitialize', 'start', 'didReinitialize']);
 	});
 
 	suite('LocalAgentHostManagementConnection', () => {

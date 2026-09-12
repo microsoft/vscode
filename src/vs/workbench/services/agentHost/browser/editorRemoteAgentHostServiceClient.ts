@@ -55,6 +55,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart: Event<void> = this._onAgentHostStart.event;
+	private readonly _onWillReinitialize = this._register(new Emitter<void>());
+	readonly onWillReinitialize = this._onWillReinitialize.event;
+	private readonly _onDidReinitialize = this._register(new Emitter<void>());
+	readonly onDidReinitialize = this._onDidReinitialize.event;
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -104,6 +108,8 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// address-derived authority, so register it for reads. The ambient `local` authority
 		// registered elsewhere covers a different URI namespace.
 		this._register(agentHostFileSystemService.registerAuthority(agentHostAuthority(address), this._protocolClient));
+		this._register(this._protocolClient.onWillReinitialize(() => this._onWillReinitialize.fire()));
+		this._register(this._protocolClient.onDidReinitialize(() => this._onDidReinitialize.fire()));
 		this._register(this._protocolClient.onDidClose(() => {
 			this._logService.info(`${LOG_PREFIX} Protocol client closed`);
 			this._onAgentHostExit.fire(0);

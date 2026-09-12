@@ -162,6 +162,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly onAgentHostExit = this._onAgentHostExit.event;
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
+	private readonly _onWillReinitialize = this._register(new Emitter<void>());
+	readonly onWillReinitialize = this._onWillReinitialize.event;
+	private readonly _onDidReinitialize = this._register(new Emitter<void>());
+	readonly onDidReinitialize = this._onDidReinitialize.event;
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -220,6 +224,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				{ clientId: this.clientId, clientInfo: this._clientInfo },
 			));
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
+			this._register(this._protocolClient.onWillReinitialize(() => this._onWillReinitialize.fire()));
+			this._register(this._protocolClient.onDidReinitialize(() => this._onDidReinitialize.fire()));
 			this._register(this._protocolClient.onDidFatalClose(() => {
 				if (!this._didConnectInitially) {
 					notifyOnFatalAgentHostStartError(this._notificationService);
