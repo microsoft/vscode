@@ -5,7 +5,7 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
@@ -38,13 +38,15 @@ import { IEditorProgressService } from '../../../../platform/progress/common/pro
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableWorkbenchMultiDiffEditorVariant } from '../common/multiDiffEditor.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
-	private _contentOverlay: MultiDiffEditorContentMenuOverlay | undefined;
+	private readonly _contentOverlay = this._register(new MutableDisposable<MultiDiffEditorContentMenuOverlay>());
 	private readonly _logger: MultiDiffEditorLogger;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
@@ -65,7 +67,8 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(
 			MultiDiffEditor.ID,
@@ -84,28 +87,48 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 
 	protected createEditor(parent: HTMLElement): void {
+		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
 		this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
-			{ variant: 'noCards' },
+			{ variant: variant.get() },
 		));
+		let currentVariant = variant.get();
+		this._register(autorun(reader => {
+			const nextVariant = variant.read(reader);
+			if (nextVariant === currentVariant) {
+				return;
+			}
+			currentVariant = nextVariant;
+			this._multiDiffEditorWidget?.setVariant(nextVariant);
+			this._createContentOverlay();
+		}));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
 			this._onDidChangeControl.fire();
 		}));
 
-		this._contentOverlay = this._register(new MultiDiffEditorContentMenuOverlay(
-			this._multiDiffEditorWidget.getRootElement(),
-			this._multiDiffEditorWidget.getContextKeyService(),
-			this._multiDiffEditorWidget.getScopedInstantiationService()
-		));
+		this._createContentOverlay();
+	}
+
+	private _createContentOverlay(): void {
+		const widget = this._multiDiffEditorWidget;
+		if (!widget) {
+			return;
+		}
+		this._contentOverlay.value = new MultiDiffEditorContentMenuOverlay(
+			widget.getRootElement(),
+			widget.getContextKeyService(),
+			widget.getScopedInstantiationService()
+		);
+		this._contentOverlay.value.updateResource(this.input instanceof MultiDiffEditorInput ? this.input.resource : undefined);
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
-		this._contentOverlay?.updateResource(input.resource);
+		this._contentOverlay.value?.updateResource(input.resource);
 
 		// Apply the view model and any restored view state together so the widget's
 		// automatic first-change navigation sees the restored state instead of
@@ -140,7 +163,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	override async clearInput(): Promise<void> {
 		this._logger.log('editor clear input');
 		await super.clearInput();
-		this._contentOverlay?.updateResource(undefined);
+		this._contentOverlay.value?.updateResource(undefined);
 		this._multiDiffEditorWidget!.setViewModel(undefined);
 	}
 

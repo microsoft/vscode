@@ -13,6 +13,7 @@ import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/mult
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel as IMultiDiffResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import type { MultiDiffEditorVariant } from '../../../../../editor/common/multiDiffEditor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
@@ -126,6 +127,7 @@ export function createMultiDiffEditorFixtureWidget(
 	instantiationService: IInstantiationService,
 	container: HTMLElement,
 	diffEditorOptions?: IDiffEditorOptions,
+	variant: MultiDiffEditorVariant = 'noCards',
 ) {
 	const uiFactory = instantiationService.createInstance(FixtureWorkbenchUIElementFactory);
 	return instantiationService.createInstance(
@@ -133,7 +135,7 @@ export function createMultiDiffEditorFixtureWidget(
 		container,
 		uiFactory,
 		{
-			variant: 'noCards',
+			variant,
 			diffEditorOptions,
 		},
 	);

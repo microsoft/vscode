@@ -427,6 +427,10 @@ function computeOptions(configuration: IEditorConfiguration): IDiffEditorOptions
 	if (isObject(configuration.diffEditor)) {
 		const diffEditorConfiguration: IDiffEditorOptions = deepClone(configuration.diffEditor);
 
+		if (diffEditorConfiguration.hideOriginalLineNumbers === null) {
+			delete diffEditorConfiguration.hideOriginalLineNumbers;
+		}
+
 		// User settings defines `diffEditor.codeLens`, but here we rename that to `diffEditor.diffCodeLens` to avoid collisions with `editor.codeLens`.
 		diffEditorConfiguration.diffCodeLens = diffEditorConfiguration.codeLens;
 		delete diffEditorConfiguration.codeLens;
