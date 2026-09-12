@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -13,7 +15,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
+import { ITaskEvent, Task, TaskEvent, TaskSourceKind, USER_TASKS_GROUP_KEY } from '../../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
 import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ITaskEntry } from '../../browser/sessionsTasksService.js';
@@ -71,7 +73,13 @@ suite('WorkbenchSessionTaskRunner', () => {
 	let ranTasks: { label: string }[];
 	let terminatedTasks: { label: string }[];
 	let tasksByLabel: Map<string, Task>;
+	let taskLookups: (string | IWorkspaceFolder)[];
 	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
+	let activeTasks: Set<string>;
+	let taskStateEmitter: Emitter<ITaskEvent>;
+	let deferTaskStart: boolean;
+	let deferredTaskLabel: string | undefined;
+	let startDeferredTask: (() => void) | undefined;
 
 	const repoUri = URI.parse('file:///repo');
 	const worktreeUri = URI.parse('file:///worktree');
@@ -80,23 +88,46 @@ suite('WorkbenchSessionTaskRunner', () => {
 		ranTasks = [];
 		terminatedTasks = [];
 		tasksByLabel = new Map();
+		taskLookups = [];
 		workspaceFoldersByUri = new Map();
+		activeTasks = new Set();
+		taskStateEmitter = store.add(new Emitter<ITaskEvent>());
+		deferTaskStart = false;
+		deferredTaskLabel = undefined;
+		startDeferredTask = undefined;
 
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(ITaskService, new class extends mock<ITaskService>() {
+			override readonly onDidStateChange = taskStateEmitter.event;
 			override async getTask(_workspaceFolder: any, alias: string | any) {
+				taskLookups.push(_workspaceFolder);
 				const label = typeof alias === 'string' ? alias : '';
 				return tasksByLabel.get(label);
 			}
-			override async run(task: Task | undefined) {
-				if (task) {
-					ranTasks.push({ label: task._label });
+			override run(task: Task | undefined) {
+				if (!task) {
+					return Promise.resolve(undefined);
 				}
-				return undefined;
+				if (deferTaskStart) {
+					return new Promise<undefined>(resolve => {
+						startDeferredTask = () => {
+							const startedTask = deferredTaskLabel ? tasksByLabel.get(deferredTaskLabel)! : task;
+							activeTasks.add(startedTask._label);
+							ranTasks.push({ label: startedTask._label });
+							taskStateEmitter.fire(TaskEvent.start(startedTask, 1, new Map()));
+							resolve(undefined);
+						};
+					});
+				}
+				activeTasks.add(task._label);
+				ranTasks.push({ label: task._label });
+				return Promise.resolve(undefined);
 			}
 			override async terminate(task: Task) {
-				terminatedTasks.push({ label: task._label });
+				if (activeTasks.delete(task._label)) {
+					terminatedTasks.push({ label: task._label });
+				}
 				return { success: true, task };
 			}
 		});
@@ -114,8 +145,17 @@ suite('WorkbenchSessionTaskRunner', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function registerMockTask(label: string, folder: URI): void {
-		tasksByLabel.set(label, { _label: label } as unknown as Task);
+	function registerMockTask(label: string, folder: URI, sourceKind: string = TaskSourceKind.Workspace, dependsOn?: string): void {
+		const task = {
+			_id: label,
+			_label: label,
+			_source: { kind: sourceKind },
+			configurationProperties: {
+				name: label,
+				dependsOn: dependsOn ? [{ uri: folder, task: dependsOn }] : undefined,
+			},
+		} as unknown as Task;
+		tasksByLabel.set(label, task);
 		workspaceFoldersByUri.set(folder.toString(), { uri: folder, name: 'folder', index: 0, toResource: () => folder } as IWorkspaceFolder);
 	}
 
@@ -158,6 +198,79 @@ suite('WorkbenchSessionTaskRunner', () => {
 		handle?.dispose();
 
 		assert.deepStrictEqual(terminatedTasks, [{ label: 'build' }]);
+	});
+
+	test('runTask preserves a user task target', async () => {
+		registerMockTask('build', worktreeUri, TaskSourceKind.User);
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+
+		(await runner.runTask(makeTask('build'), session, { taskTarget: 'user' }))?.dispose();
+
+		assert.strictEqual(taskLookups[0], USER_TASKS_GROUP_KEY);
+		assert.deepStrictEqual(ranTasks, [{ label: 'build' }]);
+	});
+
+	test('runTask rejects a task from a different target', async () => {
+		registerMockTask('build', worktreeUri, TaskSourceKind.User);
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+
+		await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace' });
+
+		assert.deepStrictEqual(ranTasks, []);
+	});
+
+	test('cancellation terminates a task while it is running', async () => {
+		registerMockTask('build', worktreeUri);
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const cancellation = new CancellationTokenSource();
+
+		const handle = await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace', token: cancellation.token });
+		cancellation.cancel();
+
+		assert.deepStrictEqual(terminatedTasks, [{ label: 'build' }]);
+		handle?.dispose();
+		cancellation.dispose();
+	});
+
+	test('cancellation remains effective while task launch is pending', async () => {
+		deferTaskStart = true;
+		registerMockTask('build', worktreeUri);
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const cancellation = new CancellationTokenSource();
+
+		const handle = await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace', token: cancellation.token });
+		cancellation.cancel();
+		assert.deepStrictEqual({ ranTasks, terminatedTasks }, { ranTasks: [], terminatedTasks: [] });
+
+		startDeferredTask!();
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({ ranTasks, terminatedTasks }, {
+			ranTasks: [{ label: 'build' }],
+			terminatedTasks: [{ label: 'build' }],
+		});
+		handle?.dispose();
+		cancellation.dispose();
+	});
+
+	test('disposing the handle terminates active dependency tasks', async () => {
+		deferTaskStart = true;
+		deferredTaskLabel = 'prepare';
+		registerMockTask('prepare', worktreeUri);
+		registerMockTask('build', worktreeUri, TaskSourceKind.Workspace, 'prepare');
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const cancellation = new CancellationTokenSource();
+
+		const handle = await runner.runTask(makeTask('build'), session, { taskTarget: 'workspace', token: cancellation.token });
+		startDeferredTask!();
+		await new Promise(resolve => setTimeout(resolve, 0));
+		handle?.dispose();
+
+		assert.deepStrictEqual({ ranTasks, terminatedTasks }, {
+			ranTasks: [{ label: 'prepare' }],
+			terminatedTasks: [{ label: 'prepare' }],
+		});
+		cancellation.dispose();
 	});
 
 	test('runTask is a no-op when task is not registered', async () => {

@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, registerAutorunSelfDisposable } from '../../../../base/common/observable.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsTasksService } from './sessionsTasksService.js';
+import { ISessionTaskWithTarget, ISessionsTasksService } from './sessionsTasksService.js';
 
 const LOG_PREFIX = '[WorktreeCreatedTaskDispatcher]';
 
@@ -50,6 +54,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -77,6 +82,8 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 		this._sessionDisposables.set(session.sessionId, store);
 
 		const taskHandles = store.add(new DisposableStore());
+		const taskCancellation = new CancellationTokenSource();
+		store.add({ dispose: () => taskCancellation.dispose(true) });
 
 		registerAutorunSelfDisposable(store, reader => {
 			if (session.loading.read(reader)) {
@@ -89,17 +96,18 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 				return;
 			}
 			reader.dispose();
-			this._dispatchWorktreeCreatedTasks(session, taskHandles);
+			this._dispatchWorktreeCreatedTasks(session, taskHandles, taskCancellation.token);
 		});
 
 		store.add(autorun(reader => {
 			if (session.isArchived.read(reader)) {
+				taskCancellation.cancel();
 				taskHandles.clear();
 			}
 		}));
 	}
 
-	private async _dispatchWorktreeCreatedTasks(session: ISession, taskHandles: DisposableStore): Promise<void> {
+	private async _dispatchWorktreeCreatedTasks(session: ISession, taskHandles: DisposableStore, token: CancellationToken): Promise<void> {
 		if (isAgentHostProviderId(session.providerId) && !this._configurationService.getValue<boolean>(AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING)) {
 			this._logService.trace(`${LOG_PREFIX} Skipping worktreeCreated tasks for agent host session '${session.sessionId}' — '${AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING}' is disabled.`);
 			return;
@@ -113,15 +121,45 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 			return;
 		}
 
-		for (const { task } of tasks) {
-			if (task.runOptions?.runOn !== 'worktreeCreated') {
+		const worktreeCreatedTasks = tasks.filter(({ task }) => task.runOptions?.runOn === 'worktreeCreated');
+		if (worktreeCreatedTasks.length === 0 || !this._canDispatchTasks(session)) {
+			return;
+		}
+
+		const requiresWorkspaceTaskApproval = worktreeCreatedTasks.some(entry => this._requiresWorkspaceTaskApproval(entry));
+		let workspaceTasksApproved = false;
+		if (requiresWorkspaceTaskApproval) {
+			try {
+				workspaceTasksApproved = (await this._dialogService.confirm({
+					type: Severity.Warning,
+					message: localize('confirmWorktreeCreatedTasks', "Run Automatic Tasks from This Worktree?"),
+					detail: localize('confirmWorktreeCreatedTasksDetail', "The selected branch defines automatic task commands in .vscode/tasks.json. Only run them if you trust this worktree."),
+					primaryButton: localize('runWorktreeCreatedTasks', "&&Run Tasks"),
+				})).confirmed;
+			} catch (err) {
+				this._logService.warn(`${LOG_PREFIX} Failed to confirm worktreeCreated tasks for session '${session.sessionId}': ${err}`);
+			}
+			if (!this._canDispatchTasks(session)) {
+				return;
+			}
+		}
+
+		for (const { task, target } of worktreeCreatedTasks) {
+			if (!this._canDispatchTasks(session)) {
+				return;
+			}
+			if (this._requiresWorkspaceTaskApproval({ task, target }) && !workspaceTasksApproved) {
 				continue;
 			}
 			this._logService.trace(`${LOG_PREFIX} Running worktreeCreated task '${task.label}' for session '${session.sessionId}'`);
 			try {
-				const handle = await this._sessionsTasksService.runTask(task, session);
+				const handle = await this._sessionsTasksService.runTask(task, session, {
+					taskTarget: target,
+					allowWorkspaceTaskDependencies: workspaceTasksApproved,
+					token,
+				});
 				if (handle) {
-					if (session.isArchived.get()) {
+					if (!this._canDispatchTasks(session) || token.isCancellationRequested) {
 						handle.dispose();
 					} else {
 						taskHandles.add(handle);
@@ -131,5 +169,13 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 				this._logService.warn(`${LOG_PREFIX} Failed to run task '${task.label}' for session '${session.sessionId}': ${err}`);
 			}
 		}
+	}
+
+	private _requiresWorkspaceTaskApproval({ task, target }: ISessionTaskWithTarget): boolean {
+		return target === 'workspace' || task.dependsOn !== undefined;
+	}
+
+	private _canDispatchTasks(session: ISession): boolean {
+		return !!this._sessionDisposables.get(session.sessionId) && !session.isArchived.get();
 	}
 }
