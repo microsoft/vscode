@@ -1034,6 +1034,8 @@ export interface ComponentFixtureContext {
 
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
+	/** Reveal headless fixtures only after async setup and virtual-time layout have completed. */
+	deferPaint?: boolean;
 	labels?: ThemedFixtureGroupLabels;
 	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 	/** Base color themes to render; defaults to both dark and light. */
@@ -1279,10 +1281,21 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// setTimeout/rAF calls that led to it.
 			const fixtureRoot = createTraceRoot(`render#${++fixtureRenderCounter}(${themeLabel})`);
 
-			await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
-				// Trace-reset escapes virtual time so it actually fires.
-				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
-			});
+			const deferPaint = options.deferPaint === true && context.host.kind === 'headless';
+			const originalOpacity = fixtureHost.style.opacity;
+			if (deferPaint) {
+				fixtureHost.style.opacity = '0';
+			}
+			try {
+				await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
+					// Trace-reset escapes virtual time so it actually fires.
+					afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
+				});
+			} finally {
+				if (deferPaint) {
+					fixtureHost.style.opacity = originalOpacity;
+				}
+			}
 
 			if (input.outputTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;
