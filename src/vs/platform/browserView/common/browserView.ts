@@ -324,6 +324,8 @@ export interface IBrowserViewStorageKeys {
 }
 
 export interface IBrowserViewState {
+	/** Monotonic version shared by navigation, title, loading, and favicon updates. */
+	navigationStateVersion: number;
 	url: string;
 	title: string;
 	canGoBack: boolean;
@@ -348,6 +350,7 @@ export interface IBrowserViewState {
 }
 
 export interface IBrowserViewNavigationEvent {
+	navigationStateVersion: number;
 	url: string;
 	title: string;
 	canGoBack: boolean;
@@ -356,6 +359,7 @@ export interface IBrowserViewNavigationEvent {
 }
 
 export interface IBrowserViewLoadingEvent {
+	navigationStateVersion: number;
 	loading: boolean;
 	error?: IBrowserViewLoadError;
 }
@@ -403,10 +407,12 @@ export interface IBrowserViewKeyDownEvent {
 }
 
 export interface IBrowserViewTitleChangeEvent {
+	navigationStateVersion: number;
 	title: string;
 }
 
 export interface IBrowserViewFaviconChangeEvent {
+	navigationStateVersion: number;
 	favicon: string | undefined;
 }
 
@@ -560,10 +566,8 @@ export interface IBrowserViewService {
 	setOwner(id: string, owner: IBrowserViewOwner): Promise<void>;
 
 	/**
-	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
-	 * @param id The browser view identifier
-	 * @return The state of the browser view for the given ID
-	 * @throws If no browser view exists for the given ID
+	 * Get the current state, or throw if the view doesn't exist.
+	 * Subscribe before reading and compare navigationStateVersion when reconciling navigation-related events.
 	 */
 	getState(id: string): Promise<IBrowserViewState>;
 

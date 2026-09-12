@@ -203,6 +203,7 @@ class TestBrowserViewModel extends Disposable {
 	private readonly _onDidChangeVisibility = this._register(new Emitter<IBrowserViewVisibilityEvent>());
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	private _url: string;
+	private _navigationStateVersion = 0;
 	private _visible = true;
 	reloadCount = 0;
 
@@ -227,6 +228,7 @@ class TestBrowserViewModel extends Disposable {
 	navigate(url: string): void {
 		this._url = url;
 		this._onDidNavigate.fire({
+			navigationStateVersion: ++this._navigationStateVersion,
 			url,
 			title: '',
 			canGoBack: false,

@@ -43,6 +43,7 @@ suite('BrowserViewModel', () => {
 			onDynamicDidChangeRemoteStatus: () => Event.None,
 			onDynamicDidChangeAudiences: () => Event.None,
 			destroyBrowserView: async () => { },
+			getState: async () => initialState,
 		});
 		const browserViewWorkbenchService = upcastPartial<IBrowserViewWorkbenchService>({
 			isSharingAvailable: true,
@@ -59,6 +60,7 @@ suite('BrowserViewModel', () => {
 			getEffectiveZoomIndex: () => browserZoomDefaultIndex,
 		});
 		const initialState: IBrowserViewState = {
+			navigationStateVersion: 0,
 			url: '',
 			title: '',
 			canGoBack: false,

@@ -41,6 +41,7 @@ export class BrowserView extends Disposable {
 	private _lastScreenshot: VSBuffer | undefined = undefined;
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
+	private _navigationStateVersion = 0;
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
@@ -309,7 +310,7 @@ export class BrowserView extends Disposable {
 
 				try {
 					this._lastFavicon = await this._faviconRequestCache.get(url)!;
-					this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
+					this._onDidChangeFavicon.fire({ navigationStateVersion: ++this._navigationStateVersion, favicon: this._lastFavicon });
 					this._currentHistoryHandle?.update({ favicon: this._lastFavicon });
 					// On success, stop searching
 					return;
@@ -321,7 +322,7 @@ export class BrowserView extends Disposable {
 			// If we searched all favicons and none worked, clear the favicon
 			if (this._lastFavicon) {
 				this._lastFavicon = undefined;
-				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
+				this._onDidChangeFavicon.fire({ navigationStateVersion: ++this._navigationStateVersion, favicon: this._lastFavicon });
 				this._currentHistoryHandle?.update({ favicon: null });
 			}
 		});
@@ -345,12 +346,13 @@ export class BrowserView extends Disposable {
 
 		// Title events
 		webContents.on('page-title-updated', (_event, title) => {
-			this._onDidChangeTitle.fire({ title });
+			this._onDidChangeTitle.fire({ navigationStateVersion: ++this._navigationStateVersion, title });
 			this._currentHistoryHandle?.update({ title });
 		});
 
 		const fireNavigationEvent = (url: string) => {
 			this._onDidNavigate.fire({
+				navigationStateVersion: ++this._navigationStateVersion,
 				url,
 				title: webContents.getTitle(),
 				canGoBack: webContents.navigationHistory.canGoBack(),
@@ -361,7 +363,7 @@ export class BrowserView extends Disposable {
 		};
 
 		const fireLoadingEvent = (loading: boolean) => {
-			this._onDidChangeLoadingState.fire({ loading, error: this._lastError });
+			this._onDidChangeLoadingState.fire({ navigationStateVersion: ++this._navigationStateVersion, loading, error: this._lastError });
 		};
 
 		// Loading state events
@@ -392,6 +394,7 @@ export class BrowserView extends Disposable {
 
 				fireLoadingEvent(false);
 				this._onDidNavigate.fire({
+					navigationStateVersion: ++this._navigationStateVersion,
 					url: validatedURL,
 					title: '',
 					canGoBack: webContents.navigationHistory.canGoBack(),
@@ -617,6 +620,7 @@ export class BrowserView extends Disposable {
 		const url = webContents.getURL();
 
 		return {
+			navigationStateVersion: this._navigationStateVersion,
 			url,
 			title: webContents.getTitle(),
 			canGoBack: webContents.navigationHistory.canGoBack(),
