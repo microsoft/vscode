@@ -307,7 +307,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const cwd = result.cwd ?? terminal.shellIntegration?.cwd;
 			if (cwd && (result.showFiles || result.showDirectories)) {
-				const globPattern = createFileGlobPattern(result.fileExtensions);
+				const globPattern = createFileGlobPattern(result.fileExtensions, result.fileNames);
 				return new vscode.TerminalCompletionList(result.items, {
 					showFiles: result.showFiles,
 					showDirectories: result.showDirectories,
@@ -477,12 +477,13 @@ export async function getCompletionItemsFromSpecs(
 	name: string,
 	token?: vscode.CancellationToken,
 	executeExternals?: IFigExecuteExternals,
-): Promise<{ items: vscode.TerminalCompletionItem[]; showFiles: boolean; showDirectories: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
+): Promise<{ items: vscode.TerminalCompletionItem[]; showFiles: boolean; showDirectories: boolean; fileExtensions?: string[]; fileNames?: string[]; cwd?: vscode.Uri }> {
 	let items: vscode.TerminalCompletionItem[] = [];
 	let showFiles = false;
 	let showDirectories = false;
 	let hasCurrentArg = false;
 	let fileExtensions: string[] | undefined;
+	let fileNames: string[] | undefined;
 
 	if (isWindows) {
 		const spaceIndex = currentCommandString.indexOf(' ');
@@ -516,6 +517,7 @@ export async function getCompletionItemsFromSpecs(
 		showFiles ||= result.showFiles;
 		showDirectories ||= result.showDirectories;
 		fileExtensions = result.fileExtensions;
+		fileNames = result.fileNames;
 		if (result.items) {
 			items = items.concat(result.items);
 		}
@@ -561,7 +563,7 @@ export async function getCompletionItemsFromSpecs(
 		cwd = await resolveCwdFromCurrentCommandString(currentCommandString, shellIntegrationCwd);
 	}
 
-	return { items, showFiles, showDirectories, fileExtensions, cwd };
+	return { items, showFiles, showDirectories, fileExtensions, fileNames, cwd };
 }
 
 function getEnvAsRecord(shellIntegrationEnv: ITerminalEnvironment): Record<string, string> {
@@ -618,11 +620,20 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 		});
 }
 
-function createFileGlobPattern(fileExtensions?: string[]): string | undefined {
+function createFileGlobPattern(fileExtensions?: string[], fileNames?: string[]): string | undefined {
 	if (!fileExtensions || fileExtensions.length === 0) {
-		return undefined;
+		if (!fileNames || fileNames.length === 0) {
+			return undefined;
+		}
+		if (fileNames.length === 1) {
+			return `**/${fileNames[0]}`;
+		}
+		return `**/{${fileNames.join(',')}}`;
 	}
 	const exts = fileExtensions.map(ext => ext.startsWith('.') ? ext.slice(1) : ext);
+	if (fileNames?.length) {
+		return `**/{${[...fileNames, ...exts.map(ext => `*.${ext}`)].join(',')}}`;
+	}
 	if (exts.length === 1) {
 		return `**/*.${exts[0]}`;
 	}
