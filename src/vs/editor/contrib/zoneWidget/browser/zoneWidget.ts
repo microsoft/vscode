@@ -472,7 +472,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		if (isLastLine) {
 			this.editor.revealLineNearTop(range.endLineNumber, ScrollType.Smooth);
 		} else {
-			this.editor.revealRange(range, ScrollType.Smooth);
+			this.editor.revealLines(range.startLineNumber, range.endLineNumber, ScrollType.Smooth);
 		}
 	}
 
