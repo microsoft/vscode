@@ -17,6 +17,7 @@ import { NullLogService } from '../../../../platform/log/common/log.js';
 import type { IDisposable } from '../../../../base/common/lifecycle.js';
 import { nullExtensionDescription as extensionsDescription } from '../../../services/extensions/common/extensions.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -265,6 +266,123 @@ suite('ExtHostTreeView', function () {
 		const secondChildren = unBatchChildren(second);
 		assert.strictEqual(secondChildren?.length, 1);
 		assert.strictEqual(secondChildren![0].handle, '1/same-id');
+	});
+
+	// A reveal issued while a debounced root refresh is pending must still land
+	// on the main thread once the refresh completes — the refresh disposes the
+	// cancellation source the reveal could otherwise observe, but reveal only
+	// snapshots that source after _refreshPromise resolves so it captures the
+	// fresh, post-refresh source rather than the just-disposed one.
+	test('reveal issued after a root change still calls $reveal (#192055)', async () => {
+		return runWithFakedTimers({}, async () => {
+			const revealSpy = sinon.spy(target, '$reveal');
+			const treeView = testObject.createTreeView('revealAfterChange', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
+			store.add(treeView);
+			await loadCompleteTree('revealAfterChange');
+
+			// Fire root change — the debounced refresh runs during the reveal await below.
+			onDidChangeTreeNode.fire(undefined);
+
+			// Reveal awaits _refreshPromise, lets the refresh run, then captures the
+			// (uncancelled) cancellation source and proceeds to call $reveal.
+			await treeView.reveal({ key: 'aa' });
+
+			assert.ok(revealSpy.calledOnce, '$reveal should have been called');
+			const itemArg = revealSpy.args[0][1]!.item;
+			assert.strictEqual(itemArg.handle, '0/0:a/0:aa');
+		});
+	});
+
+	// Clearing a subtree must invalidate fetch tokens for the parent AND every
+	// descendant — otherwise a stale in-flight fetch keyed on a descendant
+	// passes its token check after a subtree refresh and registers into the
+	// now-replaced subtree, surfacing as a duplicate-id error on the main
+	// thread. The visible bug requires async race timing that's hard to
+	// reproduce deterministically, but the invariant is local and directly
+	// checkable: _addChildrenToClear(parent) clears tokens for parent and its
+	// descendants while preserving tokens of siblings.
+	test('subtree clear invalidates fetch tokens for parent and descendants (#192055)', async () => {
+		const treeView = testObject.createTreeView('bumpTokens', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
+		store.add(treeView);
+		// Explicitly load each level — loadCompleteTree fires off child fetches but
+		// doesn't Promise.all them, so descendants may not be cached when it returns.
+		await testObject.$getChildren('bumpTokens');
+		await testObject.$getChildren('bumpTokens', ['0/0:a']);
+		await testObject.$getChildren('bumpTokens', ['0/0:b']);
+
+		const ext = (testObject as unknown as { _treeViews: Map<string, any> })._treeViews.get('bumpTokens');
+		const tokens: Map<unknown, number> = ext._childrenFetchTokens;
+		const elements: Map<string, unknown> = ext._elements;
+
+		const aElement = elements.get('0/0:a');
+		const aaElement = elements.get('0/0:a/0:aa');
+		const abElement = elements.get('0/0:a/0:ab');
+		const bElement = elements.get('0/0:b');
+		assert.ok(aElement && aaElement && abElement && bElement, 'tree should be fully loaded');
+
+		tokens.set(aElement, 100);
+		tokens.set(aaElement, 200);
+		tokens.set(abElement, 300);
+		tokens.set(bElement, 400);
+
+		ext._addChildrenToClear(aElement);
+
+		assert.strictEqual(tokens.get(aElement), undefined, '\'a\' token must be cleared');
+		assert.strictEqual(tokens.get(aaElement), undefined, '\'aa\' token must be cleared');
+		assert.strictEqual(tokens.get(abElement), undefined, '\'ab\' token must be cleared');
+		assert.strictEqual(tokens.get(bElement), 400, '\'b\' (sibling) token must be untouched');
+	});
+
+	// A getChildren in flight when its parent's subtree is refreshed must bail
+	// at its post-await token check and not register stale items into the
+	// replaced subtree. End-to-end version of the invariant exercised by the
+	// preceding unit test.
+	test('stale getChildren bails after subtree refresh invalidates its token (#192055)', async () => {
+		return runWithFakedTimers({}, async () => {
+			const fetchGate = new DeferredPromise<void>();
+			let aFetchSeen = false;
+			const provider: TreeDataProvider<{ key: string }> = {
+				getChildren: async (element?: { key: string }): Promise<{ key: string }[]> => {
+					if (element?.key === 'a' && !aFetchSeen) {
+						aFetchSeen = true;
+						await fetchGate.p;
+					}
+					return getChildren(element ? element.key : undefined).map(getNode);
+				},
+				getTreeItem: (element: { key: string }): TreeItem => getTreeItem(element.key),
+				onDidChangeTreeData: onDidChangeTreeNode.event,
+			};
+			const treeView = testObject.createTreeView('staleFetch', { treeDataProvider: provider }, extensionsDescription);
+			store.add(treeView);
+
+			// Prime root only — leave 'a's children unloaded so the in-flight fetch
+			// below misses the cache and runs through _fetchChildrenNodes.
+			await testObject.$getChildren('staleFetch');
+
+			// Start an in-flight fetch of 'a's children. _fetchChildrenNodes sets a
+			// token on aElement, then awaits dataProvider.getChildren which gates here.
+			const inFlight = testObject.$getChildren('staleFetch', ['0/0:a']);
+			await Promise.resolve(); // let the fetch advance into the gated getChildren
+
+			// Wait for the subtree refresh of 'a' to fully run (which deletes
+			// aElement's token) before releasing the gate, so the stale fetch
+			// observes the token mismatch deterministically.
+			const refreshDone = new Promise<void>((resolve) => {
+				const sub = target.onRefresh.event(() => { sub.dispose(); resolve(); });
+				store.add(sub);
+			});
+			onDidChangeTreeNode.fire(getNode('a'));
+			await refreshDone;
+
+			// Releasing the gate resumes the stale fetch. Its token has been deleted
+			// by _addChildrenToClear, so the post-await check fails,
+			// _fetchChildrenNodes returns undefined, and $getChildren skips the
+			// missing entry — yielding an empty result rather than re-registering
+			// children into the replaced subtree.
+			fetchGate.complete();
+			const result = await inFlight;
+			assert.deepStrictEqual(result, [], 'stale in-flight fetch must bail; $getChildren result must be empty');
+		});
 	});
 
 	test('refresh root', function (done) {

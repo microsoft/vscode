@@ -520,9 +520,23 @@ class ExtHostTreeView<T> extends Disposable {
 
 		if (element) {
 			return this._refreshPromise
-				.then(() => this._resolveUnknownParentChain(element))
-				.then(parentChain => this._resolveTreeNode(element, parentChain[parentChain.length - 1])
-					.then(treeNode => this._proxy.$reveal(this._viewId, { item: treeNode.item, parentChain: parentChain.map(p => p.item) }, { select, focus, expand })), error => this._logService.error(error));
+				.then(() => {
+					// Snapshot after _refreshPromise resolves so cancellation only fires
+					// for refreshes that race with the parent-chain walk below — not for
+					// refreshes that have already completed. Only root refreshes dispose
+					// this source; subtree refreshes invalidate concurrent fetches via
+					// the token bump in _addChildrenToClear, leaving only stale-handle
+					// $reveal as a residual hazard, which the main thread tolerates.
+					const refreshToken = this._refreshCancellationSource.token;
+					return this._resolveUnknownParentChain(element)
+						.then(parentChain => this._resolveTreeNode(element, parentChain[parentChain.length - 1])
+							.then(treeNode => {
+								if (refreshToken.isCancellationRequested) {
+									return;
+								}
+								return this._proxy.$reveal(this._viewId, { item: treeNode.item, parentChain: parentChain.map(p => p.item) }, { select, focus, expand });
+							}), error => this._logService.error(error));
+				});
 		} else {
 			return this._proxy.$reveal(this._viewId, undefined, { select, focus, expand });
 		}
@@ -712,6 +726,9 @@ class ExtHostTreeView<T> extends Disposable {
 		const extTreeItem = await asPromise(() => this._dataProvider.getTreeItem(element));
 		const handle = this._createHandle(element, extTreeItem, parent, true);
 		await this.getChildren(parent ? parent.item.handle : undefined);
+		// Drain any debounced refresh that landed during getChildren so the cache
+		// read below reflects post-refresh state, not handles superseded by it.
+		await this._refreshPromise;
 		const cachedElement = this.getExtensionElement(handle);
 		if (cachedElement) {
 			const node = this._nodes.get(cachedElement);
@@ -1068,6 +1085,12 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private _addChildrenToClear(parentElement?: T): void {
 		if (parentElement) {
+			// Invalidate any in-flight _fetchChildrenNodes for this element. The
+			// monotonic _globalFetchTokenCounter guarantees a stale fetch's captured
+			// requestId can't match a later set, so deletion alone is enough — the
+			// fetch's next token check fails and it bails before registering into
+			// the now-replaced subtree.
+			this._childrenFetchTokens.delete(parentElement);
 			const node = this._nodes.get(parentElement);
 			if (node) {
 				if (node.children) {
@@ -1075,6 +1098,8 @@ class ExtHostTreeView<T> extends Disposable {
 						this._nodesToClear.add(child);
 						const childElement = this._elements.get(child.item.handle);
 						if (childElement) {
+							// Recurse first so descendant tokens are invalidated while
+							// their elements are still reachable through the cache.
 							this._addChildrenToClear(childElement);
 							this._nodes.delete(childElement);
 							this._elements.delete(child.item.handle);
