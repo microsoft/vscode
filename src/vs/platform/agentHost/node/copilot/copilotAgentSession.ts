@@ -845,6 +845,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
 	private _subagentTaskStatusRevision = 0;
+	private _subagentTaskStatusReconciledRevision = 0;
 	private readonly _subagentTaskStatusRefreshThrottler = this._register(new Throttler());
 	private readonly _unroutableSubagentToolCallIds = new Set<string>();
 	private readonly _autoApprovals = new Map<string, PermissionAssistedApproval | null>();
@@ -1590,19 +1591,33 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _reconcileSubagentTaskStatuses(): Promise<void> {
-		const revision = ++this._subagentTaskStatusRevision;
+		this._subagentTaskStatusRevision++;
+		const abortToken = this._abortToken;
 		return this._subagentTaskStatusRefreshThrottler.queue(async () => {
-			const tasks = await this._wrapper.session.rpc.tasks.list();
-			if (this._store.isDisposed || revision !== this._subagentTaskStatusRevision) {
-				return;
-			}
-			for (const task of tasks.tasks) {
-				if (task.type !== 'agent') {
+			while (!this._store.isDisposed && !abortToken.isCancellationRequested
+				&& this._subagentTaskStatusReconciledRevision !== this._subagentTaskStatusRevision) {
+				const revision = this._subagentTaskStatusRevision;
+				const tasks = await this._wrapper.session.rpc.tasks.list();
+				if (this._store.isDisposed || abortToken.isCancellationRequested) {
+					return;
+				}
+				if (revision !== this._subagentTaskStatusRevision) {
+					this._logService.trace(`[Copilot:${this.sessionId}] Refreshing stale subagent task status: revision=${revision}, currentRevision=${this._subagentTaskStatusRevision}`);
 					continue;
 				}
-				if (task.status === 'idle' || task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
-					this._completeSubagentTurn(task.id, task.toolCallId);
+				for (const task of tasks.tasks) {
+					if (this._store.isDisposed || abortToken.isCancellationRequested || revision !== this._subagentTaskStatusRevision) {
+						break;
+					}
+					if (task.type !== 'agent') {
+						continue;
+					}
+					if (task.status === 'idle' || task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+						this._logService.trace(`[Copilot:${this.sessionId}] Reconciling subagent task status: agentId=${task.id}, status=${task.status}, revision=${revision}`);
+						this._completeSubagentTurn(task.id, task.toolCallId);
+					}
 				}
+				this._subagentTaskStatusReconciledRevision = revision;
 			}
 		});
 	}

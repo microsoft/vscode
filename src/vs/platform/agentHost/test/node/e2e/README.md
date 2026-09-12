@@ -509,6 +509,12 @@ The Responses (`/responses`) regenerator announces each output item before strea
 
 `responsesMessageToSse` therefore sends the added item empty. Recording is unaffected (it proxies real bytes), which is why this only ever showed up on replay — and why the recorded capture looked correct while the replayed snapshot did not.
 
+### A retained subagent has the wrong turn count or remains active
+
+`retained background subagent completes repeated follow-up turns` requires exactly one, two, then three completed child turns with the recorded responses and no active turn. Its state failure includes the child turn IDs, states, responses, and active turn; this is distinct from an AHP snapshot interleaving mismatch after those assertions pass.
+
+Copilot reconciles child completion from `rpc.tasks.list`. A resume or task-status notification invalidating an in-flight read must cause a trailing authoritative read, even without another notification. Trace logs identify discarded and applied status revisions. The delayed-query unit tests in `copilotAgentSession.test.ts` cover these races without polling the provider or changing replay assertions.
+
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and subagent gates for established patterns.
