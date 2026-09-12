@@ -5341,6 +5341,55 @@ suite('CopilotAgentSession', () => {
 				});
 			});
 
+			for (const { approveReplacement, completeOldTool } of [
+				{ approveReplacement: false, completeOldTool: false },
+				{ approveReplacement: true, completeOldTool: false },
+				{ approveReplacement: false, completeOldTool: true },
+			]) {
+				test(`an old published approval cannot ${approveReplacement ? 'approve' : 'override denial of'} a replacement while its preview is pending${completeOldTool ? ' after the old tool completes' : ''}`, async () => {
+					const { session, runtime, mockSession, signals, permission, releasePreview, previews, waitForSignal, storedFileContents } = await startPendingCreate(2);
+					const originalOutcome = assert.rejects(permission, CancellationError);
+					await releasePreview.complete();
+					await waitForSignal(signal => signal.kind === 'pending_confirmation');
+					const replacementFileName = '/workspace/replacement.lock';
+					const replacement = runtime.handlePermissionRequest({
+						kind: 'write',
+						fileName: replacementFileName,
+						newFileContents: 'REPLACEMENT_CONTENT',
+						toolCallId,
+						managedApprovalRequired: true,
+					});
+					await previews[1].started.p;
+					await originalOutcome;
+					if (completeOldTool) {
+						mockSession.fire('tool.execution_complete', { toolCallId, success: false });
+					}
+
+					const staleApprovalAccepted = session.respondToPermissionRequest(toolCallId, true);
+					await previews[1].release.complete();
+					await timeout(0);
+					const confirmations = signals.filter(signal => signal.kind === 'pending_confirmation');
+					const replacementPreview = confirmations.at(-1)?.state.edits?.items[0].after;
+					const replacementResponseAccepted = session.respondToPermissionRequest(toolCallId, approveReplacement);
+
+					assert.deepStrictEqual({
+						staleApprovalAccepted,
+						confirmationCount: confirmations.length,
+						confirmedFile: replacementPreview?.uri,
+						replacementResponseAccepted,
+						result: await replacement,
+						storedFiles: [...storedFileContents.keys()],
+					}, {
+						staleApprovalAccepted: false,
+						confirmationCount: 2,
+						confirmedFile: URI.file(replacementFileName).toString(),
+						replacementResponseAccepted: true,
+						result: approveReplacement ? { kind: 'approve-once' } : deniedResult,
+						storedFiles: [],
+					});
+				});
+			}
+
 			for (const ending of ['abort', 'dispose'] as const) {
 				test(`${ending} without a user decision cancels the pending preview rather than manufacturing denial feedback`, async () => {
 					const { session, mockSession, signals, permission, releasePreview, storedFileContents } = await startPendingCreate();

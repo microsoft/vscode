@@ -790,6 +790,10 @@ class CopilotTurn extends Disposable {
 	}
 }
 
+interface IPendingPermissionRequest {
+	readonly managedApprovalRequired: boolean;
+}
+
 /**
  * Encapsulates a single Copilot SDK session and all its associated bookkeeping.
  *
@@ -860,9 +864,8 @@ export class CopilotAgentSession extends Disposable {
 		reported: boolean;
 	}>();
 	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult, {
-		readonly managedApprovalRequired: boolean;
-	}>();
+	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult, IPendingPermissionRequest>();
+	private readonly _publishedPermissionRequests = new Map<string, IPendingPermissionRequest>();
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	/**
@@ -3983,6 +3986,7 @@ export class CopilotAgentSession extends Disposable {
 			// parent session, which has no matching ChatToolCallStart.
 			const trackedToolCall = this._activeToolCalls.get(toolCallId);
 			const parentToolCallId = trackedToolCall?.parentToolCallId;
+			this._publishedPermissionRequests.set(toolCallId, pendingRequest);
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				chat: this._chatChannelUri,
@@ -4437,6 +4441,12 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): boolean {
+		const pendingRequest = this._pendingPermissions.getMetadata(requestId);
+		const publishedRequest = this._publishedPermissionRequests.get(requestId);
+		if (pendingRequest && publishedRequest && pendingRequest !== publishedRequest) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Ignoring permission response for a superseded confirmation: toolCallId=${requestId}`);
+			return false;
+		}
 		if (this._pendingPermissions.respond(requestId, approved ? { kind: 'approve-once' } : USER_DENIED_PERMISSION_RESULT)) {
 			this._deletePendingEditContent(requestId);
 			return true;
@@ -4451,7 +4461,8 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const managedApprovalRequired = policy?.enabled === true;
 		this._deletePendingEditContent(request.toolCallId);
-		const pendingPermission = this._pendingPermissions.register(request.toolCallId, { managedApprovalRequired });
+		const pendingRequest = { managedApprovalRequired };
+		const pendingPermission = this._pendingPermissions.register(request.toolCallId, pendingRequest);
 
 		const displayName = getToolDisplayName(request.toolName);
 		const blockedDomains = request.blockedDomains?.length ? request.blockedDomains.join(', ') : undefined;
@@ -4465,6 +4476,7 @@ export class CopilotAgentSession extends Disposable {
 				: localize('agentHost.unsandboxedCommandConfirmation.generic', "This command needs to run outside the sandbox.");
 
 		const parentToolCallId = this._activeToolCalls.get(request.toolCallId)?.parentToolCallId;
+		this._publishedPermissionRequests.set(request.toolCallId, pendingRequest);
 		this._onDidSessionProgress.fire({
 			kind: 'pending_confirmation',
 			chat: this._chatChannelUri,
@@ -5376,6 +5388,9 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onToolComplete(e => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
+			if (!this._pendingPermissions.has(e.data.toolCallId)) {
+				this._publishedPermissionRequests.delete(e.data.toolCallId);
+			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
 				this._unroutableSubagentToolCallIds.delete(e.data.toolCallId);
@@ -6927,6 +6942,7 @@ export class CopilotAgentSession extends Disposable {
 			this._deletePendingEditContent(toolCallId);
 		}
 		this._pendingPermissions.denyAll({ kind: 'reject' });
+		this._publishedPermissionRequests.clear();
 		this._approvedDuplicablePermissionSignatures.clear();
 	}
 
