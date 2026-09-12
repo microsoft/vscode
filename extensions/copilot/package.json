@@ -1960,6 +1960,35 @@
                       "type": "string"
                     }
                   },
+                  "defaultReasoningEffort": {
+                    "type": "string",
+                    "description": "Default thinking effort selected from the declared supported levels. Confirmed thinking models are enabled by default; none is not an enabling default."
+                  },
+                  "supportsThinkingDisable": {
+                    "type": "boolean",
+                    "description": "Whether this deployment supports explicitly disabling thinking. False marks mandatory reasoning."
+                  },
+                  "reasoningSummary": {
+                    "type": [
+                      "string",
+                      "boolean"
+                    ],
+                    "enum": [
+                      "auto",
+                      "concise",
+                      "detailed",
+                      false
+                    ],
+                    "description": "Responses API reasoning summary format. False suppresses summaries; omission leaves the server default."
+                  },
+                  "thinkingToggle": {
+                    "type": "string",
+                    "enum": [
+                      "enable_thinking",
+                      "chat_template_kwargs"
+                    ],
+                    "description": "Additional explicit thinking toggle for Chat Completions deployments configured with thinking support. Omit unless required by your server."
+                  },
                   "reasoningEffortFormat": {
                     "type": "string",
                     "enum": [
@@ -2162,6 +2191,35 @@
                       "type": "string"
                     }
                   },
+                  "defaultReasoningEffort": {
+                    "type": "string",
+                    "description": "Default thinking effort selected from the declared supported levels. Confirmed thinking models are enabled by default; none is not an enabling default."
+                  },
+                  "supportsThinkingDisable": {
+                    "type": "boolean",
+                    "description": "Whether this deployment supports explicitly disabling thinking. False marks mandatory reasoning."
+                  },
+                  "reasoningSummary": {
+                    "type": [
+                      "string",
+                      "boolean"
+                    ],
+                    "enum": [
+                      "auto",
+                      "concise",
+                      "detailed",
+                      false
+                    ],
+                    "description": "Responses API reasoning summary format. False suppresses summaries; omission leaves the server default."
+                  },
+                  "thinkingToggle": {
+                    "type": "string",
+                    "enum": [
+                      "enable_thinking",
+                      "chat_template_kwargs"
+                    ],
+                    "description": "Additional explicit thinking toggle for Chat Completions deployments configured with thinking support. Omit unless required by your server."
+                  },
                   "reasoningEffortFormat": {
                     "type": "string",
                     "enum": [
@@ -2315,6 +2373,35 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "defaultReasoningEffort": {
+                    "type": "string",
+                    "description": "Default thinking effort selected from the declared supported levels. Confirmed thinking models are enabled by default; none is not an enabling default."
+                  },
+                  "supportsThinkingDisable": {
+                    "type": "boolean",
+                    "description": "Whether this deployment supports explicitly disabling thinking. False marks mandatory reasoning."
+                  },
+                  "reasoningSummary": {
+                    "type": [
+                      "string",
+                      "boolean"
+                    ],
+                    "enum": [
+                      "auto",
+                      "concise",
+                      "detailed",
+                      false
+                    ],
+                    "description": "Responses API reasoning summary format. False suppresses summaries; omission leaves the server default."
+                  },
+                  "thinkingToggle": {
+                    "type": "string",
+                    "enum": [
+                      "enable_thinking",
+                      "chat_template_kwargs"
+                    ],
+                    "description": "Additional explicit thinking toggle for Chat Completions deployments configured with thinking support. Omit unless required by your server."
                   },
                   "reasoningEffortFormat": {
                     "type": "string",

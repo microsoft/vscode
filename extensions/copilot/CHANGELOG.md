@@ -4,6 +4,13 @@ You can find the latest AI-related updates for GitHub Copilot in VS Code in the 
 
 For more frequent updates, check the [Commit log](https://github.com/Microsoft/vscode/commits/main) and [vscode-copilot-chat commit log](https://github.com/microsoft/vscode-copilot-chat/commits/main) on GitHub.
 
+## Unreleased
+
+- **BYOK thinking** — Models with confirmed thinking capability now enable it by default. This can increase latency and token usage. Explicit disable takes precedence; models without a supported disable contract report an error instead of silently ignoring it. Live OpenRouter, Ollama, Anthropic and Gemini discovery supplies request capabilities, including models missing from the known-model catalog.
+- **Custom model thinking controls** — `defaultReasoningEffort` selects a declared non-off default; `supportsThinkingDisable: false` marks mandatory reasoning. Responses models can request `reasoningSummary: "auto" | "concise" | "detailed"`, or use `false` to suppress summary requests. Custom Chat Completions deployments can explicitly choose `thinkingToggle: "enable_thinking" | "chat_template_kwargs"`; no deployment-specific toggle is inferred from the model name. Visible thinking summaries no longer depend on requesting encrypted state.
+- **BYOK reliability** — Credential migration retains the source until the destination succeeds, shares concurrent migrations and permits retry after failure. Invalid custom header values are omitted from warnings. Responses history is retained for unusable state markers; token-budget clones preserve their provider type. Gemini preserves ordered system instructions and matches tool results by complete call ID.
+- **Tool progress and Responses compatibility** — Live tool argument progress crosses the BYOK bridge before completion, allowing existing invocation handlers to display generation progress without executing partial calls. Responses JSON bodies now use the existing text, thinking, tool, usage and error pipeline. Custom endpoint URL resolution uses the pathname while preserving queries and explicit API URLs.
+
 ---
 
 # Past updates

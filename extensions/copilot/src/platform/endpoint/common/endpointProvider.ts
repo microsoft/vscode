@@ -155,6 +155,10 @@ export type IChatModelInformation = IModelAPIResponse & {
 	requestHeaders?: Readonly<Record<string, string>>;
 	modelOptions?: Readonly<IChatModelRequestOptions>;
 	zeroDataRetentionEnabled?: boolean;
+	defaultReasoningEffort?: string;
+	supportsThinkingDisable?: boolean;
+	reasoningSummary?: 'auto' | 'concise' | 'detailed' | false;
+	thinkingToggle?: 'enable_thinking' | 'chat_template_kwargs';
 	/**
 	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.
 	 * Honored by `OpenAIEndpoint`. Unset — the body shape follows the API path (Responses API → nested `reasoning.effort`,

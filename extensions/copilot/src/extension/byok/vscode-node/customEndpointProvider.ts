@@ -23,26 +23,16 @@ import { IBYOKStorageService } from './byokStorageService';
 export type CustomEndpointApiType = 'chat-completions' | 'responses' | 'messages';
 
 export function resolveCustomEndpointUrl(modelId: string, url: string, apiType?: CustomEndpointApiType): string {
-	// The fully resolved url was already passed in
-	if (hasExplicitApiPath(url)) {
+	const parsed = parseCustomEndpointUrl(url);
+	if (!parsed) {
+		throw new Error('Invalid custom endpoint URL.');
+	}
+	if (apiTypeFromPathname(parsed.pathname)) {
 		return url;
 	}
-
-	// Remove the trailing slash
-	if (url.endsWith('/')) {
-		url = url.slice(0, -1);
-	}
-
-	const defaultApiPath = apiTypeToPath(apiType);
-
-	// Check if URL already contains any version pattern like /v1, /v2, etc
-	const versionPattern = /\/v\d+$/;
-	if (versionPattern.test(url)) {
-		return `${url}${defaultApiPath}`;
-	}
-
-	// For standard OpenAI-compatible endpoints, just append the standard path
-	return `${url}/v1${defaultApiPath}`;
+	const pathname = parsed.pathname.replace(/\/+$/, '');
+	parsed.pathname = `${pathname}${/\/v\d+$/.test(pathname) ? '' : '/v1'}${apiTypeToPath(apiType)}`;
+	return parsed.toString();
 }
 
 function apiTypeToPath(apiType: CustomEndpointApiType | undefined): string {
@@ -56,17 +46,33 @@ function apiTypeToPath(apiType: CustomEndpointApiType | undefined): string {
 }
 
 export function hasExplicitApiPath(url: string): boolean {
-	return url.includes('/responses') || url.includes('/chat/completions') || url.includes('/messages');
+	const parsed = parseCustomEndpointUrl(url);
+	return parsed !== undefined && apiTypeFromPathname(parsed.pathname) !== undefined;
 }
 
 function inferApiTypeFromUrl(url: string): CustomEndpointApiType {
-	if (url.includes('/messages')) {
+	const parsed = parseCustomEndpointUrl(url);
+	return (parsed && apiTypeFromPathname(parsed.pathname)) ?? 'chat-completions';
+}
+
+function parseCustomEndpointUrl(url: string): URL | undefined {
+	try {
+		const parsed = new URL(url);
+		return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function apiTypeFromPathname(pathname: string): CustomEndpointApiType | undefined {
+	const path = pathname.replace(/\/+$/, '');
+	if (path.endsWith('/messages')) {
 		return 'messages';
 	}
-	if (url.includes('/responses')) {
+	if (path.endsWith('/responses')) {
 		return 'responses';
 	}
-	return 'chat-completions';
+	return path.endsWith('/chat/completions') ? 'chat-completions' : undefined;
 }
 
 function apiTypeToSupportedEndpoints(apiType: CustomEndpointApiType): ModelSupportedEndpoint[] | undefined {
@@ -108,6 +114,10 @@ interface _CustomEndpointModelConfig {
 	modelOptions?: IChatModelRequestOptions;
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
+	defaultReasoningEffort?: string;
+	supportsThinkingDisable?: boolean;
+	reasoningSummary?: 'auto' | 'concise' | 'detailed' | false;
+	thinkingToggle?: 'enable_thinking' | 'chat_template_kwargs';
 	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
 
@@ -144,7 +154,10 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		if (Array.isArray(configuration?.models)) {
 			for (const modelConfig of configuration.models) {
 				models.push({
-					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, modelConfig),
+					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, {
+						...modelConfig,
+						supportsThinkingDisable: modelConfig.supportsThinkingDisable ?? ((modelConfig.apiType ?? configuration.apiType ?? inferApiTypeFromUrl(modelConfig.url)) === 'messages' || !!modelConfig.thinkingToggle || !!modelConfig.supportsReasoningEffort?.includes('none')),
+					}),
 					url: modelConfig.url
 				});
 			}
@@ -165,7 +178,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			vision: !!model.capabilities?.imageInput || false,
 			name: model.name,
 			url,
-			thinking: modelConfiguration?.thinking ?? false,
+			thinking: modelConfiguration?.thinking,
 			adaptiveThinking: modelConfiguration?.adaptiveThinking,
 			minThinkingBudget: modelConfiguration?.minThinkingBudget,
 			maxThinkingBudget: modelConfiguration?.maxThinkingBudget,
@@ -174,7 +187,11 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			modelOptions: modelConfiguration?.modelOptions,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
-			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
+			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat,
+			defaultReasoningEffort: modelConfiguration?.defaultReasoningEffort,
+			supportsThinkingDisable: modelConfiguration?.supportsThinkingDisable ?? (apiType === 'messages' || !!modelConfiguration?.thinkingToggle || !!modelConfiguration?.supportsReasoningEffort?.includes('none')),
+			reasoningSummary: modelConfiguration?.reasoningSummary,
+			thinkingToggle: modelConfiguration?.thinkingToggle,
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
 		const supportedEndpoints = apiTypeToSupportedEndpoints(apiType);
@@ -308,7 +325,13 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	 * Preserve Custom Endpoint request shaping when a context-size override clones the endpoint.
 	 */
 	override cloneWithTokenOverride(modelMaxPromptTokens: number): CustomEndpointOAIEndpoint {
-		const newModelInfo = { ...this.modelMetadata, maxInputTokens: modelMaxPromptTokens };
+		const newModelInfo = {
+			...this.modelMetadata,
+			capabilities: {
+				...this.modelMetadata.capabilities,
+				limits: { ...this.modelMetadata.capabilities.limits, max_prompt_tokens: modelMaxPromptTokens },
+			},
+		};
 		return this.instantiationService.createInstance(CustomEndpointOAIEndpoint, newModelInfo, this._apiKey, this._modelUrl);
 	}
 

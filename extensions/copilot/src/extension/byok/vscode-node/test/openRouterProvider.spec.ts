@@ -6,6 +6,70 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BYOKModelCapabilities } from '../../common/byokProvider';
 import { OpenRouterLMProvider } from '../openRouterProvider';
+import * as vscode from 'vscode';
+import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
+import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
+import { IFetcherService, Response } from '../../../../platform/networking/common/fetcherService';
+import type { IEndpointBody } from '../../../../platform/networking/common/networking';
+import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
+import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { ChatMLFetcherImpl } from '../../../prompt/node/chatMLFetcher';
+import { createExtensionUnitTestingServices } from '../../../test/node/services';
+
+it('uses discovered gateway reasoning without guessing Claude native modes or mandatory disable', async () => {
+	const store = new DisposableStore();
+	const services = store.add(createExtensionUnitTestingServices());
+	services.define(IChatMLFetcher, new SyncDescriptor(ChatMLFetcherImpl));
+	services.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
+	const accessor = store.add(services.createTestingAccessor());
+	const provider = accessor.get(IInstantiationService).createInstance(OpenRouterLMProvider, {
+		getAPIKey: async () => undefined, storeAPIKey: async () => {}, deleteAPIKey: async () => {},
+		getStoredModelConfigs: async () => ({}), saveModelConfig: async () => {}, removeModelConfig: async () => {},
+	});
+	const bodies: IEndpointBody[] = [];
+	const fetch = vi.spyOn(accessor.get(IFetcherService), 'fetch').mockImplementation(async (url, options) => {
+		if (url === 'https://openrouter.ai/api/v1/models?supported_parameters=tools') {
+			const data = [
+				{ id: 'anthropic/discovered', reasoning: { supported_efforts: ['none', 'low', 'high'], default_effort: 'high' } },
+				{ id: 'anthropic/mandatory', reasoning: { mandatory: true, supported_efforts: ['none', 'low'] } },
+				{ id: 'anthropic/no-selector', reasoning: {} },
+			].map(model => ({ ...model, name: model.id, context_length: 128000, top_provider: { max_completion_tokens: 4096 }, supported_parameters: ['reasoning', 'tools'] }));
+			return Response.fromText(200, 'OK', new Headers({ 'content-type': 'application/json' }), JSON.stringify({ data }), 'node-fetch');
+		}
+		expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+		bodies.push(options?.json as IEndpointBody);
+		return Response.fromText(200, 'OK', new Headers({ 'content-type': 'text/event-stream' }), 'data: {"choices":[{"index":0,"delta":{"reasoning_content":"thought","content":"answer"},"finish_reason":null}]}\n\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n', 'node-fetch');
+	});
+	const token = store.add(new vscode.CancellationTokenSource());
+	try {
+		const models = await provider.provideLanguageModelChatInformation({ silent: true, configuration: { apiKey: 'fake' } }, token.token);
+		const request = async (id: string, modelConfiguration: Record<string, string | boolean>) => {
+			const parts: vscode.LanguageModelResponsePart2[] = [];
+			await provider.provideLanguageModelChatResponse(models.find(model => model.id === id)!, [new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')], { requestInitiator: 'core', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto, modelConfiguration }, { report: part => parts.push(part) }, token.token);
+			expect(parts.some(part => part instanceof vscode.LanguageModelThinkingPart && part.value.includes('thought'))).toBe(true);
+			expect(parts.some(part => part instanceof vscode.LanguageModelTextPart && part.value === 'answer')).toBe(true);
+		};
+		await request('anthropic/discovered', {});
+		await request('anthropic/discovered', { reasoningEffort: 'low' });
+		await request('anthropic/discovered', { enableThinking: false });
+		await request('anthropic/no-selector', {});
+		await expect(request('anthropic/mandatory', { enableThinking: false })).rejects.toThrow('This BYOK model does not support disabling thinking.');
+		expect(bodies.map(body => body.reasoning)).toEqual([
+			{ enabled: true, exclude: false, effort: 'high' },
+			{ enabled: true, exclude: false, effort: 'low' },
+			{ enabled: false },
+			{ enabled: true, exclude: false },
+		]);
+		for (const body of bodies) {
+			expect(body.reasoning_effort).toBeUndefined();
+			expect(body.thinking).toBeUndefined();
+		}
+	} finally {
+		fetch.mockRestore();
+		store.dispose();
+	}
+});
 
 /**
  * Tests for issue #324671:

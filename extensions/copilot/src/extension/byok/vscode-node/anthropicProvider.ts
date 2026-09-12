@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Anthropic from '@anthropic-ai/sdk';
+import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { CancellationToken, LanguageModelChatInformation, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelDataPart, LanguageModelResponsePart2, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolResultPart, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
@@ -27,7 +28,7 @@ import { toErrorMessage } from '../../../util/common/errorMessage';
 import { RecordedProgress } from '../../../util/common/progressRecorder';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { anthropicMessagesToRawMessagesForLogging, apiMessageToAnthropicMessage } from '../common/anthropicMessageConverter';
-import { BYOKKnownModels, BYOKModelCapabilities, LMResponsePart } from '../common/byokProvider';
+import { BYOKKnownModels, BYOKModelCapabilities, LMResponsePart, resolveBYOKThinkingOptions } from '../common/byokProvider';
 import { AbstractLanguageModelChatProvider, ExtendedLanguageModelChatInformation, LanguageModelChatConfiguration } from './abstractLanguageModelChatProvider';
 import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
@@ -36,6 +37,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 
 	public static readonly providerName = 'Anthropic';
 	public static readonly providerId = this.providerName.toLowerCase();
+	private _discoveredModelCapabilities: Record<string, BYOKModelCapabilities> = {};
 
 	constructor(
 		knownModels: BYOKKnownModels | undefined,
@@ -52,13 +54,16 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 
 	}
 
-	private _getThinkingBudget(modelId: string, maxOutputTokens: number): number | undefined {
-		const modelCapabilities = this._knownModels?.[modelId];
-		const modelSupportsThinking = modelCapabilities?.thinking ?? false;
-		if (!modelSupportsThinking) {
-			return undefined;
+	private _getThinkingBudget(modelId: string, maxOutputTokens: number): number {
+		const capabilities = this._discoveredModelCapabilities[modelId] ?? this._knownModels?.[modelId];
+		const min = capabilities?.minThinkingBudget ?? 1024;
+		const max = capabilities?.maxThinkingBudget ?? 32000;
+		const lower = Math.max(1024, min);
+		const upper = Math.min(max, maxOutputTokens - 1);
+		if (![min, max, maxOutputTokens].every(Number.isFinite) || min < 1024 || upper < lower) {
+			throw new Error(l10n.t('Insufficient output token budget for thinking.'));
 		}
-		return Math.min(32000, maxOutputTokens - 1, 16000);
+		return Math.min(upper, Math.max(lower, 16000));
 	}
 
 	// Filters the byok known models based on what the anthropic API knows as well
@@ -71,20 +76,24 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 			const response = await new Anthropic({ apiKey }).models.list();
 			const modelList: Record<string, BYOKModelCapabilities> = {};
 			for (const model of response.data) {
-				if (this._knownModels && this._knownModels[model.id]) {
-					modelList[model.id] = this._knownModels[model.id];
-				} else {
-					// Mix in generic capabilities for models we don't know
-					modelList[model.id] = {
-						maxInputTokens: 100000,
-						maxOutputTokens: 16000,
-						name: model.display_name,
-						toolCalling: true,
-						vision: false,
-						thinking: false
-					};
-				}
+				const known = this._knownModels?.[model.id];
+				const thinking = model.capabilities?.thinking;
+				const effort = model.capabilities?.effort;
+				const maxInputTokens = model.max_input_tokens ?? known?.maxInputTokens ?? 100000;
+				const maxOutputTokens = model.max_tokens ?? known?.maxOutputTokens ?? 16000;
+				modelList[model.id] = {
+					toolCalling: true, ...known,
+					name: model.display_name ?? known?.name ?? model.id,
+					maxInputTokens, maxOutputTokens,
+					contextWindow: model.max_input_tokens != null || model.max_tokens != null ? maxInputTokens + maxOutputTokens : known?.contextWindow,
+					vision: model.capabilities?.image_input?.supported ?? known?.vision ?? false,
+					thinking: thinking?.supported != null ? thinking.supported && (thinking.types?.enabled?.supported === true || thinking.types?.adaptive?.supported === true) : known?.thinking,
+					adaptiveThinking: thinking?.types?.adaptive?.supported ?? known?.adaptiveThinking,
+					supportsReasoningEffort: effort ? (['low', 'medium', 'high', 'max'] as const).filter(level => effort.supported && effort[level]?.supported) : known?.supportsReasoningEffort,
+					supportsThinkingDisable: true,
+				};
 			}
+			this._discoveredModelCapabilities = modelList;
 			return byokKnownModelsToAPIInfoWithEffort(this._name, modelList);
 		} catch (error) {
 			this._logService.error(error, `Error fetching available ${AnthropicLMProvider.providerName} models`);
@@ -230,14 +239,18 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 				tools.push(webSearchTool);
 			}
 
-			const thinkingBudget = this._getThinkingBudget(model.id, model.maxOutputTokens);
-
-			// Check if model supports adaptive thinking
-			const modelCapabilities = this._knownModels?.[model.id];
-			const supportsAdaptiveThinking = modelCapabilities?.adaptiveThinking ?? false;
-
-			// Build context management configuration
-			const thinkingEnabled = supportsAdaptiveThinking || (thinkingBudget ?? 0) > 0;
+			const modelCapabilities = this._discoveredModelCapabilities[model.id] ?? this._knownModels?.[model.id];
+			const internalThinking = (options.modelOptions as { _enableThinking?: boolean } | undefined)?._enableThinking;
+			const configuredThinking = options.modelConfiguration?.enableThinking;
+			const requested = {
+				enableThinking: internalThinking === false || configuredThinking === false ? false : internalThinking === true || configuredThinking === true ? true : undefined,
+				reasoningEffort: typeof options.modelConfiguration?.reasoningEffort === 'string' ? options.modelConfiguration.reasoningEffort : undefined,
+			};
+			const resolved = resolveBYOKThinkingOptions(modelCapabilities ?? {}, model.family, requested, this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride));
+			const thinkingEnabled = !!resolved.enableThinking;
+			const supportsAdaptiveThinking = thinkingEnabled && !!modelCapabilities?.adaptiveThinking;
+			const thinkingBudget = thinkingEnabled && !supportsAdaptiveThinking ? this._getThinkingBudget(model.id, model.maxOutputTokens) : undefined;
+			const knownThinking = resolveBYOKThinkingOptions(modelCapabilities ?? {}, model.family, {}).enableThinking;
 			const contextManagement = isAnthropicContextEditingEnabled(model.id, this._configurationService, this._experimentationService) ? getContextManagementFromConfig(
 				this._configurationService,
 				this._experimentationService,
@@ -256,11 +269,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 				betas.push('advanced-tool-use-2025-11-20');
 			}
 
-			const rawEffort = options.modelConfiguration?.reasoningEffort;
-			const supportsEffort = modelCapabilities?.supportsReasoningEffort;
-			const effort = supportsEffort && typeof rawEffort === 'string' && supportsEffort.includes(rawEffort)
-				? rawEffort as 'low' | 'medium' | 'high' | 'max'
-				: undefined;
+			const effort = thinkingEnabled && (resolved.reasoningEffort === 'low' || resolved.reasoningEffort === 'medium' || resolved.reasoningEffort === 'high' || resolved.reasoningEffort === 'max') ? resolved.reasoningEffort : undefined;
 
 			const params: Anthropic.Beta.Messages.MessageCreateParamsStreaming = {
 				model: model.id,
@@ -271,7 +280,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 				tools: tools.length > 0 ? tools : undefined,
 				thinking: supportsAdaptiveThinking
 					? { type: 'adaptive' as const }
-					: thinkingBudget ? { type: 'enabled' as const, budget_tokens: thinkingBudget } : undefined,
+					: thinkingBudget ? { type: 'enabled' as const, budget_tokens: thinkingBudget } : knownThinking ? { type: 'disabled' as const } : undefined,
 				...(effort ? { output_config: { effort } } : {}),
 				context_management: contextManagement as Anthropic.Beta.Messages.BetaContextManagementConfig | undefined,
 			};

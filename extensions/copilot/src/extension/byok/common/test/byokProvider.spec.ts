@@ -5,7 +5,25 @@
 
 import { describe, expect, it } from 'vitest';
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
-import { byokKnownModelToAPIInfo, BYOKModelCapabilities, isClientBYOKAllowed, resolveModelInfo, resolveModelTokenLimits } from '../byokProvider';
+import { byokKnownModelToAPIInfo, BYOKModelCapabilities, isClientBYOKAllowed, resolveBYOKThinkingOptions, resolveModelInfo, resolveModelTokenLimits } from '../byokProvider';
+
+describe('resolveBYOKThinkingOptions', () => {
+	it('defaults effort-only capability on without dropping unrelated request controls', () => {
+		expect(resolveBYOKThinkingOptions({ supportsReasoningEffort: ['none', 'low', 'high'], defaultReasoningEffort: 'none' }, 'model', { enableToolSearch: true })).toEqual({ enableToolSearch: true, enableThinking: true, reasoningEffort: 'low' });
+		expect(resolveBYOKThinkingOptions({}, 'model', { enableThinking: true }).enableThinking).toBe(false);
+		expect(resolveBYOKThinkingOptions({ thinking: false, supportsReasoningEffort: ['high'] }, 'model', {}).enableThinking).toBe(false);
+	});
+	it('honors explicit disable over overrides and preserves valid effort precedence', () => {
+		const capabilities = { thinking: true, supportsReasoningEffort: ['none', 'minimal', 'low', 'high'], defaultReasoningEffort: 'high' };
+		expect(resolveBYOKThinkingOptions(capabilities, 'model', { enableThinking: false }, 'high')).toMatchObject({ enableThinking: false, reasoningEffort: 'none' });
+		expect(resolveBYOKThinkingOptions(capabilities, 'model', { reasoningEffort: 'none' }, 'high').enableThinking).toBe(false);
+		expect(resolveBYOKThinkingOptions(capabilities, 'model', { reasoningEffort: 'minimal' })).toMatchObject({ enableThinking: true, reasoningEffort: 'minimal' });
+		expect(resolveBYOKThinkingOptions(capabilities, 'model', { reasoningEffort: 'low' }, 'high').reasoningEffort).toBe('high');
+		expect(resolveBYOKThinkingOptions(capabilities, 'model', { reasoningEffort: 'low' }, 'invalid').reasoningEffort).toBe('low');
+		expect(resolveBYOKThinkingOptions(capabilities, 'model', { reasoningEffort: 'invalid' }).reasoningEffort).toBe('high');
+		expect(resolveBYOKThinkingOptions({ thinking: true }, 'model', { reasoningEffort: 'high' }).reasoningEffort).toBeUndefined();
+	});
+});
 
 describe('byokKnownModelToAPIInfo', () => {
 	const baseCapabilities: BYOKModelCapabilities = {
