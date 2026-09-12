@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, parseLsRemote } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
+import { RefType } from '../api/git.constants';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -640,6 +641,64 @@ suite('git', () => {
 			assert.deepStrictEqual(
 				parseCoAuthors('Fix bug\n\nSigned-off-by: Admin <admin@corp.com>\nCo-authored-by: Jane Doe <jane@example.com>'),
 				[{ name: 'Jane Doe', email: 'jane@example.com' }]
+			);
+		});
+	});
+
+	suite('parseLsRemote', () => {
+		test('empty', () => {
+			assert.deepStrictEqual(parseLsRemote(''), []);
+		});
+
+		test('heads', () => {
+			assert.deepStrictEqual(
+				parseLsRemote('52c293a05038d865604c2284aa8698bd087915a1\trefs/heads/main\n'),
+				[{ name: 'main', commit: '52c293a05038d865604c2284aa8698bd087915a1', type: RefType.Head }]
+			);
+		});
+
+		test('heads with CRLF line endings', () => {
+			assert.deepStrictEqual(
+				parseLsRemote('52c293a05038d865604c2284aa8698bd087915a1\trefs/heads/main\r\n8e5a374372b8393906c7e380dbb09349c5385554\trefs/heads/release\r\n'),
+				[
+					{ name: 'main', commit: '52c293a05038d865604c2284aa8698bd087915a1', type: RefType.Head },
+					{ name: 'release', commit: '8e5a374372b8393906c7e380dbb09349c5385554', type: RefType.Head }
+				]
+			);
+		});
+
+		test('tags', () => {
+			assert.deepStrictEqual(
+				parseLsRemote('8e5a374372b8393906c7e380dbb09349c5385554\trefs/tags/v1.0.0\n'),
+				[{ name: 'v1.0.0', commit: '8e5a374372b8393906c7e380dbb09349c5385554', type: RefType.Tag }]
+			);
+		});
+
+		test('mixed with blank and unmatched lines', () => {
+			assert.deepStrictEqual(
+				parseLsRemote([
+					'df27d8c75b129ab9b178b386077da2822101b217\tHEAD',
+					'',
+					'52c293a05038d865604c2284aa8698bd087915a1\trefs/heads/main',
+					'8e5a374372b8393906c7e380dbb09349c5385554\trefs/tags/v1.0.0'
+				].join('\n')),
+				[
+					{ name: 'main', commit: '52c293a05038d865604c2284aa8698bd087915a1', type: RefType.Head },
+					{ name: 'v1.0.0', commit: '8e5a374372b8393906c7e380dbb09349c5385554', type: RefType.Tag }
+				]
+			);
+		});
+
+		test('multiple heads', () => {
+			assert.deepStrictEqual(
+				parseLsRemote([
+					'52c293a05038d865604c2284aa8698bd087915a1\trefs/heads/main',
+					'df27d8c75b129ab9b178b386077da2822101b217\trefs/heads/release'
+				].join('\n')),
+				[
+					{ name: 'main', commit: '52c293a05038d865604c2284aa8698bd087915a1', type: RefType.Head },
+					{ name: 'release', commit: 'df27d8c75b129ab9b178b386077da2822101b217', type: RefType.Head }
+				]
 			);
 		});
 	});
