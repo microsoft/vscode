@@ -10,14 +10,19 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { GitRefType, IGitRepository } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { BranchPicker } from '../../browser/branchPicker.js';
-import { CopilotChatSessionsProvider, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
+import { CopilotChatSessionsProvider, ICopilotChatSession, IsolationMode } from '../../browser/copilotChatSessionsProvider.js';
 
 class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 	override isVisible = false;
@@ -73,16 +78,36 @@ class TestSessionsProvidersService extends mock<ISessionsProvidersService>() {
 suite('Copilot BranchPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('adapts the active Copilot session to the shared branch picker', () => {
-		const branch = observableValue<string | undefined>('branch', 'main');
-		const branches = observableValue<readonly string[]>('branches', ['feature/shared', 'main']);
-		const isolationMode = observableValue<'workspace' | 'worktree' | undefined>('isolationMode', 'worktree');
+	function createPicker(options: {
+		branches?: readonly string[];
+		branch?: string;
+		isolationMode?: IsolationMode;
+		gitRepository?: IGitRepository | undefined;
+		setModeCalls?: IsolationMode[];
+	} = {}) {
+		const branch = observableValue<string | undefined>('branch', options.branch ?? 'main');
+		const branches = observableValue<readonly string[]>('branches', options.branches ?? ['main']);
+		const isolationMode = observableValue<IsolationMode | undefined>('isolationMode', options.isolationMode ?? 'worktree');
+		const setModeCalls = options.setModeCalls ?? [];
+		const gitState = observableValue('gitState', {
+			HEAD: { type: GitRefType.Head, name: 'main', commit: 'abc123' },
+			remotes: [],
+			mergeChanges: [],
+			indexChanges: [],
+			workingTreeChanges: [],
+			untrackedChanges: [],
+		});
 		const providerSession = upcastPartial<ICopilotChatSession>({
 			loading: observableValue('loading', false),
 			branch,
 			branches,
 			isolationMode,
-			setBranch: value => branch.set(value, undefined),
+			gitRepository: options.gitRepository !== undefined ? options.gitRepository : upcastPartial<IGitRepository>({ state: gitState }),
+			setBranch: (value: string) => branch.set(value, undefined),
+			setIsolationMode: (mode: IsolationMode) => {
+				setModeCalls.push(mode);
+				isolationMode.set(mode, undefined);
+			},
 		});
 		const provider = Object.assign(Object.create(CopilotChatSessionsProvider.prototype), {
 			getSession: () => providerSession,
@@ -90,16 +115,26 @@ suite('Copilot BranchPicker', () => {
 		const actionWidgetService = new RecordingActionWidgetService();
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, actionWidgetService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService(provider));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', upcastPartial<IActiveSession>({
 			providerId: 'default-copilot',
 			sessionId: 'session',
+			loading: observableValue('loading', false),
 		}));
 		const picker = disposables.add(instantiationService.createInstance(BranchPicker, activeSession));
 		const container = document.createElement('div');
 		picker.render(container);
-		const trigger = container.querySelector<HTMLElement>('.sessions-chat-picker-slot .action-label');
+		return { picker, container, actionWidgetService, branch, isolationMode, setModeCalls };
+	}
+
+	test('adapts the active Copilot session to the shared branch picker', () => {
+		const { container, actionWidgetService, branch } = createPicker({
+			branches: ['feature/shared', 'main'],
+		});
+		const trigger = container.querySelector<HTMLElement>('a.action-label');
 		assert.ok(trigger);
 
 		trigger.click();
@@ -116,5 +151,40 @@ suite('Copilot BranchPicker', () => {
 			triggerLabel: 'feature/shared',
 			expanded: 'false',
 		});
+	});
+
+	test('isolation checkbox is checked when worktree mode is active', () => {
+		const { container } = createPicker({ isolationMode: 'worktree' });
+		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(checkbox);
+		assert.strictEqual(checkbox.getAttribute('aria-checked'), 'true');
+	});
+
+	test('isolation checkbox is unchecked when workspace mode is active', () => {
+		const { container } = createPicker({ isolationMode: 'workspace' });
+		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(checkbox);
+		assert.strictEqual(checkbox.getAttribute('aria-checked'), 'false');
+	});
+
+	test('toggling the checkbox updates the session isolation mode', () => {
+		const { container, setModeCalls } = createPicker({ isolationMode: 'worktree' });
+		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(checkbox);
+
+		checkbox.click();
+
+		assert.deepStrictEqual(setModeCalls, ['workspace']);
+	});
+
+	test('checkbox element is stable across toggles (focus preserved)', () => {
+		const { container } = createPicker({ isolationMode: 'worktree' });
+		const before = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(before);
+
+		before.click();
+
+		const after = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.strictEqual(after, before);
 	});
 });

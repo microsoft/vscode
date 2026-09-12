@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -15,8 +16,14 @@ export const IAgentEditorCommentsBridge = createDecorator<IAgentEditorCommentsBr
 /** A comment to render on top of an editor for a session-scoped resource. */
 export interface IAgentEditorComment {
 	readonly id: string;
+	readonly resource: URI;
 	readonly range: IRange;
 	readonly body: string;
+}
+
+export interface IAgentEditorCommentRevealEvent {
+	readonly resource: URI;
+	readonly id: string;
 }
 
 /**
@@ -24,10 +31,13 @@ export interface IAgentEditorComment {
  * layer (backed by the agent feedback store) and registered into the bridge.
  */
 export interface IAgentEditorCommentsProvider {
+	readonly priority?: number;
 	readonly onDidChangeComments: Event<void>;
+	readonly onDidRevealComment: Event<IAgentEditorCommentRevealEvent>;
 	/** Whether new comments can be added for the resource (i.e. it is in scope for a session). */
 	acceptsComments(resource: URI): boolean;
-	getComments(resource: URI): readonly IAgentEditorComment[];
+	getComments(resource: URI, includeRelated?: boolean): readonly IAgentEditorComment[];
+	getCommentIds?(resource: URI, includeRelated?: boolean): readonly string[];
 	addComment(resource: URI, range: IRange, body: string): void;
 	deleteComment(resource: URI, id: string): void;
 }
@@ -44,14 +54,16 @@ export interface IAgentEditorCommentsBridge {
 
 	/** Fired when comments change, or when a provider is registered/unregistered. */
 	readonly onDidChangeComments: Event<void>;
+	readonly onDidRevealComment: Event<IAgentEditorCommentRevealEvent>;
 
 	/** Whether new comments can be added for the resource. `false` when no provider is registered. */
 	acceptsComments(resource: URI): boolean;
-	getComments(resource: URI): readonly IAgentEditorComment[];
+	getComments(resource: URI, includeRelated?: boolean): readonly IAgentEditorComment[];
+	getCommentIds(resource: URI, includeRelated?: boolean): readonly string[];
 	addComment(resource: URI, range: IRange, body: string): void;
 	deleteComment(resource: URI, id: string): void;
+	revealComment(resource: URI, id: string): void;
 
-	/** Install the provider that backs this bridge. Only one provider is active at a time. */
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable;
 }
 
@@ -61,37 +73,75 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 
 	private readonly _onDidChangeComments = this._register(new Emitter<void>());
 	readonly onDidChangeComments = this._onDidChangeComments.event;
+	private readonly _onDidRevealComment = this._register(new Emitter<IAgentEditorCommentRevealEvent>());
+	readonly onDidRevealComment = this._onDidRevealComment.event;
 
-	private _provider: IAgentEditorCommentsProvider | undefined;
-	private readonly _providerListener = this._register(new MutableDisposable());
+	private readonly _providers: { provider: IAgentEditorCommentsProvider; listener: IDisposable }[] = [];
 
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable {
-		this._provider = provider;
-		this._providerListener.value = provider.onDidChangeComments(() => this._onDidChangeComments.fire());
+		const entry = {
+			provider,
+			listener: combinedDisposable(
+				provider.onDidChangeComments(() => this._onDidChangeComments.fire()),
+				provider.onDidRevealComment(event => {
+					if (this._getProvider(event.resource) === provider) {
+						this._onDidRevealComment.fire(event);
+					}
+				}),
+			),
+		};
+		this._providers.push(entry);
 		this._onDidChangeComments.fire();
 		return toDisposable(() => {
-			if (this._provider === provider) {
-				this._provider = undefined;
-				this._providerListener.clear();
+			const index = this._providers.indexOf(entry);
+			if (index !== -1) {
+				this._providers.splice(index, 1);
+				entry.listener.dispose();
 				this._onDidChangeComments.fire();
 			}
 		});
 	}
 
 	acceptsComments(resource: URI): boolean {
-		return this._provider?.acceptsComments(resource) ?? false;
+		return !!this._getProvider(resource);
 	}
 
-	getComments(resource: URI): readonly IAgentEditorComment[] {
-		return this._provider?.getComments(resource) ?? [];
+	getComments(resource: URI, includeRelated = false): readonly IAgentEditorComment[] {
+		const comments = this._getProvider(resource)?.getComments(resource, includeRelated) ?? [];
+		return includeRelated ? comments : comments.filter(comment => isEqual(comment.resource, resource));
+	}
+
+	getCommentIds(resource: URI, includeRelated = false): readonly string[] {
+		const provider = this._getProvider(resource);
+		return provider?.getCommentIds?.(resource, includeRelated)
+			?? provider?.getComments(resource, includeRelated).map(comment => comment.id)
+			?? [];
 	}
 
 	addComment(resource: URI, range: IRange, body: string): void {
-		this._provider?.addComment(resource, range, body);
+		this._getProvider(resource)?.addComment(resource, range, body);
 	}
 
 	deleteComment(resource: URI, id: string): void {
-		this._provider?.deleteComment(resource, id);
+		this._getProvider(resource)?.deleteComment(resource, id);
+	}
+
+	revealComment(resource: URI, id: string): void {
+		this._onDidRevealComment.fire({ resource, id });
+	}
+
+	private _getProvider(resource: URI): IAgentEditorCommentsProvider | undefined {
+		return this._providers
+			.filter(entry => entry.provider.acceptsComments(resource))
+			.sort((first, second) => (second.provider.priority ?? 0) - (first.provider.priority ?? 0))[0]?.provider;
+	}
+
+	override dispose(): void {
+		for (const entry of this._providers) {
+			entry.listener.dispose();
+		}
+		this._providers.length = 0;
+		super.dispose();
 	}
 }
 

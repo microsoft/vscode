@@ -61,7 +61,7 @@ export interface IActionWidgetService {
 	readonly isVisible: boolean;
 }
 
-class ActionWidgetService extends Disposable implements IActionWidgetService {
+export class ActionWidgetService extends Disposable implements IActionWidgetService {
 	declare readonly _serviceBrand: undefined;
 
 	get isVisible() {
@@ -83,19 +83,19 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
-
 		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
 				visibleContext.set(true);
-				return this._renderWidget(container, list, actionBarActions ?? []);
+				return this._renderWidget(container, list, actionBarActions ?? [], listOptions);
 			},
 			onHide: (didCancel) => {
 				visibleContext.reset();
 				this._onWidgetClosed(didCancel);
 			},
 			get anchorPosition() { return list.anchorPosition; },
+			focus: () => list.focus(),
 		}, container, false);
 	}
 
@@ -171,9 +171,13 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list.clear();
 	}
 
-	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[]): IDisposable {
+	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[], listOptions: IActionListOptions | undefined): IDisposable {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
+		const widgetClassNames = list.widgetClassName?.split(/\s+/).filter(Boolean);
+		if (widgetClassNames?.length) {
+			widget.classList.add(...widgetClassNames);
+		}
 		element.appendChild(widget);
 		this._widgetElement = widget;
 
@@ -193,6 +197,14 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			throw new Error('List has no value');
 		}
 		const renderDisposables = new DisposableStore();
+		if (listOptions?.filterAsCombobox) {
+			renderDisposables.add(dom.addStandardDisposableListener(widget, 'keydown', e => {
+				if (e.keyCode === KeyCode.Escape && !e.browserEvent.isComposing) {
+					dom.EventHelper.stop(e, true);
+					this.hide(true);
+				}
+			}));
+		}
 
 		// Clicking the header banner must not move focus out of the list, which
 		// would blur the widget and dismiss it.
@@ -207,15 +219,6 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		block.classList.add('context-view-block');
 		renderDisposables.add(dom.addDisposableGenericMouseDownListener(block, e => e.stopPropagation()));
 
-		// Invisible div to block mouse interaction with the menu
-		const pointerBlockDiv = document.createElement('div');
-		const pointerBlock = element.appendChild(pointerBlockDiv);
-		pointerBlock.classList.add('context-view-pointerBlock');
-
-		// Removes block on click INSIDE widget or ANY mouse movement
-		renderDisposables.add(dom.addDisposableListener(pointerBlock, dom.EventType.POINTER_MOVE, () => pointerBlock.remove()));
-		renderDisposables.add(dom.addDisposableGenericMouseDownListener(pointerBlock, () => pointerBlock.remove()));
-
 		// Action bar
 		let actionBarWidth = 0;
 		if (actionBarActions.length) {
@@ -229,8 +232,6 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const width = this._list.value?.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
-
-		this._list.value?.focus();
 
 		// Track filter input focus state
 		const filterFocusedContext = ActionWidgetContextKeys.FilterFocused.bindTo(this._contextKeyService);

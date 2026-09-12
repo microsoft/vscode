@@ -3,18 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IVoiceSessionController, VoiceNewSessionPreparationResult } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
+import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
+import { IActiveSession, inheritableSessionTarget, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
+import { INewSessionComposerService } from './newSessionComposerService.js';
+
+export async function prepareNewVoiceSession(
+	text: string,
+	sessionsService: ISessionsService,
+	sessionsManagementService: ISessionsManagementService,
+	voiceSessionController: IVoiceSessionController,
+	hasActiveComposer: () => boolean,
+	beginVoiceTransition: () => IDisposable,
+	logService: ILogService,
+): Promise<VoiceNewSessionPreparationResult> {
+	const activeSession = sessionsService.activeSession.get();
+	const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+	const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
+	const previousTarget = voiceSessionController.targetSession.get();
+	const previousHadDraftTarget = voiceSessionController.hasDraftTarget.get();
+	const restoreVoiceTarget = () => previousHadDraftTarget
+		? voiceSessionController.setDraftTarget()
+		: voiceSessionController.setTargetSession(previousTarget);
+	const fail = (): VoiceNewSessionPreparationResult => {
+		restoreVoiceTarget();
+		return 'failed';
+	};
+	voiceSessionController.setDraftTarget();
+	const transition = beginVoiceTransition();
+	try {
+		const result = await sessionsService.openNewSession({
+			folderUri,
+			...inheritableSessionTarget(sessionsManagementService, activeSession, folderUri),
+		});
+		if (folderUri) {
+			if (!result.session) {
+				return fail();
+			}
+			if (text.trim()) {
+				await sessionsManagementService.sendNewChatRequest(result.session, { query: text });
+				return 'sent';
+			}
+			return 'prepared';
+		}
+		return sessionsService.activeSession.get() === undefined && hasActiveComposer() ? 'prepared' : fail();
+	} catch (error) {
+		logService.error('Failed to prepare a new session for Voice Mode:', error);
+		return fail();
+	} finally {
+		transition.dispose();
+	}
+}
 
 /**
  * Bridges {@link IVoiceSessionController} to Agents window chat surfaces.
@@ -24,6 +75,7 @@ import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVo
  * Commands are registered only while `agents.voice.enabled` is set:
  * - `_chat.voice.acceptInput` injects transcribed text into the focused chat widget.
  * - `_chat.voice.getCurrentSession` reports the active session's chat resource.
+ * - `_chat.voice.prepareNewSession` creates a provider-backed draft for a new-session request.
  * - `_chat.voice.switchToSession` activates the session that owns a chat resource.
  * - `_chat.voice.activateSession` narrates a session's pending voice item on demand.
  */
@@ -40,6 +92,8 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -77,7 +131,8 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
 				} else {
-					widget.acceptInput(text, { preserveFocus: true });
+					// Preserve any text the user already typed in the input.
+					widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
 				}
 			}
 		}));
@@ -94,6 +149,36 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 				return activeChat.toString();
 			}
 			return this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource?.toString();
+		}));
+
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.prepareNewSession', (_accessor, text: string) => {
+			this.newSessionComposerService.notifyUserNavigation();
+			return prepareNewVoiceSession(
+				text,
+				this.sessionsService,
+				this.sessionsManagementService,
+				this.voiceSessionController,
+				() => !!this._activeComposerTarget(),
+				() => this.newChatVoiceTargetService.beginVoiceTransition(),
+				this.logService,
+			);
+		}));
+
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
+			const composer = this._activeComposerTarget();
+			const widget = composer ? undefined : this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			const models = composer?.getVoiceModels() ?? widget?.inputPart.availableLanguageModels;
+			if (!models) {
+				return { ok: false, reason: 'no_input' };
+			}
+			const resolved = resolveVoiceModel(models, requestedModel);
+			if (!resolved.ok || !resolved.identifier) {
+				return resolved;
+			}
+			const selected = composer
+				? composer.selectVoiceModel(resolved.identifier)
+				: widget!.inputPart.switchModelByIdentifier(resolved.identifier, true, true);
+			return selected ? resolved : { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
 		}));
 
 		// Reveal the session that owns the given chat resource.
@@ -117,7 +202,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			// Chat resources map to their owning session and chat.
 			const owner = this.sessionsManagementService.getSessionForChatResource(resource);
 			if (owner) {
-				await this.sessionsService.openSession(owner.session.resource, { preserveFocus: true });
+				await this.sessionsService.openSession(owner.session.resource, { preserveFocus: true, source: 'voice' });
 				if (!isEqual(owner.chat.resource, owner.session.resource)) {
 					await this.sessionsService.openChat(owner.session, owner.chat.resource);
 				}
@@ -127,12 +212,12 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			// Otherwise, treat it as a session resource.
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {
-				await this.sessionsService.openSession(session.resource, { preserveFocus: true });
+				await this.sessionsService.openSession(session.resource, { preserveFocus: true, source: 'voice' });
 				return true;
 			}
 
 			try {
-				await this.sessionsService.openSession(resource, { preserveFocus: true });
+				await this.sessionsService.openSession(resource, { preserveFocus: true, source: 'voice' });
 				return true;
 			} catch {
 				return false;
@@ -211,12 +296,28 @@ class SessionsVoiceActiveSessionContribution extends Disposable implements IWork
 	) {
 		super();
 
+		let voiceDraftSession: IActiveSession | undefined;
 		this._register(autorun(reader => {
 			const active = this.sessionsService.activeSession.read(reader);
-			const resource = active?.isCreated.read(reader)
-				? active.activeChat.read(reader)?.resource
-				: undefined;
-			this.voiceSessionController.setActiveSessionShown(resource);
+			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
+			if (!hasDraftTarget) {
+				voiceDraftSession = undefined;
+			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
+				voiceDraftSession = active;
+			}
+			if (voiceDraftSession?.isCreated.read(reader)) {
+				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.activeChat.read(reader).resource);
+				voiceDraftSession = undefined;
+			}
+			if (!active) {
+				this.voiceSessionController.setActiveSessionShown(undefined);
+				return;
+			}
+			if (!active.isCreated.read(reader)) {
+				this.voiceSessionController.setActiveSessionShown(null);
+				return;
+			}
+			this.voiceSessionController.setActiveSessionShown(active.activeChat.read(reader)?.resource);
 		}));
 	}
 }
@@ -280,3 +381,43 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(SessionsVoiceListeningContribution.ID, SessionsVoiceListeningContribution, WorkbenchPhase.Eventually);
+
+/** Ends voice when a different welcome composer becomes active; routing in-session composers are exempt. */
+export class SessionsVoiceNewComposerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.voiceNewComposer';
+
+	constructor(
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@INewChatVoiceTargetService newChatVoiceTargetService: INewChatVoiceTargetService,
+	) {
+		super();
+
+		// Preserve the owner across the disposal/mount gap so a new surface can be detected.
+		let voiceComposer: INewChatVoiceComposer | undefined;
+		let voiceComposerCaptured = false;
+		this._register(autorun(reader => {
+			const connected = voiceSessionController.isConnected.read(reader) || voiceSessionController.isConnecting.read(reader);
+			const activeComposer = newChatVoiceTargetService.activeComposer.read(reader);
+			if (!connected) {
+				voiceComposer = activeComposer;
+				voiceComposerCaptured = false;
+				return;
+			}
+			if (!voiceComposerCaptured) {
+				voiceComposer = activeComposer;
+				voiceComposerCaptured = true;
+				return;
+			}
+			if (activeComposer && activeComposer !== voiceComposer) {
+				if (newChatVoiceTargetService.consumeVoiceTransition()) {
+					voiceComposer = activeComposer;
+				} else if (!activeComposer.routesWhileSessionActive) {
+					voiceSessionController.disconnect('internal');
+				}
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(SessionsVoiceNewComposerContribution.ID, SessionsVoiceNewComposerContribution, WorkbenchPhase.AfterRestored);

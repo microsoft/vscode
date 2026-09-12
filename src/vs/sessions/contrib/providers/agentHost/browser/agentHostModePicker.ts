@@ -5,14 +5,19 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IAction } from '../../../../../base/common/actions.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -21,10 +26,17 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { getAgentHostModeIcon } from './agentHostModeIcon.js';
-import { isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
+import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, IModePickerTrigger, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 
 export interface IAgentHostSessionEnumPickerItem {
+	readonly id?: string;
 	readonly value: string;
 	readonly label: string;
 	readonly description?: string;
@@ -39,10 +51,13 @@ export interface IAgentHostSessionEnumPickerItem {
 export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _triggerGesture = this._register(new MutableDisposable());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
+	private readonly _pickerListener = this._register(new MutableDisposable());
 	private _containerElement: HTMLElement | undefined;
 	private _slotElement: HTMLElement | undefined;
 	protected _triggerElement: HTMLElement | undefined;
+	private _pickerVisible = false;
 
 	protected abstract readonly _property: string;
 	protected abstract readonly _pickerId: string;
@@ -70,23 +85,26 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			this._updateTrigger();
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders());
+		this._register(toDisposable(() => this._hidePicker()));
 	}
 
-	render(container: HTMLElement): void {
+	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
+		this._triggerGesture.clear();
 		this._containerElement = container;
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 		this._slotElement = slot;
 
-		const trigger = dom.append(slot, dom.$('a.action-label'));
+		const trigger = this._createTrigger(slot);
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
+		trigger.ariaHasPopup = 'listbox';
+		trigger.ariaExpanded = 'false';
 		this._triggerElement = trigger;
-		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getActiveContext()?.tooltip ?? '' })));
+		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getTriggerTooltip(this._getActiveContext()?.tooltip ?? '') })));
 
-		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, e => {
 				dom.EventHelper.stop(e, true);
@@ -102,6 +120,11 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		}));
 
 		this._updateTrigger();
+		return trigger;
+	}
+
+	focus(): void {
+		this._triggerElement?.focus();
 	}
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {
@@ -118,8 +141,26 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected abstract _getActionItemIcon(item: IAgentHostSessionEnumPickerItem, currentValue: string): ThemeIcon | undefined;
 	protected abstract _getTriggerAriaLabel(label: string): string;
 	protected abstract _getWidgetAriaLabel(): string;
-	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] { return []; }
+	protected _createTrigger(slot: HTMLElement): HTMLElement { return dom.append(slot, dom.$('a.action-label')); }
+	protected _getTriggerTooltip(tooltip: string): string { return tooltip; }
+	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] { return []; }
+	protected _watchActionItems(_items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable { return Disposable.None; }
 	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
+	protected _onDidSelectValue(_previousValue: string, _selectedValue: string): void { }
+
+	protected _getActionItems(items: readonly IAgentHostSessionEnumPickerItem[], currentValue: string): IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
+		return items.map(item => ({
+			kind: ActionListItemKind.Action,
+			label: item.label,
+			detail: item.description,
+			group: { title: '', icon: this._getActionItemIcon(item, currentValue) },
+			item: { ...item, id: item.value, checked: item.value === currentValue },
+		}));
+	}
+
+	protected _getAccessibilityProvider(): Partial<IListAccessibilityProvider<IActionListItem<IAgentHostSessionEnumPickerItem | IAction>>> {
+		return { getWidgetAriaLabel: () => this._getWidgetAriaLabel() };
+	}
 
 	/**
 	 * Optional list-widget options for the picker popup. Subclasses whose
@@ -150,7 +191,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		return this._showPicker(anchor, onHide);
 	}
 
-	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
+	protected _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
 		const session = this._session.get();
 		if (!session) {
 			return undefined;
@@ -177,7 +218,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		return { provider: rawProvider, sessionId: session.sessionId, currentValue, items, tooltip: schema.description ?? schema.title ?? '' };
 	}
 
-	private _updateTrigger(): void {
+	protected _updateTrigger(): void {
 		if (!this._triggerElement || !this._slotElement || !this._containerElement) {
 			return;
 		}
@@ -197,30 +238,38 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		this._slotElement.style.display = '';
 		this._containerElement.style.display = '';
 
-		dom.clearNode(this._triggerElement);
-
 		const item = ctx.items.find(i => i.value === ctx.currentValue);
 		const label = item?.label ?? ctx.currentValue;
-
 		const icon = this._getTriggerIcon(ctx.currentValue);
-		if (icon) {
-			dom.append(this._triggerElement, renderIcon(icon));
-		}
 
-		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = label;
-
-		this._triggerElement.ariaLabel = this._getTriggerAriaLabel(label);
-
-		// Reflect the resolving state. Schema is preserved across the
-		// round-trip so the chip keeps its label; toggling `.disabled`
-		// on the slot blocks pointer events (see chatWidget.css).
+		// Reflect the resolving state without changing the chip's visual weight.
 		const isResolving = ctx.provider.isSessionConfigResolving(ctx.sessionId).get();
-		this._slotElement.classList.toggle('disabled', isResolving);
+		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
+		this._renderTriggerLabel(this._triggerElement, label, icon);
+		this._triggerElement.ariaLabel = this._getTriggerAriaLabel(label);
+		if (this._triggerElement.role === 'group') {
+			this._triggerGesture.clear();
+		} else if (!this._triggerGesture.value) {
+			this._triggerGesture.value = Gesture.addTarget(this._triggerElement);
+		}
 	}
 
-	protected _showPicker(anchor = this._triggerElement, onHide?: () => void): boolean {
+	protected _renderTriggerLabel(trigger: HTMLElement, label: string, icon: ThemeIcon | undefined): void {
+		dom.clearNode(trigger);
+		if (icon) {
+			dom.append(trigger, renderIcon(icon)).ariaHidden = 'true';
+		}
+		dom.append(trigger, dom.$('span.sessions-chat-dropdown-label', undefined, label));
+	}
+
+	protected _hidePicker(): void {
+		if (this._pickerVisible) {
+			this._actionWidgetService.hide();
+		}
+	}
+
+	protected _showPicker(anchor = this._triggerElement, onHide?: () => void, listOptions = this._getListOptions()): boolean {
 		if (!anchor || this._actionWidgetService.isVisible) {
 			return false;
 		}
@@ -233,17 +282,17 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			return false;
 		}
 
-		const actionItems: IActionListItem<IAgentHostSessionEnumPickerItem>[] = ctx.items.map(item => ({
-			kind: ActionListItemKind.Action,
-			label: item.label,
-			detail: item.description,
-			group: { title: '', icon: this._getActionItemIcon(item, ctx.currentValue) },
-			item: { ...item, checked: item.value === ctx.currentValue },
-		}));
+		const actionItems = this._getActionItems(ctx.items, ctx.currentValue);
 		actionItems.push(...this._getFooterActionItems());
+		const ariaTarget = this._triggerElement?.contains(anchor) ? anchor : this._triggerElement;
+		const combinedTrigger = this._triggerElement?.classList.contains('agent-host-mode-permissions-trigger') ? this._triggerElement : undefined;
 
-		const delegate: IActionListDelegate<IAgentHostSessionEnumPickerItem> = {
-			onSelect: item => {
+		const delegate: IActionListDelegate<IAgentHostSessionEnumPickerItem | IAction> = {
+			onSelect: async item => {
+				if (hasKey(item, { run: true })) {
+					await item.run();
+					return;
+				}
 				this._actionWidgetService.hide();
 				if (this._handleFooterActionItem(item)) {
 					return;
@@ -261,15 +310,22 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 					isPII: false,
 				});
 				ctx.provider.setSessionConfigValue(ctx.sessionId, this._property, item.value)
+					.then(() => this._onDidSelectValue(ctx.currentValue, item.value))
 					.catch(() => { /* best-effort */ });
 			},
 			onHide: () => {
+				this._pickerVisible = false;
+				this._pickerListener.clear();
+				ariaTarget?.setAttribute('aria-expanded', 'false');
+				combinedTrigger?.removeAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE);
 				anchor.focus();
 				onHide?.();
 			},
 		};
 
-		this._actionWidgetService.show<IAgentHostSessionEnumPickerItem>(
+		this._pickerVisible = true;
+		ariaTarget?.setAttribute('aria-expanded', 'true');
+		this._actionWidgetService.show<IAgentHostSessionEnumPickerItem | IAction>(
 			this._pickerId,
 			false,
 			actionItems,
@@ -277,12 +333,11 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			anchor,
 			undefined,
 			[],
-			{
-				getAriaLabel: i => i.label ?? '',
-				getWidgetAriaLabel: () => this._getWidgetAriaLabel(),
-			},
-			this._getListOptions(),
+			this._getAccessibilityProvider(),
+			listOptions,
 		);
+		combinedTrigger?.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
+		this._pickerListener.value = this._watchActionItems(actionItems);
 		return true;
 	}
 }
@@ -293,12 +348,124 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
  */
 export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 
+	private readonly _splitTrigger = this._register(new MutableDisposable<IModePickerTrigger>());
+	private readonly _permissionDelegate: AgentHostPermissionPickerDelegate;
+	private readonly _permissionPicker: PermissionPicker;
 	protected readonly _property = SessionConfigKey.Mode;
 	protected readonly _pickerId = 'agentHostModePicker';
 	protected readonly _telemetryId = 'NewChatAgentHostModePicker';
 
+	constructor(
+		session: IObservable<IActiveSession | undefined>,
+		@IActionWidgetService actionWidgetService: IActionWidgetService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
+		@IChatPetService protected readonly _chatPetService: IChatPetService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+	) {
+		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
+		this._permissionDelegate = this._register(instantiationService.createInstance(AgentHostPermissionPickerDelegate, session));
+		this._permissionPicker = this._register(instantiationService.createInstance(PermissionPicker, this._permissionDelegate));
+		this._register(autorun(reader => {
+			session.read(reader);
+			this._permissionDelegate.isModePickerCombined.read(reader);
+			this._permissionDelegate.currentPermissionLevel.read(reader);
+			this._permissionDelegate.isResolving.read(reader);
+			this._permissionDelegate.sandboxToggleSettingId.read(reader);
+			this._permissionDelegate.managedSandboxEnforced.read(reader);
+			this._permissionDelegate.managedSandboxAllowsBypass.read(reader);
+			this._hidePicker();
+			this._updateTrigger();
+		}));
+		this._register(autorun(reader => {
+			this._permissionDelegate.sandboxEnabled.read(reader);
+			this._updateTrigger();
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)
+				|| e.affectsConfiguration(ChatConfiguration.AssistedPermissionsEnabled)) {
+				this._hidePicker();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
+				|| this._permissionDelegate.sandboxToggleConfigurationKeys.some(key => e.affectsConfiguration(key))) {
+				this._updateTrigger();
+			}
+		}));
+	}
+
+	protected override _renderTriggerLabel(trigger: HTMLElement, label: string, icon: ThemeIcon | undefined): void {
+		const previous = this._splitTrigger.value;
+		this._splitTrigger.clear();
+		if (this._permissionDelegate.isModePickerCombined.get()) {
+			this._splitTrigger.value = renderModePickerTrigger(trigger, { label, icon, labelClassName: 'sessions-chat-dropdown-label' }, this._permissionPicker.presentation, (anchor, openPermissions) => {
+				const initialFocusItemId = openPermissions
+					? `permissionPicker.${this._permissionDelegate.currentPermissionLevel.get()}`
+					: this._getActiveContext()?.currentValue;
+				this._showPicker(anchor, undefined, getModePermissionsPickerOptions(openPermissions, initialFocusItemId));
+			}, previous);
+		} else {
+			trigger.classList.remove('agent-host-mode-permissions-trigger');
+			trigger.role = 'button';
+			trigger.tabIndex = 0;
+			trigger.ariaHasPopup = 'listbox';
+			super._renderTriggerLabel(trigger, label, icon);
+		}
+	}
+
+	protected override _createTrigger(slot: HTMLElement): HTMLElement {
+		return dom.append(slot, dom.$('div.action-label'));
+	}
+
+	override focus(): void {
+		(this._splitTrigger.value?.modeButton ?? this._triggerElement)?.focus();
+	}
+
+	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void, listOptions = this._getListOptions()): boolean {
+		return super._showPicker(anchor === this._triggerElement ? this._splitTrigger.value?.modeButton ?? anchor : anchor, onHide, listOptions);
+	}
+
+	protected override _getTriggerTooltip(tooltip: string): string {
+		return this._permissionDelegate.isModePickerCombined.get() ? this._triggerElement?.ariaLabel ?? tooltip : tooltip;
+	}
+
+	protected override _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
+		const session = this._session.get();
+		return this._permissionDelegate.isModePickerCombined.get() ? [
+			...createModePickerPermissionsItems<IAgentHostSessionEnumPickerItem>(this._permissionPicker.presentation, this._permissionPicker.getActionListItems(() => this._session.get() === session), async () => {
+				this._hidePicker();
+				await this._preferencesService.openSettings({ jsonEditor: false, query: AGENT_HOST_PERMISSIONS_SETTINGS_QUERY });
+			}),
+		] : [];
+	}
+
+	protected override _getActionItems(items: readonly IAgentHostSessionEnumPickerItem[], currentValue: string): IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
+		return createModePickerModeItems(super._getActionItems(items, currentValue), this._permissionDelegate.isModePickerCombined.get());
+	}
+
+	protected override _watchActionItems(items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable {
+		return this._permissionPicker.watchSandboxToggle(items);
+	}
+
+	protected override _getAccessibilityProvider(): Partial<IListAccessibilityProvider<IActionListItem<IAgentHostSessionEnumPickerItem | IAction>>> {
+		return {
+			...super._getAccessibilityProvider(),
+			...getModePermissionsPickerAccessibilityProvider(this._permissionDelegate.isModePickerCombined.get()),
+		};
+	}
+
+	protected override _onDidSelectValue(previousValue: string, selectedValue: string): void {
+		if (didExplicitlyEnableChatPetAutopilot(previousValue, selectedValue)) {
+			this._chatPetService.unlockAchievement(ChatPetAchievementIds.AutopilotEnabled);
+		}
+	}
+
 	protected override _getListOptions(): IActionListOptions {
-		return { minWidth: 260 };
+		return this._permissionDelegate.isModePickerCombined.get()
+			? getModePermissionsPickerOptions(false, this._getActiveContext()?.currentValue)
+			: { minWidth: 260 };
 	}
 
 	protected _isWellKnownSchema(schema: SessionConfigPropertySchema): boolean {
@@ -314,10 +481,14 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected _getTriggerAriaLabel(label: string): string {
-		return localize('agentHostModePicker.triggerAriaLabel', "Pick Agent Mode, {0}", label);
+		return this._permissionDelegate.isModePickerCombined.get()
+			? getModePickerAriaLabel(label, this._permissionPicker.presentation)
+			: localize('agentHostModePicker.triggerAriaLabel', "Pick Agent Mode, {0}", label);
 	}
 
 	protected _getWidgetAriaLabel(): string {
-		return localize('agentHostModePicker.ariaLabel', "Agent Mode Picker");
+		return this._permissionDelegate.isModePickerCombined.get()
+			? localize('agentHostModePicker.combinedAriaLabel', "Mode and Permissions Picker")
+			: localize('agentHostModePicker.ariaLabel', "Agent Mode Picker");
 	}
 }

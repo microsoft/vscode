@@ -7,6 +7,7 @@ import type { ElicitationRequest, ElicitationResult } from '@anthropic-ai/claude
 import type { PrimitiveSchemaDefinition } from '@modelcontextprotocol/sdk/types.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { vArray, vNumber, vObj, vOptionalProp, vString, vUnknown, type ValidatorType } from '../../../../base/common/validation.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest } from '../../common/state/sessionState.js';
 
 /**
@@ -139,14 +140,14 @@ export function buildElicitationRequest(requestId: string, request: ElicitationR
 		if (request.url) {
 			result.url = request.url;
 		}
-		return result;
+		return withChatInputRequestPurpose(result, ChatInputRequestPurpose.Elicitation);
 	}
 	const schema = parseElicitationSchema(request.requestedSchema);
 	if (!schema || schema.fields.length === 0) {
-		return { id: requestId, message: request.message };
+		return withChatInputRequestPurpose({ id: requestId, message: request.message }, ChatInputRequestPurpose.Elicitation);
 	}
 	const questions = schema.fields.map(([name, field]) => elicitationFieldToQuestion(name, field, schema.required.has(name)));
-	return { id: requestId, message: request.message, questions };
+	return withChatInputRequestPurpose({ id: requestId, message: request.message, questions }, ChatInputRequestPurpose.Elicitation);
 }
 
 /**

@@ -18,8 +18,14 @@ let overlaySheet: CSSStyleSheet | undefined;
 let baseStylesInstalledPromise: Promise<void> | undefined;
 let bundlePromise: Promise<Bundle> | undefined;
 let bundle: Bundle | undefined;
-let activeOverride: object | undefined;
+const activeOverrides: {
+	readonly option: Exclude<ReverseStylesheetsOption, false>;
+	readonly overlay: CSSStyleSheet;
+	readonly bundle: Bundle;
+}[] = [];
+let originalDisabledStates: readonly boolean[] | undefined;
 let iconsStyleSheetCache: CSSStyleSheet | undefined;
+const fileIconThemeStyleSheetCache = new Map<string, CSSStyleSheet>();
 const themeStyleSheetCache = new WeakMap<ColorThemeData, CSSStyleSheet>();
 const installedThemes = new WeakSet<ColorThemeData>();
 
@@ -151,7 +157,7 @@ function readBundle(): Promise<Bundle> {
 
 /**
  * The repo-relative source files of the bundled stylesheet documents, in product
- * order. Index `i` is the document that a `reverseStylesheets` window refers to,
+ * order. Index `i` is the document that a `reverseStylesheetsRange` refers to,
  * so the bisection driver uses this to name a conflicting document — keeping all
  * knowledge of the bundle format inside the runtime.
  */
@@ -170,6 +176,21 @@ function getIconsStyleSheetCached(): CSSStyleSheet {
 	return iconsStyleSheetCache;
 }
 
+function getFileIconThemeStyleSheetCached(scopeSelector: string, styleSheetContent: string): CSSStyleSheet {
+	let fileIconThemeStyleSheet = fileIconThemeStyleSheetCache.get(scopeSelector);
+	if (!fileIconThemeStyleSheet) {
+		const fontFaceRules: string[] = [];
+		const scopedRules = styleSheetContent.replace(/@font-face\s*\{[^}]*\}/g, rule => {
+			fontFaceRules.push(rule);
+			return '';
+		});
+		fileIconThemeStyleSheet = new CSSStyleSheet();
+		fileIconThemeStyleSheet.replaceSync(`${fontFaceRules.join('\n')}\n@scope (${scopeSelector}) {\n${scopedRules}\n}`);
+		fileIconThemeStyleSheetCache.set(scopeSelector, fileIconThemeStyleSheet);
+	}
+	return fileIconThemeStyleSheet;
+}
+
 function createScopedThemingParticipant(scopeSelector: string, scopeRootSelector: string, participants: readonly IThemingParticipant[]): IThemingParticipant {
 	return (theme, collector, environment) => {
 		const rules = new Set<string>();
@@ -182,19 +203,21 @@ function createScopedThemingParticipant(scopeSelector: string, scopeRootSelector
 	};
 }
 
-function getThemeStyleSheet(theme: ColorThemeData, scopeThemingParticipants: boolean): CSSStyleSheet {
+export function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 	const cachedStyleSheet = themeStyleSheetCache.get(theme);
 	if (cachedStyleSheet) {
 		return cachedStyleSheet;
 	}
 
-	const scopeSelector = '.' + theme.classNames[0];
+	const themeScopeSelector = '.' + theme.classNames.join('.');
+	// Keep matching nested editor theme roots without increasing selector specificity.
+	const scopeSelector = `.${theme.classNames[0]}:where(${themeScopeSelector}, ${themeScopeSelector} *)`;
 	const themingParticipants = themingRegistry.getThemingParticipants();
 	const sheet = new CSSStyleSheet();
 	const css = generateColorThemeCSS(
 		theme,
 		scopeSelector,
-		scopeThemingParticipants ? [createScopedThemingParticipant(scopeSelector, '.monaco-workbench', themingParticipants)] : themingParticipants,
+		[createScopedThemingParticipant(themeScopeSelector, '.monaco-workbench', themingParticipants)],
 		mockEnvironmentService
 	);
 	sheet.replaceSync(css.code);
@@ -207,7 +230,10 @@ function getThemeStyleSheet(theme: ColorThemeData, scopeThemingParticipants: boo
  * Installs shared global styles once and appends a scoped stylesheet for each newly requested theme.
  * The reversal overlay keeps a stable identity and position for {@link overrideStylesheetOrder}.
  */
-export async function ensureGlobalStylesInstalled(theme: ColorThemeData, scopeThemingParticipants: boolean): Promise<void> {
+export async function ensureGlobalStylesInstalled(
+	theme: ColorThemeData,
+	fileIconThemeStyles?: { readonly scopeSelector: string; readonly styleSheetContent: string }
+): Promise<void> {
 	baseStylesInstalledPromise ??= (async () => {
 		await readBundle();
 		const overlay = overlaySheet = new CSSStyleSheet();
@@ -219,12 +245,19 @@ export async function ensureGlobalStylesInstalled(theme: ColorThemeData, scopeTh
 	})();
 	await baseStylesInstalledPromise;
 
+	if (fileIconThemeStyles && !fileIconThemeStyleSheetCache.has(fileIconThemeStyles.scopeSelector)) {
+		document.adoptedStyleSheets = [
+			...document.adoptedStyleSheets,
+			getFileIconThemeStyleSheetCached(fileIconThemeStyles.scopeSelector, fileIconThemeStyles.styleSheetContent),
+		];
+	}
+
 	if (installedThemes.has(theme)) {
 		return;
 	}
 	document.adoptedStyleSheets = [
 		...document.adoptedStyleSheets,
-		getThemeStyleSheet(theme, scopeThemingParticipants),
+		getThemeStyleSheet(theme),
 	];
 	installedThemes.add(theme);
 }
@@ -236,37 +269,37 @@ export async function ensureGlobalStylesInstalled(theme: ColorThemeData, scopeTh
  * are disabled and replaced wholesale by the reordered copy in the overlay, so
  * the originals cannot contribute competing declarations.
  *
- * Exclusive and stack-like: throws if another override is already active (two
- * fixtures must not render against the shared page concurrently), and the
- * returned disposable throws if disposed out of order.
+ * Concurrent fixtures share the document stylesheets. The most recently applied
+ * override wins until it is disposed.
  * {@link ensureGlobalStylesInstalled} must have resolved first.
  */
 export function overrideStylesheetOrder(option: Exclude<ReverseStylesheetsOption, false>): IDisposable {
 	if (!overlaySheet || !bundle) {
 		throw new Error('ensureGlobalStylesInstalled() must resolve before overriding the stylesheet order.');
 	}
-	if (activeOverride) {
-		throw new Error('A stylesheet-order override is already active; fixtures must render sequentially.');
+	const override = { option, overlay: overlaySheet, bundle };
+	if (activeOverrides.length === 0) {
+		originalDisabledStates = bundle.sheets.map(sheet => sheet.disabled);
+		for (const sheet of bundle.sheets) {
+			sheet.disabled = true;
+		}
 	}
-	const overlay = overlaySheet;
-	const sheets = bundle.sheets;
-	const token = activeOverride = {};
-
-	// Disable the bundled product sheets and reproduce them, reordered, in the
-	// overlay. The overlay alone then defines the product cascade, so the disabled
-	// originals can't win (or tie) against it.
-	const wasDisabled = sheets.map(sheet => sheet.disabled);
-	for (const sheet of sheets) {
-		sheet.disabled = true;
-	}
-	overlay.replaceSync(reverseDocuments(bundle.rawSources, option));
+	overlaySheet.replaceSync(reverseDocuments(bundle.rawSources, option));
+	activeOverrides.push(override);
 
 	return toDisposable(() => {
-		if (activeOverride !== token) {
-			throw new Error('Stylesheet-order override disposed out of order.');
+		const index = activeOverrides.indexOf(override);
+		if (index === -1) {
+			return;
 		}
-		overlay.replaceSync('');
-		sheets.forEach((sheet, i) => { sheet.disabled = wasDisabled[i]; });
-		activeOverride = undefined;
+		activeOverrides.splice(index, 1);
+		const activeOverride = activeOverrides.at(-1);
+		if (activeOverride) {
+			activeOverride.overlay.replaceSync(reverseDocuments(activeOverride.bundle.rawSources, activeOverride.option));
+			return;
+		}
+		override.overlay.replaceSync('');
+		override.bundle.sheets.forEach((sheet, i) => { sheet.disabled = originalDisabledStates![i]; });
+		originalDisabledStates = undefined;
 	});
 }

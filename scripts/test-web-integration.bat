@@ -3,7 +3,7 @@ setlocal
 
 pushd %~dp0\..
 
-:: TODO(deepak1556): Remove this once bumped > 24.16.0, refs https://github.com/nodejs/node/issues/63638
+:: TODO(deepak1556): Remove this once we bump to node containing fix for https://github.com/nodejs/node/issues/63638.
 for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set "TMP=%%i"
 set "TEMP=%TMP%"
 

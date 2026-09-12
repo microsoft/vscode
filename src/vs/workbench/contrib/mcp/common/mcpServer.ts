@@ -724,7 +724,18 @@ export class McpServer extends Disposable implements IMcpServer {
 			return { name: this.definition.label, url: launch.uri.toString(true) };
 		}
 		if (launch?.type === McpServerTransportType.Stdio) {
-			return { name: this.definition.label, command: [launch.command, ...launch.args] };
+			// `launch.command`/`launch.args` are typed as non-nullable but can be `undefined` at
+			// runtime when they originate from user/discovery configuration that omitted the field.
+			// When `command` is present, build the full command line (defaulting `args` to an empty
+			// array and dropping any non-string entries); the produced `IMcpServerIdentity.command`
+			// then never contains a non-string entry, which would otherwise break policy matching and
+			// the unresolved-variable check. Use a string check so a valid-but-empty command string is
+			// preserved while malformed non-string command values are dropped. When `command` is absent
+			// the full command line is unknown, so omit the field entirely rather than matching on args
+			// alone (which could collide with unrelated servers).
+			return typeof launch.command === 'string'
+				? { name: this.definition.label, command: [launch.command, ...(launch.args ?? []).filter(arg => typeof arg === 'string')] }
+				: { name: this.definition.label };
 		}
 		return { name: this.definition.label };
 	}

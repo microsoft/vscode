@@ -10,12 +10,12 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from '../panecomposite.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
-import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingSidebarSiblingToEditorStatus } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, getFloatingOuterGutterEdges, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingPaneCompositeVerticalOuterEdges } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
-import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
+import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -124,6 +124,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected readonly headerFooterCompositeBarDispoables = this._register(new DisposableStore());
 	private paneCompositeBarContainer: HTMLElement | undefined;
 	private readonly paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
+	private readonly pendingCompositeBarLayout = this._register(new MutableDisposable<IDisposable>());
 	private compositeBarPosition: CompositeBarPosition | undefined = undefined;
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
@@ -209,13 +210,16 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private onDidOpen(composite: IComposite): void {
-		this.activePaneContextKey.set(composite.getId());
+		const compositeId = composite.getId();
+		this.activePaneContextKey.set(compositeId);
+		this.element.dataset.activeComposite = compositeId;
 	}
 
 	private onDidClose(composite: IComposite): void {
 		const id = composite.getId();
 		if (this.activePaneContextKey.get() === id) {
 			this.activePaneContextKey.reset();
+			delete this.element.dataset.activeComposite;
 		}
 	}
 
@@ -489,8 +493,12 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected override onTitleAreaUpdate(compositeId: string): void {
 		super.onTitleAreaUpdate(compositeId);
 
-		// If title actions change, relayout the composite bar
-		this.layoutCompositeBar();
+		if (!this.pendingCompositeBarLayout.value) {
+			this.pendingCompositeBarLayout.value = scheduleAtNextAnimationFrame(getWindow(this.element), () => {
+				this.pendingCompositeBarLayout.clear();
+				this.layoutCompositeBar();
+			});
+		}
 	}
 
 	async openPaneComposite(id?: string, focus?: boolean): Promise<PaneComposite | undefined> {
@@ -608,15 +616,18 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		this.contentDimension = new Dimension(width, height);
 
-		// Reflect which window edges this part is the outermost floating card on so the
-		// matching doubled outer gutter can be applied in CSS (kept in sync with
+		// Reflect which cluster edges this part is the outermost floating card on so the
+		// matching outer gutter and corner radius can be applied in CSS (kept in sync with
 		// `getFloatingInset`).
 		const outerGutter = this.getFloatingOuterGutterEdges();
+		const verticalOuterEdges = getFloatingPaneCompositeVerticalOuterEdges(this.layoutService, this.partId, getWindow(this.element));
 		this.element.classList.toggle('floating-part-outer-left', outerGutter.left);
 		this.element.classList.toggle('floating-part-outer-right', outerGutter.right);
+		this.element.classList.toggle('floating-part-outer-top', verticalOuterEdges.top);
+		this.element.classList.toggle('floating-part-outer-bottom', verticalOuterEdges.bottom);
 
 		// Mirror the panel's outer-edge state onto the workbench container so the
-		// horizontal grid sash highlight can match the panel card's doubled outer
+		// horizontal grid sash highlight can match the panel card's outer
 		// gutter by selecting a direct class, rather than a `:has()` query on the
 		// workbench root (which would force selector invalidation across the whole
 		// workbench on every DOM change). Updated here in lockstep with the part-level
@@ -638,8 +649,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	/**
-	 * The window edges on which this part is the outermost floating card and therefore
-	 * adopts a doubled outer gutter, so its contents do not hug the window edge. Applies
+	 * The horizontal cluster edges on which this part is the outermost floating card and
+	 * therefore adopts the density-specific outer gutter. Applies
 	 * to the primary side bar, the secondary side bar and the panel; a horizontal panel
 	 * can own both edges at once.
 	 */
@@ -652,65 +663,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	/**
-	 * Returns true when this sidebar/aux bar is in the same grid row as the editor
-	 * (a sibling), meaning it abuts the panel above or below rather than the window edge.
-	 * Delegates to the shared formula exported from layoutService.ts.
-	 */
-	private isSidebarSiblingToEditor(): boolean {
-		const { sideBar, auxBar } = getFloatingSidebarSiblingToEditorStatus(this.layoutService);
-		return this.partId === Parts.SIDEBAR_PART ? sideBar : auxBar;
-	}
-
-	/**
-	 * Returns the top margin (in pixels) this part should receive when floating panels
-	 * are enabled. Only the bottom-panel and sibling side bars (when the panel is at the
-	 * top) need a top margin; all other parts sit flush with the title bar.
-	 */
-	private getFloatingPartTopMargin(panelVisible: boolean, margin: number): number {
-		// Bottom panel: needs a top margin only when the editor is visible (inter-card gap).
-		// When maximized (editor hidden) the panel is flush with the title bar — no top margin.
-		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM) {
-			return this.layoutService.isVisible(Parts.EDITOR_PART, getWindow(this.element)) ? margin : 0;
-		}
-		// Sidebar / aux bar that is in the same grid row as the editor (sibling) and the panel
-		// is at the top: needs a top margin matching the editor's gap from the panel card.
-		if (panelVisible &&
-			this.layoutService.getPanelPosition() === Position.TOP &&
-			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART) &&
-			this.isSidebarSiblingToEditor()) {
-			return margin;
-		}
-		return 0;
-	}
-
-	/**
-	 * Returns whether this part's bottom edge faces the window edge rather than another
-	 * floating card. When the status bar is hidden and this returns `true`, a doubled
-	 * bottom margin is applied so the outer gap matches the doubled side gutters.
-	 */
-	private isFloatingPartAtWindowBottomEdge(panelVisible: boolean): boolean {
-		// Panel at TOP: its bottom faces the editor card, not the window edge.
-		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.TOP) {
-			return false;
-		}
-		// A sidebar/aux bar that is a sibling to the editor sits above a bottom panel row,
-		// so its bottom faces the panel card rather than the window edge.
-		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
-		if (panelAtBottom &&
-			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART) &&
-			this.isSidebarSiblingToEditor()) {
-			return false;
-		}
-		return true;
-	}
-
-	/**
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
-	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
-	 * title bar, so they have no top margin. On each window edge this part is the outermost
-	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets a doubled outer
+	 * `box-sizing: border-box` in `part.css`). On each cluster edge this part is the outermost
+	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets the outer
 	 * margin, so its width inset is larger on that side.
 	 */
 	private getFloatingInset(): { width: number; height: number } {
@@ -719,22 +676,17 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		const borderTotal = 2; // 1px border on each side
-		const margin = FLOATING_PANEL_MARGIN;
-		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
-		const topMargin = this.getFloatingPartTopMargin(panelVisible, margin);
-		const isAtWindowBottom = this.isFloatingPartAtWindowBottomEdge(panelVisible);
-		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) && isAtWindowBottom
-			? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
-		const outerGutter = this.getFloatingOuterGutterEdges();
-		const leftMargin = outerGutter.left ? margin * 2 : margin;
-		const rightMargin = outerGutter.right ? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
+		const { top, bottom } = getFloatingPaneCompositeVerticalMargins(this.layoutService, this.partId, getWindow(this.element));
+		const { left, right } = getFloatingPaneCompositeHorizontalMargins(this.layoutService, this.partId);
 		return {
-			width: leftMargin + rightMargin + borderTotal,
-			height: topMargin + bottomMargin + borderTotal
+			width: left + right + borderTotal,
+			height: top + bottom + borderTotal
 		};
 	}
 
 	private layoutCompositeBar(): void {
+		this.pendingCompositeBarLayout.clear();
+
 		if (this.contentDimension && this.dimension && this.paneCompositeBar.value) {
 			const padding = this.compositeBarPosition === CompositeBarPosition.TITLE ? 16 : 8;
 			const borderWidth = this.partId === Parts.PANEL_PART ? 0 : 1;

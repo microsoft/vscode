@@ -41,6 +41,7 @@ import { SelectionsOverlay } from './viewParts/selections/selections.js';
 import { ViewCursors } from './viewParts/viewCursors/viewCursors.js';
 import { ViewZones } from './viewParts/viewZones/viewZones.js';
 import { WhitespaceOverlay } from './viewParts/whitespace/whitespace.js';
+import { WordWrapIndicatorOverlay } from './viewParts/wordWrapIndicator/wordWrapIndicator.js';
 import { IEditorConfiguration } from '../common/config/editorConfiguration.js';
 import { EditorOption } from '../common/config/editorOptions.js';
 import { Position } from '../common/core/position.js';
@@ -254,6 +255,7 @@ export class View extends ViewEventHandler {
 		if (!gpu?.whitespace) {
 			contentOverlays.push(new WhitespaceOverlay(this._context));
 		}
+		contentOverlays.push(new WordWrapIndicatorOverlay(this._context));
 		let contentViewOverlays: ContentViewOverlays | undefined;
 		if (contentOverlays.length > 0) {
 			contentViewOverlays = new ContentViewOverlays(this._context);

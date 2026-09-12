@@ -48,6 +48,7 @@ export function createVirtualTimeApi(
 	clock: VirtualClock,
 	options?: CreateVirtualTimeApiOptions,
 ): TimeApi {
+	const performanceTimeOrigin = clock.now;
 
 	function virtualSetTimeout(handler: () => void, timeout: number = 0): IDisposable {
 		const stack = new Error().stack;
@@ -142,6 +143,8 @@ export function createVirtualTimeApi(
 		setInterval: virtualSetInterval as unknown as TimeApi['setInterval'],
 		clearInterval: virtualClearInterval,
 		Date: VirtualDate as unknown as DateConstructor,
+		performanceNow: () => clock.now - performanceTimeOrigin,
+		performanceTimeOrigin,
 	};
 
 	// Expose the real setTimeout as `originalFn` on the virtual one. The
@@ -162,7 +165,7 @@ export function createVirtualTimeApi(
 				preferRealAnimationFrame: true,
 				run: () => {
 					rafDisposables.delete(id);
-					callback(clock.now);
+					callback(api.performanceNow());
 				},
 				source: { toString: () => 'requestAnimationFrame', stackTrace: stack },
 				trace,

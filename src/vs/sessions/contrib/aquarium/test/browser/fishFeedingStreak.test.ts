@@ -100,6 +100,55 @@ suite('FishFeedingStreak', () => {
 		});
 	});
 
+	test('gets hungrier throughout a missed feeding day', () => {
+		const { streak, setTime } = createStreak();
+
+		streak.recordFeed();
+		const states = [streak.hungerState];
+		setTime(18, 5, 59);
+		states.push(streak.hungerState);
+		setTime(18, 6);
+		states.push(streak.hungerState);
+		setTime(18, 12);
+		states.push(streak.hungerState);
+		setTime(18, 18);
+		states.push(streak.hungerState);
+		setTime(19, 0);
+		streak.collectExpired();
+		states.push(streak.hungerState);
+
+		assert.deepStrictEqual(states, [
+			'happy',
+			'happy',
+			'neutral',
+			'sad',
+			'verySad',
+			'verySad',
+		]);
+	});
+
+	test('reports the next hunger state boundary', () => {
+		const { streak, setTime } = createStreak();
+
+		streak.recordFeed();
+		setTime(17, 23, 30);
+		const fedToday = streak.millisecondsUntilHungerStateChange;
+		setTime(18, 5, 30);
+		const earlyMissedDay = streak.millisecondsUntilHungerStateChange;
+		setTime(18, 6);
+		const missedDay = streak.millisecondsUntilHungerStateChange;
+
+		assert.deepStrictEqual({
+			fedToday,
+			earlyMissedDay,
+			missedDay,
+		}, {
+			fedToday: 30 * 60 * 1000,
+			earlyMissedDay: 30 * 60 * 1000,
+			missedDay: 6 * 60 * 60 * 1000,
+		});
+	});
+
 	test('calendar-day state persists across reloads', () => {
 		const { streak, setTime, reload } = createStreak();
 

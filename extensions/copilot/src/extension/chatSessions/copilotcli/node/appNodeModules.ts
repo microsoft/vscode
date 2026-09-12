@@ -15,10 +15,11 @@ import * as path from 'path';
  * into `node_modules.asar.unpacked`. In development they live in a plain
  * `node_modules`. Consumers that reach into VS Code's own modules for native
  * binaries (ripgrep, node-pty, the MXC sandbox binaries, …) must therefore probe
- * both roots, preferring the plain `node_modules` used in dev and marketplace
- * installs.
+ * both roots, preferring the physical `node_modules.asar.unpacked` path because
+ * Electron's ASAR filesystem can report the virtual `node_modules` path as
+ * existing even though it cannot be used to spawn a native binary.
  */
-export const APP_NODE_MODULES_ROOTS = ['node_modules', 'node_modules.asar.unpacked'] as const;
+export const APP_NODE_MODULES_ROOTS = ['node_modules.asar.unpacked', 'node_modules'] as const;
 
 /**
  * Resolves a path to one of VS Code's bundled module resources, checking both
@@ -33,7 +34,7 @@ export function resolveAppModulePathSync(appRoot: string, ...segments: string[])
 			return candidate;
 		}
 	}
-	return path.join(appRoot, APP_NODE_MODULES_ROOTS[0], ...segments);
+	return path.join(appRoot, 'node_modules', ...segments);
 }
 
 /**
@@ -49,5 +50,5 @@ export async function resolveAppModulePath(appRoot: string, ...segments: string[
 			// Not present under this root; try the next one.
 		}
 	}
-	return path.join(appRoot, APP_NODE_MODULES_ROOTS[0], ...segments);
+	return path.join(appRoot, 'node_modules', ...segments);
 }

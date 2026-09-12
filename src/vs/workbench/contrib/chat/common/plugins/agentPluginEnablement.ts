@@ -85,6 +85,14 @@ export function isAgentPluginBlockedByPolicy(
 	return pluginId !== undefined && enabledPluginsPolicy?.[pluginId] === false;
 }
 
+export function isAgentPluginForceEnabledByPolicy(
+	plugin: IAgentPlugin,
+	enabledPluginsPolicy: Record<string, boolean> | undefined,
+): boolean {
+	const pluginId = getAgentPluginPolicyId(plugin);
+	return pluginId !== undefined && enabledPluginsPolicy?.[pluginId] === true;
+}
+
 export function getAgentPluginPolicyId(plugin: IAgentPlugin): string | undefined {
 	const identity = getPolicyIdentity(plugin);
 	return identity ? `${identity.name}@${identity.marketplace}` : undefined;

@@ -9,7 +9,7 @@ import { localize } from '../../../../../../nls.js';
 import { type ProgressParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatAIDisabledSettingId } from '../../../common/constants.js';
 
 /**
  * One in-flight download tracked by {@link AgentHostDownloadProgress}. Owns the
@@ -66,7 +66,7 @@ export class AgentHostDownloadProgress extends Disposable {
 
 	handleProgress(progress: ProgressParams): void {
 		// New AI UI must stay hidden when the user has turned AI features off.
-		if (this._configurationService.getValue<boolean>(ChatConfiguration.AIDisabled)) {
+		if (this._configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
 			return;
 		}
 
@@ -86,7 +86,7 @@ export class AgentHostDownloadProgress extends Disposable {
 			// First frame for this download: open one long-running notification
 			// progress and drive it via `report` until a terminal frame resolves
 			// `deferred`. `message` is the host-supplied, already-localized title
-			// (e.g. "Downloading Claude agent"); render it verbatim so this stays
+			// (e.g. "Downloading Claude Agent"); render it verbatim so this stays
 			// a generic indicator that makes no assumption about what's downloading.
 			const deferred = new DeferredPromise<void>();
 			let report: ((step: IProgressStep) => void) | undefined;

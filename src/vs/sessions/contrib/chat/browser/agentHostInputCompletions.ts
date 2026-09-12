@@ -6,7 +6,7 @@
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -16,15 +16,23 @@ import { CompletionItem, CompletionItemKind } from '../../../../editor/common/la
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { getCommandArgumentHint } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
-import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { getCommandArgumentHint, getCompletionAction, type IAgentHostCompletionAction } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact, toAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { chatVariableLeader } from '../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputPlaceholderDecoration.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { NewChatContextAttachments } from './newChatContextAttachments.js';
+import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../../workbench/contrib/chat/browser/agentHostCompletionAction.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { INewChatAttachments } from './newChatContextAttachments.js';
 
 /**
  * Command ID used by completion items to attach an agent-host-supplied
@@ -45,6 +53,26 @@ CommandsRegistry.registerCommand(ADD_REFERENCE_COMMAND, (_accessor, arg: IRefere
 });
 
 /**
+ * Command ID used by config-action completion items (permission/mode toggles)
+ * to apply the session-config change on accept.
+ */
+const CONFIG_ACTION_COMMAND = 'sessions.chat.applyAgentHostConfigAction';
+
+interface IConfigActionArg {
+	readonly handler: AgentHostInputCompletionHandler;
+	readonly action: IAgentHostCompletionAction;
+	/** Reference to add (for the argument hint) for keep-text items; undefined for toggles. */
+	readonly entry: IChatRequestVariableEntry | undefined;
+	/** Text of the kept command reference (without the trailing space). */
+	readonly referenceText: string;
+	readonly referenceRange: OffsetRange | undefined;
+}
+
+CommandsRegistry.registerCommand(CONFIG_ACTION_COMMAND, async (accessor: ServicesAccessor, arg: IConfigActionArg) => {
+	await arg.handler.applyConfigAction(accessor, arg);
+});
+
+/**
  * Finds the completion reference closest to the accepted range and returns
  * its range in the message text that will be sent.
  */
@@ -62,17 +90,23 @@ export function getAgentHostCompletionAttachmentRange(
 	let bestIndex = -1;
 	let bestDistance = Number.MAX_SAFE_INTEGER;
 	let from = 0;
+	// A reference ending in digits is a prefix of its higher-numbered siblings
+	// (`... #1` inside `... #10`), so such a match must not continue with a digit.
+	const endsWithDigit = /\d$/.test(referenceText);
 	while (true) {
 		const index = value.indexOf(referenceText, from);
 		if (index < 0) {
 			break;
+		}
+		from = index + referenceText.length;
+		if (endsWithDigit && /\d/.test(value.charAt(from))) {
+			continue;
 		}
 		const distance = preferredRange ? Math.abs(index - preferredRange.start) : index;
 		if (distance < bestDistance) {
 			bestIndex = index;
 			bestDistance = distance;
 		}
-		from = index + referenceText.length;
 	}
 
 	if (bestIndex < 0) {
@@ -128,7 +162,7 @@ export function getCommandArgumentHintPlaceholder(
  * Bridges the new-chat input editor to the agent host's `completions`
  * command for the currently-selected session type. Mirrors
  * {@link AgentHostInputCompletions} (which handles the *existing* chat
- * widget) but feeds results into {@link NewChatContextAttachments}
+ * widget) but feeds results into {@link INewChatAttachments}
  * instead of the chat widget's `ChatDynamicVariableModel`.
  *
  * The Monaco completion provider is registered dynamically per active
@@ -154,14 +188,18 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 	 */
 	private readonly _insertedReferences = new Map<string /* id */, { text: string; range: OffsetRange | undefined }>();
 
+	/** Ids whose inline reference should be removed with the attachment. */
+	private readonly _artifactReferenceIds = new Set<string>();
+
 	constructor(
-		private readonly _editor: CodeEditorWidget,
-		private readonly _contextAttachments: NewChatContextAttachments,
+		private readonly _editor: ICodeEditor,
+		private readonly _contextAttachments: INewChatAttachments,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionContext private readonly _sessionContext: ISessionContext,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -170,9 +208,13 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._decorations = this._editor.createDecorationsCollection();
 		this._registerDecorations();
 
-		// Watch the active session and (re-)register the Monaco provider
-		// with the trigger characters announced by whichever content
-		// provider handles the active session's resource scheme.
+		// Watch this input's scoped session and (re-)register the Monaco
+		// provider with the trigger characters announced by whichever content
+		// provider handles that session's resource scheme. Using the
+		// input-scoped `ISessionContext` (rather than the window-global active
+		// session) ensures completions — and the config changes they apply on
+		// accept — target the session this input composes for, even when another
+		// same-type session is the window's active one.
 		//
 		// We key off the resource scheme (via `getChatSessionType`) rather
 		// than `ISession.sessionType` because the latter is the *agent
@@ -183,7 +225,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		// looks up.
 		let currentScheme: string | undefined;
 		this._register(autorun(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionContext.session.read(reader);
 			const scheme = session ? getChatSessionType(session.resource) : undefined;
 			if (scheme === currentScheme) {
 				return;
@@ -202,9 +244,9 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			return;
 		}
 
-		// The active session may have changed mid-await — bail if its
+		// The scoped session may have changed mid-await — bail if its
 		// resource scheme is no longer the one we registered for.
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionContext.session.get();
 		if (!activeSession || getChatSessionType(activeSession.resource) !== scheme) {
 			return;
 		}
@@ -229,14 +271,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		if (/^\s*\/troubleshoot\b/.test(model.getValue())) {
 			return undefined;
 		}
-		const session = this._sessionsService.activeSession.get();
+		const session = this._sessionContext.session.get();
 		if (!session) {
 			return undefined;
 		}
 		const sessionResource = session.resource;
-		// Only respond when the currently-active session matches the
+		// Only respond when this input's scoped session matches the
 		// scheme this registration was made for. Stale registrations
-		// (active session changed during the host RPC, etc.) are
+		// (the scoped session changed during the host RPC, etc.) are
 		// silently ignored.
 		if (getChatSessionType(sessionResource) !== scheme) {
 			return undefined;
@@ -244,11 +286,48 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		return { sessionResource, context: undefined };
 	}
 
-	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
+	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem | undefined {
 		const replaceRange = AgentHostInputCompletionHandler.computeRange(position, item);
 		const attachment = item.attachment;
 		switch (attachment.kind) {
 			case 'command': {
+				const action = getCompletionAction(attachment._meta);
+				if (action) {
+					// Omit an elevated auto-approve toggle (Allow all / Assisted)
+					// when enterprise policy disables global auto-approval, rather
+					// than offering an item that would warn then clamp to Default.
+					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+						return undefined;
+					}
+					// Config-action completion (permission/mode toggle). Keep-text
+					// items (non-empty insertText) retain the `/command ` text and
+					// its argument-hint reference; toggle items insert nothing.
+					const keep = item.insertText !== '';
+					const label = item.label ?? item.insertText;
+					const referenceText = item.insertText.trimEnd();
+					const entry = keep
+						? toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, referenceText, attachment.command, attachment._meta)
+						: undefined;
+					return {
+						label: { label, description: attachment.description },
+						insertText: item.insertText,
+						filterText: label,
+						range: replaceRange,
+						kind: CompletionItemKind.Text,
+						documentation: attachment.description,
+						command: {
+							id: CONFIG_ACTION_COMMAND,
+							title: '',
+							arguments: [{
+								handler: this,
+								action,
+								entry,
+								referenceText,
+								referenceRange: entry ? this._toOffsetRange(replaceRange.replace, referenceText) : undefined,
+							} satisfies IConfigActionArg],
+						},
+					};
+				}
 				const referenceText = item.insertText.trimEnd();
 				const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, referenceText, attachment.command, attachment._meta);
 				return {
@@ -291,6 +370,10 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 						} satisfies IReferenceArg],
 					},
 				};
+			}
+			case 'chat': {
+				// The new-chat surface does not support chat references; ignore.
+				return undefined;
 			}
 			default: {
 				const label = attachment.displayName ?? item.insertText;
@@ -343,6 +426,35 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._updateDecorations();
 	}
 
+	/**
+	 * Accept handler for config-action completions (permission/mode toggles).
+	 * Applies the session-config change (gated by the elevated-permission
+	 * confirmation for `autoApprove`) via this input's scoped session's
+	 * agent-host provider. Keep-text items (non-empty insertText) then add their
+	 * argument-hint reference; toggle items insert nothing, so there is no text
+	 * to remove.
+	 */
+	async applyConfigAction(accessor: ServicesAccessor, arg: IConfigActionArg): Promise<void> {
+		const session = this._sessionContext.session.get();
+		if (!session) {
+			return;
+		}
+		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => {
+			const provider = sessionsProvidersService.getProvider(session.providerId);
+			if (provider && isAgentHostProvider(provider)) {
+				await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, key, value).catch(() => { /* best-effort */ })));
+			}
+		});
+		// Keep-text items add their argument-hint reference once applied. Toggle
+		// items insert nothing, so there is no text to remove.
+		if (applied && arg.entry) {
+			this.acceptCompletion(arg.entry, arg.referenceText, arg.referenceRange);
+		}
+	}
+
 	getAttachmentsForSend(messageText?: string, messageOffset = 0): IChatRequestVariableEntry[] {
 		const model = this._editor.getModel();
 		const value = model?.getValue() ?? '';
@@ -352,12 +464,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			const reference = this._insertedReferences.get(entry.id)
 				?? (isAgentHostCompletionVariableEntry(entry) ? { text: entry.name, range: undefined } : undefined);
 			if (!reference) {
-				result.push(entry);
+				if (!isPastedTextArtifact(entry) || !entry.range) {
+					result.push(entry);
+				}
 				continue;
 			}
 			const range = getAgentHostCompletionAttachmentRange(value, reference.text, reference.range, messageOffset, messageLength);
 			if (!range) {
-				if (!isAgentHostCompletionVariableEntry(entry)) {
+				if (!isAgentHostCompletionVariableEntry(entry) && (!isPastedTextArtifact(entry) || !entry.range)) {
 					result.push(entry);
 				}
 				continue;
@@ -376,6 +490,37 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._updateDecorations();
 	}
 
+	/**
+	 * Drops tracking for a reference without touching the input text, for callers
+	 * that remove that text themselves. The paste pipeline's undo does: the undo
+	 * stack removes the pasted reference text as its own step, so the chip-removal
+	 * cleanup below must not run a competing edit while that undo is unwinding.
+	 */
+	forgetReference(id: string): void {
+		this._insertedReferences.delete(id);
+		this._artifactReferenceIds.delete(id);
+	}
+
+	/** Removes an inline reference's text, including one trailing space. */
+	private _removeReferenceText(text: string, preferredRange: OffsetRange | undefined): void {
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+		const value = model.getValue();
+		const range = getAgentHostCompletionAttachmentRange(value, text, preferredRange, 0, value.length);
+		if (!range) {
+			return;
+		}
+		const endExclusive = value.charAt(range.endExclusive) === ' ' ? range.endExclusive + 1 : range.endExclusive;
+		const start = model.getPositionAt(range.start);
+		const end = model.getPositionAt(endExclusive);
+		this._editor.executeEdits('sessionsChat.removeAttachmentReference', [{
+			range: Range.fromPositions(start, end),
+			text: '',
+		}]);
+	}
+
 	private _updateDecorations(): void {
 		// Drop tracking for any URI that is no longer attached. The chip
 		// being removed is the canonical signal that the reference is
@@ -384,7 +529,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		const attachedIds = new Set(this._contextAttachments.attachments.map(a => a.id));
 		for (const id of [...this._insertedReferences.keys()]) {
 			if (!attachedIds.has(id)) {
+				const removed = this._insertedReferences.get(id);
 				this._insertedReferences.delete(id);
+				// A pasted-text artifact is bound to its inline reference, so removing
+				// the chip takes the reference text with it rather than leaving a token
+				// that no longer resolves to anything.
+				if (removed && this._artifactReferenceIds.delete(id)) {
+					this._removeReferenceText(removed.text, removed.range);
+				}
 			}
 		}
 
@@ -393,6 +545,27 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			return;
 		}
 		const value = model.getValue();
+		const orphanedArtifacts: string[] = [];
+		for (const entry of this._contextAttachments.attachments) {
+			if (!isPastedTextArtifact(entry) || !entry.range) {
+				continue;
+			}
+			const text = `${chatVariableLeader}attachment:${entry.name}`;
+			const preferredRange = new OffsetRange(entry.range.start, entry.range.endExclusive);
+			const range = getAgentHostCompletionAttachmentRange(value, text, preferredRange, 0, value.length);
+			if (range) {
+				this._artifactReferenceIds.add(entry.id);
+				this._insertedReferences.set(entry.id, { text, range });
+			} else {
+				// The inline reference is the only handle on an artifact, so the
+				// attachment goes with it. Mirrors the workbench prompt-attachment autorun.
+				orphanedArtifacts.push(entry.id);
+			}
+		}
+		for (const id of orphanedArtifacts) {
+			this._insertedReferences.delete(id);
+			this._contextAttachments.removeAttachment(id);
+		}
 		const decos: IModelDeltaDecoration[] = [];
 		for (const reference of this._insertedReferences.values()) {
 			const range = getAgentHostCompletionAttachmentRange(value, reference.text, reference.range, 0, value.length);

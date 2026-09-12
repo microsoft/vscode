@@ -11,6 +11,7 @@ import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -35,7 +36,9 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IChatViewTitleActionContext } from '../../chat/common/actions/chatActions.js';
 import { ChatWidget } from '../../chat/browser/widget/chatWidget.js';
+import { ACTION_ID_NEW_CHAT } from '../../chat/browser/actions/chatActions.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../chat/browser/agentSessions/agentSessions.js';
 import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsModel.js';
@@ -69,6 +72,7 @@ const MAX_WALKTHROUGHS = 10;
 const WELCOME_CHAT_INPUT_LAYOUT_HEIGHT = 150;
 const WELCOME_CHAT_INPUT_RESERVED_LIST_HEIGHT = 50;
 const WELCOME_CHAT_INPUT_RESERVED_CHROME_HEIGHT = 72;
+const WELCOME_COMPACT_HEIGHT = 800;
 // Mirror ChatWidget's compact-surface sizing so the hidden list reservation and input chrome do not collapse the editor.
 const WELCOME_CHAT_INPUT_MAX_HEIGHT_OVERRIDE = WELCOME_CHAT_INPUT_LAYOUT_HEIGHT + WELCOME_CHAT_INPUT_RESERVED_LIST_HEIGHT + WELCOME_CHAT_INPUT_RESERVED_CHROME_HEIGHT;
 
@@ -562,9 +566,15 @@ export class AgentSessionsWelcomePage extends EditorPane {
 				limitResults: () => MAX_SESSIONS,
 				overrideExclude: (session) => session.isArchived() ? true : undefined,
 			})),
+			createNewChat: () => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.chatWidget?.viewModel ? {
+				$mid: MarshalledId.ChatViewContext,
+				sessionResource: this.chatWidget.viewModel.sessionResource,
+			} satisfies IChatViewTitleActionContext : undefined),
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
+			itemHeight: AgentSessionsListDelegate.ITEM_HEIGHT,
+			sectionHeight: AgentSessionsListDelegate.SECTION_HEIGHT,
 			notifySessionOpened: () => {
 				const isProjectionEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
 				if (!isProjectionEnabled) {
@@ -802,6 +812,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.lastDimension = dimension;
 		this.container.style.height = `${dimension.height}px`;
 		this.container.style.width = `${dimension.width}px`;
+		this.container.classList.toggle('height-constrained', dimension.height <= WELCOME_COMPACT_HEIGHT);
 
 		// Layout chat widget
 		this.layoutChatWidget();

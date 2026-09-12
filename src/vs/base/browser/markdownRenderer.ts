@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../common/errors.js';
-import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { isUNC } from '../common/extpath.js';
+import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
@@ -319,6 +320,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			}
 			activateLink(markdown, options, keyboardEvent);
 		}));
+
 	}
 
 	// Remove/disable inputs
@@ -362,13 +364,6 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 			} catch (err) { }
 
 			el.setAttribute('src', massageHref(markdown, href, true));
-
-			if (options.sanitizerConfig?.remoteImageIsAllowed) {
-				const uri = URI.parse(href);
-				if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.data && !options.sanitizerConfig.remoteImageIsAllowed(uri)) {
-					el.replaceWith(DOM.$('', undefined, el.outerHTML));
-				}
-			}
 		}
 	}
 
@@ -388,9 +383,18 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 				resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 			}
 			el.dataset.href = resolvedHref;
+
+			// Leaving `href` empty makes the browser resolve it against the workbench document
+			// when serializing a copy, so every pasted link became a `workbench.html` URL. Only
+			// restore it where an action handler intercepts clicks and routes them through the
+			// opener; without one the anchor would navigate natively.
+			if (options.actionHandler && isPortableLinkTarget(resolvedHref)) {
+				el.setAttribute('href', resolvedHref);
+			}
 		}
 	}
 }
+
 
 function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
 	const renderer = new marked.Renderer(options.markedOptions);
@@ -556,6 +560,27 @@ type MdStrConfig = {
 	readonly baseUri?: UriComponents;
 };
 
+function isLocalFileUri(uri: URI): boolean {
+	return uri.scheme === Schemas.file && !uri.authority && !isUNC(uri.fsPath);
+}
+
+function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteImageIsAllowed: (uri: URI) => boolean): boolean {
+	let uri: URI;
+	try {
+		const baseUri = mdStrConfig.baseUri ? URI.from(mdStrConfig.baseUri) : undefined;
+		const hasScheme = /^\w[\w\d+.-]*:/.test(source);
+		if (!hasScheme && baseUri?.scheme === Schemas.file && !isLocalFileUri(baseUri)) {
+			return false;
+		}
+		const href = baseUri ? resolveWithBaseUri(baseUri, source) : source;
+		uri = URI.parse(href);
+	} catch {
+		return false;
+	}
+
+	return isLocalFileUri(uri) || uri.scheme === Schemas.data || remoteImageIsAllowed(uri);
+}
+
 function sanitizeRenderedMarkdown(
 	renderedMarkdown: string,
 	originalMdStrConfig: MdStrConfig,
@@ -630,6 +655,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 
 function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
 	const isTrusted = mdStrConfig.isTrusted ?? false;
+	const remoteImageIsAllowed = options.remoteImageIsAllowed;
 	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -678,6 +704,7 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 			]
 		},
 		allowRelativeMediaPaths: !!mdStrConfig.baseUri,
+		mediaSourceIsAllowed: remoteImageIsAllowed ? source => isMediaSourceAllowed(mdStrConfig, source, remoteImageIsAllowed) : undefined,
 		replaceWithPlaintext: options.replaceWithPlaintext,
 	};
 }
@@ -692,6 +719,16 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	readonly includeCodeBlocksFences?: boolean;
 	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
 	readonly useLinkFormatter?: boolean;
+	/**
+	 * Controls whether markdown syntax is reduced to its text everywhere, rather than only where
+	 * the renderer already does so.
+	 *
+	 * By default a list item is emitted as its raw source, so inline syntax survives into the
+	 * output — a link keeps its target, as in `- Added [src/](/some/path)`, and `**bold**` keeps
+	 * its asterisks. Enable this for callers that need the text a reader actually sees. Off by
+	 * default because it changes long-standing output for every caller.
+	 */
+	readonly omitMarkdownSyntax?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -709,6 +746,12 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	}
 	if (options?.useLinkFormatter) {
 		renderer.link = linkFormatter;
+	}
+	if (options?.omitMarkdownSyntax) {
+		renderer.listitem = parsedListItem;
+		// A tight list item's content arrives as a block-level text token carrying the inline
+		// tokens, so the list item alone is not enough to reach the inline renderers.
+		renderer.text = parsedText;
 	}
 
 	const html = marked.parse(value, { async: false, renderer });
@@ -804,6 +847,22 @@ const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
 		return text.trim() || pathBasename(href);
 	}
 	return text;
+};
+
+/**
+ * Renders a list item from its parsed tokens rather than its raw source, so inline markdown is
+ * reduced to text the way it already is in a paragraph. Opt-in via `omitMarkdownSyntax`.
+ *
+ * Parses as top-level so a tight item's text becomes a paragraph: without that boundary an item
+ * holding a nested list would run straight into it, as in `outerinner link`.
+ */
+const parsedListItem = function (this: marked.Renderer, { tokens }: marked.Tokens.ListItem): string {
+	return this.parser.parse(tokens, true);
+};
+
+/** Renders a block-level text token through its inline tokens. Opt-in via `omitMarkdownSyntax`. */
+const parsedText = function (this: marked.Renderer, token: marked.Tokens.Text): string {
+	return token.tokens ? this.parser.parseInline(token.tokens) : token.text;
 };
 
 function mergeRawTokenText(tokens: marked.Token[]): string {

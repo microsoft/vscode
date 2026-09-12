@@ -68,7 +68,7 @@ export interface IContextViewCloseAnimation {
 export const CONTEXT_VIEW_MENU_MOTION_CLASS = 'context-view-menu-motion';
 export const CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS = 'context-view-menu-motion-closing';
 export const CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION = 150;
-export const CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'] as const;
+export const CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'] as const;
 export const CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE = '--vscode-context-view-close-animation-duration';
 export const CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE = '--vscode-context-view-menu-motion-shadow';
 const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-close-start-opacity';
@@ -92,10 +92,10 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	}
 
 	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS} > .monaco-scrollable-element {
-		animation: context-view-menu-motion-open ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms ${CONTEXT_VIEW_MENU_MOTION_EASING} both;
+		animation: context-view-menu-motion-open ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms ${CONTEXT_VIEW_MENU_MOTION_EASING} backwards;
 		box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
 		transform-origin: top left;
-		will-change: transform, opacity;
+		will-change: opacity;
 	}
 
 	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS}.right > .monaco-scrollable-element {
@@ -145,7 +145,7 @@ let contextViewMenuMotionStyleSheet: HTMLStyleElement | undefined;
 function ensureContextViewMenuMotionStyleSheet(): void {
 	if (!contextViewMenuMotionStyleSheet) {
 		contextViewMenuMotionStyleSheet = createStyleSheet(undefined, style => {
-			style.textContent = getContextViewMenuMotionCss('.style-override.monaco-enable-motion');
+			style.textContent = getContextViewMenuMotionCss('.modern-ui.monaco-enable-motion');
 		});
 	}
 }
@@ -248,6 +248,13 @@ export class ContextView extends Disposable {
 
 			if (this.useShadowDOM) {
 				this.shadowRootHostElement = DOM.$('.shadow-root-host');
+				Object.assign(this.shadowRootHostElement.style, {
+					position: 'fixed',
+					top: '0',
+					left: '0',
+					width: '0',
+					height: '0'
+				});
 				this.container.appendChild(this.shadowRootHostElement);
 				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
 				const style = document.createElement('style');
@@ -289,7 +296,11 @@ export class ContextView extends Disposable {
 		this.view.className = 'context-view monaco-component';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
-		this.view.style.zIndex = `${2575 + (delegate.layer ?? 0)}`;
+		const zIndex = `${2575 + (delegate.layer ?? 0)}`;
+		this.view.style.zIndex = zIndex;
+		if (this.shadowRootHostElement) {
+			this.shadowRootHostElement.style.zIndex = zIndex;
+		}
 		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 
@@ -335,6 +346,10 @@ export class ContextView extends Disposable {
 		const anchor = getAnchorRect(this.delegate!.getAnchor());
 		const containerWindow = this.container ? DOM.getWindow(this.container) : DOM.getActiveWindow();
 		const viewport = { top: containerWindow.pageYOffset, left: containerWindow.pageXOffset, width: containerWindow.innerWidth, height: containerWindow.innerHeight };
+		this.view.classList.toggle('fixed', this.useFixedPosition);
+		this.view.style.top = '0px';
+		this.view.style.left = '0px';
+		const positioningOrigin = DOM.getDomNodePagePosition(this.view);
 		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
 		const anchorPosition = this.delegate!.anchorPosition;
 		const anchorAlignment = this.delegate!.anchorAlignment;
@@ -345,16 +360,9 @@ export class ContextView extends Disposable {
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
 		this.view.classList.add(layoutResult.anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		this.view.classList.add(layoutResult.anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
-		this.view.classList.toggle('fixed', this.useFixedPosition);
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container!);
-
-		// Account for container scroll when positioning the context view
-		const containerScrollTop = this.container!.scrollTop || 0;
-		const containerScrollLeft = this.container!.scrollLeft || 0;
-
-		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top) + containerScrollTop}px`;
-		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left) + containerScrollLeft}px`;
+		this.view.style.top = `${top - positioningOrigin.top}px`;
+		this.view.style.left = `${left - positioningOrigin.left}px`;
 		this.view.style.width = 'initial';
 	}
 
@@ -382,6 +390,7 @@ export class ContextView extends Disposable {
 		if (!skipAnimation && closeAnimation && closeAnimation.duration > 0 && this.hasRequiredAncestorClasses(closeAnimation.requiredAncestorClasses)) {
 			this.view.style.setProperty(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, `${closeAnimation.duration}ms`);
 			this.prepareMenuCloseAnimation();
+			this.view.inert = true;
 			this.view.classList.add(closeAnimation.className);
 			const timeout = setTimeout(() => this.completeHideAnimation(), closeAnimation.duration);
 			this.hidingContextView = {
@@ -414,6 +423,7 @@ export class ContextView extends Disposable {
 		this.view.style.removeProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE);
 		hidingContextView.toDispose.dispose();
 		DOM.hide(this.view);
+		this.view.inert = false;
 	}
 
 	private prepareMenuCloseAnimation(): void {
@@ -510,5 +520,5 @@ const SHADOW_ROOT_CSS = /* css */ `
 	:host-context(.linux:lang(zh-Hant)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
 	:host-context(.linux:lang(ja)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
 	:host-context(.linux:lang(ko)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
-	${getContextViewMenuMotionCss(':host-context(.style-override.monaco-enable-motion)')}
+	${getContextViewMenuMotionCss(':host-context(.modern-ui.monaco-enable-motion)')}
 `;

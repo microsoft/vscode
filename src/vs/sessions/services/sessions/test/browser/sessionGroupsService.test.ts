@@ -9,14 +9,14 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SessionGroupsService } from '../../browser/sessionGroupsService.js';
 
-function createSession(id: string): ISession {
+function createSession(id: string, isArchived = false, creatorSession?: URI): ISession {
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
@@ -25,6 +25,7 @@ function createSession(id: string): ISession {
 		icon: Codicon.account,
 		createdAt: new Date(),
 		workspace: observableValue(`workspace-${id}`, undefined),
+		createdBySession: constObservable(creatorSession ? { session: creatorSession } : undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, new Date()),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
@@ -33,7 +34,7 @@ function createSession(id: string): ISession {
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
-		isArchived: observableValue(`isArchived-${id}`, false),
+		isArchived: observableValue(`isArchived-${id}`, isArchived),
 		isRead: observableValue(`isRead-${id}`, true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
@@ -51,9 +52,13 @@ suite('SessionGroupsService', () => {
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 	let willSendRequestEmitter: Emitter<ISession>;
 	let sessionStartedEmitter: Emitter<ISession>;
+	let sessionArchivedEmitter: Emitter<ISession>;
+	let sessionUnarchivedEmitter: Emitter<ISession>;
+	let sessionDeletedEmitter: Emitter<ISession>;
 	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let newSessionDiscardedEmitter: Emitter<ISession>;
 	let instantiationService: TestInstantiationService;
+	let sessions: ISession[];
 
 	/** Simulate a new-session send: dispatch (`onWillSendRequest`) then start. */
 	function sendNewSession(draftId: string, committedId: string = draftId): void {
@@ -71,13 +76,22 @@ suite('SessionGroupsService', () => {
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		willSendRequestEmitter = disposables.add(new Emitter<ISession>());
 		sessionStartedEmitter = disposables.add(new Emitter<ISession>());
+		sessionArchivedEmitter = disposables.add(new Emitter<ISession>());
+		sessionUnarchivedEmitter = disposables.add(new Emitter<ISession>());
+		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
 		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		newSessionDiscardedEmitter = disposables.add(new Emitter<ISession>());
+		sessions = [];
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
+			getSessions: () => sessions,
+			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
 			onDidChangeSessions: sessionsChangedEmitter.event,
 			onWillSendRequest: willSendRequestEmitter.event,
 			onDidStartSession: sessionStartedEmitter.event,
+			onDidArchiveSession: sessionArchivedEmitter.event,
+			onDidUnarchiveSession: sessionUnarchivedEmitter.event,
+			onDidDeleteSession: sessionDeletedEmitter.event,
 			onDidReplaceSession: sessionReplacedEmitter.event,
 			onDidDiscardNewSession: newSessionDiscardedEmitter.event,
 		});
@@ -102,6 +116,285 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(service.getGroupOfSession('s1'), b.id);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), []);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(b.id), ['s1']);
+	});
+
+	test('copies the creator group once when a created session is added', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		sessions = [creator, createdSession];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		const userGroup = service.createGroup('User choice');
+
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+		const initialGroup = service.getGroupOfSession(createdSession.sessionId);
+		service.addToGroup(createdSession.sessionId, userGroup.id);
+		sessionsChangedEmitter.fire({ added: [], removed: [createdSession], changed: [] });
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		assert.deepStrictEqual({
+			initialGroup,
+			afterUserMoveAndReadd: service.getGroupOfSession(createdSession.sessionId),
+		}, {
+			initialGroup: inherited.id,
+			afterUserMoveAndReadd: userGroup.id,
+		});
+	});
+
+	test('copies the creator group once when creation metadata arrives after add', () => {
+		const creator = createSession('creator');
+		const createdBySession = observableValue<{ readonly session: URI } | undefined>('createdBySession', undefined);
+		const createdSession: ISession = { ...createSession('created'), createdBySession };
+		sessions = [creator, createdSession];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+		createdBySession.set({ session: creator.resource }, undefined);
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [createdSession] });
+
+		assert.strictEqual(service.getGroupOfSession(createdSession.sessionId), inherited.id);
+	});
+
+	test('preserves ungrouping that happens before creation metadata arrives', () => {
+		const creator = createSession('creator');
+		const createdBySession = observableValue<{ readonly session: URI } | undefined>('createdBySession', undefined);
+		const createdSession: ISession = { ...createSession('created'), createdBySession };
+		sessions = [creator, createdSession];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		const temporary = service.createGroup('Temporary', [createdSession.sessionId]);
+
+		service.removeFromGroup(createdSession.sessionId);
+		createdBySession.set({ session: creator.resource }, undefined);
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [createdSession] });
+
+		assert.deepStrictEqual({
+			temporaryMembers: service.getSessionIdsInGroup(temporary.id),
+			createdGroup: service.getGroupOfSession(createdSession.sessionId),
+			creatorGroup: service.getGroupOfSession(creator.sessionId),
+		}, {
+			temporaryMembers: [],
+			createdGroup: undefined,
+			creatorGroup: inherited.id,
+		});
+	});
+
+	test('copies the creator group for sessions that predate service construction', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		sessions = [creator, createdSession];
+		service.dispose();
+
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.strictEqual(service.getGroupOfSession(createdSession.sessionId), inherited.id);
+	});
+
+	test('inherits when the creator is grouped later', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		sessions = [creator, createdSession];
+
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+
+		assert.strictEqual(service.getGroupOfSession(createdSession.sessionId), inherited.id);
+	});
+
+	test('inherits when the creator arrives after the created session', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		sessions = [createdSession];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		sessions = [createdSession, creator];
+		sessionsChangedEmitter.fire({ added: [creator], removed: [], changed: [] });
+
+		assert.strictEqual(service.getGroupOfSession(createdSession.sessionId), inherited.id);
+	});
+
+	test('initializes reversed creation chains creator-first', () => {
+		const root = createSession('root');
+		const child = createSession('child', false, root.resource);
+		const grandchild = createSession('grandchild', false, child.resource);
+		sessions = [grandchild, child, root];
+
+		const inherited = service.createGroup('Inherited', [root.sessionId]);
+
+		assert.deepStrictEqual({
+			child: service.getGroupOfSession(child.sessionId),
+			grandchild: service.getGroupOfSession(grandchild.sessionId),
+		}, {
+			child: inherited.id,
+			grandchild: inherited.id,
+		});
+	});
+
+	test('batches inherited chain membership changes and is idempotent', () => {
+		const root = createSession('root');
+		const child = createSession('child', false, root.resource);
+		const grandchild = createSession('grandchild', false, child.resource);
+		const inherited = service.createGroup('Inherited', [root.sessionId]);
+		sessions = [grandchild, child, root];
+		const events: { groupsChanged: boolean; membershipChanged: string[] }[] = [];
+		disposables.add(service.onDidChange(event => events.push({
+			groupsChanged: event.groupsChanged,
+			membershipChanged: [...event.membershipChanged].sort(),
+		})));
+
+		sessionsChangedEmitter.fire({ added: [grandchild, child, root], removed: [], changed: [] });
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [grandchild, child, root] });
+
+		assert.deepStrictEqual({
+			child: service.getGroupOfSession(child.sessionId),
+			grandchild: service.getGroupOfSession(grandchild.sessionId),
+			events,
+		}, {
+			child: inherited.id,
+			grandchild: inherited.id,
+			events: [{
+				groupsChanged: false,
+				membershipChanged: ['child', 'grandchild'],
+			}],
+		});
+	});
+
+	test('persists an explicitly ungrouped created session', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		sessions = [creator, createdSession];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+		assert.strictEqual(service.getGroupOfSession(createdSession.sessionId), inherited.id);
+
+		service.removeFromGroup(createdSession.sessionId);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.strictEqual(service.getGroupOfSession(createdSession.sessionId), undefined);
+	});
+
+	test('explicit regrouping clears the persisted ungrouped preference', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		sessions = [creator, createdSession];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		const selected = service.createGroup('Selected');
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		service.removeFromGroup(createdSession.sessionId);
+		service.addToGroup(createdSession.sessionId, selected.id);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({
+			creatorGroup: service.getGroupOfSession(creator.sessionId),
+			createdGroup: service.getGroupOfSession(createdSession.sessionId),
+		}, {
+			creatorGroup: inherited.id,
+			createdGroup: selected.id,
+		});
+	});
+
+	test('deleting an inherited group leaves the created session explicitly ungrouped', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		sessions = [creator, createdSession];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		service.deleteGroup(inherited.id);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		const replacement = service.createGroup('Replacement', [creator.sessionId]);
+
+		assert.deepStrictEqual({
+			creatorGroup: service.getGroupOfSession(creator.sessionId),
+			createdGroup: service.getGroupOfSession(createdSession.sessionId),
+		}, {
+			creatorGroup: replacement.id,
+			createdGroup: undefined,
+		});
+	});
+
+	test('archiving an inherited session leaves it explicitly ungrouped', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		sessions = [creator, createdSession];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		sessionArchivedEmitter.fire(createdSession);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [createdSession] });
+
+		assert.deepStrictEqual({
+			creatorGroup: service.getGroupOfSession(creator.sessionId),
+			createdGroup: service.getGroupOfSession(createdSession.sessionId),
+		}, {
+			creatorGroup: inherited.id,
+			createdGroup: undefined,
+		});
+	});
+
+	test('an initially archived created session does not inherit after restoration', () => {
+		const creator = createSession('creator');
+		const archived = createSession('created', true, creator.resource);
+		sessions = [creator, archived];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		sessionsChangedEmitter.fire({ added: [archived], removed: [], changed: [] });
+
+		const restored = createSession('created', false, creator.resource);
+		sessions = [creator, restored];
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({
+			creatorGroup: service.getGroupOfSession(creator.sessionId),
+			restoredGroup: service.getGroupOfSession(restored.sessionId),
+		}, {
+			creatorGroup: inherited.id,
+			restoredGroup: undefined,
+		});
+	});
+
+	test('deletion clears a persisted ungrouped preference', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		sessions = [creator, createdSession];
+		const inherited = service.createGroup('Inherited', [creator.sessionId]);
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+		service.removeFromGroup(createdSession.sessionId);
+
+		sessionDeletedEmitter.fire(createdSession);
+		const replacement = createSession('created', false, creator.resource);
+		sessions = [creator, replacement];
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.strictEqual(service.getGroupOfSession(replacement.sessionId), inherited.id);
+	});
+
+	test('an ungrouped preference survives temporary provider eviction', () => {
+		const creator = createSession('creator');
+		const createdSession = createSession('created', false, creator.resource);
+		sessions = [creator, createdSession];
+		service.createGroup('Inherited', [creator.sessionId]);
+		const temporary = service.createGroup('Temporary', [createdSession.sessionId]);
+		service.removeFromGroup(createdSession.sessionId);
+
+		sessions = [creator];
+		sessionsChangedEmitter.fire({ added: [], removed: [createdSession], changed: [] });
+		sessions = [creator, createdSession];
+		sessionsChangedEmitter.fire({ added: [createdSession], removed: [], changed: [] });
+
+		assert.deepStrictEqual({
+			createdGroup: service.getGroupOfSession(createdSession.sessionId),
+			temporaryMembers: service.getSessionIdsInGroup(temporary.id),
+		}, {
+			createdGroup: undefined,
+			temporaryMembers: [],
+		});
 	});
 
 	test('addToGroup adds multiple sessions in a single change event', () => {
@@ -150,36 +443,124 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(service.getGroupOfSession('s2'), undefined);
 	});
 
-	test('membership is cleaned up when a session is removed', () => {
+	test('membership is cleaned up when a session is deleted', () => {
 		const a = service.createGroup('A', ['s1', 's2']);
 		const session = createSession('s1');
+		sessionDeletedEmitter.fire(session);
+
+		assert.deepStrictEqual({
+			groupName: service.getGroup(a.id)?.name,
+			removedMembership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			groupName: 'A',
+			removedMembership: undefined,
+			remainingMembers: ['s2'],
+		});
+	});
+
+	test('membership survives a session being evicted from the provider list', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		const session = createSession('s1');
+
+		// An agent that cannot answer `listSessions` yet reports no sessions,
+		// so the list evicts them until the next refresh. That must not drop
+		// the user's grouping.
 		sessionsChangedEmitter.fire({ added: [], removed: [session], changed: [] });
 
-		assert.strictEqual(service.getGroupOfSession('s1'), undefined);
-		assert.deepStrictEqual(service.getSessionIdsInGroup(a.id), ['s2']);
+		assert.deepStrictEqual({
+			membership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id).sort(),
+		}, {
+			membership: a.id,
+			remainingMembers: ['s1', 's2'],
+		});
 	});
 
-	test('empty groups are capped at 3, evicting the oldest', () => {
-		// Four empty groups created in order; the oldest (g1) should be evicted.
-		const g1 = service.createGroup('1');
-		const g2 = service.createGroup('2');
-		const g3 = service.createGroup('3');
-		const g4 = service.createGroup('4');
+	test('archiving the last member leaves an empty group', () => {
+		const a = service.createGroup('A', ['s1']);
 
-		const ids = service.getGroups().map(g => g.id);
-		assert.strictEqual(ids.includes(g1.id), false);
-		assert.deepStrictEqual([g2, g3, g4].map(g => ids.includes(g.id)), [true, true, true]);
+		sessionArchivedEmitter.fire(createSession('s1'));
+
+		assert.deepStrictEqual({
+			archivedMembership: service.getGroupOfSession('s1'),
+			groupName: service.getGroup(a.id)?.name,
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
+			groupName: 'A',
+			remainingMembers: [],
+		});
 	});
 
-	test('non-empty groups are never evicted by the empty cap', () => {
-		const kept = service.createGroup('kept', ['s1']);
-		service.createGroup('e1');
-		service.createGroup('e2');
-		service.createGroup('e3');
-		service.createGroup('e4');
+	test('restoring an archived session does not restore its group membership', () => {
+		const a = service.createGroup('A', ['s1']);
+		const session = createSession('s1');
 
-		assert.strictEqual(service.getGroup(kept.id)?.name, 'kept');
-		assert.strictEqual(service.getGroups().filter(g => service.getSessionIdsInGroup(g.id).length === 0).length, 3);
+		sessionArchivedEmitter.fire(session);
+		sessionUnarchivedEmitter.fire(session);
+
+		assert.deepStrictEqual({
+			membership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			membership: undefined,
+			remainingMembers: [],
+		});
+	});
+
+	test('membership is cleaned up when a provider reports an archived session', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		const session = createSession('s1', true);
+
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+
+		assert.deepStrictEqual({
+			archivedMembership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
+			remainingMembers: ['s2'],
+		});
+	});
+
+	test('membership is cleaned up when a provider adds an archived session', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		const session = createSession('s1', true);
+
+		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
+
+		assert.deepStrictEqual({
+			archivedMembership: service.getGroupOfSession('s1'),
+			remainingMembers: service.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
+			remainingMembers: ['s2'],
+		});
+	});
+
+	test('persisted archived membership is cleaned up when the service loads', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		sessions = [createSession('s1', true), createSession('s2')];
+
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({
+			archivedMembership: reloaded.getGroupOfSession('s1'),
+			remainingMembers: reloaded.getSessionIdsInGroup(a.id),
+		}, {
+			archivedMembership: undefined,
+			remainingMembers: ['s2'],
+		});
+	});
+
+	test('empty groups persist until explicitly deleted', () => {
+		for (const name of ['1', '2', '3', '4']) {
+			service.createGroup(name);
+		}
+
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		assert.deepStrictEqual(reloaded.getGroups().map(group => group.name).sort(), ['1', '2', '3', '4']);
 	});
 
 	test('state persists across reload', () => {
@@ -189,6 +570,24 @@ suite('SessionGroupsService', () => {
 		assert.strictEqual(reloaded.getGroup(a.id)?.name, 'Persisted');
 		assert.strictEqual(reloaded.getGroupOfSession('s1'), a.id);
 		assert.strictEqual(reloaded.getGroupOfSession('s2'), a.id);
+	});
+
+	test('loads pre-feature group state without explicit ungrouped data', () => {
+		storageService.store('sessionsListControl.groups', JSON.stringify({
+			groups: [{ id: 'legacy-group', name: 'Legacy', createdAt: 1 }],
+			membership: { s1: 'legacy-group' },
+		}), StorageScope.PROFILE, StorageTarget.USER);
+
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({
+			group: service.getGroup('legacy-group')?.name,
+			membership: service.getGroupOfSession('s1'),
+		}, {
+			group: 'Legacy',
+			membership: 'legacy-group',
+		});
 	});
 
 	test('pending new session group binds the next started session', () => {

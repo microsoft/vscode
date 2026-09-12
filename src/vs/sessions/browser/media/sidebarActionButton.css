@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.sidebar-action > .action-label {
-	/* Hide the default action-label rendered by ActionViewItem */
+/* The label also carries a codicon class, so include the list owner to outrank
+ * `.codicon[class*='codicon-']` and keep its `display: inline-block` from
+ * revealing the default ActionViewItem glyph when stylesheet order changes. */
+.sidebar-action-list .sidebar-action > .action-label {
 	display: none;
 }
 
@@ -18,7 +20,7 @@
 	border: none;
 	padding: 6px;
 	margin: 0;
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-size: var(--vscode-fontSize-label1, 12px);
 	height: auto;
 	white-space: nowrap;
 	overflow: hidden;

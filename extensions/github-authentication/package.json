@@ -19,7 +19,9 @@
   ],
   "enabledApiProposals": [
     "authIssuers",
-    "authProviderSpecific"
+    "authProviderSpecific",
+    "authSessionAccountIcon",
+    "authSessionExpiration"
   ],
   "activationEvents": [],
   "capabilities": {

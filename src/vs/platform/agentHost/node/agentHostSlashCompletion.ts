@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { matchesFuzzy2 } from '../../../base/common/filters.js';
+
 /**
  * A leading slash token in a user-message input.
  */
@@ -67,6 +69,16 @@ export function extractWhitespaceDelimitedSlashToken(text: string, offset: numbe
 
 	const token = text.slice(start, end);
 	return { token, typed: token.slice(1), rangeStart: start, rangeEnd: end };
+}
+
+/**
+ * Tests whether a slash completion name fuzzy matches the typed token text.
+ */
+export function matchesSlashCompletion(typed: string, name: string): boolean {
+	if (typed.length === 0 || name.toLowerCase().startsWith(typed.toLowerCase())) {
+		return true;
+	}
+	return typed.length > 1 && matchesFuzzy2(typed, name) !== null;
 }
 
 function isSlashTokenWhitespace(ch: number): boolean {

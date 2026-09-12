@@ -104,6 +104,35 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
+export const enum AgentsWindowOpenSource {
+	CommandPalette = 'commandPalette',
+	KeyboardShortcut = 'keyboardShortcut',
+	TitleBar = 'titleBar',
+	ChatTitleBar = 'chatTitleBar',
+	ChatHandoff = 'chatHandoff',
+	Banner = 'banner',
+	CommandLine = 'commandLine',
+	Link = 'link',
+	Unknown = 'unknown',
+}
+
+export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowOpenSource {
+	switch (value) {
+		case AgentsWindowOpenSource.CommandPalette:
+		case AgentsWindowOpenSource.KeyboardShortcut:
+		case AgentsWindowOpenSource.TitleBar:
+		case AgentsWindowOpenSource.ChatTitleBar:
+		case AgentsWindowOpenSource.ChatHandoff:
+		case AgentsWindowOpenSource.Banner:
+		case AgentsWindowOpenSource.CommandLine:
+		case AgentsWindowOpenSource.Link:
+		case AgentsWindowOpenSource.Unknown:
+			return true;
+		default:
+			return false;
+	}
+}
+
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
 export interface IBaseWindowOpenable {
@@ -222,6 +251,7 @@ export interface IWindowSettings {
 
 export interface IDensitySettings {
 	readonly editorTabHeight: 'default' | 'compact';
+	readonly layout: 'default' | 'compact';
 }
 
 export const enum TitleBarSetting {
