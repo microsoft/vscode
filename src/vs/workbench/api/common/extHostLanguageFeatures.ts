@@ -1008,7 +1008,7 @@ class DocumentSemanticTokensAdapter {
 		if (previousResult) {
 			this._previousResults.delete(previousResultId);
 		}
-		if (!value) {
+		if (!value || token.isCancellationRequested) {
 			return null;
 		}
 		value = DocumentSemanticTokensAdapter._fixProvidedSemanticTokens(value);
