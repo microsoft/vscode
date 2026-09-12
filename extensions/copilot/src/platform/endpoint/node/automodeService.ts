@@ -6,6 +6,7 @@
 import type { ChatRequest, ChatResponseStream } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TaskSingler } from '../../../util/common/taskSingler';
+import { SequencerByKey } from '../../../util/vs/base/common/async';
 import { Emitter, type Event } from '../../../util/vs/base/common/event';
 import { Disposable, type IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -21,7 +22,7 @@ import { AUTO_MODE_TIER_PROPERTY, autoModeTiers, defaultAutoModeTier, inlineChat
 import { ICAPIClientService } from '../common/capiClient';
 import type { IChatModelCapabilities, IChatModelInformation } from '../common/endpointProvider';
 import { AutoChatEndpoint } from './autoChatEndpoint';
-import { AutoV2Error, AutoV2Fetcher, type AutoV2Response, type AutoV2SelectedModel } from './autoV2Fetcher';
+import { AutoV2Error, AutoV2Fetcher, type AutoV2HydraRlMultiTurnRequest, type AutoV2Response, type AutoV2SelectedModel } from './autoV2Fetcher';
 import { CopilotChatEndpoint } from './copilotChatEndpoint';
 
 interface AutoModeCacheEntry {
@@ -32,6 +33,10 @@ interface AutoModeCacheEntry {
 	/** Routing profile the session was resolved with; a change re-routes. `undefined` while tiers are disabled. */
 	tier: AutoModeTier | undefined;
 	needsReEval: boolean;
+	modelRejected: boolean;
+	routingEpoch: number;
+	lastRequestId: string | undefined;
+	hydraRlMultiTurn: { stateToken: string; skipRemaining: number } | undefined;
 }
 
 /** Surfaces that default to the latency-oriented tier rather than {@link defaultAutoModeTier}. */
@@ -135,8 +140,9 @@ export interface IAutomodeService {
 	 * Marks the router cache for this conversation as needing re-evaluation.
 	 * The next call to {@link resolveAutoModeEndpoint} will re-run the router
 	 * instead of returning the cached endpoint.
+	 * Model changes and rejections only invalidate active Hydra-RL sessions.
 	 */
-	invalidateRouterCache(chatRequest: IAutoModeRoutingRequest): void;
+	invalidateRouterCache(chatRequest: IAutoModeRoutingRequest, reason?: 'compaction' | 'modelChange' | 'modelRejected'): void;
 }
 
 export class AutomodeService extends Disposable implements IAutomodeService {
@@ -144,6 +150,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private readonly _cache: Map<string, AutoModeCacheEntry> = new Map();
 	/** Coalesces concurrent routing calls that would answer a turn identically. */
 	private _routingSingler = new TaskSingler<IChatEndpoint>();
+	private _routingQueue = new SequencerByKey<string>();
 	/** Bumped when the signed-in account changes; see {@link _routeAndCache}. */
 	private _authGeneration = 0;
 	private readonly _autoV2Fetcher: AutoV2Fetcher;
@@ -176,6 +183,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			this._cache.clear();
 			this._routingSingler = new TaskSingler<IChatEndpoint>();
+			this._routingQueue = new SequencerByKey<string>();
 			this._authGeneration++;
 		}));
 		this._serviceBrand = undefined;
@@ -184,6 +192,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 	override dispose(): void {
 		this._cache.clear();
+		this._authGeneration++;
 		super.dispose();
 	}
 
@@ -195,18 +204,25 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// its display metadata only. The picker hides per-model pricing for
 		// Auto, so the wrapped model is not user-visible.
 		const base = knownEndpoints.find(e => e.showInModelPicker) ?? knownEndpoints[0];
-		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, this.getAutoPickerMetadata(knownEndpoints).discountRange);
+		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, this.getAutoPickerMetadata(knownEndpoints).discountRange, undefined);
 	}
 
 	getAutoPickerMetadata(knownEndpoints: IChatEndpoint[]): AutoModePickerMetadata {
 		return { discountRange: this._calculateDiscountRange(knownEndpoints) };
 	}
 
-	invalidateRouterCache(chatRequest: IAutoModeRoutingRequest): void {
+	invalidateRouterCache(chatRequest: IAutoModeRoutingRequest, reason: 'compaction' | 'modelChange' | 'modelRejected' = 'compaction'): void {
 		const conversationId = chatRequest.sessionResource?.toString() ?? chatRequest.sessionId ?? 'unknown';
+		this._invalidateRouterCache(conversationId, reason);
+	}
+
+	private _invalidateRouterCache(conversationId: string, reason: 'compaction' | 'modelChange' | 'modelRejected'): void {
 		const entry = this._cache.get(conversationId);
-		if (entry) {
+		if (entry && (reason === 'compaction' || entry.hydraRlMultiTurn)) {
 			entry.needsReEval = true;
+			entry.modelRejected ||= reason === 'modelRejected';
+			entry.routingEpoch++;
+			entry.hydraRlMultiTurn = undefined;
 			this._logService.trace(`[AutomodeService] Auto mode cache invalidated for conversation ${conversationId}`);
 		}
 	}
@@ -223,19 +239,55 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
 		const tier = this._resolveTier(chatRequest);
+		const resolve = () => this._resolveForConversation(chatRequest, knownEndpoints, conversationId, tier);
+		if (conversationId === 'unknown') {
+			return resolve();
+		}
+		const serializeTurns = !!chatRequest?.id || !!this._cache.get(conversationId)?.hydraRlMultiTurn || !!this._routingQueue.peek(conversationId);
+		const authGeneration = this._authGeneration;
+		const routingKey = JSON.stringify([conversationId, tier, hasImage(chatRequest), chatRequest?.id]);
+		return this._routingSingler.getOrCreate(routingKey, () => serializeTurns
+			? this._routingQueue.queue(conversationId, () => {
+				if (authGeneration !== this._authGeneration) {
+					throw new Error('Auto mode routed for an account that is no longer signed in.');
+				}
+				return resolve();
+			})
+			: resolve());
+	}
+
+	private async _resolveForConversation(
+		chatRequest: IAutoModeRoutingRequest | undefined,
+		knownEndpoints: IChatEndpoint[],
+		conversationId: string,
+		tier: AutoModeTier | undefined,
+	): Promise<IChatEndpoint> {
 		// Sessions are keyed on the conversation, so a request that cannot be
 		// keyed always routes fresh and is never cached.
 		const entry = conversationId === 'unknown' ? undefined : this._cache.get(conversationId);
-		// The token lasts 24h with no refresh, so reuse the endpoint for the rest
-		// of the conversation unless a re-evaluation was explicitly requested
-		// (e.g. after compaction).
+		const prompt = chatRequest?.prompt?.trim() || (chatRequest?.command ? `/${chatRequest.command}` : undefined);
+		const isNewUserTurn = !!prompt && !!chatRequest?.id && chatRequest.id !== entry?.lastRequestId;
+		if (entry && (entry.needsReEval || entry.tier !== tier || (hasImage(chatRequest) && !entry.endpoint.supportsVision))) {
+			entry.hydraRlMultiTurn = undefined;
+		}
+		const hydraRlState = entry?.hydraRlMultiTurn;
+		let advance = isNewUserTurn;
+		if (entry && hydraRlState && isNewUserTurn && hydraRlState.skipRemaining > 0) {
+			hydraRlState.skipRemaining--;
+			entry.lastRequestId = chatRequest?.id;
+			advance = false;
+		}
 		if (entry && !entry.needsReEval && this._isCacheEntryCompatible(entry, tier, chatRequest)) {
-			return entry.endpoint;
+			if (!hydraRlState || !advance) {
+				if (hydraRlState && isNewUserTurn) {
+					this._sendHydraRlSkipTelemetry(conversationId, chatRequest?.id, entry.endpoint.model, hydraRlState.skipRemaining);
+				}
+				return entry.endpoint;
+			}
 		}
 
 		// A bare slash command (`/tests`, `/fix`, …) carries no prompt, so route
 		// on the command instead of refusing the turn.
-		const prompt = chatRequest?.prompt?.trim() || (chatRequest?.command ? `/${chatRequest.command}` : undefined);
 		if (!prompt) {
 			if (entry && this._isCacheEntryCompatible(entry, tier, chatRequest)) {
 				return entry.endpoint;
@@ -243,17 +295,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			throw new Error('Auto mode needs a prompt or a command to route a request.');
 		}
 
-		// Concurrent turns on a cold conversation (e.g. an extension issuing a
-		// batch of `vscode.lm` requests) would otherwise each mint their own
-		// session and could land on different models. Share one routing call
-		// across every caller whose turn it would answer identically.
-		if (conversationId === 'unknown') {
-			return this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
-		}
-		return this._routingSingler.getOrCreate(
-			`${conversationId}|${tier ?? ''}|${hasImage(chatRequest)}`,
-			() => this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry),
-		);
+		return this._routeAndCache(prompt, tier, chatRequest, knownEndpoints, conversationId, entry, {
+			state_token: hydraRlState?.stateToken,
+			advance,
+		});
 	}
 
 	/**
@@ -267,12 +312,13 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		knownEndpoints: IChatEndpoint[],
 		conversationId: string,
 		entry: AutoModeCacheEntry | undefined,
+		hydraRlMultiTurn: AutoV2HydraRlMultiTurnRequest,
 	): Promise<IChatEndpoint> {
 		// Brackets the round so every way of settling it — including the cached
 		// fallback below — reports the endpoint it settled on. A throw reports
 		// nothing, leaving the turn's row unresolved for the UI to drop.
 		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint: undefined });
-		const endpoint = await this._route(prompt, tier, chatRequest, knownEndpoints, conversationId, entry);
+		const endpoint = await this._route(prompt, tier, chatRequest, knownEndpoints, conversationId, entry, hydraRlMultiTurn);
 		this._onDidRoute.fire({ requestId: chatRequest?.id, endpoint });
 		return endpoint;
 	}
@@ -284,19 +330,28 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		knownEndpoints: IChatEndpoint[],
 		conversationId: string,
 		entry: AutoModeCacheEntry | undefined,
+		hydraRlMultiTurn: AutoV2HydraRlMultiTurnRequest,
 	): Promise<IChatEndpoint> {
 		// The session this mints belongs to the account signed in right now, so
 		// anything resolved here is void if that account changes mid-flight.
 		const authGeneration = this._authGeneration;
+		const routingEpoch = entry?.routingEpoch ?? 0;
 		let result: AutoV2Response;
 		try {
 			result = await this._autoV2Fetcher.getAutoDecision(prompt, {
 				hasImage: hasImage(chatRequest),
+				hydraRlMultiTurn,
 				conversationId,
 				vscodeRequestId: chatRequest?.id,
 				tier,
 			});
 		} catch (e) {
+			if (entry && chatRequest && hydraRlMultiTurn.state_token && e instanceof AutoV2Error && e.status === 400
+				&& authGeneration === this._authGeneration && entry.routingEpoch === routingEpoch) {
+				this.invalidateRouterCache(chatRequest);
+				this._sendAutoV2FallbackTelemetry('hydraRlStateRejected');
+				return this._route(prompt, tier, chatRequest, knownEndpoints, conversationId, entry, { advance: hydraRlMultiTurn.advance });
+			}
 			const reason = this._classifyAutoV2Failure(e);
 			this._logService.error(`[AutomodeService] Auto routing failed for conversation ${conversationId} (${reason}):`, (e as Error).message);
 			this._sendAutoV2FallbackTelemetry(reason);
@@ -304,6 +359,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			// while it still reflects its tier and vision needs — and only while
 			// it still belongs to the signed-in account.
 			if (entry && authGeneration === this._authGeneration && this._isCacheEntryCompatible(entry, tier, chatRequest)) {
+				entry.lastRequestId = chatRequest?.id || entry.lastRequestId;
 				return entry.endpoint;
 			}
 			throw e;
@@ -338,9 +394,13 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			throw new Error(`Auto selected '${selectedModel.model}', which does not support vision, for an image request.`);
 		}
 
-		const endpoint = (entry?.endpoint && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model && entry.tier === tier)
+		const endpoint: AutoChatEndpoint = (entry?.endpoint && !entry.modelRejected && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model && entry.tier === tier)
 			? entry.endpoint
-			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints));
+			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints), () => {
+				if (this._cache.get(conversationId)?.endpoint === endpoint) {
+					this._invalidateRouterCache(conversationId, 'modelRejected');
+				}
+			});
 
 		if (conversationId === 'unknown') {
 			return endpoint;
@@ -351,12 +411,24 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		if (!this._cache.has(conversationId)) {
 			this._evictOldestSessions();
 		}
+		const needsReEval = entry !== undefined && entry.routingEpoch !== routingEpoch;
+		const hydraRlState = result.hydra_rl_multi_turn;
+		const skipTurns = hydraRlState?.skip_turns ?? 0;
 		this._cache.set(conversationId, {
 			endpoint,
 			sessionToken: result.session_token,
 			expiresAt: result.expires_at,
 			tier,
-			needsReEval: false,
+			needsReEval,
+			modelRejected: needsReEval && !!entry?.modelRejected,
+			routingEpoch: entry?.routingEpoch ?? 0,
+			lastRequestId: chatRequest?.id || entry?.lastRequestId,
+			hydraRlMultiTurn: hydraRlState && !needsReEval ? {
+				stateToken: hydraRlState.state_token,
+				skipRemaining: !hydraRlMultiTurn.advance && entry?.hydraRlMultiTurn && entry.endpoint.model === selectedModel.model
+					? Math.min(entry.hydraRlMultiTurn.skipRemaining, skipTurns)
+					: skipTurns,
+			} : undefined,
 		});
 		return endpoint;
 	}
@@ -464,7 +536,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * support vision if the turn attaches an image.
 	 */
 	private _isCacheEntryCompatible(entry: AutoModeCacheEntry, tier: AutoModeTier | undefined, chatRequest: IAutoModeRoutingRequest | undefined): boolean {
-		return entry.tier === tier
+		return !entry.modelRejected
+			&& entry.tier === tier
 			&& !this._isSessionExpired(entry)
 			&& (!hasImage(chatRequest) || entry.endpoint.supportsVision);
 	}
@@ -504,6 +577,24 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('automode.autoV2Fallback', { reason });
+	}
+
+	private _sendHydraRlSkipTelemetry(conversationId: string, requestId: string | undefined, selectedModel: string, skipRemaining: number): void {
+		/* __GDPR__
+			"automode.hydraRlMultiTurnSkip" : {
+				"owner": "lramos15",
+				"comment": "Reports a genuine user turn that reused the cached Auto endpoint under the server-owned Hydra-RL skip schedule without calling POST /auto",
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation in which the cached selection was reused." },
+				"vscodeRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The VS Code chat request id of the skipped user turn." },
+				"selectedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model served from the cached Auto selection." },
+				"skipRemaining": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Remaining user turns authorized to reuse the cached selection after this turn." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('automode.hydraRlMultiTurnSkip', {
+			conversationId,
+			vscodeRequestId: requestId ?? '',
+			selectedModel,
+		}, { skipRemaining });
 	}
 
 	/**
