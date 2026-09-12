@@ -3,10 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ITaskEntry } from './sessionsTasksService.js';
+import { ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
+
+export interface ISessionTaskRunOptions {
+	/**
+	 * The storage target that provided the task. When omitted, runners retain
+	 * their existing lookup behavior for manually selected tasks.
+	 */
+	readonly taskTarget?: TaskStorageTarget;
+	/**
+	 * Whether dependency lookup may resolve tasks from the workspace target.
+	 */
+	readonly allowWorkspaceTaskDependencies?: boolean;
+	/**
+	 * Cancels an automatically dispatched task when its session ends.
+	 */
+	readonly token?: CancellationToken;
+}
 
 /**
  * Pluggable runner that knows how to execute a session task in the runtime
@@ -37,7 +54,7 @@ export interface ISessionTaskRunner {
 	 * processes when a session is marked done. Resolves to `undefined` when the
 	 * runner has nothing to stop.
 	 */
-	runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined>;
+	runTask(task: ITaskEntry, session: ISession, options?: ISessionTaskRunOptions): Promise<IDisposable | undefined>;
 }
 
 /**
