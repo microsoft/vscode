@@ -482,6 +482,19 @@ describe('SessionStoreSqlTool', () => {
 				'assistant.usage',
 				'local SQLite',
 				'chat.sessionSync.enabled',
+				// Parity with Copilot CLI /chronicle cost-tips: enforce structured, evidence-classed output.
+				'## Top cost drivers',
+				'## Recommendations',
+				'## Data caveats',
+				'at most 3',
+				'Expected impact:',
+				'Confidence:',
+				'**exact**', '**proxy**', '**mixed**',
+				'period grand total',
+				'>=50%',
+				'neutral work artifacts',
+				'General habit — not observed in your data:',
+				'Never fabricate',
 			];
 			expect(required.filter(a => !skill.includes(a))).toEqual([]);
 		});
