@@ -20,6 +20,15 @@ import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 import { INLSConfiguration } from './vs/nls.js';
 import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
 
+// Reserve keys before app readiness to avoid glibc getenv/setenv races.
+if (process.platform === 'linux') {
+	for (const key of ['VSCODE_CODE_CACHE_PATH', 'VSCODE_IPC_HOOK', 'VSCODE_NLS_CONFIG', 'VSCODE_PID']) {
+		if (typeof process.env[key] !== 'string') {
+			process.env[key] = '';
+		}
+	}
+}
+
 perf.mark('code/didStartMain');
 
 perf.mark('code/willLoadMainBundle', {
@@ -65,6 +74,7 @@ app.setPath('userData', userDataPath);
 
 // Resolve code cache path
 const codeCachePath = getCodeCachePath();
+process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 // Disable default menu (https://github.com/electron/electron/issues/35512)
 Menu.setApplicationMenu(null);
@@ -199,7 +209,7 @@ async function onReady() {
 			resolveNlsConfiguration()
 		]);
 
-		await startup(codeCachePath, nlsConfig);
+		await startup(nlsConfig);
 	} catch (error) {
 		console.error(error);
 	}
@@ -208,9 +218,8 @@ async function onReady() {
 /**
  * Main startup routine
  */
-async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration): Promise<void> {
+async function startup(nlsConfig: INLSConfiguration): Promise<void> {
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	// Bootstrap ESM
 	await bootstrapESM();
