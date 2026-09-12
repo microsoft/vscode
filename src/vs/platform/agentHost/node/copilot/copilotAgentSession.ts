@@ -925,8 +925,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
 	private _resumingTurnAwaitingProviderStart: CopilotTurn | undefined;
-	/** Retained until the abort's terminal idle, even if a replacement finishes first. */
-	private _abortingTurn: CopilotTurn | undefined;
+	/** Abort requests in SDK terminal order, retained while replacement turns run. */
+	private readonly _pendingAborts: { readonly turn: CopilotTurn | undefined; readonly token: CancellationToken }[] = [];
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
@@ -3428,7 +3428,8 @@ export class CopilotAgentSession extends Disposable {
 		const abortingTurn = this._currentTurn.value;
 		const resumingTurn = this._resumingTurnAwaitingProviderStart;
 		const abortTarget = abortingTurn ?? resumingTurn;
-		this._abortingTurn = abortTarget;
+		const abort = { turn: abortTarget, token: this._abortToken };
+		this._pendingAborts.push(abort);
 		if (abortingTurn) {
 			this._dropLateRootTurnEvents = true;
 		}
@@ -3437,10 +3438,13 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._wrapper.session.abort();
 		} catch (error) {
-			if (this._abortingTurn === abortTarget) {
-				this._abortingTurn = undefined;
+			const index = this._pendingAborts.indexOf(abort);
+			if (index !== -1) {
+				this._pendingAborts.splice(index, 1);
 			}
-			this._resetAbortToken();
+			if (this._abortToken === abort.token) {
+				this._resetAbortToken();
+			}
 			throw error;
 		}
 		if (resumingTurn && this._resumingTurnAwaitingProviderStart === resumingTurn && this._currentTurn.value === resumingTurn && !resumingTurn.providerTurnStarted) {
@@ -3462,6 +3466,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to flush edit attribution: ${error}`);
 		});
 		this._beginAbort();
+		this._pendingAborts.length = 0;
 		this._shellInitScriptDisposing = true;
 		// Only a session that wrote a script has anything to remove; every other
 		// session keeps the plain dispose path. Remove it once the SDK session's
@@ -5526,11 +5531,10 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			const turn = this._currentTurn.value;
-			const abortingTurn = this._abortingTurn;
+			const abort = e.data.aborted ? this._pendingAborts.shift() : undefined;
 			if (e.data.aborted) {
-				this._abortingTurn = undefined;
-				if (abortingTurn && turn && turn !== abortingTurn) {
-					this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from cancelled turn ${abortingTurn.id}; replacement turn ${turn.id} is ${turn.state}`);
+				if (abort && turn && turn !== abort.turn) {
+					this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from cancelled turn ${abort.turn?.id ?? '(none)'}; replacement turn ${turn.id} is ${turn.state}`);
 					return;
 				}
 				this._resetAbortToken();
@@ -5548,7 +5552,7 @@ export class CopilotAgentSession extends Disposable {
 			// Client cancellation finalizes the original; an aborted idle must never complete a turn.
 			if (e.data.aborted) {
 				this._cancelActiveRepoInfoTelemetry();
-				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart) {
+				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart || turn === abort?.turn) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down cancelled turn ${turn.id}`);
 					if (turn.isRunning) {
 						this._reportToolCallDetails(turn, 'cancelled');

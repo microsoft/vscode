@@ -7309,6 +7309,94 @@ Use the attached image as context.
 			});
 		});
 
+		for (const { cancelReplacement, providerStarted } of [
+			{ cancelReplacement: false, providerStarted: false },
+			{ cancelReplacement: false, providerStarted: true },
+			{ cancelReplacement: true, providerStarted: false },
+			{ cancelReplacement: true, providerStarted: true },
+		]) {
+			test(`successive aborted idles preserve a ${providerStarted ? 'running' : 'pending'} replacement until its own ${cancelReplacement ? 'abort' : 'completion'}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				for (const id of ['first', 'second']) {
+					await session.send(id, undefined, `turn-${id}`);
+					mockSession.fire('assistant.turn_start', { turnId: `sdk-${id}` });
+					await session.abort();
+				}
+				await session.send('replacement', undefined, 'turn-replacement');
+				const replacement = session['_currentTurn'].value!;
+				if (providerStarted) {
+					mockSession.fire('assistant.turn_start', { turnId: 'sdk-replacement' });
+				}
+				if (cancelReplacement) {
+					await session.abort();
+				}
+
+				const activeAfterOldIdles = [];
+				for (let i = 0; i < 2; i++) {
+					mockSession.fire('session.idle', { aborted: true });
+					activeAfterOldIdles.push(session.hasActiveTurn);
+				}
+				if (!providerStarted && !cancelReplacement) {
+					mockSession.fire('assistant.turn_start', { turnId: 'sdk-replacement' });
+				}
+				mockSession.fire('session.idle', { aborted: cancelReplacement });
+				const activeAfterOwnTerminal = session.hasActiveTurn;
+				mockSession.fire('session.idle', {});
+
+				assert.deepStrictEqual({
+					activeAfterOldIdles,
+					activeAfterOwnTerminal,
+					active: session.hasActiveTurn,
+					replacementState: replacement.state,
+					abortCalls: mockSession.abortCalls,
+					pendingAborts: session['_pendingAborts'].length,
+					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+				}, {
+					activeAfterOldIdles: [true, true],
+					activeAfterOwnTerminal: false,
+					active: false,
+					replacementState: cancelReplacement ? 'aborted' : 'completed',
+					abortCalls: cancelReplacement ? 3 : 2,
+					pendingAborts: 0,
+					completedTurns: cancelReplacement ? [] : ['turn-replacement'],
+				});
+			});
+		}
+
+		test('a failed abort removes only its own pending terminal and preserves a later cancellation token', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('first', undefined, 'turn-first');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-first' });
+			const abortGate = new DeferredPromise<void>();
+			mockSession.abortGate = abortGate.p;
+			const rejectedAbort = assert.rejects(session.abort(), /injected abort failure/);
+			await session.send('second', undefined, 'turn-second');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-second' });
+			mockSession.abortGate = undefined;
+			await session.abort();
+			const secondAbortToken = session['_abortToken'];
+			abortGate.error(new Error('injected abort failure'));
+			await rejectedAbort;
+			const cancellationPreserved = session['_abortToken'] === secondAbortToken && secondAbortToken.isCancellationRequested;
+
+			await session.send('replacement', undefined, 'turn-replacement');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-replacement' });
+			mockSession.fire('session.idle', { aborted: true });
+			const activeAfterSecondIdle = session.hasActiveTurn;
+			mockSession.fire('session.idle', {});
+			assert.deepStrictEqual({
+				cancellationPreserved,
+				activeAfterSecondIdle,
+				pendingAborts: session['_pendingAborts'].length,
+				completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
+			}, {
+				cancellationPreserved: true,
+				activeAfterSecondIdle: true,
+				pendingAborts: 0,
+				completedTurns: ['turn-replacement'],
+			});
+		});
+
 		for (const aborted of [false, true]) {
 			test(`active replacement ${aborted ? 'abort' : 'completion'} settles once after a late aborted idle`, async () => {
 				let turnEndCount = 0;
@@ -7335,7 +7423,7 @@ Use the attached image as context.
 					replacementState: replacement.state,
 					turnEndCount,
 					abortCalls: mockSession.abortCalls,
-					abortTarget: session['_abortingTurn'],
+					pendingAborts: session['_pendingAborts'].length,
 					completedTurns: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete).map(action => action.turnId),
 				}, {
 					beforeOwnTerminal: { active: true, turnEndCount: 0 },
@@ -7343,7 +7431,7 @@ Use the attached image as context.
 					replacementState: aborted ? 'aborted' : 'completed',
 					turnEndCount: 1,
 					abortCalls: aborted ? 2 : 1,
-					abortTarget: undefined,
+					pendingAborts: 0,
 					completedTurns: aborted ? [] : ['turn-replacement'],
 				});
 			});

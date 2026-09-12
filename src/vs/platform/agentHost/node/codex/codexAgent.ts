@@ -760,6 +760,8 @@ interface ICodexSession {
 	turnStopWatch: StopWatch | undefined;
 	/** Codex app-server turn id for the active turn. */
 	currentAppTurnId: string | undefined;
+	/** Host turns cancelled before their provider start notification establishes an interrupt target. */
+	readonly pendingAbortTurnIds: Set<string>;
 	/** Codex app-server turn id -> workbench-facing turn id. */
 	readonly hostTurnIdByAppTurnId: Map<string, string>;
 	/**
@@ -3020,6 +3022,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const mapped = this._withHostTurn(session, params);
 		this._persistTurnEventId(session, mapped.turn.id, appTurnId);
 		mapTurnStarted(session.mapState, mapped, session.lastPromptText);
+		if (session.pendingAbortTurnIds.delete(mapped.turn.id)) {
+			void this._interruptTurn(session, appTurnId);
+		}
 		return [];
 	}
 
@@ -3042,10 +3047,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._logService.trace(`[Codex:${session.sessionId}] Ignoring completion for unmapped turn ${appTurnId}`);
 			return [];
 		}
-		const completesCurrentTurn = session.currentAppTurnId === appTurnId
+		const ownsProviderTurn = session.currentAppTurnId === appTurnId;
+		const completesCurrentTurn = ownsProviderTurn
 			&& (session.currentTurnId === undefined || session.currentTurnId === hostTurnId);
 		// A late completion may finalize its own mapper state, never the replacement's streams or tools.
-		const mapState = session.currentAppTurnId === appTurnId ? session.mapState : createCodexSessionMapState();
+		const mapState = ownsProviderTurn ? session.mapState : createCodexSessionMapState();
 		const mapped = hostTurnId === appTurnId ? params : { ...params, turn: { ...params.turn, id: hostTurnId } };
 		const out = mapTurnCompleted(mapState, mapped, completesCurrentTurn ? this._clearTurnStopWatch(session) : undefined);
 		// Remember which codex (app-server) turn each workbench turn maps to so
@@ -3053,6 +3059,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		// after the live correlation below is cleared.
 		session.codexTurnIdByHostTurnId.set(hostTurnId, appTurnId);
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
+		session.pendingAbortTurnIds.delete(hostTurnId);
+		if (ownsProviderTurn) {
+			session.currentAppTurnId = undefined;
+		}
 		for (const [toolCallId, request] of session.pendingGuardianReviewCards) {
 			if (request.appTurnId === appTurnId) {
 				session.pendingGuardianReviewCards.delete(toolCallId);
@@ -3064,7 +3074,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			return out;
 		}
 		session.currentTurnId = undefined;
-		session.currentAppTurnId = undefined;
 		session.agentMergeTurn = false;
 		// Any steering still buffered was never echoed as a `userMessage`
 		// item; clear the pending bubble now that the turn is over.
@@ -3652,6 +3661,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			agentMergeTurn: parent.agentMergeTurn,
 			turnStopWatch: undefined,
 			currentAppTurnId: undefined,
+			pendingAbortTurnIds: new Set<string>(),
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
@@ -4054,6 +4064,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			// Unpark any pending approvals so awaiters unwind.
 			session.pendingCommandApprovals.denyAll('decline');
+			session.pendingAbortTurnIds.clear();
 			// Reject in-flight client tool calls so their handlers unwind.
 			session.pendingClientToolCalls.rejectAll(new CancellationError());
 			session.pendingUserInputs.rejectAll(new CancellationError());
@@ -4080,6 +4091,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		for (const subagent of this._subagentsByThreadId.values()) {
 			subagent.session.pendingCommandApprovals.denyAll('decline');
+			subagent.session.pendingAbortTurnIds.clear();
 			subagent.session.pendingClientToolCalls.rejectAll(new CancellationError());
 			subagent.session.pendingUserInputs.rejectAll(new CancellationError());
 			subagent.session.currentTurnId = undefined;
@@ -4782,6 +4794,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			currentTurnId: undefined,
 			turnStopWatch: undefined,
 			currentAppTurnId: undefined,
+			pendingAbortTurnIds: new Set<string>(),
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
@@ -5101,6 +5114,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			currentTurnId: undefined,
 			turnStopWatch: undefined,
 			currentAppTurnId: undefined,
+			pendingAbortTurnIds: new Set<string>(),
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: true,
@@ -5959,6 +5973,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// We don't await turn completion here — the notification
 			// stream emits ChatTurnComplete asynchronously.
 		} catch (err) {
+			session.pendingAbortTurnIds.delete(effectiveTurnId);
 			// A transport exit finalizes and clears an owned turn in
 			// `_handleConnectionLost`. Do not start or complete it a second time.
 			if (turnRequestStarted && session.currentTurnId !== effectiveTurnId) {
@@ -6115,21 +6130,33 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Clear any steering buffered for the turn we're aborting so its
 		// pending bubble doesn't outlive the turn.
 		this._drainPendingSteering(session);
-		if (!session.currentAppTurnId || session.threadId === undefined) {
+		const hostTurnId = session.currentTurnId;
+		if (!hostTurnId) {
 			return;
 		}
+		const appTurnId = session.currentAppTurnId;
+		if (!appTurnId || session.hostTurnIdByAppTurnId.get(appTurnId) !== hostTurnId) {
+			session.pendingAbortTurnIds.add(hostTurnId);
+			this._logService.trace(`[Codex:${sessionId}] Queued abort for ${hostTurnId} until its provider turn starts`);
+			return;
+		}
+		await this._interruptTurn(session, appTurnId);
+	}
+
+	private async _interruptTurn(session: ICodexSession, appTurnId: string): Promise<void> {
 		const threadId = session.threadId;
 		const conn = this._connection;
-		if (conn.kind !== 'ready') {
+		if (threadId === undefined || conn.kind !== 'ready') {
+			this._logService.warn(`[Codex:${session.sessionId}] Cannot interrupt turn ${appTurnId} without a connected thread`);
 			return;
 		}
 		try {
 			await conn.client.request<'turn/interrupt'>('turn/interrupt', {
 				threadId,
-				turnId: session.currentAppTurnId,
+				turnId: appTurnId,
 			});
 		} catch (err) {
-			this._logService.warn(`[Codex:${sessionId}] turn/interrupt failed: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[Codex:${session.sessionId}] turn/interrupt failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
@@ -6281,6 +6308,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Unpark any pending approvals so codex doesn't deadlock waiting
 		// on a response we will never deliver.
 		session.pendingCommandApprovals.denyAll('decline');
+		session.pendingAbortTurnIds.clear();
 		// Reject any in-flight client tool calls so their `item/tool/call`
 		// handlers unwind instead of awaiting a response that won't arrive.
 		session.pendingClientToolCalls.rejectAll(new CancellationError());
@@ -6293,6 +6321,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		for (const [childThreadId, subagent] of this._subagentsByThreadId) {
 			if (subagent.parentSessionId === sessionId) {
 				subagent.session.pendingCommandApprovals.denyAll('decline');
+				subagent.session.pendingAbortTurnIds.clear();
 				this._subagentsByThreadId.delete(childThreadId);
 			}
 		}
@@ -8111,6 +8140,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				s.prewarmTimer = undefined;
 			}
 			s.pendingCommandApprovals.denyAll('decline');
+			s.pendingAbortTurnIds.clear();
 			s.pendingClientToolCalls.rejectAll(new CancellationError());
 			s.pendingUserInputs.rejectAll(new CancellationError());
 			s.mcpController?.dispose();
@@ -8122,6 +8152,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				subagent.session.prewarmTimer = undefined;
 			}
 			subagent.session.pendingCommandApprovals.denyAll('decline');
+			subagent.session.pendingAbortTurnIds.clear();
 			subagent.session.pendingClientToolCalls.rejectAll(new CancellationError());
 			subagent.session.pendingUserInputs.rejectAll(new CancellationError());
 		}

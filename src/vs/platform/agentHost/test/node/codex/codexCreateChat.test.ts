@@ -481,7 +481,7 @@ suite('CodexAgent createChat', () => {
 			}, {
 				afterCancelledCompletion: {
 					hostTurn: 'replacement',
-					appTurn: providerStarted ? 'app-replacement' : 'app-original',
+					appTurn: providerStarted ? 'app-replacement' : undefined,
 					agentMergeTurn: true,
 					stopWatchPreserved: true,
 					responseParts: providerStarted ? [['replacement-message', 'replacement-part']] : [],
@@ -593,6 +593,90 @@ suite('CodexAgent createChat', () => {
 			});
 		});
 	}
+
+	for (const originalCompletedBeforeAbort of [false, true]) {
+		test(`cancelling a starting replacement ${originalCompletedBeforeAbort ? 'after' : 'before'} original completion interrupts only the replacement`, async () => {
+			const agent = await createAgent(disposables, { sessionStore: createTestSessionStore() });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const session = AgentSession.uri('codex', 'abort-starting-replacement');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			await createSessionBackedChat(agent, chat, context, {
+				workingDirectories: [URI.file('/workspace')],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'thread';
+			const requests: ITestWireRequest[] = [];
+			disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(data => {
+				const request: ITestWireRequest = JSON.parse(data.toString());
+				requests.push(request);
+				peer.push({ id: request.id, result: {} });
+			}));
+			const turn = (id: string, status: Turn['status']): Turn => ({
+				id, status, items: [], itemsView: 'notLoaded', error: null,
+				startedAt: null, completedAt: null, durationMs: 0,
+			});
+			entry.currentTurnId = 'original';
+			agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn('app-original', 'inProgress') });
+			entry.currentTurnId = 'replacement';
+			const completeOriginal = () => agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn('app-original', 'interrupted') });
+			if (originalCompletedBeforeAbort) {
+				completeOriginal();
+			}
+			await agent.chats.abort(chat, context);
+			const requestsBeforeStart = requests.map(request => ({ method: request.method, params: request.params }));
+			const pendingBeforeStart = [...entry.pendingAbortTurnIds];
+			if (!originalCompletedBeforeAbort) {
+				completeOriginal();
+			}
+			const appTurnBeforeStart = entry.currentAppTurnId;
+			agent['_handleTurnStartedNotification'](entry, { threadId: 'thread', turn: turn('app-replacement', 'inProgress') });
+			await new Promise<void>(resolve => setImmediate(resolve));
+			const completion = agent['_handleTurnCompletedNotification'](entry, { threadId: 'thread', turn: turn('app-replacement', 'interrupted') });
+
+			assert.deepStrictEqual({
+				requestsBeforeStart,
+				pendingBeforeStart,
+				appTurnBeforeStart,
+				requests: requests.map(request => ({ method: request.method, params: request.params })),
+				completion,
+				activeHostTurn: entry.currentTurnId,
+				activeAppTurn: entry.currentAppTurnId,
+				pendingAfterCompletion: [...entry.pendingAbortTurnIds],
+			}, {
+				requestsBeforeStart: [],
+				pendingBeforeStart: ['replacement'],
+				appTurnBeforeStart: undefined,
+				requests: [{ method: 'turn/interrupt', params: { threadId: 'thread', turnId: 'app-replacement' } }],
+				completion: [{ type: ActionType.ChatTurnCancelled, turnId: 'replacement', duration: 0 }],
+				activeHostTurn: undefined,
+				activeAppTurn: undefined,
+				pendingAfterCompletion: [],
+			});
+		});
+	}
+
+	test('disposing a starting replacement clears its queued cancellation', async () => {
+		const agent = await createAgent(disposables, { sessionStore: createTestSessionStore() });
+		const session = AgentSession.uri('codex', 'dispose-pending-abort');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/workspace')], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.currentTurnId = 'replacement';
+		await agent.chats.abort(chat, context);
+		const beforeDispose = [...entry.pendingAbortTurnIds];
+		agent.dispose();
+		assert.deepStrictEqual({
+			beforeDispose,
+			afterDispose: [...entry.pendingAbortTurnIds],
+		}, {
+			beforeDispose: ['replacement'],
+			afterDispose: [],
+		});
+	});
 
 	suite('guardian cancellation ownership', () => {
 		async function createGuardianSession() {
