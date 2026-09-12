@@ -5,7 +5,7 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Event } from '../../../../../base/common/event.js';
-import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IMouseWheelEvent, StandardWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { MouseWheelClassifier } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
@@ -72,13 +72,19 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		let gestureHasZoomModifiers = false;
 		let gestureAccumulatedDelta = 0;
 
-		const wheelListener = (browserEvent: WheelEvent) => {
+		const wheelListener = (browserEvent: IMouseWheelEvent) => {
+			// Feed the wheel event to the classifier so that `isPhysicalMouseWheel()` reflects
+			// the current gesture rather than stale state from some other scrollable. Without
+			// this, a fresh terminal session can misclassify a physical wheel as a trackpad
+			// (or vice versa), which is the root cause of the zoom vs. scroll conflict.
+			const standardEvent = new StandardWheelEvent(browserEvent);
+			classifier.acceptStandardWheelEvent(standardEvent);
+
 			if (classifier.isPhysicalMouseWheel()) {
 				if (this._hasMouseWheelZoomModifiers(browserEvent)) {
-					const delta = browserEvent.deltaY > 0 ? -1 : 1;
+					const delta = standardEvent.deltaY > 0 ? 1 : -1;
 					const newFontSize = this._clampFontSize(this._getConfigFontSize() + delta);
 					this._configurationService.updateValue(TerminalSettingId.FontSize, newFontSize);
-					// EditorZoom.setZoomLevel(zoomLevel + delta);
 					browserEvent.preventDefault();
 					browserEvent.stopPropagation();
 				}
@@ -94,15 +100,12 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 				}
 
 				prevMouseWheelTime = Date.now();
-				gestureAccumulatedDelta += browserEvent.deltaY;
+				gestureAccumulatedDelta += standardEvent.deltaY;
 
 				if (gestureHasZoomModifiers) {
-					const deltaAbs = Math.ceil(Math.abs(gestureAccumulatedDelta / 5));
-					const deltaDirection = gestureAccumulatedDelta > 0 ? -1 : 1;
-					const delta = deltaAbs * deltaDirection;
+					const delta = Math.round(gestureAccumulatedDelta / 5);
 					const newFontSize = this._clampFontSize(gestureStartFontSize + delta);
 					this._configurationService.updateValue(TerminalSettingId.FontSize, newFontSize);
-					gestureAccumulatedDelta += browserEvent.deltaY;
 					browserEvent.preventDefault();
 					browserEvent.stopPropagation();
 				}
