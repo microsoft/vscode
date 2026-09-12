@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { n } from '../../../../../../../base/browser/dom.js';
+import { n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
@@ -197,8 +197,13 @@ export class InlineEditsGutterIndicator extends Disposable {
 			return new Animation(null, null).finished;
 		}
 
+		const icon = this._icon.get()?.element;
+		if (!icon) {
+			return Promise.resolve(new Animation());
+		}
+
 		// PULSE ANIMATION:
-		const animation = this._iconRef.element.animate([
+		const animation = icon.animate([
 			{
 				outline: `2px solid ${this._gutterIndicatorStyles.map(v => v.border).get()}`,
 				outlineOffset: '-1px',
@@ -441,9 +446,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 	});
 
 
-	protected readonly _iconRef = n.ref<HTMLDivElement>();
+	private readonly _icon = observableValue<ObserverNodeWithElement<HTMLDivElement> | null>(this, null);
 
-	public readonly isVisible = this._layout.map(l => !!l);
+	public readonly isVisible = derived(this, reader => !!this._layout.read(reader) && !!this._icon.read(reader));
 
 	protected readonly _hoverVisible = observableValue(this, false);
 	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
@@ -483,8 +488,14 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}));
 		disposableStore.add(toDisposable(() => this._focusIsInMenu.set(false, undefined)));
 
+		const icon = this._icon.get()?.element;
+		if (!icon) {
+			disposableStore.dispose();
+			return;
+		}
+
 		const h = this._hoverService.showInstantHover({
-			target: this._iconRef.element,
+			target: icon,
 			content: content.element,
 		}) as HoverWidget | undefined;
 		if (h) {
@@ -516,7 +527,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		}),
 		n.div({
 			class: 'icon',
-			ref: this._iconRef,
+			obsRef: icon => this._icon.set(icon, undefined),
 
 			tabIndex: 0,
 			onclick: () => {
