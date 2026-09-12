@@ -415,7 +415,7 @@ export interface ITerminalGroup {
 	resizePanes(relativeSizes: number[]): void;
 	setActiveInstanceByIndex(index: number, force?: boolean): void;
 	attachToElement(element: HTMLElement): void;
-	addInstance(instance: ITerminalInstance): void;
+	addInstance(instance: ITerminalInstance, parentTerminalId?: number): void;
 	removeInstance(instance: ITerminalInstance): void;
 	moveInstance(instances: SingleOrMany<ITerminalInstance>, index: number, position: 'before' | 'after'): void;
 	setVisible(visible: boolean): void;

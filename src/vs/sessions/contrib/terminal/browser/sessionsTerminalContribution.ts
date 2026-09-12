@@ -16,7 +16,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -86,6 +86,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private _activeSessionId: string | undefined;
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
 	private readonly _standaloneTerminalIds = new Set<number>();
+	private readonly _pendingBeforeTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
 	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
 	private readonly _sessionTerminalGenerations = new Map<string, number>();
@@ -104,6 +105,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ILogService private readonly _logService: ILogService,
 		@IPathService private readonly _pathService: IPathService,
@@ -205,6 +207,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._register(this._terminalService.onDidDisposeInstance(instance => {
 			this._removeTerminalFromTrackedSessions(instance.instanceId);
 			this._standaloneTerminalIds.delete(instance.instanceId);
+			this._pendingBeforeTerminalIds.delete(instance.instanceId);
 		}));
 
 		// Hide restored terminals from a previous window session that don't
@@ -653,12 +656,28 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}
 
-		for (const instance of toShow) {
-			const availableInstance = this._getAvailableTerminal(instance, 'show background terminal');
-			if (availableInstance) {
-				await this._terminalService.showBackgroundTerminal(availableInstance, true);
+		for (const instance of toHide) {
+			const group = this._terminalGroupService.getGroupForInstance(instance);
+			const index = group ? group.terminalInstances.indexOf(instance) : -1;
+			if (index > 0) {
+				instance.shellLaunchConfig.parentTerminalId = group!.terminalInstances[index - 1].instanceId;
+				this._pendingBeforeTerminalIds.delete(instance.instanceId);
+			} else if (index === 0 && group && group.terminalInstances.length > 1) {
+				const survivingSibling = group.terminalInstances.find((inst, i) => i > 0 && !toHide.includes(inst));
+				if (survivingSibling) {
+					instance.shellLaunchConfig.parentTerminalId = survivingSibling.instanceId;
+					this._pendingBeforeTerminalIds.add(instance.instanceId);
+				} else {
+					instance.shellLaunchConfig.parentTerminalId = undefined;
+					this._pendingBeforeTerminalIds.delete(instance.instanceId);
+				}
+			} else {
+				instance.shellLaunchConfig.parentTerminalId = undefined;
+				this._pendingBeforeTerminalIds.delete(instance.instanceId);
 			}
 		}
+
+		await this._restoreBackgroundTerminals(toShow);
 		for (const instance of toHide) {
 			const availableInstance = this._getAvailableTerminal(instance, 'move terminal to background');
 			if (availableInstance) {
@@ -820,13 +839,56 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
-	async showAllTerminals(): Promise<void> {
-		for (const instance of this._terminalService.instances) {
-			if (!this._terminalService.foregroundInstances.includes(instance)) {
-				await this._terminalService.showBackgroundTerminal(instance, true);
-				this._logService.trace(`[SessionsTerminal] Moved terminal ${instance.instanceId} to foreground`);
+	/**
+	 * Restores the given background terminals in parent-first order based on
+	 * `parentTerminalId`, handles split relationship restoration, and applies
+	 * `_pendingBeforeTerminalIds` repositioning when restoring before an anchor terminal.
+	 */
+	private async _restoreBackgroundTerminals(terminals: ITerminalInstance[]): Promise<void> {
+		const toShow = [...terminals];
+		const idToInstance = new Map<number, ITerminalInstance>();
+		for (const instance of toShow) {
+			idToInstance.set(instance.instanceId, instance);
+		}
+		const getDepth = (instance: ITerminalInstance): number => {
+			let depth = 0;
+			let currentParentId = instance.shellLaunchConfig.parentTerminalId;
+			const visited = new Set<number>([instance.instanceId]);
+			while (currentParentId !== undefined) {
+				depth++;
+				const parent = idToInstance.get(currentParentId);
+				if (!parent || visited.has(currentParentId)) {
+					break;
+				}
+				visited.add(currentParentId);
+				currentParentId = parent.shellLaunchConfig.parentTerminalId;
+			}
+			return depth;
+		};
+		toShow.sort((a, b) => getDepth(a) - getDepth(b));
+
+		for (const instance of toShow) {
+			const availableInstance = this._getAvailableTerminal(instance, 'show background terminal');
+			if (availableInstance) {
+				await this._terminalService.showBackgroundTerminal(availableInstance, true);
+				this._logService.trace(`[SessionsTerminal] Moved terminal ${availableInstance.instanceId} to foreground`);
+				if (this._pendingBeforeTerminalIds.has(availableInstance.instanceId)) {
+					this._pendingBeforeTerminalIds.delete(availableInstance.instanceId);
+					const parentId = availableInstance.shellLaunchConfig.parentTerminalId;
+					const parentTerminal = parentId !== undefined ? this._terminalService.getInstanceFromId(parentId) : undefined;
+					if (parentTerminal) {
+						this._terminalGroupService.moveInstance(availableInstance, parentTerminal, 'before');
+					}
+				}
 			}
 		}
+	}
+
+	async showAllTerminals(): Promise<void> {
+		const backgroundTerminals = this._terminalService.instances.filter(
+			instance => !this._terminalService.foregroundInstances.includes(instance)
+		);
+		await this._restoreBackgroundTerminals(backgroundTerminals);
 	}
 }
 
