@@ -39,7 +39,7 @@ function getOption(arg: string): Option<'boolean'> | Option<'string'> | Option<'
 			return option;
 		}
 	}
-	for (const [optionId, option] of Object.entries(OPTIONS['agent'].options)) {
+	for (const [optionId, option] of Object.entries(OPTIONS.agent.options)) {
 		if (id === option.alias || id === optionId) {
 			return option;
 		}

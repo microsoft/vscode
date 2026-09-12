@@ -185,9 +185,9 @@ function configureCrashReporter(): void {
 	if (crashReporterProcessType) {
 		try {
 			//@ts-expect-error
-			if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
+			if (process.crashReporter && typeof process.crashReporter.addExtraParameter === 'function' /* Electron only */) {
 				//@ts-expect-error
-				process['crashReporter'].addExtraParameter('processType', crashReporterProcessType);
+				process.crashReporter.addExtraParameter('processType', crashReporterProcessType);
 			}
 		} catch (error) {
 			console.error(error);

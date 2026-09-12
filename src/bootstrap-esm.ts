@@ -39,7 +39,7 @@ globalThis._VSCODE_FILE_ROOT = import.meta.dirname;
 // `node_modules` — exactly as it would without the archive. Only when the
 // default resolution finds nothing do we consult the archive.
 function enableASARSupport(): void {
-	if (!process.env['ELECTRON_RUN_AS_NODE'] && !process.versions['electron']) {
+	if (!process.env['ELECTRON_RUN_AS_NODE'] && !process.versions.electron) {
 		return; // only on Electron / Electron-as-node
 	}
 

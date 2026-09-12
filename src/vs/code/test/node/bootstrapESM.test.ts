@@ -20,7 +20,7 @@ const { createPackage, uncache } = nodeRequire('asar') as {
 	uncache(archive: string): boolean;
 };
 
-(process.versions['electron'] ? suite : suite.skip)('bootstrap ESM', () => {
+(process.versions.electron ? suite : suite.skip)('bootstrap ESM', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let fixtureDirectory: string;
@@ -183,9 +183,9 @@ const { createPackage, uncache } = nodeRequire('asar') as {
 				ELECTRON_RUN_AS_NODE: '1',
 				VSCODE_DEV: '1'
 			};
-			delete env['NODE_OPTIONS'];
+			delete env.NODE_OPTIONS;
 			if (condition) {
-				env['NODE_OPTIONS'] = `--conditions=${condition}`;
+				env.NODE_OPTIONS = `--conditions=${condition}`;
 			}
 			const { stdout } = await execFileAsync(process.execPath, args, {
 				env
@@ -205,8 +205,8 @@ const { createPackage, uncache } = nodeRequire('asar') as {
 			ELECTRON_RUN_AS_NODE: '1',
 			VSCODE_ASAR_TRACE: packagedTracePath
 		};
-		delete env['NODE_OPTIONS'];
-		delete env['VSCODE_DEV'];
+		delete env.NODE_OPTIONS;
+		delete env.VSCODE_DEV;
 
 		const { stdout } = await execFileAsync(process.execPath, [
 			'--import',
@@ -234,8 +234,8 @@ const { createPackage, uncache } = nodeRequire('asar') as {
 			ELECTRON_RUN_AS_NODE: '1',
 			VSCODE_ASAR_TRACE: packagedCollisionTracePath
 		};
-		delete env['NODE_OPTIONS'];
-		delete env['VSCODE_DEV'];
+		delete env.NODE_OPTIONS;
+		delete env.VSCODE_DEV;
 
 		const { stdout } = await execFileAsync(process.execPath, [
 			'--import',

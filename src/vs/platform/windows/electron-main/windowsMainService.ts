@@ -734,7 +734,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToDiff: filesToOpen?.filesToDiff,
 			filesToMerge: filesToOpen?.filesToMerge,
 			filesToWait: filesToOpen?.filesToWait,
-			termProgram: configuration?.userEnv?.['TERM_PROGRAM']
+			termProgram: configuration?.userEnv?.TERM_PROGRAM
 		};
 		window.sendWhenReady('vscode:openFiles', CancellationToken.None, params);
 
@@ -1386,7 +1386,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Linux/Windows: by default we open files in the new window unless triggered via DIALOG / MENU context
 			// or from the integrated terminal where we assume the user prefers to open in the current window
 			else {
-				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU && !(openConfig.userEnv && openConfig.userEnv['TERM_PROGRAM'] === 'vscode')) {
+				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU && !(openConfig.userEnv && openConfig.userEnv.TERM_PROGRAM === 'vscode')) {
 					openFilesInNewWindow = true;
 				}
 			}

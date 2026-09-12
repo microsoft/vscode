@@ -150,18 +150,18 @@ class CliMain extends Disposable {
 
 		// List Extensions
 		if (this.args['list-extensions']) {
-			return extensionManagementCLI.listExtensions(!!this.args['show-versions'], this.args['category']);
+			return extensionManagementCLI.listExtensions(!!this.args['show-versions'], this.args.category);
 		}
 
 		// Install Extension
 		else if (this.args['install-extension'] || this.args['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!this.args['do-not-sync'], installPreReleaseVersion: !!this.args['pre-release'], donotIncludePackAndDependencies: !!this.args['do-not-include-pack-dependencies'] };
-			return extensionManagementCLI.installExtensions(this.asExtensionIdOrVSIX(this.args['install-extension'] || []), this.asExtensionIdOrVSIX(this.args['install-builtin-extension'] || []), installOptions, !!this.args['force']);
+			return extensionManagementCLI.installExtensions(this.asExtensionIdOrVSIX(this.args['install-extension'] || []), this.asExtensionIdOrVSIX(this.args['install-builtin-extension'] || []), installOptions, !!this.args.force);
 		}
 
 		// Uninstall Extension
 		else if (this.args['uninstall-extension']) {
-			return extensionManagementCLI.uninstallExtensions(this.asExtensionIdOrVSIX(this.args['uninstall-extension']), !!this.args['force']);
+			return extensionManagementCLI.uninstallExtensions(this.asExtensionIdOrVSIX(this.args['uninstall-extension']), !!this.args.force);
 		}
 
 		// Update the installed extensions

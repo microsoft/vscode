@@ -512,7 +512,7 @@ import { getPartsSplashColors } from './partsSplash.js';
 		// ESM Import
 		try {
 			let workbenchUrl: string;
-			if (!!safeProcess.env['VSCODE_DEV'] && globalThis._VSCODE_USE_RELATIVE_IMPORTS) {
+			if (!!safeProcess.env.VSCODE_DEV && globalThis._VSCODE_USE_RELATIVE_IMPORTS) {
 				workbenchUrl = '../../../workbench/workbench.desktop.main.js'; // for dev purposes only
 			} else {
 				workbenchUrl = new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href;
@@ -556,7 +556,7 @@ import { getPartsSplashColors } from './partsSplash.js';
 			forceDisableShowDevtoolsOnError: false
 		};
 
-		const isDev = !!safeProcess.env['VSCODE_DEV'];
+		const isDev = !!safeProcess.env.VSCODE_DEV;
 		const enableDeveloperKeybindings = Boolean(isDev || forceEnableDeveloperKeybindings);
 		let developerDeveloperKeybindingsDisposable: Function | undefined = undefined;
 		if (enableDeveloperKeybindings) {

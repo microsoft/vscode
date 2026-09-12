@@ -114,5 +114,5 @@ export function addArg(argv: string[], ...args: string[]): string[] {
 }
 
 export function isLaunchedFromCli(env: IProcessEnvironment): boolean {
-	return env['VSCODE_CLI'] === '1';
+	return env.VSCODE_CLI === '1';
 }

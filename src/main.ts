@@ -40,7 +40,7 @@ const argvConfig = configureCommandlineSwitchesSync(args);
 // 1) disabled via command line using either
 //    `--no-sandbox` or `--disable-chromium-sandbox` argument.
 // 2) argv.json contains `disable-chromium-sandbox: true`.
-if (args['sandbox'] &&
+if (args.sandbox &&
 	!args['disable-chromium-sandbox'] &&
 	!argvConfig['disable-chromium-sandbox']) {
 	app.enableSandbox();
@@ -153,7 +153,7 @@ if (process.platform === 'win32' || process.platform === 'linux') {
 
 // Load our code once ready
 app.once('ready', function () {
-	if (args['trace']) {
+	if (args.trace) {
 		let traceOptions: Electron.TraceConfig | Electron.TraceCategoriesAndOptions;
 		if (args['trace-memory-infra']) {
 			const customCategories = args['trace-category-filter']?.split(',') || [];
@@ -506,7 +506,7 @@ function configureCrashReporter(): void {
 					} else {
 						switch (process.arch) {
 							case 'x64':
-								submitURL = appCenter['darwin'];
+								submitURL = appCenter.darwin;
 								break;
 							case 'arm64':
 								submitURL = appCenter['darwin-arm64'];
@@ -727,7 +727,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
  * the locale we receive from the user or OS.
  */
 function getUserDefinedLocale(argvConfig: IArgvConfig): string | undefined {
-	const locale = args['locale'];
+	const locale = args.locale;
 	if (locale) {
 		return locale.toLowerCase(); // a directly provided --locale always wins
 	}

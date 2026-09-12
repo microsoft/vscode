@@ -47,7 +47,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 			_logService.trace('Installing builtin extensions passed via args...');
 			const installOptions: InstallOptions = { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] };
 			performance.mark('code/server/willInstallBuiltinExtensions');
-			this._whenExtensionsReady = this._whenBuiltinExtensionsReady = _extensionManagementCLI.installExtensions([], this._asExtensionIdOrVSIX(builtinExtensionsToInstall), installOptions, !!environmentService.args['force'])
+			this._whenExtensionsReady = this._whenBuiltinExtensionsReady = _extensionManagementCLI.installExtensions([], this._asExtensionIdOrVSIX(builtinExtensionsToInstall), installOptions, !!environmentService.args.force)
 				.then(() => {
 					performance.mark('code/server/didInstallBuiltinExtensions');
 					_logService.trace('Finished installing builtin extensions');
@@ -67,7 +67,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 				isApplicationScoped: true // extensions installed during server startup are available to all profiles
 			};
 			this._whenExtensionsReady = this._whenBuiltinExtensionsReady
-				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], installOptions, !!environmentService.args['force']))
+				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], installOptions, !!environmentService.args.force))
 				.then(async () => {
 					_logService.trace('Finished installing extensions');
 					return { failed: [] };

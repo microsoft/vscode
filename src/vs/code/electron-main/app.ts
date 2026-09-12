@@ -1478,7 +1478,7 @@ export class CodeApplication extends Disposable {
 		const args = this.environmentMainService.args;
 
 		// Handle agents window first based on context
-		if (args['agents']) {
+		if (args.agents) {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,
@@ -1686,7 +1686,7 @@ export class CodeApplication extends Disposable {
 					skia_graphite: string;
 				};
 				const initialGpuFeatureStatus = app.getGPUFeatureStatus() as GPUFeatureStatusWithSkiaGraphite;
-				const skiaGraphiteEnabled: string = initialGpuFeatureStatus['skia_graphite'];
+				const skiaGraphiteEnabled: string = initialGpuFeatureStatus.skia_graphite;
 				if (skiaGraphiteEnabled === 'enabled') {
 					const gpuInfoUpdate = Event.fromNodeEventEmitter(app, 'gpu-info-update');
 					const pendingGpuInfoListener = this._register(new MutableDisposable());
@@ -1698,7 +1698,7 @@ export class CodeApplication extends Disposable {
 							// returns the pre-crash status.
 							pendingGpuInfoListener.value = Event.once(gpuInfoUpdate)(() => {
 								const currentGpuFeatureStatus = app.getGPUFeatureStatus();
-								const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
+								const currentRasterizationStatus: string = currentGpuFeatureStatus.rasterization;
 								if (currentRasterizationStatus !== 'enabled') {
 									// Get last 10 GPU log messages (only the message field)
 									let gpuLogMessages: string[] = [];

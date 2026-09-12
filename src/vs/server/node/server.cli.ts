@@ -113,7 +113,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	}
 
 	if (cliPipe) {
-		options['openExternal'] = { type: 'boolean' };
+		options.openExternal = { type: 'boolean' };
 	}
 
 	const errorReporter: ErrorReporter = {
@@ -134,7 +134,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	const parsedArgs = parseArgs(args, options, errorReporter);
 	const mapFileUri = cliRemoteAuthority ? mapFileToRemoteUri : (uri: string) => uri;
 
-	const verbose = !!parsedArgs['verbose'];
+	const verbose = !!parsedArgs.verbose;
 
 	if (parsedArgs.help) {
 		console.log(buildHelpMessage(desc.productName, desc.executableName, desc.version, options));
@@ -161,8 +161,8 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		return;
 	}
 	if (cliPipe) {
-		if (parsedArgs['openExternal']) {
-			await openInBrowser(parsedArgs['_'], verbose);
+		if (parsedArgs.openExternal) {
+			await openInBrowser(parsedArgs._, verbose);
 			return;
 		}
 	}
@@ -178,7 +178,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	const fileURIs = (parsedArgs['file-uri'] || []).map(mapFileUri);
 	parsedArgs['file-uri'] = fileURIs;
 
-	const inputPaths = parsedArgs['_'];
+	const inputPaths = parsedArgs._;
 	let hasReadStdinArg = false;
 	for (const input of inputPaths) {
 		if (input === '-') {
@@ -188,7 +188,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		}
 	}
 
-	parsedArgs['_'] = [];
+	parsedArgs._ = [];
 
 	let readFromStdinPromise: Promise<void> | undefined;
 	let stdinFilePath: string | undefined;
@@ -225,7 +225,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 	}
 
 	if (parsedArgs.extensionTestsPath) {
-		parsedArgs.extensionTestsPath = mapFileUri(pathToURI(parsedArgs['extensionTestsPath']).href);
+		parsedArgs.extensionTestsPath = mapFileUri(pathToURI(parsedArgs.extensionTestsPath).href);
 	}
 
 	const crashReporterDirectory = parsedArgs['crash-reporter-directory'];
@@ -321,10 +321,10 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions'] || parsedArgs['update-extensions']) {
 			await sendToPipe({
 				type: 'extensionManagement',
-				list: parsedArgs['list-extensions'] ? { showVersions: parsedArgs['show-versions'], category: parsedArgs['category'] } : undefined,
+				list: parsedArgs['list-extensions'] ? { showVersions: parsedArgs['show-versions'], category: parsedArgs.category } : undefined,
 				install: asExtensionIdOrVSIX(parsedArgs['install-extension']),
 				uninstall: asExtensionIdOrVSIX(parsedArgs['uninstall-extension']),
-				force: parsedArgs['force']
+				force: parsedArgs.force
 			}, verbose).then((res: string) => {
 				console.log(res);
 			}).catch(e => {
@@ -334,7 +334,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		}
 
 		let waitMarkerFilePath: string | undefined = undefined;
-		if (parsedArgs['wait']) {
+		if (parsedArgs.wait) {
 			if (!fileURIs.length) {
 				console.log('At least one file must be provided to wait for.');
 				return;
