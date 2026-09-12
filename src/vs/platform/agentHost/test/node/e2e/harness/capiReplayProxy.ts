@@ -70,8 +70,9 @@ const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
 const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
 const TEMP_WORKSPACE_COMPONENT_PATTERN = '(?:ahp-|copilot-|read-sdk-simple)[A-Za-z0-9._-]*';
 const PATH_SEPARATOR_PATTERN = '(?:\\\\\\\\|\\\\|/)';
-const UUID_PLACEHOLDER_RE = /\$\{uuid_\d+\}/g;
+const GENERATED_VALUE_PLACEHOLDER_RE = /\$\{(?<kind>uuid|shell_output)_\d+\}/g;
 const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const SHELL_OUTPUT_PATH_PATTERN = '(?:[A-Za-z]:[\\\\/]|/|\\$\\{(?:homedir|workdir)\\}[\\\\/])[^"\\r\\n<>]*?[\\\\/]original-output-\\d+-[a-f0-9]{32}\\.txt';
 const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
 
 /**
@@ -564,6 +565,7 @@ export class CapiReplayProxy {
 	private _normalizeReplayPlaceholderValues(text: string): string {
 		let result = text;
 		for (const [placeholder, value] of this._replayPlaceholderValues) {
+			result = replaceAll(result, escapeJsonString(value), placeholder);
 			result = replaceAll(result, value, placeholder);
 		}
 		return result;
@@ -724,7 +726,8 @@ export class CapiReplayProxy {
 		const built = this._recorded.map(exchange => this._toFixtureExchange(exchange));
 		const exchanges = built.map(b => b.exchange);
 		this._normalizeToolCallIds(exchanges);
-		this._normalizeUuids(exchanges);
+		this._normalizeGeneratedValues(exchanges, new RegExp(SHELL_OUTPUT_PATH_PATTERN, 'gi'), 'shell_output');
+		this._normalizeGeneratedValues(exchanges, new RegExp(UUID_PATTERN, 'gi'), 'uuid');
 		this._assertNoPosixOnlyCommands(exchanges);
 		// Every turn in a fixture shares one endpoint, so the dialect (and the
 		// `(method, path)` it implies) is stored once at the top instead of on each
@@ -820,27 +823,20 @@ export class CapiReplayProxy {
 		}
 	}
 
-	/**
-	 * Replace ephemeral UUIDs (shell ids, session-state ids, ...) that appear in
-	 * captured request/response content with stable ordinal placeholders
-	 * (`${uuid_0}`, `${uuid_1}`, ...). They change on every re-record, so
-	 * normalizing them keeps committed fixtures diff-clean. Distinct UUIDs get
-	 * distinct placeholders; repeats of the same UUID reuse its placeholder.
-	 */
-	private _normalizeUuids(exchanges: IFixtureExchange[]): void {
+	/** Replaces generated identifiers and paths with stable, rebindable ordinal placeholders. */
+	private _normalizeGeneratedValues(exchanges: IFixtureExchange[], expression: RegExp, prefix: string): void {
 		const idMap = new Map<string, string>();
-		const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-		const mapUuid = (uuid: string): string => {
-			let mapped = idMap.get(uuid);
+		const mapValue = (value: string): string => {
+			let mapped = idMap.get(value);
 			if (mapped === undefined) {
-				mapped = `\${uuid_${idMap.size}}`;
-				idMap.set(uuid, mapped);
+				mapped = `\${${prefix}_${idMap.size}}`;
+				idMap.set(value, mapped);
 			}
 			return mapped;
 		};
 		const walk = (value: unknown): unknown => {
 			if (typeof value === 'string') {
-				return value.replace(uuidRe, mapUuid);
+				return value.replace(expression, mapValue);
 			}
 			if (Array.isArray(value)) {
 				for (let i = 0; i < value.length; i++) {
@@ -1073,9 +1069,9 @@ function captureReplayPlaceholderValuesFromString(recorded: string, observed: st
 	const placeholders: string[] = [];
 	let pattern = '^';
 	let offset = 0;
-	for (const match of recorded.matchAll(UUID_PLACEHOLDER_RE)) {
+	for (const match of recorded.matchAll(GENERATED_VALUE_PLACEHOLDER_RE)) {
 		pattern += escapeRegExpCharacters(recorded.slice(offset, match.index));
-		pattern += `(${UUID_PATTERN})`;
+		pattern += `(${match.groups?.kind === 'shell_output' ? SHELL_OUTPUT_PATH_PATTERN : UUID_PATTERN})`;
 		placeholders.push(match[0]);
 		offset = match.index + match[0].length;
 	}
