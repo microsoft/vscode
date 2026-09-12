@@ -15,7 +15,7 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IMenu, IMenuService, MenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenu, IMenuChangeEvent, IMenuService, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
@@ -86,10 +86,14 @@ class TestEditorGroupsService extends mock<IEditorGroupsService>() {
 		return this._partOptions;
 	}
 
-	setTabHeight(tabHeight: IEditorPartOptions['tabHeight']): void {
+	setPartOptions(options: Partial<IEditorPartOptions>): void {
 		const oldPartOptions = this._partOptions;
-		this._partOptions = { ...oldPartOptions, tabHeight };
+		this._partOptions = { ...oldPartOptions, ...options };
 		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions: this._partOptions });
+	}
+
+	setTabHeight(tabHeight: IEditorPartOptions['tabHeight']): void {
+		this.setPartOptions({ tabHeight });
 	}
 
 	dispose(): void {
@@ -142,6 +146,7 @@ interface IChatCompositeBarHarness {
 	readonly activeChatResource: ISettableObservable<string>;
 	readonly visible: ISettableObservable<boolean>;
 	readonly showSessionActions: ISettableObservable<boolean>;
+	setTabActionVisible(visible: boolean): void;
 }
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isQuickChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver }): IChatCompositeBarHarness {
@@ -161,13 +166,16 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 
 	instantiationService.stub(ICommandService, commandService);
 	const closeAction = instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close Chat' }, undefined, undefined, undefined, undefined);
+	const menuChanged = store.add(new Emitter<IMenuChangeEvent>());
+	let tabActionVisible = true;
+	const menu: IMenu = {
+		onDidChange: menuChanged.event,
+		dispose: () => { },
+		getActions: () => tabActionVisible ? [['navigation', [closeAction]]] : [],
+	};
 	instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
 		override createMenu(): IMenu {
-			return {
-				onDidChange: Event.None,
-				dispose: () => { },
-				getActions: () => [['navigation', [closeAction]]],
-			};
+			return menu;
 		}
 	});
 	instantiationService.stub(ISessionsService, sessionsService);
@@ -195,8 +203,12 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
+	const setTabActionVisible = (visible: boolean) => {
+		tabActionVisible = visible;
+		menuChanged.fire({ menu, isStructuralChange: true, isToggleChange: false, isEnablementChange: false });
+	};
 
-	return { store, instantiationService, commandService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions };
+	return { store, instantiationService, commandService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions, setTabActionVisible };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -263,6 +275,33 @@ suite('Sessions - ChatCompositeBar', () => {
 		const { bar } = createHarness(disposables);
 
 		assert.strictEqual(bar.element.querySelector('.chat-composite-bar-new-chat'), null);
+	});
+
+	test('tracks editor tab action space and position settings', () => {
+		const { bar, editorGroupsService, setTabActionVisible, tabs } = createHarness(disposables);
+		const actionClasses = () => ({
+			reservesSpace: bar.element.classList.contains('tab-actions-reserve-space'),
+			actionsOnLeft: bar.element.classList.contains('tab-actions-left'),
+			tabsWithActions: tabs.map(tab => tab.classList.contains('has-tab-actions')),
+		});
+
+		const states = [actionClasses()];
+		setTabActionVisible(false);
+		states.push(actionClasses());
+		setTabActionVisible(true);
+		states.push(actionClasses());
+		editorGroupsService.setPartOptions({ tabActionReserveSpace: false, tabActionLocation: 'left' });
+		states.push(actionClasses());
+		editorGroupsService.setPartOptions({ tabActionReserveSpace: true, tabActionLocation: 'right' });
+		states.push(actionClasses());
+
+		assert.deepStrictEqual(states, [
+			{ reservesSpace: true, actionsOnLeft: false, tabsWithActions: [false, true] },
+			{ reservesSpace: true, actionsOnLeft: false, tabsWithActions: [false, false] },
+			{ reservesSpace: true, actionsOnLeft: false, tabsWithActions: [false, true] },
+			{ reservesSpace: false, actionsOnLeft: true, tabsWithActions: [false, true] },
+			{ reservesSpace: true, actionsOnLeft: false, tabsWithActions: [false, true] },
+		]);
 	});
 
 	test('matches the default and compact editor tab strip heights', () => {
