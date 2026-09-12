@@ -92,6 +92,27 @@ suite('CommandLineAutoApprover', () => {
 			];
 			deepStrictEqual(await Promise.all(commands.map(isAutoApproved)), [false, false, false, false, false]);
 		});
+
+		test('keeps the Git directory option case-sensitive', async () => {
+			const safeSubcommands = ['status', 'log', 'show', 'diff', 'ls-files', 'grep pattern', 'branch'];
+			const commands = [
+				...safeSubcommands.map(subcommand => `git -C repo ${subcommand}`),
+				'GIT -C repo DIFF',
+				...safeSubcommands.map(subcommand => `git -c key=value ${subcommand}`),
+				'git --no-pager -c core.pager=program log',
+				'git -C repo -c diff.external=program diff',
+			];
+			deepStrictEqual(
+				await Promise.all(commands.map(isAutoApproved)),
+				[
+					...safeSubcommands.map(() => true),
+					true,
+					...safeSubcommands.map(() => false),
+					false,
+					false,
+				]
+			);
+		});
 	});
 
 	suite('default sort rules', () => {
