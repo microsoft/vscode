@@ -463,18 +463,8 @@ src/vs/workbench/services/telemetry/common/workbenchCommonProperties.ts
 src/vs/workbench/services/telemetry/test/browser/commonProperties.test.ts
 src/vs/workbench/services/telemetry/test/node/commonProperties.test.ts
 
-# Remote, tunnels, networking, and authentication (11 files)
+# GitHub authentication service tests (1 file)
 extensions/github-authentication/src/test/github.test.ts
-extensions/microsoft-authentication/src/common/experimentation.ts
-src/vs/platform/github/common/githubTransport.ts
-src/vs/platform/remote/node/wsl.ts
-src/vs/platform/request/node/requestService.ts
-src/vs/platform/tunnel/node/tunnelProxy.ts
-src/vs/platform/tunnel/test/node/tunnelProxy.test.ts
-src/vs/platform/webContentExtractor/electron-main/webPageLoader.ts
-src/vs/platform/webContentExtractor/test/electron-main/webPageLoader.test.ts
-src/vs/workbench/contrib/remote/browser/remoteStartEntry.ts
-src/vs/workbench/contrib/remoteTunnel/test/electron-browser/remoteTunnel.contribution.test.ts
 
 # Language feature extensions (22 files)
 extensions/css-language-features/client/src/node/cssClientMain.ts

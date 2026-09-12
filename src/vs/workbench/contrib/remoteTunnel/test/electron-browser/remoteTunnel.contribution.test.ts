@@ -10,8 +10,11 @@ import { ITunnelApplicationConfig } from '../../../../../base/common/product.js'
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLoggerService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -19,12 +22,11 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type ActiveTunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAuthenticationProvider, AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
-import { RemoteTunnelWorkbenchContribution } from '../../electron-browser/remoteTunnel.contribution.js';
+import { RemoteTunnelCommandIds, RemoteTunnelWorkbenchContribution } from '../../electron-browser/remoteTunnel.contribution.js';
 
 const tunnelApplicationConfig: ITunnelApplicationConfig = {
 	authenticationProviders: {
@@ -134,31 +136,62 @@ class TestProgressService extends mock<IProgressService>() {
 	}
 }
 
-class TestDialogService extends mock<IDialogService>() { }
+class TestDialogService extends mock<IDialogService>() {
+	override async confirm(): Promise<{ confirmed: boolean }> {
+		return { confirmed: true };
+	}
+}
+class TestClipboardService extends mock<IClipboardService>() { }
 class TestCommandService extends mock<ICommandService>() { }
 class TestWorkspaceContextService extends mock<IWorkspaceContextService>() { }
 class TestNotificationService extends mock<INotificationService>() { }
 
-function createContribution(store: Pick<DisposableStore, 'add'>, authenticationService: TestAuthenticationService, quickInputService: TestQuickInputService, remoteTunnelService: TestRemoteTunnelService): RemoteTunnelWorkbenchContribution {
-	return store.add(new RemoteTunnelWorkbenchContribution(
+function createContribution(store: Pick<DisposableStore, 'add'>, authenticationService: TestAuthenticationService, quickInputService: TestQuickInputService, remoteTunnelService: TestRemoteTunnelService): TestInstantiationService {
+	const dialogService = new TestDialogService();
+	const productService = new class extends mock<IProductService>() {
+		override readonly tunnelApplicationName = 'Code';
+		override readonly tunnelApplicationConfig = tunnelApplicationConfig;
+	};
+	const storageService = store.add(new InMemoryStorageService());
+	const commandService = new TestCommandService();
+	const notificationService = new TestNotificationService();
+
+	store.add(new RemoteTunnelWorkbenchContribution(
 		authenticationService,
-		new TestDialogService(),
+		dialogService,
 		new TestExtensionService(),
 		store.add(new MockContextKeyService()),
-		new class extends mock<IProductService>() {
-			override readonly tunnelApplicationName = 'Code';
-			override readonly tunnelApplicationConfig = tunnelApplicationConfig;
-		},
-		store.add(new InMemoryStorageService()),
+		productService,
+		storageService,
 		store.add(new NullLoggerService()),
 		quickInputService,
 		new TestEnvironmentService(),
 		remoteTunnelService,
-		new TestCommandService(),
+		commandService,
 		new TestWorkspaceContextService(),
 		new TestProgressService(),
-		new TestNotificationService(),
+		notificationService,
 	));
+
+	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.set(INotificationService, notificationService);
+	instantiationService.set(IClipboardService, new TestClipboardService());
+	instantiationService.set(ICommandService, commandService);
+	instantiationService.set(IStorageService, storageService);
+	instantiationService.set(IDialogService, dialogService);
+	instantiationService.set(IQuickInputService, quickInputService);
+	instantiationService.set(IProductService, productService);
+	return instantiationService;
+}
+
+async function startTunnel(instantiationService: TestInstantiationService): Promise<void> {
+	const command = CommandsRegistry.getCommand(RemoteTunnelCommandIds.turnOn);
+	assert.ok(command);
+	await instantiationService.invokeFunction(command.handler, {
+		authenticationProviderId: 'github',
+		showServiceOption: false,
+		showSuccessNotification: false,
+	});
 }
 
 suite('RemoteTunnelWorkbenchContribution', () => {
@@ -168,9 +201,9 @@ suite('RemoteTunnelWorkbenchContribution', () => {
 		const authenticationService = new TestAuthenticationService([githubSession]);
 		const quickInputService = new TestQuickInputService();
 		const remoteTunnelService = new TestRemoteTunnelService();
-		const contribution = createContribution(store, authenticationService, quickInputService, remoteTunnelService);
+		const instantiationService = createContribution(store, authenticationService, quickInputService, remoteTunnelService);
 
-		await contribution['startTunnel'](false, 'github');
+		await startTunnel(instantiationService);
 
 		assert.deepStrictEqual({
 			quickPickCalls: quickInputService.createQuickPickCalls,
@@ -198,9 +231,9 @@ suite('RemoteTunnelWorkbenchContribution', () => {
 		const authenticationService = new TestAuthenticationService([]);
 		const quickInputService = new TestQuickInputService();
 		const remoteTunnelService = new TestRemoteTunnelService();
-		const contribution = createContribution(store, authenticationService, quickInputService, remoteTunnelService);
+		const instantiationService = createContribution(store, authenticationService, quickInputService, remoteTunnelService);
 
-		await contribution['startTunnel'](false, 'github');
+		await startTunnel(instantiationService);
 
 		assert.deepStrictEqual({
 			quickPickCalls: quickInputService.createQuickPickCalls,

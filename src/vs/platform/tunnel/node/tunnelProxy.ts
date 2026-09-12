@@ -345,7 +345,7 @@ export class TunnelProxy extends Disposable {
 			// An intermediary MUST parse the Connection header and remove any
 			// fields named in it, then remove Connection itself. It SHOULD
 			// also remove other known hop-by-hop headers.
-			const connectionTokens = (headers['connection'] ?? '')
+			const connectionTokens = (headers.connection ?? '')
 				.toString()
 				.split(',')
 				.map(t => t.trim().toLowerCase())
@@ -353,13 +353,13 @@ export class TunnelProxy extends Disposable {
 			for (const token of connectionTokens) {
 				delete headers[token];
 			}
-			delete headers['connection'];
+			delete headers.connection;
 			delete headers['keep-alive'];
 			delete headers['proxy-authorization'];
 			delete headers['proxy-connection'];
-			delete headers['te'];
+			delete headers.te;
 			delete headers['transfer-encoding'];
-			delete headers['upgrade'];
+			delete headers.upgrade;
 
 			const proxyReq = http.request({
 				agent: this._tunnelAgent,
@@ -472,12 +472,12 @@ export class TunnelProxy extends Disposable {
 		// Handle IPv6 bracket notation [::1]:port
 		const bracketMatch = /^\[(?<host>[^\]]+)\]:(?<port>\d+)$/.exec(address);
 		if (bracketMatch?.groups) {
-			host = bracketMatch.groups['host'];
-			port = parseInt(bracketMatch.groups['port'], 10);
+			host = bracketMatch.groups.host;
+			port = parseInt(bracketMatch.groups.port, 10);
 		} else {
 			const bracketOnly = /^\[(?<host>[^\]]+)\]$/.exec(address);
 			if (bracketOnly?.groups) {
-				host = bracketOnly.groups['host'];
+				host = bracketOnly.groups.host;
 				port = defaultPort;
 			} else {
 				const lastColon = address.lastIndexOf(':');

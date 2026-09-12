@@ -1402,11 +1402,11 @@ suite('WebPageLoader', () => {
 
 		// Verify privacy headers were added
 		assert.ok(modifiedHeaders);
-		assert.strictEqual(modifiedHeaders['DNT'], '1');
+		assert.strictEqual(modifiedHeaders.DNT, '1');
 		assert.strictEqual(modifiedHeaders['Sec-GPC'], '1');
-		assert.strictEqual(modifiedHeaders['TestHeader'], 'TestValue');
+		assert.strictEqual(modifiedHeaders.TestHeader, 'TestValue');
 		// Accept header should NOT be set for non-mainFrame requests
-		assert.strictEqual(modifiedHeaders['Accept'], undefined);
+		assert.strictEqual(modifiedHeaders.Accept, undefined);
 	});
 
 	test('onBeforeSendHeaders adds Accept header preferring markdown for mainFrame requests', () => {
@@ -1431,8 +1431,8 @@ suite('WebPageLoader', () => {
 		);
 
 		assert.ok(modifiedHeaders);
-		assert.ok(modifiedHeaders['Accept']?.includes('text/markdown'));
-		assert.ok(modifiedHeaders['Accept']?.includes('text/html'));
+		assert.ok(modifiedHeaders.Accept?.includes('text/markdown'));
+		assert.ok(modifiedHeaders.Accept?.includes('text/html'));
 	});
 
 	//#endregion
