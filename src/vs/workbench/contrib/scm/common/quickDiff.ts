@@ -23,19 +23,19 @@ import {
 export const IQuickDiffService = createDecorator<IQuickDiffService>('quickDiff');
 
 const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
-	dark: '#1B81A8', light: '#2090D3', hcDark: '#1B81A8', hcLight: '#2090D3'
+	dark: '#1B81A8', light: '#2090D3', hcDark: '#1B81A8', hcLight: '#0F4A85'
 }, nls.localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
 
 registerColor('editorGutter.modifiedSecondaryBackground',
-	{ dark: darken(editorGutterModifiedBackground, 0.5), light: lighten(editorGutterModifiedBackground, 0.7), hcDark: '#1B81A8', hcLight: '#2090D3' },
+	{ dark: darken(editorGutterModifiedBackground, 0.5), light: lighten(editorGutterModifiedBackground, 0.7), hcDark: '#1B81A8', hcLight: '#0F4A85' },
 	nls.localize('editorGutterModifiedSecondaryBackground', "Editor gutter secondary background color for lines that are modified."));
 
 const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
-	dark: '#487E02', light: '#48985D', hcDark: '#487E02', hcLight: '#48985D'
+	dark: '#487E02', light: '#48985D', hcDark: '#487E02', hcLight: '#007100'
 }, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
 registerColor('editorGutter.addedSecondaryBackground',
-	{ dark: darken(editorGutterAddedBackground, 0.5), light: lighten(editorGutterAddedBackground, 0.7), hcDark: '#487E02', hcLight: '#48985D' },
+	{ dark: darken(editorGutterAddedBackground, 0.5), light: lighten(editorGutterAddedBackground, 0.7), hcDark: '#487E02', hcLight: '#007100' },
 	nls.localize('editorGutterAddedSecondaryBackground', "Editor gutter secondary background color for lines that are added."));
 
 const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground',
