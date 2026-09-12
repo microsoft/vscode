@@ -177,41 +177,32 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		hr {
 			border: 0;
 			height: 2px;
-			border-bottom: 2px solid;
-		}
-
-		h2, h3, h4, h5, h6 {
-			font-weight: normal;
 		}
 
 		h1 {
-			font-size: 2.3em;
+			font-size: 2em;
+			padding-bottom: 0.3em;
 		}
 
 		h2 {
-			font-size: 2em;
-		}
-
-		h3 {
-			font-size: 1.7em;
-		}
-
-		h3 {
 			font-size: 1.5em;
+			padding-bottom: 0.3em;
+		}
+
+		h3 {
+			font-size: 1.25em;
 		}
 
 		h4 {
-			font-size: 1.3em;
+			font-size: 1em;
 		}
 
 		h5 {
-			font-size: 1.2em;
+			font-size: 0.875em;
 		}
 
-		h1,
-		h2,
-		h3 {
-			font-weight: normal;
+		h6 {
+			font-size: 0.85em;
 		}
 
 		div {
@@ -229,10 +220,22 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		}
 
 		/* Removes bottom margin when only one item exists in markdown cell */
-		#preview > *:only-child,
-		#preview > *:last-child {
+		#preview > *:not(h1):not(h2):only-child,
+		#preview > *:not(h1):not(h2):last-child {
 			margin-bottom: 0;
 			padding-bottom: 0;
+		}
+
+		h1,
+		h2,
+		h3,
+		h4,
+		h5,
+		h6 {
+			font-weight: 600;
+			margin-top: 24px;
+			margin-bottom: 16px;
+			line-height: 1.25;
 		}
 
 		/* makes all markdown cells consistent */
