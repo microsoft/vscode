@@ -72,6 +72,23 @@ export class TreeSitterCommandParser extends Disposable {
 		return captures.map(e => e.node.text);
 	}
 
+	async getCommandForRiskAssessment(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string | undefined> {
+		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
+		const { captures, hasError } = await this._queryTreeWithParseStatus(languageId, masked, '(comment) @comment');
+		if (hasError) {
+			return undefined;
+		}
+
+		let result = '';
+		let lastIndex = 0;
+		for (const capture of captures) {
+			result += commandLine.slice(lastIndex, capture.node.startIndex);
+			result += commandLine.slice(capture.node.startIndex, capture.node.endIndex).replace(/[^\r\n]/g, ' ');
+			lastIndex = capture.node.endIndex;
+		}
+		return result + commandLine.slice(lastIndex);
+	}
+
 	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {
 		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshFlagEquals(commandLine) : commandLine;
 		const querySource = languageId === TreeSitterCommandParserLanguage.PowerShell
