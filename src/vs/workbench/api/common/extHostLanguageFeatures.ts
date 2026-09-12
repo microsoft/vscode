@@ -789,7 +789,7 @@ class NavigateTypeAdapter {
 	async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceSymbolsDto> {
 		const value = await this._provider.provideWorkspaceSymbols(search, token);
 
-		if (!isNonEmptyArray(value)) {
+		if (!isNonEmptyArray(value) || token.isCancellationRequested) {
 			return { symbols: [] };
 		}
 
