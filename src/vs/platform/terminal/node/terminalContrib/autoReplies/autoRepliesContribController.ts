@@ -37,6 +37,7 @@ export class AutoRepliesPtyServiceContribution implements IPtyServiceContributio
 				processAutoResponders.delete(match);
 			}
 		}
+		this._autoReplies.clear();
 	}
 
 	handleProcessReady(persistentProcessId: number, process: ITerminalChildProcess): void {
