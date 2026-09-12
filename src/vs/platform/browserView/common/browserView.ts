@@ -323,7 +323,8 @@ export interface IBrowserViewStorageKeys {
 	readonly permissions?: string;
 }
 
-export interface IBrowserViewState {
+/** Lightweight state used to reconcile navigation without transferring screenshots or session data. */
+export interface IBrowserViewNavigationState {
 	/** Monotonic version shared by navigation, title, loading, and favicon updates. */
 	navigationStateVersion: number;
 	url: string;
@@ -331,13 +332,16 @@ export interface IBrowserViewState {
 	canGoBack: boolean;
 	canGoForward: boolean;
 	loading: boolean;
+	lastFavicon: string | undefined;
+	lastError: IBrowserViewLoadError | undefined;
+	certificateError: IBrowserViewCertificateError | undefined;
+}
+
+export interface IBrowserViewState extends IBrowserViewNavigationState {
 	focused: boolean;
 	visible: boolean;
 	isDevToolsOpen: boolean;
 	lastScreenshot: VSBuffer | undefined;
-	lastFavicon: string | undefined;
-	lastError: IBrowserViewLoadError | undefined;
-	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	storageKeys: IBrowserViewStorageKeys;
 	permissions: ISerializedBrowserPermissionsSnapshot;
@@ -567,9 +571,11 @@ export interface IBrowserViewService {
 
 	/**
 	 * Get the current state, or throw if the view doesn't exist.
-	 * Subscribe before reading and compare navigationStateVersion when reconciling navigation-related events.
 	 */
 	getState(id: string): Promise<IBrowserViewState>;
+
+	/** Subscribe before reading this snapshot and use its version to reconcile navigation-related events. */
+	getNavigationState(id: string): Promise<IBrowserViewNavigationState>;
 
 	/**
 	 * Adds an audience or, when disabled, removes every audience matching it.

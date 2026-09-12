@@ -102,7 +102,8 @@ suite('BrowserViewModel initial state handoff', () => {
 			onDynamicDidChangeAreaSelectionActive: () => Event.None,
 			onDynamicDidChangeAudiences: () => Event.None,
 			onDynamicDidChangeRemoteStatus: () => Event.None,
-			getState: id => {
+			getState: async () => assert.fail('Reconciliation must not request screenshots or session data'),
+			getNavigationState: id => {
 				trace.push(`snapshot requested ${id}`);
 				return snapshot.p;
 			},
@@ -205,6 +206,47 @@ suite('BrowserViewModel initial state handoff', () => {
 		await popup.snapshot.complete(popup.state);
 
 		assert.deepStrictEqual({ title: model.title, navigations }, { title: childTitle, navigations: [] });
+	});
+
+	test('does not emit loading changes for an unchanged snapshot', async () => {
+		const popup = createPopup();
+		popup.commit();
+		const { model } = popup.adopt(popup.state);
+		const loading: IBrowserViewLoadingEvent[] = [];
+		store.add(model.onDidChangeLoadingState(event => loading.push(event)));
+		await popup.snapshot.complete(popup.state);
+
+		assert.deepStrictEqual({ loading: model.loading, events: loading }, { loading: false, events: [] });
+	});
+
+	test('advances the version of an unchanged loading snapshot', async () => {
+		const popup = createPopup();
+		popup.commit();
+		const { model } = popup.adopt(popup.state);
+		const loading: boolean[] = [];
+		store.add(model.onDidChangeLoadingState(event => loading.push(event.loading)));
+		const snapshot = { ...popup.state, navigationStateVersion: popup.state.navigationStateVersion + 2 };
+		await popup.snapshot.complete(snapshot);
+		popup.loading.fire({ navigationStateVersion: snapshot.navigationStateVersion - 1, loading: true });
+
+		assert.deepStrictEqual({ loading: model.loading, events: loading }, { loading: false, events: [] });
+	});
+
+	test('emits loading changes for changed snapshot errors and subsequent native events', async () => {
+		const popup = createPopup();
+		popup.commit();
+		const { model } = popup.adopt(popup.state);
+		const loading: IBrowserViewLoadingEvent[] = [];
+		store.add(model.onDidChangeLoadingState(event => loading.push(event)));
+		const snapshot = { ...popup.state, lastError: { url: childUrl, errorCode: -105, errorDescription: 'ERR_NAME_NOT_RESOLVED' } };
+		await popup.snapshot.complete(snapshot);
+		const nativeEvent = { navigationStateVersion: snapshot.navigationStateVersion + 1, loading: false, error: snapshot.lastError };
+		popup.loading.fire(nativeEvent);
+
+		assert.deepStrictEqual(loading, [
+			{ navigationStateVersion: snapshot.navigationStateVersion, loading: false, error: snapshot.lastError },
+			nativeEvent,
+		]);
 	});
 
 	test('logs an initial snapshot failure', async () => {

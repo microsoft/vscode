@@ -43,7 +43,7 @@ suite('BrowserViewModel', () => {
 			onDynamicDidChangeRemoteStatus: () => Event.None,
 			onDynamicDidChangeAudiences: () => Event.None,
 			destroyBrowserView: async () => { },
-			getState: async () => initialState,
+			getNavigationState: async () => initialState,
 		});
 		const browserViewWorkbenchService = upcastPartial<IBrowserViewWorkbenchService>({
 			isSharingAvailable: true,

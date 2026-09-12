@@ -678,7 +678,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	private async _synchronizeInitialNavigationState(): Promise<void> {
-		const state = await this.browserViewService.getState(this.id);
+		const state = await this.browserViewService.getNavigationState(this.id);
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -749,10 +749,13 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		if (!shouldApplyNavigationState(event.navigationStateVersion, this._navigationStateVersions.loading, isSnapshot)) {
 			return;
 		}
+		const didChange = event.loading !== this._loading || !structuralEquals(event.error, this._error);
 		this._navigationStateVersions.loading = event.navigationStateVersion;
 		this._loading = event.loading;
 		this._error = event.error;
-		this._onDidChangeLoadingState.fire(event);
+		if (!isSnapshot || didChange) {
+			this._onDidChangeLoadingState.fire(event);
+		}
 	}
 
 	private _updateFavicon(event: IBrowserViewFaviconChangeEvent, isSnapshot = false): void {

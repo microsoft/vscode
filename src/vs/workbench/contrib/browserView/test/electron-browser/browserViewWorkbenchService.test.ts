@@ -107,7 +107,10 @@ suite('BrowserViewWorkbenchService popup handoff', () => {
 		const browserService = new class extends mock<IBrowserViewService>() {
 			override readonly onDidCreateBrowserView = created.event;
 			override getBrowserViews() { return listedViews.p; }
-			override getState(id: string) {
+			override async getState(): Promise<IBrowserViewState> {
+				assert.fail('Reconciliation must not request the full browser snapshot');
+			}
+			override getNavigationState(id: string) {
 				trace.push(`snapshot ${id}`);
 				return snapshot.p;
 			}

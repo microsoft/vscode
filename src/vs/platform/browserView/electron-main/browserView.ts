@@ -7,7 +7,8 @@ import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost } from '../common/browserView.js';
+import { BrowserFaviconLoader } from '../common/browserFaviconLoader.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -284,9 +285,8 @@ export class BrowserView extends Disposable {
 		});
 
 		// Favicon events
-		webContents.on('page-favicon-updated', async (_event, favicons) => {
-			// try each url in order until one works
-			for (const url of favicons) {
+		const faviconLoader = this._register(new BrowserFaviconLoader(
+			url => {
 				if (!this._faviconRequestCache.has(url)) {
 					this._faviconRequestCache.set(url, (async () => {
 						if (url.startsWith('data:image/')) {
@@ -308,22 +308,24 @@ export class BrowserView extends Disposable {
 					})());
 				}
 
-				try {
-					this._lastFavicon = await this._faviconRequestCache.get(url)!;
-					this._onDidChangeFavicon.fire({ navigationStateVersion: ++this._navigationStateVersion, favicon: this._lastFavicon });
-					this._currentHistoryHandle?.update({ favicon: this._lastFavicon });
-					// On success, stop searching
+				return this._faviconRequestCache.get(url)!;
+			},
+			favicon => {
+				if (favicon === undefined && !this._lastFavicon) {
 					return;
-				} catch (e) {
-					// On failure, just try the next one
 				}
-			}
-
-			// If we searched all favicons and none worked, clear the favicon
-			if (this._lastFavicon) {
-				this._lastFavicon = undefined;
+				this._lastFavicon = favicon;
 				this._onDidChangeFavicon.fire({ navigationStateVersion: ++this._navigationStateVersion, favicon: this._lastFavicon });
-				this._currentHistoryHandle?.update({ favicon: null });
+				this._currentHistoryHandle?.update({ favicon: favicon ?? null });
+			},
+			this.logService,
+		));
+		webContents.on('page-favicon-updated', (_event, favicons) => {
+			void faviconLoader.load(favicons).catch(error => this.logService.warn('[BrowserView] Failed to update favicon.', error));
+		});
+		webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+			if (isMainFrame && !isInPlace) {
+				faviconLoader.invalidate();
 			}
 		});
 		webContents.on('will-navigate', (event) => {
@@ -613,9 +615,9 @@ export class BrowserView extends Disposable {
 	}
 
 	/**
-	 * Get the current state of this browser view
+	 * Get navigation state without screenshots or session data.
 	 */
-	getState(): IBrowserViewState {
+	getNavigationState(): IBrowserViewNavigationState {
 		const webContents = this._view.webContents;
 		const url = webContents.getURL();
 
@@ -626,13 +628,20 @@ export class BrowserView extends Disposable {
 			canGoBack: webContents.navigationHistory.canGoBack(),
 			canGoForward: webContents.navigationHistory.canGoForward(),
 			loading: webContents.isLoading(),
+			lastFavicon: this._lastFavicon,
+			lastError: this._lastError,
+			certificateError: this.session.trust.getCertificateError(url),
+		};
+	}
+
+	getState(): IBrowserViewState {
+		const webContents = this._view.webContents;
+		return {
+			...this.getNavigationState(),
 			focused: webContents.isFocused(),
 			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
-			lastFavicon: this._lastFavicon,
-			lastError: this._lastError,
-			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
 			storageKeys: { ...this.session.history.storageKeys, ...this.session.permissions.storageKeys },
 			permissions: this.session.permissions.serialize(),
