@@ -13,7 +13,7 @@ import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '..
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
-import type { CopilotSession } from '@github/copilot-sdk';
+import type { RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 
 export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 
@@ -264,7 +264,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	}
 }
 
-export type ICopilotRuntimeSlashCommandInfo = Awaited<ReturnType<CopilotSession['rpc']['commands']['list']>>['commands'][number];
+export type ICopilotRuntimeSlashCommandInfo = RuntimeSlashCommandInfo;
 
 function isSyncedCustomization(container: PluginCustomization): boolean {
 	return container.uri.startsWith(SYNCED_CUSTOMIZATION_SCHEME + ':');

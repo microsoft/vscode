@@ -29,6 +29,7 @@ import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../../contrib/chat/common/promptTimeline.js';
@@ -36,6 +37,7 @@ import { SessionType } from '../../../../contrib/chat/common/chatSessionsService
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
+import { TestFileService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
@@ -965,6 +967,20 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
+	SandboxPolicyLink: defineComponentFixture({
+		render: ctx => renderChatWidget(ctx, {
+			additionalServices: reg => reg.defineInstance(IFileService, ctx.disposableStore.add(new TestFileService())),
+			inputVisible: false,
+			height: 240,
+			messages: [{
+				user: '/sandbox-policy',
+				assistant: [{
+					kind: 'markdown',
+					text: '[Open Sandbox Policy](file:///session/diagnostics/sandbox-policy.md?vscodeLinkType=markdown-preview)\n\n[Regular chat link](https://example.com)',
+				}],
+			}],
+		}),
+	}),
 	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
