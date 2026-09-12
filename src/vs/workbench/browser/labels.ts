@@ -636,6 +636,7 @@ class ResourceLabelWidget extends IconLabel {
 			strikethrough: this.options?.strikethrough,
 			matches: this.options?.matches,
 			descriptionMatches: this.options?.descriptionMatches,
+			suffix: this.options?.suffix,
 			extraClasses: [],
 			separator: this.options?.separator,
 			domId: this.options?.domId,
