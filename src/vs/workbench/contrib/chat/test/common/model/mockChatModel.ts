@@ -68,7 +68,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void { }
-	getRequests(): IChatRequestModel[] { return []; }
+	getRequests(): IChatRequestModel[] { return this.requests; }
 	setCheckpoint(requestId: string | undefined): void { }
 	setRepoData(data: IExportableRepoData | undefined): void { this.repoData = data; }
 	workingDirectory: URI | undefined = undefined;
