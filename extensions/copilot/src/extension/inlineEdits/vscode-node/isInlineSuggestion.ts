@@ -16,6 +16,16 @@ export interface InlineSuggestionEdit {
  * which is required for VS Code to render ghost text.
  */
 export function toInlineSuggestion(cursorPos: Position, doc: TextDocument, range: Range, newText: string, advanced: boolean = true): InlineSuggestionEdit | undefined {
+	// `cursorPos` is the request cursor captured when VS Code invoked the inline
+	// completion provider. NES results are processed asynchronously, so by the time
+	// we get here the document may have been edited such that `cursorPos.line` is no
+	// longer a valid line. The helpers below (e.g. `doc.lineAt(cursorPos.line)`)
+	// assume a valid cursor line, so bail out for a stale cursor: an edit computed
+	// against a since-mutated document can no longer be rendered as ghost text.
+	if (cursorPos.line < 0 || cursorPos.line >= doc.lineCount) {
+		return undefined;
+	}
+
 	if (range.start.line === range.end.line && range.start.line === cursorPos.line) {
 		const sameLineEdit = validateSameLineGhostText(cursorPos, doc, range, newText);
 		if (sameLineEdit) {
