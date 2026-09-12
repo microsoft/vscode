@@ -20,7 +20,7 @@ export interface IAccessibleViewImplementation {
 	when?: ContextKeyExpression | undefined;
 }
 
-export const AccessibleViewRegistry = markAsSingleton(new class AccessibleViewRegistry extends Disposable {
+class AccessibleViewRegistryImpl extends Disposable {
 	_implementations: IAccessibleViewImplementation[] = [];
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -40,4 +40,6 @@ export const AccessibleViewRegistry = markAsSingleton(new class AccessibleViewRe
 	getImplementations(): IAccessibleViewImplementation[] {
 		return this._implementations;
 	}
-}());
+}
+
+export const AccessibleViewRegistry = markAsSingleton(new AccessibleViewRegistryImpl());

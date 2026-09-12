@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { suite, test, type TestContext } from 'node:test';
 import typescriptPackage from 'typescript/package.json' with { type: 'json' };
 import { ensureCopilotSdkCanvasPatch, type CopilotSdkCanvasPatchManifest } from '../../npm/copilotSdkCanvasPatch.ts';
+import { dirs } from '../../npm/dirs.ts';
 import { collectInputFiles, computeState } from '../../npm/installStateHash.ts';
 
 const before = {
@@ -394,7 +395,7 @@ suite('Copilot SDK canvas dependency patch', () => {
 	test('install-state inputs include the carrier, payload and both postinstall paths', t => {
 		const data = fixture(t);
 		assert.deepStrictEqual(
-			collectInputFiles(data.root).map(file => path.relative(data.root, file)).filter(file => file.startsWith('build/npm/')),
+			collectInputFiles(data.root).map(file => path.relative(data.root, file).split(path.sep).join('/')).filter(file => file.startsWith('build/npm/')),
 			[
 				'build/npm/postinstall.ts',
 				'build/npm/fast-install.ts',
@@ -412,6 +413,57 @@ suite('Copilot SDK canvas dependency patch', () => {
 		fs.appendFileSync(path.join(path.dirname(data.manifestPath), 'copilot-sdk-canvas.patch'), '\n');
 		const second = computeState({ repositoryRoot: data.root });
 		assert.notStrictEqual(first.fileHashes['build/npm/copilot-sdk-canvas.patch'], second.fileHashes['build/npm/copilot-sdk-canvas.patch']);
+	});
+
+	test('CI dependency cache keys bind every postinstall input and reject missing inputs', t => {
+		const data = fixture(t);
+		for (const dir of dirs) {
+			writeFiles(path.join(data.root, dir), {
+				'package.json': '{"private":true,"type":"module"}\n',
+				'package-lock.json': '{"packages":{}}\n',
+				'.npmrc': '',
+			});
+		}
+		writeFiles(data.root, { 'build/.cachesalt': 'canvas-cache-fixture\n' });
+		const inputs = collectInputFiles(data.root).map(file => path.relative(data.root, file)).filter(file => file.startsWith(path.join('build', 'npm') + path.sep));
+		const calculator = 'build/azure-pipelines/common/computeNodeModulesCacheKey.ts';
+		for (const file of [calculator, 'build/npm/dirs.ts', ...inputs.filter(file => file.endsWith('.ts'))]) {
+			writeFiles(data.root, { [file]: fs.readFileSync(path.resolve(import.meta.dirname, '../../..', file), 'utf8') });
+		}
+		const run = () => spawnSync(process.execPath, [path.join(data.root, calculator), 'compile', process.arch], {
+			cwd: data.root,
+			encoding: 'utf8',
+		});
+		const key = () => {
+			const result = run();
+			assert.strictEqual(result.status, 0, result.stdout + result.stderr);
+			return result.stdout;
+		};
+		const initial = key();
+		const changed = inputs.map(file => {
+			const target = path.join(data.root, file);
+			const contents = fs.readFileSync(target);
+			fs.appendFileSync(target, '\n');
+			const invalidated = key() !== initial;
+			fs.writeFileSync(target, contents);
+			return invalidated;
+		});
+		const restored = key();
+		fs.unlinkSync(data.manifestPath);
+		const missing = run();
+		assert.deepStrictEqual({
+			keyLength: initial.length,
+			changed,
+			restored: restored === initial,
+			missing: { status: missing.status, reported: missing.stderr.includes('copilot-sdk-canvas.json') },
+			packages: data.packages.map(directory => readFiles(directory, before)),
+		}, {
+			keyLength: 64,
+			changed: inputs.map(() => true),
+			restored: true,
+			missing: { status: 1, reported: true },
+			packages: [before, before],
+		});
 	});
 
 	test('ignores an inherited Git context and an enclosing repository', t => {

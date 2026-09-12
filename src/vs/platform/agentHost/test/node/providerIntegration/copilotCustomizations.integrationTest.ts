@@ -16,6 +16,7 @@ import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentHostConfigKey, type SessionCustomizationDiscoveryMode } from '../../../common/agentHostCustomizationConfig.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
+import type { DisposeSessionParams } from '../../../common/state/protocol/commands.js';
 import { customizationId, CustomizationType, ISessionWithDefaultChat, ROOT_STATE_URI, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
@@ -168,7 +169,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const disposeErrors: string[] = [];
 		for (const session of createdSessions) {
 			try {
-				await client.call('disposeSession', { session }, 15_000);
+				await client.call('disposeSession', { channel: session } satisfies DisposeSessionParams, 15_000);
 			} catch (error) {
 				disposeErrors.push(`Failed to dispose session ${session}: ${error instanceof Error ? error.message : String(error)}`);
 			}

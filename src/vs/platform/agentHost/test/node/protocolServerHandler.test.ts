@@ -228,7 +228,15 @@ class MockAgentService implements IAgentService {
 	}
 	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return {}; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
-	async disposeSession(_session: URI): Promise<void> { }
+	readonly disposedSessions: string[] = [];
+	disposeSessionError: Error | undefined;
+	async disposeSession(session: URI): Promise<void> {
+		this.disposedSessions.push(session.toString());
+		if (this.disposeSessionError) {
+			throw this.disposeSessionError;
+		}
+		this._stateManager.removeSession(session.toString());
+	}
 	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatRequestOptions }[] = [];
 	readonly disposedChats: { session: string; chat: string }[] = [];
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
@@ -458,6 +466,8 @@ suite('ProtocolServerHandler', () => {
 				get available() { return canvasService.available; },
 				get readiness() { return canvasService.readiness; },
 				connect: (clientId, requestApproval) => canvasService.connect(clientId, requestApproval),
+				cancelChatInitialization: chat => canvasService.cancelChatInitialization(chat),
+				cancelSessionInitialization: session => canvasService.cancelSessionInitialization(session),
 			},
 		));
 	});
@@ -606,6 +616,13 @@ suite('ProtocolServerHandler', () => {
 			const source = await send('resolveCanvasSource', { channel: opened.canvas.resource });
 			const invoked = await send('invokeCanvasAction', { channel: opened.canvas.resource, incarnation: opened.canvas.identity.incarnation, actionId: 'increment', requestId: 'invoke' });
 			const restarted = await send('restartCanvasProvider', { channel: opened.canvas.resource, incarnation: opened.canvas.identity.incarnation, requestId: 'restart' });
+			const callsBeforeMetadata = fixture.facet.calls.length;
+			const icon = { src: 'file:///canvas-icons/transport.png' };
+			fixture.facet.publish({ ...fixture.facet.snapshot, instances: [{ ...fixture.facet.instance(), icon }] });
+			await timeout(0);
+			fixture.facet.publish({ ...fixture.facet.snapshot, instances: [fixture.facet.instance()] });
+			await timeout(0);
+			const metadataEffects = fixture.facet.calls.slice(callsBeforeMetadata);
 			const current = stateManager.getCanvasState(opened.canvas.resource)!;
 			const closed = await send('closeCanvas', { channel: current.resource, revision: current.revision, requestId: 'close' });
 			assert.deepStrictEqual({
@@ -615,11 +632,14 @@ suite('ProtocolServerHandler', () => {
 				types: listed.types.length, subscription: subscription.snapshot?.resource,
 				source: source.source, result: invoked.result, restarted, closed,
 				canvasDeltas: received.some(message => isJsonRpcNotification(message) && message.method === 'action' && message.params.channel === opened.canvas.resource),
+				iconChanges: received.flatMap(message => isJsonRpcNotification(message) && message.method === 'action' && message.params.channel === opened.canvas.resource && message.params.action.type === ActionType.CanvasIconChanged ? [message.params.action.icon] : []),
+				metadataEffects,
 				remaining: stateManager.getCanvasState(opened.canvas.resource),
 			}, {
 				capability: {}, initialization: true, artifactRemoval: false,
 				shutdown: { jsonrpc: '2.0', id: shutdownRequest, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } }, shutdownCalls: 0,
 				types: 1, subscription: openParams.canvas, source: fixture.facet.resolveResult, result: { count: 1 }, restarted: null, closed: null, canvasDeltas: true, remaining: undefined,
+				iconChanges: [icon, null], metadataEffects: [],
 			});
 		});
 
@@ -2280,6 +2300,77 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			subscribes: [{ resource: sessionUri, clientId: 'client-reconnect-cancel' }],
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-reconnect-cancel' }],
+		});
+	});
+
+	suite('disposeSession', () => {
+		test('preserves the canonical session channel and cancels all its pending chats', async () => {
+			const otherSession = 'copilot:/other-session';
+			const peerChat = buildChatUri(sessionUri, 'registered-peer');
+			const pendingChat = buildChatUri(sessionUri, 'pending-peer');
+			stateManager.createSession(makeSessionSummary());
+			stateManager.addChat(sessionUri, peerChat);
+			stateManager.createSession(makeSessionSummary(otherSession));
+			const fixture = createCanvasServices(disposables, stateManager, clientConnections);
+			canvasService = fixture.service;
+			const leases = [defaultChatUri, peerChat, pendingChat, buildDefaultChatUri(otherSession)]
+				.map(chat => disposables.add(fixture.service.beginChatCreation(chat)));
+			const transport = connectClient('dispose-canonical');
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'disposeSession', { channel: sessionUri, session: otherSession }));
+			assert.deepStrictEqual({
+				response: await response,
+				disposed: agentService.disposedSessions,
+				cancelled: leases.map(lease => lease.token.isCancellationRequested),
+				sessionExists: !!stateManager.getSessionState(sessionUri),
+				otherExists: !!stateManager.getSessionState(otherSession),
+				providerCalls: fixture.facet.calls,
+				errors: logService.errorCount,
+			}, {
+				response: { jsonrpc: '2.0', id: 2, result: null },
+				disposed: [sessionUri], cancelled: [true, true, true, false],
+				sessionExists: false, otherExists: true, providerCalls: [], errors: 0,
+			});
+		});
+
+		for (const [name, params] of [
+			['missing params', undefined],
+			['null params', null],
+			['missing channel', {}],
+			['legacy session params', { session: sessionUri }],
+			['non-string channel', { channel: 42 }],
+			['empty channel', { channel: '' }],
+		] as const) {
+			test(`rejects ${name} before cancellation or disposal`, async () => {
+				const cancelled: string[] = [];
+				canvasService = {
+					...unavailableCanvases,
+					cancelChatInitialization: chat => cancelled.push(chat),
+					cancelSessionInitialization: session => cancelled.push(session),
+				};
+				const transport = connectClient('dispose-invalid');
+				const response = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'disposeSession', params));
+				assert.deepStrictEqual({
+					response: await response, disposed: agentService.disposedSessions, cancelled, errors: logService.errorCount,
+				}, {
+					response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.InvalidParams, message: 'channel must be a non-empty session URI string' } },
+					disposed: [], cancelled: [], errors: 1,
+				});
+			});
+		}
+
+		test('preserves provider disposal errors and their logging', async () => {
+			agentService.disposeSessionError = new ProtocolError(AhpErrorCodes.PermissionDenied, 'Original disposal failure', { reason: 'provider rejected disposal' });
+			const transport = connectClient('dispose-error');
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'disposeSession', { channel: sessionUri }));
+			assert.deepStrictEqual({
+				response: await response, disposed: agentService.disposedSessions, errors: logService.errorCount,
+			}, {
+				response: { jsonrpc: '2.0', id: 2, error: { code: AhpErrorCodes.PermissionDenied, message: 'Original disposal failure', data: { reason: 'provider rejected disposal' } } },
+				disposed: [sessionUri], errors: 1,
+			});
 		});
 	});
 

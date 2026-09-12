@@ -13,6 +13,15 @@ export const stateFile = path.join(root, 'node_modules', '.postinstall-state');
 export const stateContentsFile = path.join(root, 'node_modules', '.postinstall-state-contents');
 export const forceInstallMessage = 'Run \x1b[36mnode build/npm/fast-install.ts --force\x1b[0m to force a full install.';
 
+export const postinstallInputFiles: readonly string[] = [
+	'build/npm/postinstall.ts',
+	'build/npm/fast-install.ts',
+	'build/npm/installStateHash.ts',
+	'build/npm/copilotSdkCanvasPatch.ts',
+	'build/npm/copilot-sdk-canvas.json',
+	'build/npm/copilot-sdk-canvas.patch',
+];
+
 export function collectInputFiles(repositoryRoot: string = root): string[] {
 	const files: string[] = [];
 
@@ -27,14 +36,7 @@ export function collectInputFiles(repositoryRoot: string = root): string[] {
 	}
 
 	files.push(path.join(repositoryRoot, '.nvmrc'));
-	for (const file of [
-		'build/npm/postinstall.ts',
-		'build/npm/fast-install.ts',
-		'build/npm/installStateHash.ts',
-		'build/npm/copilotSdkCanvasPatch.ts',
-		'build/npm/copilot-sdk-canvas.json',
-		'build/npm/copilot-sdk-canvas.patch',
-	]) {
+	for (const file of postinstallInputFiles) {
 		files.push(path.join(repositoryRoot, file));
 	}
 

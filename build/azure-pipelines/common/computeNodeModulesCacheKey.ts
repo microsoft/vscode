@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { dirs } from '../../npm/dirs.ts';
+import { postinstallInputFiles } from '../../npm/installStateHash.ts';
 
 const ROOT = path.join(import.meta.dirname, '../../../');
 
@@ -15,6 +16,11 @@ shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
 shasum.update(fs.readFileSync(path.join(ROOT, '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'build', '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'remote', '.npmrc')));
+
+for (const file of postinstallInputFiles) {
+	shasum.update(file);
+	shasum.update(fs.readFileSync(path.join(ROOT, file)));
+}
 
 // Add `package.json` and `package-lock.json` files
 for (const dir of dirs) {

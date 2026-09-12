@@ -184,6 +184,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.CanvasTrustChanged]: '0.10.0',
 	[ActionType.CanvasIncarnationChanged]: '0.10.0',
 	[ActionType.CanvasTitleChanged]: '0.10.0',
+	[ActionType.CanvasIconChanged]: '0.10.0',
 };
 
 /**

@@ -16,6 +16,7 @@ import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyAction } from '../../../common/state/sessionActions.js';
+import type { DisposeSessionParams } from '../../../common/state/protocol/commands.js';
 import { buildDefaultChatUri, ResponsePartKind, SessionStatus, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
@@ -67,7 +68,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 	teardown(async function () {
 		for (const session of createdSessions) {
 			try {
-				await client.call('disposeSession', { session }, 5000);
+				await client.call('disposeSession', { channel: session } satisfies DisposeSessionParams, 5000);
 			} catch { /* best-effort */ }
 		}
 		createdSessions.length = 0;
@@ -179,7 +180,7 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 	teardown(async function () {
 		for (const session of createdSessions) {
 			try {
-				await client.call('disposeSession', { session }, 5000);
+				await client.call('disposeSession', { channel: session } satisfies DisposeSessionParams, 5000);
 			} catch { /* best-effort */ }
 		}
 		createdSessions.length = 0;

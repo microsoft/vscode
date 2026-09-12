@@ -92,6 +92,30 @@ suite('Session canvas presentation', () => {
 		});
 	});
 
+	test('adding, changing and removing an icon does not remount the page or replay an effect', async () => {
+		const { canvases, presentation, models, urls } = fixture();
+		await canvases.completeSource(0);
+		await timeout(0);
+		const original = createCanvasState();
+		const states: CanvasState[] = [
+			{ ...original, revision: 2, icon: { src: 'https://fixture.invalid/first.png' } },
+			{ ...original, revision: 3, icon: { src: 'https://fixture.invalid/second.png' } },
+			{ ...original, revision: 4 },
+		];
+		for (const state of states) {
+			canvases.setState(state);
+			await canvases.completeSource(canvases.sourceRequests.length - 1);
+			await timeout(0);
+		}
+		assert.deepStrictEqual({
+			urls, model: presentation.model.get()?.id, status: presentation.status.get(),
+			disposed: models.map(model => model.disposed()), effects: canvases.effects, pulls: canvases.sourceRequests.length,
+		}, {
+			urls: ['http://127.0.0.1:43123/canvas'], model: '0', status: 'attached',
+			disposed: [false], effects: [], pulls: 4,
+		});
+	});
+
 	test('explicit reload replaces the page even when the resolved source is unchanged', async () => {
 		const { canvases, presentation, models, urls } = fixture();
 		await canvases.completeSource(0);

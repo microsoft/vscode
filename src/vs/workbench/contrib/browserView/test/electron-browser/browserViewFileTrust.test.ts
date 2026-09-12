@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -12,7 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IChannel, ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { BrowserViewStorageScope, browserZoomDefaultIndex, externalBrowserViewStorageAffinity, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewService, IBrowserViewWindowConfiguration } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, browserZoomDefaultIndex, externalBrowserViewStorageAffinity, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewService, IBrowserViewWindowConfiguration, validateExternalBrowserViewOptions } from '../../../../../platform/browserView/common/browserView.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -21,13 +22,44 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { BrowserViewModel } from '../../common/browserView.js';
 import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewWorkbenchService.js';
 
-suite('BrowserViewWorkbenchService file authority', () => {
+suite('BrowserViewWorkbenchService native initialization', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspace = URI.file('/canvas-file-trust/workspace');
 	const external = URI.file('/canvas-file-trust/outside');
 	const resource = URI.parse('test-canvas:/owner/chat/instance');
 
-	function createFixture(options: { configure?: () => Promise<void>; create?: () => Promise<void> } = {}) {
+	function createViewInfo(id: string, creation: IBrowserViewCreateOptions): IBrowserViewInfo {
+		return {
+			id, host: creation.host, owner: creation.owner,
+			associatedResource: undefined, presentation: creation.presentation,
+			state: {
+				url: creation.initialUrl ?? '', title: '', canGoBack: false, canGoForward: false,
+				loading: false, focused: false, visible: false, isDevToolsOpen: false,
+				lastScreenshot: undefined, lastFavicon: undefined, lastError: undefined, certificateError: undefined,
+				storageScope: creation.presentation ? BrowserViewStorageScope.Agent : BrowserViewStorageScope.Global,
+				storageKeys: {}, permissions: { origins: {} },
+				browserZoomIndex: browserZoomDefaultIndex, elementSelectionState: { active: false, options: {} },
+				isRemoteSession: false, isAreaSelectionActive: false, device: undefined, audiences: [],
+			},
+		};
+	}
+
+	function restoredView(id: string, canvas?: URI, windowId = mainWindow.vscodeWindowId): IBrowserViewInfo {
+		return createViewInfo(id, {
+			host: { windowId }, owner: { type: 'user' },
+			session: canvas
+				? { scope: BrowserViewStorageScope.Agent, affinity: externalBrowserViewStorageAffinity(canvas) }
+				: { scope: BrowserViewStorageScope.Global },
+			presentation: canvas ? { type: 'external', resource: canvas } : undefined,
+		});
+	}
+
+	function createFixture(options: {
+		configure?: () => Promise<void>;
+		create?: () => Promise<void>;
+		existingViews?: readonly IBrowserViewInfo[];
+		destroy?: (id: string) => Promise<void>;
+	} = {}) {
 		const lifetime = store.add(new DisposableStore());
 		const instantiation = workbenchInstantiationService(undefined, lifetime);
 		const initialized = new DeferredPromise<void>();
@@ -37,10 +69,16 @@ suite('BrowserViewWorkbenchService file authority', () => {
 		let trusted: URI[] = [];
 		const configurations: IBrowserViewWindowConfiguration[] = [];
 		const creations: IBrowserViewCreateOptions[] = [];
+		const nativeViews = new Map(options.existingViews?.map(view => [view.id, view]));
+		const enumeratedWindows: (number | undefined)[] = [];
+		const destroyRequests: string[] = [];
 		const destroyed: string[] = [];
 		const native = upcastPartial<IBrowserViewService>({
 			onDidCreateBrowserView: Event.None,
-			getBrowserViews: async () => [],
+			getBrowserViews: async windowId => {
+				enumeratedWindows.push(windowId);
+				return [...nativeViews.values()].filter(view => windowId === undefined || view.host.windowId === windowId);
+			},
 			updateWindowConfiguration: async (_windowId, configuration) => {
 				configurations.push(configuration);
 				await options.configure?.();
@@ -48,21 +86,17 @@ suite('BrowserViewWorkbenchService file authority', () => {
 			getOrCreateBrowserView: async (id, creation) => {
 				creations.push(creation);
 				await options.create?.();
-				const info: IBrowserViewInfo = {
-					id, host: creation.host, owner: creation.owner,
-					associatedResource: undefined, presentation: creation.presentation,
-					state: {
-						url: creation.initialUrl ?? '', title: '', canGoBack: false, canGoForward: false,
-						loading: false, focused: false, visible: false, isDevToolsOpen: false,
-						lastScreenshot: undefined, lastFavicon: undefined, lastError: undefined, certificateError: undefined,
-						storageScope: BrowserViewStorageScope.Agent, storageKeys: {}, permissions: { origins: {} },
-						browserZoomIndex: browserZoomDefaultIndex, elementSelectionState: { active: false, options: {} },
-						isRemoteSession: false, isAreaSelectionActive: false, device: undefined, audiences: [],
-					},
-				};
+				validateExternalBrowserViewOptions(creation, nativeViews.values());
+				const info = createViewInfo(id, creation);
+				nativeViews.set(id, info);
 				return info;
 			},
-			destroyBrowserView: async id => { destroyed.push(id); },
+			destroyBrowserView: async id => {
+				destroyRequests.push(id);
+				await options.destroy?.(id);
+				nativeViews.delete(id);
+				destroyed.push(id);
+			},
 		});
 		const server = ProxyChannel.fromService(native, lifetime);
 		const channel: IChannel = {
@@ -87,16 +121,86 @@ suite('BrowserViewWorkbenchService file authority', () => {
 			onDidChangeTrust: trustChanged.event,
 			onDidChangeTrustedFolders: foldersChanged.event,
 		});
-		instantiation.stubInstance(BrowserViewModel, { onWillDispose: Event.None, onDidClose: Event.None, dispose: () => { } });
+		instantiation.stubInstance(BrowserViewModel, {
+			onWillDispose: Event.None, onDidClose: Event.None, onDidChangeTitle: Event.None,
+			onDidChangeFavicon: Event.None, onDidChangeLoadingState: Event.None, onDidNavigate: Event.None,
+			dispose: () => { },
+		});
 		const service = lifetime.add(instantiation.createInstance(BrowserViewWorkbenchService));
+		lifetime.add(service.onDidChangeBrowserViews(() => {
+			for (const input of service.getKnownBrowserViews().values()) {
+				lifetime.add(input);
+			}
+		}));
 		const setTrust = (uris: URI[], workspaceIsTrusted: boolean) => {
 			trusted = uris;
 			workspaceTrusted = workspaceIsTrusted;
 			foldersChanged.fire();
 			trustChanged.fire(workspaceIsTrusted);
 		};
-		return { service, initialized, configurations, creations, destroyed, setTrust };
+		return { service, initialized, configurations, creations, nativeViews, enumeratedWindows, destroyRequests, destroyed, setTrust };
 	}
+
+	test('renderer restoration retires every old external view before replacement without closing ordinary or other-window views', async () => {
+		const secondResource = resource.with({ path: '/owner/chat/second' });
+		const firstDestroyed = new DeferredPromise<void>();
+		const secondDestroyed = new DeferredPromise<void>();
+		const fixture = createFixture({
+			existingViews: [
+				restoredView('old-first', resource),
+				restoredView('ordinary'),
+				restoredView('old-second', secondResource),
+				restoredView('other-window', resource.with({ path: '/other-owner/chat/instance' }), mainWindow.vscodeWindowId + 1),
+			],
+			destroy: id => id === 'old-first' ? firstDestroyed.p : secondDestroyed.p,
+		});
+		await fixture.initialized.complete();
+		const replacements = Promise.allSettled([
+			fixture.service.getOrCreateExternalBrowserView('new-first', resource, 'http://localhost/first'),
+			fixture.service.getOrCreateExternalBrowserView('new-second', secondResource, 'http://localhost/second'),
+		]);
+		await timeout(0);
+		const beforeCleanup = fixture.creations.length;
+		await firstDestroyed.complete();
+		await timeout(0);
+		const afterFirstCleanup = fixture.creations.length;
+		await secondDestroyed.complete();
+		const outcomes = (await replacements).map(result => result.status);
+
+		assert.deepStrictEqual({
+			beforeCleanup, afterFirstCleanup, outcomes,
+			enumeratedWindows: fixture.enumeratedWindows,
+			destroyRequests: fixture.destroyRequests,
+			destroyed: fixture.destroyed,
+			remaining: [...fixture.nativeViews.keys()].sort(),
+			ordinaryEditors: [...fixture.service.getKnownBrowserViews().keys()],
+		}, {
+			beforeCleanup: 0, afterFirstCleanup: 0, outcomes: ['fulfilled', 'fulfilled'],
+			enumeratedWindows: [mainWindow.vscodeWindowId],
+			destroyRequests: ['old-first', 'old-second'],
+			destroyed: ['old-first', 'old-second'],
+			remaining: ['new-first', 'new-second', 'ordinary', 'other-window'],
+			ordinaryEditors: ['ordinary'],
+		});
+	});
+
+	test('failed restoration cleanup blocks replacement but still restores ordinary browser inputs', async () => {
+		const failure = new Error('Controlled native cleanup failure');
+		const fixture = createFixture({
+			existingViews: [restoredView('old', resource), restoredView('ordinary')],
+			destroy: async () => { throw failure; },
+		});
+		await fixture.initialized.complete();
+		await assert.rejects(fixture.service.getOrCreateExternalBrowserView('new', resource, 'http://localhost/'), error => error === failure);
+		assert.deepStrictEqual({
+			creations: fixture.creations,
+			destroyRequests: fixture.destroyRequests,
+			remaining: [...fixture.nativeViews.keys()],
+			ordinaryEditors: [...fixture.service.getKnownBrowserViews().keys()],
+		}, {
+			creations: [], destroyRequests: ['old'], remaining: ['old', 'ordinary'], ordinaryEditors: ['ordinary'],
+		});
+	});
 
 	test('waits for initialized file authority and its native acknowledgement before external creation', async () => {
 		const configured = new DeferredPromise<void>();

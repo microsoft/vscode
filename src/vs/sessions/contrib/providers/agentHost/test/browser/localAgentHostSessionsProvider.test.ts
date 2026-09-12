@@ -12,6 +12,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -705,7 +706,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Provider identity -------
 
-	test('canvas capability requires the opt-in and negotiated runtime and rolls back on disconnect', async () => {
+	const nativeCanvasTest = isWeb ? test.skip : test;
+
+	test('canvas presentation follows the native platform boundary', async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
+		agentHost.addSession(createSession('canvas-platform'));
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }),
+		});
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		assert.deepStrictEqual({
+			supported: session.capabilities.get().supportsCanvases,
+			hasFacet: provider.getSessionCanvases(session.sessionId, session.mainChat.get().resource) !== undefined,
+			opens: agentHost.canvasOpens,
+		}, { supported: !isWeb, hasFacet: !isWeb, opens: [] });
+	});
+
+	nativeCanvasTest('canvas capability requires the opt-in and negotiated runtime and rolls back on disconnect', async () => {
 		agentHost.addSession(createSession('canvas-capability'));
 		const configuration = new TestConfigurationService();
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configuration });
@@ -750,7 +768,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, { workbench: false, otherAgent: false, workbenchFacet: undefined, otherAgentFacet: undefined });
 	});
 
-	test('canvas presentation is disabled for pending and selected Dev Container execution', async () => {
+	nativeCanvasTest('canvas presentation is disabled for pending and selected Dev Container execution', async () => {
 		const availability = new DeferredPromise<boolean>();
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
 		const provider = createProvider(disposables, agentHost, undefined, {
@@ -775,7 +793,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('canvas mirror and catalog use exact peer resources without pure reads subscribing the session', async () => {
+	nativeCanvasTest('canvas mirror and catalog use exact peer resources without pure reads subscribing the session', async () => {
 		const rawId = 'canvas-peers';
 		const backend = AgentSession.uri('copilotcli', rawId);
 		agentHost.addSession(createSession(rawId));
@@ -812,7 +830,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('canvas draft projections are disposed on discard and config replacement', async () => {
+	nativeCanvasTest('canvas draft projections are disposed on discard and config replacement', async () => {
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: new TestConfigurationService({ [SessionCanvasesEnabledSettingId]: true }) });
 		const availability: string[] = [];
@@ -879,7 +897,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const rawId = AgentSession.id(backend);
 			const chat = buildDefaultChatUri(backend.toString());
 			const canvas = canvasEntry(createCanvasState(chat));
-			const canvases = provider.getSessionCanvases(draft.sessionId, draft.mainChat.get().resource)!;
+			const canvases = provider.getSessionCanvases(draft.sessionId, draft.mainChat.get().resource);
 			const replacements: string[] = [];
 			disposables.add(provider.onDidReplaceSession(e => replacements.push(`${e.from.sessionId}->${e.to.sessionId}`)));
 			const state: SessionState = {
@@ -903,21 +921,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 			provider.deleteNewSession(draft.sessionId);
 			const committed = provider.getSessionByResource(draft.resource)!;
+			const projection = provider.getSessionCanvases(committed.sessionId, committed.mainChat.get().resource);
 			assert.deepStrictEqual({
 				whileCreating, beforeDurableIntent, beforeSummary, replacements,
 				owner: committed.resource.toString(), status: committed.status.get(), model: committed.modelId.get(),
-				members: canvases.entries.get().map(entry => entry.resource), availability: canvases.availability.get(),
-				sameProjection: provider.getSessionCanvases(committed.sessionId, committed.mainChat.get().resource) === canvases,
+				projection: projection && {
+					members: projection.entries.get().map(entry => entry.resource), availability: projection.availability.get(),
+					sameProjection: projection === canvases,
+				},
 				disposedSessions: agentHost.disposedSessions.map(resource => resource.toString()),
 			}, {
 				whileCreating: 0, beforeDurableIntent: 0, beforeSummary: metadataFirst ? 1 : 0, replacements: [`${draft.sessionId}->${draft.sessionId}`],
 				owner: draft.resource.toString(), status: SessionStatus.Completed, model: 'selected-model',
-				members: hasMember ? [canvas.resource] : [], availability: 'available', sameProjection: true, disposedSessions: [],
+				projection: isWeb ? undefined : {
+					members: hasMember ? [canvas.resource] : [], availability: 'available', sameProjection: true,
+				},
+				disposedSessions: [],
 			});
 		});
 	}
 
-	test('canvas open waits for eager owner creation without a model request', async () => {
+	nativeCanvasTest('canvas open waits for eager owner creation without a model request', async () => {
 		const creation = new DeferredPromise<void>();
 		agentHost.onCreateSession = () => creation.p;
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);
@@ -960,7 +984,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('discarding an uncommitted canvas owner cancels a waiting open', async () => {
+	nativeCanvasTest('discarding an uncommitted canvas owner cancels a waiting open', async () => {
 		const creation = new DeferredPromise<void>();
 		agentHost.onCreateSession = () => creation.p;
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), canvases: {} }, undefined);

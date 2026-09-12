@@ -23,7 +23,7 @@ import type { TerminalDataAction, TerminalInputAction, TerminalResizedAction, Te
 import type { ResourceWatchChangedAction } from '../channels-resource-watch/actions.js';
 import type { AutomationCreateRequestedAction, AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from '../channels-automation/actions.js';
 import type { AutomationRunLifecycleChangedAction, AutomationRunSessionSetAction, AutomationRunSessionRemovedAction, AutomationRunPrimarySessionChangedAction, AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
-import type { CanvasAvailabilityChangedAction, CanvasTrustChangedAction, CanvasIncarnationChangedAction, CanvasTitleChangedAction } from '../channels-canvas/actions.js';
+import type { CanvasAvailabilityChangedAction, CanvasTrustChangedAction, CanvasIncarnationChangedAction, CanvasTitleChangedAction, CanvasIconChangedAction } from '../channels-canvas/actions.js';
 
 // ─── Action Type Enum ────────────────────────────────────────────────────────
 
@@ -136,6 +136,7 @@ export const enum ActionType {
 	CanvasTrustChanged = 'canvas/trustChanged',
 	CanvasIncarnationChanged = 'canvas/incarnationChanged',
 	CanvasTitleChanged = 'canvas/titleChanged',
+	CanvasIconChanged = 'canvas/iconChanged',
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────────────
@@ -273,4 +274,5 @@ export type StateAction =
 	| CanvasAvailabilityChangedAction
 	| CanvasTrustChangedAction
 	| CanvasIncarnationChangedAction
-	| CanvasTitleChangedAction;
+	| CanvasTitleChangedAction
+	| CanvasIconChangedAction;

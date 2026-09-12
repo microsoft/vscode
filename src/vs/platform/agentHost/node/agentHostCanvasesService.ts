@@ -1035,7 +1035,7 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 		if (!current) {
 			this._state.registerCanvas({
 				resource, identity: { ...this._identity(instance.identity), incarnation: generateUuid() }, title: instance.title,
-				...(instance.icon === undefined ? {} : { icon: instance.icon }),
+				...(instance.icon === undefined ? {} : { icon: structuredClone(instance.icon) }),
 				trust: provider.getTrust(instance.identity.chat, instance.identity.source), availability: structuredClone(instance.availability), revision: 1,
 			});
 		} else {
@@ -1048,6 +1048,10 @@ export class AgentHostCanvasesService extends Disposable implements IAgentHostCa
 			current = this._require(resource);
 			if (current.title !== instance.title) {
 				this._state.dispatchServerAction(resource, { type: ActionType.CanvasTitleChanged, title: instance.title, revision: current.revision + 1 });
+			}
+			current = this._require(resource);
+			if (!equals(current.icon, instance.icon)) {
+				this._state.dispatchServerAction(resource, { type: ActionType.CanvasIconChanged, icon: instance.icon === undefined ? null : structuredClone(instance.icon), revision: current.revision + 1 });
 			}
 			this._availability(resource, instance.availability);
 			current = this._require(resource);

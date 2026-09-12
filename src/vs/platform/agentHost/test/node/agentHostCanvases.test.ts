@@ -16,7 +16,7 @@ import { CanvasAvailabilityStatus, CanvasSourceKind, CanvasTrustStatus, type Can
 import type { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
 import type { OpenCanvasParams } from '../../common/state/protocol/channels-canvas/commands.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, isCanvasAction } from '../../common/state/sessionActions.js';
 import { buildChatUri, MessageAttachmentKind, MessageKind, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { CanvasStateSubscription } from '../../common/state/agentSubscription.js';
 import { AgentHostCanvasApproval } from '../../node/agentHostCanvasApproval.js';
@@ -344,6 +344,90 @@ suite('Agent Host canvas coordinator', () => {
 		fixture.facet.publish({ ...fixture.facet.snapshot, instances: [], closed: [canvasIdentity] });
 		await timeout(0);
 		assert.deepStrictEqual(fixture.state.getChatCanvasStates(canvasChat), []);
+	});
+
+	suite('authoritative icon metadata', () => {
+		const original: NonNullable<IAgentCanvasInstance['icon']> = { src: 'file:///canvas-icons/original.png', sizes: ['16x16'], theme: 'dark' };
+		const replacement: NonNullable<IAgentCanvasInstance['icon']> = { src: 'file:///canvas-icons/replacement.png', contentType: 'image/png' };
+		for (const change of [
+			{ name: 'sets an absent icon', before: undefined, after: original, title: 'Counter', revisions: 1 },
+			{ name: 'changes the icon', before: original, after: replacement, title: 'Counter', revisions: 1 },
+			{ name: 'changes icon metadata without changing its source', before: original, after: { ...original, sizes: ['32x32'] }, title: 'Counter', revisions: 1 },
+			{ name: 'clears the icon', before: original, after: undefined, title: 'Counter', revisions: 1 },
+			{ name: 'preserves equal metadata without a spurious action', before: original, after: { ...original, sizes: ['16x16'] }, title: 'Counter', revisions: 0 },
+			{ name: 'preserves absent metadata without a spurious action', before: undefined, after: undefined, title: 'Counter', revisions: 0 },
+			{ name: 'changes title and icon with distinct fresh revisions', before: original, after: replacement, title: 'Renamed Counter', revisions: 2 },
+		]) {
+			test(change.name, async () => {
+				fixture.facet.publish({
+					...fixture.facet.snapshot, instances: [{ ...fixture.facet.instance(), ...(change.before ? { icon: change.before } : {}) }],
+				});
+				await timeout(0);
+				const initial = fixture.state.getChatCanvasStates(canvasChat)[0];
+				assert.ok(initial);
+				const subscription = store.add(new CanvasStateSubscription(initial.resource, 'metadata-reader', () => { }));
+				subscription.handleSnapshot(initial, fixture.state.serverSeq);
+				const revisions: number[] = [];
+				store.add(fixture.state.onDidEmitEnvelope(envelope => {
+					subscription.receiveEnvelope(envelope);
+					if (envelope.channel === initial.resource && isCanvasAction(envelope.action)) {
+						revisions.push(envelope.action.revision);
+					}
+				}));
+				fixture.facet.publish({
+					...fixture.facet.snapshot,
+					instances: [{ ...fixture.facet.instance(), title: change.title, ...(change.after ? { icon: change.after } : {}) }],
+				});
+				await timeout(0);
+				const current = fixture.state.getCanvasState(initial.resource);
+				const entry = fixture.state.getSessionState(canvasSession)?.canvases?.find(canvas => canvas.resource === initial.resource);
+				const states = [current, entry, subscription.verifiedValue].map(state => ({
+					title: state?.title, icon: state?.icon, hasIcon: state && Object.hasOwn(state, 'icon'), revision: state?.revision,
+				}));
+				const expected = { title: change.title, icon: change.after, hasIcon: change.after !== undefined, revision: initial.revision + change.revisions };
+				assert.deepStrictEqual({
+					states, revisions, identity: current?.identity, providerCalls: fixture.facet.calls,
+				}, {
+					states: [expected, expected, expected],
+					revisions: Array.from({ length: change.revisions }, (_, index) => initial.revision + index + 1),
+					identity: initial.identity, providerCalls: [],
+				});
+			});
+		}
+
+		test('icon snapshots do not share mutable provider data', async () => {
+			const icon = { ...original, sizes: ['16x16'] };
+			const instance = { ...fixture.facet.instance(), icon };
+			fixture.facet.publish({ ...fixture.facet.snapshot, instances: [instance] });
+			await timeout(0);
+			const first = fixture.state.getChatCanvasStates(canvasChat)[0];
+			icon.sizes[0] = '32x32';
+			fixture.facet.publish({ ...fixture.facet.snapshot, instances: [instance] });
+			await timeout(0);
+			const second = fixture.state.getChatCanvasStates(canvasChat)[0];
+			icon.sizes[0] = '64x64';
+			fixture.facet.publish({ ...fixture.facet.snapshot, instances: [instance] });
+			await timeout(0);
+			const third = fixture.state.getChatCanvasStates(canvasChat)[0];
+			assert.deepStrictEqual({
+				sizes: [first, second, third].map(state => state.icon?.sizes),
+				revisions: [first, second, third].map(state => state.revision),
+				providerCalls: fixture.facet.calls,
+			}, { sizes: [['16x16'], ['32x32'], ['64x64']], revisions: [1, 2, 3], providerCalls: [] });
+		});
+
+		test('cleared icons stay absent after metadata-only restoration', async () => {
+			fixture.facet.publish({ ...fixture.facet.snapshot, instances: [{ ...fixture.facet.instance(), icon: original }] });
+			await timeout(0);
+			fixture.facet.publish({ ...fixture.facet.snapshot, instances: [fixture.facet.instance()] });
+			await timeout(0);
+			const restored = await fixture.service.loadChat(canvasChat);
+			const entry = fixture.state.getSessionState(canvasSession)?.canvases?.[0];
+			assert.deepStrictEqual({
+				restored: restored.map(state => ({ icon: state.icon, hasIcon: Object.hasOwn(state, 'icon') })),
+				projectedIcon: entry?.icon, projectedHasIcon: entry && Object.hasOwn(entry, 'icon'), providerCalls: fixture.facet.calls,
+			}, { restored: [{ icon: undefined, hasIcon: false }], projectedIcon: undefined, projectedHasIcon: false, providerCalls: [] });
+		});
 	});
 
 	test('canonical identity remains source-qualified; native chat-wide namespaces are opt-in', async () => {

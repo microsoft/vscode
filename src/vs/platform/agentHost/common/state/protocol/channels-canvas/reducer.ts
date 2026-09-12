@@ -53,6 +53,20 @@ export function canvasReducer(state: CanvasState, action: CanvasAction, log?: (m
 			}
 			return { ...state, title: action.title, revision: action.revision };
 
+		case ActionType.CanvasIconChanged:
+			if (action.revision <= state.revision) {
+				return state;
+			}
+			if (action.icon === null) {
+				const { icon: _, ...withoutIcon } = state;
+				return { ...withoutIcon, revision: action.revision };
+			}
+			return {
+				...state,
+				icon: action.icon,
+				revision: action.revision,
+			};
+
 		default:
 			softAssertNever(action, log);
 			return state;

@@ -1666,6 +1666,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return null;
 		},
 		disposeSession: async (_client, params) => {
+			if (!isParamsObject(params) || typeof params.channel !== 'string' || !params.channel) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'channel must be a non-empty session URI string');
+			}
 			for (const chat of this._stateManager.getSessionState(params.channel)?.chats ?? []) {
 				this._canvases.cancelChatInitialization(chat.resource);
 			}

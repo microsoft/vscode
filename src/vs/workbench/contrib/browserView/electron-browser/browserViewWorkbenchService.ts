@@ -83,6 +83,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private readonly _contextualFilters = new Set<IBrowserViewContextualFilter>();
 	private readonly _openHandlers = new Set<IBrowserViewOpenHandler>();
 	private readonly _mainWindowId: number;
+	private readonly _existingViewsInitialized: Promise<void>;
 
 	/** Latest tunnel-proxy credentials pushed from the local extension host. */
 	private _remoteProxyInfo: ITunnelProxyInfo | undefined;
@@ -185,8 +186,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 		}));
 
-		// Start asynchronously creating models for all views we already own.
-		void this._initializeExistingViews().catch(e => {
+		this._existingViewsInitialized = this._initializeExistingViews();
+		void this._existingViewsInitialized.catch(e => {
 			this.logService.error('[BrowserViewWorkbenchService] Failed to initialize existing browser views.', e);
 		});
 
@@ -394,6 +395,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private async _createExternalModel(id: string, resource: URI, initialUrl: string): Promise<IBrowserViewModel> {
+		await this._existingViewsInitialized;
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		if (this._store.isDisposed) {
 			throw new CancellationError();
@@ -489,16 +491,20 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	/**
-	 * Fetch all views owned by this window from the main service and create
-	 * models for them so they are available synchronously.
+	 * Restore ordinary browser models and release external views left by the
+	 * previous renderer before their logical owners can attach replacements.
 	 */
 	private async _initializeExistingViews(): Promise<void> {
 		const views = await this._browserViewService.getBrowserViews(this._mainWindowId);
+		const externalViewDisposals: Promise<void>[] = [];
 		for (const info of views) {
-			if (!info.presentation) {
+			if (info.presentation) {
+				externalViewDisposals.push(this._browserViewService.destroyBrowserView(info.id));
+			} else {
 				this._createModel(info);
 			}
 		}
+		await Promise.all(externalViewDisposals);
 	}
 
 	private _createModel(info: IBrowserViewInfo, initialUrl?: string): IBrowserViewModel {
