@@ -161,6 +161,29 @@ suite('SubagentRegistry', () => {
 		});
 	});
 
+	test('drainForegroundSpawns keeps agentId-only records, so a spawn primed from the transcript survives the first resumed turn', () => {
+		const registry = r();
+		registry.primeFromTranscript([
+			makeAgentToolCallTurn('toolu_primed', { suffixText: 'agentId: agentprimed' }),
+		]);
+		registry.cacheAgentId('toolu_resolved', 'agentresolved');
+		registry.recordSpawn('toolu_live');
+
+		const drained = registry.drainForegroundSpawns();
+
+		assert.deepStrictEqual({
+			drainedIds: drained.map(s => s.toolUseId),
+			primed: registry.getSpawn('toolu_primed')?.agentId,
+			resolved: registry.getSpawn('toolu_resolved')?.agentId,
+			live: registry.getSpawn('toolu_live'),
+		}, {
+			drainedIds: ['toolu_live'],
+			primed: 'agentprimed',
+			resolved: 'agentresolved',
+			live: undefined,
+		});
+	});
+
 	test('primeFromTranscript scans Task tool_result text blocks for agentId suffix and records each pair (idempotent against repeat calls)', () => {
 		const registry = r();
 		const transcript: readonly Turn[] = [
