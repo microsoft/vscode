@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, raceTimeout, retry, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
+import { shutdownProcessTree } from '../../../../base/node/processes.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -875,6 +876,7 @@ interface IConnectionReady {
 	readonly client: ICodexAppServerClient;
 	readonly proxyHandle: ICodexProxyHandle;
 	readonly child: ChildProcessWithoutNullStreams;
+	readonly cleanupSandbox?: () => Promise<void>;
 	/** Reads context limits from the same Codex SDK and configuration as this app-server. */
 	readonly readModelContextWindows?: () => Promise<ReadonlyMap<string, ICodexModelContextWindow>>;
 	/** Event/request registrations owned by this particular persistent client. */
@@ -1210,12 +1212,17 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _activated = false;
 	private _isShuttingDown = false;
+	private _shutdownPromise: Promise<void> | undefined;
 	private _connection: ConnectionState = { kind: 'idle' };
 	private _connectionGeneration = 0;
 	/** Makes cleanup idempotent across shutdown and connection-loss races. */
-	private readonly _disposedConnections = new WeakSet<IConnectionReady>();
+	private readonly _disposedConnections = new WeakMap<IConnectionReady, Promise<void>>();
+	private readonly _connectionShutdowns = new Set<Promise<void>>();
+	private readonly _connectionStarts = new Set<Promise<IConnectionReady>>();
+	private readonly _ownedClients = new Set<ICodexAppServerClient>();
 	/** Serializes persistent startup behind the one-off account probe. */
 	private readonly _startupAccountProbe = new DeferredPromise<void>();
+	private _startupAccountProbeError: Error | undefined;
 	/** Cancels startup before a partially initialized one-off process can outlive this agent. */
 	private readonly _startupAccountProbeCancellation = this._register(new CancellationTokenSource());
 	/** One-off account/catalogue actions share one process at a time. */
@@ -1363,6 +1370,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		queueMicrotask(async () => {
 			try {
 				await this._probeAccountAtStartup();
+			} catch (error) {
+				this._startupAccountProbeError = error instanceof Error ? error : new Error(String(error));
+				this._logService.error('[Codex] startup account probe cleanup failed', error);
 			} finally {
 				await this._startupAccountProbe.complete(undefined);
 			}
@@ -2274,20 +2284,24 @@ export class CodexAgent extends Disposable implements IAgent {
 			try {
 				connection = await this._startRawConnection(this._startupAccountProbeTimeoutMs, cancellation.token);
 				this._transientAccountConnection = connection;
+				this._throwIfShuttingDown();
 				return await operation(connection.client, true);
 			} finally {
-				if (connection && this._transientAccountConnection === connection) {
-					this._transientAccountConnection = undefined;
-					this._disposeConnectionResources(connection);
+				try {
+					if (connection && this._transientAccountConnection === connection) {
+						this._transientAccountConnection = undefined;
+						await this._disposeConnectionResources(connection);
+					}
+				} finally {
+					if (this._transientConnectionCancellation === cancellation) {
+						this._transientConnectionCancellation = undefined;
+					}
+					cancellation.dispose();
+					if (this._transientConnectionOperation === settled.p) {
+						this._transientConnectionOperation = undefined;
+					}
+					await settled.complete(undefined);
 				}
-				if (this._transientConnectionCancellation === cancellation) {
-					this._transientConnectionCancellation = undefined;
-				}
-				cancellation.dispose();
-				if (this._transientConnectionOperation === settled.p) {
-					this._transientConnectionOperation = undefined;
-				}
-				await settled.complete(undefined);
 			}
 		});
 	}
@@ -2305,6 +2319,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._logService.info('[Codex] starting one-off startup account probe');
 			const probeConnection = connection = await this._startRawConnection(this._startupAccountProbeTimeoutMs, this._startupAccountProbeCancellation.token);
 			this._transientAccountConnection = probeConnection;
+			this._throwIfShuttingDown();
 			const account = await raceTimeout((async () => {
 				const state = await this._refreshAccountState(probeConnection.client, true);
 				if (state.status === 'signedIn' && state.authType === 'chatgpt' && this._isCurrentChatGPTAccountClient(probeConnection.client, state.email)) {
@@ -2337,7 +2352,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (connection) {
 				if (this._transientAccountConnection === connection) {
 					this._transientAccountConnection = undefined;
-					this._disposeConnectionResources(connection);
+					await this._disposeConnectionResources(connection);
 					this._logService.info('[Codex] stopped one-off startup account probe');
 				}
 			}
@@ -2374,7 +2389,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		})();
 		const promise = startPromise.then(async ready => {
 			if (generation !== this._connectionGeneration) {
-				this._disposeConnectionResources(ready);
+				await this._disposeConnectionResources(ready);
 				throw new CodexConnectionReplacedError('Codex app-server was replaced while starting');
 			}
 			// Authentication can complete while the connection is starting; apply the latest token before publishing ready.
@@ -2384,7 +2399,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// replacement process after an unexpected disconnect.
 			await this._queueSkillExtraRootsForClient(ready.client);
 			if (generation !== this._connectionGeneration) {
-				this._disposeConnectionResources(ready);
+				await this._disposeConnectionResources(ready);
 				throw new CodexConnectionReplacedError('Codex app-server was replaced while starting');
 			}
 			this._connection = { kind: 'ready', ...ready };
@@ -2397,6 +2412,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			throw err;
 		}).finally(() => cancellation.dispose());
+		this._connectionStarts.add(promise);
+		void promise.then(() => this._connectionStarts.delete(promise), () => this._connectionStarts.delete(promise));
 		this._connection = { kind: 'starting', promise, cancellation };
 		return promise;
 	}
@@ -2498,17 +2515,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 
 			const args = [...launchConfig.args];
+			this._throwIfShuttingDown();
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			// Launch overrides can contain user-supplied arguments and telemetry
 			// exporter headers. Keep them out of the persistent agent-host log.
 			this._logService.info(`[Codex] spawning app-server from ${binaryPath}`);
 			child = spawn(binaryPath, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
 			const ownedSandboxTempDirectory = sandboxTempDirectory;
-			sandboxTempDirectory = undefined;
-			child.once('close', () => {
-				void fs.promises.rm(ownedSandboxTempDirectory, { recursive: true, force: true }).catch(error => {
-					this._logService.warn(`[Codex] failed to remove sandbox temp directory ${ownedSandboxTempDirectory}: ${error instanceof Error ? error.message : String(error)}`);
-				});
-			});
 
 			// Surface stderr to the log channel — codex writes useful startup
 			// diagnostics there. Mirror Claude's pattern.
@@ -2519,6 +2534,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			client = new CodexAppServerClient(transport, (level, msg) => {
 				this._logService.info(`[CodexClient ${level}] ${msg}`);
 			});
+			this._ownedClients.add(client);
 
 			// Initialize handshake. Failure here is fatal for this connection.
 			const initialize = raceCancellationError(client.request<'initialize'>('initialize', {
@@ -2538,14 +2554,35 @@ export class CodexAgent extends Disposable implements IAgent {
 				client,
 				proxyHandle,
 				child,
+				cleanupSandbox: () => fs.promises.rm(ownedSandboxTempDirectory, { recursive: true, force: true }),
 				readModelContextWindows: () => readCodexModelContextWindows(binaryPath, args, env),
 			};
 		} catch (err) {
-			client?.dispose();
-			proxyHandle.dispose();
-			try { child?.kill('SIGKILL'); } catch { /* already dead */ }
+			const errors: unknown[] = [err];
+			try {
+				if (client) {
+					await client.shutdown();
+					this._ownedClients.delete(client);
+				} else if (child) {
+					await shutdownProcessTree(child, 0);
+				}
+			} catch (error) {
+				errors.push(error);
+			}
+			try {
+				proxyHandle.dispose();
+			} catch (error) {
+				errors.push(error);
+			}
 			if (sandboxTempDirectory) {
-				try { await fs.promises.rm(sandboxTempDirectory, { recursive: true, force: true }); } catch { /* best effort */ }
+				try {
+					await fs.promises.rm(sandboxTempDirectory, { recursive: true, force: true });
+				} catch (error) {
+					errors.push(error);
+				}
+			}
+			if (errors.length > 1) {
+				throw new AggregateError(errors, `Failed to clean up Codex app-server startup (pid=${child?.pid})`);
 			}
 			throw err;
 		}
@@ -2574,7 +2611,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const exitCode = raw.child.exitCode;
 		const signalCode = raw.child.signalCode;
 		if ((exitCode !== null && exitCode !== undefined) || (signalCode !== null && signalCode !== undefined)) {
-			this._disposeConnectionResources(ready);
+			await this._disposeConnectionResources(ready);
 			throw new Error(`Codex app-server exited before persistent startup completed (code=${exitCode ?? 'null'}, signal=${signalCode ?? 'null'})`);
 		}
 
@@ -4113,15 +4150,48 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _disposeConnectionResources(connection: IConnectionReady): void {
-		if (this._disposedConnections.has(connection)) {
-			return;
+	private _disposeConnectionResources(connection: IConnectionReady): Promise<void> {
+		const existing = this._disposedConnections.get(connection);
+		if (existing) {
+			return existing;
 		}
-		this._disposedConnections.add(connection);
-		try { connection.subscriptions?.dispose(); } catch { /* ignore */ }
-		try { connection.client.dispose(); } catch { /* ignore */ }
-		try { connection.proxyHandle.dispose(); } catch { /* ignore */ }
-		try { connection.child.kill('SIGKILL'); } catch { /* already dead */ }
+		const shutdown = this._shutdownConnectionResources(connection);
+		this._disposedConnections.set(connection, shutdown);
+		this._connectionShutdowns.add(shutdown);
+		void shutdown.then(() => {
+			this._connectionShutdowns.delete(shutdown);
+			this._ownedClients.delete(connection.client);
+		}, error => {
+			this._logService.error(`[Codex] failed to shut down app-server (pid=${connection.child.pid})`, error);
+		});
+		return shutdown;
+	}
+
+	private async _shutdownConnectionResources(connection: IConnectionReady): Promise<void> {
+		const errors: unknown[] = [];
+		try {
+			connection.subscriptions?.dispose();
+		} catch (error) {
+			errors.push(error);
+		}
+		try {
+			await connection.client.shutdown();
+		} catch (error) {
+			errors.push(error);
+		}
+		try {
+			await connection.cleanupSandbox?.();
+		} catch (error) {
+			errors.push(error);
+		}
+		try {
+			connection.proxyHandle.dispose();
+		} catch (error) {
+			errors.push(error);
+		}
+		if (errors.length > 0) {
+			throw new AggregateError(errors, `Failed to dispose Codex app-server resources (pid=${connection.child.pid})`);
+		}
 	}
 
 	// #endregion
@@ -8158,8 +8228,31 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._clearRuntimeState();
 	}
 
-	async shutdown(): Promise<void> {
+	shutdown(): Promise<void> {
+		this._shutdownPromise ??= this._shutdownRuntime();
+		return this._shutdownPromise;
+	}
+
+	private async _shutdownRuntime(): Promise<void> {
+		const pendingStarts = [...this._connectionStarts, this._startupAccountProbe.p, this._transientConnectionOperation];
+		const errors: unknown[] = [];
 		this._stopRuntime();
+		for (const result of await Promise.allSettled(pendingStarts)) {
+			if (result.status === 'rejected' && !(result.reason instanceof CancellationError) && !(result.reason instanceof CodexConnectionReplacedError)) {
+				errors.push(result.reason);
+			}
+		}
+		const results = await Promise.allSettled([
+			...this._connectionShutdowns,
+			...Array.from(this._ownedClients, client => client.shutdown()),
+		]);
+		errors.push(...results.filter(result => result.status === 'rejected').map(result => result.reason));
+		if (this._startupAccountProbeError && !errors.includes(this._startupAccountProbeError)) {
+			errors.push(this._startupAccountProbeError);
+		}
+		if (errors.length > 0) {
+			throw new AggregateError(errors, 'Failed to shut down Codex processes');
+		}
 	}
 
 	resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
@@ -8251,6 +8344,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	override dispose(): void {
+		for (const client of this._ownedClients) {
+			client.dispose();
+		}
 		this._stopRuntime();
 		super.dispose();
 	}

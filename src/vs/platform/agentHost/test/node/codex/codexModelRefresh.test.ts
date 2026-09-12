@@ -5,13 +5,16 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import type { ChildProcessWithoutNullStreams } from 'child_process';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -32,7 +35,8 @@ import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KE
 import { AgentChatMigrationDeferred, AgentSession } from '../../../common/agent.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
-import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
+import { ICodexProxyService, type ICodexProxyHandle } from '../../../node/codex/codexProxyService.js';
+import type { ICodexAppServerClient } from '../../../node/codex/codexAppServerClient.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
@@ -129,6 +133,7 @@ function createChatGPTConnection(account: unknown = { type: 'chatgpt', email: 'p
 	return {
 		kind: 'ready',
 		client: {
+			shutdown: async () => { },
 			request: async (method: string) => {
 				requests.push(method);
 				if (method === 'account/read') {
@@ -532,7 +537,7 @@ suite('CodexAgent model refresh', () => {
 					}
 					throw new Error(`Unexpected request: ${method}`);
 				},
-				dispose: () => { disposed.push('client'); },
+				shutdown: async () => { disposed.push('client'); },
 			},
 			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
 			child: { kill: () => { disposed.push('child'); return true; } },
@@ -543,7 +548,7 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual(disposed, []);
 		await releaseRateLimit.complete();
 		await probe;
-		assert.deepStrictEqual(disposed, ['client', 'proxy', 'child']);
+		assert.deepStrictEqual(disposed, ['client', 'proxy']);
 		await releaseProfileImage.complete();
 		await profileImageStored.p;
 		await new Promise<void>(resolve => setImmediate(resolve));
@@ -555,7 +560,7 @@ suite('CodexAgent model refresh', () => {
 			connection: ctx.agent['_connection'].kind,
 		}, {
 			requests: ['account/read', 'account/rateLimits/read', 'getAuthStatus'],
-			disposed: ['client', 'proxy', 'child'],
+			disposed: ['client', 'proxy'],
 			account: {
 				status: 'signedIn',
 				email: 'person@example.com',
@@ -596,7 +601,7 @@ suite('CodexAgent model refresh', () => {
 					}
 					throw new Error(`Unexpected request: ${method}`);
 				},
-				dispose: () => { disposed.push('client'); },
+				shutdown: async () => { disposed.push('client'); },
 			},
 			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
 			child: { kill: () => { disposed.push('child'); return true; } },
@@ -611,7 +616,7 @@ suite('CodexAgent model refresh', () => {
 			account: readCodexAccountInfo(ctx.stateManager.rootState),
 			connection: ctx.agent['_connection'].kind,
 		}, {
-			disposed: ['client', 'proxy', 'child'],
+			disposed: ['client', 'proxy'],
 			account: {
 				status: 'signedIn',
 				email: 'person@example.com',
@@ -627,6 +632,7 @@ suite('CodexAgent model refresh', () => {
 
 		const persistentReadStarted = new DeferredPromise<void>();
 		const persistentClient = {
+			shutdown: async () => { },
 			request: async (method: string) => {
 				assert.strictEqual(method, 'account/read');
 				await persistentReadStarted.complete(undefined);
@@ -703,7 +709,7 @@ suite('CodexAgent model refresh', () => {
 					loginCompleted = handler;
 					return { dispose() { } };
 				},
-				dispose: () => { disposed.push('client'); },
+				shutdown: async () => { disposed.push('client'); },
 			},
 			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
 			child: { kill: () => { disposed.push('child'); return true; } },
@@ -718,7 +724,7 @@ suite('CodexAgent model refresh', () => {
 			connection: ctx.agent['_connection'].kind,
 		}, {
 			requests: ['account/read', 'account/login/start', 'account/read', 'account/rateLimits/read', 'getAuthStatus'],
-			disposed: ['client', 'proxy', 'child'],
+			disposed: ['client', 'proxy'],
 			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, rateLimit: undefined, authUrl: undefined, authUrlNonce: undefined },
 			connection: 'idle',
 		});
@@ -728,6 +734,7 @@ suite('CodexAgent model refresh', () => {
 		const ctx = createAgentContext(disposables, async () => []);
 		const requests: string[] = [];
 		const client = {
+			shutdown: async () => { },
 			request: async (method: string) => {
 				requests.push(method);
 				if (method === 'account/read') {
@@ -799,7 +806,7 @@ suite('CodexAgent model refresh', () => {
 			await (token ? Promise.race([release.p, cancelled.p]) : release.p);
 			cancellationListener?.dispose();
 			if (token?.isCancellationRequested) {
-				throw new Error('start cancelled');
+				throw new CancellationError();
 			}
 			return ready;
 		}) as never;
@@ -835,6 +842,159 @@ suite('CodexAgent model refresh', () => {
 		await new Promise<void>(resolve => setImmediate(resolve));
 
 		assert.strictEqual(refreshes, 0);
+	});
+
+	test('shutdown awaits persistent and transient process exit before releasing their resources', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const steps: string[] = [];
+		const exits = { persistent: new DeferredPromise<void>(), transient: new DeferredPromise<void>() };
+		const createConnection = (name: keyof typeof exits) => ({
+			client: upcastPartial<ICodexAppServerClient>({
+				shutdown: async () => {
+					steps.push(`${name}:shutdown`);
+					await exits[name].p;
+					steps.push(`${name}:exit`);
+				},
+			}),
+			child: upcastPartial<ChildProcessWithoutNullStreams>({}),
+			cleanupSandbox: async () => { steps.push(`${name}:sandbox`); },
+			proxyHandle: upcastPartial<ICodexProxyHandle>({ dispose: () => { steps.push(`${name}:proxy`); } }),
+		});
+		agent['_connection'] = { kind: 'ready', ...createConnection('persistent') };
+		agent['_transientAccountConnection'] = createConnection('transient');
+
+		const shutdown = agent.shutdown();
+		assert.strictEqual(agent.shutdown(), shutdown);
+		assert.deepStrictEqual(steps, ['transient:shutdown', 'persistent:shutdown']);
+		await Promise.all([exits.persistent.complete(), exits.transient.complete()]);
+		await shutdown;
+		agent.dispose();
+		await agent.shutdown();
+
+		assert.deepStrictEqual({
+			persistent: steps.filter(step => step.startsWith('persistent:')),
+			transient: steps.filter(step => step.startsWith('transient:')),
+		}, {
+			persistent: ['persistent:shutdown', 'persistent:exit', 'persistent:sandbox', 'persistent:proxy'],
+			transient: ['transient:shutdown', 'transient:exit', 'transient:sandbox', 'transient:proxy'],
+		});
+	});
+
+	test('shutdown preserves process and sandbox cleanup failures and still releases the proxy', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const processError = new Error('owned process did not close');
+		const sandboxError = Object.assign(new Error('sandbox file is locked'), { code: 'EPERM', path: 'owned-sandbox\\state.sqlite' });
+		let proxyDisposed = false;
+		agent['_connection'] = {
+			kind: 'ready',
+			client: upcastPartial<ICodexAppServerClient>({ shutdown: async () => { throw processError; } }),
+			child: upcastPartial<ChildProcessWithoutNullStreams>({}),
+			cleanupSandbox: async () => { throw sandboxError; },
+			proxyHandle: upcastPartial<ICodexProxyHandle>({ dispose: () => { proxyDisposed = true; } }),
+		};
+
+		await assert.rejects(agent.shutdown(), error => {
+			assert.ok(error instanceof AggregateError);
+			const connectionError: unknown = error.errors[0];
+			assert.ok(connectionError instanceof AggregateError);
+			assert.deepStrictEqual({ causes: connectionError.errors, proxyDisposed }, { causes: [processError, sandboxError], proxyDisposed: true });
+			return true;
+		});
+	});
+
+	test('failed transient cleanup settles its operation and remains visible to shutdown', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const cleanupError = new Error('transient owned process did not close');
+		agent['_startRawConnection'] = async () => ({
+			client: upcastPartial<ICodexAppServerClient>({ shutdown: async () => { throw cleanupError; } }),
+			child: upcastPartial<ChildProcessWithoutNullStreams>({}),
+			proxyHandle: upcastPartial<ICodexProxyHandle>({ dispose: () => { } }),
+		});
+		await assert.rejects(agent['_withOnDemandConnection'](async () => { }), error => error instanceof AggregateError && error.errors.includes(cleanupError));
+		assert.deepStrictEqual({
+			operation: agent['_transientConnectionOperation'],
+			cancellation: agent['_transientConnectionCancellation'],
+		}, { operation: undefined, cancellation: undefined });
+		await assert.rejects(agent.shutdown(), AggregateError);
+	});
+
+	test('a one-off connection finishing startup during shutdown is closed without running its operation', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const started = new DeferredPromise<void>();
+		const finishStartup = new DeferredPromise<void>();
+		const steps: string[] = [];
+		agent['_startRawConnection'] = async () => {
+			await started.complete();
+			await finishStartup.p;
+			return {
+				client: upcastPartial<ICodexAppServerClient>({ shutdown: async () => { steps.push('exit'); } }),
+				child: upcastPartial<ChildProcessWithoutNullStreams>({}),
+				proxyHandle: upcastPartial<ICodexProxyHandle>({ dispose: () => { steps.push('proxy'); } }),
+			};
+		};
+		const operation = assert.rejects(agent['_withOnDemandConnection'](async () => { steps.push('operation'); }), CancellationError);
+		await started.p;
+		const shutdown = agent.shutdown();
+		await finishStartup.complete();
+		await Promise.all([operation, shutdown]);
+		assert.deepStrictEqual(steps, ['exit', 'proxy']);
+	});
+
+	test('shutdown joins cancelled startup until owned process cleanup finishes', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const started = new DeferredPromise<void>();
+		const cancelled = new DeferredPromise<void>();
+		const cleanedUp = new DeferredPromise<void>();
+		agent['_startConnection'] = async (_generation, token) => {
+			const listener = token.onCancellationRequested(() => { void cancelled.complete(); });
+			try {
+				await started.complete();
+				await cancelled.p;
+				await cleanedUp.p;
+				throw new CancellationError();
+			} finally {
+				listener.dispose();
+			}
+		};
+		const connecting = assert.rejects(agent['_ensureConnection'](), CancellationError);
+		await started.p;
+		const shutdown = agent.shutdown();
+		await cancelled.p;
+		try {
+			const checkpoint = new Promise<string>(resolve => setImmediate(() => resolve('waiting')));
+			assert.strictEqual(await Promise.race([shutdown.then(() => 'returned'), checkpoint]), 'waiting');
+		} finally {
+			await cleanedUp.complete();
+			await Promise.all([connecting, shutdown]);
+		}
+	});
+
+	test('shutdown retains cleanup errors from a cancelled startup', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const started = new DeferredPromise<void>();
+		const cleanupError = new AggregateError([new CancellationError(), new Error('owned process is still running')], 'Startup cleanup failed');
+		agent['_startConnection'] = async (_generation, token) => {
+			const cancelled = new DeferredPromise<void>();
+			const listener = token.onCancellationRequested(() => { void cancelled.complete(); });
+			try {
+				await started.complete();
+				await cancelled.p;
+				throw cleanupError;
+			} finally {
+				listener.dispose();
+			}
+		};
+		const connecting = assert.rejects(agent['_ensureConnection'](), error => error === cleanupError);
+		await started.p;
+		await assert.rejects(agent.shutdown(), error => error instanceof AggregateError && error.errors.includes(cleanupError));
+		await connecting;
+	});
+
+	test('background startup probe cleanup errors are retained for shutdown', async () => {
+		const agent = createAgent(disposables, async () => []);
+		const cleanupError = new AggregateError([new Error('owned process cleanup failed')], 'Probe cleanup failed');
+		agent['_probeAccountAtStartup'] = async () => { throw cleanupError; };
+		await assert.rejects(agent.shutdown(), error => error instanceof AggregateError && error.errors.includes(cleanupError));
 	});
 
 	test('shutdown suppresses chat discovery whose SDK check was already in flight', async () => {
@@ -1008,6 +1168,7 @@ suite('CodexAgent model refresh', () => {
 		agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					if (method === 'account/read') {
 						return { account: { type: 'chatgpt', email: null, planType: 'plus' }, requiresOpenaiAuth: true };
@@ -1155,7 +1316,7 @@ suite('CodexAgent model refresh', () => {
 
 		const appliedTokens: string[] = [];
 		const ready = {
-			client: { dispose() { } },
+			client: { shutdown: async () => { } },
 			proxyHandle: {
 				setToken: (token: string) => appliedTokens.push(token),
 				dispose() { },
@@ -1195,7 +1356,7 @@ suite('CodexAgent model refresh', () => {
 			await (token ? Promise.race([release.p, cancelled.p]) : release.p);
 			cancellationListener?.dispose();
 			if (token?.isCancellationRequested) {
-				throw new Error('start cancelled');
+				throw new CancellationError();
 			}
 			return ready;
 		}) as never;
@@ -1214,12 +1375,12 @@ suite('CodexAgent model refresh', () => {
 		const agent = createAgent(disposables, async () => []);
 		const disposed: string[] = [];
 		const stale = {
-			client: { dispose: () => disposed.push('stale-client') },
+			client: { shutdown: async () => { disposed.push('stale-client'); } },
 			proxyHandle: { dispose: () => disposed.push('stale-proxy') },
 			child: { kill: () => { disposed.push('stale-child'); return true; } },
 		};
 		const current = {
-			client: { dispose: () => disposed.push('current-client') },
+			client: { shutdown: async () => { disposed.push('current-client'); } },
 			proxyHandle: { dispose: () => disposed.push('current-proxy') },
 			child: { kill: () => { disposed.push('current-child'); return true; } },
 		};
@@ -1249,7 +1410,7 @@ suite('CodexAgent model refresh', () => {
 			// an exit in the narrow window before this promise resolves.
 			await Promise.resolve();
 			const ready = {
-				client: { dispose: () => disposed.push('client') },
+				client: { shutdown: async () => { disposed.push('client'); } },
 				proxyHandle: { dispose: () => disposed.push('proxy') },
 				child: { kill: () => { disposed.push('child'); return true; } },
 				subscriptions: { dispose: () => disposed.push('subscriptions') },
@@ -1261,7 +1422,7 @@ suite('CodexAgent model refresh', () => {
 		await assert.rejects(agent['_ensureConnection'](), /replaced while starting/);
 
 		assert.strictEqual(agent['_connection'].kind, 'idle');
-		assert.deepStrictEqual(disposed, ['subscriptions', 'client', 'proxy', 'child']);
+		assert.deepStrictEqual(disposed, ['subscriptions', 'client', 'proxy']);
 	});
 
 	test('rejects an app-server that exited before persistent listeners were attached', async () => {
@@ -1274,7 +1435,7 @@ suite('CodexAgent model refresh', () => {
 				onTransportError: Event.None,
 				onNotification: registration,
 				onRequest: registration,
-				dispose: () => { disposed.push('client'); },
+				shutdown: async () => { disposed.push('client'); },
 			},
 			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
 			child: {
@@ -1286,7 +1447,7 @@ suite('CodexAgent model refresh', () => {
 
 		await assert.rejects(agent['_startConnection'](0, CancellationToken.None), /exited before persistent startup completed/);
 
-		assert.deepStrictEqual(disposed, ['client', 'proxy', 'child']);
+		assert.deepStrictEqual(disposed, ['client', 'proxy']);
 	});
 
 	test('drops a model catalog returned by a replaced app-server', async () => {
@@ -1297,6 +1458,7 @@ suite('CodexAgent model refresh', () => {
 		const staleConnection = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					if (method === 'account/read') {
 						return { account: { type: 'chatgpt', email: 'old@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
@@ -1336,6 +1498,7 @@ suite('CodexAgent model refresh', () => {
 		ctx.agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					assert.strictEqual(method, 'config/read');
 					await configReadStarted.complete();
@@ -1378,6 +1541,7 @@ suite('CodexAgent model refresh', () => {
 		];
 		let requestIndex = 0;
 		const client = {
+			shutdown: async () => { },
 			request: async (method: string) => {
 				assert.strictEqual(method, 'account/read');
 				const index = requestIndex++;
@@ -1424,6 +1588,7 @@ suite('CodexAgent model refresh', () => {
 		const staleConnection = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					assert.strictEqual(method, 'thread/list');
 					await listStarted.complete();
@@ -1454,6 +1619,7 @@ suite('CodexAgent model refresh', () => {
 		];
 		let requestIndex = 0;
 		const client = {
+			shutdown: async () => { },
 			request: async (method: string) => {
 				assert.strictEqual(method, 'account/rateLimits/read');
 				return responses[requestIndex++];
@@ -1523,6 +1689,7 @@ suite('CodexAgent model refresh', () => {
 		agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					if (method === 'account/read') {
 						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
@@ -1594,6 +1761,7 @@ suite('CodexAgent model refresh', () => {
 		agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					if (method === 'account/read') {
 						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
@@ -1625,6 +1793,7 @@ suite('CodexAgent model refresh', () => {
 		agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					assert.strictEqual(method, 'account/read');
 					return { account: null, requiresOpenaiAuth: true };
@@ -1644,6 +1813,7 @@ suite('CodexAgent model refresh', () => {
 		agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					if (method === 'account/read') {
 						return { account: { type: 'apiKey' }, requiresOpenaiAuth: true };
@@ -1675,6 +1845,7 @@ suite('CodexAgent model refresh', () => {
 		agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					if (method === 'account/read') {
 						return { account: { type: 'apiKey' }, requiresOpenaiAuth: false };
@@ -1705,6 +1876,7 @@ suite('CodexAgent model refresh', () => {
 		agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					if (method === 'account/read') {
 						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: false };
@@ -1736,6 +1908,7 @@ suite('CodexAgent model refresh', () => {
 		agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					requests.push(method);
 					if (method === 'account/logout') {
@@ -1779,6 +1952,7 @@ suite('CodexAgent model refresh', () => {
 		agent['_connection'] = {
 			kind: 'ready',
 			client: {
+				shutdown: async () => { },
 				request: async (method: string) => {
 					if (method === 'account/read') {
 						return { account: null, requiresOpenaiAuth: true };

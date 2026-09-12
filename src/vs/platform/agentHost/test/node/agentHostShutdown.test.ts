@@ -12,17 +12,18 @@ suite('AgentHostShutdown', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('a failed persistence flush does not reject shutdown', async () => {
-		await assert.doesNotReject(() => flushAgentHostPersistenceBeforeShutdown(
+		const succeeded = await flushAgentHostPersistenceBeforeShutdown(
 			[Promise.reject(new Error('storage unavailable'))],
 			3000,
 			new NullLogService(),
-		));
+		);
+		assert.strictEqual(succeeded, false);
 	});
 
 	test('providers shut down before persistence is flushed', async () => {
 		const steps: string[] = [];
 
-		await shutdownAgentHostBeforeDispose(
+		const succeeded = await shutdownAgentHostBeforeDispose(
 			async () => {
 				steps.push('protocol drain');
 			},
@@ -37,13 +38,13 @@ suite('AgentHostShutdown', () => {
 			new NullLogService(),
 		);
 
-		assert.deepStrictEqual(steps, ['protocol drain', 'provider shutdown', 'persistence flush']);
+		assert.deepStrictEqual({ succeeded, steps }, { succeeded: true, steps: ['protocol drain', 'provider shutdown', 'persistence flush'] });
 	});
 
 	test('a failed provider shutdown still flushes persistence', async () => {
 		let persistenceFlushed = false;
 
-		await shutdownAgentHostBeforeDispose(
+		const succeeded = await shutdownAgentHostBeforeDispose(
 			() => Promise.resolve(),
 			() => Promise.reject(new Error('provider unavailable')),
 			() => {
@@ -54,6 +55,21 @@ suite('AgentHostShutdown', () => {
 			new NullLogService(),
 		);
 
-		assert.strictEqual(persistenceFlushed, true);
+		assert.deepStrictEqual({ succeeded, persistenceFlushed }, { succeeded: false, persistenceFlushed: true });
+	});
+
+	test('a stalled protocol drain cannot skip provider shutdown', async () => {
+		const steps: string[] = [];
+		const succeeded = await shutdownAgentHostBeforeDispose(
+			() => new Promise<void>(() => { }),
+			async () => { steps.push('provider shutdown'); },
+			() => {
+				steps.push('persistence flush');
+				return [];
+			},
+			1,
+			new NullLogService(),
+		);
+		assert.deepStrictEqual({ succeeded, steps }, { succeeded: false, steps: ['provider shutdown', 'persistence flush'] });
 	});
 });

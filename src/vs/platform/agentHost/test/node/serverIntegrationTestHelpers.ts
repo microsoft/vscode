@@ -5,7 +5,6 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
-import { raceTimeout } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { createRequire } from 'module';
 import { mkdirSync } from 'fs';
@@ -64,7 +63,7 @@ import {
 import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
 import { recordAhpSurface } from './ahpSurfaceCoverage.js';
 import { isCI, isWindows } from '../../../../base/common/platform.js';
-import { killTree } from '../../../../base/node/processes.js';
+import { shutdownProcessTree } from '../../../../base/node/processes.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
@@ -650,6 +649,7 @@ export class TestProtocolClient {
 export interface IServerHandle {
 	process: ChildProcess;
 	port: number;
+	readonly output?: string;
 	/** Present when the server was started with a mock LLM; exposes request count for assertions. */
 	mockLlm?: IMockLlmServerHandleWithLog;
 	/**
@@ -665,64 +665,22 @@ const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE 
 /** Gracefully stop an Agent Host test server, killing it if shutdown stalls. */
 export async function stopServer(server: IServerHandle | undefined): Promise<void> {
 	const serverProcess = server?.process;
-	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+	if (!serverProcess) {
 		return;
 	}
-
-	const serverExit = new Promise<void>(resolve => {
-		const onExit = () => resolve();
-		serverProcess.once('exit', onExit);
-		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
-			serverProcess.removeListener('exit', onExit);
-			resolve();
-		}
-	});
-	serverProcess.stdin?.end();
-	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
-		try {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
-				const pid = serverProcess.pid;
-				if (pid === undefined) {
-					throw new Error('Agent Host test server has no process id');
-				}
-				await killTree(pid, true);
-			}
-		} catch (error) {
-			if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
-				throw error;
-			}
-		}
-		await serverExit;
+	await shutdownProcessTree(serverProcess, SERVER_SHUTDOWN_TIMEOUT_MS);
+	if (serverProcess.exitCode !== 0) {
+		throw new Error(`Agent Host test server did not shut down cleanly (pid=${serverProcess.pid}, code=${serverProcess.exitCode}, signal=${serverProcess.signalCode}).\n${server?.output ?? ''}`);
 	}
 }
 
 /** Forcefully kill an Agent Host test server and its child processes without graceful shutdown. */
 export async function killServer(server: IServerHandle | undefined): Promise<void> {
 	const serverProcess = server?.process;
-	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+	if (!serverProcess) {
 		return;
 	}
-	const pid = serverProcess.pid;
-	if (pid === undefined) {
-		throw new Error('Agent Host test server has no process id');
-	}
-
-	const serverExit = new Promise<void>(resolve => {
-		const onExit = () => resolve();
-		serverProcess.once('exit', onExit);
-		if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
-			serverProcess.removeListener('exit', onExit);
-			resolve();
-		}
-	});
-	try {
-		await killTree(pid, true);
-	} catch (error) {
-		if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
-			throw error;
-		}
-	}
-	await serverExit;
+	await shutdownProcessTree(serverProcess, 0);
 }
 
 interface IMockLlmServerHandle {
@@ -807,23 +765,25 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
 			env: withAgentHostCoverage({ ...process.env, ...options?.env }),
 		});
+		let output = '';
 
 		const timer = setTimeout(() => {
 			child.kill();
-			reject(new Error('Server startup timed out'));
+			reject(new Error(`Server startup timed out.\n${output}`));
 		}, options?.startupTimeoutMs ?? getAgentHostE2ETestTimeout(10_000, 45_000));
 
 		child.stdout!.on('data', (data: Buffer) => {
 			const text = data.toString();
+			output = (output + text).slice(-32_768);
 			const match = text.match(/READY:(\d+)/);
 			if (match) {
 				clearTimeout(timer);
-				resolve({ process: child, port: parseInt(match[1], 10) });
+				resolve({ process: child, port: parseInt(match[1], 10), get output() { return output; } });
 			}
 		});
 
-		child.stderr!.on('data', () => {
-			// Intentionally swallowed - the test runner fails if console.error is used.
+		child.stderr!.on('data', (data: Buffer) => {
+			output = (output + data.toString()).slice(-32_768);
 		});
 
 		child.on('error', err => {
@@ -833,7 +793,7 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
 
 		child.on('exit', code => {
 			clearTimeout(timer);
-			reject(new Error(`Server exited prematurely with code ${code}`));
+			reject(new Error(`Server exited prematurely with code ${code}.\n${output}`));
 		});
 	});
 }
@@ -930,6 +890,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			} : {}),
 		});
 		let child: ChildProcess;
+		let output = '';
 		try {
 			child = fork(serverPath, args, {
 				stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
@@ -963,23 +924,21 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 		const timer = setTimeout(() => {
 			child.kill();
 			void closeMockServer();
-			reject(new Error('Real server startup timed out'));
+			reject(new Error(`Real server startup timed out.\n${output}`));
 		}, 30_000);
 
 		child.stdout!.on('data', (data: Buffer) => {
 			const text = data.toString();
+			output = (output + text).slice(-32_768);
 			const match = text.match(/READY:(\d+)/);
 			if (match) {
 				clearTimeout(timer);
-				resolve({ process: child, port: parseInt(match[1], 10), mockLlm: mockLlmServer, capiReplay: capiReplayProxy });
+				resolve({ process: child, port: parseInt(match[1], 10), get output() { return output; }, mockLlm: mockLlmServer, capiReplay: capiReplayProxy });
 			}
 		});
 
-		child.stderr!.on('data', () => {
-			// Intentionally swallowed - the test runner fails if console.error is used.
-			// Server logs go to the agent host's logger (under
-			// `<userDataPath>/logs/<timestamp>/agenthost-server.log`); check
-			// there when investigating agent host e2e test failures.
+		child.stderr!.on('data', (data: Buffer) => {
+			output = (output + data.toString()).slice(-32_768);
 		});
 
 		child.on('error', err => {
@@ -991,7 +950,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 		child.on('exit', code => {
 			clearTimeout(timer);
 			void closeMockServer();
-			reject(new Error(`Real server exited prematurely with code ${code}`));
+			reject(new Error(`Real server exited prematurely with code ${code}.\n${output}`));
 		});
 	});
 }

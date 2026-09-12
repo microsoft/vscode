@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ChildProcess } from 'child_process';
 import type { Readable, Writable } from 'stream';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, type IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { shutdownProcessTree } from '../../../../base/node/processes.js';
 import type { ClientNotification } from './protocol/generated/ClientNotification.js';
 import type { ClientRequest } from './protocol/generated/ClientRequest.js';
 import type { RequestId } from './protocol/generated/RequestId.js';
@@ -110,12 +113,11 @@ export type ServerRequestHandlerResult<R = unknown> =
 export interface ICodexAppServerTransport {
 	readonly stdin: Writable;
 	readonly stdout: Readable;
-	/** Force termination. Used as the 2 s grace force-kill fallback. */
-	kill(signal?: NodeJS.Signals): boolean;
 	/** Fires when the underlying process exits. */
 	readonly onExit: Event<{ readonly code: number | null; readonly signal: NodeJS.Signals | null }>;
-	/** Registers a one-shot exit listener that may outlive client disposal. */
-	onExitOnce(listener: (e: { readonly code: number | null; readonly signal: NodeJS.Signals | null }) => void): void;
+	readonly onError: Event<Error>;
+	/** Waits for EOF shutdown and bounded cleanup of the owned process tree. */
+	shutdown(graceTimeMs: number): Promise<void>;
 }
 
 /**
@@ -131,10 +133,13 @@ export interface ICodexAppServerTransport {
  *  - Send requests / notifications via {@link request} / {@link notify}.
  *  - Register handlers for server-initiated traffic via
  *    {@link onNotification} / {@link onRequest}.
- *  - On `dispose()`: send EOF on stdin, wait up to 2 s for clean exit,
- *    then SIGKILL. Outstanding requests reject with `CancellationError`.
+ *  - Await `shutdown()` before releasing resources used by the process.
+ *    `dispose()` starts forceful cleanup as a synchronous fallback.
  */
 export interface ICodexAppServerClient extends IDisposable {
+	/** Sends EOF and waits for the owned process tree to exit, with bounded forceful fallback. */
+	shutdown(): Promise<void>;
+
 	/** Fires once when the transport exits (clean or otherwise). */
 	readonly onExit: Event<{ readonly code: number | null; readonly signal: NodeJS.Signals | null }>;
 
@@ -210,6 +215,7 @@ export class CodexAppServerClient extends Disposable implements ICodexAppServerC
 
 	private _exited = false;
 	private _disposed = false;
+	private _shutdownPromise: Promise<void> | undefined;
 	private _buf = '';
 
 	constructor(
@@ -219,6 +225,13 @@ export class CodexAppServerClient extends Disposable implements ICodexAppServerC
 	) {
 		super();
 		this._register(this._transport.onExit(e => this._handleExit(e)));
+		this._register(this._transport.onError(error => {
+			for (const pending of this._pending.values()) {
+				pending.reject(error);
+			}
+			this._pending.clear();
+			this._onTransportError.fire(error);
+		}));
 		this._transport.stdout.setEncoding?.('utf8');
 		this._register(this._listenToStdout());
 	}
@@ -426,31 +439,38 @@ export class CodexAppServerClient extends Disposable implements ICodexAppServerC
 		});
 	}
 
-	override dispose(): void {
-		if (this._disposed) {
-			return;
+	shutdown(): Promise<void> {
+		return this._shutdown(this._graceKillMs);
+	}
+
+	private _shutdown(graceTimeMs: number): Promise<void> {
+		if (this._shutdownPromise) {
+			return this._shutdownPromise;
 		}
+		const shutdown = new DeferredPromise<void>();
+		this._shutdownPromise = shutdown.p;
 		this._disposed = true;
-		// Reject anything still pending so callers don't hang.
 		for (const pending of this._pending.values()) {
 			pending.reject(new CancellationError());
 		}
 		this._pending.clear();
-		// Try a graceful EOF on stdin; if the process doesn't exit in
-		// {@link GRACE_KILL_MS}, SIGKILL.
+		this._notificationHandlers.clear();
+		this._requestHandlers.clear();
 		try {
-			this._transport.stdin.end();
-		} catch { /* already closed */ }
-		if (!this._exited) {
-			const timer = setTimeout(() => {
-				try {
-					this._transport.kill('SIGKILL');
-				} catch { /* already dead */ }
-			}, this._graceKillMs) as unknown as { unref?(): void };
-			this._transport.onExitOnce(() => {
-				clearTimeout(timer as unknown as ReturnType<typeof setTimeout>);
+			void shutdown.settleWith(this._transport.shutdown(graceTimeMs));
+		} catch (error) {
+			void shutdown.error(error);
+		} finally {
+			super.dispose();
+		}
+		return this._shutdownPromise;
+	}
+
+	override dispose(): void {
+		if (!this._shutdownPromise) {
+			void this._shutdown(0).catch(error => {
+				this._log('error', `Failed to shut down Codex app-server: ${error instanceof Error ? error.stack : String(error)}`);
 			});
-			timer.unref?.();
 		}
 		super.dispose();
 	}
@@ -466,7 +486,7 @@ export class CodexAppServerClient extends Disposable implements ICodexAppServerC
  * built around `node:stream`'s `PassThrough` or similar.
  */
 export function transportFromChildProcess(
-	child: { stdin: Writable | null; stdout: Readable | null; kill: (signal?: NodeJS.Signals) => boolean; on: (event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void) => unknown; once: (event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void) => unknown; removeListener: (event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void) => unknown },
+	child: ChildProcess,
 ): ICodexAppServerTransport {
 	if (!child.stdin || !child.stdout) {
 		throw new Error('Child process has no stdio pair');
@@ -474,8 +494,8 @@ export function transportFromChildProcess(
 	return {
 		stdin: child.stdin,
 		stdout: child.stdout,
-		kill: signal => child.kill(signal),
 		onExit: Event.fromNodeEventEmitter(child, 'exit', (code: number | null, signal: NodeJS.Signals | null) => ({ code, signal })),
-		onExitOnce: listener => child.once('exit', (code, signal) => listener({ code, signal })),
+		onError: Event.any(Event.fromNodeEventEmitter<Error>(child, 'error'), Event.fromNodeEventEmitter<Error>(child.stdin, 'error')),
+		shutdown: graceTimeMs => shutdownProcessTree(child, graceTimeMs),
 	};
 }

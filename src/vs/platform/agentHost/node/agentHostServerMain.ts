@@ -385,7 +385,7 @@ async function main(): Promise<void> {
 		wsServer.dispose();
 		// Providers such as Claude finish writing their transcripts during
 		// shutdown, so drain them before waiting for persistence to go idle.
-		await shutdownAgentHostBeforeDispose(
+		const shutdownSucceeded = await shutdownAgentHostBeforeDispose(
 			() => protocolHandler.whenIdle(),
 			() => agentService.shutdown(),
 			() => [sessionDataService.whenIdle(), customizationEnablementService.whenIdle()],
@@ -394,7 +394,7 @@ async function main(): Promise<void> {
 		);
 		disposables.dispose();
 		loggerService?.dispose();
-		process.exit(0);
+		process.exit(shutdownSucceeded ? 0 : 1);
 	}
 }
 

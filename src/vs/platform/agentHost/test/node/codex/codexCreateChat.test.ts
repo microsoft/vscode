@@ -90,9 +90,12 @@ function createTestPeer(): ITestPeer {
 	const transport: ICodexAppServerTransport = {
 		stdin,
 		stdout,
-		kill: () => true,
 		onExit: onExit.event,
-		onExitOnce: () => { },
+		onError: Event.None,
+		shutdown: async () => {
+			stdin.end();
+			onExit.fire({ code: 0, signal: null });
+		},
 	};
 	return {
 		transport,
@@ -3342,11 +3345,18 @@ suite('CodexAgent chat backing durability', () => {
 			const disposed: string[] = [];
 			let connectionStarts = 0;
 			agent['_startRawConnection'] = async () => {
-				const peer = peers[connectionStarts++];
+				const index = ++connectionStarts;
+				const peer = peers[index - 1];
 				return {
-					client: new CodexAppServerClient(peer.transport),
-					proxyHandle: { dispose: () => disposed.push(`proxy-${connectionStarts}`) },
-					child: { kill: () => { disposed.push(`child-${connectionStarts}`); return true; } },
+					client: disposables.add(new CodexAppServerClient({
+						...peer.transport,
+						shutdown: async graceTimeMs => {
+							await peer.transport.shutdown(graceTimeMs);
+							disposed.push(`child-${index}`);
+						},
+					})),
+					proxyHandle: { dispose: () => disposed.push(`proxy-${index}`) },
+					child: { kill: () => { disposed.push(`unexpected-kill-${index}`); return true; } },
 				} as never;
 			};
 
@@ -3373,7 +3383,7 @@ suite('CodexAgent chat backing durability', () => {
 				connectionStarts: 2,
 				activated: false,
 				connection: 'idle',
-				disposed: ['proxy-1', 'child-1', 'proxy-2', 'child-2'],
+				disposed: ['child-1', 'proxy-1', 'child-2', 'proxy-2'],
 				requests: [
 					{ method: 'thread/archive', threadId: 'idle-archive-thread' },
 					{ method: 'thread/unarchive', threadId: 'idle-archive-thread' },

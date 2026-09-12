@@ -15,22 +15,32 @@ export async function shutdownAgentHostBeforeDispose(
 	flushPersistence: () => readonly Promise<unknown>[],
 	timeoutMs: number,
 	logService: Pick<ILogService, 'error' | 'warn'>,
-): Promise<void> {
+): Promise<boolean> {
+	let succeeded = true;
 	await raceTimeout((async () => {
 		try {
 			await drainProtocol();
 		} catch (error) {
+			succeeded = false;
 			logService.error('[AgentHostServer] Failed to drain protocol requests; continuing shutdown.', error);
 		}
+	})(), timeoutMs, () => {
+		succeeded = false;
+		logService.warn('[AgentHostServer] Timed out draining protocol requests; continuing shutdown.');
+	});
+	await raceTimeout((async () => {
 		try {
 			await shutdownProviders();
 		} catch (error) {
+			succeeded = false;
 			logService.error('[AgentHostServer] Failed to shut down providers; continuing shutdown.', error);
 		}
-		await flushAgentHostPersistenceBeforeShutdown(flushPersistence(), timeoutMs, logService);
 	})(), timeoutMs, () => {
-		logService.warn('[AgentHostServer] Timed out waiting for graceful shutdown; exiting anyway.');
+		succeeded = false;
+		logService.warn('[AgentHostServer] Timed out waiting for providers to shut down; continuing shutdown.');
 	});
+	const flushed = await flushAgentHostPersistenceBeforeShutdown(flushPersistence(), timeoutMs, logService);
+	return succeeded && flushed;
 }
 
 /**
@@ -41,12 +51,14 @@ export async function flushAgentHostPersistenceBeforeShutdown(
 	flushes: readonly Promise<unknown>[],
 	timeoutMs: number,
 	logService: Pick<ILogService, 'error' | 'warn'>,
-): Promise<void> {
+): Promise<boolean> {
 	try {
-		await raceTimeout(Promise.all(flushes), timeoutMs, () => {
+		const flushed = await raceTimeout(Promise.all(flushes).then(() => true), timeoutMs, () => {
 			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
 		});
+		return flushed === true;
 	} catch (error) {
 		logService.error('[AgentHostServer] Failed to flush persistence writes during shutdown; exiting anyway.', error);
+		return false;
 	}
 }
