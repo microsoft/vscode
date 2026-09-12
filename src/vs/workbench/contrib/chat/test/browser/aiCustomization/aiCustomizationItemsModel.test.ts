@@ -118,6 +118,7 @@ suite('AICustomizationItemsModel', () => {
 
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
@@ -167,6 +168,7 @@ suite('AICustomizationItemsModel', () => {
 				agents: observableValue('pluginAgents', []),
 				instructions: observableValue('pluginInstructions', []),
 				mcpServerDefinitions: observableValue('pluginMcpServerDefinitions', []),
+				automations: observableValue('pluginAutomations', []),
 			};
 		}
 
@@ -600,6 +602,7 @@ suite('AICustomizationItemsModel', () => {
 			});
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
@@ -651,6 +654,7 @@ suite('AICustomizationItemsModel', () => {
 				agents: observableValue('pluginAgents', []),
 				instructions: observableValue('pluginInstructions', []),
 				mcpServerDefinitions: observableValue('pluginMcpServerDefinitions', []),
+				automations: observableValue('pluginAutomations', []),
 			};
 		}
 
@@ -843,6 +847,7 @@ suite('AICustomizationItemsModel', () => {
 			});
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,

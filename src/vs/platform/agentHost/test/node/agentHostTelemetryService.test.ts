@@ -51,8 +51,12 @@ class TestTelemetryService implements ITelemetryService {
 	}
 
 	setExperimentProperty(): void { }
-	setCommonProperty(name: string, value: string | boolean): void {
-		this.commonProperties[name] = value;
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
+		if (value === undefined) {
+			delete this.commonProperties[name];
+		} else {
+			this.commonProperties[name] = value;
+		}
 	}
 }
 
@@ -93,8 +97,12 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
 		this.internalContexts.push(context);
 	}
-	setCommonProperty(name: string, value: string | boolean): void {
-		this.commonProperties[name] = value;
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
+		if (value === undefined) {
+			delete this.commonProperties[name];
+		} else {
+			this.commonProperties[name] = value;
+		}
 	}
 }
 
@@ -239,16 +247,24 @@ suite('AgentHostTelemetryService', () => {
 		});
 	});
 
-	test('forwards common properties to standard and restricted telemetry', () => {
+	test('forwards setting and clearing common properties to standard and restricted telemetry', () => {
 		const delegate = new TestTelemetryService();
 		const sink = new TestRestrictedSink();
 		const service = disposables.add(new AgentHostTelemetryService(delegate, sink));
 
 		service.setCommonProperty('copilotSku', 'copilot_for_business_seat');
+		const afterSet = { delegate: { ...delegate.commonProperties }, restricted: { ...sink.commonProperties } };
+		service.setCommonProperty('copilotSku', undefined);
 
-		assert.deepStrictEqual({ delegate: delegate.commonProperties, restricted: sink.commonProperties }, {
-			delegate: { copilotSku: 'copilot_for_business_seat' },
-			restricted: { copilotSku: 'copilot_for_business_seat' },
+		assert.deepStrictEqual({ afterSet, afterClear: { delegate: delegate.commonProperties, restricted: sink.commonProperties } }, {
+			afterSet: {
+				delegate: { copilotSku: 'copilot_for_business_seat' },
+				restricted: { copilotSku: 'copilot_for_business_seat' },
+			},
+			afterClear: {
+				delegate: {},
+				restricted: {},
+			},
 		});
 	});
 

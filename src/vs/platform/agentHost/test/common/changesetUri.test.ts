@@ -5,11 +5,17 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
+import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
 import {
+	AGENT_MERGE_CHANGESET_ID,
 	ChangesetKind,
 	buildChangesetUri,
 	buildCompareTurnsChangesetUri,
 	buildCompareTurnsChangesetUriTemplate,
+	buildDefaultChangesetCatalog,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
 	buildTurnChangesetUriTemplate,
@@ -21,6 +27,7 @@ import {
 	parseCompareTurnsChangesetUri,
 	parseTurnChangesetUri,
 	resolveChangesetUriTemplate,
+	selectDefaultChangeset,
 } from '../../common/changesetUri.js';
 
 suite('changesetUri', () => {
@@ -28,6 +35,39 @@ suite('changesetUri', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionUri = 'copilot:/abc-123';
+
+	function turn(id: string, kind: MessageKind, agentMerge = false): Turn {
+		return {
+			id,
+			message: {
+				text: id,
+				origin: { kind },
+				...(agentMerge ? { _meta: toAgentMergeMessageMeta() } : {}),
+			},
+			responseParts: [],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+	}
+
+	function state(agentMergeEnabled?: boolean, turns: Turn[] = [], changesets?: ISessionWithDefaultChat['changesets']): ISessionWithDefaultChat {
+		return {
+			provider: 'copilot',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			turns,
+			changesets,
+			...(agentMergeEnabled === undefined ? {} : {
+				config: {
+					schema: { type: 'object', properties: {} },
+					values: { [SessionConfigKey.AgentMerge]: { enabled: agentMergeEnabled } },
+				},
+			}),
+		};
+	}
 
 	test('builders produce the documented shapes', () => {
 		assert.strictEqual(buildSessionChangesetUri(sessionUri), 'copilot:/abc-123/changeset/session');
@@ -112,6 +152,22 @@ suite('changesetUri', () => {
 		assert.strictEqual(resolveChangesetUriTemplate(`${sessionUri}/`, 'changeset/branch'), `${sessionUri}/changeset/branch`);
 	});
 
+	test('selectDefaultChangeset follows the configured kind and falls back to catalogue order', () => {
+		const changesets = [
+			{ label: 'Session', changeKind: ChangesetKind.Session },
+			{ label: 'Branch', changeKind: ChangesetKind.Branch },
+		];
+		assert.deepStrictEqual({
+			implicit: selectDefaultChangeset(changesets)?.label,
+			explicit: selectDefaultChangeset(changesets, ChangesetKind.Session)?.label,
+			missing: selectDefaultChangeset(changesets, ChangesetKind.Uncommitted)?.label,
+		}, {
+			implicit: 'Branch',
+			explicit: 'Session',
+			missing: 'Session',
+		});
+	});
+
 	test('predicates match the parser semantics', () => {
 		assert.strictEqual(isChangesetUri(buildSessionChangesetUri(sessionUri)), true);
 		assert.strictEqual(isChangesetUri(buildUncommittedChangesetUri(sessionUri)), true);
@@ -121,5 +177,54 @@ suite('changesetUri', () => {
 		assert.strictEqual(isSessionChangesetUri(buildUncommittedChangesetUri(sessionUri)), false);
 		assert.strictEqual(isUncommittedChangesetUri(buildUncommittedChangesetUri(sessionUri)), true);
 		assert.strictEqual(isUncommittedChangesetUri(buildSessionChangesetUri(sessionUri)), false);
+	});
+
+	test('advertises Agent Merge changes after enablement and preserves them across disable and restore', () => {
+		const enabledCatalog = buildDefaultChangesetCatalog(sessionUri, state(true));
+		const enabledNotice = turn('notice', MessageKind.SystemNotification);
+		enabledNotice.responseParts.push({
+			kind: ResponsePartKind.SystemNotification,
+			content: 'Agent Merge enabled',
+			_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.AgentMergeEnabled }),
+		});
+
+		const findAgentMerge = (catalog: ReturnType<typeof buildDefaultChangesetCatalog>) =>
+			catalog.find(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID);
+
+		assert.deepStrictEqual({
+			neverEnabled: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state())),
+			configuredWhileDisabled: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(false))),
+			enabled: findAgentMerge(enabledCatalog),
+			disabledAfterEnable: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(false, [], enabledCatalog))),
+			restoredFromRepairTurn: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(undefined, [turn('repair', MessageKind.SystemNotification, true)]))),
+			restoredFromEnabledNotice: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(undefined, [enabledNotice]))),
+		}, {
+			neverEnabled: undefined,
+			configuredWhileDisabled: undefined,
+			enabled: {
+				label: 'Agent Merge Changes',
+				description: 'Show changes made by Agent Merge since the last user message',
+				uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+				changeKind: AGENT_MERGE_CHANGESET_ID,
+			},
+			disabledAfterEnable: {
+				label: 'Agent Merge Changes',
+				description: 'Show changes made by Agent Merge since the last user message',
+				uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+				changeKind: AGENT_MERGE_CHANGESET_ID,
+			},
+			restoredFromRepairTurn: {
+				label: 'Agent Merge Changes',
+				description: 'Show changes made by Agent Merge since the last user message',
+				uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+				changeKind: AGENT_MERGE_CHANGESET_ID,
+			},
+			restoredFromEnabledNotice: {
+				label: 'Agent Merge Changes',
+				description: 'Show changes made by Agent Merge since the last user message',
+				uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+				changeKind: AGENT_MERGE_CHANGESET_ID,
+			},
+		});
 	});
 });

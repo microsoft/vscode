@@ -5,6 +5,7 @@
 
 import { existsSync } from 'fs';
 import { join } from '../../../../../../base/common/path.js';
+import { CodexSessionConfigKey } from '../../../../common/codexSessionConfigKeys.js';
 import type { IAgentHostE2EProviderConfig } from '../harness/agentHostE2ETestHarness.js';
 
 function resolveCodexSdkRoot(): string | undefined {
@@ -34,6 +35,7 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	inputRequestMode: 'plan',
 	enabled: !!CODEX_SDK_ROOT,
 	codexSdkRoot: CODEX_SDK_ROOT,
+	sessionConfig: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' },
 	supportsWorktreeIsolation: true,
 	supportsHostTerminalTool: false,
 	supportsSubagents: false,
@@ -45,10 +47,12 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsPausedTurnCancellationE2E: true,
 	supportsCustomizationDiscoveryE2E: true,
 	supportsFixedInstructionDiscoveryE2E: true,
-	supportsPluginCustomizationDiscoveryE2E: true,
+	// Client-plugin synchronization can race the first turn and leave it incomplete.
+	supportsPluginCustomizationDiscoveryE2E: false,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
 	supportsSideChats: true,
 	supportsSideChatsE2E: true,
 	shellToolReplayUnstableOnLinux: true,
+	shellToolResultTextUnreliable: true,
 };

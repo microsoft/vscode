@@ -706,6 +706,10 @@ function getInstalledPluginContributionEntries(item: Extract<IAgentPluginItem, {
 	appendContributionEntry(entries, 'instructions', localize('pluginDetailInstructions', "Instructions"), plugin.instructions.get());
 	appendContributionEntry(entries, 'mcp', localize('pluginDetailMcpServers', "MCP Servers"), plugin.mcpServerDefinitions.get().map(server => ({ name: server.name })));
 	appendContributionEntry(entries, 'hooks', localize('pluginDetailHooks', "Hooks"), plugin.hooks.get().map(hook => ({ name: hook.originalId, description: localize('pluginDetailHookCommands', "{0} commands", hook.hooks.length) })));
+	appendContributionEntry(entries, 'automations', localize('pluginDetailAutomations', "Automations"), plugin.automations.get().map(automation => ({
+		name: automation.blueprint.name,
+		description: automation.blueprint.description,
+	})));
 	return entries;
 }
 

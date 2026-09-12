@@ -23,7 +23,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISearchService } from '../../../../workbench/services/search/common/search.js';
-import { searchFilesAndFolders } from '../../../../workbench/contrib/search/browser/searchChatContext.js';
+import { MAX_CHAT_FILE_COMPLETION_RESULTS, searchFilesAndFolders } from '../../../../workbench/contrib/search/browser/searchChatContext.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { IHistoryService } from '../../../../workbench/services/history/common/history.js';
 import { isDiffEditorInput } from '../../../../workbench/common/editor.js';
@@ -256,7 +256,7 @@ export class VariableCompletionHandler extends Disposable {
 		token: CancellationToken,
 	): Promise<void> {
 		try {
-			const { files, folders } = await searchFilesAndFolders(workspaceUri, pattern || '', true, token, undefined, this.configurationService, this.searchService);
+			const { files, folders } = await searchFilesAndFolders(workspaceUri, pattern || '', true, token, undefined, this.configurationService, this.searchService, MAX_CHAT_FILE_COMPLETION_RESULTS);
 
 			for (const file of files) {
 				if (!seen.has(file)) {
@@ -371,4 +371,3 @@ export class VariableCompletionHandler extends Disposable {
 	}
 
 }
-

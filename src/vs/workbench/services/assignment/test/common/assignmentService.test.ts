@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { resolveScopedTreatment } from '../../common/assignmentService.js';
+import { cleanData } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { resolveScopedTreatment, toExperimentTelemetryData } from '../../common/assignmentService.js';
 
 suite('resolveScopedTreatment', () => {
 
@@ -41,5 +42,20 @@ suite('resolveScopedTreatment', () => {
 	test('preserves a defined falsy scoped value instead of falling back to bare', () => {
 		const read = readFrom({ [BARE]: true, [SCOPED]: false });
 		assert.strictEqual(resolveScopedTreatment(read, BARE), false);
+	});
+});
+
+suite('toExperimentTelemetryData', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('marks the queried feature name trusted so a /vscode/-scoped key survives telemetry cleaning', () => {
+		const scoped = '/vscode/config.chat.agentHost.copilot.multiTurnContextRouting.enabled';
+		const data = toExperimentTelemetryData(new Map([['ABExp.queriedFeature', scoped]]));
+
+		// The trusted feature name survives cleaning, whereas the same value left unmarked would be
+		// redacted by the file-path heuristic - guarding against a regression back to that behavior.
+		assert.strictEqual(cleanData(data, [])['ABExp.queriedFeature'], scoped);
+		assert.strictEqual(cleanData({ 'ABExp.queriedFeature': scoped }, [])['ABExp.queriedFeature'], '<REDACTED: user-file-path>');
 	});
 });
