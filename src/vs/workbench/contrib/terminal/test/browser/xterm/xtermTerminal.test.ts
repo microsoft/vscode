@@ -10,6 +10,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
@@ -28,6 +29,7 @@ import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_C
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
+import { stub } from 'sinon';
 
 registerColors();
 
@@ -53,6 +55,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
+	fontRendering: 'inherit',
 	fontWeight: 'normal',
 	fontWeightBold: 'normal',
 	gpuAcceleration: 'off',
@@ -123,6 +126,86 @@ suite('XtermTerminal', () => {
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	suite('fontRendering', () => {
+		async function setFontRendering(fontRendering: 'inherit' | 'crisp'): Promise<void> {
+			await configurationService.setUserConfiguration('terminal.integrated', {
+				...defaultTerminalConfig,
+				fontRendering
+			});
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section.startsWith('terminal.integrated');
+				}
+			});
+		}
+
+		function attach(terminal: XtermTerminal = xterm): HTMLElement {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			terminal.attachToElement(container, { enableGpu: false });
+			return container;
+		}
+
+		test('inherits the workbench font policy by default', () => {
+			attach();
+			strictEqual(xterm.raw.element!.classList.contains('terminal-font-rendering-crisp'), false);
+		});
+
+		test('applies the configured policy when the terminal is opened', async () => {
+			await setFontRendering('crisp');
+			attach();
+			strictEqual(xterm.raw.element!.classList.contains('terminal-font-rendering-crisp'), isMacintosh);
+		});
+
+		test('refreshes the atlas after changing the policy without changing font options', async () => {
+			attach();
+			const initialOptions = {
+				fontFamily: xterm.raw.options.fontFamily,
+				fontSize: xterm.raw.options.fontSize,
+				fontWeight: xterm.raw.options.fontWeight,
+				theme: xterm.raw.options.theme
+			};
+			const statesAtRedraw: boolean[] = [];
+			const listener = stub(xterm.raw, 'clearTextureAtlas').callsFake(() => {
+				statesAtRedraw.push(xterm.raw.element!.classList.contains('terminal-font-rendering-crisp'));
+			});
+			store.add(toDisposable(() => listener.restore()));
+			await setFontRendering('crisp');
+			await setFontRendering('crisp');
+			await setFontRendering('inherit');
+			deepStrictEqual({
+				statesAtRedraw,
+				fontFamily: xterm.raw.options.fontFamily,
+				fontSize: xterm.raw.options.fontSize,
+				fontWeight: xterm.raw.options.fontWeight,
+				theme: xterm.raw.options.theme
+			}, {
+				statesAtRedraw: isMacintosh ? [true, false] : [],
+				...initialOptions
+			});
+		});
+
+		test('applies updates forwarded to detached terminals', async () => {
+			const terminal = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				detached: true
+			}, undefined));
+			attach(terminal);
+			await setFontRendering('crisp');
+			terminal.updateConfig();
+			strictEqual(terminal.raw.element!.classList.contains('terminal-font-rendering-crisp'), isMacintosh);
+			await setFontRendering('inherit');
+			terminal.updateConfig();
+			strictEqual(terminal.raw.element!.classList.contains('terminal-font-rendering-crisp'), false);
+		});
 	});
 
 	test('detached terminals do not register decoration shutdown listeners', () => {

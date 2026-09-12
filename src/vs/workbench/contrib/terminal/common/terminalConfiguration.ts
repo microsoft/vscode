@@ -180,6 +180,17 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 		type: 'string',
 	},
+	[TerminalSettingId.FontRendering]: {
+		markdownDescription: localize('terminal.integrated.fontRendering', "Controls the font rendering style of terminal text on macOS without changing theme colors, font size, or font weight."),
+		type: 'string',
+		enum: ['inherit', 'crisp'],
+		markdownEnumDescriptions: [
+			localize('terminal.integrated.fontRendering.inherit', "Use the workbench font smoothing configured by {0}.", '`#workbench.fontAliasing#`'),
+			localize('terminal.integrated.fontRendering.crisp', "Use pixel-level antialiasing on high-DPI displays. Text may appear lighter and more defined. On other displays, inherit the workbench font smoothing.")
+		],
+		default: 'inherit',
+		included: isMacintosh
+	},
 	[TerminalSettingId.FontLigaturesEnabled]: {
 		markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
 		type: 'boolean',
