@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { append, DisposableResizeObserver, getWindow, h } from '../../../../../../../base/browser/dom.js';
+import { AnimationFrameScheduler, append, DisposableResizeObserver, getWindow, h } from '../../../../../../../base/browser/dom.js';
 import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
@@ -194,10 +194,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),
 		]);
 		append(elements.editor, editor.object.element);
+		// Defer layout to the next frame; a synchronous layout re-enters the observed element and trips the ResizeObserver loop warning (#316509).
+		let lastObservedEditorWidth: number | undefined;
+		const editorLayoutScheduler = this._register(new AnimationFrameScheduler(elements.editor, () => {
+			if (lastObservedEditorWidth) {
+				editor.object.layout(lastObservedEditorWidth);
+			}
+		}));
 		const editorResizeObserver = this._register(new DisposableResizeObserver('ChatTerminalToolConfirmationSubPart.editor', entries => {
 			const width = entries[0]?.contentRect.width;
 			if (width) {
-				editor.object.layout(width);
+				lastObservedEditorWidth = width;
+				editorLayoutScheduler.schedule();
 			}
 		}, getWindow(this.context.container)));
 		this._register(editorResizeObserver.observe(elements.editor));
