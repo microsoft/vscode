@@ -91,6 +91,68 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 
 		disposableStore.dispose();
 	});
+
+	test('Issue #329789: `<<=`/`>>=`/`>>>=` are not tokenized as brackets, generics still are', () => {
+		const mode1 = 'testMode2';
+		const disposableStore = new DisposableStore();
+		const instantiationService = createModelServices(disposableStore);
+		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
+		disposableStore.add(languageService.registerLanguage({ id: mode1 }));
+		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(mode1);
+
+		const denseKeyProvider = new DenseKeyProvider<string>();
+
+		const tStandard = (text: string) => new TokenInfo(text, encodedMode1, StandardTokenType.Other, true);
+		const document = new TokenizedDocument([
+			tStandard('x <<= 1; x >>= 1; x >>>= 1;'), tStandard('\n'),
+			tStandard('Array<Array<string>>'),
+		]);
+
+		disposableStore.add(TokenizationRegistry.register(mode1, document.getTokenizationSupport()));
+		disposableStore.add(languageConfigurationService.register(mode1, {
+			brackets: [['<', '>']],
+		}));
+
+		const model = disposableStore.add(instantiateTextModel(instantiationService, document.getText(), mode1));
+		model.tokenization.forceTokenization(model.getLineCount());
+
+		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider, l => languageConfigurationService.getLanguageConfiguration(l));
+
+		const tokens = readAllTokens(new TextBufferTokenizer(model, brackets));
+
+		assert.deepStrictEqual(toArr(tokens, model, denseKeyProvider), [
+			{ text: 'x <<= 1; x >>= 1; x >>>= 1;\nArray', bracketId: null, bracketIds: [], kind: 'Text' },
+			{
+				text: '<',
+				bracketId: 'testMode2:::<',
+				bracketIds: ['testMode2:::<'],
+				kind: 'OpeningBracket',
+			},
+			{ text: 'Array', bracketId: null, bracketIds: [], kind: 'Text' },
+			{
+				text: '<',
+				bracketId: 'testMode2:::<',
+				bracketIds: ['testMode2:::<'],
+				kind: 'OpeningBracket',
+			},
+			{ text: 'string', bracketId: null, bracketIds: [], kind: 'Text' },
+			{
+				text: '>',
+				bracketId: 'testMode2:::<',
+				bracketIds: ['testMode2:::<'],
+				kind: 'ClosingBracket',
+			},
+			{
+				text: '>',
+				bracketId: 'testMode2:::<',
+				bracketIds: ['testMode2:::<'],
+				kind: 'ClosingBracket',
+			},
+		]);
+
+		disposableStore.dispose();
+	});
 });
 
 function readAllTokens(tokenizer: Tokenizer): Token[] {
