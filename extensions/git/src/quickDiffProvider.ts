@@ -71,7 +71,7 @@ export class GitQuickDiffProvider implements QuickDiffProvider {
 			return undefined;
 		}
 
-		const originalResource = toGitUri(uri, '', { replaceFileExtension: true });
+		const originalResource = toGitUri(uri, '', { replaceFileExtension: true, textconv: false });
 		this.logger.trace(`[Repository][provideOriginalResource] Original resource: ${originalResource.toString()}`);
 
 		return originalResource;
@@ -113,7 +113,7 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 			return undefined;
 		}
 
-		const originalResource = toGitUri(uri, 'HEAD', { replaceFileExtension: true });
+		const originalResource = toGitUri(uri, 'HEAD', { replaceFileExtension: true, textconv: false });
 		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Original resource: ${originalResource.toString()}`);
 		return originalResource;
 	}

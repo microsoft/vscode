@@ -6,7 +6,9 @@
 import 'mocha';
 import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
+import { Uri } from 'vscode';
 import { splitInChunks } from '../util';
+import { fromGitUri, toGitUri } from '../uri';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -715,6 +717,24 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('toGitUri textconv (#113609)', () => {
+		test('omits textconv by default', () => {
+			const uri = toGitUri(Uri.file('/repo/sample.txt'), '');
+			assert.strictEqual(fromGitUri(uri).textconv, undefined);
+		});
+
+		test('replaceFileExtension alone does not skip textconv', () => {
+			const uri = toGitUri(Uri.file('/repo/sample.txt'), '', { replaceFileExtension: true });
+			assert.strictEqual(fromGitUri(uri).textconv, undefined);
+			assert.ok(uri.path.endsWith('.git'));
+		});
+
+		test('explicit textconv: false is stored for quick-diff originals', () => {
+			const uri = toGitUri(Uri.file('/repo/sample.txt'), '', { replaceFileExtension: true, textconv: false });
+			assert.strictEqual(fromGitUri(uri).textconv, false);
 		});
 	});
 });
