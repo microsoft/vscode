@@ -76,6 +76,37 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('restores a subagent Auto model resolution onto the subagent turn', async () => {
+		const autoModeResolved = { chosenModel: 'claude-opus-4.8' };
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-1', data: { interactionId: 'm1', content: 'summarize the service' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Summarize', agent_type: 'explore' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore Agent', agentDescription: 'Explores' } },
+			// Auto routes before the model call, so the decision lands before the
+			// subagent's first message. It must not pull the turn's start time back.
+			{ type: 'session.auto_mode_resolved', agentId: 'agent-1', timestamp: '2025-01-01T00:00:10.000Z', data: autoModeResolved },
+			{ type: 'user.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:20.000Z', data: { interactionId: 'subagent-prompt', content: 'Inspect the implementation.' } },
+			{ type: 'assistant.message', agentId: 'agent-1', timestamp: '2025-01-01T00:00:30.000Z', data: { messageId: 'm3', content: 'Subagent is done.' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parentUsage: turns.map(turn => turn.usage),
+			subagentTurns: subagentTurnsByToolCallId.get('tc-task')?.map(turn => ({ text: turn.message.text, startedAt: turn.startedAt, duration: turn.duration, usage: turn.usage })),
+		}, {
+			parentUsage: [undefined],
+			subagentTurns: [{
+				text: 'Inspect the implementation.',
+				startedAt: '2025-01-01T00:00:20.000Z',
+				duration: 10000,
+				usage: { model: 'claude-opus-4.8', _meta: { autoModeResolved } },
+			}],
+		});
+	});
+
 	test('task_complete without a summary renders nothing', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -115,7 +146,7 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
-	test('restores an unfinished request as an error on the same turn', async () => {
+	test('restores an unfinished request as a resumable error on the same turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'interrupted-turn', data: { interactionId: 'm1', content: 'Keep working' } },
 			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn' } },
@@ -140,6 +171,7 @@ suite('mapSessionEvents — history replay', () => {
 			errorPart: {
 				kind: ResponsePartKind.Error,
 				error: interruptedTurnError,
+				resumable: true,
 			},
 		});
 	});
@@ -201,11 +233,11 @@ suite('mapSessionEvents — history replay', () => {
 				{ kind: ResponsePartKind.Markdown, content: 'Second segment' },
 				{ kind: ResponsePartKind.Error },
 			],
-			resumable: undefined,
+			resumable: true,
 		});
 	});
 
-	test('keeps an error terminal when a later notification starts another turn', async () => {
+	test('keeps a resumable error terminal when a later notification starts another turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'failed-turn', timestamp: '2026-08-11T00:00:00.000Z', data: { interactionId: 'm1', content: 'Start the background agent' } },
 			{ type: 'assistant.turn_start', timestamp: '2026-08-11T00:00:00.100Z', data: { turnId: 'sdk-turn-1' } },
@@ -238,14 +270,14 @@ suite('mapSessionEvents — history replay', () => {
 			parts: [{ kind: ResponsePartKind.Error }],
 		}, {
 			id: 'notification-turn',
-			message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
+			message: { text: 'Background agent `general-purpose` is complete', origin: { kind: MessageKind.SystemNotification } },
 			state: TurnState.Complete,
 			parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent finished.' }],
 		}]);
-		assert.strictEqual(getErrorResponsePart(turns[0])?.resumable, undefined);
+		assert.strictEqual(getErrorResponsePart(turns[0])?.resumable, true);
 	});
 
-	test('keeps an error as the final part when a late tool completion arrives', async () => {
+	test('keeps a resumable error as the final part when a late tool completion arrives', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'failed-turn', data: { interactionId: 'm1', content: 'Run a command' } },
 			{ type: 'assistant.turn_start', data: { turnId: 'sdk-turn-1' } },
@@ -263,7 +295,7 @@ suite('mapSessionEvents — history replay', () => {
 		}, {
 			state: TurnState.Error,
 			parts: [{ kind: ResponsePartKind.Error }],
-			resumable: undefined,
+			resumable: true,
 		});
 	});
 
@@ -700,7 +732,7 @@ suite('mapSessionEvents — history replay', () => {
 				id: 'notification-event',
 				data: {
 					content: '<system_notification>\nAgent completed\n</system_notification>',
-					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
+					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', displayName: 'Renderer reviewer', description: 'Review the renderer' },
 				},
 			},
 			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-2' } },
@@ -721,10 +753,38 @@ suite('mapSessionEvents — history replay', () => {
 			state: TurnState.Complete,
 			parts: [
 				{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' },
-				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent agent-a is complete' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent `Renderer reviewer` is complete' },
 				{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' },
 			],
 		}]);
+	});
+
+	test('restores reasoning on either side of a completion notification in order', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Review the results' } },
+			{ type: 'assistant.turn_start', data: { turnId: '0' } },
+			{ type: 'assistant.message', data: { messageId: 'before', content: '', reasoningText: 'Before notification' } },
+			{
+				type: 'system.notification',
+				data: {
+					content: 'Agent completed',
+					kind: { type: 'agent_idle', agentId: 'agent-completed', agentType: 'code-review', displayName: 'Completed reviewer' },
+				},
+			},
+			{ type: 'assistant.message', data: { messageId: 'after', content: '', reasoningText: 'After notification' } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		assert.deepStrictEqual(turns.map(turn => turn.responseParts.map(part =>
+			part.kind === ResponsePartKind.Reasoning || part.kind === ResponsePartKind.SystemNotification
+				? { kind: part.kind, content: part.content }
+				: { kind: part.kind }
+		)), [[
+			{ kind: ResponsePartKind.Reasoning, content: 'Before notification' },
+			{ kind: ResponsePartKind.SystemNotification, content: 'Background agent `Completed reviewer` is complete' },
+			{ kind: ResponsePartKind.Reasoning, content: 'After notification' },
+		]]);
 	});
 
 	test('does not restore a passive notification outside an assistant turn', async () => {
@@ -791,6 +851,10 @@ suite('mapSessionEvents — history replay', () => {
 
 	test('strips prompt scaffolding from user message content', async () => {
 		const wrapped = 'hi\n <reminder>\nIMPORTANT: ignore this\n</reminder>\n<attachments>\n<attachment id="microsoft/vscode">repo</attachment>\n</attachments>\n<userRequest>\nhi\n</userRequest>\n';
+		// The Copilot CLI injects context as a `<system_reminder>` block (e.g. the
+		// `IMPORTANT: this context may or may not be relevant…` preamble); it must
+		// not leak into the reconstructed message (and thus the session title).
+		const systemReminder = 'hi\n\n<system_reminder>\nIMPORTANT: this context may or may not be relevant\n<sql_tables>Available tables: todos, todo_deps</sql_tables>\n</system_reminder>';
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'wrapped', data: { interactionId: 'interaction-1', content: wrapped } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'Hello.', toolRequests: [] } },
@@ -800,11 +864,13 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.message', data: { interactionId: 'interaction-3', content: 'Ok remote.', toolRequests: [] } },
 			{ type: 'user.message', id: 'plain', data: { interactionId: 'interaction-4', content: 'just text' } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-4', content: 'Ok.', toolRequests: [] } },
+			{ type: 'user.message', id: 'system-reminder', data: { interactionId: 'interaction-5', content: systemReminder } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-5', content: 'Hi.', toolRequests: [] } },
 		];
 
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
 
-		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text']);
+		assert.deepStrictEqual(turns.map(turn => turn.message.text), ['hi', 'hi5', '/remote', 'just text', 'hi']);
 	});
 
 	test('terminal empty assistant message completes a tool-only turn', async () => {

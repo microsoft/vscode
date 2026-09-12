@@ -32,6 +32,10 @@
 	outline: none;
 }
 
+.chat-subagent-open-chat-toolbar .actions-container .action-item.chat-subagent-pill-widget.hidden {
+	display: none;
+}
+
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-header {
 	display: inline-flex;
 	align-items: center;
@@ -51,6 +55,10 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.disabled .chat-subagent-pill-content {
+	cursor: default;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-label,
@@ -245,7 +253,7 @@
 	}
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-content:hover {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget:not(.disabled) .chat-subagent-pill-content:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -323,7 +331,8 @@
 	height: var(--vscode-spacing-size120);
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration,
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-credits {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
@@ -334,7 +343,13 @@
 	pointer-events: none;
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration.hidden {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration:not(.hidden) + .chat-subagent-pill-credits::before {
+	content: '\00b7';
+	margin-right: var(--vscode-spacing-size40);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-duration.hidden,
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-credits.hidden {
 	display: none;
 }
 

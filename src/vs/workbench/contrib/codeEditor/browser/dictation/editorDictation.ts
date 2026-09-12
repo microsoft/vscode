@@ -15,7 +15,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { HasSpeechProvider, ISpeechService, SpeechToTextInProgress, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
-import { activeDictationEditor, isDictating, startDictation, stopDictation } from '../../../chat/browser/speechToText/dictationSession.js';
+import { activeDictationEditor, cancelDictation, isDictating, startDictation, stopDictation } from '../../../chat/browser/speechToText/dictationSession.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { EditorAction2, EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
@@ -87,7 +87,7 @@ export class EditorDictationStartAction extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	override async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const dictation = EditorDictation.get(editor);
 
 		// Toggle: pressing the start keybinding again while dictation is in
@@ -100,23 +100,24 @@ export class EditorDictationStartAction extends EditorAction2 {
 		const keybindingService = accessor.get(IKeybindingService);
 
 		const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
-		if (holdMode) {
-			let shouldCallStop = false;
-
-			const handle = setTimeout(() => {
-				shouldCallStop = true;
-			}, 500);
-
-			holdMode.finally(() => {
-				clearTimeout(handle);
-
-				if (shouldCallStop) {
-					EditorDictation.get(editor)?.stop();
-				}
-			});
+		if (!holdMode) {
+			await dictation?.start();
+			return;
 		}
 
-		EditorDictation.get(editor)?.start();
+		let shouldCallStop = false;
+		const handle = setTimeout(() => {
+			shouldCallStop = true;
+		}, 500);
+		try {
+			await dictation?.start();
+			await holdMode;
+		} finally {
+			clearTimeout(handle);
+		}
+		if (shouldCallStop) {
+			EditorDictation.get(editor)?.stop();
+		}
 	}
 }
 
@@ -244,7 +245,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 
 	/** True while a dictation session is active in this editor. */
 	isInProgress(): boolean {
-		return !!this.editorDictationInProgress.get();
+		return !!this.editorDictationInProgress.get() || activeDictationEditor() === this.editor;
 	}
 
 	async start(): Promise<void> {
@@ -272,9 +273,6 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		this.widget.active();
 		disposables.add(toDisposable(() => this.widget.hide()));
 
-		this.editorDictationInProgress.set(true);
-		disposables.add(toDisposable(() => this.editorDictationInProgress.reset()));
-
 		disposables.add(this.editor.onDidChangeCursorPosition(() => this.widget.layout()));
 
 		const window = getWindow(this.editor.getDomNode()) ?? getActiveWindow();
@@ -286,6 +284,9 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 			this.sessionDisposables.clear();
 			return;
 		}
+
+		this.editorDictationInProgress.set(true);
+		disposables.add(toDisposable(() => this.editorDictationInProgress.reset()));
 
 		// When the shared session ends on its own (final transcript applied, an
 		// error, or the model failing to load), tear down the editor-side UI. This
@@ -391,6 +392,10 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		// Built-in dictation into this editor is owned by the shared chat
 		// dictation session; stop it there so the final transcript is applied.
 		if (isDictating() && activeDictationEditor() === this.editor) {
+			if (this.chatSpeechToTextService.state === ChatSpeechToTextState.Idle) {
+				cancelDictation();
+				return;
+			}
 			stopDictation();
 			return;
 		}

@@ -14,7 +14,11 @@ import { LocalCommandContribution } from './localCommand/localCommandContributio
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
+import { PullRequestChatContribution } from './pullRequest/pullRequestChatContribution.js';
+import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
+import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
+import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from './sideChat/sideChatContribution.js';
 import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
@@ -28,11 +32,14 @@ export function registerBuiltInChatContributions(
 	const registrations = new DisposableStore();
 	registrations.add(contributions.registerContribution(LocalCommandContribution));
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
+	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
+	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
 	registrations.add(contributions.registerContribution(QueueDrainContribution));
+	registrations.add(contributions.registerContribution(SessionInputNeededContribution));
 	registrations.add(contributions.registerContribution(GitHubReferencesContribution));
 	registrations.add(contributions.registerContribution(SessionTitleContribution));
 	registrations.add(contributions.registerContribution(MarkUnreadContribution));
@@ -41,5 +48,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
 	registrations.add(contributions.registerContribution(SideChatContribution));
+	registrations.add(contributions.registerContribution(SessionFlagsContribution));
 	return registrations;
 }

@@ -34,6 +34,7 @@ export namespace ChatContextKeys {
 
 	export const isResponse = new RawContextKey<boolean>('chatResponse', false, { type: 'boolean', description: localize('chatResponse', "The chat item is a response.") });
 	export const isRequest = new RawContextKey<boolean>('chatRequest', false, { type: 'boolean', description: localize('chatRequest', "The chat item is a request") });
+	export const contextMenuIsBackground = new RawContextKey<boolean>('chatContextMenuIsBackground', false, { type: 'boolean', description: localize('chatContextMenuIsBackground', "Whether the chat context menu was opened from the transcript background rather than chat item content.") });
 	export const isFirstRequest = new RawContextKey<boolean>('chatFirstRequest', false, { type: 'boolean', description: localize('chatFirstRequest', "The chat item is the first request in the session.") });
 	export const isPendingRequest = new RawContextKey<boolean>('chatRequestIsPending', false, { type: 'boolean', description: localize('chatRequestIsPending', "True when the chat request item is pending in the queue.") });
 	export const itemId = new RawContextKey<string>('chatItemId', '', { type: 'string', description: localize('chatItemId', "The id of the chat item.") });
@@ -63,8 +64,9 @@ export namespace ChatContextKeys {
 	export const chatModeName = new RawContextKey<string>('chatModeName', '', { type: 'string', description: localize('chatModeName', "The name of the current chat mode (e.g. 'Plan' for custom modes).") });
 	export const chatModelId = new RawContextKey<string>('chatModelId', '', { type: 'string', description: localize('chatModelId', "The short id of the currently selected chat model (for example 'gpt-4.1').") });
 	export const speechToTextRecording = new RawContextKey<boolean>('chatSpeechToTextRecording', false, { type: 'boolean', description: localize('chatSpeechToTextRecording', "True while the chat input is recording audio for speech-to-text transcription.") });
-	export const speechToTextConfigured = new RawContextKey<boolean>('chatSpeechToTextConfigured', false, { type: 'boolean', description: localize('chatSpeechToTextConfigured', "True when on-device speech-to-text is available for dictating into the chat input.") });
+	export const speechToTextConfigured = new RawContextKey<boolean>('chatSpeechToTextConfigured', false, { type: 'boolean', description: localize('chatSpeechToTextConfigured', "True when speech-to-text is available for dictating into the chat input.") });
 	export const speechToTextPreparing = new RawContextKey<boolean>('chatSpeechToTextPreparing', false, { type: 'boolean', description: localize('chatSpeechToTextPreparing', "True while the selected speech-to-text backend is preparing.") });
+	export const speechToTextUsesMai = new RawContextKey<boolean>('chatSpeechToTextUsesMai', false, { type: 'boolean', description: localize('chatSpeechToTextUsesMai', "True when dictation uses the MAI cloud transcription backend.") });
 
 	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo(''), ContextKeyExpr.has('config.chat.experimental.serverlessWebEnabled'));
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
@@ -175,6 +177,7 @@ export namespace ChatContextKeys {
 	export const chatSessionSupportsDelegation = new RawContextKey<boolean>('chatSessionSupportsDelegation', true, { type: 'boolean', description: localize('chatSessionSupportsDelegation', "True when the current session type supports delegation.") });
 	export const hasPendingDelegationTarget = new RawContextKey<boolean>('chatHasPendingDelegationTarget', false, { type: 'boolean', description: localize('chatHasPendingDelegationTarget', "True when a delegation (continue in) target is selected but the request has not been submitted yet.") });
 	export const chatSessionSupportsFork = new RawContextKey<boolean>('chatSessionSupportsFork', false, { type: 'boolean', description: localize('chatSessionSupportsFork', "True when the current chat session provider supports forking conversations.") });
+	export const chatSessionSupportsRename = new RawContextKey<boolean>('chatSessionSupportsRename', false, { type: 'boolean', description: localize('chatSessionSupportsRename', "True when the current chat session supports renaming.") });
 	export const agentSessionSection = new RawContextKey<string>('agentSessionSection', '', { type: 'string', description: localize('agentSessionSection', "The section of the current agent session section item.") });
 	export const isArchivedAgentSession = new RawContextKey<boolean>('agentSessionIsArchived', false, { type: 'boolean', description: localize('agentSessionIsArchived', "True when the agent session item is archived.") });
 	export const isPinnedAgentSession = new RawContextKey<boolean>('agentSessionIsPinned', false, { type: 'boolean', description: localize('agentSessionIsPinned', "True when the agent session item is pinned.") });

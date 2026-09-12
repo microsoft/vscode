@@ -20,7 +20,8 @@ import { GitHubApiClient } from '../../browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { getHighestPriorityPullRequestIcon } from '../../../../services/sessions/common/session.js';
 
 //#region Mock Fetchers
 
@@ -49,6 +50,7 @@ class MockPRFetcher {
 	getPullRequestGate: DeferredPromise<void> | undefined;
 	getReviewThreadsGate: DeferredPromise<void> | undefined;
 	postReviewCommentCalls: { body: string; inReplyTo: number }[] = [];
+	postPullRequestReviewCommentCalls: { body: string; commitId: string; path: string; line: number; pendingReview: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'> | undefined }[] = [];
 	postIssueCommentCalls: { body: string }[] = [];
 	resolveThreadCalls: { threadId: string }[] = [];
 
@@ -76,6 +78,10 @@ class MockPRFetcher {
 	async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
 		this.postReviewCommentCalls.push({ body, inReplyTo });
 		return makeComment(999, body);
+	}
+
+	async postPullRequestReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, commitId: string, path: string, line: number, pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>): Promise<void> {
+		this.postPullRequestReviewCommentCalls.push({ body, commitId, path, line, pendingReview });
 	}
 
 	async postIssueComment(_owner: string, _repo: string, _prNumber: number, body: string): Promise<IGitHubPRComment> {
@@ -108,6 +114,28 @@ class MockCIFetcher {
 }
 
 //#endregion
+
+suite('Pull Request Icons', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the highest-priority icon across pull requests', () => {
+		const closed = computePullRequestIcon(GitHubPullRequestState.Closed);
+		const merged = computePullRequestIcon(GitHubPullRequestState.Merged);
+		const draft = computePullRequestIcon('draft');
+		const open = computePullRequestIcon(GitHubPullRequestState.Open);
+		const comments = computePullRequestIcon(GitHubPullRequestState.Open, { hasUnresolvedComments: true });
+		const failing = computePullRequestIcon(GitHubPullRequestState.Open, { hasFailingChecks: true });
+
+		assert.deepStrictEqual([
+			getHighestPriorityPullRequestIcon([closed, merged]),
+			getHighestPriorityPullRequestIcon([draft, merged, closed]),
+			getHighestPriorityPullRequestIcon([open, draft]),
+			getHighestPriorityPullRequestIcon([comments, open]),
+			getHighestPriorityPullRequestIcon([comments, failing, open]),
+			getHighestPriorityPullRequestIcon([merged, undefined]),
+		], [merged, draft, open, comments, failing, merged]);
+	});
+});
 
 suite('GitHubRepositoryModel', () => {
 
@@ -265,6 +293,18 @@ suite('GitHubPullRequestModel', () => {
 		const comment = await model.postIssueComment('Great work!');
 		assert.strictEqual(comment.body, 'Great work!');
 		assert.strictEqual(mockFetcher.postIssueCommentCalls.length, 1);
+	});
+
+	test('postReviewComment uses the pull request head and selected line', async () => {
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextPR = makePR();
+		mockFetcher.nextReviews = [];
+
+		await model.postReviewComment('Please update this.', 'abc123', 'src/a.ts', 12);
+
+		assert.deepStrictEqual(mockFetcher.postPullRequestReviewCommentCalls, [
+			{ body: 'Please update this.', commitId: 'abc123', path: 'src/a.ts', line: 12, pendingReview: undefined }
+		]);
 	});
 
 	test('polling can be started and stopped', () => {

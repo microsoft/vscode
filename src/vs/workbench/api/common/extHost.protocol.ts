@@ -1833,6 +1833,7 @@ export interface IChatSessionCustomizationSourceFolderDto {
 	readonly uri: UriComponents;
 	readonly label: string;
 	readonly source: IChatResourceSourceDto;
+	readonly destinationGroupId?: string;
 }
 export interface IChatParticipantMetadata {
 	participant: string;

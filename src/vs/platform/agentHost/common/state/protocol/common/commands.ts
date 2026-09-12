@@ -10,7 +10,7 @@ import type { URI, Snapshot } from './state.js';
 import type { ActionEnvelope, StateAction } from './actions.js';
 import type { AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
 import type { AutomationCreateRequestedAction } from '../channels-automation/actions.js';
-import type { AutomationSchedule, AutomationScheduleTrigger, AutomationCatalogState, AutomationState } from '../channels-automation/state.js';
+import type { AutomationSchedule, AutomationScheduleTrigger, AutomationEntry, AutomationState } from '../channels-automation/state.js';
 import type { TelemetryCapabilities } from '../channels-otlp/state.js';
 
 // ─── BaseParams ──────────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ export interface InitializeResult {
 	telemetry?: TelemetryCapabilities;
 	/**
 	 * Host-owned automation support. Presence means clients may subscribe to
-	 * `ahp-automations://` for {@link AutomationCatalogState}; absence means the
+	 * `ahp-automations://` for {@link AutomationState}; absence means the
 	 * host does not expose an automation catalogue or automation commands.
 	 *
 	 * @see {@link /guide/automations | Automations Guide}
@@ -297,7 +297,7 @@ export interface InitializeResult {
  * restrictions.
  *
  * Capabilities describe implementation support.
- * {@link AutomationState.operations} remains authoritative for which
+ * {@link AutomationEntry.operations} remains authoritative for which
  * definition mutations are currently allowed on a particular automation.
  *
  * @category Commands
@@ -313,7 +313,7 @@ export interface AutomationCapabilities {
 	 */
 	runCancellation?: AutomationRunCancellationCapability;
 	/**
-	 * Maximum terminal entries retained in {@link AutomationState.runs}. Active
+	 * Maximum terminal entries retained in {@link AutomationEntry.runs}. Active
 	 * runs are not counted toward the limit. Absence means the retention limit is
 	 * implementation-defined.
 	 */
@@ -1130,7 +1130,8 @@ export interface ResourceMkdirResult {
  * ```jsonc
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 3, "method": "authenticate",
- *   "params": { "channel": "ahp-root://", "resource": "https://api.github.com", "token": "gho_xxxx" } }
+ *   "params": { "channel": "ahp-root://", "resource": "https://api.github.com",
+ *     "token": "gho_xxxx", "expiresIn": 3540 } }
  *
  * // Server → Client (success)
  * { "jsonrpc": "2.0", "id": 3, "result": {} }
@@ -1150,6 +1151,23 @@ export interface AuthenticateParams extends BaseParams {
 	resource: string;
 	/** Bearer token obtained from the resource's authorization server */
 	token: string;
+	/**
+	 * The access token's remaining lifetime, in seconds, when this
+	 * `authenticate` request is sent. This corresponds to `expires_in` in an
+	 * OAuth 2.0 token response (RFC 6749 section 5.1).
+	 *
+	 * If the client retained the original token response, it MUST subtract the
+	 * elapsed time before forwarding this value. Omit this field when the
+	 * authorization server did not supply an expiry or the expiry is otherwise
+	 * unknown. When supplied, the value MUST be a positive integer.
+	 *
+	 * This field is irrelevant when `token` is empty to revoke authentication
+	 * and SHOULD be omitted in that case.
+	 *
+	 * @integer
+	 * @minimum 1
+	 */
+	expiresIn?: number;
 	/**
 	 * OAuth scopes the token grants, when known. Lets the server determine
 	 * whether a specific challenge — e.g. the `requiredScopes` on a live

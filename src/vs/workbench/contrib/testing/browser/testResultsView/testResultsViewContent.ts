@@ -250,7 +250,7 @@ export class TestResultsViewContent extends Disposable {
 
 	public fillBody(containerElement: HTMLElement): void {
 		const initialSpitWidth = TestResultsViewContent.lastSplitWidth;
-		this.splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
+		this.splitView = this._register(new SplitView(containerElement, { orientation: Orientation.HORIZONTAL }));
 
 		const { historyVisible, showRevealLocationOnMessages } = this.options;
 		const isInPeekView = this.editor !== undefined;

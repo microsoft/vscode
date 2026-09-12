@@ -16,6 +16,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, remoteResolverTerminal, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -32,6 +33,7 @@ import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { writeP } from '../../browser/terminalTestHelpers.js';
 
 const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
@@ -322,6 +324,25 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(instance.shellType, undefined);
 			onTitleChange('\u2733 Command Code \u00b7 my-project');
 			strictEqual(instance.shellType, GeneralShellType.CommandCode);
+		});
+
+		test('runCommand should wait for prompt input when command detection already exists', async () => {
+			const instance = await createTerminalInstance();
+			await writeP(instance.xterm!.raw, '\x1b]633;A\x07');
+			const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+			strictEqual(commandDetection?.promptInputModel.state, PromptInputState.Unknown);
+
+			const sentText: unknown[][] = [];
+			instance.sendText = async (...args) => {
+				sentText.push(args);
+			};
+			const runCommandPromise = instance.runCommand('echo test', true);
+
+			deepStrictEqual(sentText, []);
+			await writeP(instance.xterm!.raw, '\x1b]633;B\x07');
+			await Promise.resolve();
+			deepStrictEqual(sentText, [['echo test', true, undefined]]);
+			await runCommandPromise;
 		});
 
 		test('should fire onWillDispose before xterm disposal and onDisposed after xterm disposal', async () => {

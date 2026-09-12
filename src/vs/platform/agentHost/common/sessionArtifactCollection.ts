@@ -80,37 +80,57 @@ function requireUri(value: unknown, field: string, toolName: string): string {
 	return uri;
 }
 
-/** Validates and normalizes raw `add_artifact_or_reference` arguments. */
-export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): ISessionArtifactInput {
+function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, fieldPrefix?: string): ISessionArtifactInput {
 	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
-		throw new Error(`Invalid ${toolName} input: expected an object.`);
+		throw new Error(`Invalid ${toolName} input: ${fieldPrefix ? `${fieldPrefix} must be an object.` : 'expected an object.'}`);
 	}
 	const args = rawArgs as Record<string, unknown>;
+	const field = (name: string) => fieldPrefix ? `${fieldPrefix}.${name}` : name;
 	const type = args['type'];
 	if (typeof type !== 'string' || !(SESSION_ARTIFACT_TYPES as readonly string[]).includes(type)) {
-		throw new Error(`Invalid ${toolName} input: type must be one of ${SESSION_ARTIFACT_TYPES.join(', ')}.`);
+		throw new Error(`Invalid ${toolName} input: ${field('type')} must be one of ${SESSION_ARTIFACT_TYPES.join(', ')}.`);
 	}
 	if (typeof args['isArtifact'] !== 'boolean') {
-		throw new Error(`Invalid ${toolName} input: isArtifact must be a boolean — true for something this session produced, false for a reference.`);
+		throw new Error(`Invalid ${toolName} input: ${field('isArtifact')} must be a boolean — true for an artifact, false for a reference.`);
 	}
 
 	const artifactType = type as SessionArtifactType;
 	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string } = {
 		type: artifactType,
-		label: requireString(args['label'], 'label', toolName),
+		label: requireString(args['label'], field('label'), toolName),
 		isArtifact: args['isArtifact'],
 	};
 
 	if (linkTypes.has(artifactType)) {
-		input.link = requireWebLink(args['link'], 'link', toolName);
+		input.link = requireWebLink(args['link'], field('link'), toolName);
 	}
 	if (uriTypes.has(artifactType)) {
-		input.uri = requireUri(args['uri'], 'uri', toolName);
+		input.uri = requireUri(args['uri'], field('uri'), toolName);
 	}
 	if (artifactType === SessionArtifactType.Commit) {
-		input.commitHash = requireString(args['commitHash'], 'commitHash', toolName);
+		input.commitHash = requireString(args['commitHash'], field('commitHash'), toolName);
 	}
 	return input;
+}
+
+/** Validates and normalizes one `add_artifact_or_reference` entry. */
+export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): ISessionArtifactInput {
+	return parseSessionArtifactInputAt(rawArgs, toolName);
+}
+
+/** Validates a batch while accepting the legacy single-entry shape. */
+export function parseSessionArtifactInputs(rawArgs: unknown, toolName: string): readonly ISessionArtifactInput[] {
+	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
+		throw new Error(`Invalid ${toolName} input: expected an object.`);
+	}
+	const items = (rawArgs as Record<string, unknown>)['items'];
+	if (items === undefined) {
+		return [parseSessionArtifactInput(rawArgs, toolName)];
+	}
+	if (!Array.isArray(items) || items.length === 0) {
+		throw new Error(`Invalid ${toolName} input: items must be a non-empty array.`);
+	}
+	return items.map((item, index) => parseSessionArtifactInputAt(item, toolName, `items[${index}]`));
 }
 
 /**

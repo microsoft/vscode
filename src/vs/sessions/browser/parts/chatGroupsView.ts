@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatGroupsView.css';
-import { $, size } from '../../../base/browser/dom.js';
+import { $, isAncestorOfActiveElement, size } from '../../../base/browser/dom.js';
 import { Color } from '../../../base/common/color.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -19,7 +19,7 @@ import { agentsPanelBorder } from '../../common/theme.js';
 import { IChat } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChatViewOptions } from './chatView.js';
+import { IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { IDraggedSessionChat, isSessionChatDrag } from '../dnd.js';
@@ -96,8 +96,6 @@ export class ChatGroupsView extends Themable {
 	private _restoreAssignment: Map<string, number> | undefined;
 	/** Saved tab order (resource string -> ordinal) used to restore tab order across groups. */
 	private _restoreOrder: Map<string, number> | undefined;
-	/** The session's chat ids present when restore began, used to detect when the catalog has loaded. */
-	private _restoreInitialIds: Set<string> | undefined;
 	/** Whether a persisted layout is still being restored (saved chats may not have loaded yet). */
 	private _restorePending = false;
 	private _lastSessionActiveChatId: string | undefined;
@@ -140,7 +138,6 @@ export class ChatGroupsView extends Themable {
 		this._activeGroup = undefined;
 		this._restoreAssignment = undefined;
 		this._restoreOrder = undefined;
-		this._restoreInitialIds = undefined;
 		this._restorePending = false;
 		this._lastSessionActiveChatId = undefined;
 		this._setGroupCount(1);
@@ -244,7 +241,6 @@ export class ChatGroupsView extends Themable {
 		this._groups = groups;
 		this._restoreAssignment = assignment;
 		this._restoreOrder = order;
-		this._restoreInitialIds = new Set(session.visibleChatTabs.get().map(c => c.resource.toString()));
 		this._restorePending = true;
 		this._activeGroup = indexToEntry.get(saved.activeGroupIndex) ?? groups[0];
 		for (const group of this._groups) {
@@ -324,6 +320,12 @@ export class ChatGroupsView extends Themable {
 		const orderedIds = chats.map(c => c.resource.toString());
 		const validIds = new Set(orderedIds);
 		const activeId = activeChat?.resource.toString();
+		const hasUnassignedVisibleChats = orderedIds.some(id => !this._groups.some(group => group.resourceIds.get().includes(id)));
+
+		// Dispose orphaned groups before publishing an empty assignment.
+		if (!this._restorePending && !hasUnassignedVisibleChats) {
+			this._removeGroupsWithoutVisibleChats(validIds);
+		}
 
 		transaction(tx => {
 			// Prune stale assignments.
@@ -397,13 +399,11 @@ export class ChatGroupsView extends Themable {
 		// a home; once restore completes, any group left empty is collapsed.
 		if (this._restorePending) {
 			const allSavedPresent = this._restoreAssignment ? [...this._restoreAssignment.keys()].every(id => validIds.has(id)) : true;
-			const catalogChanged = !this._restoreInitialIds || orderedIds.length !== this._restoreInitialIds.size || orderedIds.some(id => !this._restoreInitialIds!.has(id));
 			const catalogSettled = !session.loading.read(reader);
-			if (allSavedPresent || catalogChanged || catalogSettled) {
+			if (allSavedPresent || catalogSettled) {
 				this._restorePending = false;
 				this._restoreAssignment = undefined;
 				this._restoreOrder = undefined;
-				this._restoreInitialIds = undefined;
 			}
 		}
 
@@ -517,20 +517,34 @@ export class ChatGroupsView extends Themable {
 	}
 
 	/**
-	 * Opens a chat in a group beside its current group ("open to the side"). A
-	 * chat already sharing a group is moved into a new group to its right. A chat
-	 * already alone in its own group is focused without creating a duplicate.
+	 * Opens a chat beside a visible reference chat, or its current group.
+	 * A chat already alone in its own group is focused without creating a duplicate.
 	 */
-	async openChatInNewGroup(resource: URI): Promise<void> {
+	async openChatInNewGroup(resource: URI, referenceChatResource?: URI): Promise<void> {
+		await this._openChatInNewGroup(resource, referenceChatResource);
+		if (referenceChatResource
+			&& this._session?.sessionId === this._sessionsService.activeSession.get()?.sessionId
+			&& this._activeGroup?.activeResourceId.get() === resource.toString()) {
+			this._activeGroup.view.focus();
+		}
+	}
+
+	private async _openChatInNewGroup(resource: URI, referenceChatResource: URI | undefined): Promise<void> {
 		if (!this._session || !this._grid || !this._currentSessionStore) {
 			return;
 		}
 		const id = resource.toString();
+		const referenceId = referenceChatResource?.toString();
+		const findReferenceGroup = () => referenceId && referenceId !== id ? this._groups.find(group => group.resourceIds.get().includes(referenceId)) : undefined;
+		const referenceGroup = findReferenceGroup();
+		if (referenceGroup && referenceId) {
+			referenceGroup.activeResourceId.set(referenceId, undefined);
+		}
 
 		const existing = this._groups.find(g => g.resourceIds.get().includes(id));
 		if (existing) {
 			if (existing.resourceIds.get().length > 1) {
-				await this._splitChatIntoNewGroup(resource, existing, existing, 'right');
+				await this._splitChatIntoNewGroup(resource, existing, referenceGroup ?? existing, 'right');
 				return;
 			}
 			existing.activeResourceId.set(id, undefined);
@@ -539,13 +553,19 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 
-		const reference = this._activeGroup ?? this._groups[0];
-		if (!reference) {
+		const initialReference = referenceGroup ?? this._activeGroup ?? this._groups[0];
+		if (!initialReference) {
 			return;
 		}
 		const session = this._session;
 		await this._sessionsService.openChat(session, resource);
 		if (this._session !== session || !session.visibleChatTabs.get().some(chat => chat.resource.toString() === id)) {
+			return;
+		}
+		const reference = referenceChatResource
+			? findReferenceGroup() ?? this._activeGroup ?? this._groups[0]
+			: this._groups.includes(initialReference) ? initialReference : this._activeGroup ?? this._groups[0];
+		if (!reference) {
 			return;
 		}
 
@@ -558,6 +578,9 @@ export class ChatGroupsView extends Themable {
 			const assignedGroup = this._groups.find(group => group !== newGroup && group.resourceIds.get().includes(id));
 			if (assignedGroup) {
 				this._detachChatFromGroup(assignedGroup, id, tx);
+			}
+			if (referenceId && reference.resourceIds.get().includes(referenceId)) {
+				reference.activeResourceId.set(referenceId, tx);
 			}
 			newGroup.resourceIds.set([id], tx);
 			newGroup.activeResourceId.set(id, tx);
@@ -621,11 +644,19 @@ export class ChatGroupsView extends Themable {
 	}
 
 	private _removeEmptyGroups(): void {
+		this._removeGroups(group => group.resourceIds.get().length === 0);
+	}
+
+	private _removeGroupsWithoutVisibleChats(visibleChatIds: ReadonlySet<string>): void {
+		this._removeGroups(group => group.resourceIds.get().every(id => !visibleChatIds.has(id)));
+	}
+
+	private _removeGroups(shouldRemove: (group: IGroupEntry) => boolean): void {
 		if (!this._grid || this._groups.length <= 1) {
 			return;
 		}
-		const empties = this._groups.filter(g => g.resourceIds.get().length === 0);
-		for (const group of empties) {
+		const groups = this._groups.filter(shouldRemove);
+		for (const group of groups) {
 			if (this._groups.length <= 1) {
 				break;
 			}
@@ -653,6 +684,19 @@ export class ChatGroupsView extends Themable {
 			group.view.setGroupActive(group === entry);
 		}
 		this._persistLayout();
+	}
+
+	getFocusedChat(): IChat | undefined {
+		const group = this._getFocusedGroup();
+		if (!group) {
+			return undefined;
+		}
+		const activeResource = group.activeResourceId.get();
+		return group.chats.get().find(chat => chat.resource.toString() === activeResource);
+	}
+
+	private _getFocusedGroup(): IGroupEntry | undefined {
+		return this._groups.find(group => isAncestorOfActiveElement(group.view.element));
 	}
 
 	/**
@@ -778,8 +822,12 @@ export class ChatGroupsView extends Themable {
 		return this._activeGroup?.view.submitInput() ?? Promise.resolve(false);
 	}
 
-	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._activeGroup?.view.selectWorkspace(folderUri, providerId);
+	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
+		return this._activeGroup?.view.selectWorkspace(folderUri, options) ?? 'notReady';
+	}
+
+	selectNoWorkspace(): void {
+		this._activeGroup?.view.selectNoWorkspace();
 	}
 
 	prefillInput(text: string): void {

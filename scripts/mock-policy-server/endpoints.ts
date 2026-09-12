@@ -12,10 +12,9 @@
  * environments without a build step.
  *
  * For the default (github.com) provider these URLs are read verbatim from
- * `product.json` -> `defaultChatAgent.<productKey>`, so pointing all of them at
- * a local server via `product.overrides.json` lets a dev exercise the whole
- * policy pipeline offline. The same paths are also served under a system proxy
- * rule, which is how a stable/Insiders build or the CLI reaches this server.
+ * `product.json` -> `defaultChatAgent.<productKey>`. These paths are served
+ * under a system proxy rule so Code OSS, Stable/Insiders, the CLI, and SDK
+ * clients all exercise the same policy delivery path.
  *
  * Endpoints not marked `mockedByDefault` start in passthrough: the server
  * forwards them to the real API so a blanket proxy rule stays safe.
@@ -97,17 +96,6 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 					}
 				},
 				{
-					id: 'allow-auto-only',
-					label: 'Allow auto-approval only',
-					description: 'Blocks full allow-all bypass but still permits advisory auto-approval (LLM safety recommendations with normal prompt paths).',
-					status: 200,
-					body: {
-						permissions: {
-							disableBypassPermissionsMode: 'allow-auto-only'
-						}
-					}
-				},
-				{
 					id: 'deny-dangerous-commands',
 					label: 'Deny dangerous shell/file operations',
 					description: 'Blocks specific shell commands, workspace-scoped file writes, and a domain outright. A single leading slash means the workspace root in the managed permission syntax.',
@@ -174,6 +162,23 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 								'Write(/.github/workflows/**)',
 								'Write(~/.ssh/**)'
 							]
+						}
+					}
+				},
+				{
+					id: 'sandbox-no-internet',
+					label: 'Sandbox, no internet',
+					description: 'Enables the agent runtime sandbox with bypass allowed, but denies outbound network access so sandboxed tools run offline.',
+					status: 200,
+					body: {
+						sandbox: {
+							enabled: true,
+							allowBypass: true,
+							userPolicy: {
+								network: {
+									allowOutbound: false
+								}
+							}
 						}
 					}
 				},

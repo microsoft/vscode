@@ -7,7 +7,7 @@ import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -39,7 +39,6 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/service
 import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -53,6 +52,7 @@ const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
+const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
@@ -60,11 +60,46 @@ export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsVi
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 
+export interface ISessionsHeaderElements {
+	readonly row: HTMLElement;
+	readonly label: HTMLElement;
+	readonly actions: HTMLElement;
+	readonly toolbar: MenuWorkbenchToolBar | undefined;
+}
+
+export function renderSessionsHeader(
+	parent: HTMLElement,
+	phoneLayout: boolean,
+	instantiationService: IInstantiationService,
+	contextKeyService: IContextKeyService,
+	disposables: DisposableStore,
+): ISessionsHeaderElements {
+	const row = DOM.append(parent, $('.agent-sessions-header-row'));
+	const label = DOM.append(row, $('.agent-sessions-header-label'));
+	const actions = DOM.append(row, $('.agent-sessions-header-actions'));
+	let toolbar: MenuWorkbenchToolBar | undefined;
+
+	if (!phoneLayout) {
+		label.textContent = localize('sessionsHeader', "Sessions");
+		const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'sessionsView.header',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+	} else {
+		row.classList.add('phone-layout-empty');
+	}
+
+	return { row, label, actions, toolbar };
+}
+
 export class SessionsView extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private sidebarSplitViewContainer: HTMLElement | undefined;
 	private sidebarSplitView: SplitView | undefined;
+	private readonly customizationsPaneDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private sessionsControlContainer: HTMLElement | undefined;
 	private findWidgetContainer: HTMLElement | undefined;
 	private headerRow: HTMLElement | undefined;
@@ -96,7 +131,6 @@ export class SessionsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -157,32 +191,15 @@ export class SessionsView extends ViewPane {
 		// Sessions content container
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
 
-		// Header row: "Sessions" label (left) + compact "New" button (right)
-		const headerRow = this.headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
-		const headerLabel = this.headerLabel = DOM.append(headerRow, $('.agent-sessions-header-label'));
-
-		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
-
 		// On phone, the desktop header content (label + new button + filter/find toolbar)
 		// is hidden in favor of the mobile filter chip row + the (+) button in the
 		// MobileTitlebarPart. We still create the row container because the find
 		// widget mounts inside it.
 		const phoneLayout = isPhoneLayout(this.layoutService);
-		if (!phoneLayout) {
-			headerLabel.textContent = localize('sessionsHeader', "Sessions");
-
-			// Header actions (visual order: New, Filter, Search). The "New" button is
-			// contributed to Menus.SidebarSessionsHeader and rendered as a compact pill
-			// by NewSessionActionViewItem.
-			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-			this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsHeader, {
-				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				telemetrySource: 'sessionsView.header',
-				toolbarOptions: { primaryGroup: () => true },
-			}));
-		} else {
-			headerRow.classList.add('phone-layout-empty');
-		}
+		const header = renderSessionsHeader(sessionsContent, phoneLayout, this.instantiationService, this.scopedContextKeyService, this._register(new DisposableStore()));
+		const headerRow = this.headerRow = header.row;
+		this.headerLabel = header.label;
+		this.headerActions = header.actions;
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(headerRow, $('.agent-sessions-find-widget-container'));
@@ -212,13 +229,12 @@ export class SessionsView extends ViewPane {
 					onUnexpectedError(new Error(`Unable to open session because '${resource.toString()}' is not available`));
 					return;
 				}
-				const mainChat = session.mainChat.get();
 				if (sideBySide) {
 					// Alt-click: open the session to the right of the last visible session in the grid.
-					this.sessionsService.openSessionToSide(session, { preserveFocus, chatResource: mainChat.resource, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
+					this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
 					return;
 				}
-				this.sessionsService.openChat(session, mainChat.resource, { preserveFocus, source: 'sessionsList' }).then(onOpened).catch(onUnexpectedError);
+				this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', restoreOnlySideOrToolChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
@@ -228,13 +244,7 @@ export class SessionsView extends ViewPane {
 					}
 				};
 				if (sideBySide) {
-					this.sessionsService.showSession(session.resource, { preserveFocus });
-					const sessionView = this.sessionsPartService.getSessionView(session.sessionId);
-					if (!sessionView) {
-						onUnexpectedError(new Error(`Unable to open chat to the side because session view '${session.sessionId}' is not mounted`));
-						return;
-					}
-					sessionView.openChatToSide(chat.resource).then(onOpened).catch(onUnexpectedError);
+					this.sessionsService.openChatToSide(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 					return;
 				}
 				this.sessionsService.openChat(session, chat.resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
@@ -307,16 +317,6 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 
-		const customizationsSection = DOM.append(this.sidebarSplitViewContainer, $('.agent-sessions-customizations-section'));
-		const customizationsSizeChange = this._register(new Emitter<void>());
-
-		const customizationsWidget = this._customizationsWidget = this._register(this.instantiationService.createInstance(AICustomizationShortcutsWidget, customizationsSection, {
-			onDidChangeLayout: () => {
-				customizationsSizeChange.fire();
-				this.layoutSidebarSplitView();
-			},
-		}));
-
 		this.sidebarSplitView = this._register(new SplitView(this.sidebarSplitViewContainer, {
 			orientation: Orientation.VERTICAL,
 			proportionalLayout: false,
@@ -333,36 +333,8 @@ export class SessionsView extends ViewPane {
 			},
 		};
 
-		const customizationsPane: IView = {
-			element: customizationsSection,
-			get minimumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : CUSTOMIZATIONS_MIN_HEIGHT; },
-			get maximumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : Math.max(CUSTOMIZATIONS_MIN_HEIGHT, customizationsWidget.desiredHeight); },
-			onDidChange: Event.map(Event.any(customizationsWidget.onDidChangeHeight, customizationsSizeChange.event), () => this.getCustomizationsPaneHeight()),
-			layout: height => {
-				customizationsSection.style.height = `${height}px`;
-				this._customizationsWidget?.layout(height, this.currentBodyWidth);
-			},
-		};
-
 		this.sidebarSplitView.addView(sessionsPane, Sizing.Distribute, 0, true);
-		this.sidebarSplitView.addView(customizationsPane, this.getCustomizationsPaneHeight(), 1, true);
-
-		let savedCustomizationsPaneHeight = this.getCustomizationsPaneHeight();
-		this._register(customizationsWidget.onDidToggleCollapsed(collapsed => {
-			if (!this.sidebarSplitView) {
-				return;
-			}
-			if (collapsed) {
-				const currentSize = this.sidebarSplitView.getViewSize(1);
-				if (currentSize > customizationsWidget.collapsedHeight) {
-					savedCustomizationsPaneHeight = currentSize;
-				}
-				this.sidebarSplitView.resizeView(1, customizationsWidget.collapsedHeight);
-			} else {
-				this.sidebarSplitView.resizeView(1, savedCustomizationsPaneHeight);
-			}
-			this.layoutSidebarSplitView();
-		}));
+		this.updateCustomizationsPane();
 
 		const updateSplitViewStyles = () => {
 			const borderColor = this.themeService.getColorTheme().getColor(PANEL_SECTION_BORDER);
@@ -392,8 +364,68 @@ export class SessionsView extends ViewPane {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}
 
+	private updateCustomizationsPane(): void {
+		if (!this.sidebarSplitView || !this.sidebarSplitViewContainer) {
+			return;
+		}
+		if (isPhoneLayout(this.layoutService)) {
+			if (this._customizationsWidget) {
+				this.sidebarSplitView.removeView(1, Sizing.Distribute);
+				this._customizationsWidget = undefined;
+				this.customizationsPaneDisposables.clear();
+			}
+			return;
+		}
+		if (this._customizationsWidget) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		this.customizationsPaneDisposables.value = store;
+		const customizationsSection = DOM.append(this.sidebarSplitViewContainer, $('.agent-sessions-customizations-section'));
+		store.add(toDisposable(() => customizationsSection.remove()));
+		const customizationsSizeChange = store.add(new Emitter<void>());
+		const customizationsWidget = this._customizationsWidget = store.add(this.instantiationService.createInstance(AICustomizationShortcutsWidget, customizationsSection, {
+			onDidChangeLayout: () => {
+				customizationsSizeChange.fire();
+				this.layoutSidebarSplitView();
+			},
+		}));
+		const customizationsPane: IView = {
+			element: customizationsSection,
+			get minimumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : CUSTOMIZATIONS_MIN_HEIGHT; },
+			get maximumSize() { return customizationsWidget.collapsed ? customizationsWidget.collapsedHeight : Math.max(CUSTOMIZATIONS_MIN_HEIGHT, customizationsWidget.desiredHeight); },
+			onDidChange: Event.map(Event.any(customizationsWidget.onDidChangeHeight, customizationsSizeChange.event), () => this.getCustomizationsPaneHeight()),
+			layout: height => {
+				customizationsSection.style.height = `${height}px`;
+				customizationsWidget.layout(height, this.currentBodyWidth);
+			},
+		};
+		this.sidebarSplitView.addView(customizationsPane, this.getCustomizationsPaneHeight(), 1, true);
+
+		let savedCustomizationsPaneHeight = this.getCustomizationsPaneHeight();
+		store.add(customizationsWidget.onDidToggleCollapsed(collapsed => {
+			if (!this.sidebarSplitView) {
+				return;
+			}
+			if (collapsed) {
+				const currentSize = this.sidebarSplitView.getViewSize(1);
+				if (currentSize > customizationsWidget.collapsedHeight) {
+					savedCustomizationsPaneHeight = currentSize;
+				}
+				this.sidebarSplitView.resizeView(1, customizationsWidget.collapsedHeight);
+			} else {
+				this.sidebarSplitView.resizeView(1, savedCustomizationsPaneHeight);
+			}
+			this.layoutSidebarSplitView();
+		}));
+		this.didInitializePaneSizes = false;
+	}
+
 	focusCustomizations(): void {
-		this._customizationsWidget?.focus();
+		if (!isPhoneLayout(this.layoutService)) {
+			this._customizationsWidget?.focus();
+		}
 	}
 
 	private restoreLastSelectedSession(): void {
@@ -540,6 +572,30 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 
+		const emptyGroupsContextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showEmptyGroups', sessionsControl.isShowEmptyGroups());
+		const emptyGroupsContextKeyInstance = emptyGroupsContextKey.bindTo(this.scopedContextKeyService);
+		this.filterContextKeys.set(emptyGroupsContextKey.key, { key: emptyGroupsContextKeyInstance, getDefault: () => true });
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.filterEmptyGroups',
+					title: localize('filterEmptyGroups', "Empty Groups"),
+					toggled: ContextKeyExpr.equals(emptyGroupsContextKey.key, true),
+					menu: [{
+						id: SessionsViewFilterOptionsSubMenu,
+						group: '3_props',
+						order: 2,
+					}]
+				});
+			}
+			override run() {
+				const show = sessionsControl.isShowEmptyGroups();
+				sessionsControl.setShowEmptyGroups(!show);
+				emptyGroupsContextKeyInstance.set(!show);
+			}
+		}));
+
 		// Reset filter action
 		const filterContextKeys = this.filterContextKeys;
 		const workspaceGroupCappedContextKey = this.workspaceGroupCappedContextKey;
@@ -571,6 +627,7 @@ export class SessionsView extends ViewPane {
 		this.currentBodyHeight = height;
 		this.currentBodyWidth = width;
 		this.updateHeaderLayout();
+		this.updateCustomizationsPane();
 		this.layoutSidebarSplitView();
 
 		if (this.sidebarSplitView || !this.sessionsControl || !this.sessionsControlContainer) {
@@ -596,7 +653,9 @@ export class SessionsView extends ViewPane {
 		this.sidebarSplitView.layout(height);
 		if (!this.didInitializePaneSizes) {
 			this.didInitializePaneSizes = true;
-			this.sidebarSplitView.resizeView(1, this.getCustomizationsPaneHeight());
+			if (this._customizationsWidget) {
+				this.sidebarSplitView.resizeView(1, this.getCustomizationsPaneHeight());
+			}
 		}
 	}
 
@@ -648,6 +707,9 @@ export class SessionsView extends ViewPane {
 
 		this.headerLabel.style.display = '';
 		this.headerActions.style.display = '';
+		if (this.headerLabel.clientWidth < SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH) {
+			this.headerLabel.style.display = 'none';
+		}
 	}
 
 	/**

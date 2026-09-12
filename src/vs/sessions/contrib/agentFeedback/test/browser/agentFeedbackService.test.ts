@@ -11,7 +11,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService, shouldIncludeRawPRReviewComments } from '../../browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -36,6 +36,31 @@ function r(startLine: number, endLine: number = startLine): Range {
 function feedbackSummary(items: readonly { resourceUri: URI; range: { startLineNumber: number } }[]): string[] {
 	return items.map(f => `${f.resourceUri.path}:${f.range.startLineNumber}`);
 }
+
+suite('AgentFeedbackService - PR review authority', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes raw PR comments until Agent Host feedback has loaded', () => {
+		let loaded = false;
+		const service = new class extends mock<IAgentFeedbackService>() {
+			override isAgentHostSession(): boolean { return true; }
+			override hasLoadedFeedback(): boolean { return loaded; }
+		}();
+		const session = URI.parse('vscode-agent-session://test/session');
+
+		const beforeLoad = shouldIncludeRawPRReviewComments(service, session);
+		loaded = true;
+
+		assert.deepStrictEqual({
+			beforeLoad,
+			afterLoad: shouldIncludeRawPRReviewComments(service, session),
+		}, {
+			beforeLoad: true,
+			afterLoad: false,
+		});
+	});
+});
 
 suite('AgentFeedbackService - Ordering', () => {
 
@@ -811,6 +836,16 @@ suite('AgentFeedbackService - State', () => {
 		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
 	});
 
+	test('backfills a missing source pull request without replacing an existing one', () => {
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created);
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+
+		service.updateFeedbackSourcePullRequest(session, created.id, sourcePullRequest);
+		service.updateFeedbackSourcePullRequest(session, created.id, { owner: 'owner', repo: 'repo', number: 43 });
+
+		assert.deepStrictEqual(service.getFeedback(session)[0].sourcePullRequest, sourcePullRequest);
+	});
+
 	test('markFeedbackSubmitted resolves accepted items directly for non-agent-host sessions', () => {
 		const accepted = service.addFeedback(session, fileA, r(10), 'accepted');
 		const created = service.addFeedback(session, fileA, r(20), 'created', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
@@ -862,6 +897,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let acceptInputSent: DeferredPromise<void>;
 	/** Whether the widget hands the request over to the chat service. */
 	let acceptsRequest: boolean;
+	let providerId: string;
 	/** Whether the widget has the session's chat model loaded. */
 	let sessionLoaded: boolean;
 	/** Simulates the widget loading the session's chat model. */
@@ -872,6 +908,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		addedEntries = [];
 		acceptInputSent = new DeferredPromise<void>();
 		acceptsRequest = true;
+		providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
 		sessionLoaded = true;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
@@ -888,7 +925,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			override onDidDeleteSession = Event.None;
 			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) {
-				return { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionId: 'session-1' } as unknown as ISession;
+				return { providerId, sessionId: 'session-1' } as unknown as ISession;
 			}
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
@@ -958,6 +995,52 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			texts: ['Please simplify'],
 			state: AgentFeedbackState.Submitted,
 		});
+	});
+
+	test('submits only selected feedback with a custom request', async () => {
+		const first = service.addFeedback(session, fileA, r(10), 'Fix the PR comment');
+		const second = service.addFeedback(session, fileA, r(20), 'Keep this for later');
+		let accepted = 0;
+
+		await service.submitFeedback(session, {
+			query: '/act-on-feedback for #42',
+			feedbackIds: [first.id],
+			onRequestAccepted: () => accepted++,
+		});
+
+		assert.deepStrictEqual({
+			accepted,
+			request: widgetOps.find(operation => operation.startsWith('accept:')),
+			attachedTexts: addedEntries[0]?.feedbackItems.map(item => item.text),
+			states: service.getFeedback(session).map(item => ({ id: item.id, state: item.state })),
+		}, {
+			accepted: 1,
+			request: 'accept:/act-on-feedback for #42',
+			attachedTexts: ['Fix the PR comment'],
+			states: [
+				{ id: first.id, state: AgentFeedbackState.Submitted },
+				{ id: second.id, state: AgentFeedbackState.Accepted },
+			],
+		});
+	});
+
+	test('non-agent-host submissions preserve the complete reactive feedback attachment', async () => {
+		providerId = 'test-provider';
+		const first = service.addFeedback(session, fileA, r(10), 'First');
+		const second = service.addFeedback(session, fileA, r(20), 'Second');
+
+		await service.submitFeedback(session, {
+			query: '/act-on-feedback',
+			feedbackIds: [first.id],
+		});
+
+		assert.deepStrictEqual(service.getFeedback(session).map(item => ({
+			id: item.id,
+			state: item.state,
+		})), [
+			{ id: first.id, state: AgentFeedbackState.Resolved },
+			{ id: second.id, state: AgentFeedbackState.Resolved },
+		]);
 	});
 
 	test('marks feedback as submitted once the request is queued behind an in-progress request', async () => {

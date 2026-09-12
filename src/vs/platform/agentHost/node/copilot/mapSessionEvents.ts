@@ -67,6 +67,7 @@ function isSyntheticUserMessage(event: SessionEvent): boolean {
 function stripPromptScaffolding(text: string): string {
 	const withoutAux = text
 		.replace(/<reminder>[\s\S]*?<\/reminder>\s*/g, '')
+		.replace(/<system[-_]reminder>[\s\S]*?<\/system[-_]reminder>\s*/g, '')
 		.replace(/<attachments>[\s\S]*?<\/attachments>\s*/g, '')
 		.replace(/<context>[\s\S]*?<\/context>\s*/g, '')
 		.replace(/<current_datetime>[\s\S]*?<\/current_datetime>\s*/g, '')
@@ -411,6 +412,8 @@ export async function mapSessionEvents(
 	let rootAssistantTurnActive = false;
 	let rootRequestActive = false;
 	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
+	/** Same, per subagent tool call: applied when that subagent's turn is built. */
+	const pendingSubagentAutoModeResolved = new Map<string, Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data']>();
 
 	/** Envelope timestamp of the event currently being processed. */
 	let currentEventTimestamp: string | undefined;
@@ -457,6 +460,11 @@ export async function mapSessionEvents(
 			subagentBuilders.set(parentToolCallId, builder);
 			if (!subagentTurnStates.has(parentToolCallId)) {
 				subagentTurnStates.set(parentToolCallId, TurnState.Complete);
+			}
+			const autoModeResolved = pendingSubagentAutoModeResolved.get(parentToolCallId);
+			if (autoModeResolved) {
+				builder.usage = { model: autoModeResolved.chosenModel, _meta: { autoModeResolved } };
+				pendingSubagentAutoModeResolved.delete(parentToolCallId);
 			}
 		}
 		touch(builder);
@@ -518,7 +526,13 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'session.auto_mode_resolved': {
-				if (!e.agentId) {
+				// A subagent routes its own model calls, so the decision belongs to the
+				// subagent's turn. Both are held until the turn that uses them starts,
+				// so routing never pulls a turn's start time earlier than its content.
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (parentToolCallId) {
+					pendingSubagentAutoModeResolved.set(parentToolCallId, e.data);
+				} else if (!e.agentId) {
 					pendingAutoModeResolved = e.data;
 				}
 				break;
@@ -658,7 +672,7 @@ export async function mapSessionEvents(
 					rootRequestActive = false;
 					parentTurnState = TurnState.Error;
 					parentTurnTerminated = true;
-					parentBuilder.responseParts.push(createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data)));
+					parentBuilder.responseParts.push(createErrorResponsePart(buildChatErrorInfoFromCopilotSdkFields(e.data), true));
 					parentBuilder.waitingStartedAt = currentEventTimestamp;
 					touch(parentBuilder);
 				}
@@ -770,7 +784,7 @@ export async function mapSessionEvents(
 	}
 
 	if (options && !(options instanceof URI) && options.interruptedTurnError && parentBuilder && rootRequestActive && parentTurnState !== TurnState.Error) {
-		parentBuilder.responseParts.push(createErrorResponsePart(options.interruptedTurnError));
+		parentBuilder.responseParts.push(createErrorResponsePart(options.interruptedTurnError, true));
 		parentTurnState = TurnState.Error;
 	}
 	flushParent();
