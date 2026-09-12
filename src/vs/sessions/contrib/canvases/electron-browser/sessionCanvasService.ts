@@ -122,6 +122,14 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 				this.inputLifetimes.deleteAndDispose(key);
 			}));
 		}
+		const { reference } = input;
+		const target = this.getTarget(reference.session, reference.chat);
+		if (target?.session.providerId === reference.providerId) {
+			const entry = target.canvases.entries.get().find(entry => entry.resource === reference.canvas.toString());
+			if (entry) {
+				input.setTitle(entry.title);
+			}
+		}
 		return input;
 	}
 

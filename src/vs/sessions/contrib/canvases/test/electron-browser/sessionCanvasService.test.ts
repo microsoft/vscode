@@ -8,7 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -28,7 +28,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
 import { SinglePaneLayoutController } from '../../../layout/browser/singlePaneLayoutController.js';
 import { createTestHarness, makeSession, type ICreateOptions } from '../../../layout/test/browser/layoutControllerTestUtils.js';
-import { ISessionCanvasService, SessionCanvasInput } from '../../common/sessionCanvas.js';
+import { ISessionCanvasService, SessionCanvasInput, SessionCanvasSerializer } from '../../common/sessionCanvas.js';
 import { SessionCanvasMount } from '../../common/sessionCanvasMount.js';
 import { SessionCanvasService } from '../../electron-browser/sessionCanvasService.js';
 import { canvasEntry, createCanvasState, TestSessionCanvases } from '../common/sessionCanvasTestUtils.js';
@@ -136,6 +136,65 @@ suite('Session canvas editor ownership and working sets', () => {
 		await settleLayout();
 		return f;
 	}
+
+	for (const hydration of ['before', 'after']) {
+		test(`restored inputs hydrate titles when entries arrive ${hydration} input creation`, () => {
+			const f = fixture();
+			const entry = f.canvases.entries.get()[0];
+			const serializer = f.harness.instaService.createInstance(SessionCanvasSerializer);
+			const serialized = serializer.serialize(f.input);
+			assert.ok(serialized);
+			transaction(tx => {
+				f.visible.set(false, tx);
+				f.currentInput.set(undefined, tx);
+				f.canvases.entries.set([], tx);
+				f.canvases.initialized.set(false, tx);
+				f.harness.activeSessionObs.set(f.a, tx);
+			});
+			f.input.dispose();
+			const hydrate = () => transaction(tx => {
+				f.canvases.entries.set([entry], tx);
+				f.canvases.initialized.set(true, tx);
+			});
+			if (hydration === 'before') {
+				hydrate();
+			}
+			const restored = serializer.deserialize(f.harness.instaService, serialized);
+			assert.ok(restored instanceof SessionCanvasInput);
+			const initialName = restored.getName();
+			const labels: string[] = [];
+			store.add(restored.onDidChangeLabel(() => labels.push(restored.getName())));
+			if (hydration === 'after') {
+				hydrate();
+			}
+			const hydratedName = restored.getName();
+			f.canvases.entries.set([{ ...entry, title: 'Renamed counter' }], undefined);
+			assert.deepStrictEqual({
+				initialName, hydratedName, renamed: restored.getName(), labels,
+				reused: f.service.getInput(restored.resource) === restored,
+				sourceRequests: f.canvases.sourceRequests.length, native: f.native.length,
+				effects: f.canvases.effects, opened: f.opened.length,
+			}, {
+				initialName: hydration === 'before' ? 'Counter' : 'Canvas',
+				hydratedName: 'Counter', renamed: 'Renamed counter',
+				labels: hydration === 'before' ? ['Renamed counter'] : ['Counter', 'Renamed counter'],
+				reused: true, sourceRequests: 0, native: 0, effects: [], opened: 0,
+			});
+		});
+	}
+
+	test('input titles never use a different provider, chat or canvas membership', () => {
+		const f = fixture();
+		const references = [
+			{ ...f.reference, providerId: 'different-provider' },
+			{ ...f.reference, chat: URI.parse('chat:/missing') },
+			{ ...f.reference, canvas: URI.parse('ahp-canvas:/missing') },
+		];
+		assert.deepStrictEqual({
+			titles: references.map(reference => f.service.getInput(SessionCanvasUri.create(reference)).getName()),
+			sourceRequests: f.canvases.sourceRequests.length, native: f.native.length, effects: f.canvases.effects,
+		}, { titles: ['Canvas', 'Canvas', 'Canvas'], sourceRequests: 0, native: 0, effects: [] });
+	});
 
 	test('real layout-controller working-set swaps release and freshly remount the logical view without closing membership', async () => {
 		const f = fixture();
