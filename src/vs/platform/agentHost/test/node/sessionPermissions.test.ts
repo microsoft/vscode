@@ -520,6 +520,22 @@ suite('SessionPermissionManager', () => {
 		});
 	});
 
+	test('redirect pathname globs require confirmation', async () => {
+		const events = [
+			shellEvent('echo hi > .[g]it/config', 'bash'),
+			shellEvent('echo hi > .[e]nv', 'bash'),
+			shellEvent('echo hi > packag?.json', 'bash'),
+			shellEvent('echo hi > "packag"[e]".json"', 'bash'),
+			powershellEvent(`Write-Host hi >'.[m]cp.json'`),
+			powershellEvent(`Write-Host hi >".[c]odex/hooks.json"`),
+		];
+		assert.deepStrictEqual(
+			await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri))),
+			events.map(() => undefined)
+		);
+		assert.deepStrictEqual(events.map(event => permissions.isAutoApproveRuleResolvable(event, sessionUri)), events.map(() => false));
+	});
+
 	test('CMD delayed-expansion redirect destinations require confirmation', async () => {
 		const delayedExpansion = shellEvent('echo hi >!APPDATA!\\outside.txt', 'bash');
 		const literalExclamation = shellEvent('echo hi >important!.txt', 'bash');
