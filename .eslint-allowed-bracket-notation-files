@@ -508,27 +508,5 @@ extensions/git/src/ipc/ipcClient.ts
 extensions/git/src/ipc/ipcServer.ts
 extensions/git/src/util.ts
 
-# Workbench UI and remaining services (23 files)
-src/vs/workbench/browser/parts/editor/editor.ts
-src/vs/workbench/browser/parts/editor/editorGroupView.ts
-src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts
-src/vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane.ts
-src/vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek.ts
-src/vs/workbench/contrib/issue/electron-browser/nativeGitHubUploadService.ts
-src/vs/workbench/contrib/localization/electron-browser/localization.contribution.ts
-src/vs/workbench/contrib/policyExport/electron-browser/policyExport.contribution.ts
-src/vs/workbench/contrib/policyExport/test/node/policyExport.integrationTest.ts
-src/vs/workbench/contrib/search/browser/replaceService.ts
-src/vs/workbench/contrib/tags/electron-browser/workspaceTags.ts
-src/vs/workbench/contrib/tags/electron-browser/workspaceTagsService.ts
-src/vs/workbench/contrib/themes/browser/themes.contribution.ts
-src/vs/workbench/contrib/themes/test/node/colorRegistry.releaseTest.ts
-src/vs/workbench/contrib/typeHierarchy/browser/typeHierarchyPeek.ts
-src/vs/workbench/contrib/update/common/updateInfoParser.ts
-src/vs/workbench/contrib/webview/browser/pre/service-worker.js
-src/vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput.ts
+# Default account service tests (1 file)
 src/vs/workbench/services/accounts/test/browser/defaultAccount.test.ts
-src/vs/workbench/services/actions/common/menusExtensionPoint.ts
-src/vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig.ts
-src/vs/workbench/services/textfile/test/node/encoding/encoding.integrationTest.ts
-src/vs/workbench/services/themes/common/colorThemeData.ts
