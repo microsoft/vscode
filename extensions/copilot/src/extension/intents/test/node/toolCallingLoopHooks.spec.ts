@@ -150,9 +150,9 @@ describe('ToolCallingLoop SessionStart hook', () => {
 			const input = sessionStartCalls[0].input as SessionStartHookInput;
 			expect(input).toMatchObject({
 				source: 'new',
-				model: 'test-model-id',
 				agent_type: 'test-agent',
 			});
+			expect(sessionStartCalls[0].model).toBe('test-model-id');
 		});
 
 		it('should NOT execute SessionStart hook on subsequent turns', async () => {

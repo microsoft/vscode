@@ -11,7 +11,7 @@ export class MockChatHookService implements IChatHookService {
 	private readonly hookResults = new Map<ChatHookType, ChatHookResult[]>();
 	private readonly hookErrors = new Map<ChatHookType, Error>();
 
-	readonly hookCalls: Array<{ hookType: ChatHookType; input: unknown }> = [];
+	readonly hookCalls: Array<{ hookType: ChatHookType; input: unknown; model?: string }> = [];
 
 	logConfiguredHooks(): void { }
 
@@ -27,12 +27,12 @@ export class MockChatHookService implements IChatHookService {
 		this.hookCalls.length = 0;
 	}
 
-	getCallsForHook(hookType: ChatHookType): Array<{ hookType: ChatHookType; input: unknown }> {
+	getCallsForHook(hookType: ChatHookType): Array<{ hookType: ChatHookType; input: unknown; model?: string }> {
 		return this.hookCalls.filter(call => call.hookType === hookType);
 	}
 
-	async executeHook(hookType: ChatHookType, _hooks: unknown, input: unknown, _sessionId?: string, _token?: CancellationToken): Promise<ChatHookResult[]> {
-		this.hookCalls.push({ hookType, input });
+	async executeHook(hookType: ChatHookType, _hooks: unknown, input: unknown, _sessionId?: string, _token?: CancellationToken, model?: string): Promise<ChatHookResult[]> {
+		this.hookCalls.push({ hookType, input, model });
 
 		const error = this.hookErrors.get(hookType);
 		if (error) {
