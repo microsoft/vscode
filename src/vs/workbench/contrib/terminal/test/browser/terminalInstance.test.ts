@@ -799,6 +799,9 @@ suite('Workbench - TerminalInstance', () => {
 
 		function createMockTerminalInstance(options: {
 			cwd?: string;
+			isTrusted?: boolean;
+			processCwd?: string;
+			backendOS?: OperatingSystem;
 			remoteAuthority?: string;
 			fileExists?: boolean;
 			fileServiceCanHandle?: boolean;
@@ -807,7 +810,8 @@ suite('Workbench - TerminalInstance', () => {
 
 			if (options.cwd) {
 				const mockCwdDetection = {
-					getCwd: () => options.cwd
+					getCwd: () => options.cwd,
+					isTrusted: options.isTrusted !== false,
 				};
 				capabilities.add(TerminalCapability.CwdDetection, mockCwdDetection as unknown as ICwdDetectionCapability);
 			}
@@ -832,7 +836,12 @@ suite('Workbench - TerminalInstance', () => {
 				capabilities,
 				remoteAuthority: options.remoteAuthority,
 				async getCwdResource(): Promise<URI | undefined> {
-					const cwd = this.capabilities.get(TerminalCapability.CwdDetection)?.getCwd();
+					const cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
+					const cwd = cwdDetection?.isTrusted
+						? cwdDetection.getCwd()
+						: options.backendOS === OperatingSystem.Windows
+							? undefined
+							: options.processCwd;
 					if (!cwd) {
 						return undefined;
 					}
@@ -863,6 +872,24 @@ suite('Workbench - TerminalInstance', () => {
 		test('should return undefined when CwdDetection capability returns no cwd', async () => {
 			const instance = createMockTerminalInstance({ cwd: undefined });
 
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
+		});
+
+		test('should use process cwd when detected cwd is untrusted', async () => {
+			const instance = createMockTerminalInstance({ cwd: '/spoofed', isTrusted: false, processCwd: '/process', fileExists: true });
+			const result = await instance.getCwdResource();
+			strictEqual(result?.path, '/process');
+		});
+
+		test('should return undefined when detected cwd is untrusted and process cwd is unavailable', async () => {
+			const instance = createMockTerminalInstance({ cwd: '/spoofed', isTrusted: false });
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
+		});
+
+		test('should return undefined for untrusted cwd on Windows', async () => {
+			const instance = createMockTerminalInstance({ cwd: 'C:\\spoofed', isTrusted: false, processCwd: 'C:\\process', backendOS: OperatingSystem.Windows });
 			const result = await instance.getCwdResource();
 			strictEqual(result, undefined);
 		});
