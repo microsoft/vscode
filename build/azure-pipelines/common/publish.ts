@@ -540,7 +540,7 @@ class ESRPReleaseService {
 		};
 
 		// The Release service expects x5c as a '.' separated string, not the standard array format
-		(header as Record<string, unknown>)['x5c'] = this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.');
+		(header as Record<string, unknown>).x5c = this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.');
 
 		return jws.sign({
 			header,

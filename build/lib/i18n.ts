@@ -243,7 +243,7 @@ export class XLF {
 					reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
 				}
 
-				const fileNodes: any[] = result['xliff']['file'];
+				const fileNodes: any[] = result.xliff.file;
 				if (!fileNodes) {
 					reject(new Error(`XLF parsing error: XLIFF file does not contain "xliff" or "file" node(s) required for parsing.`));
 				}

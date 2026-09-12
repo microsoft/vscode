@@ -456,7 +456,7 @@ function printReport(noticePath: string, stats: NoticeStats, xref: CrossRefResul
 function main(): void {
 	const args = parseArgs(process.argv.slice(2));
 
-	if (!args['notice']) {
+	if (!args.notice) {
 		console.error('Usage: npx tsx build/azure-pipelines/oss/audit-notices.ts --notice <path> [--repo <path>]');
 		console.error('');
 		console.error('  --notice   Path to ThirdPartyNotices.txt');
@@ -464,8 +464,8 @@ function main(): void {
 		process.exit(1);
 	}
 
-	const noticePath = path.resolve(args['notice']);
-	const repoRoot = path.resolve(args['repo'] ?? process.cwd());
+	const noticePath = path.resolve(args.notice);
+	const repoRoot = path.resolve(args.repo ?? process.cwd());
 
 	if (!fs.existsSync(noticePath)) {
 		console.error(`Error: NOTICE file not found: ${noticePath}`);
