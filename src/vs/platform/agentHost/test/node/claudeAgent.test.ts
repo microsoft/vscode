@@ -3615,6 +3615,36 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('reports Working activity for the pre-content window and clears it when the turn ends', async () => {
+		// The row renders only before any response part, so this window is all it can show.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeStreamEvent(sessionId, makeMessageStart()),
+			makeStreamEvent(sessionId, makeContentBlockStartText(0)),
+			makeStreamEvent(sessionId, makeTextDelta(0, 'hi')),
+			makeStreamEvent(sessionId, makeContentBlockStop(0)),
+			makeStreamEvent(sessionId, makeMessageStop()),
+			makeResultSuccess(sessionId),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
+
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		const activity = signals.flatMap(s => s.kind === 'action' && s.action.type === ActionType.ChatActivityChanged
+			? [s.action.activity]
+			: []);
+
+		// Set once, cleared once, and never re-sent in between thanks to the dedupe.
+		assert.deepStrictEqual(activity, ['Working', undefined]);
+	});
+
 	test('text content_block emits ChatResponsePart(Markdown) before ChatDelta', async () => {
 		// Phase 6 §5.1 Test 6 + §3.6. The protocol reducer at
 		// `actions.ts:233 (ChatDelta)` requires the targeted

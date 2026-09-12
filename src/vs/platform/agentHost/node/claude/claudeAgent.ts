@@ -552,10 +552,45 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._findAnySession(sdkSessionId);
 	}
 
+	/** Last activity label reported per chat, so an unchanged one is not re-sent. */
+	private readonly _chatActivity = new Map<string, string>();
+
+	/**
+	 * Reports what a chat is doing on its activity channel. The workbench renders this
+	 * as a single replacing row, and only while the turn has produced no content yet.
+	 */
+	private _setChatActivity(chat: URI, activity: string | undefined): void {
+		const key = chat.toString();
+		if (this._chatActivity.get(key) === activity) {
+			return;
+		}
+		if (activity === undefined) {
+			this._chatActivity.delete(key);
+		} else {
+			this._chatActivity.set(key, activity);
+		}
+		this._onDidChatProgress.fire({
+			kind: 'action',
+			resource: chat,
+			action: { type: ActionType.ChatActivityChanged, activity },
+		});
+	}
+
+	/** Clears a chat's activity once its turn reaches a terminal signal. */
+	private _clearActivityOnTerminalSignal(signal: AgentSignal): void {
+		if (signal.kind !== 'action') {
+			return;
+		}
+		if (signal.action.type === ActionType.ChatTurnComplete || signal.action.type === ActionType.ChatError) {
+			this._setChatActivity(signal.resource, undefined);
+		}
+	}
+
 	/** Wrap a { ClaudeAgentSession} in a chat-leaf entry and forward its events. */
 	private _wireEntry(session: ClaudeAgentSession): ClaudeChatEntry {
 		const entry = new ClaudeChatEntry(session);
 		entry.addDisposable(session.onDidSessionProgress(signal => {
+			this._clearActivityOnTerminalSignal(signal);
 			this._onDidChatProgress.fire(signal);
 			this._emitSpawnedChatEvents(signal);
 		}));
@@ -2299,7 +2334,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const clientTelemetryContext = URI.isUri(operationContext) ? undefined : operationContext?.clientTelemetryContext;
 		const context = this._resolveChatContext(chat, sendContext);
 
-		return this._sessionSequencer.queue(context.sequencerKey, async () => {
+		// Materialization (CLI and MCP startup) runs before `send`, and is the dead window.
+		this._setChatActivity(chat, localize('claude.activity.working', "Working"));
+		const sent = this._sessionSequencer.queue(context.sequencerKey, async () => {
 			const current = this._resolveChatContext(chat, sendContext);
 			const session = await this._ensureResolvedChatSession(current, workingDirectories);
 			// The send carries the host's latest customization snapshot. An
@@ -2315,6 +2352,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				await this._metadataStore.write(current.resource, { workingDirectories });
 			}
 		});
+		// A preflight failure never reaches the pipeline's terminal signals.
+		sent.catch(() => this._setChatActivity(chat, undefined));
+		return sent;
 	}
 
 	/** Builds the SDK user message for a send, addressed to `sdkSessionId`. */
@@ -2363,6 +2403,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private async _abortSession(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		resolveAgentChatContext(context, chat);
+		// Cancellation never reaches the pipeline's terminal signals.
+		this._setChatActivity(chat, undefined);
 		// Cancel via the abort controller, NOT `Query.interrupt()`. Abort is a
 		// control-plane operation — it must NOT serialize through
 		// `_sessionSequencer` because an in-flight `sendMessage` task is
