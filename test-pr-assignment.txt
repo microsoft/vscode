@@ -1,0 +1,2 @@
+This file is intentionally inert.
+It exists only to validate pull request creation and assignment workflows.
