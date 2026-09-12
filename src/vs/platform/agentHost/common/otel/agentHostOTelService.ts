@@ -63,7 +63,21 @@ export interface IAgentHostOTelService {
 	 * use {@link IAgentHostNativeOTelConfig.external}; only traces use the DB loopback. */
 	getNativeSdkTelemetryConfig(): Promise<IAgentHostNativeOTelConfig | undefined>;
 
-	/** Return a stable W3C parent for a provider session and emit its anchor span. */
+	/**
+	 * Return the current W3C parent for a provider session and emit its anchor span.
+	 * Repeated calls re-export an immutable anchor so collectors can restore
+	 * parent-resolution state. Long-lived sessions periodically rotate the parent
+	 * span while retaining their trace ID.
+	 *
+	 * `sessionUri` is the anchor key. Every lookup for one conversation must pass
+	 * the same value (the chat's own resource, never a shared configuration
+	 * scope), otherwise two anchors and two parents exist for that conversation.
+	 *
+	 * The anchor export is queued, not awaited. In DB mode with an OTLP/HTTP JSON
+	 * endpoint it shares the serialized forwarder with provider spans and reaches
+	 * the collector before that turn's provider spans. In pass-through mode the
+	 * runtime exports on its own connection and no ordering is guaranteed.
+	 */
 	getSessionTraceContext(conversationId: string, sessionUri: string): IAgentHostTraceContext | undefined;
 
 	/** Release a permanent session's retained W3C context. Idle eviction must not call this. */

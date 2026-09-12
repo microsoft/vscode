@@ -60,7 +60,7 @@ import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata,
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { IAgentHostOTelService, type IAgentHostNativeOTelConfig, type IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
@@ -1064,12 +1064,21 @@ const ALL_MODELS: readonly CCAModel[] = [
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
 	readonly titleChanges: Array<{ conversationId: string; sessionUri: string; title: string }> = [];
+	readonly traceContextRequests: Array<{ conversationId: string; sessionUri: string }> = [];
+	nativeTelemetryConfig: IAgentHostNativeOTelConfig | undefined;
+	/** Context returned for any session URI without a per-URI entry below. */
+	traceContext: IAgentHostTraceContext | undefined;
+	/** Per-anchor-key contexts, mirroring the real service's keying by session URI. */
+	readonly traceContextsBySessionUri = new Map<string, IAgentHostTraceContext>();
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
-	getSessionTraceContext(): undefined { return undefined; }
+	async getNativeSdkTelemetryConfig(): Promise<IAgentHostNativeOTelConfig | undefined> { return this.nativeTelemetryConfig; }
+	getSessionTraceContext(conversationId: string, sessionUri: string): IAgentHostTraceContext | undefined {
+		this.traceContextRequests.push({ conversationId, sessionUri });
+		return this.traceContextsBySessionUri.get(sessionUri) ?? this.traceContext;
+	}
 	releaseSessionTraceContext(): void { }
-	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
-	getCurrentTraceContext(): undefined { return undefined; }
+	withTraceContext<T>(_context: IAgentHostTraceContext | undefined, fn: () => T): T { return fn(); }
+	getCurrentTraceContext(): IAgentHostTraceContext | undefined { return this.traceContext; }
 	getSpansDbPath(): undefined { return undefined; }
 	emitSessionTitleChanged(conversationId: string, sessionUri: string, title: string): void {
 		this.titleChanges.push({ conversationId, sessionUri, title });
@@ -3554,7 +3563,7 @@ suite('ClaudeAgent', () => {
 		// across both turns, (b) `warm.query()` is bound exactly once,
 		// (c) both deferreds resolve on their respective `result` SDK
 		// messages, (d) both prompts traverse the prompt iterable.
-		const { agent, sdk } = createTestContext(disposables);
+		const { agent, sdk, otelService } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
@@ -3605,6 +3614,7 @@ suite('ClaudeAgent', () => {
 			queryCallsAfterTurn2: sdk.warmQueries[0]?.queryCallCount,
 			warmQueryCount: sdk.warmQueries.length,
 			drainedPromptCount: sdk.warmQueries[0]?.produced?.drainedPrompts.length,
+			traceContextRequests: otelService.traceContextRequests.length,
 		}, {
 			startupCallsAfterTurn1: 1,
 			startupCallsAfterTurn2: 1,
@@ -3612,6 +3622,109 @@ suite('ClaudeAgent', () => {
 			queryCallsAfterTurn2: 1,
 			warmQueryCount: 1,
 			drainedPromptCount: 2,
+			traceContextRequests: 3,
+		});
+	});
+
+	test('rotated trace context rebuilds the Claude subprocess before the next turn', async () => {
+		const { agent, sdk, otelService } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const sessionId = created.sdkSessionId;
+		const initialTraceparent = '00-11111111111111111111111111111111-2222222222222222-01';
+		const rotatedTraceparent = '00-11111111111111111111111111111111-3333333333333333-01';
+		otelService.nativeTelemetryConfig = {
+			traces: { endpoint: 'http://127.0.0.1:4318/v1/traces', protocol: 'http/json' },
+			captureContent: false,
+			resourceAttributes: {},
+		};
+		otelService.traceContext = {
+			traceId: '11111111111111111111111111111111',
+			spanId: '2222222222222222',
+			traceparent: initialTraceparent,
+		};
+
+		const advance = new DeferredPromise<void>();
+		sdk.queryAdvance = async (i: number) => { if (i === 2) { await advance.p; } };
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+			makeSystemInitMessage(sessionId), makeResultSuccess(sessionId),
+		];
+
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		assert.strictEqual(sdk.startupCallCount, 1);
+
+		otelService.traceContext = {
+			traceId: '11111111111111111111111111111111',
+			spanId: '3333333333333333',
+			traceparent: rotatedTraceparent,
+		};
+		sdk.queryAdvance = undefined;
+		advance.complete();
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			warmQueryCount: sdk.warmQueries.length,
+			firstTraceparent: sdk.capturedStartupOptions[0]?.env?.TRACEPARENT,
+			secondTraceparent: sdk.capturedStartupOptions[1]?.env?.TRACEPARENT,
+			traceContextRequests: otelService.traceContextRequests.length,
+			secondPromptCount: sdk.warmQueries[1]?.produced?.drainedPrompts.length,
+		}, {
+			startupCount: 2,
+			warmQueryCount: 2,
+			firstTraceparent: initialTraceparent,
+			secondTraceparent: rotatedTraceparent,
+			traceContextRequests: 4,
+			secondPromptCount: 1,
+		});
+	});
+
+	test('peer chat sends look up the trace anchor under the chat resource, not the shared configuration resource', async () => {
+		// A peer chat shares its owning session's `configurationResource` but
+		// has its own `resource`, and the anchor is keyed by the latter. The
+		// per-turn rotation check must use the same key as materialize;
+		// otherwise it sees the owning session's anchor, misreads it as a
+		// rotation, and rebuilds the subprocess on every send.
+		const { agent, sdk, otelService } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const session = created.session;
+		const peer = URI.parse(buildChatUri(session.toString(), 'peer'));
+		const peerContext = chatContext(peer);
+		assert.notStrictEqual(peerContext.resource.toString(), peerContext.configurationResource.toString(), 'peer chat resource must differ from its configuration scope');
+		const peerResult = await agent.chats.createChat(peer, peerContext, resolvedChatOptions());
+		const peerSdkId = AgentSession.id(peerResult!.backingSession!);
+
+		const sessionAnchor: IAgentHostTraceContext = {
+			traceId: '11111111111111111111111111111111',
+			spanId: '2222222222222222',
+			traceparent: '00-11111111111111111111111111111111-2222222222222222-01',
+		};
+		const peerAnchor: IAgentHostTraceContext = {
+			traceId: '44444444444444444444444444444444',
+			spanId: '5555555555555555',
+			traceparent: '00-44444444444444444444444444444444-5555555555555555-01',
+		};
+		otelService.nativeTelemetryConfig = {
+			traces: { endpoint: 'http://127.0.0.1:4318/v1/traces', protocol: 'http/json' },
+			captureContent: false,
+			resourceAttributes: {},
+		};
+		otelService.traceContextsBySessionUri.set(session.toString(), sessionAnchor);
+		otelService.traceContextsBySessionUri.set(peer.toString(), peerAnchor);
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+		await agent.chats.sendMessage(peer, 'hi', undefined, undefined, 'turn-1', undefined, undefined, peerContext);
+
+		assert.deepStrictEqual({
+			startupCount: sdk.startupCallCount,
+			traceparents: sdk.capturedStartupOptions.map(options => options.env?.TRACEPARENT),
+			requestedSessionUris: [...new Set(otelService.traceContextRequests.map(request => request.sessionUri))],
+		}, {
+			startupCount: 1,
+			traceparents: [peerAnchor.traceparent],
+			requestedSessionUris: [peer.toString()],
 		});
 	});
 

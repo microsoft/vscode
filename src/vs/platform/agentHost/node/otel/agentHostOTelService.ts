@@ -57,6 +57,17 @@ interface ResolvedConfig {
 	readonly resourceAttributes: Record<string, string>;
 }
 
+interface ISessionTraceAnchor {
+	readonly context: IAgentHostTraceContext;
+	readonly conversationId: string;
+	readonly sessionUri: string;
+	readonly timestamp: number;
+}
+
+// Keep every immutable anchor comfortably inside common collector ingestion
+// windows while periodically renewing the parent used by long-lived sessions.
+const SESSION_TRACE_ANCHOR_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
 function isTruthy(v: string | undefined): boolean {
 	if (!v) {
 		return false;
@@ -228,7 +239,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private _forwarder: IOutboundForwarder | undefined;
 	private _startPromise: Promise<void> | undefined;
 	private _metadataExportQueue = Promise.resolve();
-	private readonly _sessionContexts = new Map<string, IAgentHostTraceContext>();
+	private readonly _sessionContexts = new Map<string, ISessionTraceAnchor>();
 	private _currentTraceContext: IAgentHostTraceContext | undefined;
 	private _pendingFilteredCodexAuthSpans = 0;
 	private _totalFilteredCodexAuthSpans = 0;
@@ -298,29 +309,34 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			return undefined;
 		}
 		const existing = this._sessionContexts.get(sessionUri);
-		if (existing) {
-			return existing;
+		if (existing && Date.now() - existing.timestamp < SESSION_TRACE_ANCHOR_MAX_AGE_MS) {
+			this._emitSessionAnchor(existing);
+			return existing.context;
 		}
-		const traceId = generateUuid().replaceAll('-', '');
+		const traceId = existing?.context.traceId ?? generateUuid().replaceAll('-', '');
 		const spanId = generateUuid().replaceAll('-', '').slice(0, 16);
 		const context: IAgentHostTraceContext = { traceId, spanId, traceparent: `00-${traceId}-${spanId}-01` };
-		this._sessionContexts.set(sessionUri, context);
-		const now = Date.now();
+		const anchor: ISessionTraceAnchor = { context, conversationId, sessionUri, timestamp: Date.now() };
+		this._sessionContexts.set(sessionUri, anchor);
+		this._emitSessionAnchor(anchor);
+		return context;
+	}
+
+	private _emitSessionAnchor(anchor: ISessionTraceAnchor): void {
 		this._queueSyntheticSpan({
 			name: AgentHostSessionSpanName,
-			traceId,
-			spanId,
-			startTime: now,
-			endTime: now,
+			traceId: anchor.context.traceId,
+			spanId: anchor.context.spanId,
+			startTime: anchor.timestamp,
+			endTime: anchor.timestamp,
 			status: { code: SpanStatusCode.OK },
 			attributes: {
 				...this._config.resourceAttributes,
-				[GenAiAttr.CONVERSATION_ID]: conversationId,
-				[AgentHostSessionUriAttribute]: sessionUri,
+				[GenAiAttr.CONVERSATION_ID]: anchor.conversationId,
+				[AgentHostSessionUriAttribute]: anchor.sessionUri,
 			},
 			events: [],
 		});
-		return context;
 	}
 
 	releaseSessionTraceContext(sessionUri: string): void {

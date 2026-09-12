@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'assert';
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, readFile, rm } from 'fs/promises';
 import type * as http from 'http';
 import { tmpdir } from 'os';
+import sinon from 'sinon';
 import { join } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../../environment/common/environment.js';
@@ -18,7 +19,7 @@ import {
 	IOtlpExportTraceServiceRequest,
 	OtlpSpanKind,
 } from '../../../../otel/node/otlp/otlpJsonTypes.js';
-import { AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
+import { AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService, normalizeAgentHostOtlpBody, readAgentHostOTelEnv } from '../../../node/otel/agentHostOTelService.js';
 import { AgentHostOTelSpansDbSubPath } from '../../../common/agentService.js';
 
@@ -290,7 +291,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 		}
 	});
 
-	test('session trace contexts are stable until permanent release', () => {
+	test('session trace contexts are stable within an anchor generation and reset on release', () => {
 		const saved = saveEnv();
 		try {
 			process.env.COPILOT_OTEL_ENABLED = 'true';
@@ -304,6 +305,77 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			svc.releaseSessionTraceContext('claude:/conversation');
 			notStrictEqual(svc.getSessionTraceContext('conversation', 'claude:/conversation'), first);
 		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	test('session trace context lookups re-export an identical anchor', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+		try {
+			const filePath = join(tmp, 'spans.jsonl');
+			process.env.COPILOT_OTEL_ENABLED = 'true';
+			process.env.COPILOT_OTEL_EXPORTER_TYPE = 'file';
+			process.env.COPILOT_OTEL_FILE_EXPORTER_PATH = filePath;
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(tmp));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			const first = svc.getSessionTraceContext('conversation', 'claude:/conversation');
+			strictEqual(svc.getSessionTraceContext('conversation', 'claude:/conversation'), first);
+			await svc.flush();
+
+			const anchors = (await readFile(filePath, 'utf8'))
+				.split('\n')
+				.filter(Boolean)
+				.map(line => JSON.parse(line) as { name: string })
+				.filter(span => span.name === AgentHostSessionSpanName);
+			strictEqual(anchors.length, 2);
+			deepStrictEqual(anchors[1], anchors[0]);
+		} finally {
+			restoreEnv(saved);
+		}
+	});
+
+	test('session trace context rotates its span after 12 hours while retaining its trace', async () => {
+		const saved = saveEnv();
+		const tmp = await mkdtemp(join(tmpdir(), 'vscode-otel-svc-'));
+		store.add({ dispose: () => void rm(tmp, { recursive: true, force: true }).catch(() => undefined) });
+		const clock = sinon.stub(Date, 'now').returns(1_800_000_000_000);
+		try {
+			const filePath = join(tmp, 'spans.jsonl');
+			process.env.COPILOT_OTEL_ENABLED = 'true';
+			process.env.COPILOT_OTEL_EXPORTER_TYPE = 'file';
+			process.env.COPILOT_OTEL_FILE_EXPORTER_PATH = filePath;
+			const di = store.add(new TestInstantiationService());
+			di.set(ILogService, new NullLogService());
+			di.set(INativeEnvironmentService, makeEnvService(tmp));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
+
+			const first = svc.getSessionTraceContext('conversation', 'claude:/conversation');
+			clock.returns(1_800_000_000_000 + (12 * 60 * 60 * 1000));
+			const rotated = svc.getSessionTraceContext('conversation', 'claude:/conversation');
+			await svc.flush();
+
+			ok(first);
+			ok(rotated);
+			strictEqual(rotated.traceId, first.traceId);
+			notStrictEqual(rotated.spanId, first.spanId);
+			notStrictEqual(rotated.traceparent, first.traceparent);
+
+			const anchors = (await readFile(filePath, 'utf8'))
+				.split('\n')
+				.filter(Boolean)
+				.map(line => JSON.parse(line) as { name: string; traceId: string; spanId: string; startTime: number })
+				.filter(span => span.name === AgentHostSessionSpanName);
+			strictEqual(anchors.length, 2);
+			strictEqual(anchors[1].traceId, anchors[0].traceId);
+			notStrictEqual(anchors[1].spanId, anchors[0].spanId);
+			notStrictEqual(anchors[1].startTime, anchors[0].startTime);
+		} finally {
+			clock.restore();
 			restoreEnv(saved);
 		}
 	});
