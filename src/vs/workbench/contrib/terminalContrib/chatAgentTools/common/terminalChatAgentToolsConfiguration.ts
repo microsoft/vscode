@@ -332,7 +332,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// tree
 			// - `-o`: Output redirection can write files (`tree -o /etc/something file`) which are
 			//   blocked currently
-			tree: true,
+			tree: false,
 			'/^tree\\b.*\\s-o\\b/': false,
 
 			// xxd
