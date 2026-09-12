@@ -264,7 +264,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		} else if (!extUri.isEqual(documentUri, canonicalUri)) {
 			throw new ErrorNoTelemetry(`cannot open ${canonicalUri.toString()}. Detail: Actual document opened as ${documentUri.toString()}`);
 		} else if (!this._modelTrackers.has(canonicalUri)) {
-			throw new ErrorNoTelemetry(`cannot open ${canonicalUri.toString()}. Detail: Files above 50MB cannot be synchronized with extensions.`);
+			throw new ErrorNoTelemetry(`cannot open ${canonicalUri.toString()}. Detail: Files above the configured size limit cannot be synchronized with extensions. Adjust the 'editor.largeFileSizeLimit' setting to change this behavior.`);
 		} else {
 			return canonicalUri;
 		}
