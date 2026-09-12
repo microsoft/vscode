@@ -101,6 +101,72 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
+	test('toggle line comment when the comment token has surrounding whitespace (#249958)', function () {
+		const testLineCommentCommand = createTestCommandHelper(
+			{ lineComment: ' !@# ' },
+			(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
+		);
+
+		// Adds the trimmed comment token
+		testLineCommentCommand(
+			[
+				'some text'
+			],
+			new Selection(1, 1, 1, 1),
+			[
+				'!@# some text'
+			],
+			new Selection(1, 5, 1, 5)
+		);
+
+		// Toggling again removes it instead of stacking another comment
+		testLineCommentCommand(
+			[
+				'!@# some text'
+			],
+			new Selection(1, 1, 1, 1),
+			[
+				'some text'
+			],
+			new Selection(1, 1, 1, 1)
+		);
+	});
+
+	test('toggle line comment when the object-form comment token has surrounding whitespace (#249958)', function () {
+		const testLineCommentCommand = createTestCommandHelper(
+			{ lineComment: { comment: ' !@# ', noIndent: true } },
+			(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, true)
+		);
+
+		// Adds the trimmed comment token at the first column (noIndent)
+		testLineCommentCommand(
+			[
+				'some text',
+				'\tsome more text'
+			],
+			new Selection(2, 1, 2, 1),
+			[
+				'some text',
+				'!@# \tsome more text'
+			],
+			new Selection(2, 5, 2, 5)
+		);
+
+		// Toggling again removes it instead of stacking another comment
+		testLineCommentCommand(
+			[
+				'some text',
+				'!@# \tsome more text'
+			],
+			new Selection(2, 1, 2, 1),
+			[
+				'some text',
+				'\tsome more text'
+			],
+			new Selection(2, 1, 2, 1)
+		);
+	});
+
 	function createSimpleModel(lines: string[]): ISimpleModel {
 		return {
 			getLineContent: (lineNumber: number) => {
