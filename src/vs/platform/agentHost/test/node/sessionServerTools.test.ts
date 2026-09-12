@@ -1925,7 +1925,7 @@ suite('SessionServerTools', () => {
 			results: [queuedResult, steeringResult],
 			queuedMessages: stateManager.getChatState(queuedChat)?.queuedMessages?.map(message => message.message.text),
 			steeringQueuedMessages: stateManager.getChatState(steeringChat)?.queuedMessages?.map(message => message.message.text),
-			steeringMessage: stateManager.getChatState(steeringChat)?.steeringMessage?.message.text,
+			steeringMessage: stateManager.getChatState(steeringChat)?.steeringMessages?.[0]?.message.text,
 			prompts,
 		}, {
 			results: [

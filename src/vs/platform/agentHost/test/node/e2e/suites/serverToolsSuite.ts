@@ -1092,12 +1092,12 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			messages: state.turns.map(turn => turn.message.text),
 			activeTurn: state.activeTurn,
 			queuedMessages: state.queuedMessages,
-			steeringMessage: state.steeringMessage,
+			steeringMessages: state.steeringMessages,
 		}, {
 			messages: [`Call send_message exactly once with session "${session.sessionUri}" and message "loop", then reply exactly "refused".`],
 			activeTurn: undefined,
 			queuedMessages: undefined,
-			steeringMessage: undefined,
+			steeringMessages: undefined,
 		});
 	}, supportsSelfSendRejection);
 

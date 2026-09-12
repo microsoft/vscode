@@ -193,7 +193,7 @@ const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 		// Regardless of path, the steering bubble must not be stuck in state.
 		const snapshot = await chatState(chat);
-		assert.strictEqual(snapshot.steeringMessage, undefined);
+		assert.strictEqual(snapshot.steeringMessages, undefined);
 	});
 
 	test('client tool is registered and invoked end-to-end', async function () {

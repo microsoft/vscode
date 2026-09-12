@@ -2381,7 +2381,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		sess.abort();
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	setPendingMessages(chat: URI, steeringMessages: readonly PendingMessage[], _queuedMessages: readonly PendingMessage[]): void {
 		// Queued messages are intentionally a no-op. CONTEXT.md M10 +
 		// AgentSideEffects confirm queued messages are consumed server-side;
 		// the agent boundary always receives an empty queue.
@@ -2389,12 +2389,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// Control-plane operations carry no host context, and need none: the
 		// exact chat backing is the only state they touch.
 		const target = this._findChatByUri(chat);
-		this._logService.info(`[Claude] setPendingMessages for ${chat.toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
+		this._logService.info(`[Claude] setPendingMessages for ${chat.toString()}: steering=${steeringMessages.length} queued=${_queuedMessages.length}`);
 		if (!target) {
 			this._logService.warn(`[Claude] setPendingMessages: target not found for ${chat.toString()}`);
 			return;
 		}
-		if (steeringMessage) {
+		for (const steeringMessage of steeringMessages) {
 			target.injectSteering(steeringMessage);
 		}
 	}

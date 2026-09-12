@@ -4284,7 +4284,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	setPendingMessages(chat: URI, steeringMessages: readonly PendingMessage[], _queuedMessages: readonly PendingMessage[]): void {
 		const backing = this._chatBackings.get(chat.toString());
 		const target = backing ? this._findSessionBySdkId(backing.sdkSessionId) : undefined;
 		if (!target) {
@@ -4293,7 +4293,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		// Steering: send with mode 'immediate' so the SDK injects it mid-turn
-		if (steeringMessage) {
+		for (const steeringMessage of steeringMessages) {
 			target.sendSteering(steeringMessage);
 		}
 
