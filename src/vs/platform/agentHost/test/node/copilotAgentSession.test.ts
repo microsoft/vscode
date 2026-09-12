@@ -10212,15 +10212,141 @@ Use the attached image as context.
 			]);
 		});
 
+		suite('child completion correlation', () => {
+			const child = { agentId: 'child' };
+			const started = { agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' };
+			const task = {
+				type: 'agent', id: 'child', toolCallId: 'child-task-original', description: 'Helps',
+				status: 'idle', agentType: 'helper', prompt: 'Help', startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(), latestResponse: 'CHILD_DONE',
+			} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>;
+
+			async function createTrackedChild() {
+				const result = await createAgentSession(disposables);
+				result.session.resetTurnState('root-original');
+				result.mockSession.fire('subagent.started', { ...started, toolCallId: task.toolCallId }, child);
+				result.mockSession.fire('user.message', { content: 'Help', interactionId: 'child-interaction' }, { ...child, id: 'child-user' });
+				return result;
+			}
+
+			function responses(signals: readonly AgentSignal[]) {
+				return signals.flatMap(signal => signal.kind === 'action'
+					&& signal.action.type === ActionType.ChatResponsePart
+					&& signal.action.part.kind === ResponsePartKind.Markdown
+					? [{ toolCallId: signal.parentToolCallId, turnId: signal.action.turnId, content: signal.action.part.content }]
+					: []);
+			}
+
+			test('ignores an obsolete task tool mapping while an idle query is in flight', async () => {
+				const { session, mockSession, signals } = await createTrackedChild();
+				const read = new DeferredPromise<void>();
+				mockSession.backgroundTasks = [task];
+				mockSession.backgroundTaskListGates.push(read.p);
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				mockSession.fire('subagent.started', { ...started, toolCallId: 'child-task-new' }, child);
+				read.complete();
+				await timeout(0);
+				const afterStale = {
+					active: session['_activeSubagentAgentIds'].has(child.agentId),
+					responses: responses(signals),
+					completions: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				};
+
+				mockSession.backgroundTasks = [{ ...task, toolCallId: 'child-task-new', latestResponse: 'NEW_CHILD_DONE' }];
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					afterStale,
+					afterCurrent: {
+						active: session['_activeSubagentAgentIds'].has(child.agentId),
+						responses: responses(signals),
+						completions: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+					},
+				}, {
+					afterStale: { active: true, responses: [], completions: [] },
+					afterCurrent: {
+						active: false,
+						responses: [{ toolCallId: 'child-task-new', turnId: 'root-original', content: 'NEW_CHILD_DONE' }],
+						completions: ['child-task-new'],
+					},
+				});
+			});
+
+			for (const replaceRoot of [false, true]) {
+				test(`preserves originating root correlation across an awaited task status (replaceRoot=${replaceRoot})`, async () => {
+					const { session, mockSession, signals } = await createTrackedChild();
+					const read = new DeferredPromise<void>();
+					mockSession.backgroundTasks = [task];
+					mockSession.backgroundTaskListGates.push(read.p);
+					mockSession.fire('session.background_tasks_changed', {});
+					await timeout(0);
+
+					mockSession.fire('session.idle', {});
+					if (replaceRoot) {
+						session.resetTurnState('root-replacement');
+					}
+					const beforeChildEvents = signals.length;
+					mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 7 }, child);
+					read.complete();
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						responses: responses(signals),
+						childUsage: signals.slice(beforeChildEvents).flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+							? [{ toolCallId: signal.parentToolCallId, turnId: signal.action.turnId }]
+							: []),
+						completions: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+						activeRoot: session['_turnId'],
+					}, {
+						responses: [{ toolCallId: task.toolCallId, turnId: 'root-original', content: 'CHILD_DONE' }],
+						childUsage: [{ toolCallId: task.toolCallId, turnId: 'root-original' }],
+						completions: [task.toolCallId],
+						activeRoot: replaceRoot ? 'root-replacement' : '',
+					});
+				});
+			}
+
+			for (const responseField of ['latestResponse', 'result'] as const) {
+				for (const receivedFinal of [false, true]) {
+					test(`empty final message preserves authoritative ${responseField} (receivedFinal=${receivedFinal})`, async () => {
+						const { mockSession, signals } = await createTrackedChild();
+						if (receivedFinal) {
+							mockSession.fire('assistant.message', { messageId: 'final', content: 'CHILD_DONE' }, child);
+						}
+						mockSession.fire('assistant.message', { messageId: 'placeholder', content: '' }, child);
+						mockSession.backgroundTasks = [{
+							...task,
+							latestResponse: undefined,
+							[responseField]: receivedFinal ? 'OLDER_RESPONSE' : 'CHILD_DONE',
+						}];
+						mockSession.fire('session.background_tasks_changed', {});
+						await timeout(0);
+
+						assert.deepStrictEqual({
+							responses: responses(signals),
+							completions: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+						}, {
+							responses: [{ toolCallId: task.toolCallId, turnId: 'root-original', content: 'CHILD_DONE' }],
+							completions: [task.toolCallId],
+						});
+					});
+				}
+			}
+		});
+
 		test('keeps one child turn for every completion ordering', async function () {
 			this.timeout(30_000);
 			const events = ['message', 'stop', 'completed', 'idle', 'usage', 'tool'] as const;
 			const orders = events.reduce<Array<Array<typeof events[number]>>>((orders, event) =>
 				orders.flatMap(order => Array.from({ length: order.length + 1 }, (_, index) =>
 					[...order.slice(0, index), event, ...order.slice(index)])), [[]]);
+			assert.strictEqual(orders.length, 720);
 			const iterationDisposables = disposables.add(new DisposableStore());
 
-			for (const order of orders) {
+			const runOrder = async (order: typeof orders[number]) => {
 				try {
 					const { session, mockSession, signals } = await createAgentSession(iterationDisposables);
 					session.resetTurnState('parent-turn');
@@ -10300,7 +10426,12 @@ Use the attached image as context.
 				} finally {
 					iterationDisposables.clear();
 				}
-			}
+			};
+			await runWithFakedTimers({ maxTaskCount: orders.length * 10 }, async () => {
+				for (const order of orders) {
+					await runOrder(order);
+				}
+			});
 		});
 
 		for (const { prefix, parentCompletes, completedTask, toolRound, messageFirst } of [

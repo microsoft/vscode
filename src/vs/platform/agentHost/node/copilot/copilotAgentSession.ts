@@ -1621,13 +1621,15 @@ export class CopilotAgentSession extends Disposable {
 	private _materializeSubagentTaskResponse(agentId: string, parentToolCallId: string, content: string): void {
 		const execution = this._subagentExecutionsByAgentId.get(agentId);
 		const lastPart = execution?.lastMarkdownPart;
+		// Child routing remaps this id; never borrow a replacement root turn.
+		const turnId = this._rootTurnIdBySubagentToolCallId.get(parentToolCallId) ?? '';
 		if (lastPart && content.startsWith(lastPart.content)) {
 			const delta = content.slice(lastPart.content.length);
 			if (delta) {
 				lastPart.content = content;
 				this._emitAction({
 					type: ActionType.ChatDelta,
-					turnId: this._turnId,
+					turnId,
 					partId: lastPart.id,
 					content: delta,
 				}, parentToolCallId);
@@ -1639,7 +1641,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._emitAction({
 				type: ActionType.ChatResponsePart,
-				turnId: this._turnId,
+				turnId,
 				part: { kind: ResponsePartKind.Markdown, id: partId, content },
 			}, parentToolCallId);
 		}
@@ -1649,7 +1651,12 @@ export class CopilotAgentSession extends Disposable {
 		if (agentId ? !this._activeSubagentAgentIds.has(agentId) : !toolCallId) {
 			return;
 		}
-		const parentToolCallId = toolCallId ?? (agentId ? this._parentToolCallIdsByAgentId.get(agentId) : undefined);
+		const mappedToolCallId = agentId ? this._parentToolCallIdsByAgentId.get(agentId) : undefined;
+		if (agentId && toolCallId !== undefined && toolCallId !== mappedToolCallId) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring stale task completion: agentId=${agentId}, toolCallId=${toolCallId}, currentToolCallId=${mappedToolCallId}`);
+			return;
+		}
+		const parentToolCallId = toolCallId ?? mappedToolCallId;
 		if (!parentToolCallId) {
 			return;
 		}
@@ -5256,7 +5263,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const markdownScope = parentToolCallId ?? '';
 			const execution = e.agentId ? this._subagentExecutionsByAgentId.get(e.agentId) : undefined;
-			if (execution && isCompleteModelCall && !e.data.toolRequests?.length) {
+			if (execution && e.data.content && isCompleteModelCall && !e.data.toolRequests?.length) {
 				execution.finalMessageReceived = true;
 			}
 			const hasMarkdown = execution ? execution.renderedMessageIds.has(e.data.messageId) : this._currentTurn.value?.markdownPartIds.has(markdownScope);
@@ -6134,7 +6141,7 @@ export class CopilotAgentSession extends Disposable {
 				this._lastSubagentUsageByToolCallId.set(parentToolCallId, subagentUsage);
 				this._emitAction({
 					type: ActionType.ChatUsage,
-					turnId: this._turnId,
+					turnId: this._rootTurnIdBySubagentToolCallId.get(parentToolCallId) ?? '',
 					usage: subagentUsage,
 				}, parentToolCallId);
 			}
