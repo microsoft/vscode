@@ -154,6 +154,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'default',
 				'description': localize('tabDescription', "Controls the format of the label for an editor."),
 			},
+			'workbench.editor.untitled.dirtyWhenEmpty': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('untitledDirtyWhenEmpty', "Controls whether newly opened untitled text files with an associated file path are marked as unsaved when empty. When disabled, empty files can be closed without saving or creating a file on disk. Files restored from backups are still marked as unsaved."),
+				},
 			'workbench.editor.untitled.labelFormat': {
 				'type': 'string',
 				'enum': ['content', 'name'],
