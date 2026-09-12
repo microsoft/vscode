@@ -184,4 +184,34 @@ suite('Comments View', function () {
 		assert.strictEqual(view.getFilterStats().filtered, 2);
 		view.dispose();
 	});
+
+	test('filter by repository-relative path', async function () {
+		const view = instantiationService.createInstance(CommentsPanel, { id: 'comments', title: 'Comments' });
+		view.setVisible(true);
+		view.render();
+		commentService.setWorkspaceComments('test', [
+			new TestCommentThread(1, 1, '1', 'file:///workspace/src/sentinel.c', new Range(1, 1, 1, 1), [{ body: 'Comment in sentinel.c', uniqueIdInThread: 1, userName: 'alex' }]),
+			new TestCommentThread(2, 1, '2', 'file:///workspace/lib/sentinel.c', new Range(1, 1, 1, 1), [{ body: 'Comment in lib sentinel.c', uniqueIdInThread: 1, userName: 'alex' }]),
+			new TestCommentThread(3, 1, '3', 'file:///workspace/src/server.c', new Range(1, 1, 1, 1), [{ body: 'Comment in server.c', uniqueIdInThread: 1, userName: 'alex' }]),
+		]);
+		assert.strictEqual(view.getFilterStats().total, 3);
+		assert.strictEqual(view.getFilterStats().filtered, 3);
+
+		// Filter by path should match only the file in src/
+		view.getFilterWidget().setFilterText('src/sentinel.c');
+		// Setting showResolved causes the filter to trigger for the purposes of this test.
+		view.filters.showResolved = false;
+		assert.strictEqual(view.getFilterStats().total, 3);
+		assert.strictEqual(view.getFilterStats().filtered, 1);
+
+		// Filter by just filename should match both sentinel.c files
+		view.clearFilterText();
+		view.getFilterWidget().setFilterText('sentinel.c');
+		// Setting showResolved causes the filter to trigger for the purposes of this test.
+		view.filters.showResolved = true;
+		assert.strictEqual(view.getFilterStats().total, 3);
+		assert.strictEqual(view.getFilterStats().filtered, 2);
+
+		view.dispose();
+	});
 });
