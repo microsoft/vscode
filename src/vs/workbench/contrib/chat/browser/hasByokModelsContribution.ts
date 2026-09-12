@@ -31,7 +31,8 @@ import { ILanguageModelsConfigurationService } from '../common/languageModelsCon
  *  4. Only persist `false` after both extension scan and first config load complete, so startup
  *     latency doesn't clobber a previously-true answer.
  *
- * Eager so the key is bound before any sign-in UI renders.
+ * Eager so the key is bound before any sign-in UI renders; configuration
+ * readiness is requested only when the feature is enabled.
  */
 export class HasByokModelsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -46,6 +47,7 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 
 	private readonly _hasByokModels: IContextKey<boolean>;
 	private _extensionsRegistered = false;
+	private _configurationLoadStarted = false;
 	private _configurationLoaded = false;
 
 	constructor(
@@ -65,13 +67,6 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (!this._store.isDisposed) {
 				this._extensionsRegistered = true;
-				this._update();
-			}
-		});
-
-		this._languageModelsConfigurationService.whenReady.then(() => {
-			if (!this._store.isDisposed) {
-				this._configurationLoaded = true;
 				this._update();
 			}
 		});
@@ -105,6 +100,16 @@ export class HasByokModelsContribution extends Disposable implements IWorkbenchC
 		if (!this._isFeatureEnabled()) {
 			this._setResult(false);
 			return;
+		}
+
+		if (!this._configurationLoadStarted) {
+			this._configurationLoadStarted = true;
+			this._languageModelsConfigurationService.whenReady.then(() => {
+				if (!this._store.isDisposed) {
+					this._configurationLoaded = true;
+					this._update();
+				}
+			});
 		}
 
 		const hasByokVendor = this._languageModelsConfigurationService.getLanguageModelsProviderGroups().some(g => g.vendor !== COPILOT_VENDOR_ID);

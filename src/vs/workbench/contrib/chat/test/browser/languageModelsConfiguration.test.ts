@@ -4,9 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { Emitter } from '../../../../../base/common/event.js';
+import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
-import { parseLanguageModelsProviderGroups } from '../../browser/languageModelsConfigurationService.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { ChatLanguageModelsDataContribution, parseLanguageModelsProviderGroups } from '../../browser/languageModelsConfigurationService.js';
+import { ILanguageModelChatMetadata, ILanguageModelProviderDescriptor, ILanguageModelsService } from '../../common/languageModels.js';
 
 suite('LanguageModelsConfiguration', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -186,6 +197,116 @@ suite('LanguageModelsConfiguration', () => {
 			startColumn: 13,
 			endLineNumber: 5,
 			endColumn: 15
+		});
+	});
+
+	suite('schema contribution', () => {
+		const schemaId = 'vscode://schemas/language-models';
+		const profile = toUserDataProfile('test', 'Test', URI.parse('vscode-userdata:/profiles/test'), URI.parse('vscode-userdata:/cache'));
+		const configurationFile = profile.languageModelsResource;
+		const registry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		let vendors: ILanguageModelProviderDescriptor[];
+		let models: Map<string, ILanguageModelChatMetadata>;
+		let schemas: IJSONSchema[];
+		let changedModels: Emitter<string>;
+		let instantiationService: TestInstantiationService;
+
+		setup(() => {
+			vendors = [];
+			models = new Map();
+			schemas = [];
+			changedModels = testDisposables.add(new Emitter<string>());
+			instantiationService = testDisposables.add(new TestInstantiationService());
+			instantiationService.stub(IUserDataProfileService, { currentProfile: profile });
+			instantiationService.stub(ILanguageModelsService, {
+				getVendors: () => vendors,
+				getLanguageModelIds: () => [...models.keys()],
+				lookupLanguageModel: id => models.get(id),
+				onDidChangeLanguageModels: changedModels.event,
+			});
+			sinon.stub(registry, 'registerSchema').callsFake((_uri, schema) => schemas.push(schema));
+		});
+
+		teardown(() => sinon.restore());
+
+		test('publishes existing vendor and model schemas using the profile resource', () => {
+			const modelConfiguration: IJSONSchema = { properties: { temperature: { type: 'number' } } };
+			vendors.push({
+				vendor: 'test-vendor',
+				displayName: 'Test Vendor',
+				configuration: undefined,
+				managementCommand: undefined,
+				when: undefined,
+				isDefault: false,
+			});
+			models.set('model-key', {
+				id: 'test-model',
+				name: 'Test Model',
+				vendor: 'test-vendor',
+				family: 'test-family',
+				version: '1',
+				extension: new ExtensionIdentifier('test.extension'),
+				maxInputTokens: 100,
+				maxOutputTokens: 100,
+				isDefaultForLocation: {},
+				configurationSchema: modelConfiguration,
+			});
+
+			testDisposables.add(instantiationService.createInstance(ChatLanguageModelsDataContribution));
+
+			assert.deepStrictEqual({
+				association: registry.getSchemaAssociations()[schemaId],
+				schemas,
+			}, {
+				association: [configurationFile.toString()],
+				schemas: [{
+					type: 'array',
+					items: {
+						properties: {
+							vendor: { type: 'string', enum: ['test-vendor'] },
+							name: { type: 'string' },
+							settings: { type: 'object', description: 'Per-model settings' },
+						},
+						allOf: [
+							{ if: { properties: { vendor: { const: 'test-vendor' } } }, then: undefined },
+							{
+								if: { properties: { vendor: { const: 'test-vendor' } } },
+								then: { properties: { settings: { type: 'object', properties: { 'test-model': modelConfiguration } } } },
+							},
+						],
+						required: ['vendor', 'name'],
+					},
+				}],
+			});
+		});
+
+		test('refreshes after initialization and stops observing on disposal', () => {
+			const contribution = testDisposables.add(instantiationService.createInstance(ChatLanguageModelsDataContribution));
+			const initialSchema = schemas[0];
+			vendors.push({
+				vendor: 'late-vendor',
+				displayName: 'Late Vendor',
+				configuration: undefined,
+				managementCommand: undefined,
+				when: undefined,
+				isDefault: false,
+			});
+			changedModels.fire('late-model');
+			const updatedSchema = schemas[1];
+			contribution.dispose();
+			changedModels.fire('after-disposal');
+
+			assert.deepStrictEqual({
+				initialVendors: (initialSchema.items as IJSONSchema).properties?.vendor.enum,
+				updatedVendors: (updatedSchema.items as IJSONSchema).properties?.vendor.enum,
+				schemaUpdates: schemas.length,
+				association: registry.getSchemaAssociations()[schemaId],
+			}, {
+				initialVendors: [],
+				updatedVendors: ['late-vendor'],
+				schemaUpdates: 2,
+				association: undefined,
+			});
 		});
 	});
 });

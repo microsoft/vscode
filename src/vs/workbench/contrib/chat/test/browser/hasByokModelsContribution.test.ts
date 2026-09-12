@@ -50,10 +50,17 @@ suite('HasByokModelsContribution', () => {
 		readonly onDidChangeLanguageModelGroups = this._onDidChangeLanguageModelGroups.event;
 		private _groups: readonly FakeProviderGroup[] = [];
 		private _resolveReady!: () => void;
-		readonly whenReady: Promise<void>;
+		private readonly _whenReady: Promise<void>;
+		readyRequests = 0;
+		groupReads = 0;
+
+		get whenReady(): Promise<void> {
+			this.readyRequests++;
+			return this._whenReady;
+		}
 
 		constructor(defer: boolean) {
-			this.whenReady = new Promise<void>(resolve => { this._resolveReady = resolve; });
+			this._whenReady = new Promise<void>(resolve => { this._resolveReady = resolve; });
 			if (!defer) {
 				this._resolveReady();
 			}
@@ -69,6 +76,7 @@ suite('HasByokModelsContribution', () => {
 		}
 
 		getLanguageModelsProviderGroups(): readonly ILanguageModelsProviderGroup[] {
+			this.groupReads++;
 			return this._groups as readonly ILanguageModelsProviderGroup[];
 		}
 
@@ -161,6 +169,52 @@ suite('HasByokModelsContribution', () => {
 		await flush();
 
 		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
+	});
+
+	test('does not force configuration loading while the feature is disabled', async () => {
+		const scenarios = [
+			createScenario(disposables.add(new DisposableStore()), { contextKeys: { clientByokEnabled: false } }),
+			createScenario(disposables.add(new DisposableStore()), { configuration: { aiDisabled: true } }),
+		];
+		await flush();
+
+		assert.deepStrictEqual(scenarios.map(scenario => ({
+			...snapshot(scenario),
+			readyRequests: scenario.configService.readyRequests,
+			groupReads: scenario.configService.groupReads,
+		})), [
+			{ hasByokModels: false, persistedLastKnown: false, readyRequests: 0, groupReads: 0 },
+			{ hasByokModels: false, persistedLastKnown: false, readyRequests: 0, groupReads: 0 },
+		]);
+	});
+
+	test('starts configuration readiness once when the feature becomes enabled', async () => {
+		const scenario = createScenario(disposables.add(new DisposableStore()), {
+			contextKeys: { clientByokEnabled: false },
+			deferConfigReady: true,
+		});
+		await flush();
+		const beforeEnablement = scenario.configService.readyRequests;
+		scenario.clientByokEnabled.set(true);
+		const afterEnablement = scenario.configService.readyRequests;
+		scenario.clientByokEnabled.set(false);
+		scenario.clientByokEnabled.set(true);
+		scenario.configService.setGroups([{ vendor: 'ollama', name: 'Ollama' }]);
+		scenario.configService.resolveReady();
+		await flush();
+
+		assert.deepStrictEqual({
+			beforeEnablement,
+			afterEnablement,
+			afterRepeatedEnablement: scenario.configService.readyRequests,
+			...snapshot(scenario),
+		}, {
+			beforeEnablement: 0,
+			afterEnablement: 1,
+			afterRepeatedEnablement: 1,
+			hasByokModels: true,
+			persistedLastKnown: true,
+		});
 	});
 
 	test('signal already on → result true and persisted', async () => {
